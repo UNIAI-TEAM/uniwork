@@ -53,7 +53,7 @@ func (s *AdminService) RevokeDesktopDevice(ctx context.Context, actorID, userID,
 	if err != nil {
 		return RevokedDesktopDevice{}, err
 	}
-	sessions, tokens, err := revokeDesktopFamily(ctx, q, userID, device.SessionFamilyID)
+	sessions, tokens, leases, err := revokeDesktopFamily(ctx, q, userID, device.SessionFamilyID)
 	if err != nil {
 		return RevokedDesktopDevice{}, err
 	}
@@ -84,5 +84,6 @@ func (s *AdminService) RevokeDesktopDevice(ctx context.Context, actorID, userID,
 	if err := tx.Commit(ctx); err != nil {
 		return RevokedDesktopDevice{}, err
 	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeDeviceRevoked, leases)
 	return out, nil
 }

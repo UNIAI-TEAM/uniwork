@@ -12,13 +12,17 @@ import { TaskPoster } from "./product-playback";
 import "./landing.css";
 import "./landing-closing.css";
 
+export type ClosingAction = { href: string; labelKey: string; icon: "play" | "arrow" };
+
 /** A product chapter closes in the same visual rhythm as its examples and related features. */
 export function FinalCta({
   compact = false,
   titleKey = "landing.final.compactTitle",
   demoHref = href(ANCHORS.platform),
-}: { compact?: boolean; titleKey?: string; demoHref?: string }) {
+  secondaryAction,
+}: { compact?: boolean; titleKey?: string; demoHref?: string; secondaryAction?: ClosingAction }) {
   const { t } = useTranslation();
+  const SecondaryIcon = secondaryAction?.icon === "arrow" ? ArrowRight : Play;
   if (compact) {
     return (
       <section id={ANCHORS.contact} aria-labelledby="final-title" className="final-section final-compact-section">
@@ -31,8 +35,8 @@ export function FinalCta({
           <Link href={paths.register()} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "final-compact-primary")}>
             {t("landing.final.primary")}<ArrowRight aria-hidden />
           </Link>
-          <Link href={demoHref} className="final-compact-demo">
-            <Play aria-hidden />{t("landing.productPages.watchDemo")}
+          <Link href={secondaryAction?.href ?? demoHref} className="final-compact-demo">
+            <SecondaryIcon aria-hidden />{t(secondaryAction?.labelKey ?? "landing.productPages.watchDemo")}
           </Link>
         </div>
       </section>

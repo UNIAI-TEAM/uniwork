@@ -41,7 +41,7 @@ func (h *aiHandlers) aiCloudStatus(w http.ResponseWriter, r *http.Request) {
 	if svc == nil {
 		return
 	}
-	st, err := svc.Status(r.Context(), userID, orgID)
+	st, err := svc.Status(r.Context(), userID, orgID, h.OfficeCapabilities)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -50,7 +50,7 @@ func (h *aiHandlers) aiCloudStatus(w http.ResponseWriter, r *http.Request) {
 		Enabled: st.Enabled, Reason: st.Reason,
 		Tools: sdo.AiCloudToolsDTO{
 			WebSearch: st.Tools.WebSearch, ImageSearch: st.Tools.ImageSearch, ImageGenerate: st.Tools.ImageGenerate,
-			MediaAnalyze: st.Tools.MediaAnalyze, Transcribe: st.Tools.Transcribe,
+			MediaAnalyze: st.Tools.MediaAnalyze, Transcribe: st.Tools.Transcribe, Chat: st.Chat,
 		},
 		Credits: sdo.AiCloudCreditsDTO{Unit: service.FeatureAITokens, Used: st.Credits.Used, Limit: st.Credits.Limit, Remaining: st.Credits.Remaining},
 	}

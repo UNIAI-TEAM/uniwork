@@ -25,6 +25,9 @@ const (
 	CapCloudImage           Capability = "cloud_image_generate"
 	CapCloudTranscribe      Capability = "cloud_transcribe"
 	CapMediaAnalysis        Capability = "media_analysis"
+	// CapOfficeUniworkAI is the Office editors' UniWork AI agent loop (G6-D1
+	// A1): a tool-calling chat, one Complete per tool-result round.
+	CapOfficeUniworkAI Capability = "office_uniwork_ai"
 )
 
 // ModelPolicy is the source-code constant behind a capability: the default
@@ -39,6 +42,10 @@ var (
 	flagship  = map[string]string{"anthropic": "claude-opus-5", "openai": "gpt-4o", "ollama": "llama3.1", "fake": "fake"}
 	fast      = map[string]string{"anthropic": "claude-haiku-4-5-20251001", "openai": "gpt-4o-mini", "ollama": "llama3.1", "fake": "fake"}
 	embedding = map[string]string{"openai": "text-embedding-3-small", "ollama": "nomic-embed-text", "fake": "fake"}
+
+	// officeUniwork is flagship without ollama: /api/chat has no tool-result
+	// turn, so an ollama deployment has no UniWork AI rather than a broken one.
+	officeUniwork = map[string]string{"anthropic": "claude-opus-5", "openai": "gpt-4o", "fake": "fake"}
 )
 
 var policies = map[Capability]ModelPolicy{
@@ -53,6 +60,7 @@ var policies = map[Capability]ModelPolicy{
 	CapAgentEvaluation:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapEmbedding:            {Default: embedding, MaxTokens: 0, Temperature: 0},
 	CapMediaAnalysis:        {Default: flagship, MaxTokens: 4096, Temperature: 0},
+	CapOfficeUniworkAI:      {Default: officeUniwork, MaxTokens: 4096, Temperature: 0},
 }
 
 // allowedModels is the allowlist every override is checked against

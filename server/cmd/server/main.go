@@ -242,6 +242,49 @@ func main() {
 	if reg != nil {
 		gateway.SetMetrics(reg.AI)
 	}
+	// UniWork AI transcript store (G6-03a, G6-D1 A9): the Office assistant's
+	// conversations live on the server, each turn sealed with secretbox under
+	// AI_CONVERSATION_KEY. No key means no store, and UniWork AI reads as not
+	// configured (fail closed, never plaintext).
+	var uniworkConversationBox *secretbox.Box
+	if key, err := secretbox.LoadKey(ai.ConversationKeyEnv); err == nil {
+		uniworkConversationBox, err = secretbox.New(key)
+		if err != nil {
+			log.Warn("uniwork ai transcript store disabled", "err", err)
+		}
+	} else if os.Getenv(ai.ConversationKeyEnv) != "" {
+		log.Warn("uniwork ai transcript store disabled", "err", err)
+	} else {
+		// Absent, not broken: one line so an operator can tell a
+		// deliberately unconfigured store from a healthy one.
+		log.Info("uniwork ai transcript store not configured")
+	}
+	uniworkConversations := ai.NewConversationStore(pool, q, uniworkConversationBox)
+	// G6-03b: the run counters (A3) sit behind the same key as the transcript
+	// — a run never outlives its conversation — and both the service (the
+	// take of each turn) and the TTL worker (the sweep) read them.
+	uniworkRuns := ai.NewRunStore(q)
+	// The kill switch hides the capability for one organization; the
+	// transcripts it left behind follow one sweep later (design §9.4).
+	uniworkKillSwitchOff := func(ctx context.Context, organizationID string) (bool, error) {
+		def := false
+		if f, ok := featureflags.Lookup(uniworkAIKillSwitchFlag); ok {
+			def = f.Default
+		}
+		ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{OrganizationID: organizationID})
+		return !flags.IsEnabled(ctx, uniworkAIKillSwitchFlag, def), nil
+	}
+	uniworkConversationSweep := ai.NewConversationTTLWorker(
+		uniworkConversations, uniworkKillSwitchOff, ai.UniworkConversationSweepInterval, log)
+	if reg != nil {
+		uniworkConversationSweep.SetMetrics(reg.AIUniwork)
+		// G6-03b: the run sweep and the unknown-usage reconciliation ride this
+		// worker's clock (design §3.4, §6.3); the meter is the same adapter the
+		// Gateway charges through.
+		uniworkConversationSweep.SetRunMetrics(reg.AIUniwork)
+		uniworkConversationSweep.SetUsageReconciler(ai.NewUsageReconciler(q, uniworkConversationBox,
+			service.NewAIQuota(service.NewEntitlementService(pool, q)), reg.AIUniwork))
+	}
 	if reg != nil && reg.Meetings != nil {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
 	}
@@ -323,17 +366,33 @@ func main() {
 	if reg != nil {
 		officeMetrics = reg.Office
 	}
-	// Office commands authorize through the document ACL (G1-02), so the
-	// office service holds the same DocumentService the document routes use.
-	documentSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
-	documentSvc.SetFiles(fileSvc)
-	documentSvc.SetEntitlements(service.NewEntitlementService(pool, q))
+	// One DocumentService for the process (BE-I4-1): the HTTP routes, the
+	// preview broker, the office change feed, the notification reads, office
+	// commands and launch, and the document workers all share the instance
+	// newDocumentService builds. Office commands authorize through the
+	// document ACL (G1-02), so they hold the same service as the routes; a
+	// second construction leaves the office_sync_write gate (G5-07), the
+	// commit-intent policy and the counters inert on whichever instance the
+	// routes got.
+	var documentMetrics service.DocumentMetrics
+	var officeIntentMetrics service.OfficeIntentMetrics
 	if reg != nil {
-		documentSvc.SetMetrics(reg.Documents)
+		documentMetrics, officeIntentMetrics = reg.Documents, reg.Office
 	}
+	documentSvc := newDocumentService(documentServiceOptions{
+		Pool: pool, Queries: q, Organizations: orgSvc, Workspaces: wsSvc, Files: fileSvc,
+		Flags: flags, Metrics: documentMetrics, IntentMetrics: officeIntentMetrics,
+		// File commit intents (G5-07): the claim TTL and resume window, and
+		// office_sync_write, read through the same evaluator as
+		// /api/v1/config. A zero field keeps the contract-p0 §7 default.
+		Policy: service.CommitIntentPolicy{
+			ClaimTTL: cfg.DocumentCommitIntentClaimTTL, Retention: cfg.DocumentCommitIntentRetention,
+		},
+	})
 	// The document maintenance worker (auto-version, purge, compaction -
-	// G1-04b) runs on the same service the routes use; it is awaited in the
-	// shutdown sequence below, so a sweep never outlives the process.
+	// G1-04b - and the commit intent sweep of G5-07) runs on the same service
+	// the routes use; it is awaited in the shutdown sequence below, so a sweep
+	// never outlives the process.
 	docWorkers := documentSvc.NewDocumentWorkers()
 	officeLaunchSvc := service.NewOfficeLaunchService(documentSvc, cfg)
 	docWorkers.SetOfficeLaunchService(officeLaunchSvc)
@@ -370,6 +429,10 @@ func main() {
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatVoiceSummaryConsumer(chatSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewFileThumbnailConsumer(fileSvc))
+	// The UniWork AI transcript follows what it is bound to: a deleted document
+	// or a membership that ended takes its conversations, and no request
+	// answers from a copy of content the person may no longer read (A9).
+	dispatcher.RegisterLane(outbox.LaneSlow, ai.NewConversationCleanupConsumer(uniworkConversations))
 	// Notifications are the first bounded context fed purely by the outbox:
 	// the consumer turns committed events into inbox rows, the push consumer
 	// delivers notification.push, and two jobs (digest, reminder) run beside
@@ -379,18 +442,34 @@ func main() {
 	// Document read permission is a DocumentService decision; the consumer
 	// gets the resolver injected so notification never imports the service
 	// package (G1-07).
-	docSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
-	docSvc.SetEntitlements(service.NewEntitlementService(pool, q))
-	docSvc.SetFiles(fileSvc)
 	previewSvc, previewErr := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
-		Documents: docSvc, Origin: cfg.PreviewOrigin, Secret: cfg.PreviewCapabilitySecret,
+		Documents: documentSvc, Origin: cfg.PreviewOrigin, Secret: cfg.PreviewCapabilitySecret,
 		TTL: cfg.PreviewAssetTTL, MaxBytes: cfg.PreviewAssetMaxBytes,
 	})
 	if previewErr != nil {
 		log.Error("preview broker", "err", previewErr)
 		os.Exit(1)
 	}
-	notifConsumer.SetDocumentReaders(docSvc)
+	// The Office change feed (G5-01a) reads through the same DocumentService
+	// the document routes use; its snapshot sweep is awaited in the shutdown
+	// sequence below.
+	docChanges := service.NewDocumentChangesService(documentSvc, flags, cfg)
+	docChangesSweep := docChanges.NewSnapshotSweeper(log)
+	if reg != nil {
+		docChangesSweep.SetMetrics(reg.OfficeChanges)
+		docChanges.SetFeedLagMetrics(reg.OfficeChanges)
+	}
+	// Offline leases (G5-08s): the routes and the revoke consumer read the
+	// ACL through the same DocumentService; the consumer rides the notify lane
+	// (a database fan-out over one person's or one document's leases, no third
+	// party), and the sweep is awaited in the shutdown sequence below.
+	officeLeases := service.NewOfficeLeaseService(documentSvc, flags, cfg)
+	officeLeaseSweep := officeLeases.NewSweeper(log)
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewOfficeLeaseRevoker(documentSvc))
+	if reg != nil {
+		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
+	}
+	notifConsumer.SetDocumentReaders(documentSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
 	var pushSender notification.PushSender
 	if cfg.PushEnabled() {
@@ -455,10 +534,23 @@ func main() {
 	// in the shutdown sequence below, so a sweep never outlives the process.
 	fileGCDone := make(chan struct{})
 	go func() { fileGC.Run(runCtx); close(fileGCDone) }()
-	// The document worker (auto-version, purge, compaction) stops with
-	// runCancel and is awaited below like the file collector.
+	// The document worker (auto-version, purge, compaction, commit intent
+	// sweep) stops with runCancel and is awaited below like the file collector.
 	docWorkersDone := make(chan struct{})
 	go func() { docWorkers.Run(runCtx); close(docWorkersDone) }()
+	// The change-feed snapshot sweep (G5-01a) stops with runCancel and is
+	// awaited below.
+	docChangesSweepDone := make(chan struct{})
+	go func() { docChangesSweep.Run(runCtx); close(docChangesSweepDone) }()
+	// The UniWork AI conversation sweep (G6-03a A9): expired transcripts and
+	// the organizations whose kill switch is off. It stops with runCancel and
+	// is awaited below.
+	uniworkSweepDone := make(chan struct{})
+	go func() { uniworkConversationSweep.Run(runCtx); close(uniworkSweepDone) }()
+	// The offline lease sweep (G5-08s) stops with runCancel and is awaited
+	// below.
+	officeLeaseSweepDone := make(chan struct{})
+	go func() { officeLeaseSweep.Run(runCtx); close(officeLeaseSweepDone) }()
 	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
 	// callbacks and the provider-event ledger past their windows. It stops with
 	// runCancel and is awaited below.
@@ -543,6 +635,18 @@ func main() {
 	if reg != nil {
 		graphSvc.SetMetrics(reg.Graph)
 	}
+	// The UniWork AI façade (G6-03a) with G6-03b's run counters behind it: the
+	// service reserves each turn's model call here, so the cap holds across
+	// pods through the store rather than in this process.
+	aiUniworkSvc := service.NewAIUniworkService(orgSvc, service.NewEntitlementService(pool, q), documentSvc, flags,
+		gateway, uniworkConversations, rdb)
+	aiUniworkSvc.SetRunStore(uniworkRuns)
+	// The four run/usage counters of §7 the service advances (run seconds and
+	// credits, usage_unknown, dropped tool calls): registered by NewRegistry,
+	// they stayed at 0 in production until this wiring (BE3B-7).
+	if reg != nil {
+		aiUniworkSvc.SetUniworkMetrics(reg.AIUniwork)
+	}
 	// The MCP connector (ADR 0031): UniWork as an OAuth server and a remote MCP
 	// server for external AI clients. The platform flag mcp_connector decides
 	// per person and organization whether it answers at all.
@@ -596,20 +700,28 @@ func main() {
 		Bus:                 bus,
 		Storage:             store,
 		FileAccess:          fileAccess,
-		Documents:           docSvc,
+		Documents:           documentSvc,
+		DocumentChanges:     docChanges,
+		OfficeLease:         officeLeases,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),
 		AICredentials:       aiCredentialSvc,
 		AICloud:             service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway),
-		OfficeLaunch:        officeLaunchSvc,
-		Office:              officeSvc,
-		Preview:             previewSvc,
-		MembershipCache:     membershipCache,
-		HTTPMetrics:         httpMetrics,
-		WebVitals:           webVitals(reg),
-		Readiness:           readiness,
-		Admin:               adminSvc,
-		Version:             version,
-		Commit:              commit,
+		// The UniWork AI façade (G6-03a): the org, document and frame routes,
+		// the conversation store why the key above exists, and the process's
+		// own concurrency bounds (A11) — Redis only when there is one. G6-03b
+		// attaches the run counters built above.
+		AIUniwork:       aiUniworkSvc,
+		OfficeLaunch:    officeLaunchSvc,
+		Office:          officeSvc,
+		Preview:         previewSvc,
+		MembershipCache: membershipCache,
+		HTTPMetrics:     httpMetrics,
+		WebVitals:       webVitals(reg),
+		Readiness:       readiness,
+		Admin:           adminSvc,
+		DemoRequests:    service.NewDemoRequestService(pool, q),
+		Version:         version,
+		Commit:          commit,
 	})
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -709,6 +821,21 @@ func main() {
 		log.Warn("documents: maintenance worker did not stop in time")
 	}
 	select {
+	case <-docChangesSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: change snapshot sweep did not stop in time")
+	}
+	select {
+	case <-uniworkSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("ai: uniwork conversation sweep did not stop in time")
+	}
+	select {
+	case <-officeLeaseSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("office: offline lease sweep did not stop in time")
+	}
+	select {
 	case <-retentionDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("outbox: event retention did not stop in time")
@@ -758,3 +885,8 @@ func webVitals(reg *metrics.Registry) *metrics.WebVitals {
 	}
 	return reg.WebVitals
 }
+
+// uniworkAIKillSwitchFlag is the registry key (internal/featureflags) whose
+// default decides whether an organization may use UniWork AI; the TTL worker
+// reads it through the same override chain the config route uses.
+const uniworkAIKillSwitchFlag = "office_ai_uniwork"

@@ -427,7 +427,8 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 		if !issued {
 			return DesktopSession{}, desktopRefreshReused()
 		}
-		if _, _, revokeErr := revokeDesktopFamily(ctx, q, device.UserID, device.SessionFamilyID); revokeErr != nil {
+		_, _, leases, revokeErr := revokeDesktopFamily(ctx, q, device.UserID, device.SessionFamilyID)
+		if revokeErr != nil {
 			return DesktopSession{}, revokeErr
 		}
 		if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(device.UserID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: device.ID, Metadata: map[string]any{"reason": "refresh_reuse"}},
@@ -437,6 +438,7 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 		if err := tx.Commit(ctx); err != nil {
 			return DesktopSession{}, err
 		}
+		observeOfficeLeaseRevokes(OfficeLeaseRevokeDeviceRevoked, leases)
 		return DesktopSession{}, desktopRefreshReused()
 	}
 	refresh := next
@@ -508,19 +510,24 @@ func (s *DesktopAuthService) refreshedSession(device db.DeviceSession, access, r
 }
 
 // revokeDesktopFamily closes every live device session of the family, then the
-// family's refresh tokens, as two statements in the caller's transaction. It
-// returns how many rows each statement changed, so a caller can tell a real
-// revoke from a repeat.
-func revokeDesktopFamily(ctx context.Context, q *db.Queries, userID, familyID string) (sessions, tokens int64, err error) {
+// family's refresh tokens, then the family's offline leases (G5-D1 row 6), in
+// the caller's transaction. It returns how many device sessions, refresh
+// tokens and offline leases it changed, so a caller can tell a real revoke
+// from a repeat and count the leases only after its commit (G508S-BE-5).
+func revokeDesktopFamily(ctx context.Context, q *db.Queries, userID, familyID string) (sessions, tokens int64, leases int, err error) {
 	sessions, err = q.RevokeDeviceSessionFamily(ctx, db.RevokeDeviceSessionFamilyParams{UserID: userID, SessionFamilyID: familyID})
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	tokens, err = q.RevokeSessionForUser(ctx, db.RevokeSessionForUserParams{UserID: userID, SessionID: familyID})
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
-	return sessions, tokens, nil
+	leases, err = revokeOfficeLeasesForFamily(ctx, q, userID, familyID)
+	if err != nil {
+		return sessions, tokens, 0, err
+	}
+	return sessions, tokens, leases, nil
 }
 
 // closeOrphanFamilyTokens closes the family's refresh tokens once no live
@@ -583,8 +590,9 @@ func (s *DesktopAuthService) Logout(ctx context.Context, userID, deviceID, deplo
 	if scope != "device" && scope != "family" {
 		return Invalid("scope must be device or family")
 	}
+	var leases int
 	if scope == "family" {
-		if _, _, err := revokeDesktopFamily(ctx, q, userID, device.SessionFamilyID); err != nil {
+		if _, _, leases, err = revokeDesktopFamily(ctx, q, userID, device.SessionFamilyID); err != nil {
 			return err
 		}
 	} else {
@@ -601,6 +609,11 @@ func (s *DesktopAuthService) Logout(ctx context.Context, userID, deviceID, deplo
 		if _, err := closeOrphanFamilyTokens(ctx, q, userID, device.SessionFamilyID); err != nil {
 			return err
 		}
+		// The device's offline leases die with it, in this transaction
+		// (G5-D1 row 6); the family path does the same in revokeDesktopFamily.
+		if leases, err = revokeOfficeLeasesForDevice(ctx, q, userID, deviceID); err != nil {
+			return err
+		}
 	}
 	// A family logout ends sibling devices this call does not name.
 	revokedSession := deviceID
@@ -611,7 +624,11 @@ func (s *DesktopAuthService) Logout(ctx context.Context, userID, deviceID, deplo
 		sessionRevoked(userID, revokedSession)); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeDeviceRevoked, leases)
+	return nil
 }
 
 func (s *DesktopAuthService) List(ctx context.Context, userID string) ([]DesktopDevice, error) {
@@ -675,15 +692,21 @@ func (s *DesktopAuthService) CheckDeviceSession(ctx context.Context, userID, ses
 
 // revokeAllUserSessions closes every device session and refresh token of the
 // user in the caller's transaction: the device rows first (in id order), then
-// refresh_tokens. That is the order Logout, Refresh and the family revoke take
-// them in, so a user-wide revoke racing a logout cannot deadlock (40P01).
-// RevokeAll, account deletion, password reset and member deactivation all go
-// through here.
-func revokeAllUserSessions(ctx context.Context, q *db.Queries, userID string) error {
+// refresh_tokens, then the user's offline leases (G5-D1 rows 6-7). That is
+// the order Logout, Refresh and the family revoke take them in, and a lease
+// grant also locks its device row before the lease row, so a user-wide revoke
+// racing a logout or a grant cannot deadlock (40P01). RevokeAll, account
+// deletion, password reset and member deactivation all go through here. It
+// returns how many leases it revoked for the caller to count after its
+// commit (G508S-BE-5).
+func revokeAllUserSessions(ctx context.Context, q *db.Queries, userID string) (int, error) {
 	if err := q.RevokeAllDeviceSessions(ctx, userID); err != nil {
-		return err
+		return 0, err
 	}
-	return q.RevokeAllRefreshTokensForUser(ctx, userID)
+	if err := q.RevokeAllRefreshTokensForUser(ctx, userID); err != nil {
+		return 0, err
+	}
+	return revokeOfficeLeasesForUser(ctx, q, userID)
 }
 
 func (s *DesktopAuthService) RevokeAll(ctx context.Context, userID string) error {
@@ -693,14 +716,19 @@ func (s *DesktopAuthService) RevokeAll(ctx context.Context, userID string) error
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	if err := revokeAllUserSessions(ctx, q, userID); err != nil {
+	leases, err := revokeAllUserSessions(ctx, q, userID)
+	if err != nil {
 		return err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(userID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "user", ResourceID: userID, Metadata: map[string]any{"scope": "all"}},
 		sessionRevoked(userID, "")); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
+	return nil
 }
 
 func (s *DesktopAuthService) validateStart(in DesktopStartInput) error {

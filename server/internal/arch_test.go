@@ -312,12 +312,16 @@ func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
 // fenced: only service/admin.go calls Admin* queries, and admin.go never
 // reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
 func TestAdminQueriesStayInAdminService(t *testing.T) {
+	demoQueries := regexp.MustCompile(`\bq\.(AdminListDemoRequests|AdminCountDemoRequests|AdminGetDemoRequest|AdminUpdateDemoRequest)\(`)
 	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride|AdminListInvoices|AdminCountInvoices|AdminListPaymentIntents|AdminCountPaymentIntents|AdminGetInvoiceByID|AdminMarkInvoiceRefunded|AdminRequestInvoiceRefund|AdminRequestPartialInvoiceRefund|AdminConfirmInvoiceRefund|AdminRevertInvoiceRefundRequest|AdminPatchInvoiceRefundProviderRef)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
 		slash := filepath.ToSlash(path)
+		if strings.HasSuffix(slash, "internal/service/admin_demo_requests.go") {
+			return nil
+		}
 		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.HasSuffix(slash, "internal/service/admin_billing.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund_vnpay.go") || strings.HasSuffix(slash, "internal/service/admin_plans.go") || strings.Contains(slash, "pkg/db/generated/") {
 			return nil
 		}
@@ -325,7 +329,7 @@ func TestAdminQueriesStayInAdminService(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if adminQueries.Match(src) {
+		if adminQueries.Match(src) || demoQueries.Match(src) {
 			t.Errorf("%s calls an admin.sql query; only service/admin.go may", path)
 		}
 		return nil

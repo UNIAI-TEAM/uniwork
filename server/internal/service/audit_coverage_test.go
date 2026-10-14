@@ -1004,6 +1004,33 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionOfficeOfflineLeaseGranted: func(t *testing.T, f *auditFixture) {
+			f.offlineLease(t)
+		},
+		audit.ActionOfficeOfflineLeaseRenewed: func(t *testing.T, f *auditFixture) {
+			leases, docID, deviceID, l := f.offlineLease(t)
+			if _, err := leases.Put(f.ctx, Human(f.owner.ID), OfficeLeasePutInput{DocumentID: docID, DeviceSessionID: deviceID, Lease: l.Token}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeOfflineLeaseReleased: func(t *testing.T, f *auditFixture) {
+			leases, docID, deviceID, _ := f.offlineLease(t)
+			if err := leases.Release(f.ctx, Human(f.owner.ID), docID, deviceID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeOfflineLeaseRevoked: func(t *testing.T, f *auditFixture) {
+			f.offlineLease(t)
+			if _, err := f.admin.RevokeOrganizationOfflineLeases(f.ctx, CLIActor, f.orgID, "audit coverage offline revoke"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeOfflinePolicyBumped: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.admin.RevokeOrganizationOfflineLeases(f.ctx, CLIActor, f.orgID, "audit coverage offline revoke"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentShared: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
 			if _, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
@@ -1152,6 +1179,35 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// G5-07: a second attempt takes over an intent whose first claim
+		// expired without a commit.
+		audit.ActionDocumentCommitIntentRenewed: func(t *testing.T, f *auditFixture) {
+			svc, created := auditFileDocument(t, f)
+			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
+				Filename: "v2.pdf", Body: bytes.NewReader(pdfBody("audit-intent-v2")),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			key := util.NewID()
+			file, err := resolveUpload(f.ctx, svc.files, documentScope(created.Document.OrganizationID, created.Document.WorkspaceID), up.UploadID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fp := commitFingerprint(created.Document.ID, created.Document.Revision, file.ChecksumSHA256, DocumentEngineInfo{})
+			if _, _, err := svc.claimCommitIntent(f.ctx, Human(f.owner.ID), created.Document, key, fp); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.pool.Exec(f.ctx,
+				`UPDATE document_commit_intents SET claim_expires_at = clock_timestamp() - interval '1 second' WHERE idempotency_key = $1`, key); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CommitFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, CommitFileVersionInput{
+				UploadID: up.UploadID, BaseRevision: created.Document.Revision, IdempotencyKey: key,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentVersionRestored: func(t *testing.T, f *auditFixture) {
 			svc, created := auditFileDocument(t, f)
 			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
@@ -1207,7 +1263,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := svc.DeleteDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+			if _, err := svc.DeleteDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1254,6 +1310,31 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := svc.RemoveDocumentCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// G8-04: the comment row is anchored to an xlsx version first, so the
+		// PUT has a real binding to change.
+		audit.ActionDocumentCommentAnchorsUpdated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			versionID := seedAnchorVersion(t, f, docID, 1)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{
+				Body: "neo", CommentType: "comment",
+				Anchor:        json.RawMessage(`{"format":"xlsx","v":1,"sheet":"S1","range":"B7"}`),
+				BaseVersionID: versionID,
+			}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.PutDocumentCommentAnchors(f.ctx, Human(f.owner.ID), docID, DocumentCommentAnchorsInput{
+				VersionID: versionID,
+				// R1-8: the wire anchors key is required, so the command's
+				// presence flag must be set for the call to be accepted.
+				AnchorsPresent: true,
+				Anchors: []DocumentCommentAnchorItem{{
+					CommentID: c.ID, Anchor: json.RawMessage(`{"format":"xlsx","v":1,"sheet":"S1","range":"B9"}`), State: "exact",
+				}},
+			}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1454,6 +1535,11 @@ func auditActions() []string {
 		audit.ActionOfficeLaunchSessionRedeemed,
 		audit.ActionOfficeLaunchSessionRevoked,
 		audit.ActionOfficeDesktopDownloaded,
+		audit.ActionOfficeOfflineLeaseGranted,
+		audit.ActionOfficeOfflineLeaseRenewed,
+		audit.ActionOfficeOfflineLeaseReleased,
+		audit.ActionOfficeOfflineLeaseRevoked,
+		audit.ActionOfficeOfflinePolicyBumped,
 		audit.ActionDocumentShared,
 		audit.ActionDocumentShareRevoked,
 		audit.ActionDocumentLinkCreated,
@@ -1462,6 +1548,7 @@ func auditActions() []string {
 		audit.ActionDocumentUpdated,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
+		audit.ActionDocumentCommitIntentRenewed,
 		audit.ActionDocumentAssetUploaded,
 		audit.ActionDocumentCommentAdded,
 		audit.ActionDocumentCommentUpdated,
@@ -1470,6 +1557,7 @@ func auditActions() []string {
 		audit.ActionDocumentCommentUnresolved,
 		audit.ActionDocumentCommentReactionAdded,
 		audit.ActionDocumentCommentReactionRemoved,
+		audit.ActionDocumentCommentAnchorsUpdated,
 		audit.ActionDocumentFavorited,
 		audit.ActionDocumentUnfavorited,
 		audit.ActionDocumentMoved,
@@ -1748,6 +1836,47 @@ func (f *auditFixture) fileDocument(t *testing.T) (*DocumentService, string) {
 		t.Fatalf("make audit document a file: %v", err)
 	}
 	return svc, id
+}
+
+// offlineLease grants the owner an offline lease on a file document from a
+// desktop device of their own, with office_offline_library on.
+func (f *auditFixture) offlineLease(t *testing.T) (*OfficeLeaseService, string, string, OfficeLease) {
+	t.Helper()
+	svc, docID := f.fileDocument(t)
+	leases := NewOfficeLeaseService(svc, officeLeaseFlags(t, true), config.Config{JWTSecret: officeLeaseTestSecret})
+	deviceID := util.NewID()
+	if _, err := f.q.CreateDeviceSession(f.ctx, db.CreateDeviceSessionParams{ID: deviceID, UserID: f.owner.ID, SessionFamilyID: deviceID, ClientID: "uniwork-office", DeploymentID: "default", RefreshTokenDigest: "audit-lease-device", ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedByKind: "human"}); err != nil {
+		t.Fatal(err)
+	}
+	l, err := leases.Put(f.ctx, Human(f.owner.ID), OfficeLeasePutInput{DocumentID: docID, DeviceSessionID: deviceID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return leases, docID, deviceID, l
+}
+
+// seedAnchorVersion gives an audit file document an xlsx current version, so
+// an anchor binds to it (G8-04). The file_id is opaque to the anchor rule -
+// the format comes from the version's mime_type; the audit fixture needs no
+// real FileService row for it.
+func seedAnchorVersion(t *testing.T, f *auditFixture, documentID string, ordinal int) string {
+	t.Helper()
+	doc, err := f.q.GetDocumentByID(f.ctx, documentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	versionID := util.NewID()
+	insertRow(t, f.ctx, f.pool, "document_versions", map[string]any{
+		"id": versionID, "organization_id": doc.OrganizationID, "workspace_id": doc.WorkspaceID,
+		"document_id": doc.ID, "version": ordinal, "kind": "file", "reason": "upload",
+		"file_id":    "01J8X4FILEN1P2Q3R4S5T6U7V8",
+		"mime_type":  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"created_by": doc.CreatedBy, "created_by_kind": "human",
+	})
+	if _, err := f.pool.Exec(f.ctx, "UPDATE documents SET current_version = $1, file_version_id = $2 WHERE id = $3", ordinal, versionID, doc.ID); err != nil {
+		t.Fatalf("point the audit document at its version: %v", err)
+	}
+	return versionID
 }
 
 // Two commands write document.created without owning the action: CreateFolder

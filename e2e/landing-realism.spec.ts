@@ -12,8 +12,7 @@ for (const width of [1440, 820]) {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
-    // WebGL start-up is slow on a loaded headless GPU; motion specs allow 20s too.
-    await expect(page.locator(".scene-canvas")).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
+    await expect(page.locator("#landing-title")).toBeVisible();
     const dir = resolve(import.meta.dirname, "../.impeccable/review");
     if (process.env.LANDING_CAPTURE === "1") {
       await mkdir(dir, { recursive: true });

@@ -108,7 +108,8 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err := qtx.ScrubMemberProfilesForUser(ctx, userID); err != nil {
 		return err
 	}
-	if err := revokeAllUserSessions(ctx, qtx, userID); err != nil {
+	leases, err := revokeAllUserSessions(ctx, qtx, userID)
+	if err != nil {
 		return err
 	}
 	if _, err := revokeAllMcpGrantsForUser(ctx, qtx, userID); err != nil {
@@ -170,6 +171,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
 	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, mailboxes)
 	return nil
 }

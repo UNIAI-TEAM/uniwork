@@ -225,6 +225,10 @@ func pathParamSDI(path string) any {
 		return struct {
 			DeviceSessionID string `path:"deviceSessionID" description:"ULID phiên thiết bị native" example:"01J8X4DEVN1P2Q3R4S5T6U7V8"`
 		}{}
+	case "demoRequestID":
+		return struct {
+			DemoRequestID string `path:"demoRequestID" description:"ULID yêu cầu demo"`
+		}{}
 	case "taskID":
 		return struct {
 			TaskID string `path:"taskID" description:"ULID công việc hoặc identifier PREFIX-N (prefix không phân biệt hoa thường)" example:"ALP-42"`

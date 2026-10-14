@@ -15,6 +15,12 @@ coverage/
 test-results/
 playwright-report/
 
+# G7-01 app harness run artifacts (scripts/office/g5g6g7/harness)
+.harness-run/
+
+# G7-06 regression job artifacts (scripts/office/g5g6g7/g7-06)
+.g7-06-run/
+
 multica/
 
 # local upload storage (LOCAL_UPLOAD_DIR default)

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { ActorSchema } from "./actor";
-import { CommentReactionSchema } from "./task-collaboration";
 
 // Wire contract for the Documents API (C-01 §5 + §14; UNI-679, G1-05a).
 // The versioned samples in docs/parity/documents-api are the source of truth
@@ -228,6 +227,8 @@ export function isDocumentNotVerifiable(err: unknown): err is DocumentNotVerifia
 // the exported types narrow, and every list that cannot degrade safely has
 // its caller throw instead of rendering an empty page.
 
+const DocumentPathItemSchema = z.object({ id: z.string(), title: z.string() });
+
 export const DocumentSummarySchema = z.object({
   id: z.string(),
   organization_id: z.string().optional().default(""),
@@ -259,12 +260,35 @@ export const DocumentSummarySchema = z.object({
   updated_by_kind: z.string().optional().default("human"),
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
+  // Folders contract v1.0 (FD-05/FD-06): the ancestors a search row sits
+  // under, root first, cut at the first one the caller cannot read. Optional
+  // on the wire; missing or not an array reads as [] (a row at the root), and
+  // a malformed ancestor cuts the path there, as the server does.
+  path: z
+    .unknown()
+    .optional()
+    .transform((raw) => {
+      if (!Array.isArray(raw)) return [];
+      const prefix: z.infer<typeof DocumentPathItemSchema>[] = [];
+      for (const item of raw) {
+        const parsed = DocumentPathItemSchema.safeParse(item);
+        if (!parsed.success) break;
+        prefix.push(parsed.data);
+      }
+      return prefix;
+    }),
 });
 /** Uploaded bytes, or something UniWork made (page, folder, blank file, converted copy). */
 export type DocumentOrigin = "upload" | "created";
 
+// The parser always fills `path` ([] when absent); the type keeps it optional
+// so a row a view builds by hand (a favorite, a fixture) need not carry one.
+type DocumentSummaryWire = Omit<z.infer<typeof DocumentSummarySchema>, "path"> & {
+  path?: z.infer<typeof DocumentPathItemSchema>[];
+};
+
 export type DocumentSummary = Omit<
-  z.infer<typeof DocumentSummarySchema>,
+  DocumentSummaryWire,
   "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin"
 > & {
   kind: DocumentKind;
@@ -279,7 +303,9 @@ export const DocumentListSchema = z.object({
   documents: z.array(DocumentSummarySchema),
   next_cursor: z.string().nullable().optional(),
 });
-export type DocumentList = z.infer<typeof DocumentListSchema>;
+export type DocumentList = Omit<z.infer<typeof DocumentListSchema>, "documents"> & {
+  documents: DocumentSummaryWire[];
+};
 
 /** Archive/restore answer: the moved document, its batch id and the ids that
  *  actually changed. Restore only recovers nodes of its own batch. */
@@ -292,7 +318,44 @@ export type DocumentArchive = Omit<z.infer<typeof DocumentArchiveSchema>, "docum
   document: Document;
 };
 
-/** One sidebar node; `children` recurse to five levels. */
+/**
+ * What archiving a subtree would move (folders contract v1.0, addendum §3.4).
+ * Under the cap: `folders`/`documents` exclude the root, `total` includes it.
+ * Past the cap the server does not count: only `too_large` and `max_nodes`.
+ * A count that is missing, negative or fractional fails the parse, so a
+ * drifted answer can never read as "0 items" in the delete dialog.
+ */
+export type DocumentArchiveImpact =
+  | { too_large: false; folders: number; documents: number; total: number; max_nodes: number }
+  | { too_large: true; max_nodes: number };
+
+const count = z.number().int().nonnegative();
+
+export const DocumentArchiveImpactSchema = z
+  .object({
+    folders: count.optional(),
+    documents: count.optional(),
+    total: count.optional(),
+    max_nodes: count,
+    too_large: z.boolean().optional().default(false),
+  })
+  .transform((raw, ctx): DocumentArchiveImpact => {
+    if (raw.too_large) return { too_large: true, max_nodes: raw.max_nodes };
+    if (raw.folders === undefined || raw.documents === undefined || raw.total === undefined) {
+      ctx.addIssue({ code: "custom", message: "archive impact without counts" });
+      return z.NEVER;
+    }
+    return {
+      too_large: false,
+      folders: raw.folders,
+      documents: raw.documents,
+      total: raw.total,
+      max_nodes: raw.max_nodes,
+    };
+  });
+
+/** One sidebar node; `children` recurse to TREE_MAX_LEVEL levels
+ *  (packages/core/documents/folder-limits.ts). */
 export interface DocumentTreeNode {
   id: string;
   parent_id?: string | null;
@@ -423,44 +486,10 @@ export type PublicDocument = Omit<z.infer<typeof PublicDocumentSchema>, "kind"> 
 export const PublicDocumentEnvelopeSchema = z.object({ document: PublicDocumentSchema });
 export type PublicDocumentEnvelope = { document: PublicDocument };
 
-// ---- Comments + favorites (G1-07; UNI-681 lane 07b) ----------------------
-// Document comments reuse the comment_reactions shape from types/
-// task-collaboration.ts (keyed by comment_id) and mirror the task comment
-// DTO: enum-ish fields stay lenient strings so a server that ships a new
-// value degrades instead of failing the parse, and only `type` narrows - the
-// document routes accept "comment" alone, so a public client can never mint
-// a system row.
+// Comments live in their own module (G8-03); this file stays their public path.
+export * from "./document-comments";
 
-export const DOCUMENT_COMMENT_TYPES = ["comment"] as const;
-export type DocumentCommentType = (typeof DOCUMENT_COMMENT_TYPES)[number];
-
-export const DocumentCommentSchema = z.object({
-  id: z.string(),
-  document_id: z.string(),
-  author_id: z.string().optional().default(""),
-  author_kind: z.string().optional().default("human"),
-  author: ActorSchema.optional(),
-  body: z.string(),
-  parent_id: z.string().nullish(),
-  type: z.string().optional().default("comment"),
-  revision: z.number().optional().default(0),
-  resolved_at: z.string().nullish(),
-  created_at: z.string().optional().default(""),
-  updated_at: z.string().optional().default(""),
-  display_name: z.string().optional().default(""),
-  avatar_url: z.string().optional().default(""),
-  // A malformed reaction row costs the reactions, never the comment: the
-  // thread parses with a `{ comments: [] }` fallback, so one bad nested row
-  // must not throw the whole conversation away.
-  reactions: z
-    .array(CommentReactionSchema)
-    .catch([])
-    .nullish()
-    .transform((v) => v ?? []),
-});
-export type DocumentComment = Omit<z.infer<typeof DocumentCommentSchema>, "type"> & {
-  type: DocumentCommentType;
-};
+// ---- Favorites (G1-07; UNI-681 lane 07b) ------------------------------------
 
 /** One favorited document in the caller's list: what a favorites panel needs
  *  to open the document, not the full payload (GET /documents/{id} has it). */
@@ -478,10 +507,6 @@ export type DocumentFavorite = Omit<z.infer<typeof DocumentFavoriteSchema>, "kin
   kind: DocumentKind;
 };
 
-export const DocumentCommentEnvelopeSchema = z.object({ comment: DocumentCommentSchema });
-export const DocumentCommentListEnvelopeSchema = z.object({
-  comments: z.array(DocumentCommentSchema),
-});
 export const DocumentFavoriteEnvelopeSchema = z.object({ favorite: DocumentFavoriteSchema });
 export const DocumentFavoriteListEnvelopeSchema = z.object({
   favorites: z.array(DocumentFavoriteSchema),

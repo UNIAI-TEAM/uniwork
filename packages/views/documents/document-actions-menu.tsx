@@ -23,7 +23,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, useHeaderActionsSlotFilled } from "../layout/header-actions-slot";
 import { useNavigation } from "../navigation";
-import { useDocumentCommentsChrome } from "./document-comments-context";
+import { documentCommentsTitleKey, useDocumentCommentsChrome } from "./document-comments-context";
 import { AccessLogSheet } from "./access-log-sheet";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { DocumentCopyDialog } from "./document-copy-dialog";
@@ -113,7 +113,7 @@ export function DocumentActionsMenu({
           {folded && comments && commentsEnabled ? (
             <DropdownMenuItem className="gap-2 px-2 py-2 sm:hidden" onClick={() => comments.setOpen(!comments.open)}>
               <MessageSquare aria-hidden className="size-3.5" />
-              {t(doc.kind === "file" ? "documents.comments.file_open" : "documents.actions.comments")}
+              {t(documentCommentsTitleKey(doc))}
             </DropdownMenuItem>
           ) : null}
           {items.map((item) => (

@@ -154,6 +154,14 @@ func isoIdem(fields map[string]string, extra map[string]any) func(*isoWorld, *is
 	}
 }
 
+// isoIdemOnly sends no body, only the tenant's seeded intent key - the key
+// isolation_world_test.go commits (and leaves not_committed), so the owner's
+// control reads a real intent row and the other tenant is refused on the
+// document before any intent is read.
+func isoIdemOnly(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{headers: map[string]string{"Idempotency-Key": "iso-intent-" + tn.tag}}
+}
+
 func isoJSON(v any) func(*isoWorld, *isoTenant) isoBody {
 	return func(*isoWorld, *isoTenant) isoBody { return isoBody{json: v} }
 }
@@ -172,22 +180,25 @@ const (
 // isoRoutes holds every route that is not plain isoScoped-with-no-body.
 var isoRoutes = map[string]isoSpec{
 	// Sign-in and probes.
-	"GET /healthz":                          {class: isoPublic, reason: reasonProbe},
-	"GET /readyz":                           {class: isoPublic, reason: reasonProbe},
-	"GET /api/v1/config":                    {class: isoPublic, reason: reasonProbe},
-	"GET /api/v1/plans":                     {class: isoPublic, reason: reasonProbe},
-	"POST /api/v1/rum":                      {class: isoPublic, reason: reasonProbe},
-	"GET /api/v1/notifications/push/config": {class: isoPublic, reason: reasonProbe},
-	"GET /api/v1/auth/google/callback":      {class: isoPublic, reason: reasonAuth},
-	"GET /api/v1/auth/google/start":         {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/login":               {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/logout":              {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/mfa/verify":          {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/password/forgot":     {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/password/reset":      {class: isoPublic, reason: reasonAuth},
-	"GET /api/v1/auth/providers":            {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/refresh":             {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/register":            {class: isoPublic, reason: reasonAuth},
+	"GET /healthz":                    {class: isoPublic, reason: reasonProbe},
+	"GET /readyz":                     {class: isoPublic, reason: reasonProbe},
+	"GET /api/v1/config":              {class: isoPublic, reason: reasonProbe},
+	"GET /api/v1/plans":               {class: isoPublic, reason: reasonProbe},
+	"POST /api/v1/rum":                {class: isoPublic, reason: reasonProbe},
+	"POST /api/v1/demo-requests":      {class: isoPublic, reason: "Anonymous pre-account intake returns only its receipt; personal fields are platform-only."},
+	"GET /api/v1/admin/demo-requests": {class: isoPlatform, reason: reasonPlatform},
+	"PATCH /api/v1/admin/demo-requests/{demoRequestID}": {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/notifications/push/config":             {class: isoPublic, reason: reasonProbe},
+	"GET /api/v1/auth/google/callback":                  {class: isoPublic, reason: reasonAuth},
+	"GET /api/v1/auth/google/start":                     {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/login":                           {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/logout":                          {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/mfa/verify":                      {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/password/forgot":                 {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/password/reset":                  {class: isoPublic, reason: reasonAuth},
+	"GET /api/v1/auth/providers":                        {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/refresh":                         {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/register":                        {class: isoPublic, reason: reasonAuth},
 
 	// MCP connector OAuth server (ADR 0031): a client is a program, and the
 	// code, verifier, refresh token or client secret is the credential.
@@ -381,6 +392,7 @@ var isoRoutes = map[string]isoSpec{
 	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
+	"PUT /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {body: isoJSON(map[string]any{"calendar_ids": []string{"primary"}}), skipControl: "owner 5xx found by G8-04, owner: calendar (no provider client is configured in tests; the owner gets 503)"},
 	"GET /api/v1/meetings/{meetingID}/recordings/{recordingID}/content":                                    {control: []int{http.StatusConflict}},
 	"GET /api/v1/documents/{documentID}/office/jobs/{jobID}/output":                                        {control: []int{http.StatusConflict}}, // the fixture job is a serialize job: its output is not committable, and only the owner is asked
 	"GET /api/v1/meetings/{meetingID}/recordings/{recordingID}/playback-url":                               {control: []int{http.StatusConflict}},
@@ -402,30 +414,45 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/comments/{commentID}/reactions":                                   {body: isoJSON(map[string]any{"emoji": "👍"})},
 	"PATCH /api/v1/documents/{documentID}/comments/{commentID}":                                            {body: isoJSON(map[string]any{"body": "edited"})},
 	"POST /api/v1/documents/{documentID}/comments":                                                         {body: isoJSON(map[string]any{"body": "hello", "type": "comment"})},
-	"POST /api/v1/documents/{documentID}/copies":                                                           {body: isoIdem(nil, map[string]any{"consent": "copy"})},
-	"POST /api/v1/documents/{documentID}/move":                                                             {body: isoJSON(map[string]any{"revision": "1", "parent_id": nil})},
-	"POST /api/v1/documents/{documentID}/office/jobs":                                                      {body: isoIdem(nil, map[string]any{"operation": "serialize"})},
-	"POST /api/v1/documents/{documentID}/office/sessions":                                                  {body: isoLaunchPost},
-	"POST /api/v1/documents/{documentID}/preview/scopes":                                                   {body: isoPreviewPost},
-	"PUT /api/v1/orgs/{orgID}/ai/credentials/{aiProvider}":                                                 {body: isoAICredentialPut},
-	"POST /api/v1/orgs/{orgID}/ai/cloud/search":                                                            {body: isoJSON(map[string]any{"query": "iso", "kind": "web", "max_results": 1})},
-	"POST /api/v1/orgs/{orgID}/ai/cloud/images":                                                            {body: isoJSON(map[string]any{"prompt": "iso"})},
-	"POST /api/v1/orgs/{orgID}/ai/cloud/media/analyze":                                                     {body: isoJSON(map[string]any{"requirements": "iso", "media": []any{map[string]any{"mime": "image/png", "data_base64": "aXNv"}}})},
-	"POST /api/v1/orgs/{orgID}/ai/cloud/transcribe":                                                        {body: isoJSON(map[string]any{"audio": map[string]any{"mime": "audio/mpeg", "data_base64": "aXNv"}})},
-	"POST /api/v1/orgs/{orgID}/signatures":                                                                 {body: isoSignaturePost},
-	"POST /api/v1/documents/{documentID}/shares":                                                           {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
-	"POST /api/v1/documents/{documentID}/uploads":                                                          {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
-	"POST /api/v1/documents/{documentID}/versions/commit":                                                  {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
-	"POST /api/v1/office-frame/documents/{documentID}/uploads":                                             {body: isoFile("frame.docx", isoDocxMime, isoFrameDocx, nil)},
-	"POST /api/v1/office-frame/documents/{documentID}/versions/commit":                                     {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
-	"POST /api/v1/office-frame/documents/{documentID}/assets":                                              {body: isoFile("dot.png", "image/png", docsPNG, nil)},
-	"POST /api/v1/office-frame/documents/{documentID}/assets/sign":                                         {body: isoFrameSign},
-	"POST /api/v1/office-frame/documents/{documentID}/assets/resolve":                                      {body: isoJSON(map[string]any{"paths": []string{"missing.png"}})},
+	// R1-8: the anchors key is required, so the body must carry it or the
+	// route answers 400 before it reads the document - an empty [] is the
+	// valid no-op update the tenancy gate then judges.
+	"PUT /api/v1/documents/{documentID}/comments/anchors":  {body: isoWith(map[string]string{"version_id": "versionID"}, map[string]any{"anchors": []any{}})},
+	"POST /api/v1/documents/{documentID}/copies":           {body: isoIdem(nil, map[string]any{"consent": "copy"})},
+	"POST /api/v1/documents/{documentID}/move":             {body: isoJSON(map[string]any{"revision": "1", "parent_id": nil})},
+	"POST /api/v1/documents/{documentID}/office/jobs":      {body: isoIdem(nil, map[string]any{"operation": "serialize"})},
+	"POST /api/v1/documents/{documentID}/office/sessions":  {body: isoLaunchPost},
+	"POST /api/v1/documents/{documentID}/preview/scopes":   {body: isoPreviewPost},
+	"PUT /api/v1/orgs/{orgID}/ai/credentials/{aiProvider}": {body: isoAICredentialPut},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/search":            {body: isoJSON(map[string]any{"query": "iso", "kind": "web", "max_results": 1})},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/images":            {body: isoJSON(map[string]any{"prompt": "iso"})},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/media/analyze":     {body: isoJSON(map[string]any{"requirements": "iso", "media": []any{map[string]any{"mime": "image/png", "data_base64": "aXNv"}}})},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/transcribe":        {body: isoJSON(map[string]any{"audio": map[string]any{"mime": "audio/mpeg", "data_base64": "aXNv"}})},
+	"POST /api/v1/orgs/{orgID}/signatures":                 {body: isoSignaturePost},
+	// UniWork AI (G6-03a): one turn per call with the conversation held by the
+	// server, so the body is a single user question. The frame's row rides the
+	// tenant's DOCX frame token; the session document row rides its Markdown
+	// file, whose module the server derives from the document, never the body.
+	"POST /api/v1/orgs/{orgID}/ai/uniwork/chat/completions":                        {body: isoJSON(isoUniworkTurnBody)},
+	"POST /api/v1/documents/{documentID}/ai/uniwork/chat/completions":              {body: isoJSON(isoUniworkTurnBody)},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions": {body: isoJSON(isoUniworkTurnBody)},
+	"POST /api/v1/documents/{documentID}/shares":                                   {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
+	"POST /api/v1/documents/{documentID}/uploads":                                  {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
+	"POST /api/v1/documents/{documentID}/versions/commit":                          {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	// G5-07: the lookup sends the key isolation_world_test.go seeds and leaves not_committed, so the
+	// owner's control reads its own intent (200 not_committed) and the other tenant is refused on the
+	// document before any intent is read.
+	"GET /api/v1/documents/{documentID}/versions/commit":               {body: isoIdemOnly},
+	"POST /api/v1/office-frame/documents/{documentID}/uploads":         {body: isoFile("frame.docx", isoDocxMime, isoFrameDocx, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/versions/commit": {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
+	"POST /api/v1/office-frame/documents/{documentID}/assets":          {body: isoFile("dot.png", "image/png", docsPNG, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/assets/sign":     {body: isoFrameSign},
+	"POST /api/v1/office-frame/documents/{documentID}/assets/resolve":  {body: isoJSON(map[string]any{"paths": []string{"missing.png"}})},
 	// A sibling file opens through the signature alone (a frame token is refused 401, so is no
 	// signature): the control and the signed-URL cases are the frame-linked subtest.
 	"GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}":  {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
 	"HEAD /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}": {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
-	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil), skipControl: "owner 5xx found by G8-04, owner: office frame export (the stub engine answers 501 unsupported_operation)"},
 	// GO-A7's AI on the frame token (UNI-1014): the same bodies and vendor exemptions as the session rows.
 	"PUT /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider}":            {body: isoAICredentialPut},
 	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/chat/completions": {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
@@ -487,10 +514,10 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/email-hub/inbox-watch":                              {query: "?account_id={emailAccount}"},
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends/{scheduledSendID}":      {query: "?account_id={emailAccount}"},
 	"POST /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends/{scheduledSendID}/retry":  {query: "?account_id={emailAccount}"},
-	"POST /api/v1/workspaces/{workspaceID}/email-hub/watch":                                    {query: "?account_id={emailAccount}"},
-	"POST /api/v1/workspaces/{workspaceID}/email-hub/sync":                                     {query: "?account_id={emailAccount}"},
+	"POST /api/v1/workspaces/{workspaceID}/email-hub/watch":                                    {query: "?account_id={emailAccount}", skipControl: "owner 5xx found by G8-04, owner: email hub (no IMAP server in tests)"},
+	"POST /api/v1/workspaces/{workspaceID}/email-hub/sync":                                     {query: "?account_id={emailAccount}", skipControl: "owner 5xx found by G8-04, owner: email hub (no IMAP server in tests)"},
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/accounts/{accountID}":                   {},
-	"POST /api/v1/workspaces/{workspaceID}/email-hub/send":                                     {body: isoWith(map[string]string{"account_id": "emailAccount"}, map[string]any{"to": []string{"someone@example.com"}, "subject": "hi", "body_text": "hello"})},
+	"POST /api/v1/workspaces/{workspaceID}/email-hub/send":                                     {body: isoWith(map[string]string{"account_id": "emailAccount"}, map[string]any{"to": []string{"someone@example.com"}, "subject": "hi", "body_text": "hello"}), skipControl: "owner 5xx found by G8-04, owner: email hub (no SMTP server in tests)"},
 	"POST /api/v1/workspaces/{workspaceID}/files/resolve":                                      {body: isoWith(map[string]string{}, map[string]any{"file_ids": []string{"01J8X4FILE0N1P2Q3R4S5T6U7V"}})},
 	"PUT /api/v1/workspaces/{workspaceID}/projects/{projectID}":                                {body: isoJSON(map[string]any{"revision": 1, "title": "edited"})},
 	"DELETE /api/v1/meetings/{meetingID}/attendance/{participantID}":                           {mixedFirst: "liveMeeting"},

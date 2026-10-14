@@ -146,7 +146,8 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	if rows == 0 {
 		return Session{}, ErrInvalidToken
 	}
-	if err := revokeAllUserSessions(ctx, qtx, t.UserID); err != nil {
+	leases, err := revokeAllUserSessions(ctx, qtx, t.UserID)
+	if err != nil {
 		return Session{}, err
 	}
 	mcpGrants, err := revokeAllMcpGrantsForUser(ctx, qtx, t.UserID)
@@ -178,5 +179,6 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	if err := tx.Commit(ctx); err != nil {
 		return Session{}, err
 	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
 	return s.auth.SessionFor(ctx, u)
 }

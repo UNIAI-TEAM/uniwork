@@ -262,8 +262,9 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	// Sessions are per user, not per organization: revoking them while the
 	// person still belongs somewhere else would sign them out of a tenant that
 	// never asked for it.
+	leases := 0
 	if othersLeft == 0 {
-		if err := revokeAllUserSessions(ctx, q, targetID); err != nil {
+		if leases, err = revokeAllUserSessions(ctx, q, targetID); err != nil {
 			return db.OrganizationMember{}, err
 		}
 	}
@@ -282,6 +283,7 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	if err := tx.Commit(ctx); err != nil {
 		return db.OrganizationMember{}, err
 	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
 	return updated, nil
 }
 

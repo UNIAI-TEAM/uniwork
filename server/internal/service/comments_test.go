@@ -18,12 +18,14 @@ import (
 // fakeComment is the row a fake adapter serves the engine; the tenant pair
 // rides along so tenantGet behaves like the scoped queries it stands in for.
 type fakeComment struct {
-	id         string
-	resourceID string
-	orgID      string
-	wsID       string
-	authorID   string
-	authorKind string
+	id          string
+	resourceID  string
+	orgID       string
+	wsID        string
+	authorID    string
+	authorKind  string
+	commentType string
+	deleted     bool
 }
 
 // fakeCommentAdapter is the persistence+authorizer stub; q is never used -
@@ -58,14 +60,17 @@ func (a *fakeCommentAdapter) tenantGet(ctx context.Context, q *db.Queries, ref C
 }
 
 func (fakeCommentAdapter) identity(c fakeComment) commentIdentity {
-	return commentIdentity{ID: c.id, ResourceID: c.resourceID, AuthorID: c.authorID, AuthorKind: c.authorKind}
+	return commentIdentity{
+		ID: c.id, ResourceID: c.resourceID, AuthorID: c.authorID,
+		AuthorKind: c.authorKind, CommentType: c.commentType, Deleted: c.deleted,
+	}
 }
 
 func (fakeCommentAdapter) insert(_ context.Context, _ *db.Queries, _ CommentRef, _ AddCommentInput, p preparedComment) (fakeComment, error) {
 	return fakeComment{id: p.ID, resourceID: "doc1", orgID: "org1", wsID: "ws1", authorID: p.AuthorID, authorKind: p.AuthorKind}, nil
 }
 
-func (a *fakeCommentAdapter) updateBody(_ context.Context, _ *db.Queries, _ CommentRef, c fakeComment, _ string) (fakeComment, error) {
+func (a *fakeCommentAdapter) updateBody(_ context.Context, _ *db.Queries, _ CommentRef, _ Actor, c fakeComment, _ string) (fakeComment, error) {
 	return c, a.updateErr
 }
 
@@ -82,7 +87,9 @@ func (fakeCommentAdapter) unresolve(_ context.Context, _ *db.Queries, _ CommentR
 	return c, nil
 }
 
-func (fakeCommentAdapter) commentTypes() []string { return []string{"comment"} }
+func (fakeCommentAdapter) resolveCommentType(kind, _ string) (string, error) {
+	return normalizeCommentType(kind, []string{"comment"})
+}
 
 func (fakeCommentAdapter) foreignParentError() error {
 	return Invalid("parent_id không thuộc tài liệu này")
@@ -162,24 +169,25 @@ func TestCommentCoreParentCheck(t *testing.T) {
 	ctx := context.Background()
 
 	for _, p := range []*string{nil, strptr(""), strptr("   ")} {
-		if got, err := checkCommentParent(ctx, nil, ad, coreRef, p); err != nil || got.Valid {
-			t.Fatalf("no parent: %+v %v", got, err)
+		if got, parent, err := checkCommentParent(ctx, nil, ad, coreRef, p); err != nil || got.Valid || parent.id != "" {
+			t.Fatalf("no parent: %+v %+v %v", got, parent, err)
 		}
 	}
-	if got, err := checkCommentParent(ctx, nil, ad, coreRef, strptr(" c-parent ")); err != nil || !got.Valid || got.String != "c-parent" {
-		t.Fatalf("valid parent: %+v %v", got, err)
+	got, parent, err := checkCommentParent(ctx, nil, ad, coreRef, strptr(" c-parent "))
+	if err != nil || !got.Valid || got.String != "c-parent" || parent.id != "c-parent" {
+		t.Fatalf("valid parent: %+v %+v %v", got, parent, err)
 	}
-	if _, err := checkCommentParent(ctx, nil, ad, coreRef, strptr("missing")); !errors.Is(err, ErrNotFound) {
+	if _, _, err := checkCommentParent(ctx, nil, ad, coreRef, strptr("missing")); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing parent: %v", err)
 	}
-	if _, err := checkCommentParent(ctx, nil, ad, coreRef, strptr("c-tenant")); !errors.Is(err, ErrNotFound) {
+	if _, _, err := checkCommentParent(ctx, nil, ad, coreRef, strptr("c-tenant")); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("foreign-tenant parent: %v", err)
 	}
-	if _, err := checkCommentParent(ctx, nil, ad, coreRef, strptr("c-other")); !errors.Is(err, errCommentParentForeign) {
+	if _, _, err := checkCommentParent(ctx, nil, ad, coreRef, strptr("c-other")); !errors.Is(err, errCommentParentForeign) {
 		t.Fatalf("sibling-resource parent: %v", err)
 	}
 	// prepareComment maps the foreign parent onto the adapter's wording.
-	_, err := prepareComment(ctx, nil, ad, coreRef, Human("u1"), AddCommentInput{Body: "x", ParentID: strptr("c-other")})
+	_, err = prepareComment(ctx, nil, ad, coreRef, Human("u1"), AddCommentInput{Body: "x", ParentID: strptr("c-other")})
 	var ve ValidationError
 	if !errors.As(err, &ve) || ve.Msg != "parent_id không thuộc tài liệu này" {
 		t.Fatalf("foreign parent error = %v", err)

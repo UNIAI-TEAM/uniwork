@@ -127,7 +127,7 @@ func (q *Queries) FailAuditExport(ctx context.Context, arg FailAuditExportParams
 }
 
 const getAuditEvent = `-- name: GetAuditEvent :one
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events WHERE id = $1 AND organization_id = $2
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events WHERE id = $1 AND organization_id = $2
 `
 
 type GetAuditEventParams struct {
@@ -154,12 +154,13 @@ func (q *Queries) GetAuditEvent(ctx context.Context, arg GetAuditEventParams) (A
 		&i.IpAddress,
 		&i.UserAgent,
 		&i.OccurredAt,
+		&i.XactID,
 	)
 	return i, err
 }
 
 const getAuditEventByCorrelation = `-- name: GetAuditEventByCorrelation :one
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
 WHERE correlation_id = $1 AND action = $2 AND resource_id = $3
 ORDER BY occurred_at DESC
 LIMIT 1
@@ -193,6 +194,7 @@ func (q *Queries) GetAuditEventByCorrelation(ctx context.Context, arg GetAuditEv
 		&i.IpAddress,
 		&i.UserAgent,
 		&i.OccurredAt,
+		&i.XactID,
 	)
 	return i, err
 }
@@ -370,7 +372,7 @@ func (q *Queries) InsertAuditExport(ctx context.Context, arg InsertAuditExportPa
 }
 
 const listAuditEvents = `-- name: ListAuditEvents :many
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
 WHERE organization_id = $1
   AND ($2::text IS NULL OR id < $2::text)
   AND ($3::text IS NULL OR actor_id = $3::text)
@@ -435,6 +437,7 @@ func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams
 			&i.IpAddress,
 			&i.UserAgent,
 			&i.OccurredAt,
+			&i.XactID,
 		); err != nil {
 			return nil, err
 		}
@@ -447,7 +450,7 @@ func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams
 }
 
 const listAuditEventsForExport = `-- name: ListAuditEventsForExport :many
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
 WHERE organization_id = $1 AND occurred_at >= $2 AND occurred_at <= $3
 ORDER BY id ASC
 LIMIT $4
@@ -490,6 +493,7 @@ func (q *Queries) ListAuditEventsForExport(ctx context.Context, arg ListAuditEve
 			&i.IpAddress,
 			&i.UserAgent,
 			&i.OccurredAt,
+			&i.XactID,
 		); err != nil {
 			return nil, err
 		}
@@ -609,7 +613,7 @@ func (q *Queries) ListExpiredAuditExportFiles(ctx context.Context) ([]ListExpire
 }
 
 const listResourceAuditEvents = `-- name: ListResourceAuditEvents :many
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
 WHERE resource_type = $1 AND resource_id = $2 AND workspace_id = $3
 ORDER BY occurred_at DESC
 LIMIT $4
@@ -652,6 +656,7 @@ func (q *Queries) ListResourceAuditEvents(ctx context.Context, arg ListResourceA
 			&i.IpAddress,
 			&i.UserAgent,
 			&i.OccurredAt,
+			&i.XactID,
 		); err != nil {
 			return nil, err
 		}

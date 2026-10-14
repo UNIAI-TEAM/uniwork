@@ -27,7 +27,12 @@ type Config struct {
 	DesktopAuthDeploymentIDs []string
 	DesktopAuthCodeTTL       time.Duration
 	DesktopAuthAttemptTTL    time.Duration
-	FrontendOrigin           string
+	// DocumentCommitIntentClaimTTL and DocumentCommitIntentRetention are the
+	// G5-07 intent windows (service.DefaultCommitIntentClaimTTL / ...Retention
+	// are the same dev defaults; G5-D2 fixes production).
+	DocumentCommitIntentClaimTTL  time.Duration
+	DocumentCommitIntentRetention time.Duration
+	FrontendOrigin                string
 	// PreviewOrigin is the separate, cookie-less origin used by isolated
 	// Markdown/HTML frames. It must never be the frontend origin.
 	PreviewOrigin string
@@ -37,6 +42,13 @@ type Config struct {
 	PreviewCapabilitySecret string
 	PreviewAssetTTL         time.Duration
 	PreviewAssetMaxBytes    int64
+	// OfficeChangeSnapshotTTL (OFFICE_CHANGE_SNAPSHOT_TTL) is the lifetime of
+	// an Office change-feed cold-start snapshot (G5-01a); unset keeps the
+	// service's dev default (15m). A value that is set must parse as a
+	// positive duration: Load fails instead of silently keeping the default
+	// (BE-F1-11), because a misspelled TTL that reads as 15m in production is
+	// a silent data-lifecycle change. The production number is G5-D2's.
+	OfficeChangeSnapshotTTL time.Duration
 	// SecureCookies is derived from FrontendOrigin's scheme: an https origin
 	// gets the Secure flag on the refresh cookie, a plain-http dev origin does
 	// not (browsers silently drop Secure cookies set over http, which would
@@ -222,6 +234,13 @@ func (c Config) EmailHubRedirectURL(provider string) string {
 }
 
 func Load() (Config, error) {
+	// OFFICE_CHANGE_SNAPSHOT_TTL is parsed before the struct literal because a
+	// set value must fail the load when malformed instead of silently keeping
+	// the default (BE-F1-11); 0 keeps the service's dev default.
+	changeSnapshotTTL, err := parseOptionalDuration(os.Getenv("OFFICE_CHANGE_SNAPSHOT_TTL"), 0)
+	if err != nil {
+		return Config{}, fmt.Errorf("OFFICE_CHANGE_SNAPSHOT_TTL %w", err)
+	}
 	c := Config{
 		Port:                          getenv("PORT", "8080"),
 		DatabaseURL:                   os.Getenv("DATABASE_URL"),
@@ -234,11 +253,14 @@ func Load() (Config, error) {
 		DesktopAuthDeploymentIDs:      splitList(getenv("DESKTOP_AUTH_DEPLOYMENT_IDS", "default")),
 		DesktopAuthCodeTTL:            parseDuration(os.Getenv("DESKTOP_AUTH_CODE_TTL"), 120*time.Second),
 		DesktopAuthAttemptTTL:         parseDuration(os.Getenv("DESKTOP_AUTH_ATTEMPT_TTL"), 10*time.Minute),
+		DocumentCommitIntentClaimTTL:  parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_CLAIM_TTL"), 2*time.Minute),
+		DocumentCommitIntentRetention: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_RETENTION"), 7*24*time.Hour),
 		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
 		PreviewOrigin:                 os.Getenv("PREVIEW_ORIGIN"),
 		PreviewCapabilitySecret:       os.Getenv("PREVIEW_CAPABILITY_SECRET"),
 		PreviewAssetTTL:               parseRequiredDuration(os.Getenv("PREVIEW_ASSET_TTL")),
 		PreviewAssetMaxBytes:          parseRequiredInt64(os.Getenv("PREVIEW_ASSET_MAX_BYTES")),
+		OfficeChangeSnapshotTTL:       changeSnapshotTTL,
 		TrustedProxies:                os.Getenv("TRUSTED_PROXIES"),
 		LiveKitURL:                    os.Getenv("LIVEKIT_URL"),
 		LiveKitAPIKey:                 os.Getenv("LIVEKIT_API_KEY"),
@@ -378,6 +400,20 @@ func parseDuration(raw string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return d
+}
+
+// parseOptionalDuration reads a duration that has a default: unset keeps the
+// default, but a value that is set must be a positive duration (BE-F1-11).
+// A misspelled TTL must fail Load, not silently behave like the default.
+func parseOptionalDuration(raw string, fallback time.Duration) (time.Duration, error) {
+	if strings.TrimSpace(raw) == "" {
+		return fallback, nil
+	}
+	d, err := time.ParseDuration(strings.TrimSpace(raw))
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("must be a positive duration like 15m, got %q", raw)
+	}
+	return d, nil
 }
 
 func parseRequiredDuration(raw string) time.Duration {
