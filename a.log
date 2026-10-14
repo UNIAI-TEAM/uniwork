@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+cdb60f16e6f958b25546da6cf5798861fa80ed38
+ab12238fa4fe9f38524a07928f849478243eeb8a
+cdb60f16 merge: fork main ab12238f (test-only lock-retry fix) into the upstream port lane (UNI-923)
+b3416918 fix(shell): report S6 bar inset in unscaled CSS px and scale in TabManager
+5dac8e46 fix(sheets): allow merged root and server-comments vh/vw selectors in scale guard
