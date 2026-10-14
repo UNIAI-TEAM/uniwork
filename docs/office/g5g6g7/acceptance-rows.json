@@ -1011,6 +1011,21 @@
       "gate": "G7-D1",
       "blocker": null,
       "evidence": [],
+      "partialEvidence": [
+        {
+          "task": "G7-07",
+          "revision": "01442dcee1f1305ea652580eeb4917125e118cf7",
+          "run": "run-043ace2a-adb7-40d8-9e96-2a8d29b7a532",
+          "report": "reports/g5-server/cloud-test-g7-07-2.md (OPS_EXIT=0, CHECK88_EXIT=0, CHECK89_EXIT=0, PROMTOOL_EXIT=0 SUCCESS: 28 rules found, KNIP_EXIT=0)",
+          "review": "reports/g5-server/review-be-g7-07-2.md (verdict clear; r1 review-be-g7-07-1.md clear)",
+          "tests": [
+            "scripts/office/alert-metrics.test.mjs (every alert expr series registered by D server code; Go comments stripped; red-before with a bogus name)",
+            "scripts/alerts-runbooks.test.mjs (28 rules, one four-section runbook each)",
+            "scripts/no-pii-log.test.mjs",
+            "promtool check rules deploy/alerts.yml"
+          ]
+        }
+      ],
       "status": "NOT_RUN",
       "reviewer": "pending reviewer_be (UNI-1376)"
     },

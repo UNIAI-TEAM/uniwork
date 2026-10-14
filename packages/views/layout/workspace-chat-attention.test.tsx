@@ -1,5 +1,5 @@
 import { act, render, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, notifyManager } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
 import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences-store";
@@ -42,6 +42,16 @@ function renderAttention() {
     </QueryClientProvider>,
   );
   return { client, ...view };
+}
+
+/**
+ * Observers hear about a fetch through notifyManager's own setTimeout(0)
+ * queue, which act() does not wait for. Drain it so the component has seen the
+ * backlog before the next fetch; on a slow runner both lists otherwise arrive
+ * as its first load, which is never news.
+ */
+function deliverToComponent() {
+  return act(() => new Promise<void>((resolve) => notifyManager.schedule(resolve)));
 }
 
 function setHidden(hidden: boolean) {
@@ -94,6 +104,7 @@ describe("WorkspaceChatAttention", () => {
     await act(async () => {
       await client.refetchQueries();
     });
+    await deliverToComponent();
     // The backlog that was there on load is not news.
     expect(shown).toEqual([]);
 
@@ -128,6 +139,7 @@ describe("WorkspaceChatAttention", () => {
     await act(async () => {
       await client.refetchQueries();
     });
+    await deliverToComponent();
 
     notifications = [
       dm("new", "2026-10-09T02:00:00Z", "Chi"),
@@ -142,5 +154,54 @@ describe("WorkspaceChatAttention", () => {
     instances[0]?.onclick?.();
     expect(clicked).toHaveBeenCalledWith(expect.objectContaining({ href: "/acme/team/chat?room=r1&message=m1" }));
     registerSystemNotificationClickHandler(null);
+  });
+
+  // R10 F2: a banner's link is fixed once shown, so none is built from a
+  // workspace list that has not loaded yet.
+  it("shows no banner until the list of workspaces has loaded", async () => {
+    const shown: string[] = [];
+    class FakeNotification {
+      static permission = "granted";
+      onclick: (() => void) | null = null;
+      constructor(title: string) {
+        shown.push(title);
+      }
+      close() {}
+    }
+    vi.stubGlobal("Notification", FakeNotification);
+    setHidden(true);
+    let releaseList: (v: unknown) => void = () => {};
+    const listLoaded = new Promise((resolve) => {
+      releaseList = resolve;
+    });
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: string, init?: unknown) =>
+      path === "/api/v1/workspaces" ? listLoaded : base?.(path, init),
+    );
+    notifications = [dm("seen", "2026-10-09T01:00:00Z")];
+    const { client } = renderAttention();
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith(expect.stringContaining("/api/v1/me/notifications?")));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["notifications"] });
+    });
+    notifications = [dm("new", "2026-10-09T02:00:00Z"), dm("seen", "2026-10-09T01:00:00Z")];
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ["notifications"] });
+    });
+    expect(shown).toEqual([]);
+
+    await act(async () => {
+      releaseList({ workspaces: [workspace] });
+      await listLoaded;
+    });
+    // Let the effect take what loaded meanwhile as the backlog before the next row arrives.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    notifications = [dm("newer", "2026-10-09T03:00:00Z"), ...notifications];
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ["notifications"] });
+    });
+    await waitFor(() => expect(shown).toEqual(["Bình đã nhắn tin cho bạn"]));
   });
 });

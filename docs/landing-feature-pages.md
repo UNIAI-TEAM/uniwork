@@ -168,3 +168,9 @@ installed Chrome; four i18n parity tests; three duplicate-key tests; and
 The full repository aggregate is therefore unverified. The illustrative scenes,
 sample metrics and task-specific composition are not new global design rules or
 evidence that planned capabilities are released.
+
+## Dark preview frame refinement
+
+The follow-up request removes the thick colored outer mat around a members/access illustration in dark mode. Shared **marketing-preview.css** removes padding and background from dark chapter scenes, feature hero/detail illustrations, directory and related thumbnails, route thumbnails and Why-page proof illustrations. Native window corners, internal sample colors and captions remain. Feature heroes use the same upright presentation as the light theme; directory windows fill their thumbnail crop.
+
+Twelve region captures in .impeccable/review/marketing-frames/ were opened and validated across 1440px light/dark, 768px dark and 390px dark, with zero horizontal overflow. Three focused Playwright tests passed, including the 25-page mobile dark chapter/contrast check and both Office edition-navigation cases. Five i18n parity tests, scoped ESLint, the single detector pass ([]) and diff whitespace checks passed. make check was attempted but Make is unavailable; the full repository gate is unverified.

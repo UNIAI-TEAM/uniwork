@@ -10,6 +10,7 @@ import { UI_EASE_OUT, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { NotificationMark } from "./notification-mark";
+import { notificationSnippet } from "./notification-snippet";
 import { NotificationTitle } from "./notification-title";
 import { absoluteTime, relativeTime } from "./relative-time";
 import { useNow } from "./use-now";
@@ -71,6 +72,7 @@ export function NotificationRow({
   const unread = !n.read_at;
   const merged = n.count > 1 ? t("notifications.merged_other", { count: n.count - 1 }) : "";
   const actions = !compact && onToggleRead && onArchive ? { onToggleRead, onArchive } : null;
+  const snippet = notificationSnippet(n);
 
   const body = (
     <>
@@ -80,6 +82,14 @@ export function NotificationRow({
           {unread ? <span className="sr-only">{`${t("notifications.unread_dot")}: `}</span> : null}
           <NotificationTitle notification={n} unread={unread} />
         </span>
+        {snippet ? (
+          <span
+            className={cn("line-clamp-1 text-caption text-muted-foreground", snippet.kind === "deleted" && "italic")}
+            data-notification-snippet={snippet.kind}
+          >
+            {snippet.kind === "text" ? snippet.text : t(snippet.key)}
+          </span>
+        ) : null}
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-caption text-muted-foreground">
           <time
             dateTime={n.created_at}

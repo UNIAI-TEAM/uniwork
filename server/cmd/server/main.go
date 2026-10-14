@@ -438,6 +438,7 @@ func main() {
 	// delivers notification.push, and two jobs (digest, reminder) run beside
 	// them. VAPID keys missing means push is off, not broken.
 	notifConsumer := notification.NewConsumer(pool, q, wsSvc)
+	notifConsumer.SetOrgMembers(orgSvc)
 	// Document read permission is a DocumentService decision; the consumer
 	// gets the resolver injected so notification never imports the service
 	// package (G1-07).
@@ -478,6 +479,15 @@ func main() {
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
+	// The inbox list marks a document row's resource_access_lost /
+	// resource_deleted through the same DocumentService the routes use
+	// (G8-07 section 4.6); the page checker is the read-side mirror of the
+	// consumer's document readers wired just above.
+	notifSvc.SetDocumentReaders(documentSvc)
+	// The daily digest applies the same gate (G8-07 R1-2): a document row the
+	// recipient may no longer read is dropped from the mail instead of
+	// shipping the title the inbox withholds.
+	digest.SetDocumentReaders(documentSvc)
 	dispatcher.RegisterLane(outbox.LaneNotify, notifConsumer)
 	// Work Graph (C-11): the marker rides the realtime lane (one upsert per
 	// event); the worker projects dirty nodes. The graph flag is read per
@@ -622,8 +632,10 @@ func main() {
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
-	// Leave and account deletion revoke the Google grants of the mailboxes they disconnect.
+	// Leave, an invitation switch and account deletion revoke the Google
+	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)
+	wsSvc.SetEmailHub(emailHubSvc)
 	authSvc.SetEmailHub(emailHubSvc)
 	go emailHubSvc.RunWorkers(runCtx)
 	go emailHubSvc.RunHubWatchers(runCtx)
@@ -644,6 +656,21 @@ func main() {
 	if reg != nil {
 		aiUniworkSvc.SetUniworkMetrics(reg.AIUniwork)
 	}
+	// The MCP connector (ADR 0031): UniWork as an OAuth server and a remote MCP
+	// server for external AI clients. The platform flag mcp_connector decides
+	// per person and organization whether it answers at all.
+	homeSvc := service.NewHomeService(q, wsSvc)
+	mcpAuth := service.NewMcpAuthService(pool, q, orgSvc, cfg)
+	mcpAuth.SetFlags(flags)
+	mcpAuth.SetFetcher(service.NewCIMDFetcher(cfg.FrontendOrigin))
+	if reg != nil {
+		mcpAuth.SetMetrics(reg.Mcp)
+	}
+	mcpTools := service.NewMcpToolService(q, askUNI, homeSvc, wsSvc, cfg.FrontendOrigin)
+	// The sweep of expired attempts, tokens and abandoned clients stops with
+	// runCancel and is awaited below.
+	mcpCleanupDone := make(chan struct{})
+	go func() { mcpAuth.Run(runCtx); close(mcpCleanupDone) }()
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
@@ -659,7 +686,7 @@ func main() {
 		Workspaces:          wsSvc,
 		Onboarding:          service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
 		Tasks:               taskSvc,
-		Home:                service.NewHomeService(q, wsSvc),
+		Home:                homeSvc,
 		Calendar:            service.NewCalendarService(q, wsSvc),
 		CalendarConnections: calendarConnectionSvc,
 		EmailHub:            emailHubSvc,
@@ -670,6 +697,8 @@ func main() {
 		Billing:             billingSvc,
 		Notifications:       notifSvc,
 		AskUNI:              askUNI,
+		McpAuth:             mcpAuth,
+		McpTools:            mcpTools,
 		AIBYOK:              aiBYOK,
 		Meetings:            meetingSvc,
 		Chat:                chatSvc,
@@ -699,6 +728,7 @@ func main() {
 		WebVitals:       webVitals(reg),
 		Readiness:       readiness,
 		Admin:           adminSvc,
+		DemoRequests:    service.NewDemoRequestService(pool, q),
 		Version:         version,
 		Commit:          commit,
 	})
@@ -818,6 +848,11 @@ func main() {
 	case <-retentionDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("outbox: event retention did not stop in time")
+	}
+	select {
+	case <-mcpCleanupDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("mcp: cleanup sweep did not stop in time")
 	}
 	select {
 	case <-officeDone:

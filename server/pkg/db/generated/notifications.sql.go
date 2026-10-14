@@ -275,6 +275,69 @@ func (q *Queries) ListDigestCandidateUsers(ctx context.Context, createdAt pgtype
 	return items, nil
 }
 
+const listExistingDocumentCommentIDs = `-- name: ListExistingDocumentCommentIDs :many
+SELECT id FROM document_comments WHERE id = ANY($1::text[]) AND deleted_at IS NULL
+`
+
+// tenant: by-id
+// The live comments behind an inbox page (G8-07 section 1): a notification
+// that names a comment which is gone (hard delete) or tombstoned (deleted_at
+// set) gets comment_deleted=true. Only live rows come back.
+func (q *Queries) ListExistingDocumentCommentIDs(ctx context.Context, ids []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listExistingDocumentCommentIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExistingDocumentIDs = `-- name: ListExistingDocumentIDs :many
+SELECT id, organization_id, archived_at FROM documents WHERE id = ANY($1::text[])
+`
+
+type ListExistingDocumentIDsRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+}
+
+// tenant: by-id
+// The document rows behind an inbox page (G8-07 section 4.6): one query
+// answers existence and trash for up to a page of ids, so Service.List
+// resolves resource_deleted / resource_access_lost without a query per row.
+// organization_id rides along so the read gate runs once per organization.
+func (q *Queries) ListExistingDocumentIDs(ctx context.Context, ids []string) ([]ListExistingDocumentIDsRow, error) {
+	rows, err := q.db.Query(ctx, listExistingDocumentIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExistingDocumentIDsRow{}
+	for rows.Next() {
+		var i ListExistingDocumentIDsRow
+		if err := rows.Scan(&i.ID, &i.OrganizationID, &i.ArchivedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listExistingMeetingIDs = `-- name: ListExistingMeetingIDs :many
 SELECT id FROM meetings WHERE id = ANY($1::text[])
 `

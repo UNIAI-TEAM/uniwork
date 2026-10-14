@@ -56,8 +56,11 @@ export function DocumentCommentThread({
   ctx: ThreadContext;
   /** A deep link named this thread: tint the whole card. */
   highlighted?: boolean;
-  /** "heading" for a deep link, "resolve" after Resolve/Reopen moved the thread between groups. */
-  focusRequest?: "heading" | "resolve" | null;
+  /**
+   * "heading" for a deep link, "resolve" after Resolve/Reopen moved the thread between groups,
+   * "scroll" for a deep link while the editor holds focus: reveal the thread, leave focus alone.
+   */
+  focusRequest?: "heading" | "resolve" | "scroll" | null;
   onFocusHandled: () => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -76,7 +79,7 @@ export function DocumentCommentThread({
     if (!focusRequest) return;
     const target = focusRequest === "resolve" ? (resolveRef.current ?? headingRef.current) : headingRef.current;
     target?.scrollIntoView?.({ block: "nearest" });
-    target?.focus();
+    if (focusRequest !== "scroll") target?.focus();
     onFocusHandled();
   }, [focusRequest, onFocusHandled]);
 

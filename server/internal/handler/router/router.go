@@ -83,8 +83,12 @@ func New(d Deps, h Routes) http.Handler {
 		// LiveKit address, so a platform-wide join burst spent that address's
 		// budget and LiveKit dropped the refused events. The route checks the
 		// webhook signature and the network policy admits only LiveKit.
+		// /mcp skips it as well: this limiter names only session JWTs and frame
+		// grants, so an MCP access token falls back to the client address, and
+		// every team behind one AI vendor's egress address would share 300 a
+		// minute. /mcp has its own per-token budget (registerMCP).
 		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
-		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
+		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
 	// In-room limiters budget per verified person, not per address: a formal
@@ -144,9 +148,22 @@ func New(d Deps, h Routes) http.Handler {
 	cat := &apiCatalog{}
 	root := newAPI(r, cat)
 	registerMeta(root, r, d.Storage, h)
+	// Discovery and OAuth for external MCP clients: RFC bodies, so outside the
+	// api wrapper and the OpenAPI catalogue. Registration creates rows for any
+	// caller, so it gets the smaller budget.
+	registerMCP(r, h, credentialLimit, mw.RateLimit(d.Redis, 10, time.Hour, proxies),
+		mcpLimits(
+			// Every request of an address, whatever token it carries: the
+			// per-token key below is read before authentication, so a caller
+			// who rotates well-formed uwm_at_ strings gets a fresh bucket from
+			// each. 1200 a minute holds ten teams at their own 120 behind one
+			// AI vendor's egress address.
+			mw.RateLimitByIdentityBucket(d.Redis, "mcp-ip", 1200, time.Minute, proxies, nil),
+			mw.RateLimitByIdentityBucket(d.Redis, "mcp", 120, time.Minute, proxies, mcpBearer)))
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
 		registerAuth(v1, h, credentialLimit)
+		registerDemoRequests(v1, h, mw.RateLimit(d.Redis, 5, time.Hour, proxies))
 		// Outside authed: the provider redirects the popup here with no bearer.
 		registerEmailHubCallback(v1, h, credentialLimit)
 		registerBillingWebhooks(v1, h)
@@ -190,6 +207,7 @@ func New(d Deps, h Routes) http.Handler {
 				authed.Use(mw.RequireAuth(d.Minter))
 			}
 			registerMe(authed, h, credentialLimit)
+			registerConnect(authed, h)
 			registerOrganizations(authed, h)
 			registerPeople(authed, h)
 			registerDepartments(authed, h)

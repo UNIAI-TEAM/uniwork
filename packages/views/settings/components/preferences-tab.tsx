@@ -28,6 +28,7 @@ import {
   SettingsTab,
 } from "./settings-layout";
 import { ThemesPanel } from "./themes-panel";
+import { TextSizePanel } from "./text-size-panel";
 import { matchesTimezone, timezoneItems, type TimezoneItem } from "./timezone-options";
 import { useAutoSave } from "./use-auto-save";
 
@@ -99,6 +100,7 @@ export function PreferencesTab() {
   return (
     <SettingsTab title={t("page.tabs.preferences")}>
       <ThemesPanel />
+      <TextSizePanel />
       <SettingsSection
         title={t("preferences.section")}
         action={

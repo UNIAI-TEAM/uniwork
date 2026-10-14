@@ -1,32 +1,75 @@
-/* Color belongs to the shared core; the rest of Bright Studio stays on paper. */
-.landing-site .landing-hero .scene-core::before {
+/* Approved option B: theme-aware ribbons frame the compact opening. */
+.landing-site .landing-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 132px 0 48px;
+  background: var(--background) url("/landing/hero-backgrounds/ribbons-light.webp") center / cover no-repeat;
+}
+/* Blend the decorative ribbons into the product story's shared page surface. */
+.landing-site .landing-hero::after {
   content: "";
   position: absolute;
-  inset: -20px -8%;
-  z-index: -1;
+  inset: auto 0 0;
+  z-index: 0;
+  height: clamp(128px, 40%, 220px);
+  background: linear-gradient(to bottom, transparent, var(--background) 94%);
   pointer-events: none;
-  mask-image: radial-gradient(ellipse at center, var(--foreground) 25%, transparent 70%);
-  background:
-    radial-gradient(ellipse at 36% 58%, color-mix(in srgb, var(--landing-close-light) 22%, transparent), transparent 46%),
-    radial-gradient(ellipse at 66% 49%, color-mix(in srgb, var(--brand-accent) 17%, transparent), transparent 48%),
-    radial-gradient(ellipse at 51% 68%, color-mix(in srgb, var(--landing-close-end) 17%, transparent), transparent 55%);
 }
-.landing-site .landing-hero .hero-context {
-  background: color-mix(in srgb, var(--landing-paper) 88%, var(--landing-cyan));
-  box-shadow: 0 12px 30px -20px color-mix(in srgb, var(--landing-close-end) 48%, transparent);
+.dark .landing-site .landing-hero {
+  background-image: url("/landing/hero-backgrounds/ribbons-dark.webp");
 }
-.landing-site .landing-hero .hero-context-chat { background: var(--landing-cyan); }
-.landing-site .landing-hero .hero-context-meet { background: var(--landing-violet); }
-.landing-site .landing-hero .hero-context-ai { background: color-mix(in srgb, var(--landing-paper) 86%, var(--brand-accent)); }
-.landing-site .landing-hero .hero-context-ai > svg { color: var(--brand-accent); }
-.landing-site .landing-hero .hero-context-meet > svg { color: var(--landing-close-end); }
-.landing-site .landing-hero .scene-brand svg { height: 44px; }
-.landing-site .landing-hero .scene-motion-toggle { color: var(--brand); }
+.landing-site .landing-hero-stage { gap: 0; }
+.landing-site .landing-hero-container { max-width: 1440px; }
+.landing-site .landing-hero-stage .landing-hero-copy { max-width: 1100px; }
+.landing-site .landing-hero h1 {
+  margin-top: 0;
+  font-size: var(--text-hero-statement);
+  font-weight: 800;
+  line-height: 1.14;
+  letter-spacing: -.04em;
+}
+.landing-site .landing-hero h1 .landing-hero-line { display: block; color: var(--foreground); }
+.landing-site .landing-hero-stage .landing-hero-description {
+  max-width: 760px;
+  margin-top: 18px;
+  color: var(--muted-foreground);
+  font-size: var(--text-body-lg);
+  line-height: 1.5;
+  text-wrap: balance;
+}
+.landing-site .landing-hero-stage .landing-hero-actions { margin-top: 24px; flex-wrap: wrap; }
+.landing-site .landing-hero-actions a {
+  min-height: 46px;
+  min-width: 0;
+  border-radius: 9px;
+  padding-inline: 22px;
+  box-shadow: none;
+}
+.landing-site .landing-hero-actions .landing-demo-action {
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--brand);
+}
+.dark .landing-site .landing-hero-actions .landing-demo-action {
+  border-color: var(--faint-foreground);
+  color: var(--foreground);
+}
+.landing-site .landing-hero-actions .landing-demo-action:hover { background: var(--brand-subtle); }
+@media (max-width: 999px) {
+  .landing-site .landing-hero { padding: 112px 0 40px; }
+  .landing-site .landing-hero h1 { font-size: var(--text-hero-statement-mobile); line-height: 1.2; }
+  .landing-site .landing-hero-stage .landing-hero-description { max-width: 38ch; }
+}
+@media (min-width: 768px) and (max-width: 999px) {
+  .landing-site .landing-hero h1 { font-size: var(--text-hero-statement-tablet); }
+  .landing-site .landing-hero-stage .landing-hero-description { max-width: 60ch; }
+}
 @media (max-width: 767px) {
-  .landing-site .landing-hero .scene-core { padding-bottom: 42px; }
-  .landing-site .landing-hero .hero-context-meet,
-  .landing-site .landing-hero .hero-context-ai { top: auto; bottom: 0; }
-  .landing-site .landing-hero .scene-motion-toggle { bottom: 42px; }
-  .landing-site .landing-hero .scene-brand svg { height: 36px; }
-  .landing-site .landing-hero .scene-core::before { inset-inline: 0; }
+  .landing-site .landing-hero {
+    background-image: url("/landing/hero-backgrounds/ribbons-light-mobile.webp");
+  }
+  .dark .landing-site .landing-hero {
+    background-image: url("/landing/hero-backgrounds/ribbons-dark-mobile.webp");
+  }
 }

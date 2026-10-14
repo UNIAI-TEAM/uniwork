@@ -67,12 +67,13 @@ func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.E
 		}
 		return code, nil
 	}
-	// Duplicate IPN: inbox row already committed from an earlier apply.
+	// Duplicate IPN: the row was already committed, either applied or queued for the worker.
 	if n == 0 {
 		return vnpayIPNAlreadyDone, nil
 	}
 	if err := s.applyProviderEvent(ctx, q, ev); err != nil {
 		if errors.Is(err, errUnknownTxnRef) {
+			// Roll the inbox back so a retry stays 01. A stored row would look like a duplicate (02).
 			return vnpayIPNOrderNotFound, nil
 		}
 		if errors.Is(err, errIntentAlreadyCompleted) {
@@ -80,7 +81,17 @@ func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.E
 		}
 		var term intentTerminalErr
 		if !errors.As(err, &term) {
-			return vnpayIPNUnknown, err
+			// Keep the payload outside the rolled-back transaction so the worker
+			// can retry and dead-letter it. Unknown txn refs stay unstored above.
+			_ = tx.Rollback(ctx)
+			if _, qerr := s.q.InsertWebhookInbox(ctx, db.InsertWebhookInboxParams{
+				ID: inboxID, Provider: s.provider.Name(), ProviderEventID: ev.ProviderEventID,
+				EventType: ev.Type, Payload: string(payload),
+			}); qerr != nil {
+				return vnpayIPNUnknown, errors.Join(err, qerr)
+			}
+			s.billingLogWarn("billing webhook queued for retry", err, "provider_event_id", ev.ProviderEventID)
+			return vnpayIPNConfirmed, nil
 		}
 		// Amount or currency mismatch is 04. Quota and other terminal
 		// failures stay 00; UNI-1272 owns the quota reply.
@@ -149,7 +160,9 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		}
 		return errIntentAlreadyCompleted
 	}
-	if intent.Status != "pending" && intent.Status != "failed" {
+	// expired stays payable: the VNPay URL has no expiry, so a superseded
+	// checkout can still be paid. Amount and quota checks below still apply.
+	if intent.Status != "pending" && intent.Status != "failed" && intent.Status != "expired" {
 		return fmt.Errorf("billing: intent %q not payable (status=%s)", intent.ID, intent.Status)
 	}
 	if ev.Amount != intent.Amount {
@@ -213,7 +226,7 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 	_, err = q.InsertInvoice(ctx, db.InsertInvoiceParams{
 		ID: invID, OrganizationID: intent.OrganizationID, SubscriptionID: sub.ID,
 		Provider: s.provider.Name(), ProviderInvoiceID: pgtype.Text{String: providerInvID, Valid: providerInvID != ""},
-		Number: invoiceNumber(start), AmountDue: intent.Amount, AmountPaid: intent.Amount, Currency: intent.Currency,
+		Number: invoiceNumber(start, invID), AmountDue: intent.Amount, AmountPaid: intent.Amount, Currency: intent.Currency,
 		PeriodStart: pgtype.Timestamptz{Time: start, Valid: true}, PeriodEnd: periodEnd,
 		InitiatedBy: initiatedBy, InitiatedByKind: initiatedKind,
 		PaymentIntentID: pgtype.Text{String: intent.ID, Valid: true},
@@ -239,8 +252,16 @@ func subscriptionPeriodEnd(start time.Time, billingPeriod string) pgtype.Timesta
 	return pgtype.Timestamptz{Time: end, Valid: true}
 }
 
-func invoiceNumber(at time.Time) string {
-	return fmt.Sprintf("UW-%d-%s", at.Year(), util.NewID()[:8])
+// invoiceNumber keeps the invoice id's random suffix. A ULID's first ten
+// characters are only the time, so a short prefix repeats for about a second
+// and the later InsertInvoice hits idx_invoices_number. The year is Vietnam
+// time: UTC would label the first seven hours of 1 January with the previous year.
+func invoiceNumber(at time.Time, id string) string {
+	suffix := id
+	if len(id) > 10 {
+		suffix = id[10:]
+	}
+	return fmt.Sprintf("UW-%d-%s", at.In(vnpayICT).Year(), suffix)
 }
 
 // ProviderWebhookPayloadJSON serialises raw provider params for webhook_inbox.

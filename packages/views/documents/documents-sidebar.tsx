@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Clock, FolderTree, House, Plus, Star, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +15,7 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { DocumentTree } from "./document-tree";
+import { FolderNameDialog } from "./folder-name-dialog";
 
 /** What the library shows: a collection, or one module's files (null = every module). */
 export type LibraryView =
@@ -45,9 +47,11 @@ export interface DocumentsSidebarProps {
   canCreate: boolean;
   /** A folder is being created: the "+" holds still until the server answers. */
   newFolderPending?: boolean;
+  /** False while a host sheet is closed. */
+  open?: boolean;
   onView: (view: LibraryView) => void;
   onFolder: (folderId: string) => void;
-  onNewFolder: () => void;
+  onNewFolder: (title?: string) => Promise<boolean | void> | boolean | void;
   className?: string;
 }
 
@@ -70,7 +74,7 @@ function NavItem({
       aria-current={current ? "page" : undefined}
       onClick={onClick}
       className={cn(
-        "flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
+        "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
         current && "bg-accent font-medium",
       )}
     >
@@ -85,7 +89,7 @@ function NavItem({
 
 function SectionLabel({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="mt-4 flex items-center justify-between px-2 pb-1">
+    <div className="mt-4 flex shrink-0 items-center justify-between px-2 pb-1">
       <h3 className="text-caption font-medium uppercase tracking-wide text-muted-foreground">{children}</h3>
       {action}
     </div>
@@ -104,13 +108,22 @@ export function DocumentsSidebar({
   sourcesAvailable,
   canCreate,
   newFolderPending = false,
+  open = true,
   onView,
   onFolder,
   onNewFolder,
   className,
 }: DocumentsSidebarProps) {
   const { t } = useTranslation();
+  const [createOpen, setCreateOpen] = useState(false);
+
   const isView = (kind: LibraryView["kind"]) => view.kind === kind && !(kind === "home" && folderId);
+
+  const openCreateDialog = () => {
+    if (newFolderPending) return;
+    setCreateOpen(true);
+  };
+
   return (
     <nav aria-label={t("documents.home.sidebar.label")} className={cn("flex min-h-0 flex-col overflow-y-auto p-2", className)}>
       <NavItem icon={House} label={t("documents.home.sidebar.home")} current={isView("home")} onClick={() => onView({ kind: "home" })} />
@@ -123,9 +136,7 @@ export function DocumentsSidebar({
           canCreate ? (
             <button
               type="button"
-              onClick={() => {
-                if (!newFolderPending) onNewFolder();
-              }}
+              onClick={openCreateDialog}
               aria-disabled={newFolderPending || undefined}
               aria-label={t("documents.home.folders.new")}
               title={t("documents.home.folders.new")}
@@ -141,10 +152,11 @@ export function DocumentsSidebar({
       <DocumentTree
         wsId={wsId}
         folders
+        visible={open}
         currentId={folderId}
         onOpen={onFolder}
         emptyLabel={t("documents.home.folders.empty")}
-        className="overflow-visible p-0"
+        className="shrink-0 overflow-visible p-0"
       />
 
       {sourcesAvailable ? (
@@ -161,6 +173,17 @@ export function DocumentsSidebar({
           ))}
         </>
       ) : null}
+
+      <FolderNameDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        mode="create"
+        root
+        wsId={wsId}
+        initialName={t("documents.home.folders.default_name")}
+        pending={newFolderPending}
+        onSubmit={(title) => onNewFolder(title)}
+      />
     </nav>
   );
 }
@@ -172,17 +195,31 @@ export function DocumentsSidebarSheet({
   ...sidebar
 }: DocumentsSidebarProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
+  const popupRef = useRef<HTMLDivElement | null>(null);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="flex w-full flex-col gap-0 p-0 sm:max-w-xs" closeLabel={t("common.close")}>
-        <SheetHeader className="border-b border-border px-4 py-3 text-left">
+      <SheetContent
+        ref={popupRef}
+        side="left"
+        initialFocus={() => {
+          const popup = popupRef.current;
+          if (!popup) return true;
+          if (sidebar.folderId) {
+            return popup.querySelector<HTMLElement>('[role="treeitem"][aria-current="true"]') ?? popup;
+          }
+          return popup.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]') ?? true;
+        }}
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-xs"
+        closeLabel={t("common.close")}
+      >
+        <SheetHeader className="shrink-0 border-b border-border px-4 py-3 text-left">
           <SheetTitle className="flex items-center gap-2 text-title">
             <FolderTree aria-hidden className="size-4 text-muted-foreground" />
             {t("documents.tree.sheet_title")}
           </SheetTitle>
           <SheetDescription className="mt-0.5">{t("documents.tree.sheet_description")}</SheetDescription>
         </SheetHeader>
-        <DocumentsSidebar {...sidebar} className="flex-1" />
+        <DocumentsSidebar {...sidebar} open={open} className="flex-1" />
       </SheetContent>
     </Sheet>
   );

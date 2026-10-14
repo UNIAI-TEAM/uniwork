@@ -113,6 +113,11 @@ func (h *handlers) adminRefundInvoice(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
+	if in.RefundAmount != nil && *in.RefundAmount <= 0 {
+		h.mapServiceError(w, service.CodedError{Code: "invalid_refund_amount", Status: http.StatusBadRequest,
+			Msg: "số tiền hoàn phải lớn hơn 0"})
+		return
+	}
 	var amount int64
 	if in.RefundAmount != nil {
 		amount = *in.RefundAmount

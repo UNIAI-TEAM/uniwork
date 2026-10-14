@@ -169,6 +169,151 @@ groups:
           description: "Chi phí AI trong 1 giờ qua là {{ $value | printf \"%.2f\" }} USD, hơn 3 lần trung bình giờ của 7 ngày trước (sàn 1 USD để bỏ nhiễu lúc mới bật)."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/AiCostSpike.md
 
+      # G7-D1 pending. 10% with a floor of 20 calls: the pilot load is a few organizations, so a handful of failures in a quiet window must not page; RUNBOOK_AI's 5% stays the dashboard reading.
+      - alert: UniworkAiModelErrors
+        expr: |
+          sum(increase(uniwork_ai_calls_total{capability="office_uniwork_ai", status="failed"}[10m]))
+            / sum(increase(uniwork_ai_calls_total{capability="office_uniwork_ai"}[10m])) > 0.1
+          and sum(increase(uniwork_ai_calls_total{capability="office_uniwork_ai"}[10m])) >= 20
+        for: 5m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "UniWork AI lỗi trên 10% lượt gọi model"
+          description: "Hơn 10% lượt gọi model của capability office_uniwork_ai kết thúc failed trong 10 phút (hiện {{ $value | humanizePercentage }}): upstream, khóa hoặc model sai. Editor, Lưu và BYOK vẫn chạy."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniworkAiModelErrors.md
+
+      # G7-D1 pending. 20 s is RUNBOOK_AI's tier-change reading and sits well under the 55 s upstream timeout (A14), so it warns before users see ai_provider_timeout.
+      - alert: UniworkAiLatencyP95High
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(uniwork_ai_latency_ms_bucket{capability="office_uniwork_ai"}[10m]))) > 20000
+        for: 10m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "p95 lượt model UniWork AI vượt 20 giây"
+          description: "p95 thời gian vòng đi provider của office_uniwork_ai vượt 20 giây liên tục 10 phút (hiện {{ $value | printf \"%.0f\" }} ms); trần chờ upstream là 55 giây."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniworkAiLatencyP95High.md
+
+      # G7-D1 pending. A conforming upstream sends usage on every answer, so any steady share means it changed behaviour; 10% over an hour with a 20-call floor ignores a single odd turn.
+      - alert: UniworkAiUsageUnknownSpike
+        expr: |
+          sum(increase(uniwork_ai_uniwork_usage_unknown_total[1h]))
+            / sum(increase(uniwork_ai_calls_total{capability="office_uniwork_ai", status="succeeded"}[1h])) > 0.1
+          and sum(increase(uniwork_ai_calls_total{capability="office_uniwork_ai", status="succeeded"}[1h])) >= 20
+        for: 0m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Upstream không trả usage cho hơn 10% lượt"
+          description: "Hơn 10% lượt thành công của office_uniwork_ai không có khối usage trong 1 giờ (hiện {{ $value | humanizePercentage }}): chi phí đang được ước lượng bằng đối soát thay vì số thật."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniworkAiUsageUnknownSpike.md
+
+      # G7-D1 pending. Run age is the sum of model calls and tool rounds of one question; 64 s is a histogram bucket edge, above one 55 s upstream timeout plus a normal tool round.
+      - alert: UniworkAiRunSecondsHigh
+        expr: histogram_quantile(0.95, sum by (le) (rate(uniwork_ai_uniwork_run_seconds_bucket[30m]))) > 64
+        for: 30m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "p95 tuổi run UniWork AI vượt 64 giây"
+          description: "p95 tuổi của run UniWork AI tại mỗi lượt trả lời vượt 64 giây liên tục 30 phút (hiện {{ $value | humanizeDuration }}): các run dài bất thường, upstream chậm hoặc vòng tool lặp."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniworkAiRunSecondsHigh.md
+
+      # G7-D1 pending. 10 model calls x 4096 output tokens (A1, A3) is about 41k of output alone; 64,000 is a histogram bucket edge, so p95 above it means inputs are growing too.
+      - alert: UniworkAiRunCreditsHigh
+        expr: histogram_quantile(0.95, sum by (le) (rate(uniwork_ai_uniwork_run_credits_bucket[30m]))) > 64000
+        for: 30m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "p95 token của run UniWork AI vượt 64.000"
+          description: "p95 token mà một run UniWork AI đã tiêu sau mỗi lượt vượt 64.000 liên tục 30 phút (hiện {{ $value | printf \"%.0f\" }}): prompt dài bất thường hoặc vòng tool lặp."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniworkAiRunCreditsHigh.md
+
+      # G7-D1 pending. The reason label is a closed pair (view_only, not_allowlisted). A few drops are model noise; 20 per 15 minutes is a prompt, model or client regression.
+      - alert: UniworkAiDroppedToolCalls
+        expr: sum by (reason) (increase(uniwork_ai_uniwork_dropped_tool_calls_total[15m])) > 20
+        for: 0m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "UniWork AI bỏ nhiều tool call ({{ $labels.reason }})"
+          description: "{{ $value | printf \"%.0f\" }} tool call bị allowlist bỏ với lý do {{ $labels.reason }} trong 15 phút: model gọi công cụ ngoài danh sách hoặc client gửi công cụ ghi khi chỉ có quyền xem."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniworkAiDroppedToolCalls.md
+
+  - name: uniwork-office
+    rules:
+      # G7-D1 pending. Healthy lag is 0 (the page caught the caller up). A migration or backup can hold the xmin horizon for a few minutes; 300 s for 10 m means a stuck holder, not a blip. The gauge keeps its last value while nobody polls.
+      - alert: OfficeChangeFeedLagHigh
+        expr: max(uniwork_office_change_feed_lag_seconds) > 300
+        for: 10m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Change feed Office trễ hơn 5 phút"
+          description: "Thay đổi tài liệu cũ nhất mà change feed chưa giao đã {{ $value | humanizeDuration }}: app và frame nhận bản mới chậm. Thường do một transaction dài giữ xmin."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OfficeChangeFeedLagHigh.md
+
+      # G7-D1 pending. A manual save conflicts only when two writers share a base; 20% over 30 minutes with a 20-save floor is a systematic stale base, not two people editing.
+      - alert: OfficeCommitConflictSpike
+        expr: |
+          sum(increase(uniwork_document_conflicts_total{kind="file", code="document_version_conflict"}[30m]))
+            / clamp_min(sum(increase(uniwork_document_saves_total{kind="file"}[30m])), 1) > 0.2
+          and sum(increase(uniwork_document_saves_total{kind="file"}[30m])) >= 20
+        for: 0m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Hơn 20% lượt Lưu file Office bị 409"
+          description: "Hơn 20% lệnh Lưu file trong 30 phút bị document_version_conflict (hiện {{ $value | humanizePercentage }}): client gửi base_revision cũ, feed không giao bản mới hoặc hai thiết bị cùng sửa."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OfficeCommitConflictSpike.md
+
+      # G7-D1 pending. unknown means the intent was swept (retention 7 days) while a device was still reconciling; it should be near zero, and 5 per hour is more than a device left offline over a long break.
+      - alert: OfficeIntentLookupUnknown
+        expr: sum(increase(uniwork_office_intent_lookups_total{outcome="unknown"}[1h])) > 5
+        for: 0m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Có lượt tra intent trả unknown"
+          description: "{{ $value | printf \"%.0f\" }} lượt tra kết quả intent trả unknown trong 1 giờ: kết quả đã bị dọn trước khi thiết bị đối soát (offline quá cửa sổ giữ)."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OfficeIntentLookupUnknown.md
+
+      # G7-D1 pending. A replay is a retry whose first attempt already committed; a few per hour are normal on mobile networks, 50 in 15 minutes is a client retry storm or a proxy cutting responses.
+      - alert: OfficeIdempotentReplaySpike
+        expr: sum(increase(uniwork_office_idempotent_replays_total[15m])) > 50
+        for: 0m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Nhiều lệnh Lưu được trả lại từ kết quả đã lưu"
+          description: "{{ $value | printf \"%.0f\" }} lệnh commit được trả từ kết quả cùng Idempotency-Key trong 15 phút: client gửi lại hàng loạt vì mất phản hồi (proxy, timeout)."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OfficeIdempotentReplaySpike.md
+
+      # G7-D1 pending. reason is a closed set of 8 values; flag_off is excluded because it is the kill switch working. 50 per 15 minutes per reason means a policy epoch bump, a rotated JWT_SECRET (signature) or a real incident.
+      - alert: OfficeLeaseBlockedSpike
+        expr: sum by (reason) (increase(uniwork_office_offline_lease_blocked_total{reason!="flag_off"}[15m])) > 50
+        for: 5m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Lease offline bị chặn nhiều ({{ $labels.reason }})"
+          description: "{{ $value | printf \"%.0f\" }} lần cấp hoặc gia hạn lease offline bị từ chối với lý do {{ $labels.reason }} trong 15 phút: chính sách, chữ ký hoặc ACL đổi hàng loạt."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OfficeLeaseBlockedSpike.md
+
+      # G7-D1 pending. Any failure leaves a lease that should be closed, so there is no safe baseline above zero; severity 2 because the outbox consumer is the second line.
+      - alert: OfficeLeaseRevokeFailed
+        expr: sum(increase(uniwork_office_offline_lease_revoke_failed_total[15m])) > 0
+        for: 0m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Có lease offline revoke không thành"
+          description: "{{ $value | printf \"%.0f\" }} lần revoke lease offline fail-closed không ghi được trong 15 phút: consumer outbox phải đóng hàng đó, nếu không lease còn sống sau khi mất quyền."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OfficeLeaseRevokeFailed.md
+
   - name: uniwork-billing
     rules:
       - alert: BILLING_VNPAY_WEBHOOK

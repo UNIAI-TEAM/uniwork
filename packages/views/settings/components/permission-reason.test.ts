@@ -18,13 +18,20 @@ describe("decisionReason", () => {
   it("renders the reason code through i18n, never the English message", () => {
     const leave = canLeaveOrg(owner);
     const text = decisionReason(t, leave, "leave");
-    expect(text).toBe("Bạn là chủ sở hữu. Chuyển quyền chủ sở hữu cho người khác trước khi rời.");
+    expect(text).toBe("Bạn là chủ sở hữu. Chuyển quyền sở hữu cho người khác trước khi rời.");
     expect(text).not.toBe(leave.message);
     expect(decisionReason(t, canTransferOwnership(member))).toBe(
       "Chỉ chủ sở hữu tổ chức thực hiện được thao tác này.",
     );
     expect(decisionReason(t, canLeaveOrg({ ...member, orgMemberStatus: "deactivated" }))).toBe(
       "Tài khoản của bạn trong tổ chức này đang bị vô hiệu hóa.",
+    );
+  });
+
+  it("tells an owner with other active members to transfer before closing", () => {
+    // The decision usePeoplePermissions().decideClose(true) answers.
+    expect(decisionReason(t, { allowed: false, reason: "organization_has_members", message: "" })).toBe(
+      "Tổ chức vẫn còn thành viên khác. Chuyển quyền sở hữu trước khi đóng.",
     );
   });
 });

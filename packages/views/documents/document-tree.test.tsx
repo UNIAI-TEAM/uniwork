@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
+import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import { initI18n } from "@uniwork/core/i18n";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
-import { wrap } from "../test/api-mock";
-import { requestMock } from "../test/api-mock";
+import { requestMock, wrap } from "../test/api-mock";
 import { DocumentTree } from "./document-tree";
 import {
   findTreeNode,
@@ -126,28 +127,16 @@ describe("document tree helpers", () => {
     expect(siblingMovePosition(forest, 1, 1)).toBeNull();
   });
 
-  it("refuses a move past five levels before any request", () => {
-    const deep = [
-      node({
-        id: "L1",
-        children: [
-          node({
-            id: "L2",
-            children: [
-              node({
-                id: "L3",
-                children: [node({ id: "L4" }), node({ id: "L4b", children: [node({ id: "L5b" })] })],
-              }),
-            ],
-          }),
-        ],
-      }),
+  it("refuses a move past TREE_MAX_LEVEL levels before any request", () => {
+    const edge = TREE_MAX_LEVEL - 1;
+    let children: DocumentTreeNode[] = [
+      node({ id: `L${edge}` }),
+      node({ id: `L${edge}b`, children: [node({ id: `L${edge + 1}b` })] }),
     ];
-    expect(nodeLevel(deep, "L4")).toBe(4);
-    // A leaf under a level-4 node lands exactly on level 5: allowed.
-    expect(moveTooDeep(deep, "L4", "L4b")).toBe(false);
-    // A subtree with children under a level-4 node would need level 6.
-    expect(moveTooDeep(deep, "L4b", "L4")).toBe(true);
+    for (let d = edge - 1; d >= 1; d -= 1) children = [node({ id: `L${d}`, children })];
+    expect(nodeLevel(children, `L${edge}`)).toBe(edge);
+    expect(moveTooDeep(children, `L${edge}`, `L${edge}b`)).toBe(false);
+    expect(moveTooDeep(children, `L${edge}b`, `L${edge}`)).toBe(true);
   });
 });
 
@@ -289,19 +278,22 @@ describe("DocumentTree", () => {
     );
   });
 
-  it("refuses a move into the dragged node's own subtree without a request", async () => {
+  it("refuses a move into the dragged node's own subtree without a request and shows a cycle toast", async () => {
     requestMock.mockImplementation((path: string) =>
       path.startsWith(TREE_URL) ? Promise.resolve({ documents: forest }) : Promise.resolve({}),
     );
     renderTree();
     await screen.findByRole("treeitem", { name: /Nhóm/ });
 
+    const toastError = vi.spyOn(toast, "error");
     const before = requestMock.mock.calls.length;
     dragStart("root1");
     dragEnd("root1", "child1");
 
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(requestMock.mock.calls.length).toBe(before);
+    expect(toastError).toHaveBeenCalledWith(t("documents.tree.cycle_blocked"));
+    toastError.mockRestore();
     expect(screen.getByRole("treeitem", { name: /Nhóm/ })).toHaveAttribute("aria-level", "1");
   });
 
@@ -416,46 +408,42 @@ describe("DocumentTree", () => {
     release({ document: documentRow({ id: "other1" }) });
   });
 
-  it("refuses a keyboard indent past five levels without a request", async () => {
-    const deep: DocumentTreeNode[] = [
-      node({
-        id: "L1",
-        title: "Cấp 1",
-        children: [
-          node({
-            id: "L2",
-            title: "Cấp 2",
-            children: [
-              node({
-                id: "L3",
-                title: "Cấp 3",
-                children: [
-                  node({ id: "L4", title: "Lá A" }),
-                  node({ id: "L4b", title: "Lá B", children: [node({ id: "L5b", title: "Cháu B" })] }),
-                ],
-              }),
-            ],
-          }),
-        ],
-      }),
+  it("refuses a drag or keyboard indent past TREE_MAX_LEVEL without a request", async () => {
+    const edge = TREE_MAX_LEVEL - 1;
+    let deep: DocumentTreeNode[] = [
+      node({ id: `L${edge}`, title: "Lá A" }),
+      node({ id: `L${edge}b`, title: "Lá B", children: [node({ id: `L${edge + 1}b`, title: "Cháu B" })] }),
     ];
+    for (let d = edge - 1; d >= 1; d -= 1) {
+      deep = [node({ id: `L${d}`, title: `Cấp ${d}`, children: deep })];
+    }
     requestMock.mockImplementation((path: string) =>
       path.startsWith(TREE_URL) ? Promise.resolve({ documents: deep }) : Promise.resolve({}),
     );
     renderTree();
 
-    for (const title of ["Cấp 1", "Cấp 2", "Cấp 3"]) {
+    for (let d = 1; d < edge; d += 1) {
       fireEvent.click(
-        await screen.findByRole("button", { name: t("documents.tree.expand", { title }) }),
+        await screen.findByRole("button", { name: t("documents.tree.expand", { title: `Cấp ${d}` }) }),
       );
     }
     const leafB = await screen.findByRole("treeitem", { name: /Lá B/ });
+    const toastError = vi.spyOn(toast, "error");
+
+    dragStart(`L${edge}b`);
+    dragEnd(`L${edge}b`, `L${edge}`);
+    expect(toastError).toHaveBeenCalledWith(t("documents.tree.too_deep", { max: TREE_MAX_LEVEL }));
+
+    toastError.mockClear();
     fireEvent.keyDown(leafB, { key: "ArrowRight", ctrlKey: true });
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(requestMock.mock.calls.filter(([path]) => String(path).includes("/move"))).toEqual([]);
-    // Still at its original level, under Cấp 3.
-    expect(leafB).toHaveAttribute("aria-level", "4");
+    expect(toastError).toHaveBeenCalledWith(t("documents.tree.too_deep", { max: TREE_MAX_LEVEL }));
+    expect(String(toastError.mock.calls[0]?.[0])).toContain(String(TREE_MAX_LEVEL));
+    expect(String(toastError.mock.calls[0]?.[0])).not.toContain("{{");
+    toastError.mockRestore();
+    expect(leafB).toHaveAttribute("aria-level", String(edge));
   });
   it("keeps every position when the server refuses the move", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
@@ -482,6 +470,35 @@ describe("DocumentTree", () => {
     // The refused move left the tree exactly where it was.
     expect(screen.getByRole("treeitem", { name: /Nhóm/ })).toHaveAttribute("aria-level", "1");
     expect(screen.getByRole("treeitem", { name: /Nhóm/ })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("caps visual indent at deep levels so a depth-20 row stays readable and gives every row label a title", async () => {
+    let deep: DocumentTreeNode[] = [node({ id: "L20", title: "Tầng 20" })];
+    for (let d = 19; d >= 1; d -= 1) {
+      deep = [node({ id: `L${d}`, title: `Tầng ${d}`, children: deep })];
+    }
+    requestMock.mockImplementation((path: string) =>
+      path.startsWith(TREE_URL) ? Promise.resolve({ documents: deep }) : Promise.resolve({}),
+    );
+    renderTree();
+
+    const rootRow = await screen.findByRole("treeitem", { name: /Tầng 1/ });
+    expect(rootRow).toHaveStyle({ paddingLeft: "4px" });
+    expect(screen.getByText("Tầng 1")).toHaveAttribute("title", "Tầng 1");
+
+    for (let d = 1; d < 20; d += 1) {
+      fireEvent.click(
+        await screen.findByRole("button", { name: t("documents.tree.expand", { title: `Tầng ${d}` }) }),
+      );
+    }
+
+    const row20 = await screen.findByRole("treeitem", { name: /Tầng 20/ });
+    expect(row20).toHaveAttribute("aria-level", "20");
+    // Uncapped 19 * 12 + 4 = 232px leaves 0px for the label in a 256px sidebar; must be capped <= 140px.
+    const padLeft = Number.parseFloat(row20.style.paddingLeft);
+    expect(padLeft).toBeGreaterThan(0);
+    expect(padLeft).toBeLessThanOrEqual(140);
+    expect(screen.getByText("Tầng 20")).toHaveAttribute("title", "Tầng 20");
   });
 });
 

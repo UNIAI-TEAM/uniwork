@@ -24,6 +24,9 @@ const (
 	ActionMemberReactivated            = "member.reactivated"
 	ActionMemberLeft                   = "member.left"
 	ActionOrganizationOwnershipChanged = "organization.ownership_transferred"
+	// The sole owner closes the organization (ADR 0032): it is archived, not
+	// erased, and the owner is free to join or found another.
+	ActionOrganizationClosed = "organization.closed"
 
 	// People and departments (F-03). profile.updated covers both the self-edit
 	// and the administrator's edit; the row records which company-owned facts
@@ -217,18 +220,27 @@ const (
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
-	ActionOrganizationSuspended   = "organization.suspended"
-	ActionOrganizationUnsuspended = "organization.unsuspended"
-	ActionPlatformRoleGranted     = "platform_role.granted"
-	ActionPlatformRoleRevoked     = "platform_role.revoked"
-	ActionFlagOverrideSet         = "flag.override_set"
-	ActionFlagOverrideDeleted     = "flag.override_deleted"
-	ActionPlanCreated             = "plan.created"
-	ActionPlanUpdated             = "plan.updated"
-	ActionPlanFeatureUpdated      = "plan.feature_updated"
+	ActionOrganizationSuspended    = "organization.suspended"
+	ActionOrganizationUnsuspended  = "organization.unsuspended"
+	ActionPlatformRoleGranted      = "platform_role.granted"
+	ActionPlatformRoleRevoked      = "platform_role.revoked"
+	ActionFlagOverrideSet          = "flag.override_set"
+	ActionFlagOverrideDeleted      = "flag.override_deleted"
+	ActionPlanCreated              = "plan.created"
+	ActionDemoRequestCreated       = "demo_request.created"
+	ActionDemoRequestStatusUpdated = "demo_request.status_updated"
+	ActionPlanUpdated              = "plan.updated"
+	ActionPlanFeatureUpdated       = "plan.feature_updated"
 
 	// An operator closed a desktop device session family on the owner's behalf.
 	ActionDesktopDeviceRevoked = "desktop_device.revoked"
+
+	// MCP connector (UNI-1308): consent creates a grant; a person or an org
+	// admin revokes it; a replayed code or refresh token closes its family.
+	ActionMcpGrantCreated              = "mcp_grant.created"
+	ActionMcpGrantRevoked              = "mcp_grant.revoked"
+	ActionMcpTokenFamilyRevoked        = "mcp_token.family_revoked"
+	ActionOrganizationMcpPolicyChanged = "organization.mcp_policy_changed"
 
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"

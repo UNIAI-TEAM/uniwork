@@ -105,8 +105,15 @@ describe("onboarding accessibility contracts", () => {
   it("danh sách card chọn nằm trong radiogroup có nhãn", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path === "/api/v1/workspaces") return Promise.resolve({ workspaces: [] });
+      // Two organizations: an account from before ADR 0032 may still hold
+      // both, and the picker offers no "create" card beside them any more.
       if (path === "/api/v1/orgs")
-        return Promise.resolve({ organizations: [{ id: "o1", name: "Unicom", slug: "unicom" }] });
+        return Promise.resolve({
+          organizations: [
+            { id: "o1", name: "Unicom", slug: "unicom" },
+            { id: "o2", name: "Acme", slug: "acme" },
+          ],
+        });
       return Promise.resolve({ user: { id: "u1", onboarding_questionnaire: {} } });
     });
     render(wrap(<OnboardingFlow onComplete={() => {}} mode="new_workspace" />));

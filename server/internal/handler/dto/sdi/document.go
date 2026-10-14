@@ -218,7 +218,7 @@ type ListSharedWithMeSDI struct {
 // is not a folder answers not found there.
 type DocumentTreeSDI struct {
 	Root        *string `query:"root" description:"ULID gốc nhánh; bỏ trống = cả rừng tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	FoldersOnly *bool   `query:"folders_only" description:"1 = chỉ node thư mục (kind=folder), bỏ trang và tệp; bỏ trống = cả cây" example:"true"`
+	FoldersOnly *bool   `query:"folders_only" description:"true/1 = chỉ node thư mục (kind=folder), bỏ trang và tệp; bỏ trống hoặc false/0 = cả cây" example:"true"`
 }
 
 // MoveDocumentSDI is POST /api/v1/documents/{documentID}/move (C-01 §5.1):

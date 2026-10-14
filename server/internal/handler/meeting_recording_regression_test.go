@@ -33,17 +33,8 @@ import (
 // needs.
 func registerRecordingUser(t *testing.T, srv *httptest.Server, tag string) (token, email, wsID string) {
 	t.Helper()
-	email = tag + "@example.com"
-	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
-		"email": email, "password": "password123", "display_name": tag,
-	})
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("register %s: %d %v", tag, res.StatusCode, out)
-	}
-	token = out["access_token"].(string)
-	verifyEmail(t, srv, token)
-
-	res, out = doJSON(t, srv, "POST", "/api/v1/orgs", token, map[string]string{"name": "Org " + tag, "slug": "org-" + tag})
+	token, email = registerRecordingAccount(t, srv, tag)
+	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", token, map[string]string{"name": "Org " + tag, "slug": "org-" + tag})
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create org %s: %d %v", tag, res.StatusCode, out)
 	}
@@ -54,6 +45,22 @@ func registerRecordingUser(t *testing.T, srv *httptest.Server, tag string) (toke
 	}
 	wsID = out["workspace"].(map[string]any)["id"].(string)
 	return token, email, wsID
+}
+
+// registerRecordingAccount registers and verifies an account that belongs to
+// no organization yet, so it can join one by invitation (ADR 0032).
+func registerRecordingAccount(t *testing.T, srv *httptest.Server, tag string) (token, email string) {
+	t.Helper()
+	email = tag + "@example.com"
+	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
+		"email": email, "password": "password123", "display_name": tag,
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("register %s: %d %v", tag, res.StatusCode, out)
+	}
+	token = out["access_token"].(string)
+	verifyEmail(t, srv, token)
+	return token, email
 }
 
 // enableMeetingRecordingForWorkspace bật meeting.recording qua subscription override
@@ -134,7 +141,7 @@ func TestMeetingRecordingHTTPPlaybackAuthorization(t *testing.T) {
 	srv := newTestServer(t)
 	hostToken, _, hostWS := registerRecordingUser(t, srv, "rec-host")
 	enableMeetingRecordingForWorkspace(t, hostWS)
-	memberToken, memberEmail, _ := registerRecordingUser(t, srv, "rec-member")
+	memberToken, memberEmail := registerRecordingAccount(t, srv, "rec-member")
 	outsiderToken, _, _ := registerRecordingUser(t, srv, "rec-outsider")
 	inviteToWorkspace(t, srv, hostToken, hostWS, memberToken, memberEmail)
 

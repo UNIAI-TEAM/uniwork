@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
+import { joinInvitation } from "./invitations";
 
 // The golden path for F-03: an organization stops being a shell around
 // workspaces. The owner gives a colleague a department and a job title, the
@@ -70,8 +71,7 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
   const memberContext = await browser.newContext({ storageState: VI_LOCALE_STATE });
   const member = await memberContext.newPage();
   await registerInvitee(member, "Nguyễn Văn Ân", memberEmail);
-  await member.goto("/invitations");
-  await member.getByRole("button", { name: /Tham gia|Chấp nhận/ }).first().click();
+  await joinInvitation(member, `Danh bạ ${stamp}`);
   await expect(member).toHaveURL(new RegExp(`/${orgSlug}/doi-danh-ba/`), { timeout: 20_000 });
 
   // The owner creates a department and puts the colleague in it.

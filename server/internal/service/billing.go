@@ -123,8 +123,13 @@ func (s *BillingService) requireOwner(ctx context.Context, userID, orgID string)
 	return platformAdmin, nil
 }
 
+// planIsPaid is true when an owner must not take the plan through ChangePlan.
+// A listed price above zero needs checkout. A missing price is a "contact us"
+// plan: it is not free, and treating it as free would activate it forever
+// with no invoice and no past-due sweep. A zero price is a free plan and
+// stays a self-serve change. Platform staff skip this gate.
 func planIsPaid(p db.Plan) bool {
-	return p.PriceAmount.Valid && p.PriceAmount.Int64 > 0
+	return !p.PriceAmount.Valid || p.PriceAmount.Int64 > 0
 }
 
 func planListPrice(p db.Plan) int64 {
@@ -168,6 +173,12 @@ func (s *BillingService) ChangePlan(ctx context.Context, userID, orgID, planCode
 	}
 	if sub.RowVersion != expectedVersion {
 		return EntitlementSnapshot{}, versionConflict(expectedVersion, sub.RowVersion)
+	}
+	// Selecting the plan already in force must not open a new metering
+	// period. ChangeSubscriptionPlan always sets current_period_start to
+	// now(), which would zero the accumulating counters.
+	if plan.ID == sub.PlanID {
+		return s.ent.Snapshot(ctx, orgID)
 	}
 	// OPEN_QUESTIONS B4: no downgrade below what the organization already
 	// uses; the owner reduces usage first.

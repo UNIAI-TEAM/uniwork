@@ -11,24 +11,26 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-func (s *EmailHubService) emailHubRetentionLimits() retention.Limits {
-	return retention.FromEnv()
-}
-
 // enforceEmailHubFolderRetention caps cached threads and strips old/excess bodies for one folder.
 func (s *EmailHubService) enforceEmailHubFolderRetention(ctx context.Context, acc db.EmailHubAccount, folder string) {
 	if !s.Enabled() {
 		return
 	}
-	lim := s.emailHubRetentionLimits()
+	lim := retention.FromEnv()
 	s.expireEmailHubBodies(ctx, acc, lim)
 	s.trimEmailHubBodyCache(ctx, acc, folder, lim)
 	s.pruneEmailHubFolderCap(ctx, acc, folder, lim)
 }
 
 func (s *EmailHubService) enforceEmailHubAccountRetention(ctx context.Context, acc db.EmailHubAccount) {
+	if !s.Enabled() {
+		return
+	}
+	lim := retention.FromEnv()
+	s.expireEmailHubBodies(ctx, acc, lim)
 	for _, folder := range emailhub.SyncableFolders() {
-		s.enforceEmailHubFolderRetention(ctx, acc, folder)
+		s.trimEmailHubBodyCache(ctx, acc, folder, lim)
+		s.pruneEmailHubFolderCap(ctx, acc, folder, lim)
 	}
 }
 

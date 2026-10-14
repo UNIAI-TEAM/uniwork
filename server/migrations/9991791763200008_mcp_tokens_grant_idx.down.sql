@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_mcp_tokens_grant;

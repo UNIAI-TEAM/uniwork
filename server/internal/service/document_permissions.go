@@ -82,6 +82,25 @@ func (s *DocumentService) resolveLevel(ctx context.Context, q *db.Queries, actor
 		// System jobs act through internal paths, never through a level.
 		return none, nil
 	}
+	return s.resolveLevelInTenant(ctx, q, actor, doc)
+}
+
+// resolveLevelInTenant is resolveLevel after the tenant gate: the owner path,
+// the agent cap, the workspace member path and the live shares. A caller must
+// have proved the actor's place in the document's organization first;
+// FilterReadableDocuments calls it directly because it memoizes that gate per
+// organization (R1-3), so a page pays for it once rather than once per
+// document. The workspace gate below still refuses a member deactivated since
+// that answer (RequireMemberQ reads the organization row too), so the skipped
+// check can never admit a closed tenant.
+func (s *DocumentService) resolveLevelInTenant(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) (DocumentAccess, error) {
+	none := DocumentAccess{}
+	switch actor.Kind {
+	case audit.KindHuman, audit.KindAgent:
+	default:
+		// System jobs act through internal paths, never through a level.
+		return none, nil
+	}
 
 	if doc.OwnerKind.Valid {
 		lvl, err := s.ownerLevelResolve(ctx, actor, doc.OwnerID.String)

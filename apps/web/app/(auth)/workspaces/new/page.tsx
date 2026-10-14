@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { useSession } from "@uniwork/core/auth";
+import { useOrganizations } from "@uniwork/core/organizations";
 import { paths, resolvePostAuthDestination } from "@uniwork/core/paths";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { useNavigation } from "@uniwork/views/navigation";
@@ -11,6 +12,9 @@ export default function NewWorkspacePage() {
   const { push, replace } = useNavigation();
   const { status, user } = useSession();
   const { data: workspaces = [], isFetched } = useWorkspaces();
+  // Already read by the organization step; here it lets Cancel skip the
+  // workspaces of an organization that was closed (ADR 0032).
+  const { data: organizations } = useOrganizations(status === "authed");
   useEffect(() => {
     if (status === "anon") replace(paths.login());
   }, [status, replace]);
@@ -20,7 +24,7 @@ export default function NewWorkspacePage() {
       <OnboardingFlow
         mode="new_workspace"
         // Cancelling needs somewhere to return to; with no workspace the flow must complete.
-        onCancel={workspaces.length > 0 ? () => push(resolvePostAuthDestination(workspaces, user)) : undefined}
+        onCancel={workspaces.length > 0 ? () => push(resolvePostAuthDestination(workspaces, user, organizations)) : undefined}
         // `/` is the public landing page now, so a completion that produced no
         // workspace goes to the picker rather than back out to marketing.
         onComplete={(ws) => push(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.workspaces())}
