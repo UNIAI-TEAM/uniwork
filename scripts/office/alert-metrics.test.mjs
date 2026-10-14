@@ -40,6 +40,35 @@ function literalAt(src, open) {
 }
 
 /**
+ * `src` with Go comments (`// ...` and `/* ... *\/`) blanked out. A scanner of
+ * string literals keeps a `//` inside "..." or `...` (a URL) from hiding the
+ * rest of its line; newlines stay so the text keeps its shape.
+ */
+function stripGoComments(src) {
+  let out = "";
+  for (let i = 0; i < src.length; ) {
+    const c = src[i];
+    if (c === "/" && src[i + 1] === "/") {
+      while (i < src.length && src[i] !== "\n") i++;
+    } else if (c === "/" && src[i + 1] === "*") {
+      const end = src.indexOf("*/", i + 2);
+      const stop = end === -1 ? src.length : end + 2;
+      out += src.slice(i, stop).replace(/[^\n]/g, "");
+      i = stop;
+    } else if (c === '"' || c === "`" || c === "'") {
+      let j = i + 1;
+      while (j < src.length && src[j] !== c && !(c !== "`" && src[j] === "\n")) j += c !== "`" && src[j] === "\\" ? 2 : 1;
+      out += src.slice(i, j + 1);
+      i = j + 1;
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+/**
  * Metric names a Go file registers: every `prometheus.*Opts{...}` literal,
  * joined as Namespace_Subsystem_Name the way client_golang builds the name,
  * every `prometheus.NewDesc("name", ...)` (the lag collectors) and the
@@ -48,7 +77,8 @@ function literalAt(src, open) {
 // ponytail: regexes over the declarations, not a Go parser - every metric in
 // server/ is a prometheus.<Kind>Opts literal or a NewDesc call with string
 // constants; a metric named any other way fails the test until taught here.
-function registeredNames(src) {
+function registeredNames(raw) {
+  const src = stripGoComments(raw);
   const names = [];
   const optsOpen = /prometheus\.\w*Opts\{/g;
   let m;
@@ -155,4 +185,25 @@ test("an unregistered name is reported with the alert that uses it", () => {
   assert.deepEqual(unknownSeries(bogus, known), ["Bogus: uniwork_not_a_real_metric_total"]);
   const ok = "- alert: Fine\n  expr: histogram_quantile(0.95, sum by (le) (rate(uniwork_http_request_duration_seconds_bucket[5m]))) > 1\n";
   assert.deepEqual(unknownSeries(ok, known), []);
+});
+
+test("a name that appears only in a Go comment is not registered", () => {
+  const src = [
+    '// A future metric prometheus.NewDesc("uniwork_phantom_line_total", "help", nil, nil) would go here.',
+    '// prometheus.CounterOpts{ Name: "uniwork_phantom_line_opts_total" }',
+    '/* prometheus.NewDesc("uniwork_phantom_block_total", "help", nil, nil) */',
+    "/*",
+    " * c := prometheus.NewCounter(prometheus.CounterOpts{",
+    ' *     Namespace: "uniwork", Name: "phantom_block_opts_total",',
+    " * })",
+    " */",
+    'var real = prometheus.NewDesc("uniwork_real_total", "help", nil, nil) // not uniwork_trailing_total',
+    'var opts = prometheus.GaugeOpts{ Namespace: "uniwork", Subsystem: "x", Name: "real_gauge" } /* tail */',
+    'var url = "http://example.test/not-a-comment" // a "//" inside a string must not hide the next line',
+    'var more = prometheus.NewDesc("uniwork_after_url_total", "help", nil, nil)',
+  ].join("\n");
+  assert.deepEqual(registeredNames(src), ["uniwork_x_real_gauge", "uniwork_real_total", "uniwork_after_url_total"]);
+  const known = new Set(registeredNames(src));
+  const phantom = "- alert: Phantom\n  expr: max(uniwork_phantom_line_total) > 300\n";
+  assert.deepEqual(unknownSeries(phantom, known), ["Phantom: uniwork_phantom_line_total"]);
 });
