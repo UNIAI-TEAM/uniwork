@@ -48,7 +48,7 @@ describe("NewMeetingDialog", () => {
     const dialog = openDialog();
     const submit = within(dialog).getByRole("button", { name: "Tạo cuộc họp" });
     const input = within(dialog).getByLabelText("Tiêu đề");
-    expect(submit).toBeEnabled();
+    expect(submit).not.toHaveAttribute("aria-disabled");
     expect(input).not.toHaveAttribute("aria-invalid");
     expect(within(dialog).queryByText("Nhập tiêu đề để tiếp tục")).not.toBeInTheDocument();
 
@@ -128,8 +128,8 @@ describe("NewMeetingDialog", () => {
     const dialog = openDialog();
     fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp tuần" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
-    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang tạo…" })).toBeDisabled());
-    expect(within(dialog).getByRole("button", { name: "Hủy" })).toBeDisabled();
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang tạo…" })).toHaveAttribute("aria-disabled", "true"));
+    expect(within(dialog).getByRole("button", { name: "Hủy" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("sends the chosen project with the new meeting", async () => {

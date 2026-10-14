@@ -60,8 +60,14 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+        // The soft signal pair, opaque at rest and on hover, so the label
+        // measures the same on the page, a card and the dialog footer — the
+        // old alpha of the text red fell to 3.47:1 on a dark dialog footer.
+        // No `dark:` of its own: the slots flip per theme. The ratios live
+        // beside --destructive-soft-hover in tokens.css and
+        // button.destructive.test.tsx composites them on every plane.
         destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft-hover focus-visible:border-destructive/40 aria-expanded:bg-destructive-soft-hover",
         link: "text-primary underline-offset-4 hover:underline",
         // Solid signal fills for the one action that must read as final
         // (end a meeting, leave a call) or as "go" (admit a guest). They pair

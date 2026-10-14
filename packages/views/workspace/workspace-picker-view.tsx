@@ -7,14 +7,26 @@ import type { Workspace } from "@uniwork/core/types";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 
-/** Chọn workspace, nhóm theo tổ chức. 0 workspace → đẩy sang tạo mới. */
-export function WorkspacePickerView({ onPick, onCreate }: { onPick: (w: Workspace) => void; onCreate: () => void }) {
+/**
+ * Chọn workspace, nhóm theo tổ chức. 0 workspace → `onEmpty`: host quyết định
+ * đi đâu (thành viên chưa được cấp workspace không bị đẩy sang tạo mới,
+ * UNI-1472). `onCreate` chỉ là nút "Workspace mới".
+ */
+export function WorkspacePickerView({
+  onPick,
+  onCreate,
+  onEmpty,
+}: {
+  onPick: (w: Workspace) => void;
+  onCreate: () => void;
+  onEmpty: () => void;
+}) {
   const { t } = useTranslation();
   const { data: workspaces, isFetched } = useWorkspaces();
   const host = appHost();
   useEffect(() => {
-    if (isFetched && workspaces && workspaces.length === 0) onCreate();
-  }, [isFetched, workspaces, onCreate]);
+    if (isFetched && workspaces && workspaces.length === 0) onEmpty();
+  }, [isFetched, workspaces, onEmpty]);
   if (!workspaces?.length) return null;
 
   const groups = new Map<string, { name: string; slug: string; items: Workspace[] }>();

@@ -31,7 +31,7 @@ func ValidateCheckoutPath(path string) error {
 // A still-valid pending intent for the same plan is reused so two devices do
 // not open two payable orders for one checkout wave.
 func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, successURL, cancelURL, clientIP string) (billing.CheckoutSession, error) {
-	if _, err := s.requireOwner(ctx, userID, orgID); err != nil {
+	if err := s.requireOwner(ctx, userID, orgID); err != nil {
 		return billing.CheckoutSession{}, err
 	}
 	u, err := s.q.GetUserByID(ctx, userID)

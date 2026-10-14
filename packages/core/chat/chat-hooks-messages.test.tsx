@@ -4,7 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as chatApi from "../api/endpoints/chat";
 import type { ChatMessageRecord } from "../api/endpoints/chat";
 import { chatKeys } from "./chat-keys";
-import { useDeleteChatMessage, useEditChatMessage, useSendChatFileMessage } from "./chat-hooks-messages";
+import {
+  isChatMediaUrlFresh,
+  useDeleteChatMessage,
+  useEditChatMessage,
+  useRefreshChatMessageMedia,
+  useSendChatFileMessage,
+} from "./chat-hooks-messages";
 import { flattenRoomTimeline, type RoomTimeline } from "./room-timeline";
 import { useSendChatThreadMessage } from "./thread-hooks";
 
@@ -97,6 +103,35 @@ describe("chat message mutations patch the room timeline instead of refetching i
     await act(() => result.current.mutateAsync({ threadRootId: "m1", body: "r1" }));
 
     expect(timeline().map((m) => [m.id, m.reply_count])).toEqual([["m1", 1]]);
+    expect(refetchedTimeline()).toBe(false);
+  });
+});
+
+// UNI-1633: file and voice messages carry signed storage URLs that die.
+describe("chat media URLs", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("treats a URL as fresh only until a minute before it expires", () => {
+    const now = Date.parse("2026-01-01T10:00:00Z");
+    expect(isChatMediaUrlFresh("https://s/x", "2026-01-01T10:05:00Z", now)).toBe(true);
+    expect(isChatMediaUrlFresh("https://s/x", "2026-01-01T10:00:30Z", now)).toBe(false);
+    expect(isChatMediaUrlFresh("", "2026-01-01T10:05:00Z", now)).toBe(false);
+    expect(isChatMediaUrlFresh("https://s/x", "", now)).toBe(false);
+    expect(isChatMediaUrlFresh("https://s/x", "garbage", now)).toBe(false);
+  });
+
+  it("loads the message again and writes its fresh URLs into the room timeline", async () => {
+    const fresh = row("f1", 1, { kind: "file", file: { filename: "a.png", content_type: "image/png", size_bytes: 1, url: "https://s/new", download_url: "", thumb_url: "", url_expires_at: "2026-01-01T11:00:00Z" } });
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(fresh);
+    const { wrapper, timeline, refetchedTimeline } = setup([row("f1", 1, { kind: "file" })]);
+    const { result } = renderHook(() => useRefreshChatMessageMedia("ws1", "room1"), { wrapper });
+
+    await act(async () => {
+      expect(await result.current("f1")).toEqual(fresh);
+    });
+
+    expect(chatApi.getChatRoomMessage).toHaveBeenCalledWith("ws1", "room1", "f1");
+    expect(timeline()[0]?.file?.url).toBe("https://s/new");
     expect(refetchedTimeline()).toBe(false);
   });
 });

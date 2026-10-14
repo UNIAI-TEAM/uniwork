@@ -2,11 +2,11 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { appHost } from "@uniwork/core/config";
-import type { InvitationPreview } from "@uniwork/core/types";
+import { invitationWorkspaces, type InvitationPreview } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { BusyNotice, ChangedNotice } from "./invite-notices";
+import { ChangedNotice, RetryNotice, type RetryReason } from "./invite-notices";
 import { LaterLink } from "./invite-screens";
 import { OrgMark, RoleBadge } from "./org-mark";
 
@@ -39,6 +39,8 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 function InvitationDetails({ invitation, label }: { invitation: Invitation; label: string }) {
   const { t } = useTranslation();
   const days = daysLeft(invitation.expires_at);
+  // Every workspace accepting grants (UNI-1582), so the person knows where they land.
+  const workspaces = invitationWorkspaces(invitation).map((w) => w.name);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
@@ -54,8 +56,8 @@ function InvitationDetails({ invitation, label }: { invitation: Invitation; labe
       </div>
       <ul aria-label={label} className="flex flex-col divide-y divide-border/70 rounded-xl bg-muted/50 px-4 py-1">
         <Row label={t("invitations.preview.workspace")}>
-          {invitation.workspace ? (
-            invitation.workspace.name
+          {workspaces.length > 0 ? (
+            workspaces.join(", ")
           ) : (
             <span className="font-normal text-muted-foreground">{t("invitations.preview.no_workspace")}</span>
           )}
@@ -84,7 +86,7 @@ export function JoinInvitationBody({
   label,
   notice,
   pending,
-  busy,
+  retry,
   onJoin,
 }: {
   invitation: Invitation;
@@ -93,8 +95,8 @@ export function JoinInvitationBody({
   /** The switch the person was in resolved itself (409 with no conflicts left). */
   notice: boolean;
   pending: boolean;
-  /** The server was busy with another change to this account; nothing changed. */
-  busy: boolean;
+  /** Why the last attempt changed nothing and can be sent again; null when there was none. */
+  retry: RetryReason | null;
   onJoin: () => void;
 }) {
   const { t } = useTranslation();
@@ -103,7 +105,7 @@ export function JoinInvitationBody({
       {notice ? <ChangedNotice /> : null}
       <InvitationDetails invitation={invitation} label={label} />
       <div className="flex flex-col gap-2">
-        {busy ? <BusyNotice /> : null}
+        {retry ? <RetryNotice why={retry} /> : null}
         <Button
           type="button"
           size="lg"

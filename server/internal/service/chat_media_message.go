@@ -142,7 +142,7 @@ func (s *ChatService) sendChatMedia(
 		_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
 		s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	}
-	return chatMessageRowFromDB(msg, user.DisplayName), nil
+	return s.signChatMediaRow(ctx, room, chatMessageRowFromDB(msg, user.DisplayName)), nil
 }
 
 // commitChatMediaMessage claims the staged file and inserts the message row

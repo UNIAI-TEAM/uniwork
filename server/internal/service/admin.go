@@ -267,7 +267,7 @@ func (s *AdminService) ChangePlan(ctx context.Context, adminID, orgID, planCode,
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}
-	snap, err := s.billing.ChangePlan(ctx, adminID, orgID, planCode, cur.Subscription.RowVersion)
+	snap, err := s.billing.changePlan(ctx, adminID, orgID, planCode, cur.Subscription.RowVersion, true)
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}

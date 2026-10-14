@@ -29,7 +29,7 @@ describe("ChatCreatePostDialog", () => {
   it("requires title and body before submit is enabled, and says which is missing", () => {
     render(dialog());
 
-    expect(screen.getByRole("button", { name: /Đăng bài|Publish post/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Đăng bài|Publish post/i })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("Cần tiêu đề và nội dung")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox", { name: /Tiêu đề/ }), { target: { value: "Release" } });
     expect(screen.getByText("Cần nội dung")).toBeInTheDocument();

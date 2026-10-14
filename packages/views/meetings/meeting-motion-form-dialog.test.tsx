@@ -47,7 +47,7 @@ describe("MeetingMotionFormDialog", () => {
   it("creates an item with the common defaults and counts characters", async () => {
     renderForm();
     const submit = await screen.findByRole("button", { name: "Thêm" });
-    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("0/200")).toBeInTheDocument();
     expect(screen.getByText("0/2000")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Công khai" })).toBeChecked();
