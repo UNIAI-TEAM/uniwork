@@ -1,0 +1,4 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -2
+a56ba0bc29ea8ee7ab217cc110efc7d8bd463207
+a56ba0bc2 feat(marketing): refine landing and Office with demo intake
+e60e6cd54 Merge pull request #278 from UNIAI-TEAM/fix/UNI-1257-billing-chu-to-chuc-tu-chuyen-sang-goi-l
