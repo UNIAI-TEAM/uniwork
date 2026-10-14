@@ -193,6 +193,11 @@ func TestMcpToolListCarriesAnnotationsAndSchemas(t *testing.T) {
 		if ann["readOnlyHint"] != true || ann["destructiveHint"] != false || ann["openWorldHint"] != false {
 			t.Errorf("%v annotations = %v", tool["name"], ann)
 		}
+		// The title sits in both places a client looks for it: the tool's own
+		// field and the annotations.
+		if title, _ := tool["title"].(string); title == "" || ann["title"] != title {
+			t.Errorf("%v title = %v, annotations.title = %v", tool["name"], tool["title"], ann["title"])
+		}
 		schema, _ := tool["inputSchema"].(map[string]any)
 		if schema["type"] != "object" || schema["additionalProperties"] != false {
 			t.Errorf("%v inputSchema = %v", tool["name"], schema)

@@ -308,8 +308,8 @@ func principalOf(tc ai.ToolContext) McpPrincipal {
 // McpTools is the MCP registry. It reuses ai.Registry so MutationCount guards
 // it like Ask UNI's (TestMCPToolsAreReadOnly).
 func McpTools(s *McpToolService) ai.Registry {
-	tool := func(name, desc string, schema json.RawMessage, fields []string, run func(context.Context, McpPrincipal, mcpArgs) (any, error)) ai.Tool {
-		return ai.Tool{Name: name, Description: desc + mcpUntrusted, Kind: ai.ToolRead, Risk: ai.RiskLow, Schema: schema,
+	tool := func(name, title, desc string, schema json.RawMessage, fields []string, run func(context.Context, McpPrincipal, mcpArgs) (any, error)) ai.Tool {
+		return ai.Tool{Name: name, Title: title, Description: desc + mcpUntrusted, Kind: ai.ToolRead, Risk: ai.RiskLow, Schema: schema,
 			Handle: func(ctx context.Context, tc ai.ToolContext, input json.RawMessage) (json.RawMessage, error) {
 				a, err := decodeArgs(input, fields...)
 				if err != nil {
@@ -323,21 +323,21 @@ func McpTools(s *McpToolService) ai.Registry {
 			}}
 	}
 	return ai.Registry{
-		tool("list_workspaces", "Workspaces the user belongs to in the connected UniWork organization.", mcpSchemaNone, nil,
+		tool("list_workspaces", "List workspaces", "Workspaces the user belongs to in the connected UniWork organization.", mcpSchemaNone, nil,
 			func(ctx context.Context, p McpPrincipal, _ mcpArgs) (any, error) { return s.ListWorkspaces(ctx, p) }),
-		tool("my_work", "Open tasks assigned to the user, most urgent first (overdue, due today, later, then undated), and the user's meetings in progress or starting today or tomorrow, with links.", mcpSchemaMyWork, []string{"workspace_id"},
+		tool("my_work", "My work", "Open tasks assigned to the user, most urgent first (overdue, due today, later, then undated), and the user's meetings in progress or starting today or tomorrow, with links.", mcpSchemaMyWork, []string{"workspace_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.MyWork(ctx, p, a.WorkspaceID)
 			}),
-		tool("search", "Tasks and meetings in one workspace matching a keyword query. Chat is not searched.", mcpSchemaSearch, []string{"workspace_id", "query"},
+		tool("search", "Search UniWork", "Tasks and meetings in one workspace matching a keyword query. Chat is not searched.", mcpSchemaSearch, []string{"workspace_id", "query"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.Search(ctx, p, a.WorkspaceID, a.Query)
 			}),
-		tool("get_task", "One task with its comments.", mcpSchemaTask, []string{"workspace_id", "task_id"},
+		tool("get_task", "Get task", "One task with its comments.", mcpSchemaTask, []string{"workspace_id", "task_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetTask(ctx, p, a.WorkspaceID, a.TaskID)
 			}),
-		tool("get_meeting", "One meeting with its AI summary when there is one. Transcripts are not included.", mcpSchemaMeeting, []string{"workspace_id", "meeting_id"},
+		tool("get_meeting", "Get meeting", "One meeting with its AI summary when there is one. Transcripts are not included.", mcpSchemaMeeting, []string{"workspace_id", "meeting_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetMeeting(ctx, p, a.WorkspaceID, a.MeetingID)
 			}),
