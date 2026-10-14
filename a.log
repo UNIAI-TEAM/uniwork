@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+ea16a60c68ff78615ba67dddd87fb84e7c97a390
+ea16a60c6 chore: merge FD-07 fix r1 area B (row menu, dialog, sidebar) into the lane
+3a0f9ef78 fix(views): resolve FD-07 tree row menu, folder dialog, and sidebar layout findings
+7d1dd41c9 fix(documents): cap deep tree row indent and keep sequential focus at top on reveal
+c4e287f70 fix(documents): sync collection view with URL and skip 4xx folder detail retries
+96d1c8d09 refactor(documents): reuse FolderNameDialog in sidebar and align page-view tests with TREE_MAX_LEVEL (UNI-1467)
+13dde27a8 feat(documents): add tree row action menu, folder name dialog, and dnd toasts (UNI-1467)
+3834d5b33 feat(documents): drive folder from URL, reveal tree ancestors, and create root folders via dialog
+a71235945 test(documents): cover folder URL state, tree reveal, invalid folder, and root (+) dialog
