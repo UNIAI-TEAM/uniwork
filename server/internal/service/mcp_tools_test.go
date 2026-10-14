@@ -69,10 +69,10 @@ func TestMCPToolCatalogue(t *testing.T) {
 		"update_task":    {"revision_conflict", "add_label_ids and remove_label_ids", "too long", strconv.Itoa(mcpMaxItemRunes)},
 		"add_comment":    {"assignee", "creator", "earlier commenters", "@"},
 		"get_task":       {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
-		"get_project":    {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count"},
+		"get_project":    {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count", "and status to narrow"},
 		"list_projects":  {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
-		"create_project": {"without a chat channel", "Everyone in the workspace", "No one is notified", "duplicate_project_title", strconv.Itoa(mcpMaxItemRunes)},
-		"update_project": {"revision_conflict", "creator", "lead", "workspace owner or admin", "not_project_editor", "No one is notified", "too long", strconv.Itoa(mcpMaxItemRunes), "led by an agent"},
+		"create_project": {"without a chat channel", "Everyone in the workspace", "No one is notified", "duplicate_project_title", strconv.Itoa(mcpMaxItemRunes), "its title stays taken"},
+		"update_project": {"revision_conflict", "creator", "lead", "workspace owner or admin", "not_project_editor", "No one is notified", "too long", strconv.Itoa(mcpMaxItemRunes), "led by an agent", "cannot be undone here"},
 	} {
 		tool, _ := r.Get(name)
 		for _, w := range words {
@@ -888,10 +888,10 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 	if _, err := x.tools.ask.tasks.Create(ctx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Việc của dự án", ProjectID: &project.ID}); err != nil {
 		t.Fatal(err)
 	}
-	projectKeys := with("revision", "priority", "lead_id", "start_date", "task_count", "done_count")
+	projectKeys := with("revision", "priority", "lead_id", "lead_type", "start_date", "task_count", "done_count")
 	checkWrapped("list_projects", "projects", `{"workspace_id":"`+x.w.ID+`"}`, projectKeys)
 	raw, err = callMcpTool(t, x.tools, x.p, "get_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+project.ID+`"}`)
-	check("get_project", raw, err, with("revision", "priority", "lead_id", "start_date", "task_count", "done_count", "tasks", "description", "description_truncated"))
+	check("get_project", raw, err, with("revision", "priority", "lead_id", "lead_type", "start_date", "task_count", "done_count", "tasks", "description", "description_truncated"))
 	var got struct{ Tasks []map[string]json.RawMessage }
 	if err := json.Unmarshal(raw, &got); err != nil || len(got.Tasks) != 1 {
 		t.Fatalf("get_project = %s (%v)", raw, err)

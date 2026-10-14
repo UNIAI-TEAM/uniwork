@@ -428,6 +428,10 @@ func (in mcpUpdateTaskIn) check() error {
 	if in.Revision == nil {
 		return McpInvalidArgs{Msg: "revision is required; read the task first and send its revision"}
 	}
+	// Nothing to write would still bump the revision and notify the web.
+	if !(in.Title.Set || in.Description.Set || in.Status.Set || in.Priority.Set || in.AssigneeID.Set || in.StartDate.Set || in.DueDate.Set || in.ProjectID.Set || in.ParentTaskID.Set || len(in.AddLabelIDs) > 0 || len(in.RemoveLabelIDs) > 0) {
+		return McpInvalidArgs{Msg: "name at least one field to change"}
+	}
 	type field struct {
 		name string
 		o    mcpOpt[string]

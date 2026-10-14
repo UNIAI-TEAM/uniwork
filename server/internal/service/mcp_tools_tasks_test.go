@@ -877,6 +877,32 @@ func TestMcpUpdateTaskNeedsAFreshRevision(t *testing.T) {
 	}
 }
 
+// A call that names no field changes nothing, so it must not bump the revision
+// of a task another person may be editing.
+func TestMcpUpdateTaskNamingNoFieldWritesNothing(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	rev := x.revision(t, x.taskID)
+	audits := func() (n int) {
+		t.Helper()
+		if err := x.tools.ask.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'task.updated' AND resource_id = $1`, x.taskID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := audits()
+	for _, extra := range []string{``, `,"add_label_ids":[]`, `,"remove_label_ids":[],"add_label_ids":[]`} {
+		_, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+strconv.FormatInt(rev, 10)+extra+`}`)
+		var bad McpInvalidArgs
+		if !errors.As(err, &bad) || !strings.Contains(bad.Msg, "name at least one field to change") {
+			t.Errorf("update_task %q: %v, want McpInvalidArgs naming a field to change", extra, err)
+		}
+	}
+	if x.revision(t, x.taskID) != rev || audits() != before {
+		t.Fatalf("a call naming no field wrote: revision %d (was %d), %d audit rows (were %d)", x.revision(t, x.taskID), rev, audits(), before)
+	}
+}
+
 // Review Focus 2: an absent due_date keeps the date, null clears it.
 func TestMcpUpdateTaskTellsAbsentFromNull(t *testing.T) {
 	x := newMcpToolWorld(t)

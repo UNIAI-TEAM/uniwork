@@ -30,6 +30,7 @@ type McpProject struct {
 	Revision             int64     `json:"revision"`
 	Priority             string    `json:"priority,omitempty"`
 	LeadID               string    `json:"lead_id,omitempty"`
+	LeadType             string    `json:"lead_type,omitempty"` // member or agent: list_members lists people only
 	StartDate            string    `json:"start_date,omitempty"`
 	TaskCount            int64     `json:"task_count"`
 	DoneCount            int64     `json:"done_count"`
@@ -48,7 +49,7 @@ type McpProjectList struct {
 func (s *McpToolService) projectOf(base string, pr db.Project, v ProjectView) McpProject {
 	out := McpProject{
 		McpItem:  McpItem{Kind: "project", ID: pr.ID, WorkspaceID: pr.WorkspaceID, Title: pr.Title, Status: pr.Status, URL: s.frontend + base + "/projects/" + pr.ID, Excerpt: capRunes(pr.Description, mcpMaxHitRunes, mcpHitCut)},
-		Revision: pr.Revision, Priority: pr.Priority, LeadID: pr.LeadID.String, TaskCount: v.TaskCount, DoneCount: v.DoneCount,
+		Revision: pr.Revision, Priority: pr.Priority, LeadID: pr.LeadID.String, LeadType: pr.LeadType.String, TaskCount: v.TaskCount, DoneCount: v.DoneCount,
 	}
 	if pr.DueDate.Valid {
 		out.DueDate = pr.DueDate.Time.Format("2006-01-02")
@@ -89,6 +90,11 @@ func (s *McpToolService) ListProjects(ctx context.Context, p McpPrincipal, in mc
 	// A search has no status filter, so the two cannot both be honoured.
 	if q != "" && in.Status != "" {
 		return McpProjectList{}, McpInvalidArgs{Msg: "status cannot be combined with query; search by query, or list by status"}
+	}
+	if in.Status != "" {
+		if err := mcpProjectEnum("status", in.Status, validProjectStatuses); err != nil {
+			return McpProjectList{}, err
+		}
 	}
 	if err := s.inGrant(ctx, p, in.WorkspaceID); err != nil {
 		return McpProjectList{}, err
@@ -286,6 +292,10 @@ func (in mcpUpdateProjectIn) check() error {
 	if in.Revision == nil || *in.Revision <= 0 {
 		return McpInvalidArgs{Msg: "revision is required; read the project first and send its revision"}
 	}
+	// Nothing to write would still bump the revision and notify the web.
+	if !(in.Title.Set || in.Description.Set || in.Status.Set || in.Priority.Set || in.LeadID.Set || in.StartDate.Set || in.DueDate.Set) {
+		return McpInvalidArgs{Msg: "name at least one field to change"}
+	}
 	type field struct {
 		name string
 		o    mcpOpt[string]
@@ -360,6 +370,14 @@ func (s *McpToolService) UpdateProject(ctx context.Context, p McpPrincipal, in m
 	if err != nil {
 		return McpWriteResult{}, err
 	}
+	adminLike := false
+	if in.LeadID.Set {
+		m, err := s.ws.RequireMember(ctx, in.WorkspaceID, p.UserID)
+		if err != nil {
+			return McpWriteResult{}, err
+		}
+		adminLike = adminLikeRole(m.Role)
+	}
 	stats, err := s.ask.tasks.ProjectStats(ctx, actor, in.WorkspaceID, []db.Project{before})
 	if err != nil {
 		return McpWriteResult{}, err
@@ -396,7 +414,14 @@ func (s *McpToolService) UpdateProject(ctx context.Context, p McpPrincipal, in m
 		McpChange{"start_date", mcpNullable(b.StartDate), mcpNullable(a.StartDate)},
 		McpChange{"due_date", mcpNullable(b.DueDate), mcpNullable(a.DueDate)},
 	)...)
-	return McpWriteResult{Item: a, Revision: after.Revision, Changes: changes}, nil
+	res := McpWriteResult{Item: a, Revision: after.Revision, Changes: changes}
+	// The edit gate of the service (authorizeProjectEdit), asked of the project as
+	// it is now: a lead who is neither its creator nor an admin has just given
+	// up the right the undo needs.
+	if in.LeadID.Set && !adminLike && !projectOwnedBy(after, actor) {
+		res.Note = "you no longer lead this project, so you cannot change it back over MCP: only its creator, its new lead (if it has one) or a workspace owner or admin can"
+	}
+	return res, nil
 }
 
 var (
@@ -412,15 +437,15 @@ func mcpProjectTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpListProjectsIn) (any, error) {
 				return s.ListProjects(ctx, p, in)
 			}),
-		mcpReadTool("get_project", "Get project", "One project with its revision, task_count and done_count (tasks done or cancelled), its description exactly as stored (Markdown) to edit from, and its first "+strconv.Itoa(mcpProjectTasks)+" tasks ordered by status key alphabetically, then position; use list_tasks with project_id for the rest. description_truncated says the description was longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters and was cut.", mcpSchemaProject,
+		mcpReadTool("get_project", "Get project", "One project with its revision, task_count and done_count (tasks done or cancelled), its description exactly as stored (Markdown) to edit from, and its first "+strconv.Itoa(mcpProjectTasks)+" tasks ordered by status key alphabetically, then position; use list_tasks with project_id, and status to narrow, for more. description_truncated says the description was longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters and was cut.", mcpSchemaProject,
 			func(ctx context.Context, p McpPrincipal, in mcpProjectRef) (any, error) {
 				return s.GetProject(ctx, p, in)
 			}),
-		mcpWriteTool("create_project", "Create project", "Creates a project in the workspace as the user, without a chat channel. Everyone in the workspace sees it. No one is notified, the lead included. A title another project of the workspace already has, in any case or spacing, fails with duplicate_project_title naming that project. The description holds at most "+strconv.Itoa(mcpMaxItemRunes)+" characters.", "set its status to cancelled, or delete it in UniWork", false, mcpSchemaCreateProject,
+		mcpWriteTool("create_project", "Create project", "Creates a project in the workspace as the user, without a chat channel. Everyone in the workspace sees it. No one is notified, the lead included. A title another project of the workspace already has, in any case or spacing, fails with duplicate_project_title naming that project. The description holds at most "+strconv.Itoa(mcpMaxItemRunes)+" characters.", "set its status to cancelled (its title stays taken), or delete it in UniWork", false, mcpSchemaCreateProject,
 			func(ctx context.Context, p McpPrincipal, in mcpCreateProjectIn) (any, error) {
 				return s.CreateProject(ctx, p, in)
 			}),
-		mcpWriteTool("update_project", "Update project", "Changes one project as the user: omitted fields stay as they are, null clears lead_id or a date. revision must be the one you read; if the project changed since, nothing is written and the call fails with revision_conflict. Only its creator, its lead or a workspace owner or admin may change it; anyone else gets not_project_editor. Everyone in the workspace sees the change. No one is notified. A description longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters is too long to replace here, and a project led by an agent keeps its lead; change those in UniWork.", "call update_project again with the from values in changes", true, mcpSchemaUpdateProject,
+		mcpWriteTool("update_project", "Update project", "Changes one project as the user: omitted fields stay as they are, null clears lead_id or a date. revision must be the one you read; if the project changed since, nothing is written and the call fails with revision_conflict. Only its creator, its lead or a workspace owner or admin may change it; anyone else gets not_project_editor. Everyone in the workspace sees the change. No one is notified. A description longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters is too long to replace here, and a project led by an agent keeps its lead; change those in UniWork. If you lead the project but did not create it and are not a workspace owner or admin, handing the lead to someone else or clearing it removes your right to change the project, so that change cannot be undone here; the note of the result says so.", "call update_project again with the from values in changes", true, mcpSchemaUpdateProject,
 			func(ctx context.Context, p McpPrincipal, in mcpUpdateProjectIn) (any, error) {
 				return s.UpdateProject(ctx, p, in)
 			}),

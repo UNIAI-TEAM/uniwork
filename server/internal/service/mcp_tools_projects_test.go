@@ -122,6 +122,12 @@ func TestMcpListProjectsOrderAndFilters(t *testing.T) {
 			t.Errorf("%s: %v, want invalid arguments", name, err)
 		}
 	}
+	// A status outside the set is refused naming the set, as the write tools do.
+	_, err := callMcpTool(t, x.tools, x.p, "list_projects", `{"workspace_id":"`+x.w.ID+`","status":"nope"}`)
+	var bad McpInvalidArgs
+	if !errors.As(err, &bad) || !strings.HasPrefix(bad.Msg, "status must be one of planned, in_progress") {
+		t.Errorf("unknown status: %v, want a refusal naming the valid statuses", err)
+	}
 }
 
 func TestMcpListProjectsStopsAtTheCapAndSaysSo(t *testing.T) {
@@ -271,10 +277,10 @@ func TestMcpCreateAndUpdateProject(t *testing.T) {
 	}
 	res, item := writeResult(t, raw)
 	id, _ := item["id"].(string)
-	if id == "" || res.Revision == 0 || item["priority"] != "high" || item["lead_id"] != x.ua.ID || item["due_date"] != "2026-12-01" || item["status"] != "planned" || !strings.Contains(fmt.Sprint(item["url"]), "/projects/"+id) {
+	if id == "" || res.Revision == 0 || item["priority"] != "high" || item["lead_id"] != x.ua.ID || item["lead_type"] != "member" || item["due_date"] != "2026-12-01" || item["status"] != "planned" || !strings.Contains(fmt.Sprint(item["url"]), "/projects/"+id) {
 		t.Fatalf("create_project = %s", raw)
 	}
-	onlyKeys(t, "create_project item", item, "kind", "id", "workspace_id", "title", "excerpt", "url", "status", "due_date", "revision", "priority", "lead_id", "start_date", "task_count", "done_count")
+	onlyKeys(t, "create_project item", item, "kind", "id", "workspace_id", "title", "excerpt", "url", "status", "due_date", "revision", "priority", "lead_id", "lead_type", "start_date", "task_count", "done_count")
 	var kind string
 	if err := x.tools.ask.pool.QueryRow(ctx, `SELECT actor_kind FROM audit_events WHERE action = 'project.created' AND resource_id = $1`, id).Scan(&kind); err != nil || kind != "human" {
 		t.Fatalf("project.created actor_kind = %q (%v), want human", kind, err)
@@ -320,7 +326,7 @@ func TestMcpCreateAndUpdateProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if back, item := writeResult(t, raw); item["status"] != "planned" || item["due_date"] != "2026-12-01" || item["lead_id"] != nil || len(back.Changes) != 3 || back.Changes[1] != (McpChange{"lead_id", x.ua.ID, nil}) {
+	if back, item := writeResult(t, raw); item["status"] != "planned" || item["due_date"] != "2026-12-01" || item["lead_id"] != nil || item["lead_type"] != nil || len(back.Changes) != 3 || back.Changes[1] != (McpChange{"lead_id", x.ua.ID, nil}) {
 		t.Fatalf("undo = %s", raw)
 	}
 }
@@ -364,6 +370,7 @@ func TestMcpProjectWriteToolsValidateInput(t *testing.T) {
 	for extra, want := range map[string]string{
 		``:                                      "revision is required",
 		`,"revision":0`:                         "revision is required",
+		`,"revision":` + rev:                    "name at least one field to change",
 		`,"revision":` + rev + `,"title":null`:  "title cannot be null; send a value",
 		`,"revision":` + rev + `,"status":null`: "status cannot be null; send a value",
 		`,"revision":` + rev + `,"priority":null`:      "priority cannot be null; send a value",
@@ -513,6 +520,14 @@ func TestMcpUpdateProjectLeavesAnAgentLeadAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 	rev := strconv.FormatInt(x.projectRevision(t, id), 10)
+	// The read says the lead is an agent, so a model does not look for it in list_members.
+	raw, err := callMcpTool(t, x.tools, x.p, "get_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := (McpProject{}); json.Unmarshal(raw, &got) != nil || got.LeadID != agent.ID || got.LeadType != "agent" {
+		t.Fatalf("get_project of an agent-led project = %s", raw)
+	}
 	for _, lead := range []string{`"` + x.ua.ID + `"`, `null`} {
 		_, err := callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+rev+`,"title":"Đổi","lead_id":`+lead+`}`)
 		var bad McpInvalidArgs
@@ -524,7 +539,7 @@ func TestMcpUpdateProjectLeavesAnAgentLeadAlone(t *testing.T) {
 		t.Fatalf("a refused lead change wrote: %+v", now)
 	}
 	// A call that leaves the lead alone goes through and keeps it.
-	raw, err := callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+rev+`,"title":"Đổi"}`)
+	raw, err = callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+rev+`,"title":"Đổi"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -548,5 +563,87 @@ func TestMcpProjectPrioritiesAreTheServices(t *testing.T) {
 		if err := json.Unmarshal(schema, &s); err != nil || !slices.Equal(s.Properties.Priority.Enum, mcpPriorities) {
 			t.Errorf("%s priority enum = %v (%v), want %v", name, s.Properties.Priority.Enum, err, mcpPriorities)
 		}
+	}
+}
+
+// A call that names no field changes nothing, so it must not bump the revision
+// of a project another person may be editing in the web.
+func TestMcpUpdateProjectNamingNoFieldWritesNothing(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	id := x.project(t, "Không đổi")
+	rev := x.projectRevision(t, id)
+	audits := func() (n int) {
+		t.Helper()
+		if err := x.tools.ask.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'project.updated' AND resource_id = $1`, id).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := audits()
+	_, err := callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+strconv.FormatInt(rev, 10)+`}`)
+	var bad McpInvalidArgs
+	if !errors.As(err, &bad) || !strings.Contains(bad.Msg, "name at least one field to change") {
+		t.Fatalf("update_project naming no field: %v, want McpInvalidArgs naming a field to change", err)
+	}
+	if now := x.projectRevision(t, id); now != rev || audits() != before {
+		t.Fatalf("a call naming no field wrote: revision %d (was %d), %d audit rows (were %d)", now, rev, audits(), before)
+	}
+}
+
+// A lead who is neither the creator nor an admin may edit the project only as
+// its lead, so handing the lead away takes that right with it: the write goes
+// through, and the result says the change cannot be put back from here.
+func TestMcpUpdateProjectLeadHandOffNamesTheLostRight(t *testing.T) {
+	x := newMcpToolWorld(t)
+	addOrgMemberRole(t, x.tools.q, x.w.OrganizationID, x.ub.ID, OrgRoleMember)
+	addMember(t, x.tools.ask.meetings, x.w.ID, x.ub.ID)
+	member := McpPrincipal{UserID: x.ub.ID, OrganizationID: x.w.OrganizationID}
+	update := func(p McpPrincipal, id, extra string) (McpWriteResult, map[string]any) {
+		t.Helper()
+		raw, err := callMcpTool(t, x.tools, p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+strconv.FormatInt(x.projectRevision(t, id), 10)+extra+`}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return writeResult(t, raw)
+	}
+	// A project of the owner's, led by the member.
+	led := func(title string) string {
+		t.Helper()
+		id := x.project(t, title)
+		if res, _ := update(x.p, id, `,"lead_id":"`+x.ub.ID+`"`); res.Note != "" {
+			t.Fatalf("the owner (an admin) handing the lead over: note %q, want none", res.Note)
+		}
+		return id
+	}
+
+	// Handed to someone else, or cleared: the write happens and the note says why undo is out of reach.
+	for name, lead := range map[string]string{"to someone else": `"` + x.ua.ID + `"`, "cleared": `null`} {
+		id := led("Giao lại " + name)
+		res, item := update(member, id, `,"lead_id":`+lead)
+		if len(res.Changes) != 1 || res.Changes[0].Field != "lead_id" || res.Changes[0].From != x.ub.ID || res.Revision == 0 {
+			t.Errorf("hand-off %s: changes %+v", name, res.Changes)
+		}
+		if cleared := lead == "null"; cleared && item["lead_id"] != nil || !cleared && item["lead_id"] != x.ua.ID {
+			t.Errorf("hand-off %s: lead_id = %v", name, item["lead_id"])
+		}
+		if !strings.Contains(res.Note, "no longer lead") || !strings.Contains(res.Note, "creator") || !strings.Contains(res.Note, "admin") {
+			t.Errorf("hand-off %s: note %q does not say the right is lost and who can restore it", name, res.Note)
+		}
+	}
+
+	// Edits that keep the lead say nothing.
+	keeps := led("Giữ lại")
+	if res, _ := update(member, keeps, `,"title":"Giữ lại tên mới"`); res.Note != "" {
+		t.Errorf("a lead who keeps the lead: note %q, want none", res.Note)
+	}
+	// The creator keeps the right whoever leads, so there is nothing to warn about.
+	raw, err := callMcpTool(t, x.tools, member, "create_project", `{"workspace_id":"`+x.w.ID+`","title":"Của thành viên","lead_id":"`+x.ub.ID+`"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, item := writeResult(t, raw)
+	if res, _ := update(member, fmt.Sprint(item["id"]), `,"lead_id":"`+x.ua.ID+`"`); res.Note != "" {
+		t.Errorf("a creator who also leads handing it over: note %q, want none", res.Note)
 	}
 }
