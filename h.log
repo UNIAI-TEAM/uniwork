@@ -1,0 +1,15 @@
+$ WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e; rc=$?; echo "WEB_E2E_EXIT=$rc"; (exit $rc)
+Error: WEB_E2E_REQUIRE_BUILD is set but dist-web has no build for: sheets. Run: npm run build:web -- --all
+
+   at require-builds.ts:34
+
+  32 |   const missing = modules.filter((m) => !isBuilt(m))
+  33 |   if (missing.length > 0) {
+> 34 |     throw new Error(
+     |           ^
+  35 |       `WEB_E2E_REQUIRE_BUILD is set but dist-web has no build for: ${missing.join(', ')}. ` +
+  36 |         `Run: npm run build:web -- --all`,
+  37 |     )
+    at globalSetup (/home/ubuntu/work/uniwork-office/web/e2e/require-builds.ts:34:11)
+
+WEB_E2E_EXIT=1

@@ -1,0 +1,298 @@
+$ npm run build:web -- --all; rc=$?; echo "BUILD_WEB_EXIT=$rc"; (exit $rc)
+
+> genoffice@0.1.0 build:web
+> node web/scripts/build-web.mjs --all
+
+
+== build:web --module docs
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 781 modules transformed.
+rendering chunks...
+computing gzip size...
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficePUABlank-DhfF4Y_f.woff2                     0.31 kB
+../../dist-web/docs/0.1.0-0f612a4/index.html                                                 0.85 kB │ gzip:     0.52 kB
+../../dist-web/docs/0.1.0-0f612a4/assets/send-enter-off-B0IfWMyy.png                         4.25 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficeCheLatinKR-CFVfemg_.woff2                   8.30 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficePoppins-Bold-subset-CLJyStaw.woff2         14.13 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficePoppins-Regular-subset-RElVmxhA.woff2      14.16 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/Caladea-Bold-CZKSWaR4.woff2                         18.43 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/Caladea-Regular-DaybilA1.woff2                      18.85 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/Caladea-BoldItalic-Ba27xK_q.woff2                   19.33 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/Caladea-Italic-BlypM-0H.woff2                       19.62 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficeUIKanaJP-Regular-Bj_7JzTT.woff2            25.29 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficeUIKanaJP-Bold-DbcaglVT.woff2               26.20 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficeDMSans-Bold-subset-DVFBF4J5.woff2          28.43 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficeDMSans-Regular-subset-DEQZCK4K.woff2       28.63 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficeTamil-Regular-DLISHPmH.woff2               33.07 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/NotoSansArabic-Regular-subset-D207GVuU.woff2        63.67 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/NotoNaskhArabic-Regular-subset-DQSqx2ZA.woff2       69.62 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationMono-Italic-Bprp0jhy.woff2               114.73 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationMono-BoldItalic-BTDQyQp_.woff2           117.03 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationMono-Bold-BZxqunF8.woff2                 122.93 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationMono-Regular-Bv_fWIHn.woff2              126.00 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationSerif-Bold-DS5JG3CL.woff2                141.07 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationSerif-Regular-Bm6iK1hG.woff2             146.88 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationSans-Regular-r-gFvyde.woff2              147.11 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationSerif-BoldItalic-DqILcGx7.woff2          147.13 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationSerif-Italic-BdGY3XA4.woff2              147.54 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationSans-Bold-BlSkeIb-.woff2                 148.76 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationSans-BoldItalic-BYHlqTuw.woff2           150.91 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/LiberationSans-Italic-B67WhyiB.woff2               153.14 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/Carlito-Regular-fal-2WfU.woff2                     190.60 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/Carlito-Bold-DN11iCUU.woff2                        198.47 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/Carlito-Italic-CcV9hCBk.woff2                      202.00 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/Carlito-BoldItalic-BqaEwLjh.woff2                  207.12 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficeSansKR-Regular-subset-CVxxonE8.woff2      266.13 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficeGothicKR-Regular-subset-Bkvj_MFZ.woff2    281.98 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/GenOfficeSerifKR-Regular-subset-BkQyd75u.woff2     512.44 kB
+../../dist-web/docs/0.1.0-0f612a4/assets/parse-worker-Bi7ay5ZX.js                          628.62 kB
+../../dist-web/docs/0.1.0-0f612a4/assets/pdf.worker.min-CLrFZWeq.mjs                     1,312.45 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/NotoSansCJKsc-Regular-subset-BuHGXxnc.woff2      2,533.16 kB
+../../dist-web/docs/0.1.0-0f612a4/fonts/NotoSerifCJKsc-Regular-subset-CLPB6QGT.woff2     3,495.93 kB
+../../dist-web/docs/0.1.0-0f612a4/assets/index-C1GvVqAz.css                                304.91 kB │ gzip:    48.36 kB
+../../dist-web/docs/0.1.0-0f612a4/assets/pdf.worker.min-D8Djv3Xg.js                          0.09 kB │ gzip:     0.11 kB
+../../dist-web/docs/0.1.0-0f612a4/assets/pdf-Db4OFiBi.js                                   489.68 kB │ gzip:   148.85 kB
+../../dist-web/docs/0.1.0-0f612a4/assets/index-CQEKz_VX.js                               5,322.83 kB │ gzip: 1,653.49 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-docs 0.1.0-0f612a4: 46 files, 17.17 MiB (gzip 11.81); initial 5.37 MiB (gzip 1.61), deferred 11.80 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/docs/0.1.0-0f612a4
+✓ built in 9.35s
+
+== build:web --module pdf
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 619 modules transformed.
+rendering chunks...
+computing gzip size...
+[vite-plugin-static-copy] Copied 3 items.
+../../../dist-web/pdf/0.1.0-0f612a4/index.html                                         0.92 kB │ gzip:     0.55 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/send-enter-off-B0IfWMyy.png                 4.25 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationMono-Italic-BaW6sbi8.ttf         281.54 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationMono-BoldItalic-CW50-m9W.ttf     284.07 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationMono-Bold-JpIqZVyK.ttf           308.00 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationMono-Regular-CscJ8ftk.ttf        319.51 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationSerif-Bold-CT7WGLoV.ttf          370.10 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationSerif-Italic-Bwtmn-ni.ttf        375.63 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationSerif-BoldItalic-DHf5skZ4.ttf    376.77 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationSerif-Regular-DREh6cMU.ttf       393.58 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationSans-BoldItalic-BC07J_j6.ttf     409.00 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationSans-Regular-CqxnOoBp.ttf        410.71 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationSans-Bold-CAnzDFU4.ttf           414.46 kB
+../../../dist-web/pdf/0.1.0-0f612a4/fonts/LiberationSans-Italic-D6GtLuAT.ttf         415.82 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/hb-subset-_PGx1ra3.wasm                   634.89 kB │ gzip:   251.98 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/pdf.worker.min-CLrFZWeq.mjs             1,312.45 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/pdfium-BJ2Yip8Q.wasm                    4,646.93 kB │ gzip: 2,150.22 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/index-DHx-z1uh.css                        120.30 kB │ gzip:    21.46 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/blank-pdf-C-Yiuugn.js                       0.23 kB │ gzip:     0.21 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/_commonjsHelpers-Cpj98o6Y.js                0.24 kB │ gzip:     0.18 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/font-cmap-L73PrRvk.js                       1.16 kB │ gzip:     0.61 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/annot-delete-D0VcC325.js                    2.18 kB │ gzip:     1.06 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/image-edit-B5vAYmrF.js                      8.16 kB │ gzip:     3.03 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/save-pdf-DROnklvN.js                       28.23 kB │ gzip:     9.89 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/text-edit-N9MkrcCN.js                      35.98 kB │ gzip:    13.20 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/jszip.min-DXD3Oxvq.js                      97.16 kB │ gzip:    30.09 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/index.browser-ptmcIt33.js                 156.79 kB │ gzip:    38.68 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/PDFButton-BqhJDxMv.js                     428.67 kB │ gzip:   177.69 kB
+../../../dist-web/pdf/0.1.0-0f612a4/assets/index-yJCcMnEN.js                       2,170.79 kB │ gzip:   674.27 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-pdf 0.1.0-0f612a4: 229 files, 16.69 MiB (gzip 7.86); initial 2.19 MiB (gzip 0.66), deferred 14.51 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/pdf/0.1.0-0f612a4
+✓ built in 4.66s
+
+== build:web --module markdown
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 2734 modules transformed.
+node_modules/wavedrom/lib/eva.js (17:21): Use of eval in "node_modules/wavedrom/lib/eva.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+node_modules/wavedrom/lib/eva.js (23:21): Use of eval in "node_modules/wavedrom/lib/eva.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+rendering chunks...
+computing gzip size...
+../../../dist-web/markdown/0.1.0-0f612a4/index.html                                           0.94 kB │ gzip:     0.55 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Size3-Regular-gV2CO0n9.woff2             3.62 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/send-enter-off-B0IfWMyy.png                   4.25 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Size4-Regular-Dl5lxZxV.woff2             4.93 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Size2-Regular-Dy4dx90m.woff2             5.21 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Size1-Regular-mCD8mA8B.woff2             5.47 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2       6.91 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2          6.91 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Script-Regular-D3wIWfF6.woff2            9.64 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2        10.34 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Fraktur-Regular-CTYiF6lA.woff2          11.32 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Fraktur-Bold-CL6g_b3V.woff2             11.35 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_SansSerif-Italic-C3H0VqGB.woff2         12.03 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_SansSerif-Bold-D1sUS0GD.woff2           12.22 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Typewriter-Regular-CO6r4hn1.woff2       13.57 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2          16.40 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Math-Italic-t53AETM-.woff2              16.44 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2          16.78 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Main-Italic-NWA7e6Wa.woff2              16.99 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Main-Bold-Cx986IdX.woff2                25.32 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_Main-Regular-B22Nviop.woff2             26.27 kB
+../../../dist-web/markdown/0.1.0-0f612a4/fonts/KaTeX_AMS-Regular-BQhdFMY1.woff2              28.08 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/pdf.worker.min-CLrFZWeq.mjs               1,312.45 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/index-Btk22fC5.css                          138.84 kB │ gzip:    24.73 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/pdf.worker.min-D8Djv3Xg.js                    0.09 kB │ gzip:     0.11 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/channel-Cs1cqZ2r.js                           0.12 kB │ gzip:     0.13 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/init-Gi6I4Gst.js                              0.15 kB │ gzip:     0.13 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/chunk-2Q5K7J3B-xHuk0mBA.js                    0.19 kB │ gzip:     0.16 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/chunk-JWPE2WC7-CVOlsYE9.js                    0.23 kB │ gzip:     0.17 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/chunk-XXDRQBXY-CZVutJ4f.js                    0.23 kB │ gzip:     0.21 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/chunk-5VM5RSS4-CP-r7Lyt.js                    0.37 kB │ gzip:     0.27 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/stateDiagram-v2-MP3YSRHH-Dgpn6aHg.js          0.43 kB │ gzip:     0.31 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/classDiagram-ZZMXUADV-C7pmO6ir.js             0.47 kB │ gzip:     0.32 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/classDiagram-v2-VYDZK3BY-C7pmO6ir.js          0.47 kB │ gzip:     0.32 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/chunk-POPQ4Y6H-D3W8FZIk.js                    0.51 kB │ gzip:     0.36 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/swimlanesDiagram-VR7AAH4N-Cxk5AoV3.js         0.55 kB │ gzip:     0.37 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/infoDiagram-27XIBGKW-BSMWzBn6.js              0.59 kB │ gzip:     0.41 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/sizeCapture-INFHLROL-CUgwbwWV.js              0.94 kB │ gzip:     0.53 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/ordinal-Cboi1Yqb.js                           1.19 kB │ gzip:     0.57 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/railroadDiagram-O6MQD6OU-0mLjDxnH.js          1.61 kB │ gzip:     0.76 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/abnfDiagram-VCTEODGH-C8jyMQjV.js              1.81 kB │ gzip:     0.89 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/chunk-F27PBJKO-C_D_yj3T.js                    1.88 kB │ gzip:     0.83 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/pegDiagram-XKGWAZYB-DRjYCaDS.js               1.96 kB │ gzip:     0.93 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/ebnfDiagram-PWID7BFC-Dl0qw-pL.js              2.01 kB │ gzip:     0.88 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/arc-DjoLLCyo.js                               3.44 kB │ gzip:     1.48 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/diagram-Z3DM3KII-CWxDEmLX.js                  4.21 kB │ gzip:     1.83 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/defaultLocale-DX6XiGOO.js                     4.69 kB │ gzip:     2.18 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/linear-DJuo-Fpj.js                            5.66 kB │ gzip:     2.31 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/diagram-UQ7AKVKN-D03JBkN0.js                  6.08 kB │ gzip:     2.62 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/pieDiagram-E7YTZNPT-DS2MMeHH.js               6.29 kB │ gzip:     2.63 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/diagram-S7CK7UJ4-DiIzGQCK.js                  8.22 kB │ gzip:     3.67 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/cynefinDiagram-5FMLGOSQ-CM8B5mn7.js          10.10 kB │ gzip:     3.63 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/stateDiagram-D77RDMKH-BHNHzb9v.js            10.36 kB │ gzip:     3.63 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/dagre-GXQ25YYZ-DlHM6Mf1.js                   10.68 kB │ gzip:     4.03 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/diagram-VSXAHHWV-CgFIokpA.js                 10.72 kB │ gzip:     4.13 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/chunk-SVP7TREG-B_0A9U3v.js                   15.74 kB │ gzip:     4.41 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/diagram-VX7I27RA-wjCVABxH.js                 15.96 kB │ gzip:     5.70 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/ishikawaDiagram-5VMMS53U-DgWz75N_.js         17.47 kB │ gzip:     6.64 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/kanban-definition-UXKFOSKX-Boi4_RII.js       20.29 kB │ gzip:     7.20 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/mindmap-definition-YA3MSWOX-h5eulErH.js      23.18 kB │ gzip:     7.83 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/sankeyDiagram-P5KCCOFB-2vuX-2ML.js           23.20 kB │ gzip:     8.56 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/journeyDiagram-3NMN7TZE-B_eft6_Z.js          23.57 kB │ gzip:     8.35 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/wardleyDiagram-VM6X3IG4-nWKWS6L3.js          25.50 kB │ gzip:     6.79 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/index-CfVoXhG5.js                            27.06 kB │ gzip:     7.80 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/gitGraphDiagram-WWUBYQGX-DV8pfR6J.js         29.42 kB │ gzip:     8.70 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/erDiagram-RLTQ6QDP-DxLsWR1y.js               30.79 kB │ gzip:    10.59 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/timeline-definition-24CTP7MA-C97Fa1oA.js     30.83 kB │ gzip:    10.15 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/requirementDiagram-BXWQKSXE-DAkcgSdk.js      31.00 kB │ gzip:     9.73 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/quadrantDiagram-AXDQQJYC-Cpa9sJeV.js         34.01 kB │ gzip:     9.98 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/layout-DaZ7pmnh.js                           35.44 kB │ gzip:    12.75 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/chunk-IMKFNOWR-DUdjzlBj.js                   38.08 kB │ gzip:    12.51 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/blockDiagram-I7D4REHJ-BvrQSpA0.js            41.76 kB │ gzip:    13.58 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/vennDiagram-4TSXK5OY-CebzO3cm.js             41.96 kB │ gzip:    15.70 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/xychartDiagram-S5SC5T6Z-Bg8HBY0M.js          44.51 kB │ gzip:    12.60 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/chunk-TICWLB2K-D9979bxm.js                   49.18 kB │ gzip:    15.75 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/flowDiagram-HODETNUW-ryvU1AK9.js             61.85 kB │ gzip:    19.87 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/c4Diagram-7LVT6UL2-Cl1NVy2K.js               65.47 kB │ gzip:    18.79 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/ganttDiagram-EL5Y4UJY-nWTZ4mxH.js            69.70 kB │ gzip:    23.56 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/cose-bilkent-JH36ORCC-iviGKyJG.js            81.70 kB │ gzip:    22.47 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/index-DSTGYkui.js                           104.67 kB │ gzip:    23.77 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/swimlanes-42K2YHIH-Cu7Ii1mh.js              115.79 kB │ gzip:    42.51 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/sequenceDiagram-WJ2MYXX4-EzbHPXN9.js        116.96 kB │ gzip:    31.14 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/architectureDiagram-5GKGNRK7-BxBAiBi3.js    151.83 kB │ gzip:    43.15 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/cytoscape.esm-BB4DxJjf.js                   443.04 kB │ gzip:   141.98 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/pdf-Db4OFiBi.js                             489.68 kB │ gzip:   148.85 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/mermaid.core-GcVLc32C.js                    683.41 kB │ gzip:   169.13 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/cynefin-OW5HDTMX-C0DZKkCa.js                688.15 kB │ gzip:   154.16 kB
+../../../dist-web/markdown/0.1.0-0f612a4/assets/index-D4I0Xlxy.js                         3,418.89 kB │ gzip: 1,100.84 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-markdown 0.1.0-0f612a4: 90 files, 8.49 MiB (gzip 2.72); initial 3.39 MiB (gzip 1.07), deferred 5.10 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/markdown/0.1.0-0f612a4
+✓ built in 11.87s
+
+== build:web --module html
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 464 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../dist-web/html/0.1.0-0f612a4/index.html                              0.92 kB │ gzip:   0.55 kB
+../../../dist-web/html/0.1.0-0f612a4/assets/send-enter-off-B0IfWMyy.png      4.25 kB
+../../../dist-web/html/0.1.0-0f612a4/assets/index-DLj_rg_R.css             108.06 kB │ gzip:  18.66 kB
+../../../dist-web/html/0.1.0-0f612a4/assets/index-DKSd9067.js            2,234.21 kB │ gzip: 732.46 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-html 0.1.0-0f612a4: 7 files, 2.25 MiB (gzip 0.72); initial 2.23 MiB (gzip 0.71), deferred 0.01 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/html/0.1.0-0f612a4
+✓ built in 3.38s
+
+== build:web --module slides
+vite v7.3.6 building client environment for production...
+(node:7431) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/ubuntu/work/uniwork-office/web/modules/slides/vite-web.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/ubuntu/work/uniwork-office/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+transforming...
+✓ 955 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/export-render.tsx is dynamically imported by /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/zoom-actions.ts but also statically imported by /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/ai/AiPanel.tsx, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/clipboard-actions.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/components/PrintDialog.tsx, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/export-pages.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/file-actions.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/slide-actions.ts, dynamic import will not move module into another chunk.
+
+computing gzip size...
+../../../dist-web/slides/0.1.0-0f612a4/index.html                                   0.95 kB │ gzip:     0.56 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/send-enter-off-B0IfWMyy.png           4.25 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/marble-D7ttTB12.png                   9.07 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/parchment-BKiptb7w.png               17.39 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/paper-DUijYpax.png                   19.39 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/canvas-BRJXZk8M.png                  23.00 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/wood-D70XEBVa.png                    23.40 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/denim-DTrT_oct.png                   29.17 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/cork-BseXy6tu.png                    29.53 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/granite--1xJtYY3.png                 41.09 kB
+../../../dist-web/slides/0.1.0-0f612a4/fonts/Carlito-Regular-fal-2WfU.woff2       190.60 kB
+../../../dist-web/slides/0.1.0-0f612a4/fonts/Carlito-Bold-DN11iCUU.woff2          198.47 kB
+../../../dist-web/slides/0.1.0-0f612a4/fonts/Carlito-Italic-CcV9hCBk.woff2        202.00 kB
+../../../dist-web/slides/0.1.0-0f612a4/fonts/Carlito-BoldItalic-BqaEwLjh.woff2    207.12 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/index-YAlYHqft.css                  181.88 kB │ gzip:    32.05 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/AiPanel-C0devJun.js                 420.64 kB │ gzip:   149.17 kB
+../../../dist-web/slides/0.1.0-0f612a4/assets/index-YV_93Z85.js                 4,555.41 kB │ gzip: 1,384.33 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-slides 0.1.0-0f612a4: 19 files, 5.87 MiB (gzip 2.36); initial 4.52 MiB (gzip 1.34), deferred 1.35 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/slides/0.1.0-0f612a4
+✓ built in 6.33s
+
+== build:web --module sheets
+vite v7.3.6 building client environment for production...
+[build-wasm] inputs unchanged: reusing dist/xlsx-sidecar.wasm
+[build-wasm] xlsx-sidecar.wasm sha256 51042bf3e0145fdddb46a58832fbf5e1369e212ef7ca028b694a007a67d14e3e does not match apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256 (a3dc5f3904bd14970b24548811732645b0e4b9eb40ad2065a758a8a356d2bdb9). A different toolchain or engine source built it; after an intended engine change, or on a platform the file has no line for (linux-x64), run build-wasm.mjs --update-checksum and commit the checksum.
+✓ 0 modules transformed.
+✗ Build failed in 51ms
+error during build:
+[web-module-prebuild] Command failed: /usr/bin/node /home/ubuntu/work/uniwork-office/apps/sheets/native/xlsx-engine/wasm/build-wasm.mjs
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at Object.buildStart (/home/ubuntu/work/uniwork-office/web/docs/vite.config.ts:631:57)
+    at Object.handler (file:///home/ubuntu/work/uniwork-office/node_modules/vite/dist/node/chunks/config.js:33823:13)
+    at file:///home/ubuntu/work/uniwork-office/node_modules/rollup/dist/es/shared/node-entry.js:23026:40
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Promise.all (index 5)
+    at async PluginDriver.hookParallel (file:///home/ubuntu/work/uniwork-office/node_modules/rollup/dist/es/shared/node-entry.js:22936:9)
+build:web --module sheets failed (exit 1)
+BUILD_WEB_EXIT=1

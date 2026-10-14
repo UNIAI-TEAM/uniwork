@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+0f612a4a66849490e86ba9ad2c2aae8e5ee76ae5
+0f3f42bc22df209fb3b2fa1566da1000f960bf94
+0f612a4a docs(upstream): record the selective genoffice port in PORTED.md
+d7cf7e14 merge(lane): docs, sheets, corepdf, hidemd, version into port/shell (UNI-923)
+4807cd7f port(shell): a setting to turn the AI sidebar off entirely (genoffice 55ade14a)

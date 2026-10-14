@@ -1,0 +1,9 @@
+$ npm run typecheck:web; rc=$?; echo "TYPECHECK_WEB_EXIT=$rc"; (exit $rc)
+
+> genoffice@0.1.0 typecheck:web
+> tsc -p web/docs/protocol/tsconfig.json && tsc -p web/docs/bridge/tsconfig.json && tsc -p web/docs/build/tsconfig.json && tsc -p web/modules/tsconfig.json
+
+web/docs/bridge/ai.ts(80,3): error TS2322: Type '() => Promise<{ side: "left"; fontSize: "default"; customFontSize: number; spellcheck: true; openInNewDocs: true; }>' is not assignable to type '() => Promise<AiPanelPrefs>'.
+  Type 'Promise<{ side: "left"; fontSize: "default"; customFontSize: number; spellcheck: true; openInNewDocs: true; }>' is not assignable to type 'Promise<AiPanelPrefs>'.
+    Property 'showAiSidebar' is missing in type '{ side: "left"; fontSize: "default"; customFontSize: number; spellcheck: true; openInNewDocs: true; }' but required in type 'AiPanelPrefs'.
+TYPECHECK_WEB_EXIT=2
