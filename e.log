@@ -1,0 +1,19 @@
+$ D_ROOT=$(pwd); export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh" >/dev/null 2>&1; nvm use 22 >/dev/null 2>&1; node -v; ORIGIN=$(grep -m1 '^API_ORIGIN=' "$D_ROOT/.harness-run/ports.env" | cut -d= -f2-); echo "origin set: ${ORIGIN:+yes}"; cd /tmp/uw-g503a-i2 && UNIWORK_LIVE_ORIGIN="$ORIGIN" UNIWORK_LIVE_FIXTURE_DIR="$D_ROOT/docs/office/g5g6g7/fixtures" NODE_ENV=test AI_PROVIDER=fake npx vitest run --root apps/shell tests/live/uniwork-remote-newer-live.test.ts --reporter=verbose; rc=$?; echo "LIVE_I_EXIT=$rc"; [ $rc -eq 0 ]
+v22.14.0
+origin set: yes
+
+ RUN  v4.1.11 /tmp/uw-g503a-i2/apps/shell
+
+ ✓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I0. cold start: the real feed lists every seeded head through the runtime 32ms
+ ✓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I1. docx clean reload: a web save lands as the new head (bytes sha, base, bar updated) 59ms
+ ✓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I2. docx dirty kept: the next web save moves nothing (bytes, base, no download) 63ms
+ ✓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I3. xlsx clean reload: the web save lands as the new head (bytes sha, base, bar updated) 295ms
+ ✓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I4. xlsx dirty kept: the next web save moves nothing (bytes, base, no download) 62ms
+ ✓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I5. self-echo: this app's own commit raises no bar on the copy that made it 2067ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  08:22:16
+   Duration  3.18s (transform 287ms, setup 0ms, import 343ms, tests 2.75s, environment 0ms)
+
+LIVE_I_EXIT=0
