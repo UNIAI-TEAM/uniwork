@@ -1,0 +1,4 @@
+$ cd server && go test -count=1 -v ./migrations/ 2>&1 | grep -E '^(--- FAIL|FAIL|ok|PASS)'; echo "MIGRATIONS_EXIT=${PIPESTATUS[0]}"
+PASS
+ok  	github.com/unicomhub/uniwork/server/migrations	5.070s
+MIGRATIONS_EXIT=0
