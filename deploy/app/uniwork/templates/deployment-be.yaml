@@ -119,6 +119,20 @@ spec:
                   key: {{ .key }}
                   optional: true
             {{- end }}
+            {{- with .Values.be.secrets.calendar }}
+            - name: CALENDAR_CREDENTIAL_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .credentialKey }}
+                  optional: true
+            - name: MICROSOFT_CALENDAR_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .microsoftSecret }}
+                  optional: true
+            {{- end }}
             {{- with .Values.be.secrets.openAPIKey }}
             - name: OPENAI_API_KEY
               valueFrom:

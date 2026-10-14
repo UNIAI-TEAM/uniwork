@@ -54,6 +54,9 @@ be:
     s3: { name: uniwork-s3, accessKey: AWS_ACCESS_KEY_ID, secretKey: AWS_SECRET_ACCESS_KEY }
     google: { name: uniwork-google, key: GOOGLE_CLIENT_SECRET }
     emailHub: { name: uniwork-email-hub, key: EMAIL_HUB_CREDENTIAL_KEY }
+    # Connected calendars: without CALENDAR_CREDENTIAL_KEY both Google and
+    # Outlook connect answer 503 calendar_provider_not_configured.
+    calendar: { name: uniwork-calendar, credentialKey: CALENDAR_CREDENTIAL_KEY, microsoftSecret: MICROSOFT_CALENDAR_CLIENT_SECRET }
     # OpenRouter / OpenAI-compatible key (Email Hub AI, Ask UNI, meeting summary).
     openAPIKey: { name: uniwork-open-api-key, key: OPENAI_API_KEY }
     anthropicAPIKey: { name: uniwork-anthropic-api-key, key: ANTHROPIC_API_KEY }

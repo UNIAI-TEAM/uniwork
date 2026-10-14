@@ -64,3 +64,22 @@ kubectl -n uniwork create secret generic uniwork-openai \
 ```
 
 Rotate the key on OpenRouter if it was ever exposed; update the secret and restart `uniwork-be`.
+
+### Connected calendars (Google / Outlook)
+
+Without `CALENDAR_CREDENTIAL_KEY` both connect buttons answer 503
+`calendar_provider_not_configured`. Google reuses `GOOGLE_CLIENT_ID` (ConfigMap)
+and `GOOGLE_CLIENT_SECRET` (Secret `uniwork-google`); Outlook needs
+`MICROSOFT_CALENDAR_CLIENT_ID` in `uniwork-be.env` plus its secret below.
+
+```bash
+kubectl -n uniwork create secret generic uniwork-calendar \
+  --from-literal=CALENDAR_CREDENTIAL_KEY="$(openssl rand -base64 32)" \
+  --from-literal=MICROSOFT_CALENDAR_CLIENT_SECRET='…' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Register the redirect URIs byte for byte: `API_PUBLIC_URL/api/v1/calendar-connections/google/callback`
+in the Google client, `API_PUBLIC_URL/api/v1/calendar-connections/outlook/callback`
+in the Entra app. Keep the key: rotating it orphans every stored calendar token
+(users reconnect). Restart `uniwork-be` after any change.
