@@ -216,6 +216,44 @@ func TestAuthenticateReportsWriteAccess(t *testing.T) {
 	}
 }
 
+// The platform's write flag is the other leg of WriteOpen: a grant that holds
+// write, under an organization whose write switch is on, still reads as
+// closed the moment the flag goes off, and Authenticate keeps succeeding so
+// reads carry on.
+func TestAuthenticateWriteFlagOffClosesWrite(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	c := w.publicClient(t, "https://x.test/cb")
+	id := w.startWrite(t, c)
+	consent, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(to)
+	pair, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, Code: u.Query().Get("code"), CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, err := w.svc.Authenticate(w.ctx, pair.AccessToken); err != nil || !p.CanWrite() {
+		t.Fatalf("before the flag goes off: principal = %+v, err = %v, want a writer", p, err)
+	}
+	w.svc.SetFlags(mcpFlagsExcept{off: mcpWriteFlagKey})
+	p, err := w.svc.Authenticate(w.ctx, pair.AccessToken)
+	if err != nil {
+		t.Fatalf("Authenticate with the write flag off: %v", err)
+	}
+	if p.WriteOpen || p.CanWrite() || p.Scope != "read write" {
+		t.Fatalf("write flag off, principal = %+v, want the grant intact, WriteOpen false and CanWrite false", p)
+	}
+}
+
 // A grant that holds only read cannot write even when both switches are on:
 // the scope is the third condition of CanWrite.
 func TestAuthenticateReadOnlyGrantCannotWrite(t *testing.T) {
