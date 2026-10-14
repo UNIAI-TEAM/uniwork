@@ -518,12 +518,12 @@ export function buildXlsxRevenueWithXyzBytes(repoRoot = DEFAULT_REPO_ROOT) {
 }
 
 /**
- * Reads all XML entries from a ZIP buffer (supports both stored method 0 and
- * deflated method 8) and checks whether the workbook contains the expected X/Y
- * cell values (`expectedXyz`).
+ * The XML entries of a ZIP buffer, `{name, data}` per entry (supports both the
+ * stored method 0 and the deflated method 8). null for a buffer that is not a
+ * readable zip, so a caller can say why it read nothing.
  */
-export function verifyXlsxContainsExpectedXyz(xlsxBytes, expectedXyz = []) {
-  if (!xlsxBytes || xlsxBytes.length < 22) return false;
+function readZipEntries(xlsxBytes) {
+  if (!xlsxBytes || xlsxBytes.length < 22) return null;
   const buf = Buffer.isBuffer(xlsxBytes) ? xlsxBytes : Buffer.from(xlsxBytes);
   try {
     let eocdOffset = -1;
@@ -534,11 +534,11 @@ export function verifyXlsxContainsExpectedXyz(xlsxBytes, expectedXyz = []) {
         break;
       }
     }
-    if (eocdOffset < 0) return false;
+    if (eocdOffset < 0) return null;
     const totalEntries = buf.readUInt16LE(eocdOffset + 10);
     const cdOffset = buf.readUInt32LE(eocdOffset + 16);
     let pos = cdOffset;
-    const xmlChunks = [];
+    const entries = [];
     for (let idx = 0; idx < totalEntries && pos + 46 <= buf.length; idx += 1) {
       if (buf.readUInt32LE(pos) !== 0x02014b50) break;
       const method = buf.readUInt16LE(pos + 10);
@@ -549,28 +549,126 @@ export function verifyXlsxContainsExpectedXyz(xlsxBytes, expectedXyz = []) {
       const localOffset = buf.readUInt32LE(pos + 42);
       const name = buf.subarray(pos + 46, pos + 46 + nameLen).toString("utf8");
       pos += 46 + nameLen + extraLen + commentLen;
-      if (!name.endsWith(".xml")) continue;
       if (localOffset + 30 > buf.length) continue;
       const localNameLen = buf.readUInt16LE(localOffset + 26);
       const localExtraLen = buf.readUInt16LE(localOffset + 28);
       const dataStart = localOffset + 30 + localNameLen + localExtraLen;
       const rawSlice = buf.subarray(dataStart, dataStart + compSize);
-      const decoded =
-        method === 0
-          ? rawSlice.toString("utf8")
-          : method === 8
-            ? inflateRawSync(rawSlice).toString("utf8")
-            : "";
-      if (decoded) xmlChunks.push(decoded);
+      let data = null;
+      try {
+        if (method === 0) data = rawSlice;
+        else if (method === 8) data = inflateRawSync(rawSlice);
+      } catch {
+        data = null; // one unreadable entry must not take the whole read down
+      }
+      entries.push({ name, method, data });
     }
-    const combinedXml = xmlChunks.join("\n");
-    if (!combinedXml) return false;
-    return expectedXyz.every(
-      (row) => combinedXml.includes(String(row.X)) && combinedXml.includes(String(row.Y)),
-    );
+    return entries.length > 0 ? entries : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+const XML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const decodeXmlEntities = (text) =>
+  String(text).replace(/&(#x?[0-9a-fA-F]+|amp|lt|gt|quot|apos);/g, (all, entity) => {
+    if (entity.startsWith("#x") || entity.startsWith("#X")) return String.fromCodePoint(Number.parseInt(entity.slice(2), 16));
+    if (entity.startsWith("#")) return String.fromCodePoint(Number.parseInt(entity.slice(1), 10));
+    return XML_ENTITIES[entity] ?? all;
+  });
+
+const zipEntryText = (entry) => (entry?.data ? entry.data.toString("utf8") : "");
+
+/**
+ * The cell values of a workbook's first sheet, keyed by reference
+ * (`{ E2: "270", F2: "30" }`) — a real XLSX read: the package's own
+ * `xl/workbook.xml`, its relationships and the sheet part they name (with the
+ * first worksheet as a fallback), the shared-string table when a cell indexes it
+ * (`t="s"`), inline strings, numbers and booleans. null when the bytes hold no
+ * readable sheet. Never a substring scan: a value is the cell's own value.
+ */
+export function readXlsxSheetCells(xlsxBytes) {
+  const entries = readZipEntries(xlsxBytes);
+  if (!entries) return null;
+  const byName = new Map(entries.map((entry) => [entry.name, entry]));
+  const workbookText = zipEntryText(byName.get("xl/workbook.xml"));
+  const relId = /<sheet\b[^>]*\sr:id="([^"]+)"/.exec(workbookText)?.[1] ?? "";
+  let sheetPath = "";
+  if (relId) {
+    const rels = zipEntryText(byName.get("xl/_rels/workbook.xml.rels"));
+    const target =
+      new RegExp(`<Relationship\\b[^>]*\\bId="${relId}"[^>]*\\bTarget="([^"]+)"`, "i").exec(rels)?.[1] ??
+      new RegExp(`<Relationship\\b[^>]*\\bTarget="([^"]+)"[^>]*\\bId="${relId}"`, "i").exec(rels)?.[1] ??
+      "";
+    if (target) {
+      const normalized = target.replace(/^\//, "").replace(/^\.\//, "");
+      sheetPath = normalized.startsWith("xl/") ? normalized : `xl/${normalized}`;
+    }
+  }
+  if (!sheetPath || !byName.has(sheetPath)) {
+    sheetPath = [...byName.keys()].filter((name) => /^xl\/worksheets\/[^/]+\.xml$/i.test(name)).sort()[0] ?? "";
+  }
+  if (!sheetPath) return null;
+  const sheetText = zipEntryText(byName.get(sheetPath));
+  if (!sheetText) return null;
+
+  const sharedText = zipEntryText(byName.get("xl/sharedStrings.xml"));
+  const sharedStrings = [...sharedText.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((si) =>
+    [...si[1].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((t) => decodeXmlEntities(t[1])).join(""),
+  );
+
+  const cells = new Map();
+  // A self-closing <c r="A1"/> carries no value; dropping those first keeps the
+  // open/close scan from swallowing the cells after one.
+  for (const match of sheetText.replace(/<c\b[^>]*\/>/g, "").matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
+    const attrs = match[1];
+    const ref = /\br="([A-Za-z]+\d+)"/.exec(attrs)?.[1]?.toUpperCase() ?? "";
+    if (!ref) continue;
+    const type = /\bt="([^"]+)"/.exec(attrs)?.[1] ?? "";
+    let value = "";
+    if (type === "inlineStr") {
+      value = [...match[2].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((t) => decodeXmlEntities(t[1])).join("");
+    } else {
+      const raw = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(match[2])?.[1];
+      if (raw !== undefined) {
+        value = type === "s" ? (sharedStrings[Number(raw)] ?? "") : decodeXmlEntities(raw);
+      }
+    }
+    cells.set(ref, value);
+  }
+  return { sheetPath, cells };
+}
+
+/**
+ * The X, Y and Z columns `buildXlsxRevenueWithXyzBytes` builds and
+ * `driveWebXlsxSave` types through the sheets name box: row 1 is the header
+ * (`E1`/`F1`/`G1`), the three data rows are 2-4 and each expected row is read
+ * from its own cells (`E2`/`F2`/`G2`, then `E3`/`F3`/`G3`, then `E4`/`F4`/`G4`).
+ */
+export const XYZ_COLUMNS = Object.freeze(["E", "F", "G"]);
+export const XYZ_FIRST_DATA_ROW = 2;
+
+/**
+ * Whether the workbook carries the expected X, Y and Z values as cell values, by
+ * reference and row (G710-BE-11). The old check concatenated every XML part and
+ * matched `X` and `Y` as substrings anywhere in it — a style id, a shared string
+ * or another column satisfied it, and `Z` was never read at all, although the
+ * gate, the step text and the decision function all say X/Y/Z. Values are
+ * compared as numbers (the editor writes `0.25`, a shared string may hold
+ * `"0.25"`); a cell that is absent, blank or not the expected number fails.
+ */
+export function verifyXlsxContainsExpectedXyz(xlsxBytes, expectedXyz = []) {
+  const sheet = readXlsxSheetCells(xlsxBytes);
+  if (!sheet) return false;
+  return expectedXyz.every((row, index) =>
+    XYZ_COLUMNS.every((column, columnIndex) => {
+      const cell = sheet.cells.get(`${column}${XYZ_FIRST_DATA_ROW + index}`);
+      if (cell === undefined || String(cell).trim() === "") return false;
+      const expected = [row?.X, row?.Y, row?.Z][columnIndex];
+      if (expected === undefined || expected === null || expected === "") return false;
+      return Number(cell) === Number(expected);
+    }),
+  );
 }
 
 /**
@@ -978,21 +1076,38 @@ export function interpretCommitIntentLookup(res) {
 // ---- Pure Outcome Decision Functions (G710-L1, G710-L2, G710-L3, r3) ---------
 
 /**
- * Pure decision function for desktop app sign-in (r3):
- *   * When the app was not started (`!appStarted`) or CDP is unreachable (`!cdpConnected`),
- *     returns `BLOCKED` (exit 77).
- *   * When the OS keyring is unavailable or locked (`!keyringAvailable` or
- *     `accountState` is `"keyring-unavailable"` / `"keystore-locked"`), returns
- *     `BLOCKED` (exit 77).
- *   * When the OS keyring is available (`keyringAvailable === true`), self sign-in
- *     must leave BOTH `accountState === "signed-in"` (for `expectedUserId`) AND
- *     `uniwork-auth/session.bin` on disk (`sessionBinExists === true`); any failure
- *     returns `FAIL` (exit 1) with the reason, never `BLOCKED`.
+ * Pure decision function for desktop app sign-in (r3, ADDENDUM r5 G1/G3):
+ *   * `appStarted: false` — the run never started the fork app (`HARNESS_SKIP_APP=1`,
+ *     or a ports.env without `UNIWORK_USER_DATA`/`ELECTRON_BIN`/`SHELL_APP_DIR`) —
+ *     is a step that cannot be driven by design: `BLOCKED` (exit 77).
+ *   * Once start.sh reported the app up, every way the app can be missing is a
+ *     harness or app failure, never a missing precondition: `FAIL` (exit 1) when
+ *     the recorded app process is gone (`appProcessAlive === false`), when a CDP
+ *     connection was attempted and refused, and when CDP answered but no shell
+ *     renderer window exposing `window.aiOffice` was found. Cloud round r3 read
+ *     exactly those three as BLOCKED, and the round passed with a false BLOCKED.
+ *   * A CDP connection that was never possible (no `APP_CDP_PORT`, no Playwright)
+ *     keeps `BLOCKED`: the app cannot be driven headlessly in this run dir.
+ *   * The OS keyring being unavailable or locked (`keyringAvailable === false`, or
+ *     `accountState` `"keyring-unavailable"` / `"keystore-locked"`) is the other
+ *     precondition the VM may genuinely lack: `BLOCKED` (exit 77).
+ *   * With a usable keyring, self sign-in must leave BOTH `accountState ===
+ *     "signed-in"` (for `expectedUserId`) AND `uniwork-auth/session.bin` on disk
+ *     (`sessionBinExists === true`); any failure returns `FAIL` (exit 1).
+ *
+ * `appProcessAlive` and `keyringAvailable` are tri-state: `null` means the tracer
+ * never learned the fact (no pid file / no `accountStatus` read), which is not the
+ * same statement as `false` (G3 — the r3 record said `keyringAvailable: false`
+ * next to `sessionBinExists: true` on a path that never asked the app).
  */
 export function decideAppSignInOutcome({
   appStarted = true,
+  appPid = null,
+  appProcessAlive = null,
+  cdpAttempted = false,
   cdpConnected = true,
-  keyringAvailable = false,
+  shellWindowFound = null,
+  keyringAvailable = null,
   accountState = "unknown",
   sessionBinExists = false,
   signedInUserId = "",
@@ -1000,19 +1115,56 @@ export function decideAppSignInOutcome({
   signInError = "",
   blockerReason = "",
 }) {
-  if (!appStarted || !cdpConnected) {
+  const appRef = appPid === null || appPid === undefined ? "the pid start.sh recorded" : `pid ${appPid}`;
+  if (!appStarted) {
     return {
       exitCode: BLOCKED_EXIT,
       status: "BLOCKED",
       signedIn: false,
       reason:
         blockerReason ||
-        (!appStarted
-          ? "this run did not start the fork app (no UNIWORK_USER_DATA/ELECTRON_BIN/SHELL_APP_DIR in ports.env; HARNESS_SKIP_APP=1)"
-          : "the app is not signed in and could not be reached over CDP"),
+        "this run did not start the fork app (no UNIWORK_USER_DATA/ELECTRON_BIN/SHELL_APP_DIR in ports.env; HARNESS_SKIP_APP=1)",
     };
   }
-  if (!keyringAvailable || accountState === "keyring-unavailable" || accountState === "keystore-locked") {
+  if (appProcessAlive === false) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      signedIn: false,
+      reason: `start.sh reported the app started, but its process is gone at loop start (${appRef}; the run dir's pids file records it, see the run's logs/app.log)${blockerReason ? `; last CDP error: ${blockerReason}` : ""}`,
+    };
+  }
+  if (cdpAttempted && !cdpConnected) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      signedIn: false,
+      reason:
+        blockerReason ||
+        `the app was started (${appRef} is alive) but its CDP endpoint did not answer; a harness or app failure, not a missing precondition`,
+    };
+  }
+  if (cdpConnected && shellWindowFound === false) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      signedIn: false,
+      reason:
+        blockerReason ||
+        "connected to Electron CDP but found no shell renderer window exposing window.aiOffice",
+    };
+  }
+  if (!cdpConnected) {
+    return {
+      exitCode: BLOCKED_EXIT,
+      status: "BLOCKED",
+      signedIn: false,
+      reason:
+        blockerReason ||
+        "the app's Save cannot be driven headlessly in this run (no CDP connection is possible; ports.env has no APP_CDP_PORT or Playwright is not loadable)",
+    };
+  }
+  if (keyringAvailable === false || accountState === "keyring-unavailable" || accountState === "keystore-locked") {
     return {
       exitCode: BLOCKED_EXIT,
       status: "BLOCKED",
@@ -1401,6 +1553,71 @@ async function sleep(ms) {
   await new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * The pid start.sh recorded for the app, and whether that process is alive right
+ * now (G1). start.sh writes `<name> <pid> <port>` per line into the run dir's
+ * `pids` file and stops exactly those groups; the app line is the last word on
+ * whether the app the harness started is still there. `null` means unknown (no
+ * pid file, or no app line in it) and is never treated as dead: only a pid that
+ * is recorded and gone is evidence of a failure.
+ */
+export function isProcessAlive(pid) {
+  if (!Number.isInteger(Number(pid)) || Number(pid) <= 0) return null;
+  try {
+    process.kill(Number(pid), 0);
+    return true;
+  } catch (err) {
+    // EPERM means the process exists and belongs to somebody else.
+    return err?.code === "EPERM";
+  }
+}
+
+export function readAppProcessRecord(runDir) {
+  if (!runDir) return { appPid: null, appProcessAlive: null, appProcessSource: "no-pid-file" };
+  const pidFile = join(runDir, "pids");
+  if (!existsSync(pidFile)) return { appPid: null, appProcessAlive: null, appProcessSource: "no-pid-file" };
+  let appPid = null;
+  try {
+    for (const line of readFileSync(pidFile, "utf8").split("\n")) {
+      const [name, pid] = line.trim().split(/\s+/);
+      if (name === "app" && Number.isInteger(Number(pid))) appPid = Number(pid);
+    }
+  } catch {
+    return { appPid: null, appProcessAlive: null, appProcessSource: "unreadable-pid-file" };
+  }
+  if (appPid === null) return { appPid: null, appProcessAlive: null, appProcessSource: "no-app-line" };
+  return { appPid, appProcessAlive: isProcessAlive(appPid), appProcessSource: "pid-file" };
+}
+
+/**
+ * What a sign-in error may say in `tracer-loop-N.json` (G710-BE-13). The field
+ * is an open channel — the sign-in flow passes a consent callback URL around,
+ * and a future error string can embed a token or a credential — so everything
+ * that could carry one is dropped and the error class/context is kept:
+ *
+ *   * a URL becomes `<url>`: its query (a single-use `code`/`state`), its
+ *     userinfo and its path go with it;
+ *   * a `key=value`/`key: value` pair whose key names a credential or a session
+ *     keeps the key and loses the value;
+ *   * a bare `Bearer`/`Basic` credential is replaced;
+ *   * a long opaque run (32+ characters of token alphabet) is replaced;
+ *   * the whole message is truncated.
+ */
+export const SIGN_IN_ERROR_MAX_CHARS = 240;
+const SIGN_IN_ERROR_KEY_VALUE =
+  /(?<=\b(?:access_token|refresh_token|id_token|token|secret|password|passwd|credential|credentials|authorization|api_?key|csrf_?token|csrf|ticket|attempt_id|code|state)\s*[:=]\s*)[^\s,;&"']+/gi;
+const SIGN_IN_ERROR_OPAQUE = /[A-Za-z0-9_-]{32,}/g;
+
+export function redactSignInError(raw) {
+  let text = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  text = text.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, "<url>");
+  text = text.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, (match, scheme) => `${scheme} <redacted>`);
+  text = text.replace(SIGN_IN_ERROR_KEY_VALUE, "<redacted>");
+  text = text.replace(SIGN_IN_ERROR_OPAQUE, "<redacted>");
+  return text.length > SIGN_IN_ERROR_MAX_CHARS ? `${text.slice(0, SIGN_IN_ERROR_MAX_CHARS)}...` : text;
+}
+
 function loadPlaywrightChromium(repoRoot = DEFAULT_REPO_ROOT) {
   try {
     const req = createRequire(join(repoRoot, "e2e", "package.json"));
@@ -1583,19 +1800,37 @@ export async function driveWebXlsxSave({
 }
 
 /**
- * Builds the sanitized desktop sign-in decision record (`F3`) for `tracer-loop-N.json`.
- * Never includes any session token, password, or secret.
+ * Builds the sanitized desktop sign-in decision record (`F3`, ADDENDUM r5 G1/G3)
+ * for `tracer-loop-N.json`. Never includes any session token, password, or secret:
+ * `signInError` goes through `redactSignInError` (G710-BE-13).
+ *
+ * `appPid` / `appProcessAlive` are the run's own PID-file record (G1), and
+ * `cdpAttempted` / `cdpConnected` / `shellWindowFound` say which of the three
+ * failures the decision saw. `keyringAvailable` is tri-state: `true`/`false` only
+ * when the app itself reported it through `accountStatus()`, `null` when the
+ * tracer never reached the app (G3) — the r3 record read
+ * `keyringAvailable: false` with `sessionBinExists: true`, which is not a
+ * combination the app can report: `session.bin` is written only while a real
+ * keyring is there (`apps/shell/src/main/uniwork-auth/credentials.ts`,
+ * `ensureAvailable`), and an app that cannot open the keyring keeps the file and
+ * reports `keyring-unavailable` — the `false` in that record came from the
+ * tracer's CDP-failure path, which never asked.
  */
 export function buildSanitizedAppSignInRecord(rawInput = {}) {
+  const triState = (value) => (value === undefined || value === null ? null : Boolean(value));
   const decisionInput = {
     appStarted: Boolean(rawInput.appStarted),
+    appPid: Number.isInteger(Number(rawInput.appPid)) && Number(rawInput.appPid) > 0 ? Number(rawInput.appPid) : null,
+    appProcessAlive: triState(rawInput.appProcessAlive),
+    cdpAttempted: Boolean(rawInput.cdpAttempted),
     cdpConnected: Boolean(rawInput.cdpConnected),
-    keyringAvailable: Boolean(rawInput.keyringAvailable),
+    shellWindowFound: triState(rawInput.shellWindowFound),
+    keyringAvailable: triState(rawInput.keyringAvailable),
     accountState: String(rawInput.accountState ?? "unknown"),
     sessionBinExists: Boolean(rawInput.sessionBinExists),
     signedInUserId: String(rawInput.signedInUserId ?? ""),
     expectedUserId: String(rawInput.expectedUserId ?? ""),
-    signInError: String(rawInput.signInError ?? ""),
+    signInError: redactSignInError(rawInput.signInError ?? ""),
     blockerReason: String(rawInput.blockerReason ?? ""),
   };
   const out = decideAppSignInOutcome(decisionInput);
@@ -1632,49 +1867,52 @@ export async function connectAppController({
   cdpConnector = null,
   deepLinkDeliverer = deliverDeepLink,
 }) {
+  const cdpPort = Number(portsEnv?.APP_CDP_PORT || 0);
+  const chromium = cdpPort > 0 && !cdpConnector ? loadPlaywrightChromium(repoRoot) : null;
+  // The app the harness started, from the run's own PID file: every decision
+  // below carries it, and a recorded process that is gone makes the loop FAIL
+  // rather than BLOCK (G1 — start.sh reported this app up).
+  const appProcess = readAppProcessRecord(runDir);
+  const appProcessFields = { appPid: appProcess.appPid, appProcessAlive: appProcess.appProcessAlive };
+  /** The controller for an app that cannot be driven here; the decision says FAIL or BLOCKED. */
+  const unavailable = (recordInput) => {
+    const appSignIn = buildSanitizedAppSignInRecord({ ...appProcessFields, ...recordInput });
+    const outcome = appSignIn.decisionResult;
+    return {
+      signedIn: false,
+      driven: false,
+      signInFailureReason: outcome.status === "FAIL" ? outcome.reason : "",
+      blockerReason: outcome.status === "BLOCKED" ? outcome.reason : "",
+      appSignIn,
+      appProcess,
+      close: async () => {},
+    };
+  };
   if (!portsEnv?.UNIWORK_USER_DATA || !portsEnv?.ELECTRON_BIN || !portsEnv?.SHELL_APP_DIR) {
-    const appSignIn = buildSanitizedAppSignInRecord({
+    return unavailable({
       appStarted: false,
+      cdpAttempted: false,
       cdpConnected: false,
-      keyringAvailable: false,
       accountState: "not-started",
       sessionBinExists: false,
       expectedUserId: userId ?? "",
     });
-    return {
-      signedIn: false,
-      driven: false,
-      signInFailureReason: "",
-      blockerReason: appSignIn.decisionResult.reason,
-      appSignIn,
-      close: async () => {},
-    };
   }
   const sessionBinPath = join(portsEnv.UNIWORK_USER_DATA, "uniwork-auth", "session.bin");
-  const cdpPort = Number(portsEnv.APP_CDP_PORT || 0);
-  const chromium = cdpPort > 0 && !cdpConnector ? loadPlaywrightChromium(repoRoot) : null;
   if (!cdpPort || (!cdpConnector && !chromium)) {
     const pre = checkDesktopPrecondition(portsEnv);
     const reason = pre.ok
       ? "the app's Save cannot be driven headlessly (no APP_CDP_PORT in ports.env)"
       : pre.reason;
-    const appSignIn = buildSanitizedAppSignInRecord({
+    return unavailable({
       appStarted: true,
+      cdpAttempted: false,
       cdpConnected: false,
-      keyringAvailable: false,
       accountState: pre.ok ? "signed-in" : "no-cdp",
       sessionBinExists: existsSync(sessionBinPath),
       expectedUserId: userId ?? "",
       blockerReason: reason,
     });
-    return {
-      signedIn: pre.ok,
-      driven: false,
-      signInFailureReason: "",
-      blockerReason: reason,
-      appSignIn,
-      close: async () => {},
-    };
   }
 
   let browser;
@@ -1687,23 +1925,15 @@ export async function connectAppController({
     const reason = pre.ok
       ? `could not connect to the running Electron app over CDP port ${cdpPort}: ${err.message}`
       : pre.reason;
-    const appSignIn = buildSanitizedAppSignInRecord({
+    return unavailable({
       appStarted: true,
+      cdpAttempted: true,
       cdpConnected: false,
-      keyringAvailable: false,
       accountState: pre.ok ? "signed-in" : "cdp-unreachable",
       sessionBinExists: existsSync(sessionBinPath),
       expectedUserId: userId ?? "",
       blockerReason: reason,
     });
-    return {
-      signedIn: pre.ok,
-      driven: false,
-      signInFailureReason: "",
-      blockerReason: reason,
-      appSignIn,
-      close: async () => {},
-    };
   }
 
   const findShellPage = async () => {
@@ -1724,23 +1954,16 @@ export async function connectAppController({
   if (!page) {
     await browser.close().catch(() => {});
     const reason = "connected to Electron CDP but found no shell renderer window exposing window.aiOffice";
-    const appSignIn = buildSanitizedAppSignInRecord({
+    return unavailable({
       appStarted: true,
-      cdpConnected: false,
-      keyringAvailable: false,
+      cdpAttempted: true,
+      cdpConnected: true,
+      shellWindowFound: false,
       accountState: "no-shell-window",
       sessionBinExists: existsSync(sessionBinPath),
       expectedUserId: userId ?? "",
       blockerReason: reason,
     });
-    return {
-      signedIn: false,
-      driven: false,
-      signInFailureReason: "",
-      blockerReason: reason,
-      appSignIn,
-      close: async () => {},
-    };
   }
 
   let status = await page.evaluate(() => window.aiOffice.accountStatus());
@@ -1752,22 +1975,18 @@ export async function connectAppController({
 
   if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") {
     await browser.close().catch(() => {});
-    const appSignIn = buildSanitizedAppSignInRecord({
+    // The keyring is the one desktop precondition the VM may genuinely lack: the
+    // app itself said so, so the record may say `keyringAvailable: false`.
+    return unavailable({
       appStarted: true,
+      cdpAttempted: true,
       cdpConnected: true,
+      shellWindowFound: true,
       keyringAvailable: false,
       accountState: status.state,
       sessionBinExists: existsSync(sessionBinPath),
       expectedUserId: userId ?? "",
     });
-    return {
-      signedIn: false,
-      driven: false,
-      signInFailureReason: "",
-      blockerReason: appSignIn.decisionResult.reason,
-      appSignIn,
-      close: async () => {},
-    };
   }
 
   const getProfileAccountId = (st) => st?.profile?.accountId ?? st?.profile?.id ?? "";
@@ -1852,8 +2071,11 @@ export async function connectAppController({
   const keyringStillAvailable =
     status?.state !== "keyring-unavailable" && status?.state !== "keystore-locked";
   const appSignIn = buildSanitizedAppSignInRecord({
+    ...appProcessFields,
     appStarted: true,
+    cdpAttempted: true,
     cdpConnected: true,
+    shellWindowFound: true,
     keyringAvailable: keyringStillAvailable,
     accountState: status?.state ?? "unknown",
     sessionBinExists: existsSync(sessionBinPath),
@@ -2090,13 +2312,18 @@ export async function connectAppController({
 
 function resolveAppSignInForCtrl(appCtrl, expectedUserId = "") {
   if (appCtrl?.appSignIn) return appCtrl.appSignIn;
+  // A stub app driver (the unit tests, and nothing in the live path) never talked
+  // to an app, so it is not asked about a keyring: what it claims is what it is.
   const signedIn = Boolean(appCtrl?.signedIn);
   const failReason = String(appCtrl?.signInFailureReason ?? "");
   const blockReason = String(appCtrl?.blockerReason ?? "");
   return buildSanitizedAppSignInRecord({
+    ...(appCtrl?.appProcess ?? {}),
     appStarted: signedIn || Boolean(failReason),
+    cdpAttempted: signedIn || Boolean(failReason),
     cdpConnected: signedIn || Boolean(failReason),
-    keyringAvailable: signedIn || Boolean(failReason),
+    shellWindowFound: signedIn || Boolean(failReason),
+    keyringAvailable: signedIn || Boolean(failReason) ? true : null,
     accountState: signedIn ? "signed-in" : failReason ? "signed-out" : "not-started",
     sessionBinExists: signedIn,
     signedInUserId: signedIn ? String(expectedUserId ?? "") : "",
@@ -2112,8 +2339,9 @@ function finalizeLoopOutcome(decision, loopState) {
     loopState.details?.appSignIn ??
     buildSanitizedAppSignInRecord({
       appStarted: false,
+      cdpAttempted: false,
       cdpConnected: false,
-      keyringAvailable: false,
+      keyringAvailable: null,
       accountState: "not-started",
       sessionBinExists: false,
     });
@@ -3517,8 +3745,9 @@ export async function runTracerLoop({
   const normalized = LOOP_ALIASES[String(loop)] ?? String(loop);
   const defaultAppSignIn = buildSanitizedAppSignInRecord({
     appStarted: false,
+    cdpAttempted: false,
     cdpConnected: false,
-    keyringAvailable: false,
+    keyringAvailable: null,
     accountState: "not-started",
     sessionBinExists: false,
   });
