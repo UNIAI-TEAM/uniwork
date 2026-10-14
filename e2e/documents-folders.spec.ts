@@ -403,6 +403,7 @@ test("FD-A03 open folder content view lists only direct children, folders first,
 test("FD-A03 upload into the open folder places the uploaded file under the open folder (not at root)", async ({
   page,
 }) => {
+  test.skip(!process.env.E2E_FD09, "skip: needs FD-09 (UNI-1469) incl. the fileForm field-order fix");
   const ws = await seedFolderWorkspace(page, "fd-a03-upload");
   const openFolder = await createFolder(
     page,
