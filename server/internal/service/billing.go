@@ -169,6 +169,12 @@ func (s *BillingService) ChangePlan(ctx context.Context, userID, orgID, planCode
 	if sub.RowVersion != expectedVersion {
 		return EntitlementSnapshot{}, versionConflict(expectedVersion, sub.RowVersion)
 	}
+	// Selecting the plan already in force must not open a new metering
+	// period. ChangeSubscriptionPlan always sets current_period_start to
+	// now(), which would zero the accumulating counters.
+	if plan.ID == sub.PlanID {
+		return s.ent.Snapshot(ctx, orgID)
+	}
 	// OPEN_QUESTIONS B4: no downgrade below what the organization already
 	// uses; the owner reduces usage first.
 	if err := s.fitsUnder(ctx, q, sub, plan); err != nil {

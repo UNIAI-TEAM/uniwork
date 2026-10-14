@@ -81,6 +81,38 @@ func TestChangePlanByOwner(t *testing.T) {
 	}
 }
 
+func TestChangePlanSamePlanKeepsUsage(t *testing.T) {
+	f := newBillingFixture(t)
+	before, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.consume(ConsumeInput{OrganizationID: f.orgID, Meter: FeatureAITokens, Delta: 40, Actor: Human(f.owner.ID)}); err != nil {
+		t.Fatal(err)
+	}
+	var events int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'subscription.changed' AND organization_id = $1`, f.orgID).Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := f.billing.ChangePlan(f.ctx, f.owner.ID, f.orgID, before.Plan.Code, before.Subscription.RowVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !snap.Subscription.CurrentPeriodStart.Time.Equal(before.Subscription.CurrentPeriodStart.Time) {
+		t.Fatalf("period start moved from %v to %v", before.Subscription.CurrentPeriodStart.Time, snap.Subscription.CurrentPeriodStart.Time)
+	}
+	if snap.Subscription.RowVersion != before.Subscription.RowVersion {
+		t.Fatalf("row_version = %d, want %d", snap.Subscription.RowVersion, before.Subscription.RowVersion)
+	}
+	if e, _ := lookup(snap.Entitlements, FeatureAITokens); e.Current != 40 {
+		t.Fatalf("ai.tokens = %d, want 40", e.Current)
+	}
+	var after int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'subscription.changed' AND organization_id = $1`, f.orgID).Scan(&after); err != nil || after != events {
+		t.Fatalf("subscription.changed rows %d -> %d (%v)", events, after, err)
+	}
+}
+
 func TestChangePlanGates(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "paid_team", 500000, nil)
