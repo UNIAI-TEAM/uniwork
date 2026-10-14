@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 05fd2096 HEAD && echo base-ok
+d89322de487dc721adcd1c30ede6180615c130a7
+0f3f42bc22df209fb3b2fa1566da1000f960bf94
+d89322de test(shell): align uniwork-docs tests with G5-09 S5 conflict dialog session
+9a8b4d16 feat(shell): implement G5-09 S5 conflict dialog main-process session
+5099762b test(shell): add G5-09 S5 conflict dialog main-process session tests
+0e7e9577 test(shell): add G5-09 S5 conflict dialog model and UI tests
+3c5c9e8e feat(shell): add G5-09 S5 desktop conflict dialog model and renderer UI
+58b12ed3 feat(shell): add G5-09 S5 conflict dialog IPC contract and preload bridge
+05fd2096 Merge branch 'main' of github.com:UNIAI-TEAM/uniwork-office into feature/UNI-1371-g6-05-uniwork-adapter
+18514d75 test(ai): pin the Slides one-shot request builder call and a newer draft surviving the question restore
+base-ok
