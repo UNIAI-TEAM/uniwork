@@ -1,0 +1,6 @@
+$ pnpm --filter @uniwork/core typecheck 2>&1 | tail -5; echo "CORE_TC_EXIT=${PIPESTATUS[0]}"
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
+CORE_TC_EXIT=0

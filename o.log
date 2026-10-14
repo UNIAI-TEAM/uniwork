@@ -1,0 +1,10 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1; AI_PROVIDER=fake go test -count=1 -timeout 40m ./internal/handler/ -run 'TestNotification|TestOfficeLaunch|TestIsolationMatrix|TestIsolationRealtime|TestEveryBodyIDFieldHasAReferenceCase|TestSwaggerSpec' -v 2>&1 | grep -E '^\s*(--- FAIL|FAIL|ok|panic)|isolation_matrix_test.go:[0-9]+' | head -30; echo "HANDLER_EXIT=${PIPESTATUS[0]}"
+    isolation_matrix_test.go:93: isoParam: no fixture for {demoRequestID} in /api/v1/admin/demo-requests/{demoRequestID}
+    isolation_matrix_test.go:113: isoParam: no fixture for {demoRequestID} in /api/v1/admin/demo-requests/{demoRequestID}
+--- FAIL: TestIsolationMatrix (311.93s)
+    --- FAIL: TestIsolationMatrix/cross-tenant (89.63s)
+    --- FAIL: TestIsolationMatrix/anonymous (90.64s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	315.507s
+FAIL
+HANDLER_EXIT=1

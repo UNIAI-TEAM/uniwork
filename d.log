@@ -1,0 +1,4 @@
+$ pnpm --filter @uniwork/views test 2>&1 | grep -E 'Test Files|Tests |FAIL' | tail -10; echo "VIEWS_TEST_EXIT=${PIPESTATUS[0]}"
+ Test Files  545 passed (545)
+      Tests  4447 passed (4447)
+VIEWS_TEST_EXIT=0

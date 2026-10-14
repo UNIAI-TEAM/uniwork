@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+ed15dd0e18f03dff78ee08e3eb903c905099e869
+ed15dd0e1 chore: merge G8-07 inbox deep link (UNI-1402) into the G5-G7 root
+d6ecd1fb6 chore: record the develop squash of PR #279 in the G5-G7 root
+850c91de8 UNI-923: Office G5/G6/G7 sync, AI, comments and folders client into develop for the internal dev test (#279)

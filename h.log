@@ -1,0 +1,10 @@
+$ pnpm lint 2>&1 | tail -8; echo "LINT_EXIT=${PIPESTATUS[0]}"
+@uniwork/web:lint: > @uniwork/web@0.0.0 lint /workspace/apps/web
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: 
+
+ Tasks:    7 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    56.334s 
+
+LINT_EXIT=0

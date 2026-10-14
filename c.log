@@ -1,0 +1,4 @@
+$ pnpm --filter @uniwork/core test 2>&1 | grep -E 'Test Files|Tests |FAIL' | tail -10; echo "CORE_TEST_EXIT=${PIPESTATUS[0]}"
+ Test Files  238 passed (238)
+      Tests  2284 passed (2284)
+CORE_TEST_EXIT=0
