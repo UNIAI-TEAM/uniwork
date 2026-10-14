@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+49b239b108f86cc7f81e29333f5662ba7aa7a9fe
+49b239b10 chore: merge G5-01b incremental change feed (UNI-1346) into the G5-G7 root
+0fdba3f2a chore: merge G6-03b UniWork AI runs (UNI-1370) into the G5-G7 root
+46c39fa89 docs(office): cite cloud round 15 on the G6-03b evidence of G6-A07/A08/A09
