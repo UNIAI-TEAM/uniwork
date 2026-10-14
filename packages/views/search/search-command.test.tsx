@@ -287,6 +287,52 @@ describe("SearchCommand documents group", () => {
     );
     expect(documentCalls).toEqual([]);
   });
+
+  it("navigates a folder hit to the folder URL (never the detail page) and shows the hit's path while keeping full-content search", async () => {
+    const urls: string[] = [];
+    requestMock.mockImplementation((path: string) => {
+      if (path.includes("/documents?")) {
+        urls.push(path);
+        return Promise.resolve({
+          documents: [
+            docRow(workspace.id, {
+              id: "fo-cmd",
+              kind: "folder",
+              title: "Hợp đồng mua sắm",
+              path: [
+                { id: "p-root", title: "Pháp chế" },
+                { id: "p-sub", title: "2026" },
+              ],
+            }),
+          ],
+          next_cursor: null,
+        });
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+    const nav = renderPalette(true);
+    openPalette();
+
+    fireEvent.change(screen.getByPlaceholderText("Gõ trang hoặc lệnh…"), {
+      target: { value: "hop dong" },
+    });
+
+    const group = await screen.findByRole("group", { name: DOCUMENTS_GROUP });
+    expect(await within(group).findByText("Hợp đồng mua sắm")).toBeInTheDocument();
+    expect(within(group).getByText(/Pháp chế › 2026/)).toBeInTheDocument();
+
+    // ⌘K keeps full-content search (FD-D7: no match=title parameter).
+    expect(urls).toHaveLength(1);
+    const params = new URLSearchParams(urls[0]?.split("?")[1] ?? "");
+    expect(params.get("q")).toBe("hop dong");
+    expect(params.get("match")).toBeNull();
+
+    fireEvent.click(within(group).getByText("Hợp đồng mua sắm"));
+
+    const wsPaths = paths.workspace("acme", "team");
+    expect(nav.push).toHaveBeenCalledWith(wsPaths.documentsFolder("fo-cmd"));
+    expect(nav.push).not.toHaveBeenCalledWith(wsPaths.document("fo-cmd"));
+  });
 });
 
 describe("SearchCommand", () => {

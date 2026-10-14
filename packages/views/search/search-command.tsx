@@ -1,6 +1,6 @@
 "use client";
 
-import { File, FileText, RotateCcwClock, Monitor, Moon, Sun } from "lucide-react";
+import { File, FileText, Folder, RotateCcwClock, Monitor, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDocumentList, useRecentDocuments } from "@uniwork/core/documents/hooks-collections";
@@ -135,23 +135,41 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
           ) : null}
           {showDocuments ? (
             <CommandGroup heading={t("search.groups.documents")}>
-              {documentsGroup.map((doc) => (
-                <CommandItem
-                  key={doc.id}
-                  // The live term leads the value so cmdk keeps a hit visible
-                  // while the user is still typing past the debounce.
-                  value={`${trimmedQuery} ${doc.title} ${doc.id}`}
-                  onSelect={() => run(() => push(ws.document(doc.id)))}
-                >
-                  {doc.kind === "file" ? <File /> : <FileText />}
-                  <span className="truncate">{doc.title || t("documents.detail.untitled")}</span>
-                  {doc.snippet ? (
-                    <span className="min-w-0 flex-1 truncate text-caption text-muted-foreground">
-                      {doc.snippet}
-                    </span>
-                  ) : null}
-                </CommandItem>
-              ))}
+              {documentsGroup.map((doc) => {
+                const pathText = (doc.path ?? [])
+                  .map((item) => item.title.trim())
+                  .filter(Boolean)
+                  .join(" › ");
+                return (
+                  <CommandItem
+                    key={doc.id}
+                    // The live term leads the value so cmdk keeps a hit visible
+                    // while the user is still typing past the debounce.
+                    value={`${trimmedQuery} ${doc.title} ${doc.id}`}
+                    onSelect={() =>
+                      run(() =>
+                        push(doc.kind === "folder" ? ws.documentsFolder(doc.id) : ws.document(doc.id)),
+                      )
+                    }
+                  >
+                    {doc.kind === "folder" ? <Folder /> : doc.kind === "file" ? <File /> : <FileText />}
+                    <span className="truncate">{doc.title || t("documents.detail.untitled")}</span>
+                    {pathText ? (
+                      <span
+                        title={pathText}
+                        className="min-w-0 truncate text-caption text-muted-foreground"
+                      >
+                        {pathText}
+                      </span>
+                    ) : null}
+                    {doc.snippet ? (
+                      <span className="min-w-0 flex-1 truncate text-caption text-muted-foreground">
+                        {doc.snippet}
+                      </span>
+                    ) : null}
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           ) : null}
           <CommandGroup heading={t("search.groups.pages")}>
