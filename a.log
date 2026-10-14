@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+1a54eb8c6ea0a601539b0e12908b93116b93c2a0
+0f3f42bc22df209fb3b2fa1566da1000f960bf94
+1a54eb8c test(slides): stub the SSRF gate's undici fetch in the url-fetch guard test
+2a879a94 merge(fix): url-fetch guard test stubs the SSRF gate's undici fetch (UNI-923)
+93ed0992 test(docs): stub the SSRF gate's undici fetch in the url-fetch guard test
