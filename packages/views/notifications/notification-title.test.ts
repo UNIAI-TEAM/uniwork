@@ -43,7 +43,8 @@ describe("notificationTitleKey", () => {
 
   it.each(DOCUMENT_KINDS)("uses the title-less variant of %s when the name is missing, empty or blank", (kind) => {
     const key = `notifications.kind.${kind}`;
-    for (const params of [{}, { document: "" }, { document: "   " }]) {
+    const cases: Record<string, string>[] = [{}, { document: "" }, { document: "   " }];
+    for (const params of cases) {
       expect(notificationTitleKey(notification({ kind, title_key: key, params }))).toBe(`${key}_untitled`);
     }
   });
