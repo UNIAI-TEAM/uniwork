@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m24b; echo "MUT_m24b_EXIT=$?"
+===== RUN m24b pkg=./internal/service -run='TestCommitIntentRetryAfterRestartReplays'
+=== RUN   TestCommitIntentRetryAfterRestartReplays
+    document_commit_intent_test.go:419: retry after restart: yêu cầu trùng đang được xử lý; thử lại sau
+--- FAIL: TestCommitIntentRetryAfterRestartReplays (5.24s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	5.255s
+FAIL
+===== FAIL/PASS m24b
+--- FAIL: TestCommitIntentRetryAfterRestartReplays (5.24s)
+MUST_FAIL_OK=TestCommitIntentRetryAfterRestartReplays
+MUT_m24b_CLEAN=1
+MUT_m24b_RED=1
+REVERT_m24b=ok
+MUT_m24b_EXIT=0

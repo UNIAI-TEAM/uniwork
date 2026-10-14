@@ -1,0 +1,29 @@
+$ bash .mutations/run.sh m22b; echo "MUT_m22b_EXIT=$?"
+===== RUN m22b pkg=./internal/service -run='TestCommitIntentFenceRefusesLateCommit|TestCommitIntentFenceRacesARenewal'
+=== RUN   TestCommitIntentFenceRefusesLateCommit
+=== RUN   TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed
+=== RUN   TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed
+    document_commit_intent_test.go:241: want idempotency_in_flight, got <nil>
+=== RUN   TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt
+--- FAIL: TestCommitIntentFenceRefusesLateCommit (0.57s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed (0.20s)
+    --- FAIL: TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed (0.18s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt (0.20s)
+=== RUN   TestCommitIntentFenceRacesARenewal
+    document_commit_intent_test.go:331: want idempotency_in_flight, got <nil>
+--- FAIL: TestCommitIntentFenceRacesARenewal (0.26s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.860s
+FAIL
+===== FAIL/PASS m22b
+--- FAIL: TestCommitIntentFenceRefusesLateCommit (0.57s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed (0.20s)
+    --- FAIL: TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed (0.18s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt (0.20s)
+--- FAIL: TestCommitIntentFenceRacesARenewal (0.26s)
+MUST_FAIL_OK=TestCommitIntentFenceRefusesLateCommit
+MUST_FAIL_OK=TestCommitIntentFenceRacesARenewal
+MUT_m22b_CLEAN=1
+MUT_m22b_RED=1
+REVERT_m22b=ok
+MUT_m22b_EXIT=0
