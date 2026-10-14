@@ -132,6 +132,56 @@ func TestChangePlanGates(t *testing.T) {
 	}
 }
 
+func TestChangePlanContactOnlyRefusedForOwner(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "contact_ent", 0, nil)
+	if _, err := f.pool.Exec(f.ctx, `UPDATE plans SET price_amount = NULL WHERE code = $1`, "contact_ent"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.billing.ChangePlan(f.ctx, f.owner.ID, f.orgID, "contact_ent", before.Subscription.RowVersion)
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "checkout_required" {
+		t.Fatalf("owner onto a contact plan from the free plan: got %v", err)
+	}
+	after, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Plan.ID != before.Plan.ID || after.Subscription.RowVersion != before.Subscription.RowVersion {
+		t.Fatalf("contact plan applied: plan %s version %d", after.Plan.Code, after.Subscription.RowVersion)
+	}
+
+	f.seedPlan(t, "paid_team", 500000, nil)
+	admin := registerVerified(t, f.q, f.auth, "bill-contact-admin@example.com", "Admin")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.billing.ChangePlan(f.ctx, admin.ID, f.orgID, "paid_team", f.version(t)); err != nil {
+		t.Fatal(err)
+	}
+	v := f.version(t)
+	_, err = f.billing.ChangePlan(f.ctx, f.owner.ID, f.orgID, "contact_ent", v)
+	if !errors.As(err, &ce) || ce.Code != "checkout_required" {
+		t.Fatalf("owner onto a contact plan from a paid plan: got %v", err)
+	}
+	stayed, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stayed.Plan.Code != "paid_team" || stayed.Subscription.RowVersion != v {
+		t.Fatalf("paid plan moved: %s v%d", stayed.Plan.Code, stayed.Subscription.RowVersion)
+	}
+
+	snap, err := f.billing.ChangePlan(f.ctx, admin.ID, f.orgID, "contact_ent", v)
+	if err != nil || snap.Plan.Code != "contact_ent" {
+		t.Fatalf("platform admin assigns a contact plan: %v %+v", err, snap.Plan)
+	}
+}
+
 func TestChangePlanDowngradeFromPaidBlocked(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "paid_team", 500000, nil)
