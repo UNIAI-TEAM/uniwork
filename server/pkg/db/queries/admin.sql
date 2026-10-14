@@ -1,4 +1,19 @@
 -- Platform admin (F-11). Only service/admin.go calls these (arch test
+-- name: AdminListDemoRequests :many
+SELECT * FROM demo_requests
+WHERE (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text)
+ORDER BY created_at DESC, id DESC LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+
+-- name: AdminCountDemoRequests :one
+SELECT count(*) FROM demo_requests
+WHERE (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text);
+
+-- name: AdminGetDemoRequest :one
+SELECT * FROM demo_requests WHERE id = $1 FOR UPDATE;
+
+-- name: AdminUpdateDemoRequest :one
+UPDATE demo_requests SET status = $2, updated_at = now() WHERE id = $1 RETURNING *;
+
 -- TestAdminQueriesStayInAdminService). Metadata only: no task body, no
 -- message, no file ever leaves through here.
 

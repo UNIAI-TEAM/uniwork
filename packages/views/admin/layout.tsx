@@ -16,6 +16,7 @@ import { AppLink, useNavigation } from "../navigation";
 const NAV = [
   { key: "overview", href: paths.admin.root() },
   { key: "organizations", href: paths.admin.organizations() },
+  { key: "demo_requests", href: paths.admin.demoRequests() },
   { key: "plans", href: paths.admin.plans() },
   { key: "invoices", href: paths.admin.invoices() },
   { key: "flags", href: paths.admin.flags() },

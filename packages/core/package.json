@@ -38,6 +38,7 @@
     "./audit": "./audit/hooks.ts",
     "./privacy": "./privacy/hooks.ts",
     "./admin": "./admin/hooks.ts",
+    "./demo-requests": "./demo-requests/hooks.ts",
     "./billing": "./billing/hooks.ts",
     "./billing/vnpay-bank-label": "./billing/vnpay-bank-label.ts",
     "./billing/use-quota-warnings": "./billing/use-quota-warnings.ts",

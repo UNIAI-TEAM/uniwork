@@ -4844,7 +4844,8 @@
       "trace": "Trace",
       "quota": "Quota",
       "system": "System",
-      "overview": "Overview"
+      "overview": "Overview",
+      "demo_requests": "Demo requests"
     },
     "common": {
       "retry": "Retry",
@@ -5232,6 +5233,36 @@
       "suspended_hint": "Members stay locked out until unsuspended.",
       "realtime": "Realtime connections",
       "build": "Build {{version}} · {{commit}}"
+    },
+    "demo_requests": {
+      "title": "Demo requests",
+      "description": "Requests from the public website. Track and update their progress.",
+      "filter": "Filter demo requests",
+      "all": "All",
+      "status": {
+        "new": "New",
+        "in_progress": "In progress",
+        "completed": "Completed"
+      },
+      "refresh": "Refresh",
+      "empty": "No demo requests",
+      "empty_description": "Requests matching this filter will appear here when a visitor submits the form.",
+      "load_error": "Could not load demo requests",
+      "retry_hint": "Refresh to try again.",
+      "contact": "Contact",
+      "company": "Company / team",
+      "message": "Interested in",
+      "status_label": "Status",
+      "received": "Received",
+      "action": "Action",
+      "people": "{{size}} people",
+      "no_message": "No additional message",
+      "update": "Update",
+      "update_title": "Update demo request",
+      "update_error": "Could not update the request. Please try again.",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {{page}}"
     }
   },
   "people": {
@@ -5640,6 +5671,10 @@
       "office": {
         "title": "UniWork Office — the AI office app",
         "description": "Office apps for macOS, Windows and Linux: documents, spreadsheets, slides, PDF, HTML and Markdown with AI, sharing your UniWork account and workspace."
+      },
+      "demo": {
+        "title": "Request a demo | UniWork",
+        "description": "Arrange a UniWork walkthrough around your team's needs."
       }
     },
     "revision": {
@@ -6860,24 +6895,33 @@
       "filmStep2": "Know the next step"
     },
     "demo": {
-      "search": "Search example tasks",
-      "localOnly": "Local browser demo. Nothing is sent to the server.",
-      "tryIt": "Try searching, completing a task or sending a message",
-      "reset": "Reset demo",
-      "noResults": "No tasks found. Try a different search.",
-      "complete": "Mark complete",
-      "reopen": "Reopen task",
-      "openDiscussion": "Open discussion",
-      "openTask": "Open task",
-      "messageHistory": "Example conversation history",
-      "messageLabel": "Example message",
-      "messagePlaceholder": "Try a message to the team…",
-      "send": "Send message",
-      "you": "You",
-      "ownerQuestion": "Who owns the work?",
-      "ownerAnswer": "Hoàng Anh owns the onboarding design. Minh Linh owns the product brief, UNI gathers feedback, and Thanh Ngân owns the launch scope.",
-      "completedCount_one": "{{count}} of 4 example tasks is complete.",
-      "completedCount_other": "{{count}} of 4 example tasks are complete."
+      "cta": "Request a demo",
+      "back": "Back to home",
+      "headline": "Explore UniWork with your team.",
+      "description": "Tell us how your team works. See how UniWork brings tasks, conversations, and knowledge together in one place.",
+      "title": "Request a demo",
+      "form_description": "Leave your details so the UniWork team can get in touch to arrange a walkthrough.",
+      "benefits": {
+        "workflow": "Start with your team's workflows and needs.",
+        "product": "Explore tasks, conversations, and meetings in UniWork.",
+        "questions": "Discuss rollout and ask your questions."
+      },
+      "name": "Full name",
+      "email": "Work email",
+      "company": "Company or team",
+      "team_size": "Team size",
+      "choose_size": "Choose team size",
+      "people": "{{size}} people",
+      "message": "What would you like to explore? (optional)",
+      "message_placeholder": "For example: project management, collaboration, or team rollout.",
+      "submit": "Send demo request",
+      "submitting": "Sending...",
+      "privacy": "These details are used to contact you about your demo.",
+      "error": "Your request could not be sent. Your details are still here; please try again.",
+      "rate_limit": "You've sent several requests recently. Please try again later.",
+      "success_title": "Demo request received",
+      "success_description": "Your request has been saved. The UniWork team will contact {{email}} to arrange your demo.",
+      "receipt": "Request reference: {{id}}"
     },
     "explorer": {
       "sub": "Choose a feature. See how your team connects.",
@@ -6926,9 +6970,25 @@
       "fewerQuestions": "Fewer questions"
     },
     "studio": {
-      "heroLine1": "Your team.",
-      "heroLine2": "One workspace.",
-      "heroDescription": "UniWork Business OS connects tasks, meetings, conversations and AI in one workspace.",
+      "heroEyebrow": "One connected work platform",
+      "heroLine1": "Every piece of work.",
+      "heroLine2": "One platform.",
+      "heroDescription": "Tasks, conversations, meetings and AI in one workspace.",
+      "heroShowcaseAlt": "Rotating UniWork interfaces for tasks, conversations, meetings and documents",
+      "heroShowScreen": "Show {{screen}} screen",
+      "heroDocsScreen": "Documents",
+      "heroSheetsScreen": "Spreadsheets",
+      "heroSlidesScreen": "Presentations",
+      "heroPdfScreen": "PDF",
+      "heroWebScreen": "Web pages",
+      "heroWorkTitle": "Manage work",
+      "heroWorkDescription": "Keep every task clear and in one place",
+      "heroChatTitle": "Connect & collaborate",
+      "heroChatDescription": "Discuss ideas and stay in sync",
+      "heroMeetingsTitle": "Meet online",
+      "heroMeetingsDescription": "Work together from anywhere",
+      "heroAiTitle": "AI by your side",
+      "heroAiDescription": "Find, summarize and suggest next steps",
       "explore": "Explore UniWork",
       "heroNote": "English & Tiếng Việt · Built for modern teams",
       "previewModes": "Explore the illustrative product preview",
@@ -7014,7 +7074,8 @@
       "trustNote": "Your choice of AI model. The same shared work context.",
       "skip": "Skip to content",
       "previewLabel": "Illustrative experience",
-      "prelaunch": "UniWork is currently in pre-launch."
+      "prelaunch": "UniWork is currently in pre-launch.",
+      "heroHeadlineHighlight": "One <highlight>platform</highlight>."
     },
     "nav": {
       "main": "Main navigation",
@@ -7903,10 +7964,19 @@
       }
     },
     "office": {
+      "editions": {
+        "business": "Office for Enterprise",
+        "businessDescription": "Documents and AI connected to your team workspace.",
+        "personal": "Office for Personal",
+        "personalDescription": "The edition for individual use is in development.",
+        "development": "In development"
+      },
       "hero": {
         "kicker": "The UniWork office app",
         "title": "UniWork Office",
-        "sub": "AI office apps for macOS, Windows and Linux. Sign in with your UniWork account, open files from your team's workspace and save them back as a new version.",
+        "sub": "Create documents, spreadsheets and presentations with AI. Connected to your UniWork workspace.",
+        "explore": "Explore the editors",
+        "trial": "Download trial",
         "downloadFor": "Download for {{os}}",
         "variants": "{{os}} installers",
         "downloadBoth": {
@@ -7925,6 +7995,8 @@
         "formats": "Works with DOCX, XLSX, PPTX, PDF, HTML and Markdown",
         "tabs": "Editors",
         "imageAlt": "UniWork Office: {{editor}} with the AI panel",
+        "imageCaption": "Illustrative interface",
+        "imageUnavailable": "The preview image could not load. Reload the page to try again.",
         "docs": {
           "name": "Docs",
           "title": "Write documents with AI beside you",

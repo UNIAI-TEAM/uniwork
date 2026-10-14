@@ -61,9 +61,9 @@ for (const scenario of [
     await page.waitForLoadState("networkidle");
     await expect(page.locator("html")).toHaveAttribute("lang", scenario.locale);
     await page.evaluate((mode) => document.documentElement.classList.toggle("dark", mode === "dark"), scenario.theme);
-    await expect(page.locator("h1")).toContainText(scenario.locale === "vi" ? "Cả nhóm." : "Your team.");
+    await expect(page.locator("h1")).toContainText(scenario.locale === "vi" ? "Mọi công việc." : "Every piece of work.");
     await expect(page.locator("body")).not.toContainText(/landing\.[a-zA-Z][\w.]+/);
-    await expect(page.locator('[data-scene="core"]')).toBeVisible();
+    await expect(page.locator('.landing-hero')).toBeVisible();
     await page.locator('[data-scene="character"]').scrollIntoViewIfNeeded();
     await expect(page.locator('[data-scene="character"]')).toBeVisible();
     await selectWorkspaceFeature(page, "meetings");
@@ -87,7 +87,7 @@ for (const scenario of [
       await page.screenshot({ path: resolve(dir, `${scenario.name}.png`), fullPage: true, style: cleanChrome });
       await page.screenshot({ path: resolve(dir, `${scenario.name}-hero.png`), style: cleanChrome });
       await page.locator(".trust-band").screenshot({ path: resolve(dir, `${scenario.name}-trust-band.png`), style: sectionChrome });
-      await page.locator('[data-scene="core"]').screenshot({ path: resolve(dir, `${scenario.name}-core.png`), style: sectionChrome });
+      await page.locator('.landing-hero').screenshot({ path: resolve(dir, `${scenario.name}-core.png`), style: sectionChrome });
       for (const id of ["platform", "nhan-su-ai", "security", "lo-trinh", "work-products"]) {
         const section = page.locator(`#${id}`);
         await section.scrollIntoViewIfNeeded();
