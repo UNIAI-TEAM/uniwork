@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor fa2ed957 HEAD && echo main-merged-ok
+4deb510973fbb7d8f4260a6ed57cce3f8c021694
+fa2ed957a653b838f8ddf42727a41e8caf12657e
+4deb5109 merge: fork main fa2ed957 (kit fixes) into the G5-09 lane
+d75453a3 test(e2e): decode the kept-drafts record with the product store codec (W11)
+5f604f86 merge: fork main 9bbadb81 (G8 pdf comments lane) into the G5-09 lane
+d449c225 test(e2e): address the S5 head close button by role and name (W10)
+fa2ed957 merge: W8E2 keep an unedited AI draft on Esc into kit fixes lane
+2387d79b fix(ui): keep an unedited non-empty root composer draft on Esc
+79a3e153 test(ui): pin Esc on an unedited non-empty root composer draft
+05014b62 test(e2e): scope the step-1 button order to the S5 action row (W9)
+main-merged-ok
