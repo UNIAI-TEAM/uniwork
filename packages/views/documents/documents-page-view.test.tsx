@@ -591,13 +591,26 @@ describe("DocumentsPageView", () => {
 
   it("says archiving a folder takes everything in it", async () => {
     route({ list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })] });
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+      path === "/api/v1/documents/f1/archive-impact"
+        ? Promise.resolve({ folders: 2, documents: 3, total: 6, max_nodes: 1000, too_large: false })
+        : base(path, opts),
+    );
     renderView(vi.fn());
     const row = await rowOf("Hợp đồng");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.archive") }));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(t("documents.archive.archive_folder_title"))).toBeInTheDocument();
-    expect(within(dialog).getByText(t("documents.archive.archive_folder_description"))).toBeInTheDocument();
+    expect(within(dialog).getByText(t("documents.archive.delete_title"))).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText(
+        t("documents.archive.delete_body", {
+          subfolders: t("documents.archive.delete_subfolders", { count: 2 }),
+          documents: t("documents.archive.delete_documents", { count: 3 }),
+        }),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("offers no move or archive on the archive and shared tabs", async () => {
@@ -735,12 +748,18 @@ describe("DocumentsPageView", () => {
         throw new ApiError("server text", "folder_too_large", 422);
       },
     });
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+      path === "/api/v1/documents/f1/archive-impact"
+        ? Promise.resolve({ folders: 0, documents: 0, total: 1, max_nodes: 1000, too_large: false })
+        : base(path, opts),
+    );
     renderView(vi.fn());
     const row = await rowOf("Hợp đồng");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.archive") }));
     const dialog = await screen.findByRole("alertdialog");
-    const confirm = within(dialog).getByRole("button", { name: t("documents.archive.archive_confirm") });
+    const confirm = within(dialog).getByRole("button", { name: t("documents.archive.delete_confirm") });
     await waitFor(() => expect(confirm).toBeEnabled());
     fireEvent.click(confirm);
     expect(await within(dialog).findByText(t("documents.errors.folder_too_large"))).toBeInTheDocument();
