@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+73581da74d6acb206fdf38da9ae09d739d2b4575
+73581da74 chore: merge FD-05 document title search (UNI-1465) into the G5-G7 root
+3d94d38f2 chore: merge destructive file GC by default (FILE_GC_MODE) into the G5-G7 root
+7a1dba7a5 feat(files): run the file collector destructive by default
