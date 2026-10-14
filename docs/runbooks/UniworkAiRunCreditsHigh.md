@@ -1,6 +1,6 @@
 # UniworkAiRunCreditsHigh — p95 token của run UniWork AI vượt 64.000
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` (ngưỡng pending G7-D1) · **Dashboard:** Grafana *UniWork · AI* · **Nền:** [`docs/ops/RUNBOOK_AI.md`](../ops/RUNBOOK_AI.md)
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` (ngưỡng pending G7-D1) · **Dashboard:** chưa có panel cho series này: đọc `histogram_quantile(0.95, sum by (le) (rate(uniwork_ai_uniwork_run_credits_bucket[30m])))` bằng Explore (chi phí USD có trên Grafana *UniWork · AI*) · **Nền:** [`docs/ops/RUNBOOK_AI.md`](../ops/RUNBOOK_AI.md)
 
 ## Triệu chứng
 

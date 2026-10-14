@@ -1,6 +1,6 @@
 # UniworkAiUsageUnknownSpike — upstream không trả usage cho hơn 10 % lượt
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` (ngưỡng pending G7-D1) · **Dashboard:** Grafana *UniWork · AI* · **Nền:** [`docs/ops/RUNBOOK_AI.md`](../ops/RUNBOOK_AI.md)
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` (ngưỡng pending G7-D1) · **Dashboard:** chưa có panel cho series này: đọc `sum(increase(uniwork_ai_uniwork_usage_unknown_total[1h]))` bằng Explore (mẫu số `uniwork_ai_calls_total` có trên Grafana *UniWork · AI*) · **Nền:** [`docs/ops/RUNBOOK_AI.md`](../ops/RUNBOOK_AI.md)
 
 ## Triệu chứng
 

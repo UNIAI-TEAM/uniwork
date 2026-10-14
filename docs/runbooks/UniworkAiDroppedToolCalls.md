@@ -1,6 +1,6 @@
 # UniworkAiDroppedToolCalls — UniWork AI bỏ nhiều tool call
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` (ngưỡng pending G7-D1) · **Dashboard:** Grafana *UniWork · AI* · **Nền:** [`docs/ops/RUNBOOK_AI.md`](../ops/RUNBOOK_AI.md)
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` (ngưỡng pending G7-D1) · **Dashboard:** chưa có panel cho series này: đọc `sum by (reason) (increase(uniwork_ai_uniwork_dropped_tool_calls_total[15m]))` bằng Explore · **Nền:** [`docs/ops/RUNBOOK_AI.md`](../ops/RUNBOOK_AI.md)
 
 ## Triệu chứng
 

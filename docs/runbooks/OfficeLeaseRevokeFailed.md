@@ -1,6 +1,6 @@
 # OfficeLeaseRevokeFailed — revoke lease offline fail-closed không thành
 
-> **Trạng thái:** shipped · **Sev:** 2 · **Rule:** `deploy/alerts.yml` (ngưỡng pending G7-D1) · **Dashboard:** Grafana *UniWork · Outbox & Realtime* · **Nền:** [`docs/ops/RUNBOOK_OFFICE_SYNC.md`](../ops/RUNBOOK_OFFICE_SYNC.md)
+> **Trạng thái:** shipped · **Sev:** 2 · **Rule:** `deploy/alerts.yml` (ngưỡng pending G7-D1) · **Dashboard:** chưa có panel cho series này: đọc `sum(increase(uniwork_office_offline_lease_revoke_failed_total[15m]))` bằng Explore (backlog consumer có trên Grafana *UniWork · Outbox & Realtime*) · **Nền:** [`docs/ops/RUNBOOK_OFFICE_SYNC.md`](../ops/RUNBOOK_OFFICE_SYNC.md)
 
 ## Triệu chứng
 
@@ -9,7 +9,7 @@
 
 ## Kiểm tra
 
-1. Consumer có chạy không: `OutboxLagHigh`, `OutboxDeadLetter` (lane slow); log `office_lease_revoker`.
+1. Consumer có chạy không: `OutboxLagHigh`, `OutboxDeadLetter` (lane notify); log `office_lease_revoker`.
 2. DB có lỗi tạm thời cùng lúc (`ReadinessFailing`, kết nối bị ngắt)? Lỗi lẻ do DB là nguyên nhân thường gặp nhất.
 3. `uniwork_office_offline_leases_revoked_total{reason}` có tăng sau đó không: revoke đã được consumer hoàn tất.
 4. Hàng còn sống của tài liệu/thiết bị liên quan: bảng `office_offline_leases` (chỉ id, không nội dung).

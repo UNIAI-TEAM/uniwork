@@ -1,6 +1,6 @@
 # UniworkAiRunSecondsHigh — p95 tuổi run UniWork AI vượt 64 giây
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` (ngưỡng pending G7-D1) · **Dashboard:** Grafana *UniWork · AI* · **Nền:** [`docs/ops/RUNBOOK_AI.md`](../ops/RUNBOOK_AI.md)
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` (ngưỡng pending G7-D1) · **Dashboard:** chưa có panel cho series này: đọc `histogram_quantile(0.95, sum by (le) (rate(uniwork_ai_uniwork_run_seconds_bucket[30m])))` bằng Explore · **Nền:** [`docs/ops/RUNBOOK_AI.md`](../ops/RUNBOOK_AI.md)
 
 ## Triệu chứng
 
