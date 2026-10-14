@@ -322,8 +322,22 @@ cat my-spec.txt scripts/office/g5g6g7/harness/keyring.spec.txt > spec.txt
 | --- | --- |
 | `keyring.spec.txt` | the spec fragment: four lines, one exit marker each, `; true` on all but the last |
 | `keyring-fork.sh` | clone the fork at `OFFICE_FORK_SHA` into `OFFICE_FORK_CACHE` (the same dir `start.sh` uses), `npm ci --ignore-scripts`, the Electron binary, esbuild, the Electron runtime libraries; no build |
-| `keyring-session.sh` | inside `dbus-run-session`: unlock the daemon, then `KEYRING_RT` and the `SAFESTORAGE*` probes; stops the daemon by PID, removes its scratch dir |
+| `keyring-session.sh` | inside `dbus-run-session`: unlock the daemon, then `KEYRING_RT` and the `SAFESTORAGE*` probes (or, with `--exec <cmd...>`, enter a private `dbus-run-session`, unlock the daemon, run `<cmd...>` and pass its exit code through); stops the daemon by PID, removes its scratch dir |
 | `keyring-probe.mjs` | bundles the fork's `credentials.ts` with the fork's esbuild, runs it in the fork's Electron (`keyring-probe-main.mjs`, logic in `keyring-probe-core.mjs`) and prints one JSON line |
+
+To wrap `start.sh`, the evidence runs and `stop.sh` inside one headless keyring session (so the app launched by `start.sh` inherits `DBUS_SESSION_BUS_ADDRESS`, `XDG_DATA_HOME` and `XDG_RUNTIME_DIR`):
+
+```sh
+bash scripts/office/g5g6g7/harness/keyring-session.sh --exec bash -c '
+  bash scripts/office/g5g6g7/harness/start.sh || exit $?
+  OFFICE_FORK_SHA="${OFFICE_FORK_SHA:-ab12238f}" \
+    node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+    node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1
+  rc=$?
+  bash scripts/office/g5g6g7/harness/stop.sh || true
+  exit $rc
+'
+```
 
 What each marker means (every probe line is JSON with `label`, `backend`,
 `encryptionAvailable`, `canStore`, `roundTrip`, `status`; only booleans, a coarse
@@ -361,3 +375,4 @@ Local dry run (a host that already has the daemon, `xvfb-run` and a fork checkou
 `OFFICE_FORK_DIR=<fork checkout> dbus-run-session -- bash scripts/office/g5g6g7/harness/keyring-session.sh`;
 `OFFICE_FORK_DIR=<fork checkout> node --test scripts/office/g5g6g7/harness/keyring-probe.test.mjs`
 also runs the fork's real credential module against a fake `safeStorage`.
+

@@ -65,3 +65,12 @@ test("the old placeholder would have failed bash -n (red case)", () => {
   // and the fixed form parses
   assert.equal(bashSyntaxError(['export UNIWORK_CHECKOUT="/path/to/uniwork"', 'cd "$UNIWORK_CHECKOUT"'].join("\n")), null);
 });
+
+test("the headless keyring section documents keyring-session.sh --exec wrapping start.sh and stop.sh in one session", () => {
+  const blocks = shBlocks(README);
+  const wrapped = blocks.find((block) => block.includes("keyring-session.sh --exec"));
+  assert.ok(wrapped, "the README has no sh block showing keyring-session.sh --exec");
+  assert.match(wrapped, /scripts\/office\/g5g6g7\/harness\/start\.sh/);
+  assert.match(wrapped, /scripts\/office\/g5g6g7\/harness\/stop\.sh/);
+  assert.equal(bashSyntaxError(wrapped), null);
+});
