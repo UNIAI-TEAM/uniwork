@@ -145,7 +145,7 @@ func TestInviteManyAndAccept(t *testing.T) {
 	if before.OnboardedAt.Valid {
 		t.Fatal("B should not be onboarded before accept")
 	}
-	got, err := f.ws.AcceptInvite(ctx, f.ub.ID, pend[0].Token)
+	got, err := f.ws.AcceptInvite(ctx, f.ub.ID, pend[0].Token, nil)
 	if err != nil || got.Workspace == nil || got.Workspace.ID != w.ID {
 		t.Fatalf("accept: %v %+v", err, got)
 	}
@@ -162,8 +162,9 @@ func TestInviteManyAndAccept(t *testing.T) {
 	if !after.OnboardedAt.Valid {
 		t.Fatal("accept must mark user onboarded")
 	}
-	if _, err := f.ws.AcceptInvite(ctx, f.ub.ID, pend[0].Token); err != ErrNotFound {
-		t.Fatalf("reused token: %v", err)
+	// A retry after a lost response answers the same (EC-12).
+	if again, err := f.ws.AcceptInvite(ctx, f.ub.ID, pend[0].Token, nil); err != nil || again.Workspace == nil || again.Workspace.ID != w.ID {
+		t.Fatalf("retried token: %v %+v", err, again)
 	}
 	if _, _, err := f.ws.InviteMany(ctx, f.ua.ID, w.ID, nil, "member"); err == nil {
 		t.Fatal("empty emails accepted")

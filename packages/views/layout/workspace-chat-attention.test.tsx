@@ -1,5 +1,5 @@
 import { act, render, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, notifyManager } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
 import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences-store";
@@ -42,6 +42,16 @@ function renderAttention() {
     </QueryClientProvider>,
   );
   return { client, ...view };
+}
+
+/**
+ * Observers hear about a fetch through notifyManager's own setTimeout(0)
+ * queue, which act() does not wait for. Drain it so the component has seen the
+ * backlog before the next fetch; on a slow runner both lists otherwise arrive
+ * as its first load, which is never news.
+ */
+function deliverToComponent() {
+  return act(() => new Promise<void>((resolve) => notifyManager.schedule(resolve)));
 }
 
 function setHidden(hidden: boolean) {
@@ -94,6 +104,7 @@ describe("WorkspaceChatAttention", () => {
     await act(async () => {
       await client.refetchQueries();
     });
+    await deliverToComponent();
     // The backlog that was there on load is not news.
     expect(shown).toEqual([]);
 
@@ -128,6 +139,7 @@ describe("WorkspaceChatAttention", () => {
     await act(async () => {
       await client.refetchQueries();
     });
+    await deliverToComponent();
 
     notifications = [
       dm("new", "2026-10-09T02:00:00Z", "Chi"),

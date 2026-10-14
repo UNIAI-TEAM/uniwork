@@ -48,8 +48,10 @@ LEFT JOIN plans p ON p.id = s.plan_id
 WHERE o.id = $1;
 
 -- name: AdminSetOrganizationStatus :one
+-- Suspend and unsuspend only: an archived organization (closed or deleted)
+-- stays archived, so no row comes back when it moved there under the caller.
 UPDATE organizations SET status = $2, suspended_at = $3, suspended_reason = $4, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND status IN ('active', 'suspended')
 RETURNING *;
 
 -- name: InsertAdminAction :exec

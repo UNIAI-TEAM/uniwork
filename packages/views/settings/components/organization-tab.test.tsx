@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
-import { requestMock, wrap } from "../../test/api-mock";
+import { requestMock, wrap, wrapWithNav } from "../../test/api-mock";
 import { WorkspaceProvider } from "../../layout/workspace-context";
+import type { NavigationAdapter } from "../../navigation";
 import { OrganizationTab } from "./organization-tab";
 
 initI18n();
@@ -77,6 +79,39 @@ function renderTab() {
   );
 }
 
+/** The tab inside a navigation adapter whose replace() is a spy. */
+function renderTabWithNav() {
+  const replace = vi.fn<(path: string) => void>();
+  const adapter: NavigationAdapter = {
+    push: vi.fn(),
+    replace,
+    back: vi.fn(),
+    pathname: "/acme/team/settings",
+    searchParams: new URLSearchParams(),
+    getShareableUrl: (p) => p,
+  };
+  render(
+    wrapWithNav(
+      <WorkspaceProvider workspace={workspace} user={user}>
+        <OrganizationTab />
+      </WorkspaceProvider>,
+      adapter,
+    ),
+  );
+  return { replace };
+}
+
+/** The owner is the only active member: nobody to hand the organization to. */
+function mockSoleOwner(close: (body: unknown) => Promise<unknown> = () => Promise.resolve({ status: "ok" })) {
+  requestMock.mockImplementation((path: string, init?: { method?: string; body?: unknown }) => {
+    if (path.endsWith("/members/me")) return Promise.resolve({ role: "owner" });
+    if (path.includes("/members?")) return Promise.resolve({ members: [members[0]] });
+    if (path.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+    if (path.endsWith("/close")) return close(init?.body);
+    return Promise.resolve({});
+  });
+}
+
 describe("OrganizationTab", () => {
   beforeEach(() => {
     resetAuthStoreForTests();
@@ -90,7 +125,7 @@ describe("OrganizationTab", () => {
     const leave = await screen.findByRole("button", { name: "Rời tổ chức" });
     await waitFor(() => expect(leave).toHaveAttribute("aria-disabled", "true"));
     expect(
-      screen.getByText("Bạn là chủ sở hữu. Chuyển quyền chủ sở hữu cho người khác trước khi rời."),
+      screen.getByText("Bạn là chủ sở hữu. Chuyển quyền sở hữu cho người khác trước khi rời."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Transfer ownership before leaving/)).not.toBeInTheDocument();
     fireEvent.click(leave);
@@ -218,5 +253,86 @@ describe("OrganizationTab", () => {
     expect(notice).toHaveAttribute("role", "status");
     // The chip is still there to fix or remove.
     expect(document.querySelector('[data-slot="email-chips"]')).toHaveTextContent("an@acme.vn");
+  });
+
+  it("sends a member who left to /get-started", async () => {
+    mockApi("member");
+    const { replace } = renderTabWithNav();
+    const leave = await screen.findByRole("button", { name: "Rời tổ chức" });
+    await waitFor(() => expect(leave).not.toHaveAttribute("aria-disabled"));
+    fireEvent.click(leave);
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Rời tổ chức" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/get-started"));
+  });
+
+  it("offers closing only to an owner who is the last active member", async () => {
+    mockApi("member");
+    const { unmount } = renderTab();
+    await screen.findByRole("button", { name: "Rời tổ chức" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Rời tổ chức" })).not.toHaveAttribute("aria-disabled"));
+    expect(screen.queryByRole("button", { name: "Đóng tổ chức" })).not.toBeInTheDocument();
+    unmount();
+
+    // An owner with other active members transfers instead.
+    mockApi("owner");
+    const second = renderTab();
+    expect(await screen.findByRole("button", { name: "Chuyển quyền" })).not.toHaveAttribute("aria-disabled");
+    expect(screen.queryByRole("button", { name: "Đóng tổ chức" })).not.toBeInTheDocument();
+    second.unmount();
+
+    mockSoleOwner();
+    renderTab();
+    expect(await screen.findByRole("button", { name: "Đóng tổ chức" })).not.toHaveAttribute("aria-disabled");
+    // Leave stays inert and says where the way out is.
+    const leave = screen.getByRole("button", { name: "Rời tổ chức" });
+    expect(leave).toHaveAttribute("aria-disabled", "true");
+    // The consequence, then why it is refused.
+    expect(leave).toHaveAccessibleDescription(
+      "Bạn mất quyền vào mọi workspace trong tổ chức này ngay lập tức. Bạn là chủ sở hữu và là thành viên duy nhất. Đóng tổ chức thay vì rời.",
+    );
+  });
+
+  it("closes only once the slug is typed back exactly, then sends the owner to /get-started", async () => {
+    const close = vi.fn((_body: unknown) => Promise.resolve({ status: "ok" }));
+    mockSoleOwner(close);
+    const { replace } = renderTabWithNav();
+    fireEvent.click(await screen.findByRole("button", { name: "Đóng tổ chức" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Đóng Acme?");
+    const submit = within(dialog).getByRole("button", { name: "Đóng tổ chức" });
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+
+    const field = within(dialog).getByLabelText("Gõ đường dẫn tổ chức để xác nhận");
+    fireEvent.change(field, { target: { value: "Acme" } });
+    fireEvent.blur(field);
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    fireEvent.click(submit);
+    expect(close).not.toHaveBeenCalled();
+
+    fireEvent.change(field, { target: { value: "acme" } });
+    expect(submit).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(submit);
+    await waitFor(() => expect(close).toHaveBeenCalledWith({ confirm_slug: "acme" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/get-started"));
+  });
+
+  it("keeps the owner on the page and says why when somebody joined in the meantime", async () => {
+    mockSoleOwner(() => Promise.reject(new ApiError("còn thành viên", "organization_has_members", 409)));
+    const { replace } = renderTabWithNav();
+    fireEvent.click(await screen.findByRole("button", { name: "Đóng tổ chức" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Gõ đường dẫn tổ chức để xác nhận"), {
+      target: { value: "acme" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Đóng tổ chức" }));
+    expect(
+      await within(dialog).findByText("Tổ chức vẫn còn thành viên khác. Chuyển quyền sở hữu trước khi đóng."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("còn thành viên")).not.toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+    // Pressing again cannot help; the transfer is offered in place.
+    expect(within(dialog).getByRole("button", { name: "Đóng tổ chức" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển quyền" }));
+    expect(await screen.findByRole("dialog", { name: "Chuyển quyền sở hữu Acme?" })).toBeInTheDocument();
   });
 });

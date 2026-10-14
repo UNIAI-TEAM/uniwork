@@ -19,6 +19,8 @@ export const emailHubKeys = {
   threadSummary: (wsId: string, accountId: string, threadId: string, locale: string) =>
     ["email-hub", wsId, "thread-summary", accountId, threadId, locale] as const,
   unread: (wsId: string) => ["email-hub", wsId, "unread"] as const,
+  sidebarCounts: (wsId: string, accountId: string) =>
+    ["email-hub", wsId, "sidebar-counts", accountId] as const,
   imapLabels: (wsId: string, accountId: string) => ["email-hub", wsId, "imap-labels", accountId] as const,
 };
 
@@ -61,6 +63,11 @@ export function flushEmailHubListRefresh(qc: QueryClient, wsId: string, accountI
 
 export function invalidateEmailHubUnread(qc: QueryClient, wsId: string) {
   void qc.invalidateQueries({ queryKey: emailHubKeys.unread(wsId) });
+}
+
+export function invalidateEmailHubCounts(qc: QueryClient, wsId: string, accountId: string) {
+  invalidateEmailHubUnread(qc, wsId);
+  void qc.invalidateQueries({ queryKey: emailHubKeys.sidebarCounts(wsId, accountId) });
 }
 
 export function invalidateEmailHubThreads(qc: QueryClient, wsId: string, accountId: string) {
@@ -106,19 +113,13 @@ export function invalidateEmailHubReadingCachesForAccount(
   });
 }
 
-/** Applies one realtime email_hub.inbox_changed or email_hub.new_mail frame. */
-export function invalidateEmailHubForRealtime(
-  qc: QueryClient,
-  wsId: string,
-  accountId: string,
-  inboxChanged: boolean,
-) {
+/** Applies the cache refresh announced by one email_hub.inbox_changed frame. */
+export function invalidateEmailHubForInboxChanged(qc: QueryClient, wsId: string, accountId: string) {
   invalidateEmailHubThreadsForAccount(qc, wsId, accountId);
   invalidateEmailHubReadingCachesForAccount(qc, wsId, accountId);
-  invalidateEmailHubUnread(qc, wsId);
-  void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "sidebar-counts", accountId] });
+  invalidateEmailHubCounts(qc, wsId, accountId);
   // inbox_changed also announces a mailbox whose login the server now refuses (needs_reconnect).
-  if (inboxChanged) void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
+  void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
 }
 
 export function patchEmailHubThreadInLists(
@@ -132,19 +133,25 @@ export function patchEmailHubThreadInLists(
     { queryKey: ["email-hub", wsId, "threads", accountId], exact: false },
     (old) => {
       if (!old) return old;
+      const previousThread = old.pages
+        .flatMap((page) => page.threads)
+        .find((thread) => thread.id === threadId);
+      const unreadDelta =
+        previousThread && patch.is_read !== undefined && patch.is_read !== previousThread.is_read
+          ? patch.is_read
+            ? -1
+            : 1
+          : 0;
       return {
         ...old,
-        pages: old.pages.map((page) => {
-          const hadUnread = page.threads.some((row) => row.id === threadId && !row.is_read);
-          return {
-            ...page,
-            threads: page.threads.map((row) => (row.id === threadId ? { ...row, ...patch } : row)),
-            counts:
-              patch.is_read === true && hadUnread
-                ? { ...page.counts, unread: Math.max(0, page.counts.unread - 1) }
-                : page.counts,
-          };
-        }),
+        pages: old.pages.map((page, index) => ({
+          ...page,
+          threads: page.threads.map((row) => (row.id === threadId ? { ...row, ...patch } : row)),
+          counts:
+            index === 0 && unreadDelta !== 0
+              ? { ...page.counts, unread: Math.max(0, page.counts.unread + unreadDelta) }
+              : page.counts,
+        })),
       };
     },
   );

@@ -197,6 +197,38 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/auth/refresh":             {class: isoPublic, reason: reasonAuth},
 	"POST /api/v1/auth/register":            {class: isoPublic, reason: reasonAuth},
 
+	// MCP connector OAuth server (ADR 0031): a client is a program, and the
+	// code, verifier, refresh token or client secret is the credential.
+	"GET /.well-known/oauth-protected-resource":     {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0031)"},
+	"GET /.well-known/oauth-protected-resource/mcp": {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0031)"},
+	"GET /.well-known/oauth-authorization-server":   {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0031)"},
+	"GET /oauth/authorize":                          {class: isoPublic, reason: reasonAuth},
+	"POST /oauth/token":                             {class: isoPublic, reason: "authentication: the one-time code with its PKCE verifier, or a refresh token, is the credential"},
+	"POST /oauth/revoke":                            {class: isoPublic, reason: "authentication: the token is the credential; another client's token is left untouched (RFC 7009)"},
+	"POST /oauth/register":                          {class: isoPublic, reason: "dynamic client registration: a client is a program, not tenant data"},
+	"POST /mcp":                                     {class: isoPublic, reason: "MCP: the bearer is an opaque MCP token bound to one grant's organization, never a session; TestIsolationMCP holds it"},
+	"GET /mcp":                                      {class: isoPublic, reason: "MCP: stateless transport answers 405 after the token check; TestIsolationMCP holds the tenant"},
+	"DELETE /mcp":                                   {class: isoPublic, reason: "MCP: stateless transport answers 405 after the token check; TestIsolationMCP holds the tenant"},
+
+	// MCP connector, web side (ADR 0031). The consent attempt and the grants
+	// belong to a person; the organization routes ({org}) are scoped by their
+	// path and need no row. TestIsolationMCP holds the /mcp side.
+	"GET /api/v1/auth/connect/attempts/{attemptID}": {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/auth/connect/attempts/{attemptID}": {class: isoSelf,
+		reason: "the caller's own attempt: B sends A's live CSRF token and B's own enabled organization against A's claimed attempt and answers 400 csrf_invalid, as for an attempt that does not exist (no existence oracle); naming an organization the caller is not in is 403 (TestIsolationMCP, TestMcpApproveRefusals); A's attempt stays undecided and unclaimed (untouched subtest)",
+		// The cross-tenant passes call body with A, so mcpCSRF is A's token.
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"decision": "approve", "csrf_token": tn.ids["mcpCSRF"], "organization_id": w.bravo.orgID}}
+		},
+		refusedAlso: []int{http.StatusBadRequest}},
+	"GET /api/v1/me/connected-apps":              {class: isoSelf, reason: reasonSelf},
+	"DELETE /api/v1/me/connected-apps/{grantID}": {class: isoSelf, reason: reasonSelf},
+	"PUT /api/v1/orgs/{org}/mcp-policy": {
+		reason: "the attack on A sends enabled false, which would switch A's connector off, so A's tenant digest catches a breach; every other tenant's own call sends true, a repeated enable that answers 200 and leaves its switch on",
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"enabled": tn != w.alpha}}
+		}},
+
 	"GET /uploads/*": {class: isoPublic, reason: "legacy local-disk objects by unguessable key; FileService objects (v1/) are refused - TestServeFileRefusesFileServiceObjects and the uploads subtest"},
 
 	// Provider callbacks.
@@ -499,6 +531,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{org}/transfer-ownership":                      {body: isoWith(map[string]string{"to_user_id": "third"}, map[string]any{"password": "password123"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/leave": {controlAs: "third"},
 	// Tenant rows named in the body rather than the path.
+	"GET /api/v1/invitations/{token}":         {class: isoScoped, skipControl: "the invitation is addressed to an invitee outside the tenant; only that verified mailbox may read it"},
 	"POST /api/v1/invitations/{token}/accept": {class: isoScoped, skipControl: "accepting consumes the invitation"},
 	"POST /api/v1/chat/voice/token":           {body: isoWith(map[string]string{"room_id": "room", "call_id": "callID"}, nil)},
 }

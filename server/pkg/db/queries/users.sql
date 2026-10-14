@@ -125,7 +125,12 @@ WHERE id = $1 AND $2::text = ANY(mfa_recovery_codes);
 
 -- name: CountOwnedOrganizationsForUser :one
 -- tenant: self
-SELECT count(*) FROM organization_members WHERE user_id = $1 AND role = 'owner';
+-- Only an organization the account still belongs to (ADR 0032 D1) holds the
+-- deletion back: a closed one keeps its owner row, deactivated, for a restore.
+SELECT count(*) FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.user_id = $1 AND m.role = 'owner' AND m.deactivated_at IS NULL
+  AND o.status IN ('active', 'suspended');
 
 -- name: AnonymizeUser :one
 -- Nghị định 13 deletion: identity fields go, the row and its audit trail stay.
@@ -145,8 +150,10 @@ WHERE user_id = $1 AND deactivated_at IS NULL;
 
 -- name: ScrubMemberProfilesForUser :exec
 -- tenant: self
+-- phone, location and bio are NOT NULL with an empty default (migration 134);
+-- only employee_code is nullable, because its unique index skips NULLs.
 UPDATE organization_member_profiles SET
-  phone = NULL, phone_visible = false, location = NULL, bio = NULL, employee_code = NULL,
+  phone = '', phone_visible = false, location = '', bio = '', employee_code = NULL,
   search_text = '', updated_at = now()
 WHERE user_id = $1;
 

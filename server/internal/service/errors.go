@@ -95,6 +95,94 @@ func errOwnerMustTransfer() error {
 	return CodedError{Code: "owner_must_transfer", Status: http.StatusConflict, Msg: "bạn đang là chủ sở hữu tổ chức; hãy chuyển quyền trước khi xóa tài khoản", Err: ErrOwnerMustTransfer}
 }
 
+// One account, one organization (ADR 0032). Each sentinel is wrapped in a
+// CodedError so the handler writes the code and its details; errors.Is
+// still matches the sentinel.
+var (
+	ErrAlreadyInOrganization      = errors.New("already_in_organization")
+	ErrOrganizationSwitchRequired = errors.New("organization_switch_required")
+	ErrMemberInOtherOrganization  = errors.New("member_in_other_organization")
+)
+
+// errAlreadyInOrganization names the caller's own organization, so the client
+// can point them at it; it is theirs, so nothing leaks.
+func errAlreadyInOrganization(current OrganizationRef) error {
+	return CodedError{
+		Code: "already_in_organization", Status: http.StatusConflict,
+		Msg:    "mỗi tài khoản chỉ thuộc một tổ chức; hãy rời tổ chức hiện tại trước",
+		Err:    ErrAlreadyInOrganization,
+		Fields: map[string]any{"organization": current},
+	}
+}
+
+// errOrganizationSwitchRequired carries the caller's organizations that stand
+// in the way and what each one needs before the invitation can be accepted.
+func errOrganizationSwitchRequired(conflicts []MembershipConflict) error {
+	return CodedError{
+		Code: "organization_switch_required", Status: http.StatusConflict,
+		Msg:    "bạn đang thuộc một tổ chức khác; cần rời tổ chức đó trước khi tham gia",
+		Err:    ErrOrganizationSwitchRequired,
+		Fields: map[string]any{"conflicts": conflicts},
+	}
+}
+
+// errMemberInOtherOrganization refuses a reactivation without naming the
+// organization the person moved to: that one is another tenant's business.
+func errMemberInOtherOrganization() error {
+	return CodedError{
+		Code: "member_in_other_organization", Status: http.StatusConflict,
+		Msg: "người này đã tham gia một tổ chức khác", Err: ErrMemberInOtherOrganization,
+	}
+}
+
+// ErrInvitationGone: the invitation exists but no longer lets anybody in. The
+// three codes say why, so the invitation page can tell the person, and the
+// switch it was part of has rolled back entirely (spec §4.4, AC-10).
+var ErrInvitationGone = errors.New("invitation_gone")
+
+func errInvitationExpired() error {
+	return CodedError{Code: "invitation_expired", Status: http.StatusGone, Msg: "lời mời đã hết hạn", Err: ErrInvitationGone}
+}
+
+func errInvitationRevoked() error {
+	return CodedError{Code: "invitation_revoked", Status: http.StatusGone, Msg: "lời mời đã bị thu hồi", Err: ErrInvitationGone}
+}
+
+func errInvitationAccepted() error {
+	return CodedError{Code: "invitation_accepted", Status: http.StatusGone, Msg: "lời mời đã được dùng", Err: ErrInvitationGone}
+}
+
+// errMembershipBusy answers a switch that lost a lock race Postgres had to
+// break (a deadlock or a serialization failure). Nothing was changed, and the
+// same request sent again decides on what the other one committed.
+func errMembershipBusy() error {
+	return CodedError{
+		Code: "membership_busy", Status: http.StatusConflict,
+		Msg: "một thay đổi tổ chức khác đang diễn ra; hãy thử lại", Err: ErrConflict,
+	}
+}
+
+// Closing an organization (ADR 0032 D5) needs the owner to be its only active
+// member and the slug typed back as confirmation.
+var (
+	ErrOrganizationHasMembers = errors.New("organization_has_members")
+	ErrCloseConfirmMismatch   = errors.New("close_confirm_mismatch")
+)
+
+func errOrganizationHasMembers() error {
+	return CodedError{
+		Code: "organization_has_members", Status: http.StatusConflict,
+		Msg: "tổ chức vẫn còn thành viên khác; hãy chuyển quyền sở hữu thay vì đóng", Err: ErrOrganizationHasMembers,
+	}
+}
+
+func errCloseConfirmMismatch() error {
+	return CodedError{
+		Code: "close_confirm_mismatch", Status: http.StatusBadRequest,
+		Msg: "địa chỉ tổ chức nhập lại không khớp", Err: ErrCloseConfirmMismatch,
+	}
+}
+
 func errCannotDeactivateSelf() error {
 	return coded(http.StatusBadRequest, "cannot_deactivate_self", "không thể tự vô hiệu hóa tài khoản của mình")
 }

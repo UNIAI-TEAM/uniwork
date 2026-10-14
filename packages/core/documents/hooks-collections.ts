@@ -2,6 +2,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   archiveDocument,
+  getDocumentArchiveImpact,
   getDocumentTree,
   listDocuments,
   listRecentDocuments,
@@ -11,6 +12,7 @@ import {
   type ListDocumentsOpts,
   type MoveDocumentBody,
 } from "../api/endpoints/documents-collections";
+import { DocumentNotVerifiableError } from "../types/document";
 import { documentKeys } from "./keys";
 import { requireVerifiableArchive, requireVerifiableDocument } from "./verify";
 
@@ -51,12 +53,38 @@ export function useDocumentList(wsId: string, filter?: ListDocumentsOpts, opts?:
   });
 }
 
-/** The workspace sidebar forest; `root` narrows to one branch. */
-export function useDocumentTree(wsId: string, root?: string, opts?: { enabled?: boolean }) {
+/** The workspace sidebar forest; `root` narrows to one branch and
+ *  `foldersOnly` drops pages and files (its own cache entry). */
+export function useDocumentTree(
+  wsId: string,
+  root?: string,
+  opts?: { enabled?: boolean; foldersOnly?: boolean },
+) {
+  const foldersOnly = opts?.foldersOnly ?? false;
   return useQuery({
-    queryKey: documentKeys.tree(wsId, root ?? ""),
-    queryFn: ({ signal }) => getDocumentTree(wsId, root, signal),
+    queryKey: documentKeys.tree(wsId, root ?? "", foldersOnly),
+    queryFn: ({ signal }) => getDocumentTree(wsId, root, signal, { foldersOnly }),
     enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/**
+ * What archiving a subtree would move, for the delete dialog (FD-06). Runs
+ * only while `enabled` (the dialog is open) and is stale at once, so every
+ * open asks again; a realtime document frame invalidates it through the
+ * workspace root. An unreadable answer is "result not verifiable", never
+ * counts, so the dialog keeps its confirmation locked.
+ */
+export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: documentKeys.archiveImpact(wsId, documentId),
+    queryFn: async ({ signal }) => {
+      const impact = await getDocumentArchiveImpact(documentId, signal);
+      if (!impact) throw new DocumentNotVerifiableError();
+      return impact;
+    },
+    staleTime: 0,
+    enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
   });
 }
 

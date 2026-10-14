@@ -175,7 +175,7 @@ func (s *EmailHubService) CreateTasksFromThreadSummary(
 	}
 	threadOrigin := threadID
 	subject := strings.TrimSpace(view.Subject)
-	out := make([]db.Task, 0, len(items))
+	inputs := make([]CreateTaskInput, 0, len(items))
 	for _, it := range items {
 		// The confirm dialog is the human decision (ADR 0010): an empty assignee
 		// or due date means "none", never "let the server guess from the AI text".
@@ -203,14 +203,10 @@ func (s *EmailHubService) CreateTasksFromThreadSummary(
 			desc = desc + "\n\n" + origin
 		}
 		priority := strings.TrimSpace(it.Priority)
-		t, err := s.Tasks.Create(ctx, actor, ws.ID, CreateTaskInput{
+		inputs = append(inputs, CreateTaskInput{
 			Title: it.Title, Description: desc, AssigneeID: assigneeID, DueDate: dueDate, ProjectID: it.ProjectID,
 			Priority: priority, OriginType: "email_thread", OriginID: &threadOrigin,
 		})
-		if err != nil {
-			return out, err
-		}
-		out = append(out, t)
 	}
-	return out, nil
+	return s.Tasks.CreateMany(ctx, actor, ws.ID, inputs)
 }

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
@@ -17,6 +18,7 @@ import {
   siblingsOf,
   subtreeHeight,
   subtreeIds,
+  TREE_MAX_LEVEL,
 } from "./document-tree-model";
 
 const { t } = initI18n();
@@ -450,10 +452,15 @@ describe("DocumentTree", () => {
       );
     }
     const leafB = await screen.findByRole("treeitem", { name: /Lá B/ });
+    const toastError = vi.spyOn(toast, "error");
     fireEvent.keyDown(leafB, { key: "ArrowRight", ctrlKey: true });
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(requestMock.mock.calls.filter(([path]) => String(path).includes("/move"))).toEqual([]);
+    // The refusal names the limit the guard enforces, never a raw {{max}}.
+    expect(toastError).toHaveBeenCalledWith(t("documents.tree.too_deep", { max: TREE_MAX_LEVEL }));
+    expect(String(toastError.mock.calls[0]?.[0])).not.toContain("{{");
+    toastError.mockRestore();
     // Still at its original level, under Cấp 3.
     expect(leafB).toHaveAttribute("aria-level", "4");
   });

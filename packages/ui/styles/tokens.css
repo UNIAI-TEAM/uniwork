@@ -580,6 +580,17 @@ html.dark[data-accent] {
   --sidebar-accent: color-mix(in oklab, var(--brand) 7%, #1e1e1e);
 }
 
+/* Text size (Settings → Preferences): one multiplier the reading steps of the
+   type scale read, so every text-* utility and every var(--text-*) follows it
+   while spacing, icons and the hero roles stay put. The attribute lives on
+   <html> (lib/text-size.ts, applied before paint). A descendant may carry its
+   own level, which is how the picker previews each size; that scoping reaches
+   utilities only, because var(--text-*) is resolved once at :root. */
+:root,
+[data-text-size="default"] { --font-scale: 1; }
+[data-text-size="large"] { --font-scale: calc(16 / 14); }
+[data-text-size="xlarge"] { --font-scale: calc(18 / 14); }
+
 /* Tailwind mapping. Lives beside the tokens it maps so that any consumer —
    a second app, a render test, Storybook — gets the whole contract from one
    import instead of copying this block. */
@@ -741,21 +752,23 @@ html.dark[data-accent] {
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   /* Role-named scale. Sizes keep the app's 14px density; leading and tracking
      follow ClickUp's ratios — body copy loose and untracked, headings tighter
-     the larger they get (-0.02em at title, -0.035em at hero). */
-  --text-micro: 11px;      --text-micro--line-height: 15px;
+     the larger they get (-0.02em at title, -0.035em at hero). Sizes and
+     leading are multiplied by --font-scale (the text size setting); tracking
+     is in em and follows on its own. */
+  --text-micro: calc(11px * var(--font-scale));      --text-micro--line-height: calc(15px * var(--font-scale));
   /* Eyebrow / section label: the small tracked capital the reference layout
      puts above a title and over a nav group. Uppercase and the mono family
      ride on the utility below. */
-  --text-overline: 11px;   --text-overline--line-height: 16px; --text-overline--letter-spacing: 0.08em;
-  --text-caption: 12px;    --text-caption--line-height: 16px;
-  --text-label: 13px;      --text-label--line-height: 18px;
-  --text-body: 14px;       --text-body--line-height: 20px;
-  --text-body-lg: 15px;    --text-body-lg--line-height: 22px;
-  --text-title-sm: 16px;   --text-title-sm--line-height: 22px;  --text-title-sm--letter-spacing: -0.015em;
-  --text-title: 18px;      --text-title--line-height: 24px;     --text-title--letter-spacing: -0.02em;
-  --text-title-lg: 20px;   --text-title-lg--line-height: 26px;  --text-title-lg--letter-spacing: -0.02em;
-  --text-display-sm: 24px; --text-display-sm--line-height: 30px; --text-display-sm--letter-spacing: -0.025em;
-  --text-display: 36px;    --text-display--line-height: 40px;   --text-display--letter-spacing: -0.03em;
+  --text-overline: calc(11px * var(--font-scale));   --text-overline--line-height: calc(16px * var(--font-scale)); --text-overline--letter-spacing: 0.08em;
+  --text-caption: calc(12px * var(--font-scale));    --text-caption--line-height: calc(16px * var(--font-scale));
+  --text-label: calc(13px * var(--font-scale));      --text-label--line-height: calc(18px * var(--font-scale));
+  --text-body: calc(14px * var(--font-scale));       --text-body--line-height: calc(20px * var(--font-scale));
+  --text-body-lg: calc(15px * var(--font-scale));    --text-body-lg--line-height: calc(22px * var(--font-scale));
+  --text-title-sm: calc(16px * var(--font-scale));   --text-title-sm--line-height: calc(22px * var(--font-scale));  --text-title-sm--letter-spacing: -0.015em;
+  --text-title: calc(18px * var(--font-scale));      --text-title--line-height: calc(24px * var(--font-scale));     --text-title--letter-spacing: -0.02em;
+  --text-title-lg: calc(20px * var(--font-scale));   --text-title-lg--line-height: calc(26px * var(--font-scale));  --text-title-lg--letter-spacing: -0.02em;
+  --text-display-sm: calc(24px * var(--font-scale)); --text-display-sm--line-height: calc(30px * var(--font-scale)); --text-display-sm--letter-spacing: -0.025em;
+  --text-display: calc(36px * var(--font-scale));    --text-display--line-height: calc(40px * var(--font-scale));   --text-display--letter-spacing: -0.03em;
   /* Hero roles (screen-leading headlines only). ClickUp's 1.1 leading and
      -0.035em tracking at every step; the size still drops one step on
      mobile in the view. */

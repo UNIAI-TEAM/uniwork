@@ -166,10 +166,8 @@ func TestGetTaskByIdentifierAmbiguousAcrossWorkspaces(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	org2, err := orgs.Create(ctx, ua.ID, "Org Two", "org-two")
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The same person in a second organization (pre-ADR 0032 account).
+	org2 := createLegacyOrganization(t, orgs, ua.ID, "Org Two", "org-two")
 	// Slug "alpha" → task_prefix ALP in both orgs (prefix unique only per workspace).
 	v1, err := ws.CreateInOrg(ctx, ua.ID, org1.ID, "Alpha", "alpha")
 	if err != nil {

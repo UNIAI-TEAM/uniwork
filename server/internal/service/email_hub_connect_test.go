@@ -241,6 +241,7 @@ func TestEmailHubConnectClassifiesVerifyErrorsWithoutLeakingTheHost(t *testing.T
 		{"smtp tls", fmt.Errorf("smtp %s: %w", host, smtpclient.ErrTLSRequired), ErrEmailHubTLSRequired},
 		{"tls to a plaintext greeter", fmt.Errorf("imap greeting %s: %w", host, tls.RecordHeaderError{Msg: "first record does not look like a TLS handshake"}), ErrEmailHubTLSRequired},
 		{"blocked host", fmt.Errorf("dial %s:993: %w", host, netguard.ErrHostNotAllowed), ErrEmailHubUnreachable},
+		{"imap timeout", fmt.Errorf("imap login %s: %w", host, context.DeadlineExceeded), ErrEmailHubUnreachable},
 		{"dns", fmt.Errorf("dial: %w", &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}), ErrEmailHubUnreachable},
 		{"certificate", fmt.Errorf("tls: %w", &tls.CertificateVerificationError{Err: errors.New("x509: unknown authority for " + host)}), ErrEmailHubUnreachable},
 		{"protocol", errors.New("imap: unexpected BYE from " + host), ErrEmailHubConnectFailed},

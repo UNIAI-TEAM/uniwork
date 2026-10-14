@@ -93,6 +93,8 @@ jobs:
     steps:
       - if: ${{ needs.changes.outputs.frontend == 'true' }}
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - if: ${{ needs.changes.outputs.frontend == 'true' }}
         uses: pnpm/action-setup@v4
         # Reads `packageManager` from package.json — one place pins pnpm.
@@ -129,8 +131,14 @@ jobs:
         # dependency-hash probe that proves `test` cannot replay a stale pass.
         run: |
           node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/lucide-aliases.test.mjs scripts/governance.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/landing-artwork.test.mjs scripts/landing-marks.test.mjs scripts/landing-mascot.test.mjs scripts/landing-motion.test.mjs scripts/landing-studio.test.mjs scripts/office/installer-urls.test.mjs scripts/office/frame-protocol-vendor.test.mjs scripts/office-modules.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs scripts/office/g5g6g7/evidence.test.mjs scripts/office/g5g6g7/make-fixtures.test.mjs scripts/office/g5g6g7/harness/lib.test.mjs scripts/office/g5g6g7/harness/api-contract.test.mjs scripts/office/g5g6g7/holdout.test.mjs scripts/office/g5g6g7/g7-06/job.test.mjs
-          node --test scripts/changelog-draft.test.mjs scripts/changelog-automation.test.mjs scripts/changelog-review-notify.test.mjs scripts/changelog-workflow.test.mjs
+          node --test scripts/changelog-draft.test.mjs scripts/changelog-automation.test.mjs scripts/changelog-review-notify.test.mjs scripts/changelog-workflow.test.mjs scripts/changelog-review-pr.test.mjs
           bash scripts/turbo-cache-check.sh
+      - name: Validate reviewed Changelog publication
+        if: needs.changes.outputs.frontend == 'true' && github.event_name == 'pull_request' && github.base_ref == 'develop'
+        env:
+          REVIEW_BASE: ${{ github.event.pull_request.base.sha }}
+          REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/changelog-review-pr.mjs check --base "$REVIEW_BASE" --head "$REVIEW_HEAD"
       - name: Build, typecheck
         if: ${{ needs.changes.outputs.frontend == 'true' }}
         run: pnpm exec turbo build typecheck
