@@ -1657,35 +1657,82 @@ main().catch((err) => {
         }
         const page = await browser.newPage();
         const diagnostics = [];
+        let loads = 0;
+        page.on('load', () => {
+          loads += 1;
+        });
         page.on('pageerror', (err) => diagnostics.push(`pageerror: ${err}`));
         page.on('console', (msg) => {
           if (msg.type() === 'error') diagnostics.push(`console: ${msg.text()}`);
         });
+        // The frame's host bridge opens a WebSocket at the proxy origin. The
+        // harness has no realtime host behind the proxy, and a refused
+        // handshake makes the frame tear its session down mid-run, so the
+        // socket is answered with an inert one instead.
+        await page.routeWebSocket(/\/\?token=/, () => {});
         const beforeCount = proxyRequests.length;
         const t0 = performance.now();
         const sel = spec.selectedBlockIndex === undefined ? '' : `&sel=${spec.selectedBlockIndex}`;
-        await page.goto(
-          `${localHttpOrigin(proxyPort)}/index.html?module=${spec.module}&lang=${spec.lang}${sel}`,
-          { waitUntil: 'domcontentloaded' },
-        );
-        await page.waitForFunction(
-          () => {
-            const t = document.getElementById('status')?.textContent ?? '';
-            return t === 'initialised' || t.startsWith('error:');
-          },
-          null,
-          { timeout: 45000 },
-        );
-        const statusText = await page.locator('#status').innerText();
-        if (statusText.startsWith('error:')) {
-          throw new Error(`Panel boot failed (${spec.module}/${spec.lang}): ${statusText}`);
+        const panelUrl = `${localHttpOrigin(proxyPort)}/index.html?module=${spec.module}&lang=${spec.lang}${sel}`;
+        // A vite dev server can fail the first dynamic import while it is still
+        // transforming modules, and the panel renders after its own session
+        // handshake: the boot is retried until the composer itself is there.
+        let booted = false;
+        let statusText = '';
+        for (let attempt = 1; attempt <= 3 && !booted; attempt++) {
+          await page.goto(panelUrl, { waitUntil: 'domcontentloaded' });
+          const settled = await page
+            .waitForFunction(
+              () => {
+                const t = document.getElementById('status')?.textContent ?? '';
+                const hasComposer = Boolean(document.querySelector('.ai-input-box textarea'));
+                return (t === 'initialised' && hasComposer) || t.startsWith('error:');
+              },
+              null,
+              { timeout: 45000 },
+            )
+            .then(() => true)
+            .catch(() => false);
+          statusText = await page.locator('#status').innerText().catch(() => '<no status>');
+          if (settled && !statusText.startsWith('error:')) {
+            booted = true;
+            break;
+          }
+          diagnostics.push(`boot attempt ${attempt}: ${statusText.slice(0, 200)}`);
+          await page.waitForTimeout(3000);
         }
-        const box = page.locator('textarea').first();
-        await box.waitFor({ state: 'visible', timeout: 30000 });
-        await box.fill(caseDoc.prompt);
-        await box.press('Enter');
 
         try {
+          if (!booted) {
+            throw new Error(`panel boot did not reach the composer: ${statusText.slice(0, 200)}`);
+          }
+          const box = page.locator('.ai-input-box textarea').first();
+          await box.waitFor({ state: 'visible', timeout: 30000 });
+          await box.fill(caseDoc.prompt);
+          await box.press('Enter');
+          // The composer mounts before the AI session may be ready, and Enter on
+          // an unready composer is a no-op: the send has to show up as a message
+          // entry, and when it does not, the send button is pressed (same
+          // handler) before the run is called a failure.
+          const sent = await page
+            .waitForSelector('.ai-msg', { timeout: 15000 })
+            .then(() => true)
+            .catch(() => false);
+          if (!sent) {
+            diagnostics.push('Enter produced no message entry; pressing the send button');
+            const sendBtn = page.locator('button.ai-send-btn').first();
+            await sendBtn.click({ timeout: 10000 }).catch((err) => {
+              diagnostics.push(`send button not clickable: ${err?.message ?? err}`);
+            });
+            const sentNow = await page
+              .waitForSelector('.ai-msg', { timeout: 15000 })
+              .then(() => true)
+              .catch(() => false);
+            if (!sentNow) {
+              throw new Error('the panel accepted no send: neither Enter nor the send button produced a message entry');
+            }
+          }
+
           await page.waitForFunction(
             () => {
               const msgs = document.querySelectorAll('.ai-msg-assistant');
@@ -1702,15 +1749,23 @@ main().catch((err) => {
           // A panel that never answers is the failure this proof exists for:
           // report what the page showed and what the proxy saw, so the run
           // log explains it without a second reproduction.
-          const bodyText = await page
-            .locator('body')
-            .innerText()
-            .catch(() => '<no body>');
+          const chatState = await page
+            .evaluate(() => {
+              const nodes = Array.from(document.querySelectorAll('[class*="ai-msg"]'));
+              const lines = nodes
+                .slice(-6)
+                .map((el) => `${el.className}#${(el.textContent ?? '').length}`);
+              const dock = document.querySelector('.ai-dock');
+              const ta = document.querySelector('.ai-input-box textarea');
+              const btn = document.querySelector('button.ai-send-btn');
+              return `${lines.join(' | ') || 'no ai-msg element'}\ntextarea.value=${(ta?.value ?? '').length} chars, send.disabled=${btn?.disabled ?? 'n/a'}\n${(dock?.innerText ?? '').slice(-600)}`;
+            })
+            .catch(() => '<no chat state>');
           const seen = proxyRequests.slice(beforeCount);
           throw new Error(
             `panel run ${spec.caseId} (${spec.module}/${spec.lang}) produced no assistant answer: ${err?.message ?? err}\n` +
               `facade calls: ${seen.filter((r) => r.path.endsWith('/ai/uniwork/chat/completions')).length} of ${seen.length} proxied requests\n` +
-              `page text: ${bodyText.trim().slice(0, 1200)}\n` +
+              `chat state: ${chatState}\nloads: ${loads}\n` +
               `diagnostics: ${diagnostics.slice(0, 8).join(' | ') || 'none'}`,
           );
         }
