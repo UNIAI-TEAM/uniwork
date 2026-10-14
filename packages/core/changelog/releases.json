@@ -3,7 +3,7 @@
     "id": "release-1-3-0",
     "version": "1.3.0",
     "date": "2026-10-14",
-    "sourceRef": "174facfe0dd189d32bef435bf25e94798738da81",
+    "sourceRef": "6750c9ca0f82ca5acebc7c32f98f149c31f84197",
     "contentKey": "v1_3_0",
     "sections": [
       {
@@ -13,14 +13,18 @@
           "c42b1d55cbd34a928e5d29e5e316f0976f06d44b8",
           "c342307d9f5222db6fe8c9269527923974cb0b379",
           "ca56ba0bc29ea8ee7ab217cc110efc7d8bd463207",
-          "c850c91de8bfa831de1dc9a0848d4d6003131d161"
+          "c850c91de8bfa831de1dc9a0848d4d6003131d161",
+          "cd62eba07c6caf11db86430d6ca5500445f398d70"
         ]
       },
       {
         "kind": "improvements",
         "items": [
           "c345cfe2bda271e6ac79e24c3e25fc54aebdc47c3",
-          "cc51ea0749ffbe14a51713e253a253999a70cc1c3"
+          "cc51ea0749ffbe14a51713e253a253999a70cc1c3",
+          "ccec502219fdaba98b58e7ea89e51e87dc8a5b5f2",
+          "c84572b6d1daa128be83cc20704a700948b1a5ee9",
+          "c2a60ef2f12c13a9527b65cfd03ca991dff658eb8"
         ]
       },
       {
@@ -36,10 +40,15 @@
           "ca885949c7befc0fd233ccdedb166fb4c80c9e2c4",
           "cdc3b3b7163e63384dfb3ee0342e499adab5f2e80",
           "c9396e4f00e2b6b840ef8513a0a29731e1642c88f",
+          "c611c5cf75edea54315ad5f2d49fceb44001ec6c6",
+          "c8f28bfcc0bc6a39cadd9aa0ab2abba490777a900",
+          "cb940a6207d0b2d06985666abbc223fcfc45c4fe9",
           "c09d515323c7162116cd98e97609e8d4fe52e5b24",
           "caca841c7749de9e69bc7d0f2e48e413728d53d1e",
           "cc6ea1591b460e9232960b5aba194bea83bb3e163",
-          "c98ec32ffe4a7e2deae280fb84e37e31672c5d96a"
+          "c98ec32ffe4a7e2deae280fb84e37e31672c5d96a",
+          "cb9550c114f0020415ba41c13d1164a5f5b07c15f",
+          "cdc5e44d123f1e127ce8a18160c91d54a533c9d28"
         ]
       }
     ]
