@@ -30,6 +30,14 @@ export function isTimelineActivity(event: AuditEvent): boolean {
   return !DUPLICATED_BY_THE_TIMELINE.test(event.action);
 }
 
+/** The AI app a change came through (ADR 0033), or "" when none or malformed. */
+function viaClient(event: AuditEvent): string {
+  const via = event.metadata.via;
+  if (typeof via !== "object" || via === null) return "";
+  const name = (via as Record<string, unknown>).client_name;
+  return typeof name === "string" ? name : "";
+}
+
 /**
  * One row of the immutable log rendered inside the task timeline, told with
  * the same words and the same glyphs as the organization-wide audit log: the
@@ -63,6 +71,7 @@ export function TaskActivityRow({
   // but omit it from this resource-local timeline and its remaining-field count.
   const timelineChanges = changeEntries(event).filter(([field]) => field !== "position");
   const changes = timelineChanges.slice(0, 2);
+  const via = viaClient(event);
   return (
     <div
       data-testid={`task-timeline-activity-${event.id}`}
@@ -77,6 +86,7 @@ export function TaskActivityRow({
         />
         {actorName ?? shortId(event.actor_id)}
       </span>
+      {via ? <span>{t("tasks.detail.activity_via", { client: via })}</span> : null}
       <span>{labels.action(event.action)}</span>
       {changes.length > 0 ? (
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">

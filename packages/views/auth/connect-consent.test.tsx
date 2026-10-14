@@ -13,7 +13,8 @@ const base: ConnectConsent = {
   client: { client_id: "c1", name: "Claude", logo_uri: "", verified: true },
   redirect_host: "claude.ai",
   scope: "read",
-  organizations: [{ id: "o1", slug: "acme", name: "Acme", enabled: true, reason: "" }],
+  write_requested: false,
+  organizations: [{ id: "o1", slug: "acme", name: "Acme", enabled: true, reason: "", write_enabled: false }],
   csrf_token: "x",
 };
 
@@ -30,7 +31,7 @@ describe("ConnectConsentView", () => {
     expect(screen.getByText("Verified")).toBeInTheDocument();
     expect(screen.getByText("claude.ai")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Allow" }));
-    await waitFor(() => expect(onDecision).toHaveBeenCalledWith("approve", "o1"));
+    await waitFor(() => expect(onDecision).toHaveBeenCalledWith("approve", "o1", false));
   });
 
   it("warns about an unverified client and waits for an enabled organization", async () => {
@@ -39,9 +40,9 @@ describe("ConnectConsentView", () => {
       ...base,
       client: { client_id: "c2", name: "Claude", logo_uri: "", verified: false },
       organizations: [
-        { id: "o1", slug: "acme", name: "Acme", enabled: false, reason: "connector_disabled" },
-        { id: "o2", slug: "beta", name: "Beta", enabled: true, reason: "" },
-        { id: "o3", slug: "gamma", name: "Gamma", enabled: true, reason: "" },
+        { id: "o1", slug: "acme", name: "Acme", enabled: false, reason: "connector_disabled", write_enabled: false },
+        { id: "o2", slug: "beta", name: "Beta", enabled: true, reason: "", write_enabled: false },
+        { id: "o3", slug: "gamma", name: "Gamma", enabled: true, reason: "", write_enabled: false },
       ],
     };
     render(wrap(<ConnectConsentView consent={consent} onDecision={onDecision} />));
@@ -51,11 +52,45 @@ describe("ConnectConsentView", () => {
     expect(onDecision).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("radio", { name: /Gamma/ }));
     fireEvent.click(screen.getByRole("button", { name: "Allow" }));
-    await waitFor(() => expect(onDecision).toHaveBeenCalledWith("approve", "o3"));
+    await waitFor(() => expect(onDecision).toHaveBeenCalledWith("approve", "o3", false));
+  });
+
+  it("offers write only when the app asks and the organization allows it, unticked", async () => {
+    const onDecision = vi.fn(async () => {});
+    const consent: ConnectConsent = { ...base, write_requested: true, organizations: [{ ...base.organizations[0]!, write_enabled: true }] };
+    render(wrap(<ConnectConsentView consent={consent} onDecision={onDecision} />));
+    const box = screen.getByRole("checkbox", { name: "Allow create and edit" });
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: "Allow" }));
+    await waitFor(() => expect(onDecision).toHaveBeenCalledWith("approve", "o1", true));
+  });
+
+  it("clears the write tick when another organization is picked", () => {
+    const consent: ConnectConsent = {
+      ...base,
+      write_requested: true,
+      organizations: [
+        { id: "o1", slug: "acme", name: "Acme", enabled: true, reason: "", write_enabled: true },
+        { id: "o2", slug: "beta", name: "Beta", enabled: true, reason: "", write_enabled: true },
+      ],
+    };
+    render(wrap(<ConnectConsentView consent={consent} onDecision={vi.fn(async () => {})} />));
+    fireEvent.click(screen.getByRole("radio", { name: /Acme/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Allow create and edit" }));
+    expect(screen.getByRole("checkbox", { name: "Allow create and edit" })).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: /Beta/ }));
+    expect(screen.getByRole("checkbox", { name: "Allow create and edit" })).not.toBeChecked();
+  });
+
+  it("hides the write option when the organization has not opened it", () => {
+    const consent: ConnectConsent = { ...base, write_requested: true, organizations: [{ ...base.organizations[0]!, write_enabled: false }] };
+    render(wrap(<ConnectConsentView consent={consent} onDecision={vi.fn(async () => {})} />));
+    expect(screen.queryByRole("checkbox", { name: "Allow create and edit" })).not.toBeInTheDocument();
   });
 
   it("explains when no organization allows AI assistants", () => {
-    const consent: ConnectConsent = { ...base, organizations: [{ id: "o1", slug: "acme", name: "Acme", enabled: false, reason: "connector_disabled" }] };
+    const consent: ConnectConsent = { ...base, organizations: [{ id: "o1", slug: "acme", name: "Acme", enabled: false, reason: "connector_disabled", write_enabled: false }] };
     render(wrap(<ConnectConsentView consent={consent} onDecision={vi.fn(async () => {})} />));
     expect(screen.getByText(/None of your organizations allows AI assistants yet/)).toBeInTheDocument();
   });
@@ -64,7 +99,7 @@ describe("ConnectConsentView", () => {
     const onDecision = vi.fn(async () => {});
     render(wrap(<ConnectConsentView consent={base} onDecision={onDecision} />));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(onDecision).toHaveBeenCalledWith("cancel", undefined));
+    await waitFor(() => expect(onDecision).toHaveBeenCalledWith("cancel", undefined, false));
   });
 
   it("shows results and the error code it was sent back with", () => {

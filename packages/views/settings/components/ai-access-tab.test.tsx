@@ -45,18 +45,32 @@ const grant = {
 };
 
 const SWITCH_NAME = "Cho phép trợ lý AI bên ngoài truy cập";
-const POLICY = { enabled: false, available: true, enabled_at: null, enabled_by: "", mcp_url: "https://api.example.test/mcp" };
+const WRITE_NAME = "Cho phép tạo và sửa";
+const POLICY = {
+  enabled: false,
+  available: true,
+  enabled_at: null,
+  enabled_by: "",
+  write_enabled: false,
+  write_available: true,
+  write_enabled_at: null,
+  write_enabled_by: "",
+  mcp_url: "https://api.example.test/mcp",
+};
 
 type Init = { method?: string; body?: { enabled?: boolean } };
 
 function serve(
   role: string,
   policy: Record<string, unknown> = POLICY,
-  opts: { grants?: unknown[]; grantsFail?: boolean; put?: (init: Init) => unknown } = {},
+  opts: { grants?: unknown[]; grantsFail?: boolean; put?: (init: Init) => unknown; putWrite?: (init: Init) => unknown } = {},
 ) {
   let grants = opts.grants ?? [];
   requestMock.mockImplementation((path: string, init?: Init) => {
     if (path === "/api/v1/orgs/acme/members/me") return Promise.resolve({ role });
+    if (path === "/api/v1/orgs/acme/mcp-policy/write" && init?.method === "PUT") {
+      return opts.putWrite?.(init) ?? Promise.resolve({ ...policy, write_enabled: init.body?.enabled ?? false });
+    }
     if (path === "/api/v1/orgs/acme/mcp-policy" && init?.method === "PUT") {
       return opts.put?.(init) ?? Promise.resolve({ ...policy, enabled: init.body?.enabled ?? false });
     }
@@ -176,6 +190,70 @@ describe("AiAccessTab", () => {
     await waitFor(() => expect(toggle).not.toHaveAttribute("aria-disabled"));
     // The write did not land, so the switch must not claim it did.
     expect(toggle).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("lets an owner switch write on through its own route", async () => {
+    serve("owner", { ...POLICY, enabled: true });
+    renderTab();
+    const write = await screen.findByRole("switch", { name: WRITE_NAME });
+    expect(write).toHaveAttribute("aria-checked", "false");
+    expect(write).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(write);
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/orgs/acme/mcp-policy/write", { method: "PUT", body: { enabled: true } }),
+    );
+    await waitFor(() => expect(write).toHaveAttribute("aria-checked", "true"));
+  });
+
+  it("keeps write off, and says why, while the connector is off", async () => {
+    serve("owner", { ...POLICY, enabled: false });
+    renderTab();
+    const write = await screen.findByRole("switch", { name: WRITE_NAME });
+    expect(write).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Bật truy cập của trợ lý AI trước.")).toBeInTheDocument();
+    fireEvent.click(write);
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/orgs/acme/mcp-policy/write", expect.anything());
+  });
+
+  it("keeps write off, and says why, while the platform has not opened it", async () => {
+    serve("owner", { ...POLICY, enabled: true, write_available: false });
+    renderTab();
+    const write = await screen.findByRole("switch", { name: WRITE_NAME });
+    expect(write).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Quyền ghi chưa mở cho tổ chức của bạn.")).toBeInTheDocument();
+    fireEvent.click(write);
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/orgs/acme/mcp-policy/write", expect.anything());
+  });
+
+  it("always lets an owner switch write off, even once it can no longer be switched on", async () => {
+    serve("owner", { ...POLICY, enabled: false, write_available: false, write_enabled: true });
+    renderTab();
+    const write = await screen.findByRole("switch", { name: WRITE_NAME });
+    await waitFor(() => expect(write).toHaveAttribute("aria-checked", "true"));
+    expect(write).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(write);
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/orgs/acme/mcp-policy/write", { method: "PUT", body: { enabled: false } }),
+    );
+  });
+
+  it("names a write that did not save and leaves the switch where it was", async () => {
+    serve("owner", { ...POLICY, enabled: true }, { putWrite: () => Promise.resolve(null) });
+    renderTab();
+    const write = await screen.findByRole("switch", { name: WRITE_NAME });
+    fireEvent.click(write);
+    expect(await screen.findByRole("alert")).toHaveTextContent(t("settings.aiAccess.saveFailed"));
+    expect(write).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("labels each grant with what it may do", async () => {
+    serve("owner", POLICY, { grants: [{ ...grant, id: "g1", client_name: "Claude", scope: "read write" }, { ...grant, id: "g2", client_name: "ChatGPT", scope: "read" }] });
+    renderTab();
+    const list = await screen.findByRole("list", { name: t("settings.aiAccess.grantsTitle") });
+    const [claude, chatgpt] = within(list).getAllByRole("listitem");
+    expect(within(claude!).getByText("Đọc và ghi")).toBeInTheDocument();
+    expect(within(claude!).queryByText("Chỉ đọc")).not.toBeInTheDocument();
+    expect(within(chatgpt!).getByText("Chỉ đọc")).toBeInTheDocument();
   });
 
   it("lists the organization's grants and revokes one only after confirming", async () => {
