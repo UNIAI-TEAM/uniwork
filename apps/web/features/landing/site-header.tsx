@@ -24,6 +24,7 @@ const GROUPS = [
 ] as const;
 const LINKS = [
   { label: "landing.footer.pricing", to: paths.pricing() },
+  { label: "changelog.title", to: paths.changelog() },
 ] as const;
 
 export function SiteHeader() {
@@ -52,7 +53,7 @@ export function SiteHeader() {
     return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("pointerdown", outside); };
   }, [mobileOpen, directory]);
   useEffect(() => {
-    const desktop = matchMedia("(min-width: 1100px)");
+    const desktop = matchMedia("(min-width: 1240px)");
     const dismiss = () => { setMobileOpen(false); setDirectory(null); };
     desktop.addEventListener("change", dismiss);
     return () => desktop.removeEventListener("change", dismiss);
