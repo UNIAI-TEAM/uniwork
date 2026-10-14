@@ -1,0 +1,805 @@
+$ ls -R /tmp/g7-10-run-r3 2>/dev/null | head -120; for f in /tmp/g7-10-run-r3/tracer-loop-*.json; do echo "=== $f"; cat "$f"; echo; done; find /tmp/g7-10-run-r3 test-results -name 'evidence.jsonl' 2>/dev/null -exec sh -c 'echo "=== $1"; cat "$1"' _ {} \; ; for f in /tmp/g7-10-run-r3/artifacts/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 60 "$f"; }; done; true
+/tmp/g7-10-run-r3:
+app-proxy.state
+artifacts
+display
+evidence.jsonl
+logs
+ports.env
+server.env
+start-status.json
+tracer-loop-1.json
+tracer-loop-2.json
+tracer-loop-3.json
+userdata
+
+/tmp/g7-10-run-r3/artifacts:
+ev-g5-a03-0001.log
+ev-g5-a03-0002.log
+ev-g5-a05-0001.log
+ev-g6-a03-0002.log
+
+/tmp/g7-10-run-r3/logs:
+app.log
+app-proxy.log
+lib.log
+migrate.log
+readyz.json
+server-build.log
+server.log
+web.log
+
+/tmp/g7-10-run-r3/userdata:
+app-settings.json
+blob_storage
+Cache
+Code Cache
+control.json
+control.sock
+Crashpad
+DawnGraphiteCache
+DawnWebGPUCache
+deployment-profile.json
+dev-instance.pid
+DevToolsActivePort
+Dictionaries
+DIPS
+DIPS-wal
+file-index.db
+file-index.db-shm
+file-index.db-wal
+GPUCache
+IndexedDB
+Local State
+Local Storage
+mcp-log.txt
+Network Persistent State
+open-documents.json
+originals
+Preferences
+projects
+recent.json
+Shared Dictionary
+SharedStorage
+SharedStorage-wal
+sheets-autosave
+SingletonCookie
+SingletonLock
+SingletonSocket
+spell-diag.log
+Trust Tokens
+Trust Tokens-journal
+uniwork-auth
+uniwork-documents
+uniwork-sync
+WebStorage
+workbench
+
+/tmp/g7-10-run-r3/userdata/blob_storage:
+96b9d5fd-1276-4f9d-b47b-b07bda119ae7
+
+/tmp/g7-10-run-r3/userdata/blob_storage/96b9d5fd-1276-4f9d-b47b-b07bda119ae7:
+
+/tmp/g7-10-run-r3/userdata/Cache:
+Cache_Data
+No_Vary_Search
+
+/tmp/g7-10-run-r3/userdata/Cache/Cache_Data:
+1a9eb08284705c69_0
+5283edf90cf4ab50_0
+62e92676b4344789_0
+index
+index-dir
+
+/tmp/g7-10-run-r3/userdata/Cache/Cache_Data/index-dir:
+the-real-index
+
+/tmp/g7-10-run-r3/userdata/Cache/No_Vary_Search:
+journal.baj
+snapshot.baf
+
+/tmp/g7-10-run-r3/userdata/Code Cache:
+electron-preload
+js
+wasm
+
+/tmp/g7-10-run-r3/userdata/Code Cache/electron-preload:
+11ABA5E5346C720A21F83EC10A5AC8848745B06EAF2D83583ED14BA901649E23-046EE14B76106E2E39DCF4D74A8AEE393DEDA01000D21673491EB8D652BB29D2.cache
+154C1CDE823087EBB8781D2CB126C56CDA933B6292ED1376841EEFFE8BFAD888-348C6C2F7CBCB488DE2C012192E26BECDA850C249180049503ED086B08C5BF00.cache
+6C217412DA779E716D34B79789EDDEB1030E228BF0B8E98D6C295F6DA3792030-445F9D0E7CB48AFFBD78C0BD672C3439B4F4FC428C7436A1490F2A19108976E6.cache
+
+/tmp/g7-10-run-r3/userdata/Code Cache/js:
+1385a4ed072abff0_0
+74b94918e8fb3264_0
+7bc95a05a5e4dab0_0
+8bb90339be15f35e_0
+a43238aca8aed4e8_0
+ec9dca5e9862ac18_0
+f5651416eb6cab7f_0
+index
+index-dir
+
+=== /tmp/g7-10-run-r3/tracer-loop-1.json
+{
+  "exitCode": 77,
+  "status": "BLOCKED",
+  "owner": "g7-qa",
+  "reason": "no real upstream on this runner; contract-p0 §8; 0-version AI turn invariant (1->1) and v2 change-feed delivery verified",
+  "appSignIn": {
+    "accountStatusState": "no-shell-window",
+    "sessionBinExists": true,
+    "decisionInput": {
+      "appStarted": true,
+      "cdpConnected": false,
+      "keyringAvailable": false,
+      "accountState": "no-shell-window",
+      "sessionBinExists": true,
+      "signedInUserId": "",
+      "expectedUserId": "01M4Y5JGQD3D7V6EEY21T43DH7",
+      "signInError": "",
+      "blockerReason": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice"
+    },
+    "decisionResult": {
+      "exitCode": 77,
+      "status": "BLOCKED",
+      "signedIn": false,
+      "reason": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice"
+    }
+  },
+  "steps": {
+    "appOpenV1": {
+      "source": "app",
+      "status": "BLOCKED",
+      "reason": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice"
+    },
+    "webFrameOpen": {
+      "source": "protocol",
+      "status": "PASS"
+    },
+    "aiTurn": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "httpStatus": 503,
+      "reason": "no real upstream on this runner; contract-p0 §8"
+    },
+    "webSave": {
+      "source": "web",
+      "status": "PASS",
+      "detail": "Playwright typed X/Y/Z cells (E1:G4) through the sheets frame name box and saved v2 via page-level Control+s with focus in the frame; committed v2 bytes and sha256 verified"
+    },
+    "changeFeed": {
+      "source": "protocol",
+      "status": "PASS"
+    },
+    "appReloadV2": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "reason": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2
+  },
+  "details": {
+    "owner": "g7-qa",
+    "loop": "1",
+    "fixtureId": "fx-xlsx-revenue-xyz",
+    "documentId": "01M4Y5JGRP34C9GAA48C87CFT2",
+    "workspaceId": "01M4Y5JGR3Z68XA70X2N8Q2TQM",
+    "v1Sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+    "appSignIn": {
+      "accountStatusState": "no-shell-window",
+      "sessionBinExists": true,
+      "decisionInput": {
+        "appStarted": true,
+        "cdpConnected": false,
+        "keyringAvailable": false,
+        "accountState": "no-shell-window",
+        "sessionBinExists": true,
+        "signedInUserId": "",
+        "expectedUserId": "01M4Y5JGQD3D7V6EEY21T43DH7",
+        "signInError": "",
+        "blockerReason": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice"
+      },
+      "decisionResult": {
+        "exitCode": 77,
+        "status": "BLOCKED",
+        "signedIn": false,
+        "reason": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice"
+      }
+    },
+    "appDesktopPrecondition": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice",
+    "appOpenedV1": false,
+    "appV1Binding": null,
+    "aiSegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "v2BytesSha256Verified": true,
+    "editorCellsVerifiedInV2": true,
+    "v2ContainsExpectedXyz": true,
+    "v2Sha256": "13c41409bfac3af90dd15bc0f5fb9e545febb15ea2c4d6ff012ee68b30096bcc",
+    "webUiDriven": true,
+    "webSaveSource": "web",
+    "changeFeedDeliveredV2": true,
+    "changeFeedMatchedItem": {
+      "document_id": "01M4Y5JGRP34C9GAA48C87CFT2",
+      "change_kind": "upsert",
+      "kind": "file",
+      "revision": "2",
+      "current_version": 2,
+      "version_id": "01M4Y5KG54XA2G8RXT2Q8976X4",
+      "archived": false,
+      "removal": ""
+    },
+    "protocolDiagnosticSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "summary": "Protocol-level 0-version AI turn + v2 commit + workspace change feed check"
+    },
+    "appObservedV2ViaFeed": false,
+    "appObservedV2Source": "protocol",
+    "appV2Binding": null,
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "BLOCKED",
+        "reason": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice"
+      },
+      "webFrameOpen": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "webSave": {
+        "source": "web",
+        "status": "PASS",
+        "detail": "Playwright typed X/Y/Z cells (E1:G4) through the sheets frame name box and saved v2 via page-level Control+s with focus in the frame; committed v2 bytes and sha256 verified"
+      },
+      "changeFeed": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "appReloadV2": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "reason": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+
+=== /tmp/g7-10-run-r3/tracer-loop-2.json
+{
+  "exitCode": 77,
+  "status": "BLOCKED",
+  "owner": "g7-qa",
+  "reason": "no real upstream on this runner; contract-p0 §8; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) verified",
+  "appSignIn": {
+    "accountStatusState": "signed-in",
+    "sessionBinExists": true,
+    "decisionInput": {
+      "appStarted": true,
+      "cdpConnected": false,
+      "keyringAvailable": false,
+      "accountState": "signed-in",
+      "sessionBinExists": true,
+      "signedInUserId": "",
+      "expectedUserId": "01M4Y5JGQD3D7V6EEY21T43DH7",
+      "signInError": "",
+      "blockerReason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+    },
+    "decisionResult": {
+      "exitCode": 77,
+      "status": "BLOCKED",
+      "signedIn": false,
+      "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+    }
+  },
+  "steps": {
+    "appOpenV1": {
+      "source": "app",
+      "status": "BLOCKED",
+      "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+    },
+    "aiTurn": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "httpStatus": 503,
+      "reason": "no real upstream on this runner; contract-p0 §8"
+    },
+    "saveV2": {
+      "source": "protocol",
+      "status": "PASS"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2
+  },
+  "details": {
+    "owner": "g7-qa",
+    "loop": "2",
+    "fixtureId": "fx-docx-report-vi",
+    "documentId": "01M4Y5KGFXN11E6FXG5ZZZDY4H",
+    "workspaceId": "01M4Y5JGR3Z68XA70X2N8Q2TQM",
+    "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "v2Sha256": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+    "appSignIn": {
+      "accountStatusState": "signed-in",
+      "sessionBinExists": true,
+      "decisionInput": {
+        "appStarted": true,
+        "cdpConnected": false,
+        "keyringAvailable": false,
+        "accountState": "signed-in",
+        "sessionBinExists": true,
+        "signedInUserId": "",
+        "expectedUserId": "01M4Y5JGQD3D7V6EEY21T43DH7",
+        "signInError": "",
+        "blockerReason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+      },
+      "decisionResult": {
+        "exitCode": 77,
+        "status": "BLOCKED",
+        "signedIn": false,
+        "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+      }
+    },
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": false,
+    "aiEditQualitySegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "commitIntentBeforeSave": {
+      "httpStatus": 410,
+      "code": "commit_intent_unknown",
+      "outcome": "unknown",
+      "hasCommitted": false,
+      "hasClaim": false
+    },
+    "appIntentsAfterTurn": 0,
+    "noAutoSaveSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "summary": "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save creates version 2"
+    },
+    "commitIntentAfterSave": {
+      "httpStatus": 200,
+      "code": null,
+      "outcome": "committed",
+      "hasCommitted": true,
+      "hasClaim": true,
+      "versionId": "01M4Y5KGQYJQTMS2ZTS3TMNGH6",
+      "version": 2,
+      "revision": "2"
+    },
+    "commitIntentOutcome": "committed",
+    "saveSource": "protocol",
+    "appSavedV2": false,
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "BLOCKED",
+        "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "saveV2": {
+        "source": "protocol",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+
+=== /tmp/g7-10-run-r3/tracer-loop-3.json
+{
+  "exitCode": 77,
+  "status": "BLOCKED",
+  "owner": "g7-qa",
+  "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n",
+  "appSignIn": {
+    "accountStatusState": "signed-in",
+    "sessionBinExists": true,
+    "decisionInput": {
+      "appStarted": true,
+      "cdpConnected": false,
+      "keyringAvailable": false,
+      "accountState": "signed-in",
+      "sessionBinExists": true,
+      "signedInUserId": "",
+      "expectedUserId": "01M4Y5JGQD3D7V6EEY21T43DH7",
+      "signInError": "",
+      "blockerReason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+    },
+    "decisionResult": {
+      "exitCode": 77,
+      "status": "BLOCKED",
+      "signedIn": false,
+      "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+    }
+  },
+  "steps": {
+    "appOfflineSave": {
+      "source": "app",
+      "status": "BLOCKED",
+      "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+    },
+    "protocolReconnectDiagnostic": {
+      "source": "protocol",
+      "status": "PASS"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeCut": 1,
+    "serverVersionsWhileCut": null,
+    "serverVersionsAfterReconnect": null,
+    "versionsAfterIdempotentRetry": 2
+  },
+  "details": {
+    "owner": "g7-qa",
+    "loop": "3",
+    "fixtureId": "fx-docx-report-vi",
+    "documentId": "01M4Y5KGVHZP2AHMB14ZE2JVDT",
+    "workspaceId": "01M4Y5JGR3Z68XA70X2N8Q2TQM",
+    "appSignIn": {
+      "accountStatusState": "signed-in",
+      "sessionBinExists": true,
+      "decisionInput": {
+        "appStarted": true,
+        "cdpConnected": false,
+        "keyringAvailable": false,
+        "accountState": "signed-in",
+        "sessionBinExists": true,
+        "signedInUserId": "",
+        "expectedUserId": "01M4Y5JGQD3D7V6EEY21T43DH7",
+        "signInError": "",
+        "blockerReason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+      },
+      "decisionResult": {
+        "exitCode": 77,
+        "status": "BLOCKED",
+        "signedIn": false,
+        "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+      }
+    },
+    "appDesktopPrecondition": "signed_in",
+    "lookupWhileOffline": {
+      "httpStatus": 410,
+      "code": "commit_intent_unknown",
+      "outcome": "unknown",
+      "hasCommitted": false,
+      "hasClaim": false
+    },
+    "lookupAfterReconnect": {
+      "httpStatus": 200,
+      "code": null,
+      "outcome": "committed",
+      "hasCommitted": true,
+      "hasClaim": true,
+      "versionId": "01M4Y5KH3EP20HEKVVXQW8JC8Y",
+      "version": 2,
+      "revision": "2"
+    },
+    "protocolDiagnosticSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "versionId": "01M4Y5KH3EP20HEKVVXQW8JC8Y",
+      "version": 2,
+      "revision": "2",
+      "versionsAfterIdempotentRetry": 2
+    },
+    "appReceiptSegment": {
+      "status": "BLOCKED",
+      "source": "app",
+      "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+    },
+    "versionsBeforeCut": 1,
+    "serverVersionsWhileCut": null,
+    "serverVersionsAfterReconnect": null,
+    "versionsAfterIdempotentRetry": 2,
+    "steps": {
+      "appOfflineSave": {
+        "source": "app",
+        "status": "BLOCKED",
+        "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+      },
+      "protocolReconnectDiagnostic": {
+        "source": "protocol",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeCut": 1,
+      "serverVersionsWhileCut": null,
+      "serverVersionsAfterReconnect": null,
+      "versionsAfterIdempotentRetry": 2
+    }
+  }
+}
+
+=== /tmp/g7-10-run-r3/evidence.jsonl
+{"evidenceId":"ev-g5-a03-0001","requirementId":"G5-A03","dSha":"74aadc365efaf5eb09e4ec9a490d71c550e59dc5","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir /tmp/g7-10-run-r3","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","1","--run-dir","/tmp/g7-10-run-r3"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g7-10-run-r3/artifacts/ev-g5-a03-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-14T20:56:10.555Z","finishedAt":"2026-10-14T20:57:19.709Z"}
+{"evidenceId":"ev-g5-a03-0002","requirementId":"G5-A03","dSha":"74aadc365efaf5eb09e4ec9a490d71c550e59dc5","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir /tmp/g7-10-run-r3","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","1","--run-dir","/tmp/g7-10-run-r3"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g7-10-run-r3/artifacts/ev-g5-a03-0002.log","checker":"harness:g7-10/tracer.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-14T21:37:25.122Z","finishedAt":"2026-10-14T21:37:57.663Z"}
+{"evidenceId":"ev-g6-a03-0002","requirementId":"G6-A03","dSha":"74aadc365efaf5eb09e4ec9a490d71c550e59dc5","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 2 --run-dir /tmp/g7-10-run-r3","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","2","--run-dir","/tmp/g7-10-run-r3"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g7-10-run-r3/artifacts/ev-g6-a03-0002.log","checker":"harness:g7-10/tracer.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-14T21:37:57.693Z","finishedAt":"2026-10-14T21:37:58.036Z"}
+{"evidenceId":"ev-g5-a05-0001","requirementId":"G5-A05","dSha":"74aadc365efaf5eb09e4ec9a490d71c550e59dc5","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 3 --run-dir /tmp/g7-10-run-r3","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","3","--run-dir","/tmp/g7-10-run-r3"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g7-10-run-r3/artifacts/ev-g5-a05-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-14T21:37:58.061Z","finishedAt":"2026-10-14T21:37:58.413Z"}
+=== /tmp/g7-10-run-r3/artifacts/ev-g5-a03-0001.log
+    "appObservedV2ViaFeed": true,
+    "appObservedV2Source": "app",
+    "appV2Binding": {
+      "schema": 2,
+      "documentId": "01M4Y3707NS29NYWQ2CB728WSJ",
+      "workspaceId": "01M4Y3706V5VNM5469Q2FJ1191",
+      "orgId": "01M4Y3706F8VDGC1TTEP8D6SBB",
+      "title": "fx-xlsx-revenue-xyz.xlsx",
+      "filename": "fx-xlsx-revenue-xyz.xlsx",
+      "format": "xlsx",
+      "access": "edit",
+      "baseRevision": "2",
+      "baseVersion": 2,
+      "baseChecksum": "13c41409bfac3af90dd15bc0f5fb9e545febb15ea2c4d6ff012ee68b30096bcc",
+      "state": "saved",
+      "level": "manage",
+      "baseVersionId": "01M4Y385NAMBXV6GT7JPAM32PE",
+      "min_store_level": 2,
+      "min_app_version": "0.11.0"
+    },
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "webFrameOpen": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "webSave": {
+        "source": "web",
+        "status": "PASS",
+        "detail": "Playwright typed X/Y/Z cells (E1:G4) through the sheets frame name box and saved v2 via page-level Control+s with focus in the frame; committed v2 bytes and sha256 verified"
+      },
+      "changeFeed": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "appReloadV2": {
+        "source": "app",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+BLOCKED: no real upstream on this runner; contract-p0 §8; 0-version AI turn invariant (1->1) and v2 change-feed delivery verified
+=== /tmp/g7-10-run-r3/artifacts/ev-g5-a03-0002.log
+    "changeFeedMatchedItem": {
+      "document_id": "01M4Y5JGRP34C9GAA48C87CFT2",
+      "change_kind": "upsert",
+      "kind": "file",
+      "revision": "2",
+      "current_version": 2,
+      "version_id": "01M4Y5KG54XA2G8RXT2Q8976X4",
+      "archived": false,
+      "removal": ""
+    },
+    "protocolDiagnosticSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "summary": "Protocol-level 0-version AI turn + v2 commit + workspace change feed check"
+    },
+    "appObservedV2ViaFeed": false,
+    "appObservedV2Source": "protocol",
+    "appV2Binding": null,
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "BLOCKED",
+        "reason": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice"
+      },
+      "webFrameOpen": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "webSave": {
+        "source": "web",
+        "status": "PASS",
+        "detail": "Playwright typed X/Y/Z cells (E1:G4) through the sheets frame name box and saved v2 via page-level Control+s with focus in the frame; committed v2 bytes and sha256 verified"
+      },
+      "changeFeed": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "appReloadV2": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "reason": "connected to Electron CDP but found no shell renderer window exposing window.aiOffice"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+BLOCKED: no real upstream on this runner; contract-p0 §8; 0-version AI turn invariant (1->1) and v2 change-feed delivery verified
+=== /tmp/g7-10-run-r3/artifacts/ev-g5-a05-0001.log
+      }
+    },
+    "appDesktopPrecondition": "signed_in",
+    "lookupWhileOffline": {
+      "httpStatus": 410,
+      "code": "commit_intent_unknown",
+      "outcome": "unknown",
+      "hasCommitted": false,
+      "hasClaim": false
+    },
+    "lookupAfterReconnect": {
+      "httpStatus": 200,
+      "code": null,
+      "outcome": "committed",
+      "hasCommitted": true,
+      "hasClaim": true,
+      "versionId": "01M4Y5KH3EP20HEKVVXQW8JC8Y",
+      "version": 2,
+      "revision": "2"
+    },
+    "protocolDiagnosticSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "versionId": "01M4Y5KH3EP20HEKVVXQW8JC8Y",
+      "version": 2,
+      "revision": "2",
+      "versionsAfterIdempotentRetry": 2
+    },
+    "appReceiptSegment": {
+      "status": "BLOCKED",
+      "source": "app",
+      "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+    },
+    "versionsBeforeCut": 1,
+    "serverVersionsWhileCut": null,
+    "serverVersionsAfterReconnect": null,
+    "versionsAfterIdempotentRetry": 2,
+    "steps": {
+      "appOfflineSave": {
+        "source": "app",
+        "status": "BLOCKED",
+        "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+      },
+      "protocolReconnectDiagnostic": {
+        "source": "protocol",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeCut": 1,
+      "serverVersionsWhileCut": null,
+      "serverVersionsAfterReconnect": null,
+      "versionsAfterIdempotentRetry": 2
+    }
+  }
+}
+BLOCKED: could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637
+Call log:
+  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637
+
+=== /tmp/g7-10-run-r3/artifacts/ev-g6-a03-0002.log
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "commitIntentBeforeSave": {
+      "httpStatus": 410,
+      "code": "commit_intent_unknown",
+      "outcome": "unknown",
+      "hasCommitted": false,
+      "hasClaim": false
+    },
+    "appIntentsAfterTurn": 0,
+    "noAutoSaveSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "summary": "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save creates version 2"
+    },
+    "commitIntentAfterSave": {
+      "httpStatus": 200,
+      "code": null,
+      "outcome": "committed",
+      "hasCommitted": true,
+      "hasClaim": true,
+      "versionId": "01M4Y5KGQYJQTMS2ZTS3TMNGH6",
+      "version": 2,
+      "revision": "2"
+    },
+    "commitIntentOutcome": "committed",
+    "saveSource": "protocol",
+    "appSavedV2": false,
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "BLOCKED",
+        "reason": "could not connect to the running Electron app over CDP port 42637: browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:42637\nCall log:\n  - <ws preparing> retrieving websocket url from http://127.0.0.1:42637\n"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "saveV2": {
+        "source": "protocol",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+BLOCKED: no real upstream on this runner; contract-p0 §8; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) verified

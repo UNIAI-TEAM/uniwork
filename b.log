@@ -1,0 +1,21 @@
+$ if [ "$(id -u)" -eq 0 ]; then S=""; elif sudo -n true 2>/dev/null; then S="sudo"; else S=""; fi; export DEBIAN_FRONTEND=noninteractive; $S apt-get update -q; $S apt-get install -y -q --no-install-recommends gnome-keyring dbus-x11 xvfb libsecret-tools; echo "G710_APT_EXIT $?" | tee -a /tmp/g710-r3-markers.txt; true
+Get:1 https://dl.google.com/linux/chrome-stable/deb stable InRelease [2,548 B]
+Get:2 https://dl.google.com/linux/chrome-stable/deb stable/main amd64 Packages [1,411 B]
+Hit:3 http://archive.ubuntu.com/ubuntu noble InRelease
+Hit:4 http://security.ubuntu.com/ubuntu noble-security InRelease
+Hit:5 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+Hit:6 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+Fetched 3,959 B in 1s (5,386 B/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+gnome-keyring is already the newest version (46.1-2ubuntu0.2).
+dbus-x11 is already the newest version (1.14.10-4ubuntu4.1).
+xvfb is already the newest version (2:21.1.12-1ubuntu1.8).
+libsecret-tools is already the newest version (0.21.4-1build3).
+The following package was automatically installed and is no longer required:
+  libwayland-server0
+Use 'sudo apt autoremove' to remove it.
+0 upgraded, 0 newly installed, 0 to remove and 32 not upgraded.
+G710_APT_EXIT 0
