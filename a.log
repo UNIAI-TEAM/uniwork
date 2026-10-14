@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+2ac6599d77d3bfaa510f2527ac9fc3ad155e756e
+2ac6599d7 chore: merge FD-03 tree depth 20 and row cap (UNI-1463) into the G5-G7 root
+ed15dd0e1 chore: merge G8-07 inbox deep link (UNI-1402) into the G5-G7 root
+d6ecd1fb6 chore: record the develop squash of PR #279 in the G5-G7 root

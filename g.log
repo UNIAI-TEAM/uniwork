@@ -1,0 +1,152 @@
+$ pnpm install --frozen-lockfile >/dev/null 2>&1; node --test scripts/events-catalogue.test.mjs scripts/governance.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs; echo "SCRIPTS_EXIT=$?"
+TAP version 13
+# Subtest: the Go env scanner recognizes literal readers without false positives
+ok 1 - the Go env scanner recognizes literal readers without false positives
+  ---
+  duration_ms: 1.706621
+  ...
+# Subtest: raw literal keys participate in the undocumented-variable contract
+ok 2 - raw literal keys participate in the undocumented-variable contract
+  ---
+  duration_ms: 0.327859
+  ...
+# Subtest: every variable the server reads is documented in .env.example
+ok 3 - every variable the server reads is documented in .env.example
+  ---
+  duration_ms: 208.93024
+  ...
+# Subtest: the Go catalogue and the documented table agree
+ok 4 - the Go catalogue and the documented table agree
+  ---
+  duration_ms: 9.965014
+  ...
+# Subtest: every catalogue row has the one-line shape this file parses
+ok 5 - every catalogue row has the one-line shape this file parses
+  ---
+  duration_ms: 1.167525
+  ...
+# Subtest: the client knows every event that has a realtime audience
+ok 6 - the client knows every event that has a realtime audience
+  ---
+  duration_ms: 0.905168
+  ...
+# Subtest: event names follow <entity>.<verb> and carry no version
+ok 7 - event names follow <entity>.<verb> and carry no version
+  ---
+  duration_ms: 1.187995
+  ...
+# Subtest: payload keys are ids or revisions; content travels only through Patch
+ok 8 - payload keys are ids or revisions; content travels only through Patch
+  ---
+  duration_ms: 1.307647
+  ...
+# Subtest: the patchable task fields are exactly the ones ADR 0015 accepted
+ok 9 - the patchable task fields are exactly the ones ADR 0015 accepted
+  ---
+  duration_ms: 0.542596
+  ...
+# Subtest: the client decodes exactly the fields task.updated lists in Patch
+ok 10 - the client decodes exactly the fields task.updated lists in Patch
+  ---
+  duration_ms: 0.781333
+  ...
+# Subtest: every event has a scope or is explicitly infrastructure
+ok 11 - every event has a scope or is explicitly infrastructure
+  ---
+  duration_ms: 1.003484
+  ...
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 12 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 2.756946
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 13 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 3.623266
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 14 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.329521
+  ...
+# Subtest: both hooks exist and are executable
+ok 15 - both hooks exist and are executable
+  ---
+  duration_ms: 0.188922
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 16 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 0.756229
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 17 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 66.921425
+  ...
+# Subtest: historical message exceptions only allow their immutable commit and subject
+ok 18 - historical message exceptions only allow their immutable commit and subject
+  ---
+  duration_ms: 0.502223
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 19 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 0.315658
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 20 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.286472
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 21 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 1.629903
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 22 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.33944
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 23 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 2.47148
+  ...
+# Subtest: every plan says whether it shipped
+ok 24 - every plan says whether it shipped
+  ---
+  duration_ms: 15.127208
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 25 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 0.855837
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 26 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 45.781591
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 27 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 0.526187
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 28 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 53.942171
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 28
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 250.813535
+SCRIPTS_EXIT=0

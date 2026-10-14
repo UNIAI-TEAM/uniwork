@@ -1,0 +1,6 @@
+$ cd server && go run ./cmd/migrate up 2>&1 | tail -2; go test -count=1 ./migrations/ ./internal 2>&1 | tail -6; echo "MIG_ARCH_EXIT=${PIPESTATUS[0]}"
+06:29:59.165 ERR config component=server err="DATABASE_URL is required"
+exit status 1
+ok  	github.com/unicomhub/uniwork/server/migrations	4.831s
+ok  	github.com/unicomhub/uniwork/server/internal	1.123s
+MIG_ARCH_EXIT=0
