@@ -93,8 +93,15 @@ const next = () => fireEvent.click(screen.getByRole("button", { name: "Tiếp t�
 // parallel run, so these finds get more than the default second.
 const SLOW = { timeout: 5000 };
 async function pickHeir() {
-  fireEvent.click(await screen.findByRole("combobox", { name: "Chủ sở hữu mới" }, SLOW));
-  fireEvent.click(await screen.findByRole("option", { name: "Nguyễn Văn An" }, SLOW));
+  const combobox = await screen.findByRole("combobox", { name: "Chủ sở hữu mới" }, SLOW);
+  fireEvent.click(combobox);
+  const option = await screen.findByRole("option", { name: "Nguyễn Văn An an@acme.vn" }, SLOW);
+  // A bare click on an option counts only if Base UI has highlighted it by
+  // then (a timing race); a click that starts with a pointer down on the
+  // item is a real press and always commits.
+  fireEvent.pointerDown(option);
+  fireEvent.click(option);
+  await waitFor(() => expect(combobox).toHaveTextContent("Nguyễn Văn An"));
 }
 
 describe("AcceptInviteView", () => {

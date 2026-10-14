@@ -9,7 +9,11 @@ import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { useTransferCandidates } from "../../settings/components/transfer-ownership-dialog";
-import { TransferCandidateField, TransferPasswordField } from "../../settings/components/transfer-owner-fields";
+import {
+  TransferCandidateField,
+  TransferPasswordField,
+  candidateLabel,
+} from "../../settings/components/transfer-owner-fields";
 import { SettingsFieldError } from "../../settings/components/settings-layout";
 import { cn } from "@uniwork/ui/lib/utils";
 import { RoleBadge } from "./org-mark";
@@ -118,10 +122,11 @@ function TransferBlock({ conflict, draft, onChange, passwordError, passwordless 
   const name = conflict.organization.name;
   const prefix = `switch-${conflict.organization.id}`;
   const { candidates, none, loading, isError, retry } = useTransferCandidates(conflict.organization.slug, true);
-  // The name rides along so the confirmation can say who receives the organization.
+  // The name rides along so the confirmation can say who receives the
+  // organization, with the email when another candidate shares the name.
   const pick = (userId: string) => {
     const member = candidates.find((m) => m.user_id === userId);
-    onChange({ toUserId: userId, toUserName: member?.display_name || member?.email || "" });
+    onChange({ toUserId: userId, toUserName: member ? candidateLabel(member, candidates) : "" });
   };
   return (
     <>

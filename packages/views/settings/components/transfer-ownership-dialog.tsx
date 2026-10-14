@@ -32,8 +32,9 @@ type TransferCandidates = {
  * The member list is cursor-paginated and has no search, so a candidate may
  * sit on a page nobody scrolled to. Pages are read until one candidate turns
  * up (enough to say the action is possible), and all of them once the dialog
- * is open (`fetchAll`), so the picker offers everyone. "Nobody" is only ever
- * claimed after the last page.
+ * is open (`fetchAll`), so the picker offers everyone. Each page joins the
+ * picker as it lands, so the first members can be chosen while the rest
+ * load. "Nobody" is only ever claimed after the last page.
  */
 export function useTransferCandidates(orgSlug: string, fetchAll: boolean): TransferCandidates {
   const { data, isLoading, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = useOrgMembers(
