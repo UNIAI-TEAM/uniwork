@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+af9a112e83d1f10c2f7572091b7f53eefb2000be
+af9a112e8 test(landing): pin the redesigned Office page and header
+eaa266eb6 test(handler): give the isolation matrix a demo request id
+37f9ddda4 test(admin): drop the exact option the role queries do not take

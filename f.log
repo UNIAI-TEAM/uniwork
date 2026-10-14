@@ -1,0 +1,5 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1; AI_PROVIDER=fake go test -count=1 ./internal/handler/... 2>&1 | grep -E '^(--- FAIL|FAIL|ok|panic)' | tail -30; echo "HANDLER_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/handler	396.588s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.012s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	3.318s
+HANDLER_EXIT=0
