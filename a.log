@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+72d41c248f2fa28818f8e665dfb2144253029a2e
+72d41c248 chore: merge the G5-G7 root 914db6fa2 into FD-07 (develop merge, UNI-1624)
+38a10930d fix(documents): reveal current folder row when phone sheet or hidden tree becomes visible
+914db6fa2 test(governance): exempt the two AI_PROVIDER commits pushed to develop
+169ef6319 chore: merge the latest develop into the G5-G7 develop merge
+ef3b4f4cb chore: bring UNI-1624 from the G5-G7 root into the develop merge
+bd16a043d chore: merge UNI-1624 email hub storage fixes into the G5-G7 root
+31b10483d fix(email-hub): root the body cache under the org and stop leaking it
+22f058257 test(office): found the second organization with a person who has none
