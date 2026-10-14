@@ -91,27 +91,113 @@ beforeEach(async () => {
 });
 
 describe("move", () => {
-  it("offers the folders but not the moved item, and moves on a fresh revision", async () => {
-    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+  it("offers the folders in a tree, marks the current location disabled, and toasts 'Đã chuyển tới …' on move without rename", async () => {
+    requestMock.mockImplementation((_path: string, opts?: { method?: string }) => {
       if (opts?.method === "POST") return Promise.resolve({ document: document({ parent_id: "fb", revision: "8" }) });
       return Promise.resolve({ document: document() });
     });
     render(wrap(<Harness />));
     fireEvent.click(screen.getByText("cmd-move"));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: t("documents.home.move.title") })).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Quý 4" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: t("documents.home.move.picker_title") })).toBeInTheDocument();
+    expect(within(dialog).getByRole("treeitem", { name: "Quý 4" })).toBeInTheDocument();
     // A page is not a target.
-    expect(within(dialog).queryByRole("button", { name: "Kế hoạch" })).toBeNull();
+    expect(within(dialog).queryByRole("treeitem", { name: "Kế hoạch" })).toBeNull();
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Quý 4" }));
+    // Root is doc's current location (parent_id: null), so it is aria-disabled with reason_current and cannot be picked.
+    const rootItem = within(dialog).getByRole("treeitem", { name: t("documents.home.move.root") });
+    expect(rootItem).toHaveAttribute("aria-disabled", "true");
+    expect(rootItem).toHaveAccessibleDescription(t("documents.home.move.reason_current"));
+    fireEvent.click(rootItem);
+    expect(rootItem).toHaveAttribute("aria-selected", "false");
+
+    fireEvent.click(within(dialog).getByRole("treeitem", { name: "Quý 4" }));
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
 
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.home.move.moved")));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(t("documents.home.move.moved_to", { folder: "Quý 4" })),
+    );
     const [path, opts] = posts()[0]!;
     expect(path).toBe("/api/v1/documents/d1/move");
     expect((opts as { body: unknown }).body).toEqual({ parent_id: "fb", revision: "7" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("toasts 'Đã chuyển và đổi tên thành …' with the server-returned title when a move hits a name clash (FD-D5)", async () => {
+    requestMock.mockImplementation((_path: string, opts?: { method?: string }) => {
+      if (opts?.method === "POST") {
+        return Promise.resolve({
+          document: document({ title: "Kế hoạch (2)", parent_id: "fa", revision: "8" }),
+        });
+      }
+      return Promise.resolve({ document: document({ title: "Kế hoạch", revision: "7" }) });
+    });
+    render(wrap(<Harness />));
+    fireEvent.click(screen.getByText("cmd-move"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("treeitem", { name: "Hợp đồng" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        t("documents.home.move.moved_renamed", { title: "Kế hoạch (2)" }),
+      ),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("allows picking Documents (gốc) root when moving an item out of a folder and toasts the root destination", async () => {
+    const nestedDoc = { ...doc, parent_id: "fa" } as unknown as DocumentSummaryRow;
+    requestMock.mockImplementation((_path: string, opts?: { method?: string }) => {
+      if (opts?.method === "POST") {
+        return Promise.resolve({ document: document({ parent_id: null, revision: "8" }) });
+      }
+      return Promise.resolve({ document: document({ parent_id: "fa", revision: "7" }) });
+    });
+    render(wrap(<Harness item={nestedDoc} />));
+    fireEvent.click(screen.getByText("cmd-move"));
+    const dialog = await screen.findByRole("dialog");
+
+    // Current folder "Hợp đồng" ("fa") is aria-disabled with reason_current and focusable
+    const currentFolder = within(dialog).getByRole("treeitem", { name: "Hợp đồng" });
+    expect(currentFolder).toHaveAttribute("aria-disabled", "true");
+    expect(currentFolder).toHaveAccessibleDescription(t("documents.home.move.reason_current"));
+    currentFolder.focus();
+    expect(currentFolder).toHaveFocus();
+    fireEvent.click(currentFolder);
+    expect(currentFolder).toHaveAttribute("aria-selected", "false");
+
+    // Documents (gốc) root is enabled and pickable
+    const rootItem = within(dialog).getByRole("treeitem", { name: t("documents.home.move.root") });
+    expect(rootItem).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(rootItem);
+    expect(rootItem).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        t("documents.home.move.moved_to", { folder: t("documents.home.move.root") }),
+      ),
+    );
+    expect((posts()[0]?.[1] as { body: unknown }).body).toEqual({ parent_id: null, revision: "7" });
+  });
+
+  it("shows the moved folder itself and its subtree as aria-disabled with reason_self (focusable, not selectable)", async () => {
+    render(wrap(<Harness item={folderDoc} />));
+    fireEvent.click(screen.getByText("cmd-move"));
+    const dialog = await screen.findByRole("dialog");
+
+    const selfRow = within(dialog).getByRole("treeitem", { name: "Hợp đồng" });
+    const childRow = within(dialog).getByRole("treeitem", { name: "Quý 4" });
+    for (const row of [selfRow, childRow]) {
+      expect(row).toHaveAttribute("aria-disabled", "true");
+      expect(row).toHaveAccessibleDescription(t("documents.home.move.reason_self"));
+      expect(row).toHaveTextContent(t("documents.home.move.reason_self"));
+      row.focus();
+      expect(row).toHaveFocus();
+      fireEvent.click(row);
+      expect(row).toHaveAttribute("aria-selected", "false");
+    }
   });
 
   it("keeps the dialog open with the generic reason when the revision cannot be read", async () => {
@@ -119,6 +205,7 @@ describe("move", () => {
     render(wrap(<Harness />));
     fireEvent.click(screen.getByText("cmd-move"));
     const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("treeitem", { name: "Hợp đồng" }));
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(t("documents.tree.move_failed"));
     expect(posts()).toHaveLength(0);
@@ -137,7 +224,7 @@ describe("move", () => {
     render(wrap(<Harness />));
     fireEvent.click(screen.getByText("cmd-move"));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Hợp đồng" }));
+    fireEvent.click(within(dialog).getByRole("treeitem", { name: "Hợp đồng" }));
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
     expect(await within(dialog).findByText(t("documents.errors.document_too_deep", { max: TREE_MAX_LEVEL }))).toBeInTheDocument();
 
@@ -186,7 +273,7 @@ describe("save a file from another module", () => {
     render(wrap(<Harness folderId="fa" />));
     fireEvent.click(screen.getByText("cmd-save"));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("button", { name: "Hợp đồng" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(dialog).getByRole("treeitem", { name: "Hợp đồng" })).toHaveAttribute("aria-selected", "true");
 
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.save_source.submit") }));
     expect(await within(dialog).findByText("Hết giờ")).toBeInTheDocument();
@@ -211,7 +298,7 @@ describe("save a file from another module", () => {
 
     submit();
     await within(dialog).findByText("Lỗi");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Hợp đồng" }));
+    fireEvent.click(within(dialog).getByRole("treeitem", { name: "Hợp đồng" }));
     submit();
     await waitFor(() => expect(posts()).toHaveLength(2));
     const keys = posts().map(([, opts]) => (opts as { headers?: Record<string, string> }).headers?.["Idempotency-Key"]);
