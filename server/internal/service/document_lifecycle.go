@@ -300,25 +300,36 @@ type DocumentArchiveImpact struct {
 }
 
 // ArchiveImpact answers what ArchiveDocument would do to a subtree without
-// doing it. The checks run in the archive command's order, so the read is
-// neither more expensive nor more revealing than the command: manage on the
-// root first, then the same bounded subtree walk, then the same manage gate on
-// every node of that id set, then the count. All three steps after the root
-// check run in ONE REPEATABLE READ, read-only transaction: under READ
-// COMMITTED each statement takes its own snapshot, and the promise that the
-// ids, the access check and the numbers describe one moment would not hold.
-// Reading writes nothing - no audit row, no event.
+// doing it. The checks run the archive command's own root gate (not found,
+// owned, then manage - the same order, so the read can never show counts for a
+// delete the command refuses), then the same bounded subtree walk, then the
+// same manage gate on every node of that id set, then the count. All three
+// steps after the root gate run in ONE REPEATABLE READ, read-only transaction:
+// under READ COMMITTED each statement takes its own snapshot, and the promise
+// that the ids, the access check and the numbers describe one moment would not
+// hold. Reading writes nothing - no audit row, no event.
 func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, documentID string) (DocumentArchiveImpact, error) {
 	if !validActor(actor) || documentID == "" {
 		return DocumentArchiveImpact{}, ErrNotFound
 	}
 	bound := s.archiveBound()
 	out := DocumentArchiveImpact{MaxNodes: bound}
-	// (1) manage on the root, exactly as the archive command's gate decides it:
-	// an id the caller cannot see is not found, a readable node they cannot
-	// manage is forbidden.
-	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelManage)
+	// (1) the archive command's own root gate, in its order: an id the caller
+	// cannot see is not found, an owned root is refused with
+	// document_owned_by_work_product (so the dialog never shows counts for a
+	// delete the command refuses), and only then must manage be held.
+	doc, err := s.q.GetDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DocumentArchiveImpact{}, ErrNotFound
+	}
 	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	access, err := s.effectiveLevel(ctx, s.q, actor, doc)
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	if err := decideArchiveRootAccess(doc, access); err != nil {
 		return DocumentArchiveImpact{}, err
 	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
@@ -615,6 +626,25 @@ func (s *DocumentService) restoreNames(ctx context.Context, q *db.Queries, root 
 	return plan, nil
 }
 
+// decideArchiveRootAccess is the archive command's root decision, shared with
+// the archive-impact read so the two can never drift: a caller with nothing
+// readable is not found (never a confirmation of the id), an owned root is
+// refused with document_owned_by_work_product, and only then must manage be
+// held. The owned refusal sits between the two on purpose - an owned document
+// is not the public archive path's business whatever level the caller holds, so
+// the answer is 409 rather than the 403 a bare manage gate would give.
+func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
+	if access.Level == DocumentLevelNone {
+		// Nothing readable at all is not found - the owned refusal below
+		// must never confirm an id to a caller who cannot see it.
+		return ErrNotFound
+	}
+	if doc.OwnerKind.Valid {
+		return errDocumentOwned()
+	}
+	return decideDocumentAccess(doc, access, DocumentLevelManage)
+}
+
 // documentBatchLifecycle is the shared envelope of archive and restore: one
 // transaction holding the ledger claim, the workspace tree lock and the
 // document row lock, with the ACL evaluated under the row lock like every
@@ -684,15 +714,7 @@ func (s *DocumentService) documentBatchLifecycle(
 	if err != nil {
 		return DocumentArchiveResult{}, err
 	}
-	if access.Level == DocumentLevelNone {
-		// Nothing readable at all is not found - the owned refusal below
-		// must never confirm an id to a caller who cannot see it.
-		return DocumentArchiveResult{}, ErrNotFound
-	}
-	if doc.OwnerKind.Valid {
-		return DocumentArchiveResult{}, errDocumentOwned()
-	}
-	if err := decideDocumentAccess(doc, access, DocumentLevelManage); err != nil {
+	if err := decideArchiveRootAccess(doc, access); err != nil {
 		return DocumentArchiveResult{}, err
 	}
 	out, err := fn(q, doc, access)

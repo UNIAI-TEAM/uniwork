@@ -223,6 +223,34 @@ func TestDocumentArchiveImpact(t *testing.T) {
 		}
 	})
 
+	t.Run("an owned root refuses exactly like the archive command", func(t *testing.T) {
+		// The owner service grants the org owner manage on the owned root, so
+		// the root gate itself passes and only the owned refusal can answer.
+		f.svc.SetOwnerLevelResolver(mapOwnerResolver{tn.owner.ID: DocumentLevelManage})
+		defer f.svc.SetOwnerLevelResolver(nil)
+		owned := doc(t, "", DocumentKindFolder, "Thuộc kết quả công việc", func(s *treeDocSpec) {
+			s.ownerID = "wp-impact"
+		})
+		// Both routes answer the same 409, and the read carries no number: the
+		// dialog never shows counts for a delete the command refuses.
+		_, impactErr := f.svc.ArchiveImpact(ctx, owner, owned.ID)
+		wantCode(t, impactErr, "document_owned_by_work_product")
+		_, archiveErr := f.svc.ArchiveDocument(ctx, owner, owned.ID, ArchiveDocumentInput{})
+		wantCode(t, archiveErr, "document_owned_by_work_product")
+		// The owned refusal must never confirm the id to a caller who cannot
+		// see the document: a stranger gets not_found on both.
+		hidden := doc(t, "", DocumentKindFolder, "Thuộc kết quả, hạn chế", func(s *treeDocSpec) {
+			s.ownerID = "wp-impact"
+			s.visibility = "restricted"
+		})
+		if _, err := f.svc.ArchiveImpact(ctx, Human(tn.member.ID), hidden.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("archive-impact on an invisible owned root = %v, want ErrNotFound", err)
+		}
+		if _, err := f.svc.ArchiveDocument(ctx, Human(tn.member.ID), hidden.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("archive on an invisible owned root = %v, want ErrNotFound", err)
+		}
+	})
+
 	t.Run("a document of another tenant is not found", func(t *testing.T) {
 		other := f.tenant(t, "aimpact2")
 		root := doc(t, "", DocumentKindFolder, "Của A", nil)
