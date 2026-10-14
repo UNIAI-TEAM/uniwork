@@ -19,6 +19,7 @@ import {
   validateDevCase,
 } from './devset.mjs';
 import { summarizeRunResults } from './devset-run.mjs';
+import { RUNS_DIR, checkReport, loadRun, runFiles, validateRunJson } from './devset-report.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const HOLDOUT_CASES_DIR = path.join(repoRoot, 'docs/office/g5g6g7/holdout/cases');
@@ -363,6 +364,46 @@ describe('G6-08 synthetic dev set & guard', () => {
         writes: 0,
       }).passed,
       false,
+    );
+  });
+});
+
+describe('G6-08 committed dev-set runs & report tables (BE68-5)', () => {
+  it('commits one valid, secret-free run JSON per pack version and keeps the report tables computed from them', () => {
+    const found = runFiles(repoRoot);
+    assert.ok(
+      found.v1 && found.v2,
+      `${RUNS_DIR} must hold run-v1-<sha>.json and run-v2-<sha>.json (found: ${
+        Object.keys(found).join(', ') || 'none'
+      })`,
+    );
+    const v1 = loadRun(repoRoot, found.v1.file);
+    const v2 = loadRun(repoRoot, found.v2.file);
+
+    assert.equal(v1.promptId, 'office_uniwork_ai@1', 'run-v1 is the @1 baseline');
+    assert.equal(v2.promptId, 'office_uniwork_ai@2', 'run-v2 is the @2 pack');
+    assert.equal(v1.serverSha, found.v1.sha, 'the run-v1 file name must name the server commit it ran against');
+    assert.equal(v2.serverSha, found.v2.sha, 'the run-v2 file name must name the server commit it ran against');
+
+    for (const [file, run] of [
+      [found.v1.file, v1],
+      [found.v2.file, v2],
+    ]) {
+      assert.deepEqual(validateRunJson(run, file), [], `${file} does not match the run schema`);
+      assert.deepEqual(scanForSecrets(JSON.stringify(run), file), [], `${file} carries a secret-looking value`);
+      assert.equal(run.cases.length, 20, `${file} must hold all 20 dev-set cases`);
+      assert.equal(run.outsideAllowlistTotal, 0, `${file} ran a tool outside the module allowlist`);
+      assert.equal(run.panelProofs?.length, 4, `${file} must hold the four panel combinations`);
+      for (const p of run.panelProofs ?? []) {
+        assert.equal(p.facadeRouteCalled, true, `${file}: panel run ${p.caseId} never reached the façade`);
+        assert.equal(p.allAuthBearer, true, `${file}: panel run ${p.caseId} called without a bearer frame token`);
+      }
+    }
+
+    assert.deepEqual(
+      checkReport(repoRoot),
+      [],
+      'docs/office/g5g6g7/g6-08-devset-report.md tables must be computed from the run JSONs (node scripts/office/devset-report.mjs --write)',
     );
   });
 });
