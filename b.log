@@ -1,0 +1,504 @@
+$ git checkout 4bf6290e -- apps/sheets/src apps/sheets/tsconfig.json web/modules/sheets web/modules/shared/discussion web/docs/bridge/module-bridge.ts; rm -rf apps/sheets/src/renderer/server-comments apps/sheets/src/preload/worksheet-comments.ts apps/sheets/src/types/ui-collab.d.ts; git checkout HEAD -- web/modules/sheets/frame-comments.test.ts web/modules/shared/discussion/discussion.test.ts; (cd apps/sheets && npx vitest run tests/server-comments-panel.test.ts tests/server-comments-anchors.test.ts tests/reopen-threaded-comments.test.ts); A=$?; (npx vitest run --root web/modules sheets/frame-comments.test.ts shared/discussion/discussion.test.ts); B=$?; git checkout HEAD -- apps/sheets web; git status --short; echo "RED_EXIT sheets=$A web=$B"; test $A -ne 0 && test $B -ne 0 && echo RED_AS_EXPECTED_G813
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+ ❯ tests/reopen-threaded-comments.test.ts (0 test)
+ ❯ tests/server-comments-anchors.test.ts (0 test)
+ ❯ tests/server-comments-panel.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/reopen-threaded-comments.test.ts [ tests/reopen-threaded-comments.test.ts ]
+Error: Cannot find module '../src/preload/worksheet-comments' imported from /home/ubuntu/work/uniwork-office/apps/sheets/tests/reopen-threaded-comments.test.ts
+ ❯ tests/reopen-threaded-comments.test.ts:11:1
+      9| import { describe, expect, it } from 'vitest'
+     10|
+     11| import { parseWorksheetComment } from '../src/preload/worksheet-commen…
+       | ^
+     12| import { ThreadStore } from '../src/renderer/threaded-comments'
+     13|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/server-comments-anchors.test.ts [ tests/server-comments-anchors.test.ts ]
+Error: Cannot find module '../src/renderer/server-comments/adapter' imported from /home/ubuntu/work/uniwork-office/apps/sheets/tests/server-comments-anchors.test.ts
+ ❯ tests/server-comments-anchors.test.ts:9:1
+      7| import { describe, expect, it } from 'vitest'
+      8|
+      9| import {
+       | ^
+     10|   createSheetsAnchorAdapter,
+     11|   type SheetsEditorView,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/server-comments-panel.test.ts [ tests/server-comments-panel.test.ts ]
+Error: Failed to resolve import "../src/renderer/server-comments/anchor-store" from "tests/server-comments-panel.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/apps/sheets/tests/server-comments-panel.test.ts:20:34
+  6  |  import { COLLAB_LIVE_REGION_ID, COMMENTS_REVEAL_WAIT_MS, collabStrings } from "@genoffice/ui/collab";
+  7  |  import { LocaleProvider } from "../src/renderer/i18n/locale";
+  8  |  import { serverAnchorStore } from "../src/renderer/server-comments/anchor-store";
+     |                                     ^
+  9  |  import { SheetsCommentsSurface } from "../src/renderer/server-comments/CommentsSurface";
+  10 |  import { serverComments } from "../src/renderer/server-comments/SheetsServerComments";
+ ❯ TransformPluginContext._formatLog ../../node_modules/vite/dist/node/chunks/config.js:29079:43
+ ❯ TransformPluginContext.error ../../node_modules/vite/dist/node/chunks/config.js:29076:14
+ ❯ normalizeUrl ../../node_modules/vite/dist/node/chunks/config.js:27199:18
+ ❯ ../../node_modules/vite/dist/node/chunks/config.js:27257:32
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/config.js:27225:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/config.js:28877:14
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/config.js:22746:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  no tests
+   Start at  09:54:37
+   Duration  516ms (transform 111ms, setup 0ms, import 0ms, tests 0ms, environment 352ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+ ❯ sheets/frame-comments.test.ts (4 tests | 4 failed) 20ms
+     × the switch is on for sheets and the ready capabilities carry `comments` 7ms
+     × install.ts claims comments, installs the frame comments API and keeps Discussion silent 1ms
+     × the module bridge mounts the Discussion panel with the module’s reveal-miss rule 8ms
+     × other modules keep the default (notice) rule 1ms
+ ❯ shared/discussion/discussion.test.ts (28 tests | 3 failed) 211ms
+     × markdown + html + docs (G8-12) claim comments; sheets, slides, pdf do not (until G8-13..15) 10ms
+     × every frame entry sets its switch explicitly (docs included) 1ms
+     × Discussion open: editor open:true closes it and does not take the focus 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  sheets/frame-comments.test.ts > Sheets frame comments claim (D6) > the switch is on for sheets and the ready capabilities carry `comments`
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ sheets/frame-comments.test.ts:31:35
+     29| describe('Sheets frame comments claim (D6)', () => {
+     30|   it('the switch is on for sheets and the ready capabilities carry `co…
+     31|     expect(FRAME_COMMENTS.sheets).toBe(true)
+       |                                   ^
+     32|     expect(moduleFrameCapabilities({ module: 'sheets', frameCapabiliti…
+     33|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  sheets/frame-comments.test.ts > Sheets frame comments claim (D6) > install.ts claims comments, installs the frame comments API and keeps Discussion silent
+AssertionError: expected '/**\n * Web bridge entry for the Shee…' to match /frameComments: true\b/
+
+- Expected:
+/frameComments: true\b/
+
++ Received:
+"/**
+ * Web bridge entry for the Sheets frame (UNI-1016).
+ *
+ * Loaded by ./index.html BEFORE the renderer entry (apps/sheets/src/renderer/main.tsx) so the
+ * renderer finds window.desktopApi / window.projectApi. Generic pieces (protocol client with
+ * `module: 'sheets'`, host theme/locale, window.open guard, capability object, safe no-op Proxy,
+ * in-memory projectApi) come from web/docs/bridge/module-bridge.ts; the Sheets file and session
+ * API is ./bridge.ts over the engine seam ./engine/transport.ts.
+ *
+ * Engine: GO-D3 = C (CONTRACT C11): the xlsx-sidecar compiled to a wasm32-wasip1 reactor,
+ * running in a module Worker of this frame (./engine/engine.worker.ts, emitted by the build as its
+ * own same-origin file: worker-src 'self', no blob: worker). The Worker starts on the first
+ * workbook operation.
+ */
+// must stay the first import: switches zod to jitless before any schema is constructed
+import './zod-jitless'
+import { installModuleBridge } from '../../docs/bridge/module-bridge'
+import { createSheetsWebApi } from './bridge'
+import { sheetsHostGrants, sheetsWebCapabilities } from './capabilities'
+import { createWorkerChannel } from './engine/channel'
+import { createWasmTransport } from './engine/wasm-transport'
+import { notifyEngineRecovered } from './notice'
+
+const transport = createWasmTransport({
+  // a panic aborts the engine; the transport reopens the workbook from its last saved bytes
+  onRecovered: notifyEngineRecovered,
+  connect: () =>
+    createWorkerChannel(
+      new Worker(new URL('./engine/engine.worker.ts', import.meta.url), {
+        type: 'module',
+        name: 'sheets-engine',
+      }),
+    ),
+})
+
+let sheetsApi: ReturnType<typeof createSheetsWebApi> | null = null
+
+export const bridge = installModuleBridge({
+  module: 'sheets',
+  // no frame comments yet: the page panel serves Comments + Discussion until the in-frame comments land
+  frameComments: false,
+  // what this frame build supports (effective = frame ∩ host grant)
+  frameCapabilities: { save: true, saveAs: true, filePick: true, print: true, exportPdf: true },
+  capabilities: { defaults: sheetsWebCapabilities(transport), grants: sheetsHostGrants },
+  globals: {
+    desktopApi: (ctx) => {
+      sheetsApi = createSheetsWebApi(ctx.client, { transport, capabilities: ctx.capabilities })
+      return sheetsApi.desktopApi
+    },
+  },
+})
+
+// read-only inspection for e2e and support: which session the frame shows (no cell data)
+;(window as unknown as { __sheetsWebState: unknown }).__sheetsWebState = {
+  workbook: () => sheetsApi?.state.workbook() ?? null,
+}
+"
+
+ ❯ sheets/frame-comments.test.ts:37:17
+     35|   it('install.ts claims comments, installs the frame comments API and …
+     36|     const src = readFileSync(join(__dirname, 'install.ts'), 'utf8')
+     37|     expect(src).toMatch(/frameComments: true\b/)
+       |                 ^
+     38|     expect(src).toMatch(/discussionRevealMissing: 'silent'/)
+     39|     expect(src).toMatch(/uniworkCommentsReady =\s*installFrameComments…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  sheets/frame-comments.test.ts > Sheets frame comments claim (D6) > the module bridge mounts the Discussion panel with the module’s reveal-miss rule
+AssertionError: expected undefined to deeply equal { revealMissing: 'silent' }
+
+- Expected:
+{
+  "revealMissing": "silent",
+}
+
++ Received:
+undefined
+
+ ❯ sheets/frame-comments.test.ts:54:28
+     52|     })
+     53|     expect(mounted).toHaveLength(1)
+     54|     expect(mounted[0]![1]).toEqual({ revealMissing: 'silent' })
+       |                            ^
+     55|   })
+     56|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  sheets/frame-comments.test.ts > Sheets frame comments claim (D6) > other modules keep the default (notice) rule
+AssertionError: expected undefined to deeply equal {}
+
+- Expected:
+{}
+
++ Received:
+undefined
+
+ ❯ sheets/frame-comments.test.ts:67:28
+     65|     })
+     66|     expect(mounted).toHaveLength(1)
+     67|     expect(mounted[0]![1]).toEqual({})
+       |                            ^
+     68|   })
+     69| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  shared/discussion/discussion.test.ts > frame claim per module (D4) > markdown + html + docs (G8-12) claim comments; sheets, slides, pdf do not (until G8-13..15)
+AssertionError: expected { markdown: true, html: true, …(4) } to deeply equal { markdown: true, html: true, …(4) }
+
+- Expected
++ Received
+
+  {
+-   "docs": true,
++   "docs": false,
+    "html": true,
+    "markdown": true,
+    "pdf": false,
+-   "sheets": true,
++   "sheets": false,
+    "slides": false,
+  }
+
+ ❯ shared/discussion/discussion.test.ts:121:28
+    119| describe('frame claim per module (D4)', () => {
+    120|   it('markdown + html + docs (G8-12) claim comments; sheets, slides, p…
+    121|     expect(FRAME_COMMENTS).toEqual({
+       |                            ^
+    122|       markdown: true,
+    123|       html: true,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  shared/discussion/discussion.test.ts > frame claim per module (D4) > every frame entry sets its switch explicitly (docs included)
+AssertionError: modules/sheets/install.ts: expected '/**\n * Web bridge entry for the Shee…' to match /frameComments(: |\s*=\s*)true\b/
+
+- Expected:
+/frameComments(: |\s*=\s*)true\b/
+
++ Received:
+"/**
+ * Web bridge entry for the Sheets frame (UNI-1016).
+ *
+ * Loaded by ./index.html BEFORE the renderer entry (apps/sheets/src/renderer/main.tsx) so the
+ * renderer finds window.desktopApi / window.projectApi. Generic pieces (protocol client with
+ * `module: 'sheets'`, host theme/locale, window.open guard, capability object, safe no-op Proxy,
+ * in-memory projectApi) come from web/docs/bridge/module-bridge.ts; the Sheets file and session
+ * API is ./bridge.ts over the engine seam ./engine/transport.ts.
+ *
+ * Engine: GO-D3 = C (CONTRACT C11): the xlsx-sidecar compiled to a wasm32-wasip1 reactor,
+ * running in a module Worker of this frame (./engine/engine.worker.ts, emitted by the build as its
+ * own same-origin file: worker-src 'self', no blob: worker). The Worker starts on the first
+ * workbook operation.
+ */
+// must stay the first import: switches zod to jitless before any schema is constructed
+import './zod-jitless'
+import { installModuleBridge } from '../../docs/bridge/module-bridge'
+import { createSheetsWebApi } from './bridge'
+import { sheetsHostGrants, sheetsWebCapabilities } from './capabilities'
+import { createWorkerChannel } from './engine/channel'
+import { createWasmTransport } from './engine/wasm-transport'
+import { notifyEngineRecovered } from './notice'
+
+const transport = createWasmTransport({
+  // a panic aborts the engine; the transport reopens the workbook from its last saved bytes
+  onRecovered: notifyEngineRecovered,
+  connect: () =>
+    createWorkerChannel(
+      new Worker(new URL('./engine/engine.worker.ts', import.meta.url), {
+        type: 'module',
+        name: 'sheets-engine',
+      }),
+    ),
+})
+
+let sheetsApi: ReturnType<typeof createSheetsWebApi> | null = null
+
+export const bridge = installModuleBridge({
+  module: 'sheets',
+  // no frame comments yet: the page panel serves Comments + Discussion until the in-frame comments land
+  frameComments: false,
+  // what this frame build supports (effective = frame ∩ host grant)
+  frameCapabilities: { save: true, saveAs: true, filePick: true, print: true, exportPdf: true },
+  capabilities: { defaults: sheetsWebCapabilities(transport), grants: sheetsHostGrants },
+  globals: {
+    desktopApi: (ctx) => {
+      sheetsApi = createSheetsWebApi(ctx.client, { transport, capabilities: ctx.capabilities })
+      return sheetsApi.desktopApi
+    },
+  },
+})
+
+// read-only inspection for e2e and support: which session the frame shows (no cell data)
+;(window as unknown as { __sheetsWebState: unknown }).__sheetsWebState = {
+  workbook: () => sheetsApi?.state.workbook() ?? null,
+}
+"
+
+ ❯ shared/discussion/discussion.test.ts:162:25
+    160|     for (const [file, on] of Object.entries(expected)) {
+    161|       const src = readFileSync(join(root, file), 'utf8')
+    162|       expect(src, file).toMatch(new RegExp(`frameComments(: |\\s*=\\s*…
+       |                         ^
+    163|     }
+    164|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  shared/discussion/discussion.test.ts > the editor's panel opening closes Discussion without moving focus > Discussion open: editor open:true closes it and does not take the focus
+AssertionError: expected <aside class="collab-panel" …(2)>…(3)</aside> to be null
+
+- Expected:
+null
+
++ Received:
+<aside
+  aria-labelledby="_r_1j_t"
+  class="collab-panel"
+  lang="en"
+>
+  <div
+    class="collab-ph"
+  >
+    <h2
+      class="collab-title"
+      id="_r_1j_t"
+      tabindex="-1"
+    >
+      Discussion
+    </h2>
+    <button
+      aria-label="Close Discussion"
+      class="collab-ico collab-close"
+      type="button"
+    >
+      <svg
+        aria-hidden="true"
+        height="14"
+        viewBox="0 0 14 14"
+        width="14"
+      >
+        <path
+          d="M3 3l8 8M11 3l-8 8"
+          stroke="currentColor"
+          stroke-width="1.6"
+        />
+      </svg>
+    </button>
+  </div>
+  <div
+    class="collab-scroll"
+  >
+    <ul
+      class="collab-list"
+      role="list"
+    >
+      <li
+        aria-labelledby="_r_1k_a-p1"
+        class="collab-thread"
+        data-thread-id="p1"
+        role="listitem"
+      >
+        <div
+          class="collab-cm"
+          data-comment-id="p1"
+        >
+          <h3
+            class="collab-cmh collab-th"
+            data-thread-heading=""
+            id="_r_1k_h"
+            tabindex="-1"
+          >
+            <span
+              aria-hidden="true"
+              class="collab-av"
+            >
+              A
+            </span>
+            <span
+              class="collab-au"
+              id="_r_1k_a-p1"
+            >
+              An
+            </span>
+            <span
+              class="collab-dt"
+            >
+              Oct 13, 9:00 AM
+            </span>
+          </h3>
+          <div
+            class="collab-bd"
+          >
+            <div
+              class="collab-body"
+              dir="auto"
+            >
+              <p
+                class="collab-body-p"
+              >
+                body p1
+              </p>
+            </div>
+          </div>
+          <div
+            class="collab-acts"
+          >
+            <button
+              class="collab-link"
+              type="button"
+            >
+              Reply
+            </button>
+            <span
+              class="collab-menu-wrap"
+            >
+              <button
+                aria-expanded="false"
+                aria-haspopup="menu"
+                aria-label="More actions"
+                class="collab-ico"
+                type="button"
+              >
+                <svg … />
+              </button>
+            </span>
+            <button
+              class="collab-link collab-resolve"
+              data-resolve-for="p1"
+              type="button"
+            >
+              Resolve
+            </button>
+          </div>
+        </div>
+      </li>
+    </ul>
+  </div>
+  <div
+    class="collab-comp-root"
+  >
+    <div
+      class="collab-composer"
+    >
+      <div
+        class="collab-composer-field"
+      >
+        <div
+          aria-hidden="true"
+          class="collab-composer-mirror"
+        >
+          
+
+        </div>
+        <textarea
+          aria-describedby="_r_1m_-hint"
+          aria-label="Write in the discussion…"
+          class="collab-composer-input"
+          placeholder="Write in the discussion…"
+          rows="2"
+        />
+      </div>
+      <div
+        class="collab-composer-actions"
+      >
+        <span
+          class="collab-composer-hint"
+          id="_r_1m_-hint"
+        >
+          Ctrl+Enter to send
+        </span>
+        <button
+          aria-disabled="true"
+          class="collab-composer-btn collab-composer-send"
+          type="button"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  </div>
+</aside>
+
+ ❯ shared/discussion/discussion.test.ts:644:21
+    642|     await act(async () => announceFrameSidePanel('editor', true))
+    643|     await flush()
+    644|     expect(panel()).toBeNull()
+       |                     ^
+    645|     expect(toggle()!.getAttribute('aria-expanded')).toBe('false')
+    646|     expect(document.activeElement).toBe(field)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  7 failed | 25 passed (32)
+   Start at  09:54:38
+   Duration  1.59s (transform 1.25s, setup 0ms, import 1.61s, tests 232ms, environment 666ms)
+
+RED_EXIT sheets=1 web=1
+RED_AS_EXPECTED_G813

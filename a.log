@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD; git log --oneline -6
+957a534b5b2431e9133e5e2361a7eedbfacb911c
+957a534b Merge commit '34fe1b27' into accept-0814
+4656eff0 Merge commit '6ffb54a0' into accept-0814
+34fe1b27 merge: G8-12 034cacbd into G8-13
+0f3f42bc Merge pull request #4 from UNIAI-TEAM/feat/settings-redesign
+72c0debc merge: fork main 05fd2096 (PR #3 desktop autoupdate + G6-05 UniWork adapter) into G8-13
+034cacbd merge: fork main 05fd2096 (PR #3 desktop autoupdate + G6-05 UniWork adapter) into G8-12
