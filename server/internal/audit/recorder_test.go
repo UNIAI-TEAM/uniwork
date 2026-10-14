@@ -338,3 +338,37 @@ func TestRecordManyWritesTheViaOfTheRequest(t *testing.T) {
 		t.Fatalf("rows with via = %d (want 2), with kept = %d (want 1)", withVia, kept)
 	}
 }
+
+// Two live writers keep a plain string under metadata.via ("join" on chat
+// room joins, "reset_token" on password reset). Inside an MCP request the
+// request's via wins; outside one the entry's own value is untouched.
+func TestRecordViaOfTheRequestReplacesAnEntrysOwnViaKey(t *testing.T) {
+	pool := testutil.DB(t)
+	ctx := context.Background()
+	q := db.New(pool)
+	own := func() Entry {
+		e := entry()
+		e.Metadata = map[string]any{"via": "join"}
+		return e
+	}
+	e := own()
+	e.ResourceID = "t-mcp"
+	if err := NewRecorder().Record(WithVia(ctx, Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"}), q, e); err != nil {
+		t.Fatal(err)
+	}
+	e = own()
+	e.ResourceID = "t-plain"
+	if err := NewRecorder().Record(ctx, q, e); err != nil {
+		t.Fatal(err)
+	}
+	var mcpKind, plain string
+	if err := pool.QueryRow(ctx, `SELECT metadata::jsonb->'via'->>'kind' FROM audit_events WHERE resource_id = 't-mcp'`).Scan(&mcpKind); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT metadata::jsonb->>'via' FROM audit_events WHERE resource_id = 't-plain'`).Scan(&plain); err != nil {
+		t.Fatal(err)
+	}
+	if mcpKind != "mcp" || plain != "join" {
+		t.Fatalf("under WithVia via.kind = %q (want mcp), without it via = %q (want join)", mcpKind, plain)
+	}
+}

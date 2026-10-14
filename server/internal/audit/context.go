@@ -53,7 +53,12 @@ func WithVia(ctx context.Context, v Via) context.Context {
 }
 
 // withVia copies m and adds the channel; the caller's map is never mutated,
-// since callers reuse it.
+// since callers reuse it. The request's via replaces a "via" key the entry
+// already holds: two writers use that key as a plain string today (chat
+// "join", password reset "reset_token"), and neither is reachable from /mcp
+// (chat is outside every MCP tool; password reset is not a tool), so the two
+// never meet. TestRecordViaOfTheRequestReplacesAnEntrysOwnViaKey pins the
+// precedence.
 func withVia(m map[string]any, v *Via) map[string]any {
 	if v == nil {
 		return m

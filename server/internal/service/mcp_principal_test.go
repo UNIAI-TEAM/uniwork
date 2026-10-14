@@ -207,7 +207,49 @@ func TestAuthenticateReportsWriteAccess(t *testing.T) {
 	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, false); err != nil {
 		t.Fatal(err)
 	}
-	if p, _ = w.svc.Authenticate(w.ctx, pair.AccessToken); p.CanWrite() || p.WriteOpen {
-		t.Fatalf("write switch off, principal = %+v", p)
+	p, err = w.svc.Authenticate(w.ctx, pair.AccessToken)
+	if err != nil {
+		t.Fatalf("Authenticate after the write switch went off: %v", err)
+	}
+	if p.CanWrite() || p.WriteOpen || p.Scope != "read write" || p.ClientName != "Test Client" {
+		t.Fatalf("write switch off, principal = %+v, want the grant intact and WriteOpen false", p)
+	}
+}
+
+// A grant that holds only read cannot write even when both switches are on:
+// the scope is the third condition of CanWrite.
+func TestAuthenticateReadOnlyGrantCannotWrite(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	_, pair := w.issue(t)
+	p, err := w.svc.Authenticate(w.ctx, pair.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.WriteOpen || p.Scope != "read" || p.CanWrite() {
+		t.Fatalf("principal = %+v, want write open, scope read, CanWrite false", p)
+	}
+}
+
+// CanWrite needs both switches and a grant that holds write.
+func TestMcpPrincipalCanWriteTruthTable(t *testing.T) {
+	cases := []struct {
+		open  bool
+		scope string
+		want  bool
+	}{
+		{true, "read write", true},
+		{true, "read", false},
+		{false, "read write", false},
+		{false, "read", false},
+		{true, "", false},
+	}
+	for _, c := range cases {
+		if got := (McpPrincipal{WriteOpen: c.open, Scope: c.scope}).CanWrite(); got != c.want {
+			t.Errorf("WriteOpen=%v Scope=%q: CanWrite = %v, want %v", c.open, c.scope, got, c.want)
+		}
 	}
 }
