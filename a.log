@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+5905ef0493ed75c50f6efeb3bb8ca6bddace7f4e
+48363fe21b1b85467f467297c9a3663b700787bf
+5905ef049 chore: merge the G5-G7 root (48363fe21) into FD-02
+6f903e6d4 fix(documents): list folder_name_taken in the client error-class mirror
+931c5d6cb fix(documents): keep the "(n)" auto-rename inside the title cap
+a3a356046 fix(documents): apply the folder-name key collation inside lower()
+48363fe21 test(office): re-bless the G7-06 goldens at frame pin 0.1.0-05fd209
+dab971c72 chore(office): re-pin the six office frames to web-0.1.0-05fd209
