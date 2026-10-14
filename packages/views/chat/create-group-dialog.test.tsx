@@ -113,7 +113,7 @@ describe("CreateGroupDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Binh" }));
 
     const startButton = screen.getByRole("button", { name: "Tạo nhóm chat" });
-    expect(startButton).not.toBeDisabled();
+    expect(startButton).not.toHaveAttribute("aria-disabled");
     fireEvent.click(startButton);
 
     expect(onCreate).toHaveBeenCalledWith(

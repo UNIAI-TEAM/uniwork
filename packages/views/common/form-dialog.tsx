@@ -33,6 +33,9 @@ import { cn } from "@uniwork/ui/lib/utils";
 
 const WIDTH = { md: "sm:max-w-md", lg: "sm:max-w-lg" } as const;
 
+/** The scrim of a dialog that must own the screen (dialog.tsx, overlayClassName). */
+const HEAVY_SCRIM = "bg-black/45";
+
 export function FormDialogContent({
   size = "md",
   className,
@@ -40,6 +43,7 @@ export function FormDialogContent({
   initialFocus,
   finalFocus,
   showCloseButton = true,
+  destructive = false,
 }: {
   size?: keyof typeof WIDTH;
   className?: string;
@@ -50,6 +54,12 @@ export function FormDialogContent({
   finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
   /** False while an action that must not be abandoned is in flight. */
   showCloseButton?: boolean;
+  /**
+   * The dialog asks for an irreversible step (close an organization, delete a
+   * space): the page behind dims harder, so the question is the only thing in
+   * view, instead of the light scrim of a form the user can glance past.
+   */
+  destructive?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -64,6 +74,7 @@ export function FormDialogContent({
       finalFocus={finalFocus}
       showCloseButton={showCloseButton}
       closeLabel={t("common.close")}
+      overlayClassName={destructive ? HEAVY_SCRIM : undefined}
     >
       {children}
     </DialogContent>
@@ -85,9 +96,14 @@ export function FormDialogBody({ className, children }: { className?: string; ch
 
 /**
  * Cancel, then the primary action. While the action runs its label becomes
- * the "…ing" form and both buttons hold still, so a second click cannot
- * send twice. Without a submitLabel the footer is Cancel alone: a step whose
- * choices act on their own (pick a method, sign in in a popup).
+ * the "…ing" form, a spinner shows, and both buttons hold still, so a second
+ * click cannot send twice. Without a submitLabel the footer is Cancel alone: a
+ * step whose choices act on their own (pick a method, sign in in a popup).
+ *
+ * "Hold still" is `aria-disabled`, never `disabled`: a disabled button leaves
+ * the tab order, so the focus on the button just pressed falls to <body> and a
+ * keyboard user cannot reach a not-ready submit to hear why. The Button
+ * primitive blocks the press (and the form submission) itself.
  */
 export function FormDialogFooter({
   onCancel,
@@ -101,6 +117,7 @@ export function FormDialogFooter({
   form,
   destructive = false,
   leading,
+  reasonId,
 }: {
   onCancel: () => void;
   cancelLabel?: string;
@@ -115,12 +132,19 @@ export function FormDialogFooter({
   destructive?: boolean;
   /** Left-aligned content (a hint about why the action is not ready yet, a Back button); below sm it stacks under Cancel. */
   leading?: ReactNode;
+  /**
+   * Id of the element (usually inside `leading`) that says why the submit is
+   * not ready. While `submitDisabled` holds, the submit is described by it, so
+   * a screen reader hears the reason on the button that cannot be pressed.
+   */
+  reasonId?: string;
 }) {
   const { t } = useTranslation();
+  const inert = submitDisabled || submitting;
   return (
     <DialogFooter className="items-center px-5 py-3">
       {leading ? <div className="min-w-0 text-caption text-muted-foreground sm:mr-auto">{leading}</div> : null}
-      <Button type="button" variant="outline" disabled={submitting} onClick={onCancel}>
+      <Button type="button" variant="outline" aria-disabled={submitting || undefined} onClick={onCancel}>
         {cancelLabel ?? t("common.cancel")}
       </Button>
       {submitLabel ? (
@@ -128,10 +152,13 @@ export function FormDialogFooter({
           type={submitType}
           form={form}
           variant={destructive ? "destructive" : "default"}
-          disabled={submitDisabled || submitting}
+          aria-disabled={inert || undefined}
           aria-busy={submitting || undefined}
+          aria-describedby={submitDisabled && reasonId ? reasonId : undefined}
           onClick={onSubmit}
         >
+          {/* Decorative: aria-busy carries the state for assistive tech. */}
+          {submitting ? <Spinner data-icon="inline-start" /> : null}
           {submitting && submittingLabel ? submittingLabel : submitLabel}
         </Button>
       ) : null}
@@ -179,10 +206,12 @@ export function ConfirmDialog({
           {description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>{cancelLabel ?? t("common.cancel")}</AlertDialogCancel>
+          {/* aria-disabled, not disabled: both stay in the tab order while the
+              action runs (see FormDialogFooter); Button blocks the press. */}
+          <AlertDialogCancel aria-disabled={pending || undefined}>{cancelLabel ?? t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
-            disabled={pending}
+            aria-disabled={pending || undefined}
             aria-busy={pending || undefined}
             onClick={onConfirm}
           >
