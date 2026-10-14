@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -154,7 +154,11 @@ export function FolderNameDialog({
           queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) }),
         ).get(folderId)?.revision;
         const revision =
-          (await loadMoveRevision(queryClient, wsId, folderId).catch(() => null)) ?? cached ?? "1";
+          (await loadMoveRevision(queryClient, wsId, folderId).catch(() => null)) ?? cached;
+        if (!revision) {
+          setFieldError(t("documents.home.folders.rename_failed"));
+          return;
+        }
         const updated = await updateFolder.mutateAsync({
           patch: { revision, title: trimmed },
         });
@@ -170,6 +174,10 @@ export function FolderNameDialog({
     }
   };
 
+  const baseId = useId();
+  const inputId = `${baseId}-folder-name-input`;
+  const errorId = `${baseId}-folder-name-error`;
+
   return (
     <Dialog open={open} onOpenChange={(next) => (isPending ? undefined : onOpenChange(next))}>
       <DialogContent className="sm:max-w-md" showCloseButton={!isPending} closeLabel={t("common.close")}>
@@ -178,25 +186,25 @@ export function FolderNameDialog({
         </DialogHeader>
         <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="folder-name-input">{t("documents.home.folders.rename_label")}</Label>
+            <Label htmlFor={inputId}>{t("documents.home.folders.rename_label")}</Label>
             <Input
-              id="folder-name-input"
+              id={inputId}
               value={draft}
               placeholder={t("documents.home.folders.name_placeholder")}
               aria-invalid={displayError ? true : undefined}
-              aria-describedby={displayError ? "folder-name-error" : undefined}
+              aria-describedby={displayError ? errorId : undefined}
               onChange={(event) => {
                 setDraft(event.target.value);
                 if (fieldError) setFieldError(null);
               }}
             />
             {displayError ? (
-              <p id="folder-name-error" role="alert" className="text-caption text-destructive">
+              <p id={errorId} role="alert" className="text-caption text-destructive">
                 {displayError}
               </p>
             ) : null}
           </div>
-          <DialogFooter className="px-0 pb-0">
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
