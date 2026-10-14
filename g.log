@@ -1,0 +1,166 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18380 FRONTEND_ORIGIN=http://localhost:13300 API_PUBLIC_URL=http://localhost:18380 PREVIEW_ORIGIN=http://localhost:13301 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18380 NEXT_PUBLIC_WS_URL=ws://localhost:18380 NEXT_PUBLIC_APP_URL=http://localhost:13300 E2E_BASE_URL=http://localhost:13300 E2E_API_URL=http://localhost:18380; pnpm --filter @uniwork/e2e test --reporter=line --retries=0 files-avatar.spec.ts:106 landing-distill.spec.ts:7 landing-motion.spec.ts:170 landing-playback.spec.ts:116 landing-realism.spec.ts:10 landing-trust.spec.ts:16 onboarding-smoke.spec.ts:9 smoke.spec.ts:9 2>&1 | grep -vE "^s*$" | head -600; rc=${PIPESTATUS[0]}; echo "E2E_EXIT=$rc"; exit $rc
+> @uniwork/e2e@0.0.0 test /workspace/e2e
+> playwright test --reporter=line --retries=0 files-avatar.spec.ts:106 landing-distill.spec.ts:7 landing-motion.spec.ts:170 landing-playback.spec.ts:116 landing-realism.spec.ts:10 landing-trust.spec.ts:16 onboarding-smoke.spec.ts:9 smoke.spec.ts:9
+Running 17 tests using 1 worker
+(node:55549) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:55549) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[1/17] files-avatar.spec.ts:106:1 › thay avatar lần hai, hiện ở tổ chức thứ hai
+  1) files-avatar.spec.ts:106:1 › thay avatar lần hai, hiện ở tổ chức thứ hai ──────────────────────
+    Error: Timeout 20000ms exceeded while waiting on the predicate
+      153 |   await expect
+      154 |     .poll(async () => objectPath(await sidebarAvatar(page, w.email).getAttribute("src")), { timeout: 20_000 })
+    > 155 |     .toBe(objectPath(secondSrc));
+          |      ^
+      156 |   await expectDecoded(page, w.email);
+      157 |
+      158 |   // Someone in an unrelated organization who learns the file id cannot
+        at /workspace/e2e/files-avatar.spec.ts:155:6
+    Error Context: test-results/files-avatar-thay-avatar-lần-hai-hiện-ở-tổ-chức-thứ-hai/error-context.md
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/files-avatar-thay-avatar-lần-hai-hiện-ở-tổ-chức-thứ-hai/trace.zip
+    Usage:
+        pnpm exec playwright show-trace test-results/files-avatar-thay-avatar-lần-hai-hiện-ở-tổ-chức-thứ-hai/trace.zip
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+(node:55624) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:55624) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2/17] landing-distill.spec.ts:7:5 › compact landing keeps content and actions at 1280px: en
+[3/17] landing-distill.spec.ts:7:5 › compact landing keeps content and actions at 1280px: vi
+[4/17] landing-distill.spec.ts:7:5 › compact landing keeps content and actions at 390px: en
+  2) landing-distill.spec.ts:7:5 › compact landing keeps content and actions at 390px: en ──────────
+    Error: expect(locator).toBeVisible() failed
+    Locator: locator('#landing-title')
+    Expected: visible
+    Error: strict mode violation: locator('#landing-title') resolved to 2 elements:
+        1) <h1 id="landing-title">…</h1> aka getByRole('heading', { name: 'Every piece of work. One' })
+        2) <h1 id="landing-title">…</h1> aka getByText('Every piece of work.One').nth(1)
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('#landing-title')
+        - locator resolved to <h1 id="landing-title">…</h1>
+        - unexpected value "hidden"
+      10 |       await page.emulateMedia({ reducedMotion: "reduce", colorScheme: locale === "en" ? "dark" : "light" });
+      11 |       await page.goto("/");
+    > 12 |       await expect(page.locator('#landing-title')).toBeVisible();
+         |                                                    ^
+      13 |       await page.evaluate(() => document.fonts.ready);
+      14 |       const hero = page.locator('.landing-hero');
+      15 |       expect((await hero.boundingBox())!.height).toBeLessThan(width < 768 ? 800 : 850);
+        at /workspace/e2e/landing-distill.spec.ts:12:52
+    Error Context: test-results/landing-distill-compact-la-34235-ent-and-actions-at-390px-en/error-context.md
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-distill-compact-la-34235-ent-and-actions-at-390px-en/trace.zip
+    Usage:
+        pnpm exec playwright show-trace test-results/landing-distill-compact-la-34235-ent-and-actions-at-390px-en/trace.zip
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+(node:55726) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:55726) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[5/17] landing-distill.spec.ts:7:5 › compact landing keeps content and actions at 390px: vi
+[6/17] landing-motion.spec.ts:170:1 › GPU unavailable leaves the product showcase and demo intact
+[7/17] landing-playback.spec.ts:116:1 › original UNI wears the shared mark and retains its static fallback
+[8/17] landing-realism.spec.ts:10:3 › pending and source destination stay readable at 1440px
+[9/17] landing-realism.spec.ts:10:3 › pending and source destination stay readable at 820px
+[10/17] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light
+[11/17] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1280 vi dark
+[12/17] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 768 vi light
+  3) landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 768 vi light ─────────────
+    Error: expect(locator).toBeVisible() failed
+    Locator: locator('.landing-trust-story')
+    Expected: visible
+    Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+        1) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('div').filter({ hasText: 'Rõ quyền truy cập. Rõ từng' }).nth(1)
+        2) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('[id="S:0"] > .landing-site.be_vietnam_pro_28bf86fb-module__3Lls9a__variable.min-h-dvh > #landing-main > .landing-trust-story')
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('.landing-trust-story')
+        - locator resolved to <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div>
+        - unexpected value "hidden"
+      28 |     }
+      29 |     const chapter = page.locator(".landing-trust-story");
+    > 30 |     await expect(chapter).toBeVisible();
+         |                           ^
+      31 |     await page.evaluate(() => document.fonts.ready);
+      32 |     await chapter.scrollIntoViewIfNeeded();
+      33 |     const copy = chapter.locator(".security-copy");
+        at /workspace/e2e/landing-trust.spec.ts:30:27
+    Error Context: test-results/landing-trust-trust-chapte-82c18-act-and-usable-768-vi-light/error-context.md
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-trust-trust-chapte-82c18-act-and-usable-768-vi-light/trace.zip
+    Usage:
+        pnpm exec playwright show-trace test-results/landing-trust-trust-chapte-82c18-act-and-usable-768-vi-light/trace.zip
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+(node:55890) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:55890) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[13/17] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 en dark
+[14/17] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 vi light
+[15/17] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 320 vi dark
+[16/17] onboarding-smoke.spec.ts:9:1 › register → onboarding 4 bước → 🎉 → task hướng dẫn
+  4) onboarding-smoke.spec.ts:9:1 › register → onboarding 4 bước → 🎉 → task hướng dẫn ─────────────
+    Error: expect(locator).toBeVisible() failed
+    Locator: getByText('localhost:3000/to-chuc-1791965340084/', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByText('localhost:3000/to-chuc-1791965340084/', { exact: true })
+      36 |   await page.getByRole("heading", { name: "Đặt tên workspace." }).waitFor();
+      37 |   await page.getByLabel("Tên workspace").fill("Đội Alpha");
+    > 38 |   await expect(page.getByText(`localhost:3000/to-chuc-${stamp}/`, { exact: true })).toBeVisible();
+         |                                                                                     ^
+      39 |   await page.getByRole("button", { name: "Tạo Đội Alpha" }).click();
+      40 |
+      41 |   // Mời — bỏ qua
+        at /workspace/e2e/onboarding-smoke.spec.ts:38:85
+    Error Context: test-results/onboarding-smoke-register--13a22--bước-→-🎉-→-task-hướng-dẫn/error-context.md
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/onboarding-smoke-register--13a22--bước-→-🎉-→-task-hướng-dẫn/trace.zip
+    Usage:
+        pnpm exec playwright show-trace test-results/onboarding-smoke-register--13a22--bước-→-🎉-→-task-hướng-dẫn/trace.zip
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+(node:56006) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56006) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[17/17] smoke.spec.ts:9:1 › register → workspace → task → meeting
+  5) smoke.spec.ts:9:1 › register → workspace → task → meeting ─────────────────────────────────────
+    Error: expect(locator).toBeVisible() failed
+    Locator: getByText('Phòng họp video chưa được thiết lập. Hãy báo quản trị viên workspace.').or(getByRole('heading', { name: 'Cuộc họp chưa bắt đầu' })).or(locator('[data-lk-theme]'))
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Phòng họp video chưa được thiết lập. Hãy báo quản trị viên workspace.').or(getByRole('heading', { name: 'Cuộc họp chưa bắt đầu' })).or(locator('[data-lk-theme]'))
+      62 |       .or(page.getByRole("heading", { name: "Cuộc họp chưa bắt đầu" }))
+      63 |       .or(page.locator("[data-lk-theme]")),
+    > 64 |   ).toBeVisible({ timeout: 15_000 });
+         |     ^
+      65 | });
+      66 |
+      67 | test("đường dẫn không tồn tại hiện trang không tìm thấy, không phải màn hình trắng", async ({ page }) => {
+        at /workspace/e2e/smoke.spec.ts:64:5
+    Error Context: test-results/smoke-register-→-workspace-→-task-→-meeting/error-context.md
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/smoke-register-→-workspace-→-task-→-meeting/trace.zip
+    Usage:
+        pnpm exec playwright show-trace test-results/smoke-register-→-workspace-→-task-→-meeting/trace.zip
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+  5 failed
+    files-avatar.spec.ts:106:1 › thay avatar lần hai, hiện ở tổ chức thứ hai ───────────────────────
+    landing-distill.spec.ts:7:5 › compact landing keeps content and actions at 390px: en ───────────
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 768 vi light ──────────────
+    onboarding-smoke.spec.ts:9:1 › register → onboarding 4 bước → 🎉 → task hướng dẫn ──────────────
+    smoke.spec.ts:9:1 › register → workspace → task → meeting ──────────────────────────────────────
+  12 passed (2.2m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=line --retries=0 files-avatar.spec.ts:106 landing-distill.spec.ts:7 landing-motion.spec.ts:170 landing-playback.spec.ts:116 landing-realism.spec.ts:10 landing-trust.spec.ts:16 onboarding-smoke.spec.ts:9 smoke.spec.ts:9`
+Exit status 1
+E2E_EXIT=1
