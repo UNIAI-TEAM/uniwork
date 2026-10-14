@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+77bdc138ce329a425bd4de9870ac1feaabafef0e
+49b239b108f86cc7f81e29333f5662ba7aa7a9fe
+77bdc138c test(documents): pin the archive-impact counts, the snapshot and the row cap
+d270d2dec feat(documents): count an archive's impact for the delete dialog (FD-04)
+6affacf4b test(documents): pin the naming races and the content revision of a rename
+fa9a26d57 test(documents): cover the folder kind in the isolation matrix
+039246b78 feat(documents): compose and dedupe folder names before the unique index
+1299eb4db feat(documents): normalize titles, name folders by one duplicate key
