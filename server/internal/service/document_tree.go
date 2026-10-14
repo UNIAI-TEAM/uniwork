@@ -134,9 +134,11 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	}
 
 	// The subtree tells both checks what they need: the members for the
-	// cycle test and the height for the depth bound.
+	// cycle test and the height for the depth bound. max_level is the
+	// corrupted-chain guard, shared with every other subtree walk.
 	subtree, err := q.ListDocumentSubtree(ctx, db.ListDocumentSubtreeParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
+		MaxLevel: subtreeMaxLevel(),
 	})
 	if err != nil {
 		return DocumentView{}, err
@@ -304,8 +306,10 @@ type DocumentTreeNode struct {
 // DocumentTree returns the visible subtree under rootID ("" = the roots) as
 // a forest. Visible means at least view through the same rules the list
 // query applies; a root the caller cannot read is not found, its children
-// are not leaked through it.
-func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspaceID, rootID string) ([]DocumentTreeNode, error) {
+// are not leaked through it. foldersOnly cuts the forest to kind=folder: the
+// FOLDERS sidebar needs no pages or files, and a root that is not a folder is
+// not part of that forest (not found, like one the caller cannot read).
+func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspaceID, rootID string, foldersOnly bool) ([]DocumentTreeNode, error) {
 	scope, err := s.documentListScope(ctx, actor, workspaceID)
 	if err != nil {
 		return nil, err
@@ -322,9 +326,17 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	byID := make(map[string]db.Document, len(rows))
 	children := make(map[string][]db.Document, len(rows))
 	for _, d := range rows {
+		// The folder cut drops the row before any edge is built, so a page
+		// never drags its children into the folder forest.
+		if foldersOnly && d.Kind != DocumentKindFolder {
+			continue
+		}
 		byID[d.ID] = d
 	}
 	for _, d := range rows {
+		if _, ok := byID[d.ID]; !ok {
+			continue
+		}
 		// An invisible parent hides the whole edge: the node does not float
 		// to the root, it leaves the tree with its unreadable ancestor.
 		if d.ParentID.Valid {
@@ -336,6 +348,9 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	if rootID == "" {
 		var roots []db.Document
 		for _, d := range rows {
+			if _, ok := byID[d.ID]; !ok {
+				continue
+			}
 			if !d.ParentID.Valid {
 				roots = append(roots, d)
 			}
