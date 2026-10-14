@@ -11,6 +11,7 @@ package handler
 import (
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -342,6 +343,17 @@ func TestAICloudStatusCarriesTheUniworkModel(t *testing.T) {
 	t.Setenv("AI_MODEL_OFFICE_UNIWORK_AI", "dev-model")
 	if got := w.statusOf(t, w.member)["uniwork_model"]; got != "fake" {
 		t.Fatalf("override outside the allowlist: uniwork_model=%v, want the default fake", got)
+	}
+
+	// G05MBE-1: the status resolves the model once, so a typo in .env warns
+	// once per status call, not twice.
+	var logs strings.Builder
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	defer slog.SetDefault(prev)
+	w.statusOf(t, w.member)
+	if got := strings.Count(logs.String(), "outside allowlist"); got != 1 {
+		t.Fatalf("out-of-allowlist override warned %d times in one status call, want 1: %q", got, logs.String())
 	}
 
 	// A plan without office.ai_cloud never gets the model, whatever the flag
