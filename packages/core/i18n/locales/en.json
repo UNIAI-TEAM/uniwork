@@ -85,6 +85,47 @@
           "cbb792c946bfaa4df7d8d15502548baa760b1739e": "Two payments completing within the same second no longer share an invoice number, so the later payment is no longer left pending. The year in the invoice number follows Vietnam time.",
           "c75c5ddc68ad9e7a61ff80b2a4c0fb4518e068a25": "When two refund requests are sent at once for the same payment, only one is processed; the other reports a conflict instead of sending a second refund."
         }
+      },
+      "v1_3_0": {
+        "title": "One organization per account, invitations that carry workspaces, comments in Office documents and a batch of billing fixes",
+        "summary": "Each account belongs to one active organization; the invitation page previews the invitation and then moves you across in a single step, and an invitation can carry the workspaces you get access to. A sole owner can close an organization, and an account with no organization gets its own Get started page. Office documents in a workspace gained comments, @mentions and a sync bar, and chat files and voice messages open faster. The introduction and UniWork Office pages were rebuilt with a request-a-demo form. Alongside are fixes for refunds, plan quotas and member seats.",
+        "note": "The one-organization rule applies to new actions: accounts that already belong to several organizations are left as they are. Closing an organization requires you to be its owner and only active member and to retype the slug to confirm; a closed organization has no restore action yet. An owner who only signs in with Google (no password set) cannot transfer ownership yet. The workspaces attached to an invitation are picked by the organization's admins; someone granted none still joins the organization but sees no content until they are granted some. Comments and sync in Office documents need the organization to have the Office editors enabled; UniWork's AI inside Office and the offline library are still switched off. AI assistant connections remain a read-only pilot and must be enabled for the organization.",
+        "features": {
+          "c317521eedb704bb64491be34bc99bbeab0b53c3c": "Each account belongs to one active organization, and the server keeps the rule, so several tabs or parallel actions cannot slip past it. When you are invited to another organization, the invitation page previews it and then walks you through leaving your current one, transferring ownership and leaving, or closing it — all in a single step. If the invitation has expired or been revoked, you keep your current organization.",
+          "c42b1d55cbd34a928e5d29e5e316f0976f06d44b8": "An owner who is the only active member can close the organization from Settings › Organization after retyping its slug to confirm. The data is kept, pending invitations are revoked and the subscription is cancelled, so a sole owner is no longer stuck inside their own organization.",
+          "c342307d9f5222db6fe8c9269527923974cb0b379": "An account that belongs to no organization is sent to a Get started page to create one or open a pending invitation. In the invitation list and in the chat sidebar, each invitation now opens its own page instead of a join-everything button.",
+          "ca56ba0bc29ea8ee7ab217cc110efc7d8bd463207": "The introduction and UniWork Office pages on the website were rebuilt: tighter navigation, editor imagery that follows light and dark mode, a full-height preview and introduction content consolidated so it is easier to follow. A new Request a demo page sends the request straight to UniWork administrators to handle in the console, and the UniWork Office download section offers exactly the installers the deployment is configured with.",
+          "c850c91de8bfa831de1dc9a0848d4d6003131d161": "Office documents opened in a workspace now have comment threads, @mentions and a comment inbox with notifications, so feedback sits next to the content instead of somewhere else. A sync bar shows whether your save has reached the workspace or is still queued.",
+          "cd62eba07c6caf11db86430d6ca5500445f398d70": "An organization invitation can now carry workspaces: an admin picks them while inviting, and the person is granted access to exactly those workspaces when they accept, including while switching over from another organization. Accepting an invitation lands you straight in the new organization's workspace instead of a create screen. Someone granted no workspace sees a screen that says so, instead of being sent to create one."
+        },
+        "improvements": {
+          "c345cfe2bda271e6ac79e24c3e25fc54aebdc47c3": "In an AI assistant connection, each tool now shows a readable title — \"List workspaces\", \"My work\", \"Search UniWork\", \"Get task\", \"Get meeting\" — instead of its snake_case technical name.",
+          "cc51ea0749ffbe14a51713e253a253999a70cc1c3": "The invitation, organization switch and organization danger-zone screens read better: long organization names wrap instead of clipping, invitation titles fit a phone screen, and access notices scroll on short windows and offer a way to sign out.",
+          "ccec502219fdaba98b58e7ea89e51e87dc8a5b5f2": "The interface keeps its layout when you enlarge text and reads better from the keyboard: the top bar and the organization, invitation and onboarding screens fit at 200% text; destructive buttons meet AA contrast in dark mode; the keyboard focus position is always visible; and reduced motion no longer creates transitions nobody declared.",
+          "c84572b6d1daa128be83cc20704a700948b1a5ee9": "Creating a workspace no longer asks which organization, because each account belongs to just one active organization. The randomly suggested workspace name now follows the interface language you are using.",
+          "c2a60ef2f12c13a9527b65cfd03ca991dff658eb8": "Chat files, images and voice messages now load straight from storage through signed links instead of going through the server, so they open faster and can use the browser cache; JPEG and PNG images also get a thumbnail. A link that is about to expire or fails to load is refreshed automatically."
+        },
+        "fixes": {
+          "cf32bc6febcbeb9950a6e2cea84edcab99fd535d6": "When VNPay does not answer or the answer is not properly signed, a refund now stays pending instead of marking the invoice paid again, so a later attempt no longer refunds twice. A signed refusal still returns the invoice to paid and records the revert.",
+          "c41036366d2f1d8ef62593e87cd7d23e1eec31cfd": "A VNPay invoice that already has money refunded no longer accepts a second automatic refund and must be finished by hand. When the gateway answers status 05 (still processing), the invoice stays pending and the current plan is kept.",
+          "c23708f9f585b8ca6232132d44fd93fb4ff862b0c": "A hand-paid invoice can only be refunded in full: partial, zero and negative amounts are refused, so a partial refund no longer refunds the whole invoice and drops the plan. When two refunds run at once, the losing one reports a conflict so the list can be reloaded.",
+          "c936c0301e9464116feee322d97ed825abf8f0f77": "The accent colour in use now shows correctly in Settings › Preferences even when the browser blocks local storage (private Safari, \"block all cookies\"), so you can pick the default again without reloading. Every open tab also follows the tab that just changed it.",
+          "c86ea7aff6ce6bfbf839a3ccec1d955b65e55b447": "An organization-level invitation no longer makes your whole invitation list disappear.",
+          "ca59d184212dadf80caaca158643727f0bbb428f9": "Deleting an account no longer fails while scrubbing the member profiles, and a closed organization no longer blocks account deletion either.",
+          "c1e15e45c393de7c54cc985ffd33b51237d63c853": "A closed organization no longer leaves its workspaces in your list, its screens send you on instead of reporting the organization as suspended, and a switched-off membership no longer counts as you still belonging to it.",
+          "ca885949c7befc0fd233ccdedb166fb4c80c9e2c4": "The invitation page accepts an invitation once and no longer hangs on a spinner after you confirm; while the request is being sent, the \"Later\" button is hidden. When an invitation has stopped working, the page says why.",
+          "cdc3b3b7163e63384dfb3ee0342e499adab5f2e80": "An owner who only signs in with Google and has no password is told plainly that an ownership transfer cannot be confirmed, with a pointer to support. The field that picks the new owner explains in place when there is nobody to choose and tells namesakes apart.",
+          "c9396e4f00e2b6b840ef8513a0a29731e1642c88f": "An invitation into an organization that is being deleted admits nobody and says so, instead of adding someone to an organization that is about to disappear.",
+          "c611c5cf75edea54315ad5f2d49fceb44001ec6c6": "When accepting an invitation fails, the page now offers a retry that works instead of stranding you; a temporary error (network, 5xx, too many requests) while switching organization no longer loses the choices you already made in the steps. The wizard submits with Enter and says why it stepped back.",
+          "c8f28bfcc0bc6a39cadd9aa0ab2abba490777a900": "An out-of-date organization list no longer hides the workspaces you are using or pushes you to the Get started page, and a \"suspended\" notice no longer flashes up when the organization has actually been closed.",
+          "cb940a6207d0b2d06985666abbc223fcfc45c4fe9": "When you switch to another organization, the old organization's audit row now records only the reason for the switch and no longer names the new organization.",
+          "c09d515323c7162116cd98e97609e8d4fe52e5b24": "A plan with no list price (contact us for a quote) is no longer treated as free: an owner cannot switch to it alone and has to get in touch, so the subscription no longer ages into past due after skipping checkout.",
+          "caca841c7749de9e69bc7d0f2e48e413728d53d1e": "Re-selecting the plan already in force no longer resets the metering period, so a free plan's quotas can no longer be refilled on demand.",
+          "cc6ea1591b460e9232960b5aba194bea83bb3e163": "A plan with no billing period, such as Starter, now meters its accumulating quota by the calendar month in Vietnam time: running out of AI tokens this month starts over next month. Subscriptions with a paid period still meter by that period.",
+          "c98ec32ffe4a7e2deae280fb84e37e31672c5d96a": "Reactivating a deactivated member now counts one seat, so the last open seat is no longer counted twice and the member really is reactivated.",
+          "cb9550c114f0020415ba41c13d1164a5f5b07c15f": "Entering the wrong password when confirming again — transferring ownership, accepting an invitation or deleting your account — is now reported as a wrong password right in the dialog, instead of being mistaken for an expired session and resent.",
+          "cdc5e44d123f1e127ce8a18160c91d54a533c9d28": "A platform role is no longer enough to change, cancel, resume or check out the plan of an organization the person does not own, and that path no longer skips the paid-plan gates. UniWork staff assign a plan through the admin console, where the reason is recorded."
+        }
       }
     }
   },
@@ -8161,16 +8202,31 @@
       "connection": {
         "title": "One account. Connected to your workspace.",
         "sub": "Work on your computer, connected to your team's files and access rules.",
-        "account": { "title": "One account", "description": "Sign in to Office with your UniWork account." },
-        "ai": { "title": "AI on your terms", "description": "Use your organization's plan or your own API key." },
-        "permissions": { "title": "Consistent access", "description": "Workspace files follow your organization's permissions." },
+        "account": {
+          "title": "One account",
+          "description": "Sign in to Office with your UniWork account."
+        },
+        "ai": {
+          "title": "AI on your terms",
+          "description": "Use your organization's plan or your own API key."
+        },
+        "permissions": {
+          "title": "Consistent access",
+          "description": "Workspace files follow your organization's permissions."
+        },
         "flow": {
           "title": "Files on your computer and in your workspace",
-          "local": "On your computer", "localDescription": "Keep files locally and edit without a connection.",
-          "workspace": "Workspace", "workspaceDescription": "Save versions, share and comment with your team.",
-          "action": "Open / Save a version", "note": "Opening and saving workspace versions need a connection."
+          "local": "On your computer",
+          "localDescription": "Keep files locally and edit without a connection.",
+          "workspace": "Workspace",
+          "workspaceDescription": "Save versions, share and comment with your team.",
+          "action": "Open / Save a version",
+          "note": "Opening and saving workspace versions need a connection."
         },
-        "details": { "ai": "AI and your data", "files": "File storage and connection requirements" }
+        "details": {
+          "ai": "AI and your data",
+          "files": "File storage and connection requirements"
+        }
       },
       "faq": {
         "title": "Frequently asked questions",
