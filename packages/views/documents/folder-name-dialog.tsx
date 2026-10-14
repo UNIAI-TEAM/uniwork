@@ -4,7 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FOLDER_TITLE_MAX } from "@uniwork/core/documents/folder-limits";
+import { apiErrorMessage, errorCode } from "@uniwork/core/api";
+import { DOCUMENT_TITLE_MAX, FOLDER_TITLE_MAX } from "@uniwork/core/documents/folder-limits";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import { useCreateFolder } from "@uniwork/core/documents/hooks-library";
 import { documentKeys } from "@uniwork/core/documents/keys";
@@ -40,8 +41,12 @@ export interface FolderNameDialogProps {
   wsId?: string;
   /** Parent folder ID for create mode (`null` or omitted = root). */
   parentId?: string | null;
-  /** Target folder ID for rename mode. */
+  /** Target folder or document ID for rename mode. */
   folderId?: string;
+  /** Target item kind in rename mode (`"folder"` max 255, document kinds max 500 per FD-D3). */
+  kind?: string;
+  /** Known revision of the item being renamed, used as a fallback if detail query is absent. */
+  revision?: string;
   /** Called with the server-verified folder after a successful create or rename. */
   onSuccess?: (folder: { id: string; title: string }) => void;
   /** Custom submit handler; when omitted, `wsId` drives the create/rename request. */
@@ -51,10 +56,10 @@ export interface FolderNameDialogProps {
 }
 
 /**
- * Shared create / rename folder dialog (addendum §3.6, FD-07 & FD-08):
- * validates blank and >255-character names before any network call, surfaces
- * `409 folder_name_taken` at the field, and toasts only after the server
- * answers with a verifiable folder.
+ * Shared create / rename folder & document dialog (addendum §3.6, FD-07 & FD-08):
+ * validates blank and >255-character folder names (or >500-character document
+ * names per FD-D3) before any network call, surfaces `409 folder_name_taken`
+ * at the field, and toasts only after the server answers with a verifiable item.
  */
 export function FolderNameDialog({
   open,
@@ -67,6 +72,8 @@ export function FolderNameDialog({
   wsId = "",
   parentId = null,
   folderId = "",
+  kind = "folder",
+  revision: initialRevision,
   onSuccess,
   onSubmit,
   pending: externalPending = false,
@@ -91,13 +98,26 @@ export function FolderNameDialog({
 
   const isPending = externalPending || busy || createFolder.isPending || updateFolder.isPending;
   const displayError = fieldError ?? externalError;
+  const isDocumentRename = mode === "rename" && kind !== "folder";
   const fallbackKey =
-    mode === "create" ? "documents.home.folders.create_failed" : "documents.home.folders.rename_failed";
+    mode === "create"
+      ? "documents.home.folders.create_failed"
+      : isDocumentRename
+        ? "documents.home.rename.failed"
+        : "documents.home.folders.rename_failed";
+  const maxTitleLength = isDocumentRename ? DOCUMENT_TITLE_MAX : FOLDER_TITLE_MAX;
+
+  const resolveError = (err: unknown) => {
+    if (isDocumentRename && errorCode(err) === "folder_name_taken") {
+      return apiErrorMessage(err) ?? t(fallbackKey);
+    }
+    return documentErrorMessage(err, t, fallbackKey);
+  };
 
   const dialogTitle =
     title ??
     (mode === "rename"
-      ? t("documents.home.folders.rename")
+      ? t(isDocumentRename ? "documents.home.rename.title" : "documents.home.folders.rename")
       : parentTitle !== undefined
         ? t("documents.home.folders.create_sub_title", {
             parent: parentTitle || t("documents.detail.untitled"),
@@ -111,11 +131,15 @@ export function FolderNameDialog({
     if (isPending) return;
     const trimmed = draft.trim().normalize("NFC");
     if (!trimmed) {
-      setFieldError(t("documents.home.folders.name_empty"));
+      setFieldError(t(isDocumentRename ? "documents.home.rename.name_empty" : "documents.home.folders.name_empty"));
       return;
     }
-    if ([...trimmed].length > FOLDER_TITLE_MAX) {
-      setFieldError(t("documents.home.folders.name_too_long", { max: FOLDER_TITLE_MAX }));
+    if ([...trimmed].length > maxTitleLength) {
+      setFieldError(
+        t(isDocumentRename ? "documents.home.rename.name_too_long" : "documents.home.folders.name_too_long", {
+          max: maxTitleLength,
+        }),
+      );
       return;
     }
     setFieldError(null);
@@ -126,7 +150,7 @@ export function FolderNameDialog({
         const ok = await onSubmit(trimmed);
         if (ok !== false) onOpenChange(false);
       } catch (err) {
-        setFieldError(documentErrorMessage(err, t, fallbackKey));
+        setFieldError(resolveError(err));
       } finally {
         setBusy(false);
       }
@@ -150,13 +174,13 @@ export function FolderNameDialog({
         onOpenChange(false);
         onSuccess?.({ id: created.id, title: created.title });
       } else {
-        const cached = knownDocuments(
-          queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) }),
-        ).get(folderId)?.revision;
+        const cached =
+          knownDocuments(queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) })).get(folderId)
+            ?.revision ?? initialRevision;
         const revision =
           (await loadMoveRevision(queryClient, wsId, folderId).catch(() => null)) ?? cached;
         if (!revision) {
-          setFieldError(t("documents.home.folders.rename_failed"));
+          setFieldError(t(fallbackKey));
           return;
         }
         const updated = await updateFolder.mutateAsync({
@@ -168,7 +192,7 @@ export function FolderNameDialog({
         onSuccess?.({ id: updated.id, title: updated.title });
       }
     } catch (err) {
-      setFieldError(documentErrorMessage(err, t, fallbackKey));
+      setFieldError(resolveError(err));
     } finally {
       setBusy(false);
     }
@@ -186,11 +210,15 @@ export function FolderNameDialog({
         </DialogHeader>
         <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={inputId}>{t("documents.home.folders.rename_label")}</Label>
+            <Label htmlFor={inputId}>
+              {t(isDocumentRename ? "documents.home.rename.label" : "documents.home.folders.rename_label")}
+            </Label>
             <Input
               id={inputId}
               value={draft}
-              placeholder={t("documents.home.folders.name_placeholder")}
+              placeholder={t(
+                isDocumentRename ? "documents.home.rename.name_placeholder" : "documents.home.folders.name_placeholder",
+              )}
               aria-invalid={displayError ? true : undefined}
               aria-describedby={displayError ? errorId : undefined}
               onChange={(event) => {

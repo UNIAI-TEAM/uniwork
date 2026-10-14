@@ -503,7 +503,7 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     expect(detailCalls).toBe(1);
   });
 
-  it("scrolls the current row into view once and focuses it when a tree rendered hidden becomes shown, without re-opening collapsed ancestors", async () => {
+  it("scrolls the current row into view once when a hidden tree becomes shown (visible false -> true) without stealing focus from an input outside the tree or re-opening collapsed ancestors (R4-1)", async () => {
     const scrollSpy = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
@@ -532,53 +532,236 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
       defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } },
     });
 
-    const renderTreeHost = (hidden: boolean) => (
+    const renderTreeHost = (visible: boolean) => (
       <QueryClientProvider client={queryClient}>
         <LocaleAdapterProvider adapter={localeAdapter}>
-          <button type="button" data-testid="outside-trigger">
-            {t("documents.home.sidebar.open")}
-          </button>
-          <div hidden={hidden} data-testid="tree-host">
-            <DocumentTree wsId={WS} folders currentId="f4" />
+          <input type="text" aria-label="Search" data-testid="outside-input" />
+          <div data-testid="tree-host">
+            <DocumentTree wsId={WS} folders visible={visible} currentId="f4" />
           </div>
         </LocaleAdapterProvider>
       </QueryClientProvider>
     );
 
-    const { rerender } = render(renderTreeHost(true));
-    const trigger = screen.getByTestId("outside-trigger");
-    trigger.focus();
-    expect(document.activeElement).toBe(trigger);
+    const { rerender } = render(renderTreeHost(false));
+    const input = screen.getByTestId("outside-input");
+    input.focus();
+    expect(document.activeElement).toBe(input);
 
     const host = screen.getByTestId("tree-host");
-    const hiddenTargetRow = await within(host).findByRole("treeitem", { name: /Cấp 4/, hidden: true });
+    const hiddenTargetRow = await within(host).findByRole("treeitem", { name: /Cấp 4/ });
     expect(hiddenTargetRow).toHaveAttribute("aria-current", "true");
-    // While hidden, scrollIntoView must not have fired and consumed the reveal.
+    // While visible=false, scrollIntoView must not have fired and consumed the reveal.
     expect(scrollSpy).not.toHaveBeenCalled();
 
-    // Showing the tree triggers exactly one scrollIntoView and moves focus onto the current row.
-    rerender(renderTreeHost(false));
+    // Showing the tree (visible false -> true) triggers exactly one scrollIntoView and keeps focus in the outside input.
+    rerender(renderTreeHost(true));
 
     await waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1));
     const targetRow = screen.getByRole("treeitem", { name: /Cấp 4/ });
     expect(scrollSpy).toHaveBeenCalledWith({ block: "nearest" });
     expect(scrollSpy.mock.instances[0]).toBe(targetRow);
-    await waitFor(() => expect(document.activeElement).toBe(targetRow));
-    expect(host).toContainElement(document.activeElement as HTMLElement);
+    expect(document.activeElement).toBe(input);
 
     // User collapses ancestor f3; hiding and re-showing the tree must not re-open f3.
     fireEvent.click(screen.getByRole("button", { name: t("documents.tree.collapse", { title: "Cấp 3" }) }));
     expect(screen.getByRole("treeitem", { name: /Cấp 3/ })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("treeitem", { name: /Cấp 4/ })).toBeNull();
 
-    rerender(renderTreeHost(true));
     rerender(renderTreeHost(false));
+    rerender(renderTreeHost(true));
 
     expect(screen.getByRole("treeitem", { name: /Cấp 3/ })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("treeitem", { name: /Cấp 4/ })).toBeNull();
     expect(scrollSpy).toHaveBeenCalledTimes(1);
-    expect(host).toContainElement(document.activeElement as HTMLElement);
-    expect(document.activeElement).toBe(screen.getByRole("treeitem", { name: /Cấp 3/ }));
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("observes the nav/tree container via ResizeObserver when visible=true but hidden by computed style, without attaching any observer to document.body (R3-2, R3-3)", async () => {
+    const scrollSpy = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: scrollSpy,
+    });
+
+    const mutationTargets: Node[] = [];
+    const mutationSpy = vi
+      .spyOn(MutationObserver.prototype, "observe")
+      .mockImplementation(function (this: MutationObserver, target: Node) {
+        mutationTargets.push(target);
+      });
+
+    const resizeTargets: Element[] = [];
+    const resizeCallbacks: ResizeObserverCallback[] = [];
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        private cb: ResizeObserverCallback;
+        constructor(cb: ResizeObserverCallback) {
+          this.cb = cb;
+          resizeCallbacks.push(cb);
+        }
+        observe(target: Element) {
+          resizeTargets.push(target);
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+
+    try {
+      route({
+        tree: () => [folderNode("f1", "Cấp 1", [folderNode("f2", "Cấp 2")])],
+        detail: (id) =>
+          id === "f2"
+            ? folderDetail("f2", "Cấp 2", { breadcrumbs: [{ id: "f1", title: "Cấp 1" }] })
+            : null,
+      });
+
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } },
+      });
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <LocaleAdapterProvider adapter={localeAdapter}>
+            <nav data-testid="tree-nav" style={{ display: "none" }}>
+              <DocumentTree wsId={WS} folders visible currentId="f2" />
+            </nav>
+          </LocaleAdapterProvider>
+        </QueryClientProvider>,
+      );
+
+      const nav = screen.getByTestId("tree-nav");
+      const targetRow = await within(nav).findByRole("treeitem", { name: /Cấp 2/, hidden: true });
+      expect(targetRow).toHaveAttribute("aria-current", "true");
+      expect(scrollSpy).not.toHaveBeenCalled();
+
+      // No observer is attached to document.body; ResizeObserver targets the nav container.
+      expect(mutationTargets).not.toContain(document.body);
+      expect(resizeTargets).not.toContain(document.body);
+      expect(resizeTargets).toContain(nav);
+
+      // Laying out the container (computed style display: block) + ResizeObserver callback reveals the row once.
+      nav.style.display = "block";
+      act(() => {
+        for (const cb of resizeCallbacks) {
+          cb([], {} as ResizeObserver);
+        }
+      });
+
+      await waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1));
+      expect(scrollSpy).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scrollSpy.mock.instances[0]).toBe(targetRow);
+    } finally {
+      mutationSpy.mockRestore();
+      vi.stubGlobal("ResizeObserver", OriginalResizeObserver);
+    }
+  });
+
+  it("resets sequential focus on document.body without moving focus to the row when a CSS-hidden tree is revealed with body active, and moves focus only when focus is already inside the tree (F3, V-F6)", async () => {
+    const scrollSpy = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: scrollSpy,
+    });
+
+    const resizeCallbacks: ResizeObserverCallback[] = [];
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          resizeCallbacks.push(cb);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+
+    const bodyFocusSpy = vi.spyOn(document.body, "focus");
+    const bodyBlurSpy = vi.spyOn(document.body, "blur");
+
+    try {
+      route({
+        tree: () => [folderNode("f1", "Cấp 1", [folderNode("f2", "Cấp 2")])],
+        detail: (id) =>
+          id === "f2"
+            ? folderDetail("f2", "Cấp 2", { breadcrumbs: [{ id: "f1", title: "Cấp 1" }] })
+            : id === "f1"
+              ? folderDetail("f1", "Cấp 1")
+              : null,
+      });
+
+      const renderNav = () => (
+        <QueryClientProvider
+          client={
+            new QueryClient({
+              defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } },
+            })
+          }
+        >
+          <LocaleAdapterProvider adapter={localeAdapter}>
+            <nav data-testid="tree-nav" style={{ display: "none" }}>
+              <DocumentTree wsId={WS} folders visible currentId="f2" />
+            </nav>
+          </LocaleAdapterProvider>
+        </QueryClientProvider>
+      );
+
+      const firstMount = render(renderNav());
+
+      const nav = screen.getByTestId("tree-nav");
+      const targetRow = await within(nav).findByRole("treeitem", { name: /Cấp 2/, hidden: true });
+      expect(targetRow).toHaveAttribute("aria-current", "true");
+      expect(document.activeElement).toBe(document.body);
+      expect(scrollSpy).not.toHaveBeenCalled();
+
+      bodyFocusSpy.mockClear();
+      bodyBlurSpy.mockClear();
+
+      // 1. Deferred reveal while focus is on document.body: must NOT focus the row, must run V-F6 body reset.
+      nav.style.display = "block";
+      act(() => {
+        for (const cb of resizeCallbacks) {
+          cb([], {} as ResizeObserver);
+        }
+      });
+
+      await waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1));
+      expect(scrollSpy).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scrollSpy.mock.instances[0]).toBe(targetRow);
+      expect(document.activeElement).toBe(document.body);
+      expect(bodyFocusSpy).toHaveBeenCalledWith({ preventScroll: true });
+      expect(bodyBlurSpy).toHaveBeenCalledTimes(1);
+      expect(document.body.getAttribute("tabindex")).toBeNull();
+      firstMount.unmount();
+
+      // 2. Deferred reveal while focus is already inside the tree: moves focus onto the revealed target row.
+      resizeCallbacks.length = 0;
+      render(renderNav());
+      const nav2 = screen.getByTestId("tree-nav");
+      const targetRow2 = await within(nav2).findByRole("treeitem", { name: /Cấp 2/, hidden: true });
+      const row1 = within(nav2).getByRole("treeitem", { name: /Cấp 1/, hidden: true });
+      row1.focus();
+      expect(document.activeElement).toBe(row1);
+
+      nav2.style.display = "block";
+      act(() => {
+        for (const cb of resizeCallbacks) {
+          cb([], {} as ResizeObserver);
+        }
+      });
+      await waitFor(() => expect(document.activeElement).toBe(targetRow2));
+    } finally {
+      bodyFocusSpy.mockRestore();
+      bodyBlurSpy.mockRestore();
+      vi.stubGlobal("ResizeObserver", OriginalResizeObserver);
+    }
   });
 
   it("moves focus into the phone sheet onto the current row, scrolls it into view once without re-opening collapsed ancestors, and returns focus to the trigger on Escape", async () => {
