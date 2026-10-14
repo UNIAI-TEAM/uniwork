@@ -44,11 +44,14 @@ export function useLibraryRowDialogs({
   wsId,
   tree,
   folderId,
+  folderTitle,
 }: {
   wsId: string;
   tree: DocumentTreeNode[];
   /** The folder the library has open, preselected in the pickers. */
   folderId: string | null;
+  /** Title of the open folder for the "New -> Folder" dialog header. */
+  folderTitle?: string;
 }): LibraryRowDialogs {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -176,7 +179,7 @@ export function useLibraryRowDialogs({
       setError(null);
       setSaving(row);
     },
-    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId }),
+    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle }),
     onNewSubfolder: (doc) => setNaming({ mode: "create", parentId: doc.id, parentTitle: doc.title }),
     onRename: (doc) => setNaming({ mode: "rename", doc }),
     onMove: (doc) => {

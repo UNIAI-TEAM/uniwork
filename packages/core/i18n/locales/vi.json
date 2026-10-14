@@ -8694,6 +8694,14 @@
           "restored": "Đã khôi phục {{title}}"
         }
       },
+      "rename": {
+        "title": "Đổi tên",
+        "label": "Tên tài liệu",
+        "name_placeholder": "Ví dụ: Kế hoạch 2026",
+        "name_empty": "Nhập tên tài liệu.",
+        "name_too_long": "Tên tài liệu tối đa {{max}} ký tự.",
+        "failed": "Không thể đổi tên tài liệu. Thử lại."
+      },
       "greeting": {
         "morning": "Chào buổi sáng. Hôm nay bạn muốn tạo gì?",
         "morning_named": "Chào buổi sáng, {{name}}. Hôm nay bạn muốn tạo gì?",

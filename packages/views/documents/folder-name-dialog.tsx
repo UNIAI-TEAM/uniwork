@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { DOCUMENT_TITLE_MAX, FOLDER_TITLE_MAX } from "@uniwork/core/documents/folder-limits";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import { useCreateFolder } from "@uniwork/core/documents/hooks-library";
@@ -97,14 +98,26 @@ export function FolderNameDialog({
 
   const isPending = externalPending || busy || createFolder.isPending || updateFolder.isPending;
   const displayError = fieldError ?? externalError;
+  const isDocumentRename = mode === "rename" && kind !== "folder";
   const fallbackKey =
-    mode === "create" ? "documents.home.folders.create_failed" : "documents.home.folders.rename_failed";
-  const maxTitleLength = mode === "rename" && kind !== "folder" ? DOCUMENT_TITLE_MAX : FOLDER_TITLE_MAX;
+    mode === "create"
+      ? "documents.home.folders.create_failed"
+      : isDocumentRename
+        ? "documents.home.rename.failed"
+        : "documents.home.folders.rename_failed";
+  const maxTitleLength = isDocumentRename ? DOCUMENT_TITLE_MAX : FOLDER_TITLE_MAX;
+
+  const resolveError = (err: unknown) => {
+    if (isDocumentRename && errorCode(err) === "folder_name_taken") {
+      return apiErrorMessage(err) ?? t(fallbackKey);
+    }
+    return documentErrorMessage(err, t, fallbackKey);
+  };
 
   const dialogTitle =
     title ??
     (mode === "rename"
-      ? t("documents.home.folders.rename")
+      ? t(isDocumentRename ? "documents.home.rename.title" : "documents.home.folders.rename")
       : parentTitle !== undefined
         ? t("documents.home.folders.create_sub_title", {
             parent: parentTitle || t("documents.detail.untitled"),
@@ -118,11 +131,15 @@ export function FolderNameDialog({
     if (isPending) return;
     const trimmed = draft.trim().normalize("NFC");
     if (!trimmed) {
-      setFieldError(t("documents.home.folders.name_empty"));
+      setFieldError(t(isDocumentRename ? "documents.home.rename.name_empty" : "documents.home.folders.name_empty"));
       return;
     }
     if ([...trimmed].length > maxTitleLength) {
-      setFieldError(t("documents.home.folders.name_too_long", { max: maxTitleLength }));
+      setFieldError(
+        t(isDocumentRename ? "documents.home.rename.name_too_long" : "documents.home.folders.name_too_long", {
+          max: maxTitleLength,
+        }),
+      );
       return;
     }
     setFieldError(null);
@@ -133,7 +150,7 @@ export function FolderNameDialog({
         const ok = await onSubmit(trimmed);
         if (ok !== false) onOpenChange(false);
       } catch (err) {
-        setFieldError(documentErrorMessage(err, t, fallbackKey));
+        setFieldError(resolveError(err));
       } finally {
         setBusy(false);
       }
@@ -163,7 +180,7 @@ export function FolderNameDialog({
         const revision =
           (await loadMoveRevision(queryClient, wsId, folderId).catch(() => null)) ?? cached;
         if (!revision) {
-          setFieldError(t("documents.home.folders.rename_failed"));
+          setFieldError(t(fallbackKey));
           return;
         }
         const updated = await updateFolder.mutateAsync({
@@ -175,7 +192,7 @@ export function FolderNameDialog({
         onSuccess?.({ id: updated.id, title: updated.title });
       }
     } catch (err) {
-      setFieldError(documentErrorMessage(err, t, fallbackKey));
+      setFieldError(resolveError(err));
     } finally {
       setBusy(false);
     }
@@ -193,11 +210,15 @@ export function FolderNameDialog({
         </DialogHeader>
         <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={inputId}>{t("documents.home.folders.rename_label")}</Label>
+            <Label htmlFor={inputId}>
+              {t(isDocumentRename ? "documents.home.rename.label" : "documents.home.folders.rename_label")}
+            </Label>
             <Input
               id={inputId}
               value={draft}
-              placeholder={t("documents.home.folders.name_placeholder")}
+              placeholder={t(
+                isDocumentRename ? "documents.home.rename.name_placeholder" : "documents.home.folders.name_placeholder",
+              )}
               aria-invalid={displayError ? true : undefined}
               aria-describedby={displayError ? errorId : undefined}
               onChange={(event) => {

@@ -151,7 +151,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       canEditDocument(folderDoc, { userId: context?.user.id ?? userId, orgRole: null, wsRole: null }).allowed);
   const parentForCreate = view.kind === "home" ? folderId : null;
 
-  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId });
+  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: folderDoc?.title });
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
   const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred");
