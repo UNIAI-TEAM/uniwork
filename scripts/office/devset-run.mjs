@@ -14,6 +14,14 @@
 //     --db-url <postgres-url> \
 //     [--frame-dir /home/ubuntu/orca/workspaces/uniwork-office/g6-08-panel-run] \
 //     [--out /tmp/g6-08-run-v1.json]
+//   node scripts/office/devset-run.mjs --server-sha <commit> --db-url <postgres-url> [...]
+//     builds, migrates and starts the server at that commit in a temporary
+//     worktree (removed afterwards), so the @1 baseline (4df589a37) reruns
+//     without a new env var or a second checkout.
+// The panel proof (--frame-dir) types each case's own prompt into the real
+// fork web panel, scores the reply with scoreDevCase and refuses to write a
+// summary unless all four combinations reached the façade with a bearer frame
+// token.
 
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -371,123 +379,131 @@ const DOCS_TOOL_SCHEMAS = [
 
 // ---- Deterministic tool executor matching the fork's sheets & docs engines ----
 
+// The two fixture-backed grids of dev-xlsx-orders-xyz.xlsx. They back the
+// façade runner tool executor and, through the generated panel harness sheets
+// skill (BE68-3), the panel run: both paths execute the model tool calls
+// against this one fixture data.
+export const DEVSET_SHEET1_GRID = {
+  sheetId: 'sheet-1',
+  sheetName: 'Bán hàng T1',
+  dimension: 'A1:I9',
+  hiddenRows: [6],
+  autoFilter: 'A1:I7',
+  totalsRows: [
+    { row: 8, label: 'Tổng cộng', formulaD8: '=SUM(D2:D7)', valueD8: 65, formulaG8: '=SUM(G2:G7)', valueG8: 61020, includesHiddenRow6: true },
+    { row: 9, label: 'Tổng dòng hiển thị', formulaD9: '=SUBTOTAL(109,D2:D7)', valueD9: 53, formulaG9: '=SUBTOTAL(109,G2:G7)', valueG9: 51300, includesHiddenRow6: false },
+  ],
+  rows: [
+    { row: 1, cells: { A1: 'Mã phiếu', B1: 'Chi nhánh', C1: 'Mặt hàng', D1: 'Số lượng (X)', E1: 'Đơn giá (Y)', F1: 'Chiết khấu (Z)', G1: 'Doanh thu ròng', H1: 'Đơn giá sau CK', I1: 'Tra cứu mã' } },
+    { row: 2, cells: { A2: 'BH-101', B2: 'Miền Bắc', C2: 'Sổ tay A5', D2: 10, E2: 1200, F2: '5% [percent; raw 0.05; format 0%]', G2: '11400 [formula =D2*E2*(1-IF(F2>1,F2/100,F2))]', H2: '1140 [formula =G2/D2]', I2: 'Hợp lệ' }, net: 11400, unitAfter: 1140, branch: 'Miền Bắc', hidden: false },
+    { row: 3, cells: { A3: 'BH-102', B3: 'Miền Trung', C3: 'Bút bi xanh', D3: 20, E3: 800, F3: '10 [number; raw 10; format General — plain number 10 representing 10% (0.1)]', G3: '14400 [formula =D3*E3*(1-IF(F3>1,F3/100,F3))]', H3: '720 [formula =G3/D3]', I3: 'Hợp lệ' }, net: 14400, unitAfter: 720, branch: 'Miền Trung', hidden: false },
+    { row: 4, cells: { A4: 'BH-103', B4: 'Miền Nam', C4: 'Kẹp tài liệu', D4: 15, E4: 1000, F4: '10% [percent; raw 0.1; format 0%]', G4: '13500 [formula =D4*E4*(1-IF(F4>1,F4/100,F4))]', H4: '900 [formula =G4/D4]', I4: 'Hợp lệ' }, net: 13500, unitAfter: 900, branch: 'Miền Nam', hidden: false },
+    { row: 5, cells: { A5: 'BH-104', B5: 'Miền Bắc', C5: 'Thước kẻ', D5: 8, E5: 1500, F5: '[blank -> 0%]', G5: '12000 [formula =D5*E5*(1-IF(F5>1,F5/100,F5))]', H5: '1500 [formula =G5/D5]', I5: 'Hợp lệ' }, net: 12000, unitAfter: 1500, branch: 'Miền Bắc', hidden: false },
+    { row: 6, hidden: true, note: 'HIDDEN ROW (row 6 hidden="1")', cells: { A6: 'BH-105', B6: 'Miền Trung', C6: 'Bìa hồ sơ', D6: 12, E6: 900, F6: '10% [percent; raw 0.1; format 0%; hidden row]', G6: '9720 [formula =D6*E6*(1-IF(F6>1,F6/100,F6))]', H6: '810 [formula =G6/D6]', I6: 'Ẩn kiểm kê' }, net: 9720, unitAfter: 810, branch: 'Miền Trung' },
+    { row: 7, cells: { A7: 'BH-106', B7: 'Miền Nam', C7: 'Nhãn dán', D7: 0, E7: 1100, F7: '[blank -> 0%]', G7: '0 [formula =D7*E7*(1-IF(F7>1,F7/100,F7))]', H7: '#DIV/0! [error; formula =G7/D7]', I7: '#N/A [error; formula =VLOOKUP(A7,\'Kiểm toán\'!$A$2:$B$6,2,FALSE)]' }, net: 0, unitAfter: null, branch: 'Miền Nam', hidden: false },
+    { row: 8, isTotalRow: true, cells: { A8: 'Tổng cộng', D8: '65 [formula =SUM(D2:D7); includes hidden row 6]', G8: '61020 [formula =SUM(G2:G7); includes hidden row 6]' } },
+    { row: 9, isTotalRow: true, cells: { A9: 'Tổng dòng hiển thị', D9: '53 [formula =SUBTOTAL(109,D2:D7); visible rows only, excludes hidden row 6]', G9: '51300 [formula =SUBTOTAL(109,G2:G7); visible rows only, excludes hidden row 6]' } },
+  ],
+  computedSummary: {
+    visibleOnlyNetRevenue: 51300,
+    allRowsIncludingHiddenRow6NetRevenue: 61020,
+    hiddenRow6BH105NetRevenue: 9720,
+    byBranchVisibleOnly: { 'Miền Bắc': 23400, 'Miền Trung': 14400, 'Miền Nam': 13500 },
+    byBranchWithHiddenRow6: { 'Miền Bắc': 23400, 'Miền Trung': 24120, 'Miền Nam': 13500 },
+    columnHUnitAfterDiscount: {
+      validRows: 'H2:H6 (5 numeric cells: 1140, 720, 900, 1500, 810)',
+      validCount: 5,
+      validSum: 5070,
+      validAverage: 1014,
+      skippedErrorCells: [{ cell: 'H7', error: '#DIV/0!', formula: '=G7/D7' }],
+      skippedErrorCellsColI: [{ cell: 'I7', error: '#N/A', formula: "=VLOOKUP(A7,'Kiểm toán'!$A$2:$B$6,2,FALSE)" }],
+    },
+  },
+};
+
+export const DEVSET_SHEET2_GRID = {
+  sheetId: 'sheet-2',
+  sheetName: 'Kiểm toán',
+  dimension: 'A1:E6',
+  hiddenRows: [],
+  rows: [
+    { row: 1, cells: { A1: 'Khoản mục', B1: 'Giá trị gốc', C1: 'Hệ số', D1: 'Kết quả công thức', E1: 'Quy tắc và ghi chú' } },
+    {
+      row: 2,
+      cells: {
+        A2: 'Doanh thu dự phòng',
+        B2: 2500,
+        C2: 4,
+        D2: '99999 [formula =LEGACYCACHE(B2,C2); NOT RECALCULATED — cached value from the file; engine returns #NAME? (unsupported function: LEGACYCACHE); true product B2*C2 = 10000]',
+        E2: 'Giá trị cache lưu trong tệp (99999) đã cũ (NOT RECALCULATED); công thức đúng là B2*C2 = 10000',
+      },
+    },
+    {
+      row: 3,
+      cells: {
+        A3: 'Chi phí vận hành chuẩn',
+        B3: 2500,
+        C3: 4,
+        D3: '10000 [formula =B3*C3; file had stale cached value 88888, recalculated by engine to 10000]',
+        E3: 'Cache cũ trong tệp là 88888 nhưng tích thực tế B3*C3 = 10000',
+      },
+    },
+    {
+      row: 4,
+      cells: {
+        A4: 'Tỷ giá XML ngoại vi',
+        B4: '<root><tygia>25</tygia></root> [text]',
+        C4: 1,
+        D4: '#NAME? [error; formula =FILTERXML(B4,"//tygia"); unsupported function: FILTERXML — NOT RECALCULATED]',
+        E4: 'Hàm FILTERXML không được hỗ trợ trong bộ tính công thức hiện tại',
+      },
+    },
+    {
+      row: 5,
+      cells: {
+        A5: 'Phí vận chuyển (văn bản locale)',
+        B5: '"1.250,5" [text; raw string "1.250,5" — locale-formatted text, NOT a number; skipped by numeric sum/aggregate]',
+        C5: 1,
+        D5: '3200.756 [number; raw 3200.756; rounded to 0dp per E5 = 3201]',
+        E5: 'Làm tròn kết quả cột D đến hàng đơn vị (0 chữ số thập phân)',
+      },
+    },
+    {
+      row: 6,
+      cells: {
+        A6: 'Phí bảo hiểm kho',
+        B6: '800 [number; raw 800]',
+        C6: 1,
+        D6: '1450.244 [number; raw 1450.244; rounded to 0dp per E6 = 1450]',
+        E6: 'Làm tròn kết quả cột D đến hàng đơn vị (0 chữ số thập phân)',
+      },
+    },
+  ],
+  computedSummary: {
+    b5b6NumericAggregation: {
+      numericCellsCount: 1,
+      numericSum: 800,
+      skippedTextCells: [{ cell: 'B5', text: '1.250,5', reason: 'stored as text (locale string), never cast to number' }],
+    },
+    d5d6Rounding: {
+      ruleCell: 'E5:E6 (round column D to integer / 0 decimal places)',
+      d5Raw: 3200.756,
+      d5Rounded: 3201,
+      d6Raw: 1450.244,
+      d6Rounded: 1450,
+      sumRaw: 4651.0,
+      sumRounded: 4651,
+    },
+  },
+};
+
+// ---- Deterministic tool executor matching the fork sheets & docs engines ----
+
 function createCaseToolExecutor(caseDoc, xlsxOracle, docxOracle) {
   const docxBlocks = docxOracle.blocks.map((b) => ({ ...b }));
   let writes = 0;
-
-  const sheet1Grid = {
-    sheetId: 'sheet-1',
-    sheetName: 'Bán hàng T1',
-    dimension: 'A1:I9',
-    hiddenRows: [6],
-    autoFilter: 'A1:I7',
-    totalsRows: [
-      { row: 8, label: 'Tổng cộng', formulaD8: '=SUM(D2:D7)', valueD8: 65, formulaG8: '=SUM(G2:G7)', valueG8: 61020, includesHiddenRow6: true },
-      { row: 9, label: 'Tổng dòng hiển thị', formulaD9: '=SUBTOTAL(109,D2:D7)', valueD9: 53, formulaG9: '=SUBTOTAL(109,G2:G7)', valueG9: 51300, includesHiddenRow6: false },
-    ],
-    rows: [
-      { row: 1, cells: { A1: 'Mã phiếu', B1: 'Chi nhánh', C1: 'Mặt hàng', D1: 'Số lượng (X)', E1: 'Đơn giá (Y)', F1: 'Chiết khấu (Z)', G1: 'Doanh thu ròng', H1: 'Đơn giá sau CK', I1: 'Tra cứu mã' } },
-      { row: 2, cells: { A2: 'BH-101', B2: 'Miền Bắc', C2: 'Sổ tay A5', D2: 10, E2: 1200, F2: '5% [percent; raw 0.05; format 0%]', G2: '11400 [formula =D2*E2*(1-IF(F2>1,F2/100,F2))]', H2: '1140 [formula =G2/D2]', I2: 'Hợp lệ' }, net: 11400, unitAfter: 1140, branch: 'Miền Bắc', hidden: false },
-      { row: 3, cells: { A3: 'BH-102', B3: 'Miền Trung', C3: 'Bút bi xanh', D3: 20, E3: 800, F3: '10 [number; raw 10; format General — plain number 10 representing 10% (0.1)]', G3: '14400 [formula =D3*E3*(1-IF(F3>1,F3/100,F3))]', H3: '720 [formula =G3/D3]', I3: 'Hợp lệ' }, net: 14400, unitAfter: 720, branch: 'Miền Trung', hidden: false },
-      { row: 4, cells: { A4: 'BH-103', B4: 'Miền Nam', C4: 'Kẹp tài liệu', D4: 15, E4: 1000, F4: '10% [percent; raw 0.1; format 0%]', G4: '13500 [formula =D4*E4*(1-IF(F4>1,F4/100,F4))]', H4: '900 [formula =G4/D4]', I4: 'Hợp lệ' }, net: 13500, unitAfter: 900, branch: 'Miền Nam', hidden: false },
-      { row: 5, cells: { A5: 'BH-104', B5: 'Miền Bắc', C5: 'Thước kẻ', D5: 8, E5: 1500, F5: '[blank -> 0%]', G5: '12000 [formula =D5*E5*(1-IF(F5>1,F5/100,F5))]', H5: '1500 [formula =G5/D5]', I5: 'Hợp lệ' }, net: 12000, unitAfter: 1500, branch: 'Miền Bắc', hidden: false },
-      { row: 6, hidden: true, note: 'HIDDEN ROW (row 6 hidden="1")', cells: { A6: 'BH-105', B6: 'Miền Trung', C6: 'Bìa hồ sơ', D6: 12, E6: 900, F6: '10% [percent; raw 0.1; format 0%; hidden row]', G6: '9720 [formula =D6*E6*(1-IF(F6>1,F6/100,F6))]', H6: '810 [formula =G6/D6]', I6: 'Ẩn kiểm kê' }, net: 9720, unitAfter: 810, branch: 'Miền Trung' },
-      { row: 7, cells: { A7: 'BH-106', B7: 'Miền Nam', C7: 'Nhãn dán', D7: 0, E7: 1100, F7: '[blank -> 0%]', G7: '0 [formula =D7*E7*(1-IF(F7>1,F7/100,F7))]', H7: '#DIV/0! [error; formula =G7/D7]', I7: '#N/A [error; formula =VLOOKUP(A7,\'Kiểm toán\'!$A$2:$B$6,2,FALSE)]' }, net: 0, unitAfter: null, branch: 'Miền Nam', hidden: false },
-      { row: 8, isTotalRow: true, cells: { A8: 'Tổng cộng', D8: '65 [formula =SUM(D2:D7); includes hidden row 6]', G8: '61020 [formula =SUM(G2:G7); includes hidden row 6]' } },
-      { row: 9, isTotalRow: true, cells: { A9: 'Tổng dòng hiển thị', D9: '53 [formula =SUBTOTAL(109,D2:D7); visible rows only, excludes hidden row 6]', G9: '51300 [formula =SUBTOTAL(109,G2:G7); visible rows only, excludes hidden row 6]' } },
-    ],
-    computedSummary: {
-      visibleOnlyNetRevenue: 51300,
-      allRowsIncludingHiddenRow6NetRevenue: 61020,
-      hiddenRow6BH105NetRevenue: 9720,
-      byBranchVisibleOnly: { 'Miền Bắc': 23400, 'Miền Trung': 14400, 'Miền Nam': 13500 },
-      byBranchWithHiddenRow6: { 'Miền Bắc': 23400, 'Miền Trung': 24120, 'Miền Nam': 13500 },
-      columnHUnitAfterDiscount: {
-        validRows: 'H2:H6 (5 numeric cells: 1140, 720, 900, 1500, 810)',
-        validCount: 5,
-        validSum: 5070,
-        validAverage: 1014,
-        skippedErrorCells: [{ cell: 'H7', error: '#DIV/0!', formula: '=G7/D7' }],
-        skippedErrorCellsColI: [{ cell: 'I7', error: '#N/A', formula: "=VLOOKUP(A7,'Kiểm toán'!$A$2:$B$6,2,FALSE)" }],
-      },
-    },
-  };
-
-  const sheet2Grid = {
-    sheetId: 'sheet-2',
-    sheetName: 'Kiểm toán',
-    dimension: 'A1:E6',
-    hiddenRows: [],
-    rows: [
-      { row: 1, cells: { A1: 'Khoản mục', B1: 'Giá trị gốc', C1: 'Hệ số', D1: 'Kết quả công thức', E1: 'Quy tắc và ghi chú' } },
-      {
-        row: 2,
-        cells: {
-          A2: 'Doanh thu dự phòng',
-          B2: 2500,
-          C2: 4,
-          D2: '99999 [formula =LEGACYCACHE(B2,C2); NOT RECALCULATED — cached value from the file; engine returns #NAME? (unsupported function: LEGACYCACHE); true product B2*C2 = 10000]',
-          E2: 'Giá trị cache lưu trong tệp (99999) đã cũ (NOT RECALCULATED); công thức đúng là B2*C2 = 10000',
-        },
-      },
-      {
-        row: 3,
-        cells: {
-          A3: 'Chi phí vận hành chuẩn',
-          B3: 2500,
-          C3: 4,
-          D3: '10000 [formula =B3*C3; file had stale cached value 88888, recalculated by engine to 10000]',
-          E3: 'Cache cũ trong tệp là 88888 nhưng tích thực tế B3*C3 = 10000',
-        },
-      },
-      {
-        row: 4,
-        cells: {
-          A4: 'Tỷ giá XML ngoại vi',
-          B4: '<root><tygia>25</tygia></root> [text]',
-          C4: 1,
-          D4: '#NAME? [error; formula =FILTERXML(B4,"//tygia"); unsupported function: FILTERXML — NOT RECALCULATED]',
-          E4: 'Hàm FILTERXML không được hỗ trợ trong bộ tính công thức hiện tại',
-        },
-      },
-      {
-        row: 5,
-        cells: {
-          A5: 'Phí vận chuyển (văn bản locale)',
-          B5: '"1.250,5" [text; raw string "1.250,5" — locale-formatted text, NOT a number; skipped by numeric sum/aggregate]',
-          C5: 1,
-          D5: '3200.756 [number; raw 3200.756; rounded to 0dp per E5 = 3201]',
-          E5: 'Làm tròn kết quả cột D đến hàng đơn vị (0 chữ số thập phân)',
-        },
-      },
-      {
-        row: 6,
-        cells: {
-          A6: 'Phí bảo hiểm kho',
-          B6: '800 [number; raw 800]',
-          C6: 1,
-          D6: '1450.244 [number; raw 1450.244; rounded to 0dp per E6 = 1450]',
-          E6: 'Làm tròn kết quả cột D đến hàng đơn vị (0 chữ số thập phân)',
-        },
-      },
-    ],
-    computedSummary: {
-      b5b6NumericAggregation: {
-        numericCellsCount: 1,
-        numericSum: 800,
-        skippedTextCells: [{ cell: 'B5', text: '1.250,5', reason: 'stored as text (locale string), never cast to number' }],
-      },
-      d5d6Rounding: {
-        ruleCell: 'E5:E6 (round column D to integer / 0 decimal places)',
-        d5Raw: 3200.756,
-        d5Rounded: 3201,
-        d6Raw: 1450.244,
-        d6Rounded: 1450,
-        sumRaw: 4651.0,
-        sumRounded: 4651,
-      },
-    },
-  };
+  const sheet1Grid = DEVSET_SHEET1_GRID;
+  const sheet2Grid = DEVSET_SHEET2_GRID;
 
   function resolveSheet(sheetIdOrName) {
     const s = String(sheetIdOrName ?? caseDoc.context?.activeSheet ?? 'Bán hàng T1').toLowerCase();
@@ -1062,12 +1078,45 @@ async function runCaseOnFacade({
 
 // ---- Real Panel UI End-to-End Verification via Playwright + Fork Vite Frame ----
 
+// The dev case each panel combination runs (BE68-3): the harness types the
+// case's own prompt into the panel and the reply is scored with scoreDevCase,
+// so an unusable panel cannot pass as a green panel proof. The runner refuses
+// to write a summary unless all four combinations ran and reached the façade
+// with a bearer frame token.
+const PANEL_CASE_SPECS = [
+  { caseId: 'DV-DOCX-001', module: 'docs', lang: 'vi', selectedBlockIndex: 4 },
+  { caseId: 'DV-DOCX-002', module: 'docs', lang: 'en', selectedBlockIndex: 4 },
+  { caseId: 'DV-XLSX-001', module: 'sheets', lang: 'vi' },
+  { caseId: 'DV-XLSX-002', module: 'sheets', lang: 'en' },
+];
+
+// The write tool calls of the docs/sheets registries: what the façade executor
+// counts as a write, an apply_ops dry run included as a non-write here too.
+const PANEL_WRITE_TOOLS = new Set(['replace_selection', 'replace_blocks', 'apply_ops', 'propose_operations']);
+
+function parseToolInput(raw) {
+  if (raw && typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(String(raw ?? '{}'));
+  } catch {
+    return {};
+  }
+}
+
+// panelWrites counts write tool calls the way the façade executor counts a
+// write result: an apply_ops dry run mutates nothing.
+function panelWrites(toolCalls) {
+  return toolCalls.filter(
+    (c) => PANEL_WRITE_TOOLS.has(c.name) && !(c.name === 'apply_ops' && c.input?.dryRun === true),
+  ).length;
+}
+
 async function proveRealPanelEndToEnd({
   frameDir,
   serverUrl,
+  cases,
   xlsxMount,
   docxMount,
-  xlsxOracle,
   docxOracle,
 }) {
   const viteBin = path.join(frameDir, 'node_modules/vite/bin/vite.js');
@@ -1079,29 +1128,29 @@ async function proveRealPanelEndToEnd({
   fs.rmSync(harnessDir, { recursive: true, force: true });
   fs.mkdirSync(harnessDir, { recursive: true });
 
-  const genDir = path.join(frameDir, 'node_modules', '@genoffice');
+  // BE68-12: the fork checkout is read-only. Every link the harness needs is
+  // built inside the harness directory (its own node_modules, with @genoffice
+  // pointing at the fork's packages and apps); frameDir/node_modules is only
+  // read, never rewritten, so `git -C <fork> status` stays clean after a run.
+  const harnessModules = path.join(harnessDir, 'node_modules');
+  fs.mkdirSync(harnessModules, { recursive: true });
+  const genDir = path.join(harnessModules, '@genoffice');
   fs.mkdirSync(genDir, { recursive: true });
-  for (const pkg of fs.readdirSync(path.join(frameDir, 'packages'))) {
-    const p = path.join(frameDir, 'packages', pkg);
-    const linkPath = path.join(genDir, pkg);
-    if (fs.statSync(p).isDirectory()) {
-      fs.rmSync(linkPath, { recursive: true, force: true });
-      fs.symlinkSync(p, linkPath);
+  for (const group of ['packages', 'apps']) {
+    for (const name of fs.readdirSync(path.join(frameDir, group))) {
+      const p = path.join(frameDir, group, name);
+      if (fs.statSync(p).isDirectory()) {
+        fs.symlinkSync(p, path.join(genDir, name));
+      }
     }
   }
-  for (const app of fs.readdirSync(path.join(frameDir, 'apps'))) {
-    const p = path.join(frameDir, 'apps', app);
-    const linkPath = path.join(genDir, app);
-    if (fs.statSync(p).isDirectory()) {
-      fs.rmSync(linkPath, { recursive: true, force: true });
-      fs.symlinkSync(p, linkPath);
-    }
+  for (const name of fs.readdirSync(path.join(frameDir, 'node_modules'))) {
+    if (name === '@genoffice') continue;
+    fs.symlinkSync(
+      path.join(frameDir, 'node_modules', name),
+      path.join(harnessModules, name),
+    );
   }
-
-  fs.symlinkSync(
-    path.join(frameDir, 'node_modules'),
-    path.join(harnessDir, 'node_modules'),
-  );
 
   const vitePort = 15173;
   const proxyPort = 15180;
@@ -1133,20 +1182,125 @@ export default {
   fs.writeFileSync(
     path.join(harnessDir, 'entry.tsx'),
     `import { createRoot } from 'react-dom/client';
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Editor } from '@tiptap/core';
 
 const F = ${JSON.stringify(frameDir)};
 const xlsxMount = ${JSON.stringify(xlsxMount)};
 const docxMount = ${JSON.stringify(docxMount)};
-const xlsxOracle = ${JSON.stringify(xlsxOracle)};
 const docxOracle = ${JSON.stringify(docxOracle)};
+const grids = ${JSON.stringify({ sheet1: DEVSET_SHEET1_GRID, sheet2: DEVSET_SHEET2_GRID })};
 
 const q = new URLSearchParams(location.search);
 const mod = (q.get('module') ?? 'docs') as 'docs' | 'sheets';
 const lang = (q.get('lang') ?? 'vi') as 'vi' | 'en';
+const selIndex = Number(q.get('sel') ?? '-1');
 document.documentElement.setAttribute('data-theme', 'light');
 document.documentElement.lang = lang;
+
+// The sheets skill executes the model's tool calls against the same fixture
+// grids the façade runner reads: one fixture, two paths (BE68-3).
+function sheetsTools() {
+  const grid1 = (grids as any).sheet1;
+  const grid2 = (grids as any).sheet2;
+  const resolve = (sheetId: unknown) => {
+    const s = String(sheetId ?? '').toLowerCase();
+    if (s.includes('2') || s.includes('kiem') || s.includes('kiểm')) return grid2;
+    return grid1;
+  };
+  const defs = [
+    {
+      name: 'get_workbook_context',
+      description: 'Get a workbook overview: all sheets (id/name/data extent), active sheet and selection.',
+      inputSchema: { type: 'object', properties: {}, required: [] },
+      run: () => ({
+        activeSheetId: grid1.sheetId,
+        activeSheetName: grid1.sheetName,
+        selection: { sheet: grid1.sheetName, range: grid1.dimension },
+        sheets: [
+          { id: grid1.sheetId, name: grid1.sheetName, dataRange: grid1.dimension, hiddenRows: grid1.hiddenRows, totalsRows: (grid1.totalsRows ?? []).map((r: any) => r.row), autoFilter: grid1.autoFilter },
+          { id: grid2.sheetId, name: grid2.sheetName, dataRange: grid2.dimension, hiddenRows: grid2.hiddenRows },
+        ],
+      }),
+    },
+    {
+      name: 'read_range',
+      description: 'Read current values/formulas by rectangular range, with row numbers and column letters.',
+      inputSchema: { type: 'object', properties: { range: { type: 'string' }, sheetId: { type: 'string' } }, required: ['range'] },
+      run: (args: any) => resolve(args.sheetId),
+    },
+    {
+      name: 'read_cells',
+      description: 'Read current values/formulas/provenance of specific scattered cells.',
+      inputSchema: { type: 'object', properties: { addresses: { type: 'array', items: { type: 'string' } }, sheetId: { type: 'string' } }, required: ['addresses'] },
+      run: (args: any) => resolve(args.sheetId),
+    },
+    {
+      name: 'read_formats',
+      description: 'Read number formats and cell types over a range.',
+      inputSchema: { type: 'object', properties: { range: { type: 'string' }, sheetId: { type: 'string' } }, required: ['range'] },
+      run: (args: any) => resolve(args.sheetId),
+    },
+    {
+      name: 'read_sheet_features',
+      description: 'Read worksheet AutoFilter, hidden rows, totals rows and protection state.',
+      inputSchema: { type: 'object', properties: { sheetId: { type: 'string' } }, required: [] },
+      run: (args: any) => {
+        const t = resolve(args.sheetId);
+        return { sheetId: t.sheetId, sheetName: t.sheetName, hiddenRows: t.hiddenRows, autoFilter: t.autoFilter ?? null, totalsRows: t.totalsRows ?? [], protected: false };
+      },
+    },
+    {
+      name: 'aggregate_range',
+      description: 'Compute non-empty count, numeric sum/average/min/max over a range, optionally skipping hidden rows.',
+      inputSchema: { type: 'object', properties: { range: { type: 'string' }, sheetId: { type: 'string' }, skipHiddenRows: { type: 'boolean' } }, required: ['range'] },
+      run: (args: any) => {
+        const t = resolve(args.sheetId);
+        return { sheetId: t.sheetId, sheetName: t.sheetName, range: args.range ?? t.dimension, skipHiddenRows: Boolean(args.skipHiddenRows), summary: t.computedSummary, rows: t.rows };
+      },
+    },
+    {
+      name: 'summarize_range',
+      description: 'Read-only conditional statistics over a table range, grouped or filtered, skipping total/subtotal rows.',
+      inputSchema: { type: 'object', properties: { range: { type: 'string' }, sheetId: { type: 'string' }, function: { type: 'string' }, valueColumn: { type: 'string' }, groupByColumn: { type: 'string' }, skipHiddenRows: { type: 'boolean' } }, required: ['range'] },
+      run: (args: any) => {
+        const t = resolve(args.sheetId);
+        return { sheetId: t.sheetId, sheetName: t.sheetName, range: args.range ?? t.dimension, summary: t.computedSummary, rows: t.rows };
+      },
+    },
+    {
+      name: 'find_cells',
+      description: 'Search the workbook or one sheet for cells matching a query or errors_only=true.',
+      inputSchema: { type: 'object', properties: { query: { type: 'string' }, errors_only: { type: 'boolean' }, sheetId: { type: 'string' } }, required: [] },
+      run: () => ({ sheet1Errors: grid1.computedSummary.columnHUnitAfterDiscount, sheet2Formulas: grid2.rows }),
+    },
+    {
+      name: 'ask_clarification',
+      description: 'Ask the user up to 4 short multiple-choice clarification questions before computing or editing.',
+      inputSchema: { type: 'object', properties: { questions: { type: 'array', items: { type: 'object' } } }, required: ['questions'] },
+      run: (args: any) => ({ status: 'clarification_requested', questions: args.questions ?? [] }),
+    },
+  ];
+  return defs;
+}
+
+function sheetsSkill() {
+  const defs = sheetsTools();
+  return {
+    id: 'sheets-devset',
+    systemPrompt: 'Spreadsheet assistant. Use the listed tools for every reading; never invent numbers.',
+    tools: defs.map((d) => ({ name: d.name, description: d.description, inputSchema: d.inputSchema })),
+    executeTool: async (call: any) => {
+      const def = defs.find((d) => d.name === call.name);
+      if (!def) return { output: 'Unknown tool: ' + call.name, isError: true, summary: call.name };
+      try {
+        return { output: JSON.stringify(def.run(call.input ?? {})), summary: call.name };
+      } catch (err: any) {
+        return { output: String(err?.message ?? err), isError: true, summary: call.name };
+      }
+    },
+  } as any;
+}
 
 async function main() {
   const { createWebAi, withWebAi } = await import(/* @vite-ignore */ F + '/web/modules/shared/ai/web-ai.ts');
@@ -1238,6 +1392,17 @@ async function main() {
         })),
       },
     });
+    // The case's selected paragraph: the panel reads the selection from the
+    // live editor, so the harness selects it before the run (BE68-3).
+    if (selIndex >= 0 && selIndex < editor.state.doc.childCount) {
+      let from = 0;
+      editor.state.doc.forEach((node: any, offset: number, index: number) => {
+        if (index === selIndex) from = offset;
+      });
+      const node = editor.state.doc.child(selIndex);
+      editor.commands.setTextSelection({ from: from + 1, to: from + node.nodeSize - 1 });
+    }
+    (window as any).__devsetEditor = editor;
     createRoot(rootEl).render(
       <LocaleProvider initial={lang}>
         <div className="ai-dock" style={{ width: '400px', height: '760px' }}>
@@ -1254,66 +1419,7 @@ async function main() {
     setModuleLang(lang);
     const settings = await webAi.settings();
     const transport = createElectronTransport(() => settings as any);
-    const sheetsSkill = {
-      id: 'sheets-devset',
-      systemPrompt: 'Spreadsheet assistant',
-      getContext: () => 'Active sheet: Bán hàng T1 (A1:I9)',
-      tools: [
-        {
-          name: 'get_workbook_context',
-          description: 'Get workbook overview: sheet names and dimensions.',
-          inputSchema: { type: 'object', properties: {}, required: [] },
-          execute: async () => ({
-            summary: 'Read workbook context',
-            output: JSON.stringify({
-              sheets: [
-                { id: 'Bán hàng T1', name: 'Bán hàng T1', rows: 9, cols: 9 },
-                { id: 'Tỷ giá & Tham chiếu', name: 'Tỷ giá & Tham chiếu', rows: 5, cols: 3 },
-              ],
-              activeSheet: 'Bán hàng T1',
-            }),
-          }),
-        },
-        {
-          name: 'read_cells',
-          description: 'Read values and formulas of cells.',
-          inputSchema: {
-            type: 'object',
-            properties: { addresses: { type: 'array', items: { type: 'string' } }, sheetId: { type: 'string' } },
-            required: ['addresses'],
-          },
-          execute: async (args: any) => {
-            const cells: Record<string, any> = {};
-            for (const a of args.addresses ?? ['G8', 'G9']) {
-              cells[a] = xlsxOracle.sheets?.['Bán hàng T1']?.cells?.[a] ?? null;
-            }
-            return {
-              summary: 'Read cells',
-              output: JSON.stringify({ sheetId: 'Bán hàng T1', cells }),
-            };
-          },
-        },
-        {
-          name: 'read_range',
-          description: 'Read rectangular cell range.',
-          inputSchema: {
-            type: 'object',
-            properties: { range: { type: 'string' }, sheetId: { type: 'string' } },
-            required: ['range'],
-          },
-          execute: async () => ({
-            summary: 'Read range',
-            output: JSON.stringify({
-              sheetId: 'Bán hàng T1',
-              cells: {
-                G8: xlsxOracle.sheets?.['Bán hàng T1']?.cells?.G8,
-                G9: xlsxOracle.sheets?.['Bán hàng T1']?.cells?.G9,
-              },
-            }),
-          }),
-        },
-      ],
-    };
+    const skill = sheetsSkill();
 
     function SheetsHost() {
       const [chat, setChat] = useState<any[]>([]);
@@ -1334,7 +1440,7 @@ async function main() {
         ]);
         const loop = new AgentLoop({
           transport,
-          skill: sheetsSkill as any,
+          skill,
           events: {
             onText(text: string) {
               setChat((prev) => {
@@ -1480,7 +1586,9 @@ main().catch((err) => {
           });
           const respBuf = Buffer.from(await upstreamRes.arrayBuffer());
           const elapsedMs = Number((performance.now() - t0).toFixed(1));
-          proxyRequests.push({
+          // The streamed body is the panel's actual model answer: the tool
+          // calls and the final text are read back from it for scoring.
+          const record = {
             method: req.method,
             path: url.pathname,
             status: upstreamRes.status,
@@ -1489,7 +1597,22 @@ main().catch((err) => {
             conversationHeader:
               upstreamRes.headers.get('x-uniwork-ai-conversation') ?? '',
             runHeader: upstreamRes.headers.get('x-uniwork-ai-run') ?? '',
-          });
+            content: '',
+            toolCalls: [],
+          };
+          if (url.pathname.endsWith('/ai/uniwork/chat/completions')) {
+            try {
+              const parsed = parseUniworkFacadeResponse(respBuf.toString('utf8'));
+              record.content = parsed.content;
+              record.toolCalls = (parsed.toolCalls ?? []).map((tc) => ({
+                name: tc.function?.name ?? '',
+                input: parseToolInput(tc.function?.arguments),
+              }));
+            } catch {
+              // a body this parser cannot read leaves content/toolCalls empty
+            }
+          }
+          proxyRequests.push(record);
           const outHeaders = { 'Cache-Control': 'no-store' };
           for (const h of [
             'content-type',
@@ -1523,41 +1646,17 @@ main().catch((err) => {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     const panelProofs = [];
     try {
-      for (const spec of [
-        {
-          caseId: 'DV-DOCX-001',
-          module: 'docs',
-          lang: 'vi',
-          prompt:
-            'Đoạn văn số 4 nói về thử nghiệm tại kho Đà Nẵng có bao nhiêu nhân viên vận hành và trong mấy tuần?',
-        },
-        {
-          caseId: 'DV-DOCX-002',
-          module: 'docs',
-          lang: 'en',
-          prompt:
-            'In paragraph 4 about the Đà Nẵng warehouse pilot, how many operators and how many weeks are stated?',
-        },
-        {
-          caseId: 'DV-XLSX-001',
-          module: 'sheets',
-          lang: 'vi',
-          prompt:
-            'Cho biết tên các trang tính trong sổ tính này và giá trị tổng ở ô G8 và G9 trên Bán hàng T1.',
-        },
-        {
-          caseId: 'DV-XLSX-002',
-          module: 'sheets',
-          lang: 'en',
-          prompt:
-            'List the sheet names in this workbook and the total values in G8 and G9 on sheet Bán hàng T1.',
-        },
-      ]) {
+      for (const spec of PANEL_CASE_SPECS) {
+        const caseDoc = cases.find((c) => c.id === spec.caseId);
+        if (!caseDoc) {
+          throw new Error(`dev set has no case ${spec.caseId} for the panel run`);
+        }
         const page = await browser.newPage();
         const beforeCount = proxyRequests.length;
         const t0 = performance.now();
+        const sel = spec.selectedBlockIndex === undefined ? '' : `&sel=${spec.selectedBlockIndex}`;
         await page.goto(
-          `${localHttpOrigin(proxyPort)}/index.html?module=${spec.module}&lang=${spec.lang}`,
+          `${localHttpOrigin(proxyPort)}/index.html?module=${spec.module}&lang=${spec.lang}${sel}`,
           { waitUntil: 'domcontentloaded' },
         );
         await page.waitForFunction(
@@ -1574,7 +1673,7 @@ main().catch((err) => {
         }
         const box = page.locator('textarea').first();
         await box.waitFor({ state: 'visible', timeout: 30000 });
-        await box.fill(spec.prompt);
+        await box.fill(caseDoc.prompt);
         await box.press('Enter');
 
         await page.waitForFunction(
@@ -1587,7 +1686,7 @@ main().catch((err) => {
             return txt.length > 0;
           },
           null,
-          { timeout: 60000 },
+          { timeout: 240000 },
         );
         const replyText = await page
           .locator('.ai-msg-assistant')
@@ -1597,21 +1696,64 @@ main().catch((err) => {
         const calls = proxyRequests
           .slice(beforeCount)
           .filter((r) => r.path.endsWith('/ai/uniwork/chat/completions'));
+        const toolCalls = calls.flatMap((c) => c.toolCalls);
+        const answerText =
+          calls.map((c) => c.content).filter(Boolean).join('\n') || replyText.trim();
+        const editorBlocks = await page.evaluate(() => {
+          const ed = window.__devsetEditor;
+          if (!ed) return null;
+          const json = ed.getJSON();
+          return (json.content ?? []).map((n, i) => ({
+            index: n.attrs?.docxIndex ?? i,
+            text: (n.content ?? []).map((t) => t.text ?? '').join(''),
+          }));
+        });
+        const writes = panelWrites(toolCalls);
+        const outsideAllowlist = toolCalls
+          .map((c) => c.name)
+          .filter((n) => !caseDoc.allowedTools.includes(n));
+        const scored = scoreDevCase(caseDoc, {
+          answerText,
+          toolCalls,
+          mutatedBlocks: editorBlocks ?? [],
+          writes,
+        });
         panelProofs.push({
           caseId: spec.caseId,
           module: spec.module,
           lang: spec.lang,
+          prompt: caseDoc.prompt,
           facadeRouteCalled: calls.length > 0,
           facadeCallsCount: calls.length,
           paths: [...new Set(calls.map((c) => c.path))],
-          allAuthBearer: calls.every((c) => c.hasAuthBearer),
+          allAuthBearer: calls.length > 0 && calls.every((c) => c.hasAuthBearer),
+          toolCalls: toolCalls.map((c) => c.name),
+          writes,
+          outsideAllowlist,
+          editSource:
+            spec.module === 'docs'
+              ? editorBlocks
+                ? 'editor'
+                : 'editor-unavailable'
+              : 'no-document-mutation',
+          score: scored.score,
+          passed: scored.passed && outsideAllowlist.length === 0,
+          checks: scored.checks,
           endToEndMs: e2eMs,
-          replyExcerpt: replyText.trim().slice(0, 200),
+          answerExcerpt: answerText.trim().slice(0, 400),
         });
         await page.close();
       }
     } finally {
       await browser.close();
+    }
+
+    const unreached = panelProofs.filter((p) => !p.facadeRouteCalled || !p.allAuthBearer);
+    if (panelProofs.length !== PANEL_CASE_SPECS.length || unreached.length > 0) {
+      throw new Error(
+        `panel proof failed: ${panelProofs.length}/${PANEL_CASE_SPECS.length} combinations ran; ` +
+          `without a bearer-authenticated façade call: ${unreached.map((p) => p.caseId).join(', ') || 'none'}`,
+      );
     }
     return panelProofs;
   } finally {
@@ -1623,11 +1765,112 @@ main().catch((err) => {
   }
 }
 
+// ---- Optional: run the whole measurement against a server built from a SHA ----
+
+// startServerFromSha builds, migrates and starts the D server at one commit in
+// a temporary git worktree, so the @1 baseline (4df589a37, the last commit
+// before the @2 pack) is reproducible without a new env var (BE68-4). The
+// worktree is removed and the process stopped by the returned stop().
+async function startServerFromSha(sha, { dbUrl, port }) {
+  const dir = path.join('/tmp', `g608-server-${sha.slice(0, 12)}`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  execFileSync('git', ['worktree', 'add', '--detach', '--force', dir, sha], {
+    cwd: repoRoot,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let serverProc = null;
+  let logStream = null;
+  const remove = () => {
+    try {
+      execFileSync('git', ['worktree', 'remove', '--force', dir], {
+        cwd: repoRoot,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch {
+      // a worktree that was never added (or already pruned) is not an error
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  };
+  const stop = async () => {
+    if (serverProc && serverProc.exitCode === null) {
+      await new Promise((resolve) => {
+        serverProc.once('exit', resolve);
+        serverProc.kill('SIGTERM');
+        setTimeout(() => {
+          try {
+            serverProc.kill('SIGKILL');
+          } catch {
+            // already gone
+          }
+          resolve();
+        }, 10000);
+      });
+    }
+    if (logStream) logStream.end();
+    remove();
+  };
+  try {
+    const buildEnv = { ...process.env, GOFLAGS: '-p=1' };
+    execFileSync('go', ['build', '-o', path.join(dir, 'bin-server'), './cmd/server'], {
+      cwd: path.join(dir, 'server'),
+      env: buildEnv,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    execFileSync('go', ['build', '-o', path.join(dir, 'bin-migrate'), './cmd/migrate'], {
+      cwd: path.join(dir, 'server'),
+      env: buildEnv,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    execFileSync(path.join(dir, 'bin-migrate'), ['up'], {
+      cwd: path.join(dir, 'server'),
+      env: { ...process.env, DATABASE_URL: dbUrl },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const logPath = path.join(dir, 'server.log');
+    logStream = fs.createWriteStream(logPath);
+    serverProc = spawn(path.join(dir, 'bin-server'), [], {
+      cwd: path.join(dir, 'server'),
+      env: { ...process.env, DATABASE_URL: dbUrl, PORT: String(port) },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    serverProc.stdout.pipe(logStream);
+    serverProc.stderr.pipe(logStream);
+    const url = localHttpOrigin(port);
+    const deadline = Date.now() + 90000;
+    for (;;) {
+      if (serverProc.exitCode !== null) {
+        const tail = fs.existsSync(logPath)
+          ? fs.readFileSync(logPath, 'utf8').split('\n').slice(-15).join('\n')
+          : '';
+        throw new Error(`server @${sha} exited with ${serverProc.exitCode}\n${tail}`);
+      }
+      try {
+        const r = await fetch(`${url}/readyz`);
+        if (r.status === 200) break;
+      } catch {
+        // not listening yet
+      }
+      if (Date.now() > deadline) {
+        throw new Error(`server @${sha} did not become ready on ${url} within 90s`);
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    process.stdout.write(`server @${sha} ready on ${url} (log: ${logPath})\n`);
+    return { url, logPath, stop };
+  } catch (err) {
+    await stop();
+    throw err;
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h')) {
     process.stdout.write(
-      'Usage: node scripts/office/devset-run.mjs --server-url <origin> [--db-url <postgres-url>] [--frame-dir <path>] [--out <file.json>]\n',
+      'Usage: node scripts/office/devset-run.mjs (--server-url <origin> | --server-sha <commit> --db-url <postgres-url>) ' +
+        '[--server-port <port>] [--db-url <postgres-url>] [--frame-dir <path>] [--out <file.json>]\n' +
+        '  --server-sha builds, migrates and starts the server at that commit in a temporary worktree\n' +
+        '  (the @1 baseline is 4df589a37, the last commit before the office_uniwork_ai@2 pack), then removes it.\n',
     );
     return;
   }
@@ -1637,13 +1880,23 @@ async function main() {
     return i >= 0 && i + 1 < args.length ? args[i + 1] : '';
   };
 
-  const serverUrl = getArg('--server-url').replace(/\/+$/, '');
+  const serverSha = getArg('--server-sha').trim();
+  const serverPortArg = Number(getArg('--server-port') || '15200');
   const dbUrl = getArg('--db-url');
   const frameDir = getArg('--frame-dir');
   const outPath = getArg('--out');
 
+  let serverUrl = getArg('--server-url').replace(/\/+$/, '');
+  let shaServer = null;
+  if (serverSha) {
+    if (!dbUrl) {
+      throw new Error('--server-sha needs --db-url: the runner migrates and starts the server itself');
+    }
+    shaServer = await startServerFromSha(serverSha, { dbUrl, port: serverPortArg });
+    serverUrl = shaServer.url;
+  }
   if (!serverUrl) {
-    throw new Error('Missing required --server-url');
+    throw new Error('Missing --server-url (or --server-sha with --db-url)');
   }
 
   const { cases } = loadDevSet(repoRoot);
@@ -1660,72 +1913,80 @@ async function main() {
     ),
   );
 
-  const session = await bootstrapServerTenant(serverUrl, dbUrl);
-  const xlsxMount = await uploadFixtureAndMintFrameToken(
-    serverUrl,
-    session,
-    'docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.xlsx',
-    'dev-xlsx-orders-xyz.xlsx',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  );
-  const docxMount = await uploadFixtureAndMintFrameToken(
-    serverUrl,
-    session,
-    'docs/office/g5g6g7/devset/fixtures/dev-docx-proposal-vi.docx',
-    'dev-docx-proposal-vi.docx',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  );
-
-  let panelProofs = [];
-  if (frameDir) {
-    process.stdout.write(`Proving real panel UI end-to-end via Playwright (${frameDir})...\n`);
-    panelProofs = await proveRealPanelEndToEnd({
-      frameDir,
+  try {
+    const session = await bootstrapServerTenant(serverUrl, dbUrl);
+    const xlsxMount = await uploadFixtureAndMintFrameToken(
       serverUrl,
-      xlsxMount,
-      docxMount,
-      xlsxOracle,
-      docxOracle,
-    });
-    process.stdout.write(
-      `Panel UI proof complete: ${panelProofs.length} format/lang runs verified.\n`,
+      session,
+      'docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.xlsx',
+      'dev-xlsx-orders-xyz.xlsx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
-  }
-
-  const caseResults = [];
-  for (const c of cases) {
-    const docMount = c.format === 'xlsx' ? xlsxMount : docxMount;
-    const res = await runCaseOnFacade({
-      caseDoc: c,
+    const docxMount = await uploadFixtureAndMintFrameToken(
       serverUrl,
-      dbUrl,
-      orgId: session.orgId,
-      docMount,
-      xlsxOracle,
-      docxOracle,
-    });
-    caseResults.push(res);
-    process.stdout.write(
-      `[${res.id}] (${res.lang}/${res.format}) ${res.passed ? 'PASS' : 'FAIL'} score=${res.score} prompt_id=${res.promptId} model=${res.resolvedModel} tools=[${res.toolCalls.join(',')}] lat(m=${res.latenciesMs.model}ms,t=${res.latenciesMs.tool}ms,e2e=${res.latenciesMs.endToEnd}ms)\n`,
+      session,
+      'docs/office/g5g6g7/devset/fixtures/dev-docx-proposal-vi.docx',
+      'dev-docx-proposal-vi.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     );
-  }
 
-  const summary = summarizeRunResults(caseResults, {
-    date: new Date().toISOString().slice(0, 10),
-    promptId: caseResults[0]?.promptId ?? 'office_uniwork_ai@1',
-    resolvedModel: caseResults[0]?.resolvedModel ?? 'unknown',
-    panelProofs,
-  });
+    let panelProofs = [];
+    if (frameDir) {
+      process.stdout.write(`Proving real panel UI end-to-end via Playwright (${frameDir})...\n`);
+      panelProofs = await proveRealPanelEndToEnd({
+        frameDir,
+        serverUrl,
+        cases,
+        xlsxMount,
+        docxMount,
+        docxOracle,
+      });
+      process.stdout.write(
+        `Panel UI proof complete: ${panelProofs.length} case runs through the panel, ` +
+          `${panelProofs.filter((p) => p.passed).length} scored pass.\n`,
+      );
+    }
 
-  const jsonOut = `${JSON.stringify(summary, null, 2)}\n`;
-  const secretHits = scanForSecrets(jsonOut, 'devset-run-output');
-  if (secretHits.length > 0) {
-    throw new Error(`Refusing to write output with secret-looking values:\n${secretHits.join('\n')}`);
-  }
+    const caseResults = [];
+    for (const c of cases) {
+      const docMount = c.format === 'xlsx' ? xlsxMount : docxMount;
+      const res = await runCaseOnFacade({
+        caseDoc: c,
+        serverUrl,
+        dbUrl,
+        orgId: session.orgId,
+        docMount,
+        xlsxOracle,
+        docxOracle,
+      });
+      caseResults.push(res);
+      process.stdout.write(
+        `[${res.id}] (${res.lang}/${res.format}) ${res.passed ? 'PASS' : 'FAIL'} score=${res.score} prompt_id=${res.promptId} model=${res.resolvedModel} tools=[${res.toolCalls.join(',')}] lat(m=${res.latenciesMs.model}ms,t=${res.latenciesMs.tool}ms,e2e=${res.latenciesMs.endToEnd}ms)\n`,
+      );
+    }
 
-  if (outPath) {
-    fs.writeFileSync(outPath, jsonOut, 'utf8');
-    process.stdout.write(`Wrote run summary to ${outPath}\n`);
+    const summary = summarizeRunResults(caseResults, {
+      date: new Date().toISOString().slice(0, 10),
+      promptId: caseResults[0]?.promptId ?? 'office_uniwork_ai@1',
+      resolvedModel: caseResults[0]?.resolvedModel ?? 'unknown',
+      // Which commit the server under test was built from: a --server-sha run
+      // names it, so the committed run JSON explains its own baseline (BE68-4/5).
+      serverSha: serverSha || 'external-server',
+      panelProofs,
+    });
+
+    const jsonOut = `${JSON.stringify(summary, null, 2)}\n`;
+    const secretHits = scanForSecrets(jsonOut, 'devset-run-output');
+    if (secretHits.length > 0) {
+      throw new Error(`Refusing to write output with secret-looking values:\n${secretHits.join('\n')}`);
+    }
+
+    if (outPath) {
+      fs.writeFileSync(outPath, jsonOut, 'utf8');
+      process.stdout.write(`Wrote run summary to ${outPath}\n`);
+    }
+  } finally {
+    if (shaServer) await shaServer.stop();
   }
 }
 
