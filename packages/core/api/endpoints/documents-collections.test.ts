@@ -306,6 +306,31 @@ describe("documents-collections endpoints", () => {
     ]);
   });
 
+  it("a malformed ancestor cuts the path there and keeps the valid prefix", async () => {
+    const f1 = { id: "f1", title: "Hợp đồng" };
+    const f2 = { id: "f2", title: "2026" };
+    const f3 = { id: "f3", title: "Q4" };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "a", path: [f1, f2, f3] }),
+            summary({ id: "b", path: [f1, { id: 2 }, f3] }),
+            summary({ id: "c", path: [{ title: "no id" }, f2] }),
+            summary({ id: "d", path: [f1, f2, null] }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocuments("w1", { q: "x", match: "title" });
+    expect(out.documents.map((d) => [d.id, d.path])).toEqual([
+      ["a", [f1, f2, f3]],
+      ["b", [f1]],
+      ["c", []],
+      ["d", [f1, f2]],
+    ]);
+  });
+
   it("getDocumentTree asks for folders only when told to", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [treeNode({ kind: "folder" })] }));
     await getDocumentTree("w1", undefined, undefined, { foldersOnly: true });
