@@ -1,0 +1,90 @@
+$ pnpm --filter @uniwork/views test; echo "VIEWS_TEST_EXIT=$?"
+
+> @uniwork/views@0.0.0 test /workspace/packages/views
+> vitest run --coverage
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+      Coverage enabled with v8
+
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:243:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:250:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:243:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:250:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:243:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:250:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at FakeNotification.notification.onclick (/workspace/packages/core/platform/system-notification.ts:118:14)
+    at /workspace/packages/views/layout/workspace-chat-attention.test.tsx:154:19
+    at file:///workspace/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+
+ Test Files  547 passed (547)
+      Tests  4494 passed (4494)
+   Start at  07:26:50
+   Duration  363.64s (transform 17.08s, setup 121.30s, import 229.38s, tests 458.05s, environment 151.24s)
+
+ % Coverage report from v8
+
+=============================== Coverage summary ===============================
+Statements   : 79.93% ( 27251/34090 )
+Branches     : 73.37% ( 22058/30063 )
+Functions    : 75% ( 6973/9297 )
+Lines        : 82.24% ( 24264/29503 )
+================================================================================
+VIEWS_TEST_EXIT=0

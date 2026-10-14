@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+65033a1c86ace138ef86a5bd39dc192bf101364f
+65033a1c8 chore: merge FD-08 W-B (create folder in open folder, row menu subfolder and rename) into the lane
+86d7bf2d1 feat(documents): wire create folder in open folder, row menu subfolder and rename
+53097fb21 chore: merge FD-08 W-C (FD-07 nits N1 N2 R3-2 R3-3 R4-1) into the lane
+ffebfc16d feat(documents): add folder direct-child list, folders-first sort, and Type column (FD-08)
+fcb5c73fc refactor(documents): close FD-07 review nits in tree reveal and row menu
+db1ece9c8 test(documents): cover folder direct children, folders-first sort, vi collation, Type column, and storage persistence
+eb6333669 chore: merge FD-07 folder URL and tree menu (UNI-1467) into the G5-G7 root
+807ce6437 chore: merge the G5-G7 root e4db1a636 into FD-07 (FD-03 accepted, develop CI fixes)
