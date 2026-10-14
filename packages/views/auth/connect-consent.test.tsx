@@ -30,6 +30,7 @@ describe("ConnectConsentView", () => {
     expect(screen.getByRole("heading", { name: "Allow Claude to access UniWork?" })).toBeInTheDocument();
     expect(screen.getByText("Verified")).toBeInTheDocument();
     expect(screen.getByText("claude.ai")).toBeInTheDocument();
+    expect(screen.getByText("Projects and their tasks")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Allow" }));
     await waitFor(() => expect(onDecision).toHaveBeenCalledWith("approve", "o1", false));
   });
