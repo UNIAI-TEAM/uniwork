@@ -35,8 +35,10 @@ async function downloadInstallerInBrowser(organizationId: string, channel: Offic
   if (!installer) throw new Error("installer unavailable");
   const file = installerFileName(installer.url);
   const link = window.document.createElement("a");
-  // a release host that answers without Content-Disposition opens a new tab, never unloads the app
-  link.href = installer.url; link.rel = "noopener"; link.target = "_blank"; link.download = file;
+  // Same tab, no target: a cross-origin `download` is ignored, so a new tab would flash open on the
+  // release host and close once the attachment arrives. An attachment response leaves this page as it
+  // is; unsaved frame edits keep their beforeunload guard.
+  link.href = installer.url; link.download = file;
   window.document.body.append(link); link.click(); link.remove();
   return file;
 }

@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { errorCode } from "@uniwork/core/api";
 import { appHost } from "@uniwork/core/config";
 import { useCreateOrganization } from "@uniwork/core/organizations";
-import type { Organization } from "@uniwork/core/types";
+import { alreadyInOrganization } from "@uniwork/core/organizations/errors";
+import { holdsOrganization, type Organization } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
 import { isSlugConflict } from "../../workspace/slug";
@@ -13,6 +14,12 @@ import { pickerCardClass } from "../../common/picker-card";
 import { RadioCardGroup, RadioMark } from "../components/option-card";
 import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
 import { SlugFields, useSlugForm } from "../slug-field";
+import {
+  AlreadyInOrganizationNotice,
+  ManageOrganizationAction,
+  OtherOrganizationLine,
+  type HeldOrganization,
+} from "./already-in-organization-notice";
 
 /**
  * How a failed create should be reported. Deliberately NOT the server's
@@ -21,7 +28,7 @@ import { SlugFields, useSlugForm } from "../slug-field";
  * ngang (2-40 ký tự)" from `ValidateSlug`), so rendering it shows Vietnamese to
  * an English-locale user. `ApiError.code` is the stable, localizable handle.
  */
-export type CreateFailure = "slug_taken" | "slug_invalid" | "unknown";
+export type CreateFailure = "slug_taken" | "slug_invalid" | "already_in_organization" | "unknown";
 
 /**
  * `invalid_request` is what `handlers.mapServiceError` answers for every
@@ -33,6 +40,9 @@ export type CreateFailure = "slug_taken" | "slug_invalid" | "unknown";
  * translated toast rather than a misleading inline field error.
  */
 export function classifyCreateFailure(err: unknown): CreateFailure {
+  // One organization per account (ADR 0032): not a slug problem, and the
+  // field cannot fix it. Checked before the generic 409 slug conflict.
+  if (errorCode(err) === "already_in_organization") return "already_in_organization";
   if (isSlugConflict(err)) return "slug_taken";
   if (errorCode(err) === "invalid_request") return "slug_invalid";
   return "unknown";
@@ -58,8 +68,8 @@ export function avatarInitial(name: string): string {
 
 /**
  * Bước 2 — Tổ chức. Chưa thuộc org nào: form tên + slug. Đã thuộc org (resume
- * / new_workspace): card chọn org có sẵn + card "Tạo tổ chức mới" mở rộng.
- * Một CTA ở footer cho cả hai đường.
+ * / new_workspace): chỉ card chọn org có sẵn — mỗi tài khoản thuộc một tổ chức
+ * (ADR 0032), nên không có card "Tạo tổ chức mới". Một CTA ở footer.
  */
 export function StepOrganization({
   organizations,
@@ -76,10 +86,23 @@ export function StepOrganization({
   const host = appHost();
   const form = useSlugForm();
   const create = useCreateOrganization();
-  const resume = organizations.length > 0;
+  // GET /orgs leaves archived organizations out but keeps a switched-off
+  // membership, which no longer counts as belonging (ADR 0032 D1).
+  const held = organizations.filter(holdsOrganization);
+  const resume = held.length > 0;
   // resume: null = chưa chọn gì → CTA disabled. Click lại card đang chọn = bỏ chọn.
-  const [pickedId, setPickedId] = useState<string | "create" | null>(selected?.id ?? null);
-  const picked = organizations.find((o) => o.id === pickedId) ?? null;
+  const [pickedId, setPickedId] = useState<string | null>(selected?.id ?? null);
+  const picked = held.find((o) => o.id === pickedId) ?? null;
+  // The server refused a create because the account already belongs to an
+  // organization (created in another tab, or joined meanwhile).
+  const [alreadyIn, setAlreadyIn] = useState<{ organization: HeldOrganization } | null>(null);
+  // Refused for the one-organization rule and still nothing to pick: the
+  // create form could only be refused again, so the step turns into the
+  // notice and its footer into the way to that organization.
+  const refused = alreadyIn !== null && !resume;
+  // One organization held: the picker has a single card, and the step says why
+  // there is no second one and where to go for a different organization.
+  const only = resume && held.length === 1 ? held[0]! : null;
 
   const isCreating = create.isPending;
   useEffect(() => {
@@ -113,6 +136,10 @@ export function StepOrganization({
         },
         onError: (err) => {
           const failure = classifyCreateFailure(err);
+          if (failure === "already_in_organization") {
+            setAlreadyIn({ organization: alreadyInOrganization(err) });
+            return;
+          }
           if (failure === "unknown") {
             // No field to attach it to, so the toast is the right surface here.
             toast.error(t("onboarding.step_organization.create_failed_toast"));
@@ -136,23 +163,23 @@ export function StepOrganization({
     );
   };
 
-  const creatingActive = !resume || pickedId === "create";
   let hint: string;
   let label: string;
   let disabled: boolean;
   let onContinue: () => void;
-  if (picked) {
+  if (refused) {
+    hint = t("onboarding.step_organization.already_member_hint");
+    label = t("onboarding.step_organization.manage_organization");
+    disabled = false;
+    onContinue = () => {};
+  } else if (picked) {
     hint = t("onboarding.step_organization.hint_opening", { name: picked.name });
     label = t("onboarding.step_organization.cta_open", { name: picked.name });
-    // Reachable, despite appearances: the picker cards stay clickable while a
-    // create is in flight, so picking an existing org mid-request lands here
-    // with `isCreating` true. The Button below refuses to run `onContinue`
-    // while `disabled`, which is what keeps this honest — `aria-disabled` on a
-    // button that still fires its handler is exactly what
-    // packages/views/test/inactive.ts forbids.
+    // The picker and the create form no longer share the screen (ADR 0032),
+    // so a create is never in flight here; the guard stays as cheap insurance.
     disabled = isCreating;
     onContinue = () => onSelected(picked);
-  } else if (creatingActive) {
+  } else if (!resume) {
     if (isCreating) {
       hint = t("onboarding.step_organization.hint_creating_pending", { name: form.name.trim() });
       label = t("onboarding.step_organization.cta_creating");
@@ -193,7 +220,7 @@ export function StepOrganization({
       urlLabel={t("onboarding.step_organization.url_label")}
       slugPlaceholder={t("onboarding.step_organization.slug_placeholder")}
       onEnter={handleCreate}
-      autoFocus={!resume || pickedId === "create"}
+      autoFocus
       // Same preview the workspace step carries. Without it this step was the
       // one place the resulting URL existed only inside a truncated pill.
       preview={{
@@ -220,54 +247,60 @@ export function StepOrganization({
             // equal cards that arbitrarily privileges the first, so it is used
             // only when there is in fact exactly one to name.
             resume
-              ? organizations.length === 1
-                ? t("onboarding.step_organization.headline_resume", { name: organizations[0]!.name })
+              ? held.length === 1
+                ? t("onboarding.step_organization.headline_resume", { name: held[0]!.name })
                 : t("onboarding.step_organization.headline_resume_many")
               : t("onboarding.step_organization.headline_first")
           }
-          description={resume ? t("onboarding.step_organization.lede_resume") : t("onboarding.step_organization.lede_first")}
+          description={
+            only
+              ? t("onboarding.step_organization.lede_resume_one", { name: only.name })
+              : resume
+                ? t("onboarding.step_organization.lede_resume")
+                : t("onboarding.step_organization.lede_first")
+          }
         />
         {resume ? (
-          <RadioCardGroup label={t("onboarding.step_organization.picker_label")} className="flex flex-col gap-3">
-            {organizations.map((o) => (
-              <PickerCard
-                key={o.id}
-                selected={pickedId === o.id}
-                onSelect={() => setPickedId((p) => (p === o.id ? null : o.id))}
-                title={o.name}
-                subtitle={`${host}/${o.slug}`}
-                avatar={avatarInitial(o.name)}
-              />
-            ))}
-            <CollapsibleCreateCard
-              idPrefix="org"
-              selected={pickedId === "create"}
-              onSelect={() => setPickedId((p) => (p === "create" ? null : "create"))}
-              title={t("onboarding.step_organization.create_new_title")}
-              subtitle={t("onboarding.step_organization.create_new_subtitle")}
-            >
-              {fields}
-            </CollapsibleCreateCard>
-          </RadioCardGroup>
+          <div className="flex flex-col gap-3">
+            <RadioCardGroup label={t("onboarding.step_organization.picker_label")} className="flex flex-col gap-3">
+              {held.map((o) => (
+                <PickerCard
+                  key={o.id}
+                  selected={pickedId === o.id}
+                  onSelect={() => setPickedId((p) => (p === o.id ? null : o.id))}
+                  title={o.name}
+                  subtitle={`${host}/${o.slug}`}
+                  avatar={avatarInitial(o.name)}
+                />
+              ))}
+            </RadioCardGroup>
+            {only ? <OtherOrganizationLine organization={only} /> : null}
+          </div>
+        ) : refused ? (
+          <AlreadyInOrganizationNotice organization={alreadyIn.organization} />
         ) : (
           fields
         )}
       </div>
       <StepFooter hint={hint}>
-        <Button
-          size="lg"
-          className="w-full"
-          aria-disabled={disabled || undefined}
-          aria-describedby={STEP_HINT_ID}
-          // `aria-disabled` keeps the button focusable on purpose, so blocking
-          // the action in JS is the other half of that contract.
-          onClick={() => {
-            if (disabled) return;
-            onContinue();
-          }}
-        >
-          {label}
-        </Button>
+        {refused ? (
+          <ManageOrganizationAction organization={alreadyIn.organization} label={label} />
+        ) : (
+          <Button
+            size="lg"
+            className="w-full"
+            aria-disabled={disabled || undefined}
+            aria-describedby={STEP_HINT_ID}
+            // `aria-disabled` keeps the button focusable on purpose, so blocking
+            // the action in JS is the other half of that contract.
+            onClick={() => {
+              if (disabled) return;
+              onContinue();
+            }}
+          >
+            {label}
+          </Button>
+        )}
       </StepFooter>
     </>
   );

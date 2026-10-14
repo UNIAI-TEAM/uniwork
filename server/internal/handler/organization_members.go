@@ -118,12 +118,39 @@ func (h *handlers) reactivateOrgMember(w http.ResponseWriter, r *http.Request) {
 	h.respondOrgMember(w, r, m)
 }
 
+// leaveOrganization resolves the slug through the caller's own membership row
+// rather than orgIDFromSlug: that one refuses a suspended or deletion-pending
+// organization, and a member of one may still leave it (ADR 0032 D9). An
+// outsider still gets 404; the service makes every other decision.
 func (h *handlers) leaveOrganization(w http.ResponseWriter, r *http.Request) {
-	orgID, ok := h.orgIDFromSlug(w, r)
-	if !ok {
+	actorID := middleware.UserID(r.Context())
+	o, _, err := h.OrgMembers.Membership(r.Context(), actorID, chi.URLParam(r, "org"))
+	if err != nil {
+		h.mapServiceError(w, err)
 		return
 	}
-	if err := h.OrgMembers.Leave(r.Context(), middleware.UserID(r.Context()), orgID); err != nil {
+	if err := h.OrgMembers.Leave(r.Context(), actorID, o.ID); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
+// closeOrganization resolves the slug the way leaveOrganization does, so the
+// owner of a suspended organization hears organization_suspended rather than
+// the generic gate's answer; an outsider still gets 404.
+func (h *handlers) closeOrganization(w http.ResponseWriter, r *http.Request) {
+	var in sdi.CloseOrganizationSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	actorID := middleware.UserID(r.Context())
+	o, _, err := h.OrgMembers.Membership(r.Context(), actorID, chi.URLParam(r, "org"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	if err := h.OrgMembers.Close(r.Context(), actorID, o.ID, in.ConfirmSlug); err != nil {
 		h.mapServiceError(w, err)
 		return
 	}

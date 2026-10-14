@@ -87,6 +87,7 @@ Domain hiện có:
 | Task / comments | `dto/sdi/task.go` | `dto/sdo/task.go` |
 | Meeting / notes / token | `dto/sdi/meeting.go` | `dto/sdo/meeting.go` |
 | Office engine jobs | `dto/sdi/office.go` | `dto/sdo/office.go` |
+| MCP connector (consent, ứng dụng AI đã kết nối, công tắc tổ chức) | `dto/sdi/mcp.go` | `dto/sdo/mcp.go` |
 
 Domain mới: tạo cặp `dto/sdi/{domain}.go` + `dto/sdo/{domain}.go`.
 Endpoint không body thì không cần SDI. SDO có thể dùng lại
@@ -192,6 +193,9 @@ GET không body: bỏ `sdi`. Refresh/logout không JSON body: bỏ `sdi`.
 | `/tasks/{taskID}` | `"taskID"` |
 | `/meetings/{meetingID}` | `"meetingID"` |
 | `/invitations/{token}` | `"token"` |
+| `/auth/connect/attempts/{attemptID}` | `"attemptID"` |
+| `/me/connected-apps/{grantID}` | `"grantID"` |
+| `/orgs/{org}/connected-apps/{grantID}` | `"org,grantID"` |
 
 Param mới (ví dụ `{commentID}`): thêm `case` và struct `path:"commentID"`.
 Tên field Go PascalCase; tag `path` phải **trùng** tên trong `{…}` của Chi.
@@ -227,8 +231,9 @@ tự đặt cap (xem `uploadAvatar`).
 | `GET /uploads/*` | File tĩnh local storage |
 | `GET /swagger`, `/swagger/*` | Chính UI/spec |
 | `OPTIONS *` | CORS |
+| `/oauth/*`, `/.well-known/*`, `/mcp` | OAuth và MCP cho client AI bên ngoài (ADR 0031): body theo RFC (form, JSON-RPC), đăng ký bằng `registerMCP` ngoài wrapper `api`; `router_test.go` ghim các route, test Swagger đòi chúng **không** có trong spec |
 
-`TestSwaggerSpecFollowsChiRoutesAndSDI` bỏ qua đúng bốn nhóm này. Route
+`TestSwaggerSpecFollowsChiRoutesAndSDI` bỏ qua đúng các nhóm này. Route
 REST mới mà đăng ký ngoài wrapper `api` sẽ làm test đỏ.
 
 ---

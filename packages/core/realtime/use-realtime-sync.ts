@@ -14,7 +14,7 @@ import { chatKeys } from "../chat/hooks";
 import { catchUpLoadedRoomTimelines, catchUpOnChatSubscribeAck } from "../chat/room-timeline";
 import { documentKeys } from "../documents/keys";
 import { graphKeys } from "../graph/keys";
-import { invalidateEmailHubForRealtime } from "../email-hub/query-cache";
+import { invalidateEmailHubCounts, invalidateEmailHubForInboxChanged } from "../email-hub/query-cache";
 import { homeKeys } from "../home/keys";
 import { meetingKeys } from "../meetings/hooks";
 import { MOTION_TALLY_INVALIDATE_MS, motionKeys } from "../meetings/motion-hooks";
@@ -27,6 +27,7 @@ import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import { documentFrameKeys } from "./document-events";
+import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
 import {
   createInvalidateScheduler,
   shouldInvalidateMeetingDetail,
@@ -307,6 +308,7 @@ function keysFor(
     case "member.invited":
     case "member.joined":
     case "member.removed":
+    case "organization.closed":
     case "organization.ownership_transferred": {
       // The directory and the membership list are keyed by organization SLUG,
       // because that is what the routes carry, while the event payload names
@@ -315,6 +317,7 @@ function keysFor(
       // showing a stale one.
       push(peopleRootKey);
       push(orgMemberRootKey);
+      if (changesOwnMembership(type, payload)) ownMembershipKeys.forEach(push);
       break;
     }
     case "recording.started":
@@ -488,6 +491,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       // Ahead of the chat and email early returns: those frames are the ones
       // that may carry a source file (documents home, "other modules").
       sources.onFrame(eventType, payload);
+      if (changesOwnMembership(eventType, payload)) void reloadSessionUser();
       if (handleChatRealtimeEvent(chatScheduler, eventType, payload)) {
         if (
           payload.room_id &&
@@ -497,16 +501,14 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         }
         return;
       }
-      if (
-        (eventType === "email_hub.inbox_changed" || eventType === "email_hub.new_mail") &&
-        payload.account_id
-      ) {
-        invalidateEmailHubForRealtime(
-          qc,
-          wsId,
-          payload.account_id,
-          eventType === "email_hub.inbox_changed",
-        );
+      if (eventType === "email_hub.inbox_changed" && payload.account_id) {
+        invalidateEmailHubForInboxChanged(qc, wsId, payload.account_id);
+        return;
+      }
+      if (eventType === "email_hub.new_mail" && payload.account_id) {
+        // new_mail duplicates the later inbox_changed mailbox refresh. Keep
+        // list/detail caches intact, but refresh the lightweight count badges.
+        invalidateEmailHubCounts(qc, wsId, payload.account_id);
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {

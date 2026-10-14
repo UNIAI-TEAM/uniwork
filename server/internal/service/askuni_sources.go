@@ -192,7 +192,10 @@ func (s *AskUNIService) memberNames(ctx context.Context, tc ai.ToolContext) map[
 	return names
 }
 
-func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, error) {
+// searchWorkItems scores the tasks and meetings of one workspace against a
+// query. Ask UNI adds chat and members on top; the MCP connector stops here
+// because chat is other people's words (spec 2026-10-12 §2).
+func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, query string) ([]scored, error) {
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -236,7 +239,14 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 			Excerpt: fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", m.Status, m.StartsAt.Time.Format(time.RFC3339), m.Description),
 		}, score: sc, when: m.StartsAt.Time})
 	}
+	return items, nil
+}
 
+func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, error) {
+	items, err := s.searchWorkItems(ctx, tc, query)
+	if err != nil {
+		return nil, err
+	}
 	chat, err := s.chatContext(ctx, tc, query)
 	if err != nil {
 		return nil, err

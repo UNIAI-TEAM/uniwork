@@ -171,7 +171,10 @@ func TestOfficeLeaseGrantRacingLeaveLeavesNoLease(t *testing.T) {
 func TestOfficeLeaseGrantRacingDeactivationLeavesNoLease(t *testing.T) {
 	w := newLeaseWorld(t, "lease-race-deact")
 	m := w.tn.member.ID
-	other, err := w.f.svc.orgs.Create(w.ctx, w.tn.owner.ID, "Org lease-race-deact other", "lease-race-deact-other")
+	// An account owns one organization at most: the other one is founded by
+	// a person who has none yet.
+	founder := w.f.user(t, "lease-race-deact", "other-owner").ID
+	other, err := w.f.svc.orgs.Create(w.ctx, founder, "Org lease-race-deact other", "lease-race-deact-other")
 	if err != nil {
 		t.Fatal(err)
 	}

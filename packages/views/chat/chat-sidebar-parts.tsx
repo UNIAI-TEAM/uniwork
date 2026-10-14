@@ -1,19 +1,19 @@
 "use client";
 
 import { CircleAlert, Compass, Hash, UserPlus, Users, type LucideIcon } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { PendingInvitation, Workspace } from "@uniwork/core/types";
-import { useAcceptInvite, useMyInvitations } from "@uniwork/core/workspaces";
+import { paths } from "@uniwork/core/paths";
+import { useMyInvitations } from "@uniwork/core/workspaces";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
-import { toastChatError } from "./chat-error-message";
+import { AppLink } from "../navigation";
 import type { ChatSidebarActivityFilter, ChatSidebarKindFilter } from "./chat-sidebar-unified";
 
 /** A quiet icon action in the sidebar header, named by its tooltip. */
@@ -229,55 +229,42 @@ export function SidebarEmpty({
 }
 
 /**
- * Invitations to other workspaces wait here: once someone is inside a
- * workspace nothing else in the app lists them (the /invitations page only
- * runs right after sign-in). Joining opens the workspace just joined.
+ * Invitations wait here: once someone is inside a workspace nothing else in
+ * the app lists them. The list holds invitations into any organization, and
+ * joining another one means switching (ADR 0032), so a row only opens the
+ * invitation's own page, where every join happens (spec 2026-10-13 §6.2).
  */
-export function SidebarInvitations({ onJoined }: { onJoined?: (workspace: Workspace | null) => void }) {
+export function SidebarInvitations() {
   const { t } = useTranslation();
   const { data: invites = [] } = useMyInvitations();
-  const accept = useAcceptInvite();
-  const [joiningId, setJoiningId] = useState<string | null>(null);
   if (invites.length === 0) return null;
-
-  const join = (inv: PendingInvitation) => {
-    setJoiningId(inv.id);
-    accept.mutate(inv.token, {
-      onSuccess: (result) => onJoined?.(result?.workspace ?? null),
-      onError: (err) => toastChatError(err, t, t("chat.invite_join_failed")),
-      onSettled: () => setJoiningId(null),
-    });
-  };
 
   return (
     <section className="space-y-2 px-3 pb-2">
       <h3 className="px-1 text-overline text-muted-foreground uppercase">{t("chat.pending_invites")}</h3>
       <ul className="space-y-1">
-        {invites.map((inv) => {
-          const joining = joiningId === inv.id;
-          return (
-            <li key={inv.id} className="flex flex-col gap-2 rounded-lg bg-brand-subtle px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-body font-medium text-foreground">
-                  {inv.organization.name} › {inv.workspace.name}
-                </p>
-                <p className="text-caption text-muted-foreground">
-                  {t("invitations.invitedBy", { name: inv.invited_by.display_name })}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={joiningId !== null}
-                aria-busy={joining || undefined}
-                onClick={() => join(inv)}
-              >
-                {joining ? t("chat.invite_joining") : t("invitations.join")}
-              </Button>
-            </li>
-          );
-        })}
+        {invites.map((inv) => (
+          <li key={inv.id} className="flex flex-col gap-2 rounded-lg bg-brand-subtle px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-body font-medium text-foreground">
+                {inv.organization.name}
+                {inv.workspace && <> › {inv.workspace.name}</>}
+              </p>
+              <p className="text-caption text-muted-foreground">
+                {t("invitations.invitedBy", { name: inv.invited_by.display_name })}
+              </p>
+            </div>
+            {/* A link dressed as a button: it navigates. The label names the
+                organization, so several rows read apart by ear. */}
+            <AppLink
+              href={paths.invite(inv.token)}
+              aria-label={t("invitations.viewLabel", { name: inv.organization.name })}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              {t("invitations.view")}
+            </AppLink>
+          </li>
+        ))}
       </ul>
     </section>
   );

@@ -18,7 +18,10 @@ func (h *handlers) listOrganizations(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.OrganizationDTO, 0, len(rows))
 	for _, o := range rows {
-		out = append(out, sdo.OrganizationDTO{ID: o.ID, Slug: o.Slug, Name: o.Name, Role: o.Role, Status: o.Status})
+		out = append(out, sdo.OrganizationDTO{
+			ID: o.ID, Slug: o.Slug, Name: o.Name, Role: o.Role, Status: o.Status,
+			Deactivated: o.DeactivatedAt.Valid,
+		})
 	}
 	respondJSON(w, 200, map[string]any{"organizations": out})
 }

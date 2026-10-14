@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"mime"
+	"mime/quotedprintable"
 	"strings"
 )
 
@@ -24,11 +25,14 @@ func newBoundary() string {
 	return "uniwork-" + hex.EncodeToString(buf)
 }
 
-func encodeBodyContent(body string) string {
-	if !strings.ContainsAny(body, "\r\n") && len(body) <= maxLineLen {
-		return body
-	}
-	return strings.ReplaceAll(body, "\n", "\r\n")
+func qp(body string) string {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	body = strings.ReplaceAll(body, "\n", "\r\n")
+	var b strings.Builder
+	w := quotedprintable.NewWriter(&b)
+	_, _ = w.Write([]byte(body))
+	_ = w.Close()
+	return b.String()
 }
 
 func foldBase64(data []byte) string {
@@ -81,18 +85,18 @@ func buildBodyPart(bodyText, bodyHTML string, attachments []OutboundAttachment) 
 		boundary := newBoundary()
 		innerType = "multipart/alternative; boundary=" + boundary
 		var b strings.Builder
-		writePart(&b, boundary, "text/plain; charset=UTF-8", "8bit", encodeBodyContent(text))
-		writePart(&b, boundary, "text/html; charset=UTF-8", "8bit", encodeBodyContent(html))
+		writePart(&b, boundary, "text/plain; charset=UTF-8", "quoted-printable", qp(text))
+		writePart(&b, boundary, "text/html; charset=UTF-8", "quoted-printable", qp(html))
 		b.WriteString("--")
 		b.WriteString(boundary)
 		b.WriteString("--\r\n")
 		innerBody = b.String()
 	case html != "":
 		innerType = "text/html; charset=UTF-8"
-		innerBody = encodeBodyContent(html)
+		innerBody = qp(html)
 	default:
 		innerType = "text/plain; charset=UTF-8"
-		innerBody = encodeBodyContent(text)
+		innerBody = qp(text)
 	}
 
 	if !hasAttach {
@@ -105,6 +109,8 @@ func buildBodyPart(bodyText, bodyHTML string, attachments []OutboundAttachment) 
 	fmt.Fprintf(&out, "Content-Type: %s\r\n", innerType)
 	if strings.HasPrefix(innerType, "multipart/") {
 		out.WriteString("MIME-Version: 1.0\r\n")
+	} else {
+		out.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 	}
 	out.WriteString("\r\n")
 	out.WriteString(innerBody)

@@ -162,11 +162,13 @@ export function runAutomation({ root, command, to = "HEAD", date = new Date().to
   ancestor(root, manifest.previousSourceRef, manifest.sourceRef, "Invalid draft baseline ancestry.");
   ancestor(root, manifest.sourceRef, sourceRef, "Reviewed draft is not an ancestor of the release tag.");
   const changed = git(root, ["diff", "--name-only", manifest.sourceRef, sourceRef, "--"]).split("\n").filter(Boolean);
-  requireValue(changed.every((path) => path === pendingPath), "Release notes are stale: application code changed after the reviewed draft.");
+  const published = releases.find((row) => row.version === tag.slice(1));
+  const allowed = published?.sourceRef === manifest.sourceRef ? [pendingPath, pendingPath.replace(/\.json$/u, ".md"), CATALOG, LOCALE("en"), LOCALE("vi")] : [pendingPath];
+  requireValue(changed.every((path) => allowed.includes(path)), "Release notes are stale: application code changed after the reviewed draft.");
   const commits = readCommits(root, manifest.previousSourceRef, manifest.sourceRef);
   requireValue(Array.isArray(manifest.changes) && isDeepStrictEqual([...commits.map((row) => row.hash)].sort(), [...manifest.changes.map((row) => row.commit)].sort()), "Draft does not account for every source commit.");
   const locales = Object.fromEntries(["en", "vi"].map((locale) => [locale, JSON.parse(readFileSync(resolve(root, LOCALE(locale)), "utf8"))]));
-  const result = prepareRelease({ manifest, releases, locales, tag, sourceRef });
+  const result = prepareRelease({ manifest, releases, locales, tag, sourceRef: published?.sourceRef ?? sourceRef });
   for (const [path, value] of [[CATALOG, result.releases], ...["en", "vi"].map((locale) => [LOCALE(locale), result.locales[locale]])]) write(root, path, json(value));
   write(root, output + "/release-notes.md", result.notes);
   write(root, output + "/pr-body.md", "Issue: UNI-1310 (C-07 / UNI-443)\n\nPublish approved bilingual notes for " + tag + ". Source: " + sourceRef +

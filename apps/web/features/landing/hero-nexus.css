@@ -6,10 +6,7 @@
   z-index: -1;
   pointer-events: none;
   mask-image: radial-gradient(ellipse at center, var(--foreground) 25%, transparent 70%);
-  background:
-    radial-gradient(ellipse at 36% 58%, color-mix(in srgb, var(--landing-close-light) 22%, transparent), transparent 46%),
-    radial-gradient(ellipse at 66% 49%, color-mix(in srgb, var(--brand-accent) 17%, transparent), transparent 48%),
-    radial-gradient(ellipse at 51% 68%, color-mix(in srgb, var(--landing-close-end) 17%, transparent), transparent 55%);
+  background: radial-gradient(ellipse at 50% 65%, color-mix(in srgb, var(--landing-close-light) 8%, transparent), transparent 58%);
 }
 .landing-site .landing-hero .hero-context {
   background: color-mix(in srgb, var(--landing-paper) 88%, var(--landing-cyan));

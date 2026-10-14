@@ -8,6 +8,8 @@ export const paths = {
   authCallback: () => "/auth/callback",
   /** Consent page the desktop app's system-browser sign-in lands on (G4-02b). */
   desktopAuthorize: () => "/auth/desktop/authorize",
+  /** Consent page an external AI client (MCP connector) sends the browser to (UNI-1308). */
+  connectAuthorize: () => "/auth/connect/authorize",
   forgotPassword: () => "/forgot-password",
   resetPassword: (token?: string) =>
     token ? `/reset-password?token=${encodeURIComponent(token)}` : "/reset-password",
@@ -19,6 +21,11 @@ export const paths = {
   googleStart: (next?: string | null) =>
     `${runtimeConfig().apiUrl}/api/v1/auth/google/start${next ? `?next=${encodeURIComponent(next)}` : ""}`,
   onboarding: () => "/onboarding",
+  /**
+   * Where an onboarded person who belongs to no organization lands: create one
+   * or join through an invitation (ADR 0032 D12). Hyphenated root, reserved.
+   */
+  getStarted: () => "/get-started",
   newWorkspace: () => "/workspaces/new",
   invitations: () => "/invitations",
   workspaces: () => "/workspaces",
@@ -112,6 +119,7 @@ export const GLOBAL_PREFIXES = [
   "/reset-password",
   "/auth/",
   "/onboarding",
+  "/get-started",
   "/invitations",
   "/workspaces",
   "/invite/",

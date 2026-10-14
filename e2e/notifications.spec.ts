@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
+import { joinInvitation } from "./invitations";
 
 // The golden path for F-07 (spec §8.3): A assigns a task to B; B sees the
 // badge without reloading, opens the inbox, follows the row to the task, and
@@ -46,7 +47,8 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
 
   // B: register and verify under the invited address. With an invitation
   // waiting, verification lands on /invitations rather than onboarding;
-  // joining there is what marks B onboarded and opens the workspace.
+  // joining from the invitation's page is what marks B onboarded and opens
+  // the workspace.
   const memberContext = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
   const member = await memberContext.newPage();
   await member.goto("/register");
@@ -56,7 +58,7 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
   await member.getByRole("button", { name: "Đăng ký" }).click();
   await member.getByLabel("Mã xác thực").fill(VERIFICATION_CODE);
   await expect(member).toHaveURL(/\/invitations$/, { timeout: 15_000 });
-  await member.getByRole("button", { name: "Tham gia", exact: true }).click();
+  await joinInvitation(member, `Thông báo ${stamp}`);
   await expect(member).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/`), { timeout: 15_000 });
   const inboxLink = member.getByRole("link", { name: /^Hộp việc/ });
   await expect(inboxLink).toBeVisible();

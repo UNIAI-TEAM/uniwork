@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -106,11 +107,12 @@ func TestEmailHubRevokeOnDisconnect(t *testing.T) {
 	}
 }
 
-// Leave and account deletion disconnect every mailbox in one statement and
-// revoke the Google grants that statement removed, after commit (spec §5.5).
+// Leave, an invitation switch out of the organization and account deletion
+// disconnect every mailbox in one statement and revoke the Google grants that
+// statement removed, after commit (spec §5.5, UNI-1456 §4.4).
 func TestEmailHubRevokeOnLeaveAndAccountDeletion(t *testing.T) {
 	ctx := context.Background()
-	for _, how := range []string{"leave", "delete"} {
+	for _, how := range []string{"leave", "switch", "delete"} {
 		t.Run(how, func(t *testing.T) {
 			l := newEmailHubLifecycle(t)
 			revoked := fakeEmailHubRevoke(t, l.svc, http.StatusOK)
@@ -119,9 +121,12 @@ func TestEmailHubRevokeOnLeaveAndAccountDeletion(t *testing.T) {
 			l.members.SetEmailHub(l.svc)
 			l.auth.SetEmailHub(l.svc)
 			var err error
-			if how == "leave" {
+			switch how {
+			case "leave":
 				err = l.members.Leave(ctx, l.member.ID, l.ws.OrganizationID)
-			} else {
+			case "switch":
+				err = switchOutOf(t, l, l.ws.OrganizationID)
+			default:
 				err = l.auth.DeleteAccount(ctx, l.member.ID, DeleteAccountInput{Password: "password123"})
 			}
 			if err != nil {
@@ -254,4 +259,25 @@ func TestEmailHubRevokeSkipsAGrantAnotherMailboxStillHolds(t *testing.T) {
 	if got := revoked(); !slices.Equal(got, []string{"refresh-solo"}) {
 		t.Fatalf("revoked %q, want only the grant no other mailbox holds", got)
 	}
+}
+
+// switchOutOf moves the lifecycle's member out of orgID by accepting an
+// invitation into a fresh organization with resolve "leave".
+func switchOutOf(t *testing.T, l emailHubLifecycle, orgID string) error {
+	t.Helper()
+	ctx := context.Background()
+	founder := registerVerified(t, l.q, l.auth, "eh-founder@example.com", "EH Founder")
+	target, err := l.svc.ws.orgs.Create(ctx, founder.ID, "Đích", "eh-dich")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.members.SetMail(mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	invs, _, err := l.members.InviteToOrg(ctx, founder.ID, target.ID, []string{l.member.Email}, OrgRoleMember)
+	if err != nil || len(invs) != 1 {
+		t.Fatalf("invite: %v", err)
+	}
+	ws := NewWorkspaceService(l.pool, l.q, l.svc.ws.orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	ws.SetEmailHub(l.svc)
+	_, err = ws.AcceptInvite(ctx, l.member.ID, invs[0].Token, []SwitchResolution{{OrganizationID: orgID, Action: SwitchActionLeave}})
+	return err
 }
