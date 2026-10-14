@@ -126,8 +126,11 @@ LIMIT $2;
 -- tenant: system
 -- The notification consumer asks "which fields moved" here rather than
 -- having the task service say so in its payload (OPEN_QUESTIONS N1).
+-- before is the event's created_at: one call may commit several rows under
+-- one correlation id, and an event reads its own, not a later step's.
 SELECT * FROM audit_events
 WHERE correlation_id = $1 AND action = $2 AND resource_id = $3
+  AND (sqlc.narg('before')::timestamptz IS NULL OR occurred_at <= sqlc.narg('before'))
 ORDER BY occurred_at DESC
 LIMIT 1;
 
