@@ -222,6 +222,13 @@ describe("AiAccessTab", () => {
     expect(requestMock).not.toHaveBeenCalledWith("/api/v1/orgs/acme/mcp-policy/write", expect.anything());
   });
 
+  it("does not tell an admin to turn the connector on while the platform has not opened it", async () => {
+    serve("owner", { ...POLICY, available: false });
+    renderTab();
+    expect(await screen.findByText(t("settings.aiAccess.unavailable"))).toBeInTheDocument();
+    expect(screen.queryByText("Bật truy cập của trợ lý AI trước.")).not.toBeInTheDocument();
+  });
+
   it("keeps write off, and says why, while the platform has not opened it", async () => {
     serve("owner", { ...POLICY, enabled: true, write_available: false });
     renderTab();

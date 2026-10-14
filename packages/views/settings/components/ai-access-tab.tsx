@@ -131,7 +131,7 @@ export function AiAccessTab() {
       <SettingsSection>
         {toggle}
         {state && !state.available ? <p className="px-1 pt-2 text-caption text-muted-foreground">{t("unavailable")}</p> : null}
-        {state && !state.enabled ? <p className="px-1 pt-2 text-caption text-muted-foreground">{t("writeNeedsConnector")}</p>
+        {state?.available && !state.enabled ? <p className="px-1 pt-2 text-caption text-muted-foreground">{t("writeNeedsConnector")}</p>
           : state && !state.write_available ? <p className="px-1 pt-2 text-caption text-muted-foreground">{t("writeUnavailable")}</p> : null}
         {setWrite.isError ? <p role="alert" className="px-1 pt-2 text-caption text-destructive">{t("saveFailed")}</p> : null}
         {setPolicy.isError ? (
