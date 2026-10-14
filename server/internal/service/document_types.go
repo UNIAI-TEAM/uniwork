@@ -122,6 +122,11 @@ type DocumentService struct {
 	// bound needs a handful of rows, not a thousand. Zero means the default.
 	archiveMaxNodes int
 
+	// titleWriteErr is the savepoint-retry test seam (document_names.go): a
+	// test makes one title write attempt fail exactly as the folder-name
+	// index of PR 2 will, since until that index exists nothing else can.
+	titleWriteErr func(attempt int) error
+
 	// clock is the service's time source; tests inject it so the retention
 	// and auto-version workers never wait for real time.
 	clock func() time.Time

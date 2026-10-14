@@ -20,6 +20,10 @@ var errorClassByCode = map[string]string{
 	"copy_consent_required":        "conflict",
 	"owner_requires_copy":          "conflict",
 	"document_upload_invalid":      "conflict",
+	// A folder create or rename asked for a name a live sibling holds (E6
+	// FD-02): the dialog shows it on the field, so it is a conflict of the
+	// request with server state, never a retry or a lost permission.
+	"folder_name_taken": "conflict",
 
 	// gone: the resource is deleted or purged; stop retrying and leave.
 	"document_deleted": "gone",
