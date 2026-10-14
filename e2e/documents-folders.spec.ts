@@ -1006,6 +1006,7 @@ test("FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disable
   page.on("request", countMoves);
   // force: Playwright treats aria-disabled="true" as not enabled, and the click is the point.
   await tooDeep.click({ force: true });
+  await expect(tooDeep).not.toHaveAttribute("aria-selected", "true");
   await expect(submit).toHaveAttribute("aria-disabled", "true");
   await submit.click({ force: true });
   await expect(picker).toBeVisible();
@@ -1931,8 +1932,21 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
   await sidebar.getByRole("button", { name: "Công việc" }).click();
   await expect(page.getByText(sourceFileName).first()).toBeVisible();
 
+  // The link still opens the real document: its title renders (heading when
+  // read-only, title field when editable) and neither the not-found nor the
+  // load-error state is shown. A bare URL check would also pass on an error page.
   await page.goto(docUrl);
   await expect(page).toHaveURL(new RegExp(`/documents/${doc.id}$`));
+  await expect(
+    page
+      .getByRole("heading", { name: "Báo cáo Giữ nguyên ID", exact: true })
+      .or(page.getByRole("textbox", { name: "Tiêu đề tài liệu" })),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Không tìm thấy tài liệu này")).toHaveCount(0);
+  await expect(page.getByText("Không tải được tài liệu")).toHaveCount(0);
+  await expect(
+    page.getByText("Bạn không còn quyền xem tài liệu này"),
+  ).toHaveCount(0);
 });
 
 test("FD-A10 (entity/email link API) structured graph DOCUMENT links and email-hub thread links resolve after move", async () => {
