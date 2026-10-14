@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { landingReady } from "./landing-ready";
 import { openManualPreview, selectWorkspaceFeature } from "./landing-catalog-helpers";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -12,6 +13,7 @@ for (const width of [1440, 820]) {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
+    await landingReady(page);
     await expect(page.locator("#landing-title")).toBeVisible();
     const dir = resolve(import.meta.dirname, "../.impeccable/review");
     if (process.env.LANDING_CAPTURE === "1") {

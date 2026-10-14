@@ -1,5 +1,6 @@
 import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
+import { landingReady } from "./landing-ready";
 
 test("landing demo controls perform the actions they advertise without workspace writes", async ({ page }) => {
   await page.goto("/");
@@ -176,6 +177,7 @@ test("GPU unavailable leaves the product showcase and demo intact", async ({ pag
     } as typeof original;
   });
   await page.goto("/");
+  await landingReady(page);
   await expect(page.locator('#landing-title')).toBeVisible();
   await selectWorkspaceFeature(page, "chat");
   await openManualPreview(page);

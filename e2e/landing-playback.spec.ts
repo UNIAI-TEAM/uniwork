@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { landingReady } from "./landing-ready";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { selectWorkspaceFeature, workspaceGroups } from "./landing-catalog-helpers";
@@ -116,6 +117,7 @@ test("storyboards become readable three-step stories at 390px", async ({ page })
 test("original UNI wears the shared mark and retains its static fallback", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  await landingReady(page);
   const character = page.locator('[data-scene="character"]');
   await character.scrollIntoViewIfNeeded();
   const portrait = character.locator(".mascot-portrait");
