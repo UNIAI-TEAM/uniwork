@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -359,7 +360,7 @@ func McpTools(s *McpToolService) ai.Registry {
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.Search(ctx, p, a.WorkspaceID, a.Query)
 			}),
-		tool("get_task", "Get task", "One task with its comments, labels and revision, and its description exactly as stored (Markdown) to edit from; description_truncated says it was longer than 16000 characters and was cut. task_id is the id or the PREFIX-N reference.", mcpSchemaTask, []string{"workspace_id", "task_id"},
+		tool("get_task", "Get task", "One task with its comments, labels and revision, and its description exactly as stored (Markdown) to edit from; description_truncated says it was longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters and was cut. task_id is the id or the PREFIX-N reference.", mcpSchemaTask, []string{"workspace_id", "task_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetTask(ctx, p, a.WorkspaceID, a.TaskID)
 			}),

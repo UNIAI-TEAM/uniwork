@@ -363,6 +363,7 @@ func TestMcpCreateTaskValidates(t *testing.T) {
 		ws + `"title":"A","parent_task_id":"  "}`:                                           "parent_task_id",
 		ws + `"title":"A","project_id":" "}`:                                                "project_id",
 		ws + `"title":"A","assignee_id":"  "}`:                                              "assignee_id",
+		ws + `"title":"A","description":"` + strings.Repeat("ạ", mcpMaxItemRunes+1) + `"}`:  "description",
 		ws + `"title":"A","priority":"asap"}`:                                               "priority",
 		ws + `"title":"A","label_ids":["` + strings.Join(make([]string, 21), `","`) + `"]}`: "label_ids",
 	} {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -61,9 +62,9 @@ func TestMCPToolCatalogue(t *testing.T) {
 	for name, words := range map[string][]string{
 		"list_tasks":   {"ordered by status key alphabetically, then position", "pass status to narrow", "truncated"},
 		"list_members": {"query", "truncated"},
-		"update_task":  {"revision_conflict", "add_label_ids and remove_label_ids", "too long"},
+		"update_task":  {"revision_conflict", "add_label_ids and remove_label_ids", "too long", strconv.Itoa(mcpMaxItemRunes)},
 		"add_comment":  {"assignee", "creator", "earlier commenters", "@"},
-		"get_task":     {"description", "description_truncated"},
+		"get_task":     {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
 	} {
 		tool, _ := r.Get(name)
 		for _, w := range words {
