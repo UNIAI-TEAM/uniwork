@@ -4968,6 +4968,11 @@
         "name": "Display name",
         "description": "Description",
         "billing_period": "Billing period (none / month / year)",
+        "period": {
+          "month": "Month",
+          "year": "Year",
+          "none": "No billing period"
+        },
         "price": "Price (smallest unit; empty = contact us)",
         "sort_order": "Sort order",
         "is_active": "Visible on billing page"

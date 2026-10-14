@@ -15,12 +15,53 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@uniwork/ui/components/ui/table";
 import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import { ReasonDialog } from "./reason-dialog";
 
 const BYTES_PER_GIB = 1024 ** 3;
+const BILLING_PERIODS = ["month", "year", "none"] as const;
+type BillingPeriod = (typeof BILLING_PERIODS)[number];
+
+function knownPeriod(value: string): BillingPeriod {
+  return BILLING_PERIODS.find((period) => period === value) ?? "month";
+}
+
+function BillingPeriodField({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: BillingPeriod) => void;
+}) {
+  const { t } = useTranslation(undefined, { keyPrefix: "admin.plans" });
+  const period = knownPeriod(value);
+  return (
+    <Select
+      value={period}
+      items={BILLING_PERIODS.map((item) => ({ value: item, label: t(`field.period.${item}`) }))}
+      onValueChange={(next) => {
+        const selected = BILLING_PERIODS.find((item) => item === next);
+        if (selected) onChange(selected);
+      }}
+    >
+      <SelectTrigger id={id} className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {BILLING_PERIODS.map((item) => (
+          <SelectItem key={item} value={item}>
+            {t(`field.period.${item}`)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 function isStorageQuota(feature: AdminPlanFeature): boolean {
   return feature.feature_key === "storage.bytes" || feature.unit === "bytes";
@@ -60,7 +101,7 @@ function CreatePlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [billingPeriod, setBillingPeriod] = useState("month");
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("month");
   const [price, setPrice] = useState("");
   const [sortOrder, setSortOrder] = useState("10");
   const [isActive, setIsActive] = useState(true);
@@ -73,7 +114,7 @@ function CreatePlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
       code: c,
       name: n,
       description: description.trim(),
-      billing_period: billingPeriod.trim() || "month",
+      billing_period: billingPeriod,
       price_amount: price.trim() === "" ? null : Number(price),
       price_currency: "VND",
       is_active: isActive,
@@ -123,7 +164,7 @@ function CreatePlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-1.5">
             <Label htmlFor="plan-create-period">{t("field.billing_period")}</Label>
-            <Input id="plan-create-period" value={billingPeriod} onChange={(e) => setBillingPeriod(e.target.value)} />
+            <BillingPeriodField id="plan-create-period" value={billingPeriod} onChange={setBillingPeriod} />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="plan-create-price">{t("field.price")}</Label>
@@ -158,7 +199,7 @@ function PlanEditDialog({
   const mutation = useUpdateAdminPlan(plan.code);
   const [name, setName] = useState(plan.name);
   const [description, setDescription] = useState(plan.description);
-  const [billingPeriod, setBillingPeriod] = useState(plan.billing_period);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(knownPeriod(plan.billing_period));
   const [price, setPrice] = useState(plan.price_amount != null ? String(plan.price_amount) : "");
   const [sortOrder, setSortOrder] = useState(String(plan.sort_order));
   const [isActive, setIsActive] = useState(plan.is_active);
@@ -167,7 +208,7 @@ function PlanEditDialog({
     (): Omit<PlanUpsertInput, "reason"> => ({
       name: name.trim(),
       description: description.trim(),
-      billing_period: billingPeriod.trim() || "none",
+      billing_period: billingPeriod,
       price_amount: price.trim() === "" ? null : Number(price),
       price_currency: plan.price_currency || "VND",
       is_active: isActive,
@@ -200,7 +241,7 @@ function PlanEditDialog({
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-1.5">
             <Label htmlFor={`plan-period-${plan.code}`}>{t("field.billing_period")}</Label>
-            <Input id={`plan-period-${plan.code}`} value={billingPeriod} onChange={(e) => setBillingPeriod(e.target.value)} />
+            <BillingPeriodField id={`plan-period-${plan.code}`} value={billingPeriod} onChange={setBillingPeriod} />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor={`plan-price-${plan.code}`}>{t("field.price")}</Label>
