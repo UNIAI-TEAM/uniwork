@@ -1,0 +1,68 @@
+$ dbus-run-session -- bash -c 'eval "$(printf "probe\n" | gnome-keyring-daemon --unlock --components=secrets)"; export GNOME_KEYRING_CONTROL; export XDG_CURRENT_DESKTOP=GNOME; printf "probe" | secret-tool store --label=probe svc probe && secret-tool lookup svc probe && echo SECRET_SERVICE_OK; DEBUG= xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts e2e/uniwork-documents.spec.ts --reporter=list; rc=$?; echo "KEYRING_E2E_EXIT=$rc"; exit $rc'
+dbus-daemon[8020]: [session uid=1000 pid=8020] Activating service name='org.freedesktop.secrets' requested by ':1.0' (uid=1000 pid=8030 comm="secret-tool store --label=probe svc probe" label="kernel")
+dbus-daemon[8020]: [session uid=1000 pid=8020] Successfully activated service 'org.freedesktop.secrets'
+GNOME_KEYRING_CONTROL=/home/ubuntu/.cache/keyring-8U0SW3
+probeSECRET_SERVICE_OK
+
+Running 23 tests using 1 worker
+
+(node:8085) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+dbus-daemon[8020]: [session uid=1000 pid=8020] Activating service name='org.a11y.Bus' requested by ':1.4' (uid=1000 pid=8097 comm="/home/ubuntu/work/uniwork-office/node_modules/elec" label="kernel")
+dbus-daemon[8020]: [session uid=1000 pid=8020] Successfully activated service 'org.a11y.Bus'
+  ✘   1 e2e/uniwork-documents.spec.ts:321:7 › UniWork documents › a. open from the UniWork picker, edit, Ctrl+S: one upload, one commit, Saved, recents (0ms)
+  -   2 e2e/uniwork-documents.spec.ts:375:7 › UniWork documents › b. launch from the web: the link opens the right document once, a reused link does nothing
+  -   3 e2e/uniwork-documents.spec.ts:408:7 › UniWork documents › b2. launch from the web: an expired link is refused with a message, a view link opens read-only
+  -   4 e2e/uniwork-documents.spec.ts:441:7 › UniWork documents › c. no autosave: an edit left alone for over 35 s sends nothing and keeps a local recovery copy
+  -   5 e2e/uniwork-documents.spec.ts:505:7 › UniWork documents › d. conflict: 409 keeps the local edit and the base, Save refuses, overwrite commits on the new base
+  -   6 e2e/uniwork-documents.spec.ts:562:7 › UniWork documents › d2. conflict: "Discard my changes and open the latest" asks twice, then shows the web version
+  -   7 e2e/uniwork-documents.spec.ts:585:7 › UniWork documents › d3. conflict: "Save a copy on this computer" writes a plain local file and the document stays in conflict
+  -   8 e2e/uniwork-documents.spec.ts:620:7 › UniWork documents › e. view-only: opens read-only, typing changes nothing, Ctrl+S sends nothing
+  -   9 e2e/uniwork-documents.spec.ts:654:7 › UniWork documents › f. offline: a dropped commit keeps the intent, Retry reuses the same key and succeeds
+  -  10 e2e/uniwork-documents.spec.ts:696:7 › UniWork documents › f2. offline: a commit that landed but lost its answer is replayed by Retry without a second version
+  -  11 e2e/uniwork-documents.spec.ts:836:9 › UniWork documents › g1. xlsx: open, edit, explicit Save: one upload, one commit
+  -  12 e2e/uniwork-documents.spec.ts:836:9 › UniWork documents › g2. pptx: open, edit, explicit Save: one upload, one commit
+  -  13 e2e/uniwork-documents.spec.ts:836:9 › UniWork documents › g3. md: open, edit, explicit Save: one upload, one commit
+  -  14 e2e/uniwork-documents.spec.ts:836:9 › UniWork documents › g4. html: open, edit, explicit Save: one upload, one commit
+  -  15 e2e/uniwork-documents.spec.ts:854:7 › UniWork documents › g9. pdf: opens, an explicit Save settles with at most one intent
+  -  16 e2e/uniwork-documents.spec.ts:872:7 › UniWork documents › g10. pdf: a view-only pdf opens read-only and a Save sends nothing
+  -  17 e2e/uniwork-documents.spec.ts:892:7 › UniWork documents › h. a local file saves exactly as before and nothing goes to UniWork
+  -  18 e2e/uniwork-documents.spec.ts:1024:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (en)
+  -  19 e2e/uniwork-documents.spec.ts:1024:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (vi)
+  -  20 e2e/uniwork-documents.spec.ts:1119:9 › UniWork documents › i1. xlsx: offline, then Retry from the chip saves with the same key
+  -  21 e2e/uniwork-documents.spec.ts:1119:9 › UniWork documents › i2. pptx: offline, then Retry from the chip saves with the same key
+  -  22 e2e/uniwork-documents.spec.ts:1119:9 › UniWork documents › i3. md: offline, then Retry from the chip saves with the same key
+  -  23 e2e/uniwork-documents.spec.ts:1119:9 › UniWork documents › i4. html: offline, then Retry from the chip saves with the same key
+
+
+  1) e2e/uniwork-documents.spec.ts:321:7 › UniWork documents › a. open from the UniWork picker, edit, Ctrl+S: one upload, one commit, Saved, recents 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    Call Log:
+    - Timeout 30000ms exceeded while waiting on the predicate
+
+       at fixtures/uniwork-signin-steps.ts:58
+
+      56 |       { timeout: 30_000 },
+      57 |     )
+    > 58 |     .toBe(true)
+         |      ^
+      59 | }
+      60 |
+      61 | export async function signIn(launched: LaunchedApp, stub: UniworkAuthStub): Promise<void> {
+        at waitForSafeStorageKeyOnDisk (/home/ubuntu/work/uniwork-office/e2e/fixtures/uniwork-signin-steps.ts:58:6)
+        at signIn (/home/ubuntu/work/uniwork-office/e2e/fixtures/uniwork-signin-steps.ts:67:44)
+        at /home/ubuntu/work/uniwork-office/e2e/uniwork-documents.spec.ts:269:20
+
+    Error Context: e2e/test-results/uniwork-documents-UniWork--bccb7-ad-one-commit-Saved-recents/error-context.md
+
+    Error Context: e2e/test-results/uniwork-documents-UniWork--bccb7-ad-one-commit-Saved-recents/error-context.md
+
+  1 failed
+    e2e/uniwork-documents.spec.ts:321:7 › UniWork documents › a. open from the UniWork picker, edit, Ctrl+S: one upload, one commit, Saved, recents 
+  22 did not run
+KEYRING_E2E_EXIT=1
