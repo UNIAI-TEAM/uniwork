@@ -67,11 +67,7 @@ export function ResolveBlock(props: BlockProps) {
  */
 function DestructiveNotice({ children }: { children: ReactNode }) {
   return (
-    <Alert
-      variant="destructive"
-      role="note"
-      className="border-destructive/25 bg-destructive-soft *:data-[slot=alert-description]:text-destructive-soft-foreground"
-    >
+    <Alert variant="destructiveSoft" role="note">
       <CircleAlert aria-hidden />
       <AlertDescription className="text-pretty">{children}</AlertDescription>
     </Alert>

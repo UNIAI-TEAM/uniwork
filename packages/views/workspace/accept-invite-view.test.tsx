@@ -199,7 +199,10 @@ describe("AcceptInviteView", () => {
       renderView();
       expect(await screen.findByRole("heading", { name: "Lời mời không còn hiệu lực" })).toBeInTheDocument();
       expect(screen.getByText(sentence)).toBeInTheDocument();
-      expect(await screen.findByText("Bạn vẫn ở Acme, không có gì thay đổi.")).toBeInTheDocument();
+      // The news, in the success tone, said politely once the organizations load.
+      expect(await screen.findByRole("status")).toHaveTextContent("Bạn vẫn ở Acme, không có gì thay đổi.");
+      // What to do about the dead link is a hint on the page, not an announcement.
+      expect(screen.getByRole("note")).toHaveTextContent(/nhờ (người mời|họ) gửi/i);
       // Other invitations may still be waiting.
       expect(screen.getByRole("link", { name: "Xem lời mời của tôi" })).toHaveAttribute("href", "/invitations");
       expect(acceptCalls()).toHaveLength(0);
@@ -483,6 +486,8 @@ describe("AcceptInviteView", () => {
       ]);
       next();
       expect(await screen.findByText(/Acme đang tạm ngưng/)).toBeInTheDocument();
+      // Part of the step the heading announced: a note, not an alert.
+      expect(screen.getByRole("note")).toHaveTextContent(/Acme đang tạm ngưng/);
       const cont = screen.getByRole("button", { name: "Tiếp tục" });
       // aria-disabled, not disabled: it stays reachable and says why.
       expect(cont).toHaveAttribute("aria-disabled", "true");

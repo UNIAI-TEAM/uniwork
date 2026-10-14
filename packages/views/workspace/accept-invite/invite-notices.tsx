@@ -8,20 +8,23 @@ import { cn } from "@uniwork/ui/lib/utils";
 
 /**
  * Why an invitation cannot be used, and what to do about it: a glyph for the
- * reason on a quiet band, shared by the error and the "no longer valid"
- * screens. The hairline glyph is the auth surfaces' raised-card stroke.
+ * reason on the muted Alert band, shared by the error and the "no longer
+ * valid" screens. A note, not an alert: the screen's heading takes focus and
+ * announces the screen; this is the hint that comes with it. The hairline
+ * glyph is the auth surfaces' raised-card stroke; the tile, not an inline
+ * svg, so the band is laid out as a row rather than the Alert's icon grid.
  */
 export function InviteNotice({ icon, tone, children }: { icon: LucideIcon; tone: IconTileTone; children: ReactNode }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl bg-muted/50 p-4">
+    <Alert variant="muted" role="note" className="flex items-start gap-3 rounded-xl border-0 p-4">
       <IconTile
         icon={icon}
         tone={tone}
         size="md"
         className={cn("[&_svg]:stroke-[1.5]", tone === "muted" && "bg-background ring-1 ring-border/60")}
       />
-      <p className="min-w-0 self-center text-pretty text-body text-muted-foreground">{children}</p>
-    </div>
+      <AlertDescription className="min-w-0 self-center text-pretty">{children}</AlertDescription>
+    </Alert>
   );
 }
 
