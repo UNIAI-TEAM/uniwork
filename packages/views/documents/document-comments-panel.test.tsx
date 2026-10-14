@@ -1,7 +1,7 @@
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { useDocumentCommentDraftStore } from "@uniwork/core/documents/comment-drafts";
@@ -299,6 +299,61 @@ describe("S12 anchored comments", () => {
     await waitFor(() => expect(within(pane).getByRole("tab", { name: discussionTitle() })).toHaveAttribute("aria-selected", "true"));
     // The resolved group opens so the thread is there to focus.
     await waitFor(() => expect(within(thread("d1x")).getByRole("heading")).toHaveFocus());
+  });
+
+  // S15 / G8-07: a link that opens the panel beside a live editor must not take the editor's focus.
+  describe("when something outside the panel holds focus", () => {
+    const scrolled = vi.fn();
+    let editor: HTMLButtonElement;
+    beforeEach(() => {
+      Element.prototype.scrollIntoView = scrolled;
+      scrolled.mockClear();
+      // Stand-in for the page editor: it holds focus before the deep-linked list arrives.
+      editor = document.createElement("button");
+      editor.textContent = "editor";
+      document.body.appendChild(editor);
+      editor.focus();
+    });
+    afterEach(() => {
+      editor.remove();
+      // jsdom has no scrollIntoView; the thread calls it optionally.
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    });
+
+    it("scrolls to and tints the deep-linked thread but leaves focus where it is", async () => {
+      installApi({
+        comments: [
+          row({ id: "c1", kind: "comment", type: "comment", anchor: { format: "docx", v: 1, path: [0], start: 0, end: 1, quote: "q", prefix: "", suffix: "" }, anchor_state: "exact" }),
+          row({ id: "d1x", body: "Bài thảo luận", resolved_at: "2026-10-13T04:00:00Z" }),
+        ],
+      });
+      renderPanel({ doc: docxDoc(), search: "comment=d1x" });
+      await screen.findByTestId("document-comments-pane");
+      await waitFor(() => expect(thread("d1x")).toHaveAttribute("data-highlighted", "true"));
+      expect(scrolled).toHaveBeenCalled();
+      expect(scrolled.mock.contexts.some((el) => thread("d1x").contains(el as Element))).toBe(true);
+      expect(editor).toHaveFocus();
+    });
+
+    it("leaves focus on the editor for a deleted frame too, and still shows the reveal line", async () => {
+      installApi({
+        comments: [row({ id: "root", body: "", deleted_at: "2026-10-13T06:00:00Z" }), row({ id: "r1", parent_id: "root", body: "Còn sống" })],
+      });
+      renderPanel({ search: "comment=root" });
+      const message = await screen.findByTestId("document-comments-reveal");
+      expect(message).toHaveTextContent(t(K.collabDiscussionDeleted));
+      await waitFor(() => expect(thread("root")).toHaveAttribute("data-highlighted", "true"));
+      expect(editor).toHaveFocus();
+      expect(message).not.toHaveFocus();
+    });
+
+    it("leaves focus on the editor when the linked comment is gone", async () => {
+      installApi({ comments: [] });
+      renderPanel({ doc: docxDoc(), search: "comment=gone" });
+      const message = await screen.findByTestId("document-comments-reveal");
+      expect(message).toHaveTextContent(t(K.collabCommentDeleted));
+      expect(editor).toHaveFocus();
+    });
   });
 
   // S15 (G8-07): a resolved comment opens readable and stays resolved; a lost anchor opens only
