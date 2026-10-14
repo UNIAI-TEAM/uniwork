@@ -1,0 +1,9 @@
+$ npm run check:brand
+
+> genoffice@0.1.0 check:brand
+> node tools/rebrand/brand-scan.mjs
+
+packages/ai-provider/src/providers.ts:399 [source] genspark :: const genspark = AI_PROVIDERS.findIndex((m) => m.id === 'genspark')
+packages/ai-provider/src/providers.ts:400 [source] genspark :: AI_PROVIDERS.splice(genspark + 1, 0, UNIWORK_PROVIDER_META)
+brand-scan: 2 violation(s), 79 allowlisted hit(s) (51 known debt)
+brand-scan failed: rebrand the string (node tools/rebrand/rebrand.mjs) or, for a real exception, add a reasoned entry to tools/rebrand/brand-allowlist.json.
