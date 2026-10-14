@@ -1,0 +1,390 @@
+$ pnpm --filter @uniwork/views test; echo "VIEWS_TEST_EXIT=$?"
+
+> @uniwork/views@0.0.0 test /workspace/packages/views
+> vitest run --coverage
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+      Coverage enabled with v8
+
+ ❯ workspace/accept-invite-view.test.tsx (36 tests | 1 failed) 9412ms
+       × says the account has no password when the server refuses the transfer for that 5291ms
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:243:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:250:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:243:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:250:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:243:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:250:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at FakeNotification.notification.onclick (/workspace/packages/core/platform/system-notification.ts:118:14)
+    at /workspace/packages/views/layout/workspace-chat-attention.test.tsx:154:19
+    at file:///workspace/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  workspace/accept-invite-view.test.tsx > AcceptInviteView > switching organization > says the account has no password when the server refuses the transfer for that
+TestingLibraryElementError: Unable to find role="button" and name "Chuyển sang Beta"
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m"position: relative; height: calc(100dvh - 784px); width: calc(100vw - 1040px); box-sizing: border-box; overflow-y: hidden; overflow-x: hidden; scroll-behavior: unset;"[39m
+[36m>[39m
+  [36m<div[39m
+    [33mdata-base-ui-inert[39m=[32m""[39m
+  [36m>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"flex h-dvh min-h-0 flex-col bg-app-shell"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"relative flex min-h-0 flex-1"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33maria-label[39m=[32m"Ngôn ngữ"[39m
+          [33mclass[39m=[32m"items-center gap-1 rounded-full bg-surface/55 p-1 ring-1 ring-border/60 absolute right-10 top-8 z-10 hidden lg:inline-flex"[39m
+          [33mrole[39m=[32m"radiogroup"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"lucide lucide-globe ml-1.5 size-3.5 shrink-0 text-muted-foreground"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mheight[39m=[32m"24"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"1.75"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"12"[39m
+              [33mcy[39m=[32m"12"[39m
+              [33mr[39m=[32m"10"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M2 12h20"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"relative grid grid-cols-2"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"absolute inset-y-0 left-0 w-1/2 rounded-full bg-brand-subtle ring-1 ring-brand/15 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"[39m
+            [36m/>[39m
+            [36m<label[39m
+              [33mclass[39m=[32m"relative flex h-7 min-w-9 cursor-pointer select-none items-center justify-center rounded-full px-2.5 text-caption font-semibold tracking-wide transition-colors duration-(--duration-standard) has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring pointer-coarse:h-11 pointer-coarse:min-w-11 text-brand-subtle-foreground"[39m
+              [33mlang[39m=[32m"vi"[39m
+            [36m>[39m
+              [36m<input[39m
+                [33mchecked[39m=[32m""[39m
+                [33mclass[39m=[32m"sr-only"[39m
+                [33mname[39m=[32m"_r_7i_"[39m
+                [33mtype[39m=[32m"radio"[39m
+                [33mvalue[39m=[32m"vi"[39m
+              [36m/>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+              [36m>[39m
+                [0mVI[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"sr-only"[39m
+              [36m>[39m
+                [0mTiếng Việt[0m
+              [36m</span>[39m
+            [36m</label>[39m
+            [36m<label[39m
+              [33mclass[39m=[32m"relative flex h-7 min-w-9 cursor-pointer select-none items-center justify-center rounded-full px-2.5 text-caption font-semibold tracking-wide transition-colors duration-(--duration-standard) has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring pointer-coarse:h-11 pointer-coarse:min-w-11 text-muted-foreground hover:text-foreground"[39m
+              [33mlang[39m=[32m"en"[39m
+            [36m>[39m
+              [36m<input[39m
+                [33mclass[39m=[32m"sr-only"[39m
+                [33mname[39m=[32m"_r_7i_"[39m
+                [33mtype[39m=[32m"radio"[39m
+                [33mvalue[39m=[32m"en"[39m
+              [36m/>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+              [36m>[39m
+                [0mEN[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"sr-only"[39m
+              [36m>[39m
+                [0mEnglish[0m
+              [36m</span>[39m
+            [36m</label>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<aside[39m
+          [33mclass[39m=[32m"hidden shrink-0 p-2 lg:block lg:p-4 lg:w-[42%]"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex h-full flex-col px-6 pb-8 pt-5 lg:px-10"[39m
+          [36m>[39m
+            [36m<header[39m
+              [33mclass[39m=[32m"flex min-h-9 shrink-0 items-center"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-label[39m=[32m"UniWork"[39m
+                [33mclass[39m=[32m"shrink-0"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"28"[39m
+                [33mrole[39m=[32m"img"[39m
+                [33mviewBox[39m=[32m"0 0 485.23 92"[39m
+                [33mwidth[39m=[32m"147.67869565217393"[39m
+              [36m>[39m
+                [36m<defs>[39m
+                  [36m<lineargradient[39m
+                    [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                    [33mid[39m=[32m"_r_7j_"[39m
+                    [33mx1[39m=[32m"0"[39m
+                    [33mx2[39m=[32m"128"[39m
+                    [33my1[39m=[32m"0"[39m
+                    [33my2[39m=[32m"0"[39m
+                  [36m>[39m
+                    [36m<stop[39m
+                      [33mclass[39m=[32m"[stop-color:#0044E3] dark:[stop-color:#4D8DFF]"[39m
+                      [33moffset[39m=[32m"0"[39m
+                    [36m/>[39m
+                    [36m<stop[39m
+                      [33mclass[39m=[32m"[stop-color:#00B4FC] dark:[stop-color:#35CBFF]"[39m
+                      [33moffset[39m=[32m".52"[39m
+                    [36m/>[39m
+                    [36m<stop[39m
+                      [33mclass[39m=[32m"[stop-color:#02DEF5] dark:[stop-color:#5AF0FF]"[39m
+                      [33moffset[39m=[32m"1"[39m
+                    [36m/>[39m
+                  [36m</lineargradient>[39m
+                [36m</defs>[39m
+                [36m<g[39m
+                  [33mtransform[39m=[32m"translate(165.46 0)"[39m
+                [36m>[39m
+                  [36m<defs>[39m
+                    [36m<clippath[39m
+                      [33mid[39m=[32m"_r_7k_-...
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m"position: relative; height: calc(100dvh - 784px); width: calc(100vw - 1040px); box-sizing: border-box; overflow-y: hidden; overflow-x: hidden; scroll-behavior: unset;"[39m
+[36m>[39m
+  [36m<div[39m
+    [33mdata-base-ui-inert[39m=[32m""[39m
+  [36m>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"flex h-dvh min-h-0 flex-col bg-app-shell"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"relative flex min-h-0 flex-1"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33maria-label[39m=[32m"Ngôn ngữ"[39m
+          [33mclass[39m=[32m"items-center gap-1 rounded-full bg-surface/55 p-1 ring-1 ring-border/60 absolute right-10 top-8 z-10 hidden lg:inline-flex"[39m
+          [33mrole[39m=[32m"radiogroup"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"lucide lucide-globe ml-1.5 size-3.5 shrink-0 text-muted-foreground"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mheight[39m=[32m"24"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"1.75"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"12"[39m
+              [33mcy[39m=[32m"12"[39m
+              [33mr[39m=[32m"10"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M2 12h20"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"relative grid grid-cols-2"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"absolute inset-y-0 left-0 w-1/2 rounded-full bg-brand-subtle ring-1 ring-brand/15 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"[39m
+            [36m/>[39m
+            [36m<label[39m
+              [33mclass[39m=[32m"relative flex h-7 min-w-9 cursor-pointer select-none items-center justify-center rounded-full px-2.5 text-caption font-semibold tracking-wide transition-colors duration-(--duration-standard) has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring pointer-coarse:h-11 pointer-coarse:min-w-11 text-brand-subtle-foreground"[39m
+              [33mlang[39m=[32m"vi"[39m
+            [36m>[39m
+              [36m<input[39m
+                [33mchecked[39m=[32m""[39m
+                [33mclass[39m=[32m"sr-only"[39m
+                [33mname[39m=[32m"_r_7i_"[39m
+                [33mtype[39m=[32m"radio"[39m
+                [33mvalue[39m=[32m"vi"[39m
+              [36m/>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+              [36m>[39m
+                [0mVI[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"sr-only"[39m
+              [36m>[39m
+                [0mTiếng Việt[0m
+              [36m</span>[39m
+            [36m</label>[39m
+            [36m<label[39m
+              [33mclass[39m=[32m"relative flex h-7 min-w-9 cursor-pointer select-none items-center justify-center rounded-full px-2.5 text-caption font-semibold tracking-wide transition-colors duration-(--duration-standard) has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring pointer-coarse:h-11 pointer-coarse:min-w-11 text-muted-foreground hover:text-foreground"[39m
+              [33mlang[39m=[32m"en"[39m
+            [36m>[39m
+              [36m<input[39m
+                [33mclass[39m=[32m"sr-only"[39m
+                [33mname[39m=[32m"_r_7i_"[39m
+                [33mtype[39m=[32m"radio"[39m
+                [33mvalue[39m=[32m"en"[39m
+              [36m/>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+              [36m>[39m
+                [0mEN[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"sr-only"[39m
+              [36m>[39m
+                [0mEnglish[0m
+              [36m</span>[39m
+            [36m</label>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<aside[39m
+          [33mclass[39m=[32m"hidden shrink-0 p-2 lg:block lg:p-4 lg:w-[42%]"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex h-full flex-col px-6 pb-8 pt-5 lg:px-10"[39m
+          [36m>[39m
+            [36m<header[39m
+              [33mclass[39m=[32m"flex min-h-9 shrink-0 items-center"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-label[39m=[32m"UniWork"[39m
+                [33mclass[39m=[32m"shrink-0"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"28"[39m
+                [33mrole[39m=[32m"img"[39m
+                [33mviewBox[39m=[32m"0 0 485.23 92"[39m
+                [33mwidth[39m=[32m"147.67869565217393"[39m
+              [36m>[39m
+                [36m<defs>[39m
+                  [36m<lineargradient[39m
+                    [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                    [33mid[39m=[32m"_r_7j_"[39m
+                    [33mx1[39m=[32m"0"[39m
+                    [33mx2[39m=[32m"128"[39m
+                    [33my1[39m=[32m"0"[39m
+                    [33my2[39m=[32m"0"[39m
+                  [36m>[39m
+                    [36m<stop[39m
+                      [33mclass[39m=[32m"[stop-color:#0044E3] dark:[stop-color:#4D8DFF]"[39m
+                      [33moffset[39m=[32m"0"[39m
+                    [36m/>[39m
+                    [36m<stop[39m
+                      [33mclass[39m=[32m"[stop-color:#00B4FC] dark:[stop-color:#35CBFF]"[39m
+                      [33moffset[39m=[32m".52"[39m
+                    [36m/>[39m
+                    [36m<stop[39m
+                      [33mclass[39m=[32m"[stop-color:#02DEF5] dark:[stop-color:#5AF0FF]"[39m
+                      [33moffset[39m=[32m"1"[39m
+                    [36m/>[39m
+                  [36m</lineargradient>[39m
+                [36m</defs>[39m
+                [36m<g[39m
+                  [33mtransform[39m=[32m"translate(165.46 0)"[39m
+                [36m>[39m
+                  [36m<defs>[39m
+                    [36m<clippath[39m
+                      [33mid[39m=[32m"_r_7k_-...
+ ❯ waitForWrapper ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ workspace/accept-invite-view.test.tsx:543:35
+    541|       next();
+    542|       // Found outside act: a find polled inside act waits on updates …
+    543|       const action = await screen.findByRole("button", { name: "Chuyển…
+       |                                   ^
+    544|       await act(async () => {
+    545|         fireEvent.click(action);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 546 passed (547)
+      Tests  1 failed | 4496 passed (4497)
+   Start at  08:20:08
+   Duration  367.07s (transform 17.07s, setup 122.20s, import 233.86s, tests 456.63s, environment 155.20s)
+
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 test: `vitest run --coverage`
+Exit status 1
+VIEWS_TEST_EXIT=1

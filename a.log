@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+b3b0bb3f4fd0f415bae37a5c271650bad26d758f
+b3b0bb3f4 test(documents): expect open-folder create dialog title in empty-folder test
+165b0a12c chore: merge FD-08 fix r1 area C (deferred reveal focus, test typing) into the lane
+7f0c9911e chore: merge FD-08 fix r1 area A (document rename copy, coarse menu targets, create title) into the lane
+8be81fe59 fix(documents): persist per-viewer folder sort across remounts, auto-page folder contents, and add empty-folder action
+dd8617b82 fix(documents): use document rename copy, 44px coarse menu targets, and open folder create title
+31b9485e5 fix(documents): preserve body sequential focus on deferred tree reveal and fix test key type
+65033a1c8 chore: merge FD-08 W-B (create folder in open folder, row menu subfolder and rename) into the lane
+86d7bf2d1 feat(documents): wire create folder in open folder, row menu subfolder and rename
