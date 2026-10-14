@@ -172,6 +172,8 @@ function CloseBlock({ conflict, draft, onChange }: BlockProps) {
           value={draft.slug}
           onChange={(e) => onChange({ slug: e.target.value })}
           autoComplete="off"
+          autoCapitalize="none"
+          autoCorrect="off"
           spellCheck={false}
           aria-invalid={mismatch || undefined}
           aria-describedby={mismatch ? `${id}-hint ${id}-error` : `${id}-hint`}

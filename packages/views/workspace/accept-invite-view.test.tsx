@@ -449,8 +449,36 @@ describe("AcceptInviteView", () => {
       next();
       fireEvent.click(await screen.findByRole("checkbox", { name: "Tôi muốn rời Acme" }));
       next();
-      fireEvent.click(await screen.findByRole("button", { name: "Quay lại" }));
+      const back = await screen.findByRole("button", { name: "Quay lại" });
+      // Back sits above the heading and before it in the DOM, so Shift+Tab
+      // from the focused heading reaches it and reading order matches layout.
+      const heading = screen.getByRole("heading", { name: "Xác nhận chuyển tổ chức" });
+      expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      fireEvent.click(back);
       expect(await screen.findByRole("checkbox", { name: "Tôi muốn rời Acme" })).toBeChecked();
+    });
+
+    it("lets Enter move a step on once it is complete, and do nothing before", async () => {
+      await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })]);
+      next();
+      await pickHeir();
+      const password = screen.getByLabelText("Mật khẩu hiện tại của bạn") as HTMLInputElement;
+      const cont = screen.getByRole("button", { name: "Tiếp tục" });
+      // The step is a form, so Enter in the password field submits it and a
+      // password manager sees a sign-in-like form.
+      expect(password.form).not.toBeNull();
+      expect(cont).toHaveAttribute("type", "submit");
+      expect((cont as HTMLButtonElement).form).toBe(password.form);
+      fireEvent.submit(password.form!);
+      expect(screen.getByRole("heading", { name: "Xử lý tổ chức cũ" })).toBeInTheDocument();
+      fireEvent.change(password, { target: { value: "secret" } });
+      fireEvent.submit(password.form!);
+      expect(await screen.findByRole("heading", { name: "Xác nhận chuyển tổ chức" })).toBeInTheDocument();
+      expect(acceptCalls()).toHaveLength(0);
+      const action = screen.getByRole("button", { name: "Chuyển sang Beta" }) as HTMLButtonElement;
+      expect(action).toHaveAttribute("type", "submit");
+      fireEvent.submit(action.form!);
+      await waitFor(() => expect(acceptCalls()).toHaveLength(1));
     });
 
     it("transfers ownership to the chosen member with the owner's password", async () => {
@@ -477,6 +505,9 @@ describe("AcceptInviteView", () => {
       expect(await screen.findByText(/Bạn là thành viên duy nhất của Acme/)).toBeInTheDocument();
       expect(screen.getByText(/Acme sẽ được lưu trữ/)).toBeInTheDocument();
       const field = screen.getByLabelText("Gõ đường dẫn tổ chức để xác nhận");
+      // Slugs are lowercase: a phone keyboard must not capitalise or correct them.
+      expect(field).toHaveAttribute("autocapitalize", "none");
+      expect(field).toHaveAttribute("autocorrect", "off");
       fireEvent.change(field, { target: { value: "Acme" } });
       expect(screen.getByRole("button", { name: "Tiếp tục" })).toHaveAttribute("aria-disabled", "true");
       fireEvent.change(field, { target: { value: "acme" } });
@@ -624,6 +655,14 @@ describe("AcceptInviteView", () => {
       expect(await screen.findByText(/tài khoản của bạn chưa có mật khẩu/, {}, SLOW)).toBeInTheDocument();
       expect(screen.queryByLabelText("Mật khẩu hiện tại của bạn")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Tiếp tục" })).toHaveAttribute("aria-disabled", "true");
+      // Sent back to the step, a screen reader also hears why.
+      await waitFor(() =>
+        expect(
+          screen
+            .getAllByText("Chưa thể tiếp tục khi tài khoản chưa có mật khẩu.")
+            .some((el) => el.closest('[aria-live="polite"]') !== null),
+        ).toBe(true),
+      );
     });
 
     it("sends the owner back to the password when the server refuses it", async () => {
@@ -643,6 +682,8 @@ describe("AcceptInviteView", () => {
       expect(password).toHaveValue("");
       expect(password).toHaveAttribute("aria-invalid", "true");
       expect(password).toHaveAccessibleDescription("Mật khẩu chưa đúng. Nhập lại để chuyển quyền sở hữu.");
+      // Focus lands on the refused field, whose description says why, not on the step heading.
+      await waitFor(() => expect(password).toHaveFocus());
     });
   });
 });
