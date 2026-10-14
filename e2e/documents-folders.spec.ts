@@ -362,7 +362,7 @@ test("FD-A03 open folder content view lists only direct children, folders first,
   );
   await uploadFixtureFile(page, ws.owner.token, ws.wsId, "fx-docx-report-vi", {
     parentId: rootFolder.id,
-    title: "Biên bản kiểm kê",
+    title: "Biên bản kiểm kê.docx",
   });
 
   await loginFolderUser(page, ws.owner.email);
@@ -383,9 +383,9 @@ test("FD-A03 open folder content view lists only direct children, folders first,
       name: "Trang UniWork",
     }),
   ).toBeVisible();
-  await expect(contentRow(page, "Biên bản kiểm kê")).toBeVisible();
+  await expect(contentRow(page, "Biên bản kiểm kê.docx")).toBeVisible();
   await expect(
-    contentRow(page, "Biên bản kiểm kê").getByRole("img", {
+    contentRow(page, "Biên bản kiểm kê.docx").getByRole("img", {
       name: "Tài liệu Word",
     }),
   ).toBeVisible();
@@ -397,7 +397,7 @@ test("FD-A03 open folder content view lists only direct children, folders first,
   const rowTexts = async (): Promise<string[]> =>
     table.locator("tbody tr td:first-child").allInnerTexts();
   const initialRows = await rowTexts();
-  // 4 direct children under rootFolder (2 folders: Báo cáo, Chứng từ; 2 docs: An toàn kho, Biên bản kiểm kê);
+  // 4 direct children under rootFolder (2 folders: Báo cáo, Chứng từ; 2 docs: An toàn kho, Biên bản kiểm kê.docx);
   // packages/views/documents/library-rows.ts:96-119 sorts folders first, then by Vietnamese collator.
   expect(initialRows.length).toBe(4);
   expect(initialRows[0]).toContain("Báo cáo");
