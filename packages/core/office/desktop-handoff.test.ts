@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildOfficeDeepLink,
   buildOfficeHomeLink,
+  launchCommentId,
   officeClientId,
   officeScheme,
   safeOfficeDeepLink,
@@ -56,6 +57,16 @@ describe("buildOfficeDeepLink", () => {
     ["an over-long deployment id", { deploymentId: `a${"b".repeat(128)}`, apiOrigin: "https://api.uniwork.test" }],
   ])("leaves the whole profile off when it has %s", (_name, bad) => {
     expect(buildOfficeDeepLink(ticket, "stable", bad)).toBe(`uniwork-office://open?ticket=${ticket}`);
+  });
+});
+
+describe("launchCommentId", () => {
+  it("passes an id-shaped ?comment= to the launch ticket and leaves anything else off", () => {
+    expect(launchCommentId("01JABCDEFGHJKMNPQRSTVWXYZ0")).toBe("01JABCDEFGHJKMNPQRSTVWXYZ0");
+    expect(launchCommentId("c_1-a")).toBe("c_1-a");
+    for (const raw of [null, undefined, "", "a b", "c1&x=1", "x".repeat(129), "../c1"]) {
+      expect(launchCommentId(raw)).toBeUndefined();
+    }
   });
 });
 

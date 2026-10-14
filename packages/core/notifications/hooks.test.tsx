@@ -4,15 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { setAccessToken } from "../api/session";
 import type { NotificationPage } from "../api/endpoints/notifications";
-import type { UnreadCount } from "../types/notification";
+import type { Notification, UnreadCount } from "../types/notification";
 import { notificationKeys, useArchive, useMarkAllRead, useMarkRead, useMarkUnread, useNotificationPages } from "./hooks";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-const row = (id: string, read?: string) => ({
+const row = (id: string, read?: string): Notification => ({
   id, kind: "task_assigned", workspace_id: "ws1", organization_id: "o1", resource_type: "task", resource_id: "t1",
-  resource_deleted: false, actor_kind: "human", actor_id: "u1", title_key: "notifications.kind.task_assigned",
+  resource_deleted: false, resource_access_lost: false, comment_deleted: false, actor_kind: "human", actor_id: "u1", title_key: "notifications.kind.task_assigned",
   params: {}, count: 1, created_at: "2026-09-06T08:00:00Z", ...(read ? { read_at: read } : {}),
 });
 

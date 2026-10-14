@@ -87,6 +87,39 @@ func TestDocumentFolderRoutes(t *testing.T) {
 	if !found {
 		t.Fatalf("tree has no folder node %s: %v", folderID, out)
 	}
+
+	// FD-03 (UNI-1463): folders_only serves the FOLDERS sidebar - the same
+	// forest cut to kind=folder.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents/tree?folders_only=true", w.token, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("folders_only tree: %d %v", res.StatusCode, out)
+	}
+	nodes, _ = out["documents"].([]any)
+	if len(nodes) != 1 || nodes[0].(map[string]any)["id"] != folderID {
+		t.Fatalf("folders_only roots = %v, want the one folder %s", nodes, folderID)
+	}
+	var countFolders func(list []any) int
+	countFolders = func(list []any) int {
+		count := 0
+		for _, n := range list {
+			node := n.(map[string]any)
+			if node["kind"] != "folder" {
+				t.Fatalf("folders_only tree carries a %v node: %v", node["kind"], out)
+			}
+			count++
+			children, _ := node["children"].([]any)
+			count += countFolders(children)
+		}
+		return count
+	}
+	if got := countFolders(nodes); got != 2 {
+		t.Fatalf("folders_only tree has %d nodes, want the two folders: %v", got, out)
+	}
+
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents/tree?folders_only=maybe", w.token, nil)
+	if code, _ := errCodeClass(out); res.StatusCode != http.StatusBadRequest || code != "invalid_request" {
+		t.Fatalf("folders_only=maybe: %d code=%q %v", res.StatusCode, code, out)
+	}
 }
 
 // A folder has no public link: the create is refused by name and nothing is

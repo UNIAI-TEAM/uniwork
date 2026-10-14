@@ -649,3 +649,307 @@ func TestDocumentCommentSnippetBound(t *testing.T) {
 		t.Fatalf("params missing comment_id/kind: %s", got[0].Params)
 	}
 }
+
+// --- G8-07 §1: the inbox list marks document rows -------------------------
+
+// documentInboxItem lists one recipient's inbox through the real Service and
+// returns the document row the notification names, so the flags the list
+// resolves are the ones the HTTP layer would ship.
+func (f *documentFixture) documentInboxItem(t *testing.T, svc *Service, userID, notificationID string) Item {
+	t.Helper()
+	items, err := svc.List(f.ctx, userID, ListInput{Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range items {
+		if it.ID == notificationID {
+			return it
+		}
+	}
+	t.Fatalf("notification %s not in the list", notificationID)
+	return Item{}
+}
+
+// A readable document keeps its snippet and raises no flag; the params still
+// carry the comment id and the thread kind (contract-G807 §1).
+func TestServiceDocumentInboxReadableKeepsSnippet(t *testing.T) {
+	f := newDocumentFixture(t)
+	svc := NewService(f.q, PushConfig{})
+	svc.SetDocumentReaders(f.docs)
+	docID := f.document(t, "workspace", "Kế hoạch")
+
+	created := f.commentOf(t, f.owner.ID, docID, mentionOf(f.member)+" xem giúp", "comment")
+	f.handleComment(t)
+	n := f.inbox(t, f.member.ID)[0]
+
+	it := f.documentInboxItem(t, svc, f.member.ID, n.ID)
+	if it.ResourceDeleted || it.ResourceAccessLost || it.CommentDeleted {
+		t.Fatalf("readable row flags: %+v", it)
+	}
+	if !contains(it.Params, "snippet") || !contains(it.Params, "Kế hoạch") {
+		t.Fatalf("snippet was dropped: %s", it.Params)
+	}
+	if !contains(it.Params, created.ID) || !contains(it.Params, `"kind":"comment"`) {
+		t.Fatalf("params missing comment_id/kind: %s", it.Params)
+	}
+}
+
+// A share revoked after delivery is access_lost: the snippet keys go, the
+// link and the ids stay (contract-G807 §1; the FE renders a title-less
+// sentence when params.document is missing).
+func TestServiceDocumentInboxAccessLostDropsSnippetKeys(t *testing.T) {
+	f := newDocumentFixture(t)
+	svc := NewService(f.q, PushConfig{})
+	svc.SetDocumentReaders(f.docs)
+	docID := f.document(t, "restricted", "Thu hồi")
+	author, _ := f.sharedCommentAuthor(t, docID, "inbox-author@example.com", "Người Bình Luận")
+	recipient, share := f.sharedCommentAuthor(t, docID, "inbox-revoked@example.com", "Người Bị Thu Hồi")
+
+	created := f.commentOf(t, author.ID, docID, mentionOf(recipient)+" nhìn", "comment")
+	f.handleComment(t)
+	n := f.inbox(t, recipient.ID)[0]
+
+	// Readable while the share lives: the snippet and title are present.
+	it := f.documentInboxItem(t, svc, recipient.ID, n.ID)
+	if it.ResourceAccessLost || !contains(it.Params, "document") {
+		t.Fatalf("readable row: %+v", it)
+	}
+	f.revokeShare(t, share, docID)
+
+	it = f.documentInboxItem(t, svc, recipient.ID, n.ID)
+	if !it.ResourceAccessLost || it.ResourceDeleted {
+		t.Fatalf("access_lost row: %+v", it)
+	}
+	if contains(it.Params, "snippet") || contains(it.Params, "document") {
+		t.Fatalf("snippet keys survived access_lost: %s", it.Params)
+	}
+	if !contains(it.Params, created.ID) || !contains(it.Params, `"kind":"comment"`) {
+		t.Fatalf("ids were dropped on access_lost: %s", it.Params)
+	}
+}
+
+// An archived (or hard-deleted) document is resource_deleted, like a task.
+func TestServiceDocumentInboxGoneIsResourceDeleted(t *testing.T) {
+	f := newDocumentFixture(t)
+	svc := NewService(f.q, PushConfig{})
+	svc.SetDocumentReaders(f.docs)
+	docID := f.document(t, "workspace", "Lưu trữ")
+
+	f.commentOf(t, f.owner.ID, docID, mentionOf(f.member)+" xem", "comment")
+	f.handleComment(t)
+	n := f.inbox(t, f.member.ID)[0]
+
+	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET archived_at = now() WHERE id = $1`, docID); err != nil {
+		t.Fatal(err)
+	}
+	it := f.documentInboxItem(t, svc, f.member.ID, n.ID)
+	if !it.ResourceDeleted || it.ResourceAccessLost {
+		t.Fatalf("archived row: %+v", it)
+	}
+	// R1-5: gone is decided before the organization/level gate, so a revoked
+	// recipient of a trashed document would otherwise keep the comment
+	// snippet; the content keys go for gone as they do for access_lost.
+	if contains(it.Params, "snippet") || contains(it.Params, "document") {
+		t.Fatalf("snippet keys survived a gone document: %s", it.Params)
+	}
+}
+
+// A comment gone (tombstoned or hard-deleted) raises comment_deleted while
+// the document stays readable, so the link still opens the document.
+func TestServiceDocumentInboxCommentDeleted(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		gone func(t *testing.T, f *documentFixture, commentID string)
+	}{
+		{"tombstoned", func(t *testing.T, f *documentFixture, commentID string) {
+			if _, err := f.pool.Exec(f.ctx,
+				`UPDATE document_comments SET body = '', deleted_at = now(), deleted_by_id = $2, deleted_by_kind = 'human' WHERE id = $1`,
+				commentID, f.owner.ID); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"hard deleted", func(t *testing.T, f *documentFixture, commentID string) {
+			if _, err := f.pool.Exec(f.ctx, `DELETE FROM document_comments WHERE id = $1`, commentID); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newDocumentFixture(t)
+			svc := NewService(f.q, PushConfig{})
+			svc.SetDocumentReaders(f.docs)
+			docID := f.document(t, "workspace", "Bình luận đã xóa")
+
+			created := f.commentOf(t, f.owner.ID, docID, mentionOf(f.member)+" xem", "comment")
+			f.handleComment(t)
+			n := f.inbox(t, f.member.ID)[0]
+
+			if it := f.documentInboxItem(t, svc, f.member.ID, n.ID); it.CommentDeleted {
+				t.Fatalf("comment_deleted before the delete: %+v", it)
+			}
+			c.gone(t, f, created.ID)
+			it := f.documentInboxItem(t, svc, f.member.ID, n.ID)
+			if !it.CommentDeleted || it.ResourceDeleted || it.ResourceAccessLost {
+				t.Fatalf("comment_deleted row: %+v", it)
+			}
+		})
+	}
+}
+
+// Opening (listing) a notification never changes the comment's Open/Resolved
+// state: the read path is a read.
+func TestServiceDocumentInboxDoesNotChangeResolveState(t *testing.T) {
+	f := newDocumentFixture(t)
+	svc := NewService(f.q, PushConfig{})
+	svc.SetDocumentReaders(f.docs)
+	docID := f.document(t, "workspace", "Trạng thái")
+
+	created := f.commentOf(t, f.owner.ID, docID, mentionOf(f.member)+" xem", "comment")
+	f.handleComment(t)
+	n := f.inbox(t, f.member.ID)[0]
+
+	before, err := f.q.GetDocumentCommentByID(f.ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.documentInboxItem(t, svc, f.member.ID, n.ID)
+	after, err := f.q.GetDocumentCommentByID(f.ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.ResolvedAt.Valid != after.ResolvedAt.Valid {
+		t.Fatalf("resolve state moved on read: %v -> %v", before.ResolvedAt, after.ResolvedAt)
+	}
+}
+
+// Every document comment kind the rules emit carries params.comment_id and
+// params.kind, so the client can build the deep link (contract-G807 §1).
+func TestDocumentCommentNotificationsCarryCommentIDAndKind(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "workspace", "Mọi loại")
+
+	root := f.commentOf(t, f.owner.ID, docID, mentionOf(f.member)+" bình luận", "comment")
+	f.handleLast(t, "document.comment_added")
+	f.reply(t, f.member.ID, docID, root.ID, "phản hồi")
+	f.handleLast(t, "document.comment_added")
+	f.resolve(t, f.owner.ID, root.ID)
+	f.handleLast(t, "document.comment_resolved")
+
+	var checked int
+	for _, uid := range []string{f.owner.ID, f.member.ID} {
+		for _, n := range f.inbox(t, uid) {
+			if n.ResourceType != "document" {
+				continue
+			}
+			if !contains(n.Params, `"comment_id":"`) || !contains(n.Params, `"kind":"`) {
+				t.Fatalf("kind %s params missing comment_id/kind: %s", n.Kind, n.Params)
+			}
+			checked++
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no document notification rows to check")
+	}
+}
+
+// --- G8-07 §2: the push deep link for a document notification --------------
+
+// TestResourceURLDocumentVectors pins the push deep link for a document
+// notification with the three shared vectors the FE mirrors plus a discussion
+// thread. The workspace rule is ListWorkspacesForUser: the notification's own
+// workspace when the recipient is in it, otherwise the first of the same
+// organization, otherwise the workspace list. The comment id rides as
+// ?comment= and a discussion thread appends &kind=discussion.
+func TestResourceURLDocumentVectors(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "workspace", "Liên kết")
+	// A second workspace of the same organization, created after the
+	// fixture's own: for a recipient who is not a member of the document's
+	// workspace it is the first (and only) workspace of that organization in
+	// their ListWorkspacesForUser.
+	second, err := f.ws.CreateInOrg(f.ctx, f.owner.ID, f.orgID, "Second WS", "notif-ws-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsB := second.Workspace.ID
+
+	notif := func(t *testing.T, userID, wsID, params string) db.Notification {
+		t.Helper()
+		row, err := f.q.UpsertNotification(f.ctx, db.UpsertNotificationParams{
+			ID: util.NewID(), UserID: userID, OrganizationID: f.orgID,
+			WorkspaceID: pgtype.Text{String: wsID, Valid: wsID != ""},
+			Kind:        KindDocumentMentioned, GroupKey: "document:" + docID + ":mention:" + util.NewID(),
+			ResourceType: "document", ResourceID: docID,
+			ActorKind: "human", ActorID: f.owner.ID, TitleKey: TitleKey(KindDocumentMentioned), Params: params,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return row
+	}
+	const commentID = "01J8X4CMTN1P2Q3R4S5T6U7V"
+	commentParams := `{"comment_id":"` + commentID + `","kind":"comment"}`
+
+	t.Run("vector 1: recipient is a member of the notification's workspace", func(t *testing.T) {
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, f.member.ID, f.wsID, commentParams))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "https://app.test/notif-org/notif-ws/documents/" + docID + "?comment=" + commentID
+		if got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("vector 2: shared from another workspace, recipient reads it there", func(t *testing.T) {
+		outsider := f.user(t, "doc-outside@example.com", "Ngoài")
+		if err := f.q.AddOrganizationMember(f.ctx, db.AddOrganizationMemberParams{OrganizationID: f.orgID, UserID: outsider.ID, Role: "member"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.q.AddWorkspaceMember(f.ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsB, OrganizationID: f.orgID, UserID: outsider.ID, Role: "member"}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, outsider.ID, f.wsID, commentParams))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "https://app.test/notif-org/notif-ws-2/documents/" + docID + "?comment=" + commentID
+		if got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("vector 3: recipient has no workspace in the document's organization", func(t *testing.T) {
+		stranger := f.user(t, "doc-stranger@example.com", "Xa")
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, stranger.ID, f.wsID, commentParams))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "https://app.test/workspaces"; got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("a discussion thread appends kind=discussion", func(t *testing.T) {
+		params := `{"comment_id":"` + commentID + `","kind":"discussion"}`
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, f.member.ID, f.wsID, params))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "https://app.test/notif-org/notif-ws/documents/" + docID + "?comment=" + commentID + "&kind=discussion"
+		if got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("no comment id opens the bare document", func(t *testing.T) {
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, f.member.ID, f.wsID, `{}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "https://app.test/notif-org/notif-ws/documents/" + docID
+		if got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+}

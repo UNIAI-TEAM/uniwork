@@ -24,6 +24,8 @@ async function render(): Promise<void> {
   await act(async () => { root.render(createElement(QueryProvider, null, createElement(SiteHeader))); });
 }
 const links = (scope: Element) => [...scope.querySelectorAll<HTMLAnchorElement>(":scope > a")].map((a) => [a.textContent, a.getAttribute("href")]);
+const toggleButtons = () => [...container.querySelectorAll<HTMLButtonElement>(".header-directory-toggle")];
+const toggles = () => toggleButtons().map((button) => button.textContent);
 
 beforeEach(async () => {
   request.mockRejectedValue(new Error("signed out"));
@@ -39,17 +41,33 @@ afterEach(() => {
 });
 
 describe("the landing header's Office menu", () => {
-  it("sits after AI teammates and before Pricing in the desktop navigation", async () => {
+  it("is a directory group between Solutions and Learn in the desktop navigation, with Pricing the only plain link", async () => {
     await render();
     const nav = container.querySelector(".header-navigation");
     expect(nav).not.toBeNull();
-    expect(links(nav!)).toEqual([
-      ["Nhân sự AI", "/features/agents"],
-      ["Office", "/office"],
-      ["Bảng giá", "/pricing"],
-      ["Doanh nghiệp", "/enterprise"],
-      ["Nhật ký cập nhật", "/changelog"],
-    ]);
+    expect(toggles()).toEqual(["Sản phẩm", "Giải pháp", "Office", "Tìm hiểu"]);
+    expect(links(nav!)).toEqual([["Bảng giá", "/pricing"]]);
+  });
+
+  it("opens the Office directory with the business edition link and the personal edition note", async () => {
+    await render();
+    const toggle = toggleButtons()[2];
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => { toggle?.click(); });
+    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    const directory = container.querySelector("#header-directory-office");
+    expect(directory?.querySelectorAll("a")).toHaveLength(1);
+    expect(directory?.querySelector("a")?.getAttribute("href")).toBe("/office#office-business");
+    expect(directory?.querySelector("a")?.textContent).toContain("Office for Enterprise");
+    expect(directory?.querySelector("[data-office-personal]")?.textContent).toContain("Office for Personal");
+    expect(directory?.querySelector("[data-office-personal]")?.textContent).toContain("Đang phát triển");
+  });
+
+  it("keeps the changelog in the Learn directory instead of the top bar", async () => {
+    await render();
+    await act(async () => { toggleButtons()[3]?.click(); });
+    expect(container.querySelector("#header-directory-learn a[href='/changelog']")?.textContent).toContain("Nhật ký cập nhật");
+    expect(container.querySelector(".header-navigation > a[href='/changelog']")).toBeNull();
   });
 
   it("is in the mobile menu in the same place, and closes the menu when followed", async () => {
@@ -57,17 +75,22 @@ describe("the landing header's Office menu", () => {
     await act(async () => { container.querySelector<HTMLButtonElement>(".header-mobile-toggle")?.click(); });
     const menu = container.querySelector("#landing-mobile-menu");
     expect(menu).not.toBeNull();
-    const routes = [...menu!.querySelectorAll<HTMLAnchorElement>(":scope > a.mobile-route-link")].map((a) => a.getAttribute("href"));
-    expect(routes.slice(0, 4)).toEqual(["/features/agents", "/office", "/pricing", "/enterprise"]);
+    expect([...menu!.querySelectorAll("details > summary")].map((summary) => summary.textContent)).toEqual(["Sản phẩm", "Giải pháp", "Office", "Tìm hiểu"]);
+    expect([...menu!.querySelectorAll<HTMLAnchorElement>(":scope > a.mobile-route-link")][0]?.getAttribute("href")).toBe("/pricing");
+    const office = menu!.querySelectorAll("details")[2];
+    expect(office?.querySelector("a")?.getAttribute("href")).toBe("/office#office-business");
+    expect(office?.querySelector("[data-office-personal]")).not.toBeNull();
     // jsdom cannot navigate; the click only has to reach the link's own handler.
     document.addEventListener("click", (event) => event.preventDefault(), { once: true });
-    await act(async () => { menu!.querySelector<HTMLAnchorElement>("a[href='/office']")?.click(); });
+    await act(async () => { office?.querySelector<HTMLAnchorElement>("a")?.click(); });
     expect(container.querySelector("#landing-mobile-menu")).toBeNull();
   });
 
   it("is labelled Office in English too", async () => {
     await setLocale("en");
     await render();
-    expect(container.querySelector(".header-navigation a[href='/office']")?.textContent).toBe("Office");
+    expect(toggles()[2]).toBe("Office");
+    await act(async () => { toggleButtons()[2]?.click(); });
+    expect(container.querySelector("#header-directory-office [data-office-personal]")?.textContent).toContain("In development");
   });
 });

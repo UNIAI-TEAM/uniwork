@@ -372,7 +372,7 @@ WITH RECURSIVE sub AS (
   JOIN sub ON d.parent_id = sub.id
   WHERE d.organization_id = $1
     AND d.workspace_id = $2
-    AND sub.lvl < 10
+    AND sub.lvl < $4::int
 )
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, sub.lvl AS subtree_depth
 FROM sub
@@ -383,6 +383,7 @@ type ListDocumentSubtreeParams struct {
 	OrganizationID string `json:"organization_id"`
 	WorkspaceID    string `json:"workspace_id"`
 	RootID         string `json:"root_id"`
+	MaxLevel       int32  `json:"max_level"`
 }
 
 type ListDocumentSubtreeRow struct {
@@ -436,12 +437,17 @@ type ListDocumentSubtreeRow struct {
 // tree command keeps (N-01).
 // The subtree rooted at one document: the root row itself plus every
 // descendant, each with its distance from the root (1 = the root). The
-// recursion is capped at twice the tree bound so a corrupted parent chain is
-// reported by the service, not walked forever. Archived nodes stay in the
-// result - a cycle or a depth check through an already-archived node is
-// still one.
+// recursion is capped at max_level (twice the tree bound, from
+// subtreeMaxLevel) so a corrupted parent chain is reported by the service,
+// not walked forever. Archived nodes stay in the result - a cycle or a depth
+// check through an already-archived node is still one.
 func (q *Queries) ListDocumentSubtree(ctx context.Context, arg ListDocumentSubtreeParams) ([]ListDocumentSubtreeRow, error) {
-	rows, err := q.db.Query(ctx, listDocumentSubtree, arg.OrganizationID, arg.WorkspaceID, arg.RootID)
+	rows, err := q.db.Query(ctx, listDocumentSubtree,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.RootID,
+		arg.MaxLevel,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -503,32 +509,20 @@ func (q *Queries) ListDocumentSubtree(ctx context.Context, arg ListDocumentSubtr
 }
 
 const listDocumentSubtreeNeedingAccessCheck = `-- name: ListDocumentSubtreeNeedingAccessCheck :many
-WITH RECURSIVE sub AS (
-  SELECT r.id, 1 AS lvl
-  FROM documents r
-  WHERE r.organization_id = $4
-    AND r.workspace_id = $5
-    AND r.id = $6
-  UNION ALL
-  SELECT d.id, sub.lvl + 1
-  FROM documents d
-  JOIN sub ON d.parent_id = sub.id
-  WHERE d.organization_id = $4
-    AND d.workspace_id = $5
-    AND sub.lvl < 10
-)
 SELECT d.id
-FROM sub
-JOIN documents d ON d.id = sub.id
-WHERE d.archived_at IS NULL
+FROM documents d
+WHERE d.organization_id = $1
+  AND d.workspace_id = $2
+  AND d.id = ANY($3::text[])
+  AND d.archived_at IS NULL
   AND (
     d.owner_kind IS NOT NULL
     OR NOT (
-      $1::boolean
+      $4::boolean
       -- acl_owner_id is NULL for agent/system-created documents: without the
       -- IS NOT NULL guard the comparison is NULL, NOT NULL stays NULL and the
       -- row would drop out of the result as if it were manageable.
-      OR ($2::boolean AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3::text)
+      OR ($5::boolean AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $6::text)
       OR EXISTS (
         SELECT 1
         FROM document_shares s
@@ -538,7 +532,7 @@ WHERE d.archived_at IS NULL
           AND s.revoked_at IS NULL
           AND s.level = 'manage'
           AND (
-            (s.principal_type = 'user' AND s.principal_id = $3::text)
+            (s.principal_type = 'user' AND s.principal_id = $6::text)
             OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
           )
       )
@@ -548,30 +542,33 @@ ORDER BY d.id
 `
 
 type ListDocumentSubtreeNeedingAccessCheckParams struct {
-	IsWsAdmin      bool   `json:"is_ws_admin"`
-	IsWsMember     bool   `json:"is_ws_member"`
-	ActorID        string `json:"actor_id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	RootID         string `json:"root_id"`
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+	IsWsAdmin      bool     `json:"is_ws_admin"`
+	IsWsMember     bool     `json:"is_ws_member"`
+	ActorID        string   `json:"actor_id"`
 }
 
-// The live nodes of a subtree the actor does not hold manage on through a path
-// plain SQL can read: a workspace owner/admin (is_ws_admin), the ACL owner
-// (a workspace member only, is_ws_member), or a live user/organization share at
-// manage. A node it returns is not refused - it still needs the full
-// effectiveLevel (workspace-principal shares, work-product owners); a node it
-// omits is manageable, so one query replaces a per-node access loop for the
-// common archive. Owned documents are always returned: the owner resolver
-// decides them, never these columns.
+// The live nodes of the bounded id set the archive walk returned that the
+// actor does not hold manage on through a path plain SQL can read: a workspace
+// owner/admin (is_ws_admin), the ACL owner (a workspace member only,
+// is_ws_member), or a live user/organization share at manage. A node it
+// returns is not refused - it still needs the full effectiveLevel
+// (workspace-principal shares, work-product owners); a node it omits is
+// manageable, so one query replaces a per-node access loop for the common
+// archive. Owned documents are always returned: the owner resolver decides
+// them, never these columns. It never walks the tree itself: the caller hands
+// it the bounded id set ListLiveDocumentSubtreeIDs returned, so the gate runs
+// on at most one archive bound of rows whatever the tree size.
 func (q *Queries) ListDocumentSubtreeNeedingAccessCheck(ctx context.Context, arg ListDocumentSubtreeNeedingAccessCheckParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, listDocumentSubtreeNeedingAccessCheck,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Ids,
 		arg.IsWsAdmin,
 		arg.IsWsMember,
 		arg.ActorID,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.RootID,
 	)
 	if err != nil {
 		return nil, err
@@ -604,13 +601,12 @@ WITH RECURSIVE sub AS (
   JOIN sub ON d.parent_id = sub.id
   WHERE d.organization_id = $2
     AND d.workspace_id = $3
-    AND sub.lvl < 10
+    AND sub.lvl < $5::int
 )
 SELECT d.id
 FROM sub
 JOIN documents d ON d.id = sub.id
 WHERE d.archived_at IS NULL
-ORDER BY d.id
 LIMIT $1
 `
 
@@ -619,18 +615,27 @@ type ListLiveDocumentSubtreeIDsParams struct {
 	OrganizationID string `json:"organization_id"`
 	WorkspaceID    string `json:"workspace_id"`
 	RootID         string `json:"root_id"`
+	MaxLevel       int32  `json:"max_level"`
 }
 
 // The live (not archived) ids of a subtree, at most max_rows of them: the
 // archive command asks for one row past its bound to learn the subtree is too
-// big without walking all of it. The recursion walks through archived nodes
-// like ListDocumentSubtree and only the output is filtered.
+// big without walking all of it. The walk STOPS after max_rows live rows:
+// UNION ALL, the live filter in the outer query over the primary key, and no
+// ORDER BY before LIMIT - an ordering step would force the whole CTE to be
+// evaluated, while Postgres only computes the CTE rows the outer query really
+// takes. Archived nodes on the way are still walked (a live child of an
+// archived parent must stay reachable) but do not count against the cap. The
+// ids come back in no particular order; a caller that needs a stable order
+// sorts them itself. max_level is the corrupted-chain guard from
+// subtreeMaxLevel.
 func (q *Queries) ListLiveDocumentSubtreeIDs(ctx context.Context, arg ListLiveDocumentSubtreeIDsParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, listLiveDocumentSubtreeIDs,
 		arg.MaxRows,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.RootID,
+		arg.MaxLevel,
 	)
 	if err != nil {
 		return nil, err

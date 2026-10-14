@@ -187,16 +187,16 @@ func TestDocumentPage(t *testing.T) {
 		}
 	})
 
-	t.Run("depth is capped at five", func(t *testing.T) {
+	t.Run("depth is capped at the bound", func(t *testing.T) {
 		parent := ""
-		for i := 1; i <= 5; i++ {
+		for i := 1; i <= maxDocumentDepth; i++ {
 			v, err := f.svc.CreatePage(f.ctx, member, tn.wsA, CreatePageInput{ParentID: parent, Title: "Cấp"})
 			if err != nil {
 				t.Fatalf("level %d: %v", i, err)
 			}
 			parent = v.Document.ID
 		}
-		_, err := f.svc.CreatePage(f.ctx, member, tn.wsA, CreatePageInput{ParentID: parent, Title: "Cấp 6"})
+		_, err := f.svc.CreatePage(f.ctx, member, tn.wsA, CreatePageInput{ParentID: parent, Title: "Cấp quá sâu"})
 		wantCode(t, err, "document_too_deep")
 	})
 

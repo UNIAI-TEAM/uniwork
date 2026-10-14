@@ -4,7 +4,8 @@ import { groupInbox } from "./inbox-groups";
 
 const n = (id: string, created_at: string, read = true): Notification => ({
   id, kind: "task_assigned", workspace_id: "ws1", organization_id: "o1", resource_type: "task", resource_id: "t",
-  resource_deleted: false, actor_kind: "human", actor_id: "u", title_key: "k", params: {}, count: 1, created_at,
+  resource_deleted: false, resource_access_lost: false, comment_deleted: false,
+  actor_kind: "human", actor_id: "u", title_key: "k", params: {}, count: 1, created_at,
   ...(read ? { read_at: created_at } : {}),
 });
 
