@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CircleAlert, FolderTree } from "lucide-react";
+import { CircleAlert, FolderPlus, FolderTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -251,6 +251,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       ? {
           title: folderId ? t("documents.home.empty.folder_title") : t("documents.home.empty.title"),
           description: canCreate ? t("documents.home.empty.description") : t("documents.home.empty.view_only"),
+          actions:
+            folderId && canCreate ? (
+              <Button type="button" variant="outline" size="sm" onClick={rowDialogs.onCreateFolder}>
+                <FolderPlus aria-hidden className="size-3.5" />
+                {t("documents.home.folders.create_title")}
+              </Button>
+            ) : undefined,
         }
       : { title: t(`documents.home.empty.${view.kind}_title`), description: t(`documents.home.empty.${view.kind}_description`) };
 

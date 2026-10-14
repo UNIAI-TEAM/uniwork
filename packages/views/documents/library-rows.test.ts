@@ -8,6 +8,7 @@ import {
   documentRow,
   FOLDER_SORT_STORAGE_KEY,
   folderPath,
+  folderSortStorageKey,
   formatBytes,
   groupRows,
   indexTree,
@@ -201,7 +202,7 @@ describe("library rows", () => {
     expect(rowTypeKey(documentRow(doc({ kind: "file", title: "archive.zip" })))).toBe("documents.file_types.file");
   });
 
-  it("persists folder sort under one StorageAdapter key and defaults when storage is missing or throws", () => {
+  it("persists folder sort per viewer under uniwork_documents_folder_sort:<userId> and neither reads nor writes without a user", () => {
     const map = new Map<string, string>();
     const adapter = {
       getItem: (k: string) => map.get(k) ?? null,
@@ -212,10 +213,27 @@ describe("library rows", () => {
         map.delete(k);
       },
     };
-    expect(readFolderSort(adapter)).toBe(DEFAULT_FOLDER_SORT);
-    writeFolderSort("name", adapter);
-    expect(map.get(FOLDER_SORT_STORAGE_KEY)).toBe("name");
-    expect(readFolderSort(adapter)).toBe("name");
+    expect(folderSortStorageKey("u1")).toBe(`${FOLDER_SORT_STORAGE_KEY}:u1`);
+    expect(readFolderSort("u1", adapter)).toBe(DEFAULT_FOLDER_SORT);
+    writeFolderSort("u1", "name", adapter);
+    expect(map.get(`${FOLDER_SORT_STORAGE_KEY}:u1`)).toBe("name");
+    expect(readFolderSort("u1", adapter)).toBe("name");
+
+    // A second viewer on the same browser does not share u1's choice.
+    expect(readFolderSort("u2", adapter)).toBe(DEFAULT_FOLDER_SORT);
+    writeFolderSort("u2", "updated", adapter);
+    expect(map.get(`${FOLDER_SORT_STORAGE_KEY}:u2`)).toBe("updated");
+    expect(readFolderSort("u1", adapter)).toBe("name");
+
+    // Without a session user, default is returned and nothing is written.
+    expect(readFolderSort(null, adapter)).toBe(DEFAULT_FOLDER_SORT);
+    expect(readFolderSort(undefined, adapter)).toBe(DEFAULT_FOLDER_SORT);
+    expect(readFolderSort("", adapter)).toBe(DEFAULT_FOLDER_SORT);
+    const sizeBefore = map.size;
+    writeFolderSort(null, "name", adapter);
+    writeFolderSort(undefined, "name", adapter);
+    writeFolderSort("", "name", adapter);
+    expect(map.size).toBe(sizeBefore);
 
     const throwing = {
       getItem: (): string | null => {
@@ -228,10 +246,10 @@ describe("library rows", () => {
         throw new Error("SecurityError");
       },
     };
-    expect(readFolderSort(throwing)).toBe(DEFAULT_FOLDER_SORT);
-    expect(readFolderSort(null)).toBe(DEFAULT_FOLDER_SORT);
-    expect(() => writeFolderSort("name", throwing)).not.toThrow();
-    expect(() => writeFolderSort("name", null)).not.toThrow();
+    expect(readFolderSort("u1", throwing)).toBe(DEFAULT_FOLDER_SORT);
+    expect(readFolderSort("u1", null)).toBe(DEFAULT_FOLDER_SORT);
+    expect(() => writeFolderSort("u1", "name", throwing)).not.toThrow();
+    expect(() => writeFolderSort("u1", "name", null)).not.toThrow();
   });
 });
 

@@ -20,6 +20,7 @@ const WS = "ws1";
 const TREE_URL = `/api/v1/workspaces/${WS}/documents/tree`;
 const LIST_BASE = `/api/v1/workspaces/${WS}/documents`;
 const FOLDER_SORT_KEY = "uniwork_documents_folder_sort";
+const userFolderSortKey = (userId: string) => `${FOLDER_SORT_KEY}:${userId}`;
 
 /** The screen is gated by `documents`; the flag has to be on to see anything. */
 function withFlag(ui: React.ReactElement, on: boolean, initialUrl?: string) {
@@ -77,6 +78,8 @@ beforeEach(() => {
   requestMock.mockReset();
   resetAuthStoreForTests();
   defaultStorage.removeItem(FOLDER_SORT_KEY);
+  defaultStorage.removeItem(userFolderSortKey("u1"));
+  defaultStorage.removeItem(userFolderSortKey("u2"));
   setSessionUser({
     id: "u1",
     email: "an@example.com",
@@ -837,7 +840,63 @@ describe("DocumentsPageView", () => {
       await waitFor(() => expect(rowOrder()).toEqual(["an-plain", "an-breve", "an-circumflex", "binh"]));
     });
 
-    it("persists the sort choice under one storage key when moving to another folder", async () => {
+    it("keeps the chosen sort on the control and in storage after going to root (control unmounts) and opening another folder (V-F1)", async () => {
+      const setItemSpy = vi.spyOn(defaultStorage, "setItem");
+      route({
+        tree: () => [
+          treeNode({ id: "fo1", title: "Thư mục A", kind: "folder" }),
+          treeNode({ id: "fo2", title: "Thư mục B", kind: "folder" }),
+        ],
+        detail: (id) =>
+          id === "fo1"
+            ? folderDetail({ id: "fo1", title: "Thư mục A" })
+            : id === "fo2"
+              ? folderDetail({ id: "fo2", title: "Thư mục B" })
+              : null,
+        list: (path) => {
+          const pid = queryOf(path).get("parent_id");
+          if (pid === "fo1") {
+            return [
+              summary({ id: "a-z", parent_id: "fo1", title: "Zeta", updated_at: "2026-10-10T00:00:00Z" }),
+              summary({ id: "a-a", parent_id: "fo1", title: "Alpha", updated_at: "2026-01-01T00:00:00Z" }),
+            ];
+          }
+          if (pid === "fo2") {
+            return [
+              summary({ id: "b-an-breve", parent_id: "fo2", title: "Ăn", updated_at: "2026-10-10T00:00:00Z" }),
+              summary({ id: "b-an", parent_id: "fo2", title: "An", updated_at: "2026-01-01T00:00:00Z" }),
+            ];
+          }
+          return [summary({ id: "root-doc", title: "Tài liệu gốc" })];
+        },
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+      await screen.findByText("Zeta");
+      expect(rowOrder()).toEqual(["a-z", "a-a"]);
+
+      await selectFolderSort(t("documents.home.sort.name"));
+      await waitFor(() => expect(rowOrder()).toEqual(["a-a", "a-z"]));
+
+      // Go to root so the sort Select unmounts and Group by mounts, then open another folder.
+      const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+      fireEvent.click(within(crumbs).getByRole("button", { name: t("documents.page.title") }));
+      await screen.findByText("Tài liệu gốc");
+      expect(screen.queryByRole("combobox", { name: t("documents.home.sort.label") })).toBeNull();
+      expect(screen.getByRole("combobox", { name: t("documents.home.group_by.label") })).toBeInTheDocument();
+
+      setItemSpy.mockClear();
+      fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục B/ }));
+      await screen.findByText("Ăn");
+      expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toHaveTextContent(
+        t("documents.home.sort.name"),
+      );
+      expect(rowOrder()).toEqual(["b-an", "b-an-breve"]);
+      expect(setItemSpy).not.toHaveBeenCalled();
+      expect(defaultStorage.getItem(userFolderSortKey("u1"))).toBe("name");
+      setItemSpy.mockRestore();
+    });
+
+    it("persists the sort choice under one per-viewer key (uniwork_documents_folder_sort:<userId>), isolates viewers, and does not write without a user (F2)", async () => {
       const setItemSpy = vi.spyOn(defaultStorage, "setItem");
       route({
         tree: () => [
@@ -867,22 +926,116 @@ describe("DocumentsPageView", () => {
           return [];
         },
       });
-      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+      const { unmount } = renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
       await screen.findByText("Zeta");
-      expect(rowOrder()).toEqual(["a-z", "a-a"]);
-
       await selectFolderSort(t("documents.home.sort.name"));
       await waitFor(() => expect(rowOrder()).toEqual(["a-a", "a-z"]));
-      expect(defaultStorage.getItem(FOLDER_SORT_KEY)).toBe("name");
-      expect(setItemSpy).toHaveBeenCalledWith(FOLDER_SORT_KEY, "name");
+      expect(defaultStorage.getItem(userFolderSortKey("u1"))).toBe("name");
+      expect(setItemSpy).toHaveBeenCalledWith(userFolderSortKey("u1"), "name");
 
       fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục B/ }));
       await screen.findByText("Ăn");
       expect(rowOrder()).toEqual(["b-an", "b-an-breve"]);
-      expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toHaveTextContent(
-        t("documents.home.sort.name"),
-      );
+
+      // A second viewer on the same browser does not share u1's choice, and no user neither reads nor writes.
+      unmount();
+      setSessionUser({
+        id: "u2",
+        email: "binh@example.com",
+        display_name: "Bình",
+        onboarded_at: "2026-08-25T00:00:00Z",
+        email_verified_at: "2026-08-25T00:00:00Z",
+        onboarding_questionnaire: {},
+        locale: "vi",
+      });
+      const second = renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo2` });
+      await screen.findByText("Ăn");
+      expect(rowOrder()).toEqual(["b-an-breve", "b-an"]);
+      expect(defaultStorage.getItem(userFolderSortKey("u2"))).toBeNull();
+      second.unmount();
+
+      resetAuthStoreForTests();
+      setItemSpy.mockClear();
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo2` });
+      await screen.findByText("Ăn");
+      expect(rowOrder()).toEqual(["b-an-breve", "b-an"]);
+      await selectFolderSort(t("documents.home.sort.name"));
+      await waitFor(() => expect(rowOrder()).toEqual(["b-an", "b-an-breve"]));
+      expect(setItemSpy).not.toHaveBeenCalled();
       setItemSpy.mockRestore();
+    });
+
+    it("loads all pages of an open folder before applying folders-first and sort, and respects the 1000-row cap (F4)", async () => {
+      const urls: string[] = [];
+      route({
+        tree: () => [
+          treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" }),
+          treeNode({ id: "fo-cap", title: "Thư mục lớn", kind: "folder" }),
+        ],
+        detail: (id) =>
+          id === "fo1"
+            ? folderDetail({ id: "fo1", title: "Dự án CCB" })
+            : id === "fo-cap"
+              ? folderDetail({ id: "fo-cap", title: "Thư mục lớn" })
+              : null,
+        list: (path) => {
+          urls.push(path);
+          const pid = queryOf(path).get("parent_id");
+          const cur = queryOf(path).get("cursor");
+          if (pid === "fo1") {
+            if (cur === "c2") {
+              return [
+                summary({ id: "fol-p2", parent_id: "fo1", kind: "folder", title: "Thư mục trang 2", updated_at: "2026-01-01T00:00:00Z" }),
+                summary({ id: "doc-p2", parent_id: "fo1", kind: "page", title: "Bình", updated_at: "2026-05-01T00:00:00Z" }),
+              ];
+            }
+            return [
+              summary({ id: "doc-p1-new", parent_id: "fo1", kind: "page", title: "Zeta", updated_at: "2026-10-10T00:00:00Z" }),
+              summary({ id: "doc-p1-old", parent_id: "fo1", kind: "page", title: "An", updated_at: "2026-08-01T00:00:00Z" }),
+            ];
+          }
+          if (pid === "fo-cap") {
+            const batch = cur === "cap2" ? 500 : cur === "cap3" ? 1000 : 0;
+            return Array.from({ length: 500 }, (_, i) => {
+              const n = batch + i + 1;
+              return n === 1000
+                ? file("cap-1000", "Tài liệu 1000.docx", { parent_id: "fo-cap", updated_at: "2026-10-01T00:00:00Z" })
+                : summary({
+                    id: `cap-${n}`,
+                    parent_id: "fo-cap",
+                    kind: "page",
+                    title: `Tài liệu ${n}`,
+                    updated_at: "2026-10-01T00:00:00Z",
+                  });
+            });
+          }
+          return [];
+        },
+        cursor: (path) => {
+          const pid = queryOf(path).get("parent_id");
+          const cur = queryOf(path).get("cursor");
+          if (pid === "fo1") return cur === "c2" ? null : "c2";
+          if (pid === "fo-cap") return !cur ? "cap2" : cur === "cap2" ? "cap3" : null;
+          return null;
+        },
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+
+      // Without clicking Load more, page 2 is auto-loaded and its folder precedes page 1's documents.
+      await screen.findByText("Thư mục trang 2");
+      expect(rowOrder()).toEqual(["fol-p2", "doc-p1-new", "doc-p1-old", "doc-p2"]);
+      expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull();
+
+      await selectFolderSort(t("documents.home.sort.name"));
+      await waitFor(() => expect(rowOrder()).toEqual(["fol-p2", "doc-p1-old", "doc-p2", "doc-p1-new"]));
+
+      // Cap at 1000 rows: auto-loads page 1 (500) + page 2 (500) = 1000, stops before cap3, and keeps "Tải thêm".
+      fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.docx") }));
+      fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục lớn/ }));
+      await screen.findByText("Tài liệu 1000.docx");
+      expect(urls.some((u) => queryOf(u).get("parent_id") === "fo-cap" && queryOf(u).get("cursor") === "cap2")).toBe(true);
+      expect(urls.some((u) => queryOf(u).get("parent_id") === "fo-cap" && queryOf(u).get("cursor") === "cap3")).toBe(false);
+      expect(screen.getByRole("button", { name: t("documents.library.load_more") })).toBeInTheDocument();
     });
 
     it("lists direct children only and excludes grandchildren or root documents", async () => {
@@ -942,19 +1095,35 @@ describe("DocumentsPageView", () => {
       expect(groupHeaders()).toEqual([]);
     });
 
-    it("renders CollectionPageState when an open folder is empty while keeping the sort control", async () => {
+    it("renders CollectionPageState when an open folder is empty and offers a New folder action when the viewer can create (V-F3)", async () => {
       route({
         tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
         detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
         list: () => [],
+        post: () => ({ document: folderDetail({ id: "fo-sub", parent_id: "fo1", title: "Thư mục con mới" }) }),
       });
       renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
 
       const emptyTitle = await screen.findByText(t("documents.home.empty.folder_title"));
       expect(emptyTitle).toBeInTheDocument();
-      expect(emptyTitle.closest("[role='status']")).toHaveTextContent(t("documents.home.empty.description"));
+      const status = emptyTitle.closest("[role='status']") as HTMLElement;
+      expect(status).toHaveTextContent(t("documents.home.empty.description"));
       expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
       expect(screen.queryByRole("table")).toBeNull();
+
+      const createFolderBtn = within(status).getByRole("button", { name: t("documents.home.folders.create_title") });
+      fireEvent.click(createFolderBtn);
+      const dialog = await screen.findByRole("dialog", { name: t("documents.home.folders.create_title") });
+      const input = within(dialog).getByLabelText(t("documents.home.folders.rename_label"));
+      fireEvent.change(input, { target: { value: "Thư mục con mới" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
+      await waitFor(() => {
+        expect((postCall("POST")?.[1] as { body?: unknown }).body).toEqual({
+          kind: "folder",
+          title: "Thư mục con mới",
+          parent_id: "fo1",
+        });
+      });
     });
 
     it("renders the Type column ('Loại') with a localized label per kind in an open folder", async () => {

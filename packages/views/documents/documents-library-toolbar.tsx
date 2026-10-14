@@ -80,7 +80,14 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
             <Label htmlFor="documents-folder-sort" className="text-caption text-muted-foreground">
               {t("documents.home.sort.label")}
             </Label>
-            <Select value={sort} onValueChange={(next) => next && onSort(next as FolderSort)} items={sortItems}>
+            <Select
+              key="folder-sort"
+              value={sort}
+              onValueChange={(next) => {
+                if (next && next !== sort) onSort(next as FolderSort);
+              }}
+              items={sortItems}
+            >
               <SelectTrigger id="documents-folder-sort" size="sm" variant="subtle" className="w-44">
                 <SelectValue>{sortItems.find((item) => item.value === sort)?.label}</SelectValue>
               </SelectTrigger>
@@ -98,7 +105,14 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
             <Label htmlFor="documents-group-by" className="text-caption text-muted-foreground">
               {t("documents.home.group_by.label")}
             </Label>
-            <Select value={groupBy} onValueChange={(next) => next && onGroupBy(next as GroupBy)} items={groupItems}>
+            <Select
+              key="group-by"
+              value={groupBy}
+              onValueChange={(next) => {
+                if (next && next !== groupBy) onGroupBy(next as GroupBy);
+              }}
+              items={groupItems}
+            >
               <SelectTrigger id="documents-group-by" size="sm" variant="subtle" className="w-36">
                 <SelectValue>{groupItems.find((item) => item.value === groupBy)?.label}</SelectValue>
               </SelectTrigger>

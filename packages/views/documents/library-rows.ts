@@ -151,13 +151,18 @@ function isFolderSort(value: unknown): value is FolderSort {
   return value === "name" || value === "updated";
 }
 
+export function folderSortStorageKey(userId: string): string {
+  return `${FOLDER_SORT_STORAGE_KEY}:${userId}`;
+}
+
 /** Reads the viewer's folder sort choice from the core StorageAdapter; falls back safely when missing or throwing. */
 export function readFolderSort(
+  userId: string | null | undefined,
   storage: Pick<StorageAdapter, "getItem"> | null | undefined = defaultStorage,
 ): FolderSort {
-  if (!storage) return DEFAULT_FOLDER_SORT;
+  if (!userId || !storage) return DEFAULT_FOLDER_SORT;
   try {
-    const raw = storage.getItem(FOLDER_SORT_STORAGE_KEY);
+    const raw = storage.getItem(folderSortStorageKey(userId));
     return isFolderSort(raw) ? raw : DEFAULT_FOLDER_SORT;
   } catch {
     return DEFAULT_FOLDER_SORT;
@@ -166,12 +171,13 @@ export function readFolderSort(
 
 /** Persists the viewer's folder sort choice under one shared key for all folders; ignores storage failures. */
 export function writeFolderSort(
+  userId: string | null | undefined,
   sort: FolderSort,
   storage: Pick<StorageAdapter, "setItem"> | null | undefined = defaultStorage,
 ): void {
-  if (!storage) return;
+  if (!userId || !storage) return;
   try {
-    storage.setItem(FOLDER_SORT_STORAGE_KEY, sort);
+    storage.setItem(folderSortStorageKey(userId), sort);
   } catch {
     // Storage unavailable or blocked: keep the in-memory selection for this session.
   }
