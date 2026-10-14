@@ -150,6 +150,14 @@ test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page })
   expect(accepted.ok(), `accept: HTTP ${accepted.status()} ${await accepted.text()}`).toBeTruthy();
 
   await page.goto(`/${host.orgSlug}/${host.wsSlug}/tasks`);
+  // Say where the guard sent the account before waiting on its avatar: a
+  // redirect (login, workspace picker) and a missing image fail differently.
+  await expect(page, `the account landed on ${page.url()}`).toHaveURL(new RegExp(`/${host.orgSlug}/${host.wsSlug}/tasks`), {
+    timeout: 20_000,
+  });
+  await expect(page.locator(`button[aria-label*="${w.email}"]`), "the account trigger in the second organization's shell").toBeVisible({
+    timeout: 20_000,
+  });
   await expect
     .poll(async () => objectPath(await sidebarAvatar(page, w.email).getAttribute("src")), { timeout: 20_000 })
     .toBe(objectPath(secondSrc));
