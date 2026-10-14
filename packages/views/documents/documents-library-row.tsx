@@ -252,7 +252,7 @@ export function LibraryRowView({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-52">
                   {actions.map((action) => (
-                    <DropdownMenuItem key={action.id} className="gap-2 px-2 py-2" onClick={action.run}>
+                    <DropdownMenuItem key={action.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={action.run}>
                       <action.icon aria-hidden className="size-3.5" />
                       {action.label}
                     </DropdownMenuItem>
@@ -265,7 +265,7 @@ export function LibraryRowView({
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-52">
         {actions.map((action) => (
-          <ContextMenuItem key={action.id} className="gap-2 px-2 py-2" onClick={action.run}>
+          <ContextMenuItem key={action.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={action.run}>
             <action.icon aria-hidden className="size-3.5" />
             {action.label}
           </ContextMenuItem>

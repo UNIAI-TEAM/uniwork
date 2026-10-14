@@ -4,7 +4,7 @@ import { ApiError } from "@uniwork/core/api";
 import { DOCUMENT_TITLE_MAX, FOLDER_TITLE_MAX, TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -83,10 +83,11 @@ function renderPageView(search = "") {
 const posts = () => requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method === "POST");
 const patches = () => requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method === "PATCH");
 
-beforeEach(() => {
+beforeEach(async () => {
   requestMock.mockReset();
   toast.success.mockReset();
   toast.error.mockReset();
+  await setLocale("vi");
 });
 
 describe("move", () => {
@@ -267,47 +268,81 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
     expect(toast.success).not.toHaveBeenCalled();
   });
 
-  it("256 characters → nothing sent", async () => {
+  it("enforces 255 max on folders and 500 max on documents with document rename copy (vi + en) and FD-D10 error handling", async () => {
     requestMock.mockImplementation((_path: string, opts?: { method?: string }) => {
       if (opts?.method === "PATCH") {
-        return Promise.resolve({ document: document({ title: "b".repeat(256), revision: "8" }) });
+        return Promise.resolve({ document: document({ title: "b".repeat(DOCUMENT_TITLE_MAX), revision: "8" }) });
       }
       return Promise.resolve({ document: document() });
     });
 
-    const { unmount } = render(wrap(<Harness folderId="fa" />));
-    fireEvent.click(screen.getByText("cmd-create-folder"));
-
-    const createDialog = await screen.findByRole("dialog", { name: t("documents.home.folders.create_title") });
-    const createInput = within(createDialog).getByLabelText(t("documents.home.folders.rename_label"));
-    fireEvent.change(createInput, { target: { value: "a".repeat(FOLDER_TITLE_MAX + 1) } });
-    fireEvent.click(within(createDialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
-
-    expect(await within(createDialog).findByRole("alert")).toHaveTextContent(
+    // Folder rename unchanged: folder copy, 255 max, maps folder_name_taken.
+    const folderRender = render(wrap(<Harness item={folderDoc} />));
+    fireEvent.click(screen.getByText("cmd-rename"));
+    const folderDialog = await screen.findByRole("dialog", { name: t("documents.home.folders.rename") });
+    const folderInput = within(folderDialog).getByLabelText(t("documents.home.folders.rename_label"));
+    expect(folderInput).toHaveAttribute("placeholder", t("documents.home.folders.name_placeholder"));
+    fireEvent.change(folderInput, { target: { value: "a".repeat(FOLDER_TITLE_MAX + 1) } });
+    fireEvent.click(within(folderDialog).getByRole("button", { name: t("documents.home.folders.rename_submit") }));
+    expect(await within(folderDialog).findByRole("alert")).toHaveTextContent(
       t("documents.home.folders.name_too_long", { max: FOLDER_TITLE_MAX }),
     );
-    expect(posts()).toHaveLength(0);
-    unmount();
+    expect(patches()).toHaveLength(0);
+    folderRender.unmount();
 
-    // FD-D3: document rename keeps 500 cap (256 chars allowed on a document, 501 rejected without sending).
-    render(wrap(<Harness item={doc} />));
+    // FD-D3 + F1/V-F2: document rename (page) shows document copy in vi, rejects 501 chars without sending, sends 500 chars.
+    const docRender = render(wrap(<Harness item={doc} />));
     fireEvent.click(screen.getByText("cmd-rename"));
-    const renameDialog = await screen.findByRole("dialog", { name: t("documents.home.folders.rename") });
-    const renameInput = within(renameDialog).getByLabelText(t("documents.home.folders.rename_label"));
+    const renameDialog = await screen.findByRole("dialog", { name: "Đổi tên" });
+    expect(renameDialog).toHaveAccessibleName(t("documents.home.rename.title"));
+    const renameInput = within(renameDialog).getByLabelText("Tên tài liệu");
+    expect(renameInput).toHaveAttribute("placeholder", t("documents.home.rename.name_placeholder"));
 
     fireEvent.change(renameInput, { target: { value: "b".repeat(DOCUMENT_TITLE_MAX + 1) } });
     fireEvent.click(within(renameDialog).getByRole("button", { name: t("documents.home.folders.rename_submit") }));
-    expect(await within(renameDialog).findByRole("alert")).toHaveTextContent(
-      t("documents.home.folders.name_too_long", { max: DOCUMENT_TITLE_MAX }),
-    );
+    expect(await within(renameDialog).findByRole("alert")).toHaveTextContent("Tên tài liệu tối đa 500 ký tự.");
     expect(patches()).toHaveLength(0);
 
-    fireEvent.change(renameInput, { target: { value: "b".repeat(FOLDER_TITLE_MAX + 1) } });
+    fireEvent.change(renameInput, { target: { value: "b".repeat(DOCUMENT_TITLE_MAX) } });
     fireEvent.click(within(renameDialog).getByRole("button", { name: t("documents.home.folders.rename_submit") }));
     await waitFor(() => expect(patches()).toHaveLength(1));
+    docRender.unmount();
+
+    // Document rename (file) in English + FD-D10 (never maps folder_name_taken) + failure fallback.
+    await setLocale("en");
+    let patchCalls = 0;
+    requestMock.mockImplementation((_path: string, opts?: { method?: string }) => {
+      if (opts?.method === "PATCH") {
+        patchCalls += 1;
+        return patchCalls === 1
+          ? Promise.reject(new ApiError("", "folder_name_taken", 409))
+          : Promise.reject(new Error("network"));
+      }
+      return Promise.resolve({ document: document({ kind: "file", title: "Spec.pdf" }) });
+    });
+    const fileItem = { ...doc, id: "f-doc", kind: "file", title: "Spec.pdf" } as unknown as DocumentSummaryRow;
+    render(wrap(<Harness item={fileItem} />));
+    fireEvent.click(screen.getByText("cmd-rename"));
+    const enDialog = await screen.findByRole("dialog", { name: "Rename" });
+    const enInput = within(enDialog).getByLabelText("Document name");
+    expect(enInput).toHaveAttribute("placeholder", t("documents.home.rename.name_placeholder"));
+
+    fireEvent.change(enInput, { target: { value: "   " } });
+    fireEvent.click(within(enDialog).getByRole("button", { name: t("documents.home.folders.rename_submit") }));
+    expect(await within(enDialog).findByRole("alert")).toHaveTextContent("Enter a document name.");
+
+    fireEvent.change(enInput, { target: { value: "c".repeat(DOCUMENT_TITLE_MAX + 1) } });
+    fireEvent.click(within(enDialog).getByRole("button", { name: t("documents.home.folders.rename_submit") }));
+    expect(await within(enDialog).findByRole("alert")).toHaveTextContent("A document name is at most 500 characters.");
+
+    fireEvent.change(enInput, { target: { value: "Spec v2.pdf" } });
+    fireEvent.click(within(enDialog).getByRole("button", { name: t("documents.home.folders.rename_submit") }));
+    const alert = await within(enDialog).findByRole("alert");
+    expect(alert).not.toHaveTextContent(t("documents.errors.folder_name_taken"));
+    expect(alert).toHaveTextContent("Could not rename the document. Try again.");
   });
 
-  it('"Mới → Thư mục" inside an open folder creates with parent_id = that folder, toast shown', async () => {
+  it('"Mới → Thư mục" inside an open folder titles the dialog with the folder name, creates with parent_id, and gives menu items 44px coarse targets', async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       const method = opts?.method ?? "GET";
       if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: tree });
@@ -333,14 +368,18 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.home.create.folder.menu") })).toBeNull();
     rootRender.unmount();
 
-    // Inside an open folder (?folder=fa), "Mới → Thư mục" opens the dialog and creates with parent_id = "fa".
+    // Inside an open folder (?folder=fa), "Mới → Thư mục" has 44px coarse targets and titles the dialog with parent folder name.
     renderPageView("folder=fa");
     await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
 
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.create.folder.menu") }));
+    const createMenuItems = await screen.findAllByRole("menuitem");
+    for (const item of createMenuItems) expect(item).toHaveClass("pointer-coarse:min-h-11");
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.home.create.folder.menu") }));
 
-    const dialog = await screen.findByRole("dialog", { name: t("documents.home.folders.create_title") });
+    const dialog = await screen.findByRole("dialog", {
+      name: t("documents.home.folders.create_sub_title", { parent: "Hợp đồng" }),
+    });
     const input = within(dialog).getByLabelText(t("documents.home.folders.rename_label"));
     fireEvent.change(input, { target: { value: "Biên bản 2026" } });
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
@@ -359,7 +398,7 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
     });
   });
 
-  it('row menu: folder row shows "Thư mục con mới" + "Đổi tên", document row "Đổi tên" only, view-only member sees neither', async () => {
+  it('row menu: folder row shows "Thư mục con mới" + "Đổi tên", document row "Đổi tên" only, view-only member sees neither, with 44px coarse targets', async () => {
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: tree });
       if (path.startsWith(LIST_BASE)) {
@@ -383,6 +422,9 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
       const row = (await within(table).findByText(title)).closest("tr")!;
       fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
       const firstItem = await screen.findByRole("menuitem", { name: t(firstItemKey) });
+      for (const item of screen.getAllByRole("menuitem")) {
+        expect(item).toHaveClass("pointer-coarse:min-h-11");
+      }
       const items = {
         newSubfolder: screen.queryByRole("menuitem", { name: t("documents.home.row.new_subfolder") }) !== null,
         rename: screen.queryByRole("menuitem", { name: t("documents.home.row.rename") }) !== null,
@@ -435,14 +477,14 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.rename") }));
 
-    const dialog = await screen.findByRole("dialog", { name: t("documents.home.folders.rename") });
-    const input = within(dialog).getByLabelText(t("documents.home.folders.rename_label"));
+    const dialog = await screen.findByRole("dialog", { name: t("documents.home.rename.title") });
+    const input = within(dialog).getByLabelText(t("documents.home.rename.label"));
     expect(input).toHaveValue("Kế hoạch");
 
     // Empty name -> field error, no PATCH sent.
     fireEvent.change(input, { target: { value: "   " } });
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.folders.rename_submit") }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(t("documents.home.folders.name_empty"));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(t("documents.home.rename.name_empty"));
     expect(patches()).toHaveLength(0);
 
     // Valid name -> PATCH sent, toast shown, dialog closed.

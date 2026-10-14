@@ -149,7 +149,7 @@ export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFold
             type === "folder" ? (
               <div key={type}>
                 <DropdownMenuItem
-                  className="gap-2 px-2 py-2"
+                  className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
                   disabled={pending}
                   onClick={() => onNewFolder?.()}
                 >
@@ -161,7 +161,7 @@ export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFold
             ) : (
               <div key={type}>
                 <DropdownMenuItem
-                  className="gap-2 px-2 py-2"
+                  className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
                   disabled={pending || unavailable.has(type)}
                   onClick={() => onCreate(type)}
                 >
@@ -176,7 +176,7 @@ export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFold
             ),
           )}
           <DropdownMenuSeparator className="sm:hidden" />
-          <DropdownMenuItem className="gap-2 px-2 py-2 sm:hidden" onClick={onUpload}>
+          <DropdownMenuItem className="gap-2 px-2 py-2 pointer-coarse:min-h-11 sm:hidden" onClick={onUpload}>
             <Upload aria-hidden className="size-4" />
             {t("documents.home.create.upload.card")}
           </DropdownMenuItem>
