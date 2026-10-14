@@ -189,6 +189,44 @@ describe("SecurityTab", () => {
     expect(proof).toHaveFocus();
   });
 
+  it.each([
+    [{}, "Nhập mật khẩu hiện tại để xác nhận", "password_incorrect", 403, "Mật khẩu chưa đúng. Nhập lại để xóa tài khoản.", ""],
+    [
+      { has_password: false, mfa_enabled_at: "2026-09-07T00:00:00Z" },
+      "Nhập mã xác thực hai lớp để xác nhận",
+      "mfa_code_incorrect",
+      403,
+      "Mã xác thực chưa đúng hoặc đã hết hạn. Nhập mã mới để xóa tài khoản.",
+      "",
+    ],
+    [
+      { has_password: false },
+      "Gõ lại địa chỉ email của bạn để xác nhận",
+      "email_confirmation_mismatch",
+      400,
+      "Email chưa khớp với tài khoản đang đăng nhập. Gõ lại để xóa tài khoản.",
+      "wrong@b.co",
+    ],
+  ])("answers a refused proof (%#) in the dialog's words, under the field", async (patch, label, code, status, message, kept) => {
+    setSessionUser({ ...user, ...patch });
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/me/delete"
+        ? Promise.reject(new ApiError("server words", code, status))
+        : Promise.resolve({ sessions: [] }),
+    );
+    render(wrapWithNav(<SecurityTab />));
+    fireEvent.click(await screen.findByRole("button", { name: "Xóa tài khoản" }));
+    const proof = await screen.findByLabelText(label);
+    fireEvent.change(proof, { target: { value: "wrong@b.co" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xóa vĩnh viễn" }));
+    await waitFor(() => expect(proof).toHaveAccessibleDescription(new RegExp(`^${message.replace(/\./g, "\\.")}`)));
+    expect(proof).toHaveAttribute("aria-invalid", "true");
+    expect(proof).toHaveFocus();
+    // A secret is never kept past a refusal; a typed address stays to correct.
+    expect(proof).toHaveValue(kept);
+    expect(requestMock.mock.calls.filter(([path]) => path === "/api/v1/me/delete")).toHaveLength(1);
+  });
+
   it("asks for the password before deleting a password account and signs out after", async () => {
     setSessionUser(user);
     requestMock.mockImplementation((path: string) => Promise.resolve(path === "/api/v1/me/sessions" ? { sessions: [] } : { status: "ok" }));

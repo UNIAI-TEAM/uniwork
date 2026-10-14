@@ -1265,6 +1265,11 @@
           "password": "Enter your password to confirm.",
           "code": "Enter your two-factor code to confirm.",
           "email": "Type your email address to confirm."
+        },
+        "incorrect": {
+          "password": "That password isn't right. Enter it again to delete the account.",
+          "code": "That code isn't right or has expired. Enter a new one to delete the account.",
+          "email": "That doesn't match the email you're signed in with. Type it again to delete the account."
         }
       }
     },

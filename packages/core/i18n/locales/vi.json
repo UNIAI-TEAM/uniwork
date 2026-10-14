@@ -1264,6 +1264,11 @@
           "password": "Nhập mật khẩu để xác nhận.",
           "code": "Nhập mã xác thực hai lớp để xác nhận.",
           "email": "Gõ lại email của bạn để xác nhận."
+        },
+        "incorrect": {
+          "password": "Mật khẩu chưa đúng. Nhập lại để xóa tài khoản.",
+          "code": "Mã xác thực chưa đúng hoặc đã hết hạn. Nhập mã mới để xóa tài khoản.",
+          "email": "Email chưa khớp với tài khoản đang đăng nhập. Gõ lại để xóa tài khoản."
         }
       }
     },
