@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 41f1d661 HEAD && echo main-merged-ok
+dd89ad4a79cd7bd106699ddaf49b725471f20260
+41f1d6618319c47e929a82c90434c99b4a8eee58
+dd89ad4a fix(shell): address G5-09 S5 conflict dialog FE review findings FE-01..FE-09 and format
+cad3f2f7 style(shell): format BE conflict dialog files with prettier (G5-09 CL-B)
+8cde31ab fix(shell): resolve eslint errors in conflict dialog BE and test files (G5-09 CL-G)
+913a7834 fix(shell): read updatedAt from documentProperties in overwriteInConflict (G5-09 CL-F)
+5f92b1b3 feat(shell): push conflict-closed when main ends the S5 conflict session (G5-09 FE-02)
+b59e2b26 Merge remote-tracking branch 'origin/main' into feature/UNI-1356-g5-09-conflict-dialog
+41f1d661 Merge pull request #6 from UNIAI-TEAM/feature/upstream-port-2026-10-14
+bee35d01 merge(fix): R3-2 model popover under zoom and N1 readable model chip into the release fixes (UNI-923)
+main-merged-ok
