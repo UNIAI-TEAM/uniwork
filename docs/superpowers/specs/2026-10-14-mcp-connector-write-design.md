@@ -141,6 +141,11 @@ Mọi tool ghi trả một mục `McpItem` (cùng kiểu tool đọc) của bả
 - `revision` mới.
 - `changes`: danh sách `{field, from, to}` cho `update_*` (văn bản dài cắt 1.200 rune,
   ghi rõ đã cắt). Model dùng nó để báo lại và hoàn tác.
+- Ngoại lệ cho trường mô tả dài (mô tả task; Phase 2–4 áp cùng mẫu cho mô tả dự án, cuộc
+  họp): `from`/`to` không cắt tới `mcpMaxItemRunes` (16.000 rune), để hoàn tác luôn đúng.
+  Tool đọc trả nguyên văn mô tả (trường `description`, có cờ khi bị cắt). Tool sửa từ chối
+  thay mô tả hiện tại dài hơn giới hạn đó, và từ chối mô tả mới dài hơn giới hạn
+  (`McpInvalidArgs`, sửa trong UniWork).
 
 ### 4.7 Revision
 
