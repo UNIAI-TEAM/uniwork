@@ -1,0 +1,48 @@
+$ pnpm test 2>&1 | grep -E 'Test Files|Tests |FAIL|failed|ERR_' | tail -60; echo "TEST_EXIT=${PIPESTATUS[0]}"
+@uniwork/office-contracts:test:  Test Files  3 passed (3)
+@uniwork/office-contracts:test:       Tests  38 passed (38)
+@uniwork/web:test:      ✓ drops a frame whose image had already failed before it could report an error  462ms
+@uniwork/views:test: stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > when the frame's dialog closes before its answer > reopens the leave dialog with its failure line only on a failed answer
+@uniwork/views:test: stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > when the frame's dialog closes before its answer > reopens the leave dialog with its failure line only on a failed answer
+@uniwork/views:test: stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > when the frame's dialog closes before its answer > reopens the leave dialog with its failure line only on a failed answer
+@uniwork/views:test: stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > when the frame's dialog closes before its answer > reopens the leave dialog with its failure line only on a failed answer
+@uniwork/views:test: stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > when the frame's dialog closes before its answer > reopens the leave dialog with its failure line only on a failed answer
+@uniwork/views:test: stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > when the frame's dialog closes before its answer > reopens the leave dialog with its failure line only on a failed answer
+@uniwork/views:test:          ✓ reopens the leave dialog with its failure line only on a failed answer  718ms
+@uniwork/web:test:  Test Files  18 passed (18)
+@uniwork/web:test:       Tests  191 passed (191)
+@uniwork/office-engine-app:test:  Test Files  10 passed (10)
+@uniwork/office-engine-app:test:       Tests  107 passed | 11 skipped (121)
+@uniwork/ui:test:  Test Files  33 passed (33)
+@uniwork/ui:test:       Tests  278 passed (278)
+@uniwork/views:test:      ✓ keeps a failed upload in the dialog with the reason  629ms
+@uniwork/office-engine:test:  Test Files  71 passed | 1 skipped (72)
+@uniwork/office-engine:test:       Tests  921 passed | 5 skipped (926)
+@uniwork/core:test:      ✓ reports a failed read as unknown, never as off  1017ms
+@uniwork/core:test:      ✓ reads off when the organization's answer says false, on when the flag is absent, and unknown on a failed read  1124ms
+@uniwork/views:test:      ✓ a failed groups call is a surface error whose retry asks the table API again  684ms
+@uniwork/views:test: stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > settles the Save on a fatal frame error: failed with that error, one onError, no timer left
+@uniwork/core:test:  Test Files  237 passed (237)
+@uniwork/core:test:       Tests  2279 passed (2279)
+@uniwork/views:test:      ✓ stops a failed save-and-leave after one retry and re-enables the dialog  2792ms
+@uniwork/views:test:      ✓ retries the dirty body before failed metadata when both writes fail  3525ms
+@uniwork/views:test:      ✓ keeps a failed title for explicit retry after queued body content saves  2443ms
+@uniwork/views:test: 04:30:12.774 [api] API response failed schema validation: GET /api/v1/tasks/{id}/comments {
+@uniwork/views:test: 04:30:12.775 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/members {
+@uniwork/views:test: 04:30:12.775 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/agents {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/pins {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/tasks/child-progress {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/tasks/{id}/attachments {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/tasks/{id}/children {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/task-properties {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/assignee-frequency {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/task-statuses {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/resources/{type}/{id}/history {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/tasks/{id}/subscribers {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/projects {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/me {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/workspaces/{ws}/task-labels {
+@uniwork/views:test: 04:30:12.776 [api] API response failed schema validation: GET /api/v1/tasks/{id}/labels {
+@uniwork/views:test:  Test Files  541 passed (541)
+@uniwork/views:test:       Tests  4362 passed (4362)
+TEST_EXIT=0

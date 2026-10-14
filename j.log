@@ -1,0 +1,3 @@
+$ node scripts/office/build-upstream.mjs 2>&1 | tail -10; echo "UPSTREAM_EXIT=${PIPESTATUS[0]}"
+{"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
+UPSTREAM_EXIT=0

@@ -1,0 +1,22 @@
+$ node scripts/bundle-budget.mjs --print 2>&1 | tail -20; echo "BUNDLE_EXIT=${PIPESTATUS[0]}"
+  /[orgSlug]/[workspaceSlug]/chat 1019.6 KB > 196 KB (ratchet in scripts/bundle-budget.json)
+  /[orgSlug]/[workspaceSlug]/documents/[documentId] 916.7 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/documents 992.3 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/email 966.2 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/inbox 917.6 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/meetings/[meetingId] 913.2 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room 1166.0 KB > 358 KB (ratchet in scripts/bundle-budget.json)
+  /[orgSlug]/[workspaceSlug]/meetings 928.3 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/members 911.0 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/my-tasks 911.2 KB > 150 KB
+  /[orgSlug]/[workspaceSlug] 911.0 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/people/[userId] 920.0 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/people 930.7 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/projects/[projectId] 911.2 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/projects 911.1 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/settings 925.3 KB > 154 KB (ratchet in scripts/bundle-budget.json)
+  /[orgSlug]/[workspaceSlug]/tasks/[taskId] 911.2 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/tasks 911.2 KB > 150 KB
+  / 161.1 KB > 150 KB
+  /share/[token] 843.7 KB > 150 KB
+BUNDLE_EXIT=1

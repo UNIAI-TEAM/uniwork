@@ -1,0 +1,32 @@
+$ pnpm exec turbo build typecheck 2>&1 | tail -30; echo "BUILD_TC_EXIT=${PIPESTATUS[0]}"
+@uniwork/web:build: ├ ƒ /invite/meeting/[linkId]
+@uniwork/web:build: ├ ƒ /invite/meeting/[linkId]/room
+@uniwork/web:build: ├ ƒ /learn
+@uniwork/web:build: ├ ƒ /login
+@uniwork/web:build: ├ ○ /manifest.webmanifest
+@uniwork/web:build: ├ ƒ /office
+@uniwork/web:build: ├ ƒ /onboarding
+@uniwork/web:build: ├ ○ /opengraph-image.png
+@uniwork/web:build: ├ ƒ /pricing
+@uniwork/web:build: ├ ƒ /register
+@uniwork/web:build: ├ ƒ /reset-password
+@uniwork/web:build: ├ ƒ /share/[token]
+@uniwork/web:build: ├ ƒ /solutions
+@uniwork/web:build: ├ ƒ /solutions/operations
+@uniwork/web:build: ├ ƒ /solutions/product
+@uniwork/web:build: ├ ƒ /verify
+@uniwork/web:build: ├ ƒ /why-uniwork
+@uniwork/web:build: ├ ƒ /workspaces
+@uniwork/web:build: └ ƒ /workspaces/new
+@uniwork/web:build: 
+@uniwork/web:build: 
+@uniwork/web:build: ○  (Static)   prerendered as static content
+@uniwork/web:build: ƒ  (Dynamic)  server-rendered on demand
+@uniwork/web:build: 
+
+ Tasks:    10 successful, 10 total
+Cached:    0 cached, 10 total
+  Time:    1m19.782s 
+
+ WARNING  no output files found for task @uniwork/office-upstream#build. Please check your `outputs` key in `turbo.json`
+BUILD_TC_EXIT=0

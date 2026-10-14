@@ -1,0 +1,2 @@
+$ pnpm generate:reserved-slugs >/dev/null && git diff --exit-code -- packages/core/paths/reserved-slugs.ts; echo "SLUGS_EXIT=$?"
+SLUGS_EXIT=0
