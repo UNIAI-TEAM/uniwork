@@ -54,7 +54,7 @@ func (s *AIBYOKService) Proxy(ctx context.Context, userID, orgID, providerID str
 	if err := s.ents.Can(ctx, orgID, FeatureOfficeAIBYOK); err != nil {
 		return nil, err
 	}
-	if !s.credentialsConfigured() {
+	if s.creds == nil {
 		return nil, errCredentialMissing()
 	}
 	cred, err := s.creds.Resolve(ctx, userID, orgID, providerID)

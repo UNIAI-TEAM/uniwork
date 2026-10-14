@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -31,7 +32,8 @@ func TestAIBYOKServiceGates(t *testing.T) {
 			return nil, errors.New("no network in tests")
 		},
 	}))
-	svc := NewAIBYOKService(f.orgs, NewEntitlementService(f.pool, f.q), f.svc, gw)
+	ents := NewEntitlementService(f.pool, f.q)
+	svc := NewAIBYOKService(f.orgs, ents, f.svc, gw)
 	body := []byte(`{"model":"gpt-5.6-terra","messages":[]}`)
 
 	if _, err := svc.Proxy(f.ctx, f.second.ID, f.orgID, "openai", ai.ProxyChatCompletions, ai.ProxySurfaceWeb, body, nil); !errors.Is(err, ErrNotFound) {
@@ -44,6 +46,12 @@ func TestAIBYOKServiceGates(t *testing.T) {
 		if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, c.provider, c.op, ai.ProxySurfaceWeb, body, nil); !errors.Is(err, ai.ErrProviderNotSupported) {
 			t.Errorf("%s/%s = %v, want provider_not_supported", c.provider, c.op, err)
 		}
+	}
+	noBox := NewAIBYOKService(f.orgs, ents, NewAICredentialService(f.pool, f.q, f.orgs, ents, nil), gw)
+	if _, err := noBox.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, ai.ProxySurfaceWeb, body, nil); err == nil {
+		t.Fatal("without AI_CREDENTIAL_KEY = nil, want 503 ai_credentials_unavailable")
+	} else if code, status := aiCredentialCode(err); code != "ai_credentials_unavailable" || status != http.StatusServiceUnavailable {
+		t.Fatalf("without AI_CREDENTIAL_KEY = %s %d (%v), want ai_credentials_unavailable 503", code, status, err)
 	}
 	if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, ai.ProxySurfaceWeb, body, nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("no stored key = %v, want credential_missing", err)
