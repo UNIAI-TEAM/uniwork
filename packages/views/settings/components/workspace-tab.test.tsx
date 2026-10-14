@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -28,19 +28,24 @@ const workspace: Workspace = {
   organization_name: "Acme",
 };
 
-function renderAs(role: string) {
-  requestMock.mockImplementation((path: string) => {
+function renderAs(role: string, ws: Workspace = workspace, opts: { patch?: unknown; patchError?: unknown } = {}) {
+  requestMock.mockImplementation((path: string, init?: { method?: string }) => {
     if (path.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u1", role, source: "membership" } });
+    if (init?.method === "PATCH") return opts.patchError ? Promise.reject(opts.patchError) : Promise.resolve(opts.patch ?? {});
     return Promise.resolve({});
   });
   return render(
     wrap(
-      <WorkspaceProvider workspace={workspace} user={user}>
+      <WorkspaceProvider workspace={ws} user={user}>
         <WorkspaceTab />
       </WorkspaceProvider>,
     ),
   );
 }
+
+const callsWith = (method: string) =>
+  requestMock.mock.calls.filter(([, init]) => (init as { method?: string } | undefined)?.method === method);
+const patchBodies = () => callsWith("PATCH").map(([, init]) => (init as { body?: unknown }).body);
 
 describe("WorkspaceTab", () => {
   beforeEach(() => {
@@ -79,7 +84,29 @@ describe("WorkspaceTab", () => {
     expect(input).toHaveValue("Đội Sản phẩm");
     expect(input).not.toHaveAttribute("aria-invalid");
     expect(screen.queryByText("Tên workspace không được để trống.")).toBeNull();
-    const patches = requestMock.mock.calls.filter(([, init]) => (init as { method?: string } | undefined)?.method === "PATCH");
-    expect(patches).toHaveLength(0);
+    expect(patchBodies()).toHaveLength(0);
+  });
+
+  it("autosaves the description for an admin", async () => {
+    renderAs("admin");
+    const box = await screen.findByRole("textbox", { name: "Mô tả" });
+    fireEvent.change(box, { target: { value: "Nhóm làm sản phẩm" } });
+    fireEvent.blur(box);
+    await waitFor(() => expect(patchBodies()).toContainEqual({ description: "Nhóm làm sản phẩm" }));
+  });
+
+  it("shows a member the description as text, without icon actions", async () => {
+    renderAs("member", { ...workspace, description: "Nhóm làm sản phẩm" });
+    expect(await screen.findByText("Nhóm làm sản phẩm")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Chọn emoji" })).not.toBeInTheDocument();
+  });
+
+  it("uploads an image icon and removes an emoji icon", async () => {
+    renderAs("admin", { ...workspace, icon_emoji: "🚀" });
+    const input = await screen.findByLabelText("Tải ảnh lên", { selector: "input" });
+    fireEvent.change(input, { target: { files: [new File(["x"], "i.png", { type: "image/png" })] } });
+    await waitFor(() => expect(callsWith("POST").map(([path]) => path)).toContain("/api/v1/workspaces/ws1/icon"));
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ icon" }));
+    await waitFor(() => expect(callsWith("DELETE").map(([path]) => path)).toContain("/api/v1/workspaces/ws1/icon"));
   });
 });
