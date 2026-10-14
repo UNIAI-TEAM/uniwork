@@ -150,6 +150,12 @@ func NewAICredentialService(pool *pgxpool.Pool, q *db.Queries, orgs *Organizatio
 	return &AICredentialService{pool: pool, q: q, orgs: orgs, entitlements: entitlements, box: box}
 }
 
+// Configured reports whether AI_CREDENTIAL_KEY is wired so credentials can be
+// sealed and opened.
+func (s *AICredentialService) Configured() bool {
+	return s != nil && s.box != nil
+}
+
 // gate is the order every call takes: a real actor, organization membership
 // (an outsider learns nothing, not even whether keys are configured), then
 // the store itself.

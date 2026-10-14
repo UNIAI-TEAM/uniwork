@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -52,15 +53,17 @@ func (h *aiHandlers) listAICredentials(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var byok sdo.AIBYOKStatusDTO
-	if h.AIBYOK == nil {
-		byok = sdo.AIBYOKStatusDTO{Enabled: false, Reason: "ai_credentials_unavailable"}
-	} else {
+	if h.AIBYOK != nil {
 		enabled, reason, err := h.AIBYOK.Status(r.Context(), userID, orgID)
 		if err != nil {
-			h.mapServiceError(w, err)
-			return
+			log := h.Log
+			if log == nil {
+				log = slog.Default()
+			}
+			log.ErrorContext(r.Context(), "ai: byok status lookup failed", "organization_id", orgID, "user_id", userID, "err", err)
+		} else {
+			byok = sdo.AIBYOKStatusDTO{Enabled: enabled, Reason: reason}
 		}
-		byok = sdo.AIBYOKStatusDTO{Enabled: enabled, Reason: reason}
 	}
 	providers := service.AIProviders()
 	out := sdo.AICredentialListSDO{

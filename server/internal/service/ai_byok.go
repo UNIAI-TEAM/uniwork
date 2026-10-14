@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -13,6 +14,7 @@ import (
 // byokCredentialResolver decrypts the caller's stored key for one provider
 // (AICredentialService, UNI-1008 W1). ErrNotFound when none is stored.
 type byokCredentialResolver interface {
+	Configured() bool
 	Resolve(ctx context.Context, userID, orgID, provider string) (ai.BYOKCredential, error)
 }
 
@@ -70,13 +72,16 @@ func (s *AIBYOKService) Proxy(ctx context.Context, userID, orgID, providerID str
 }
 
 func (s *AIBYOKService) credentialsConfigured() bool {
-	if s == nil || s.creds == nil {
-		return false
+	return s != nil && s.creds != nil && s.creds.Configured()
+}
+
+func allowlistedBYOKReason(code string) (string, bool) {
+	switch code {
+	case "entitlement_required", "subscription_inactive", "ai_credentials_unavailable":
+		return code, true
+	default:
+		return "", false
 	}
-	if cs, ok := s.creds.(*AICredentialService); ok {
-		return cs != nil && cs.box != nil
-	}
-	return true
 }
 
 // Status reports whether the person could use the proxy in orgID at all — a
@@ -96,7 +101,11 @@ func (s *AIBYOKService) Status(ctx context.Context, userID, orgID string) (enabl
 	if err := s.ents.Can(ctx, orgID, FeatureOfficeAIBYOK); err != nil {
 		var ce CodedError
 		if errors.As(err, &ce) {
-			return false, ce.Code, nil
+			if reason, ok := allowlistedBYOKReason(ce.Code); ok {
+				return false, reason, nil
+			}
+			slog.ErrorContext(ctx, "ai byok status: unexpected reason code", "organization_id", orgID, "user_id", userID, "code", ce.Code)
+			return false, "", nil
 		}
 		return false, "", err
 	}
