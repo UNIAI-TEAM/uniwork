@@ -160,6 +160,13 @@ type DocumentDownloadSDO struct {
 
 // --- G1-05b (UNI-679, C-01 §5.1/§5.3/§5.4) --------------------------------
 
+// DocumentPathItemSDO is one ancestor entry in DocumentSummaryDTO.path,
+// ordered from the root (or the highest readable ancestor) to the direct parent.
+type DocumentPathItemSDO struct {
+	ID    string `json:"id" description:"ULID tổ tiên" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	Title string `json:"title" description:"Tiêu đề tổ tiên" example:"Tài liệu nội bộ"`
+}
+
 // DocumentSummaryDTO is one list row (list/recent/shared-with-me): the
 // metadata a library row renders, without the page content a list never
 // carries. `snippet` rides only on a search hit; `my_level`/`via` are the
@@ -191,6 +198,8 @@ type DocumentSummaryDTO struct {
 	UpdatedByKind  string  `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
 	CreatedAt      string  `json:"created_at" example:"2026-09-27T09:00:00Z"`
 	UpdatedAt      string  `json:"updated_at" example:"2026-09-27T09:00:00Z"`
+	// Path rides only on a search (q) result row (E6/FD-05, UNI-1465).
+	Path []DocumentPathItemSDO `json:"path,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha trực tiếp; cắt ở tổ tiên đầu tiên người gọi không đọc được; chỉ có trên dòng kết quả tìm bằng q" example:"[{\"id\":\"01J8X4DOC0N1P2Q3R4S5T6U7W9\",\"title\":\"Tài liệu nội bộ\"}]"`
 }
 
 // DocumentListSDO is the page shape shared by list, recent and
