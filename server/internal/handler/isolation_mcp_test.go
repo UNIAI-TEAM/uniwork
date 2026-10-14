@@ -93,6 +93,17 @@ func (w *isoWorld) taskRevision(t *testing.T, id string) int64 {
 	return rev
 }
 
+// projectRevision is a project's current revision, the one update_project
+// must send.
+func (w *isoWorld) projectRevision(t *testing.T, id any) int64 {
+	t.Helper()
+	var rev int64
+	if err := w.pool.QueryRow(context.Background(), `SELECT revision FROM projects WHERE id = $1`, fmt.Sprint(id)).Scan(&rev); err != nil {
+		t.Fatal(err)
+	}
+	return rev
+}
+
 // isToolError reports a tools/call answer that carries result.isError: the way
 // the connector refuses without a JSON-RPC error.
 func isToolError(raw []byte) bool {
@@ -137,7 +148,7 @@ func TestIsolationMCP(t *testing.T) {
 	a, b := w.alpha, w.bravo
 	aTask, aMeeting := a.get(t, "task"), a.get(t, "meeting")
 	aTask2, aProject, aLabel, aComment := a.get(t, "task2"), a.get(t, "project"), a.get(t, "label"), a.get(t, "taskComment")
-	bTask := b.get(t, "task")
+	bTask, bProject := b.get(t, "task"), b.get(t, "project")
 	// A holds a third task, so it has a PREFIX-N that B's workspace does not:
 	// both workspaces count from 1 under the same prefix, and a ref that B's
 	// own workspace can answer would test nothing.
@@ -187,8 +198,10 @@ func TestIsolationMCP(t *testing.T) {
 	// control is the same call by A's own grant on A's rows, which must
 	// succeed. An update_task row carries no revision, in the attack or the
 	// control: the run sends the live one of the task named, so a missing
-	// tenant gate would write and not stop at a revision conflict. A create_task
-	// control carries no title, the run makes one up. Phases 2-4 add their rows here.
+	// tenant gate would write and not stop at a revision conflict; an
+	// update_project row gets the live revision of its project the same way. A
+	// create_task or create_project control carries no title, the run makes
+	// one up. Phases 2-4 add their rows here.
 	writeAttacks := []struct {
 		tool    string
 		args    map[string]any
@@ -234,6 +247,18 @@ func TestIsolationMCP(t *testing.T) {
 			map[string]any{"workspace_id": a.wsID, "task_id": aRef3, "body": "iso-control"}, ""},
 		{"add_comment", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "body": "iso", "reply_to": aComment},
 			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "body": "iso-control", "reply_to": aComment}, ""},
+		// The project write tools of Phase 2: A's workspace and project, and A's
+		// person named as the lead of a project in B's workspace.
+		{"create_project", map[string]any{"workspace_id": a.wsID, "title": "iso-write"},
+			map[string]any{"workspace_id": a.wsID}, ""},
+		{"create_project", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "lead_id": a.userID},
+			map[string]any{"workspace_id": a.wsID, "lead_id": a.userID}, "lead_not_member:"},
+		{"update_project", map[string]any{"workspace_id": a.wsID, "project_id": aProject, "title": "iso"},
+			map[string]any{"workspace_id": a.wsID, "project_id": aProject, "title": "iso-control"}, ""},
+		{"update_project", map[string]any{"workspace_id": b.wsID, "project_id": aProject, "title": "iso"},
+			map[string]any{"workspace_id": a.wsID, "project_id": aProject, "title": "iso-control"}, ""},
+		{"update_project", map[string]any{"workspace_id": b.wsID, "project_id": bProject, "lead_id": a.userID},
+			map[string]any{"workspace_id": a.wsID, "project_id": aProject, "lead_id": a.userID}, "lead_not_member:"},
 	}
 	// missing gives every id of A's that a write attack names a stand-in that
 	// never existed; the twin of an attack is the same call with those swapped in.
@@ -307,6 +332,9 @@ func TestIsolationMCP(t *testing.T) {
 			args := maps.Clone(at.args)
 			if at.tool == "update_task" {
 				args["revision"] = liveRevision(t, args["task_id"])
+			}
+			if at.tool == "update_project" {
+				args["revision"] = w.projectRevision(t, args["project_id"])
 			}
 			status, raw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, args)
 			text := toolText(raw)
@@ -384,11 +412,14 @@ func TestIsolationMCP(t *testing.T) {
 		written := w.tenantDigest(t, a)
 		for i, at := range writeAttacks {
 			args := maps.Clone(at.control)
-			if _, titled := args["title"]; titled || at.tool == "create_task" {
+			if _, titled := args["title"]; titled || at.tool == "create_task" || at.tool == "create_project" {
 				args["title"] = fmt.Sprintf("iso-control-%s-%d", a.tag, i)
 			}
 			if at.tool == "update_task" {
 				args["revision"] = liveRevision(t, args["task_id"])
+			}
+			if at.tool == "update_project" {
+				args["revision"] = w.projectRevision(t, args["project_id"])
 			}
 			status, raw := mcpCallToolJSON(t, w, a.ids["mcpAccess"], at.tool, args)
 			var done struct {
@@ -400,7 +431,7 @@ func TestIsolationMCP(t *testing.T) {
 				t.Errorf("A's own %s %v through MCP: %d %s", at.tool, args, status, raw)
 				continue
 			}
-			if at.tool != "update_task" {
+			if at.tool != "update_task" && at.tool != "update_project" {
 				continue
 			}
 			// An update that saved its fields but failed a later step (parent,
@@ -410,15 +441,19 @@ func TestIsolationMCP(t *testing.T) {
 			if sc.Note != "" {
 				t.Errorf("A's own %s %v came back with a note: %s", at.tool, args, raw)
 			}
-			for key, field := range map[string]string{"title": "title", "project_id": "project_id", "assignee_id": "assignee_id", "parent_task_id": "parent_task_id", "add_label_ids": "labels", "remove_label_ids": "labels"} {
+			fields := map[string]string{"title": "title", "project_id": "project_id", "assignee_id": "assignee_id", "parent_task_id": "parent_task_id", "add_label_ids": "labels", "remove_label_ids": "labels"}
+			if at.tool == "update_project" {
+				fields = map[string]string{"title": "title", "lead_id": "lead_id"}
+			}
+			for key, field := range fields {
 				if _, named := args[key]; named && !slices.ContainsFunc(sc.Changes, func(c writeChange) bool { return c.Field == field }) {
 					t.Errorf("A's own %s %v does not change %s: %s", at.tool, args, field, raw)
 				}
 			}
 		}
 		// The digest sees these writes, so "unchanged" in refused means something.
-		if changed := isoDiff(written, w.tenantDigest(t, a)); !slices.Contains(changed, "tasks") || !slices.Contains(changed, "task_comments") {
-			t.Errorf("A's own writes changed the digest of %v only, want tasks and task_comments among them", changed)
+		if changed := isoDiff(written, w.tenantDigest(t, a)); !slices.Contains(changed, "tasks") || !slices.Contains(changed, "task_comments") || !slices.Contains(changed, "projects") {
+			t.Errorf("A's own writes changed the digest of %v only, want tasks, task_comments and projects among them", changed)
 		}
 	})
 
