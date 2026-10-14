@@ -144,6 +144,19 @@ describe("ai-office endpoints", () => {
     expect(drifted.tools.chat).toBe(false);
   });
 
+  it("getAiCloudStatus reads uniwork_model, \"\" from an older server, and degrades on a malformed one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, tools: { chat: true }, uniwork_model: "claude-opus-5" }));
+    expect((await getAiCloudStatus("o1")).uniwork_model).toBe("claude-opus-5");
+    // An older server omits the field: the UniWork AI row shows the label only.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, tools: { chat: true } }));
+    expect((await getAiCloudStatus("o1")).uniwork_model).toBe("");
+    // A malformed value fails the status as a whole: disabled, no model.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, uniwork_model: 7 }));
+    const drifted = await getAiCloudStatus("o1");
+    expect(drifted.enabled).toBe(false);
+    expect(drifted.uniwork_model).toBe("");
+  });
+
   it("aiCloudSearch posts the query and degrades to no results", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ results: [{ title: "T", url: "https://x", snippet: "s", image_url: "https://i" }], answer: "A" }),
