@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin develop; git rev-parse HEAD; git log --oneline -3
+d4b7656dafdf65b2a5713b236b5d6ce9c65168a1
+d4b7656da chore: merge develop into the G5-G7 root before the develop PR (UNI-923)
+daff9309c Merge pull request #276 from UNIAI-TEAM/fix/UNI-1259-billing-to-chuc-goi-starter-dung-het-quo
+b1c959b48 Merge pull request #273 from UNIAI-TEAM/feature/UNI-1567-mcp-v2-spec-bo-tool-doc-ghi-task-du-an-c

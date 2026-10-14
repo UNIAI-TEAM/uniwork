@@ -1,0 +1,2 @@
+$ cd server && go build ./... && go vet ./...; echo "BUILD_VET_EXIT=$?"
+BUILD_VET_EXIT=0

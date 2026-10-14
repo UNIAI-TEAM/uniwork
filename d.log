@@ -1,0 +1,55 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1; AI_PROVIDER=fake bash scripts/test-go.sh 2>&1 | grep -E '^(--- FAIL|FAIL|ok|panic)|coverage|floor' | tail -120; echo "TEST_GO_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/cmd/files-backfill	1.255s	coverage: 37.6% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/graph-rebuild	2.273s	coverage: 70.6% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.051s	coverage: 6.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal	1.356s	coverage: [no statements]
+ok  	github.com/unicomhub/uniwork/server/internal/ai	21.947s	coverage: 87.4% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	0.388s	coverage: 79.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/audit	4.067s	coverage: 74.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/auth	0.168s	coverage: 86.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/billing	0.006s	coverage: 76.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/config	0.011s	coverage: 96.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/document	0.045s	coverage: 93.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub	0.002s	coverage: 87.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/bodystore	0.002s	coverage: 51.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/imapclient	5.561s	coverage: 60.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/netguard	0.004s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/retention	0.002s	coverage: 84.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient	0.313s	coverage: 93.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/events	0.002s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/featureflags	0.003s	coverage: 88.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files	0.005s	coverage: 94.8% of statements
+	github.com/unicomhub/uniwork/server/internal/files/filescontract		coverage: 0.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files/filesfake	0.025s	coverage: 93.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph	20.087s	coverage: 96.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph/projector	15.329s	coverage: 81.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler	516.212s	coverage: 81.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.010s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	3.620s	coverage: 99.4% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/logger	0.004s	coverage: 93.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mail	1.907s	coverage: 79.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/meetings	0.820s	coverage: 76.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mentions	0.002s	coverage: 68.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	15.791s	coverage: 87.1% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	1.949s	coverage: 90.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/notification	32.424s	coverage: 78.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/office	0.036s	coverage: 80.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	9.793s	coverage: 87.1% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/realtime	44.958s	coverage: 90.3% of statements
+2026/10/14 04:24:51 WARN files gc: reference coverage gap, cleanup jobs left untouched err="files: reference providers do not cover every file id column: audit_exports.file_id has no provider \"audit.exports\"; chat_messages.file_id has no provider \"chat.messages\"; data_subject_requests.file_id has no provider \"privacy.exports\"; document_assets.file_id has no provider \"documents.assets\"; document_versions.file_id has no provider \"documents.versions\"; office_jobs.output_file_id has no provider \"office.jobs\""
+--- FAIL: TestOfficeLeaseGrantRacingDeactivationLeavesNoLease (0.24s)
+--- FAIL: TestOfficeLeaseRevokedOnMemberDeactivatedWithOtherOrg (0.28s)
+FAIL
+coverage: 73.1% of statements
+FAIL	github.com/unicomhub/uniwork/server/internal/service	776.230s
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	20.161s	coverage: 79.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/storage	0.547s	coverage: 75.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/telemetry	0.004s	coverage: 86.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util	0.003s	coverage: 67.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util/secretbox	0.002s	coverage: 88.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/workcapability	0.002s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/migrations	27.256s	coverage: 74.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/db/tablequery	0.004s	coverage: 82.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/featureflag	0.004s	coverage: 85.9% of statements
+FAIL
+TEST_GO_EXIT=1

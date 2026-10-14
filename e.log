@@ -1,0 +1,22 @@
+$ cd server && go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./... 2>&1 | tail -20; echo "VULN_EXIT=${PIPESTATUS[0]}"
+    Example traces found:
+      #1: cmd/server/main.go:747:30: server.main calls http.Server.ListenAndServe, which eventually calls template.Template.Execute
+      #2: internal/mail/render.go:115:46: mail.renderKind calls template.Template.ExecuteTemplate
+
+Vulnerability #12: GO-2026-6599
+    Reset context tracking on consecutive template expressions in html/template
+  More info: https://pkg.go.dev/vuln/GO-2026-6599
+  Standard library
+    Found in: html/template@go1.27
+    Fixed in: html/template@go1.27.2
+    Example traces found:
+      #1: cmd/server/main.go:747:30: server.main calls http.Server.ListenAndServe, which eventually calls template.Template.Execute
+      #2: internal/mail/render.go:115:46: mail.renderKind calls template.Template.ExecuteTemplate
+
+Your code is affected by 12 vulnerabilities from the Go standard library.
+This scan also found 5 vulnerabilities in packages you import and 2
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.
+exit status 3
+VULN_EXIT=1
