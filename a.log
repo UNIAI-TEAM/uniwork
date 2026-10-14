@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 428686df HEAD && echo main-merged-ok
+05014b62d3c417215cc1ec1c0cafdd21366fd7b8
+9bbadb81b643ec25f5807d59f846d0a43f899037
+05014b62 test(e2e): scope the step-1 button order to the S5 action row (W9)
+91267bf0 test(e2e): select the S5 dialog actions by role and name (FE-304)
+8c4cc520 test(e2e): allow the S18 metadata re-read in the web-launch route check (W9)
+79431590 fix(e2e): let the safeStorage backend decide the Local State wait (FE-302)
+571b56c8 fix(shell): conflict dialog visual-1 polish (V-01 V-02 V-04 V-06, FE-303)
+dfaa7740 merge: fork main 428686df (G8-14 slides comments) into the G5-09 lane
+c8922d85 fix(shell): skip conflictClosed push when conflictOpen was never delivered (G5-09 BE-04)
+f35b87ec fix(shell): use async stat in probeKeepDraft instead of statSync (G5-09 BE-03)
+main-merged-ok
