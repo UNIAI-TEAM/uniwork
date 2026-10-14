@@ -205,6 +205,22 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 	cleanup()
 	t.Cleanup(cleanup)
 
+	// PR 2's idx_documents_folder_name_uidx refuses the duplicate live
+	// siblings this exercise seeds, so the whole run happens in a transaction
+	// with the index dropped: the rollback restores it. The probe at the end
+	// builds the index's exact expression inside that same transaction, over
+	// the rows the migration just cleaned. The cleanup above runs before the
+	// transaction on purpose - DROP INDEX holds ACCESS EXCLUSIVE on documents,
+	// so a later pool statement would wait.
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx`); err != nil {
+		t.Fatal(err)
+	}
+
 	// Two groups at the root, each "base", "base", "base (2)" - the shape the
 	// buggy probe turns into two rows on one key.
 	seed := []struct {
@@ -218,7 +234,7 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 		{id: "01DOCDEDUPEICU600000000006", title: "ΑΣ (2)", createdAgo: "30 minutes"},
 	}
 	for _, s := range seed {
-		if _, err := pool.Exec(ctx, `
+		if _, err := tx.Exec(ctx, `
 			INSERT INTO documents (id, organization_id, workspace_id, kind, title, visibility,
 			  created_by, created_by_kind, updated_by, updated_by_kind, created_at)
 			VALUES ($1, '01ORGDEDUPEICU000000000001', $2, 'folder', $3, 'workspace',
@@ -230,13 +246,13 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 
 	run := func() {
 		t.Helper()
-		if _, err := pool.Exec(ctx, dedupe); err != nil {
+		if _, err := tx.Exec(ctx, dedupe); err != nil {
 			t.Fatalf("%s: %v", matches[0], err)
 		}
 	}
 	titles := func() map[string]string {
 		t.Helper()
-		rows, err := pool.Query(ctx, `SELECT id, title FROM documents WHERE workspace_id = $1`, ws)
+		rows, err := tx.Query(ctx, `SELECT id, title FROM documents WHERE workspace_id = $1`, ws)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -258,7 +274,7 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 	// share, the exact state the unique index of PR 2 rejects.
 	duplicateKeys := func() []string {
 		t.Helper()
-		rows, err := pool.Query(ctx, `
+		rows, err := tx.Query(ctx, `
 			SELECT lower(title COLLATE "und-x-icu") AS k, count(*)
 			FROM documents
 			WHERE workspace_id = $1 AND kind = 'folder' AND archived_at IS NULL AND owner_id IS NULL
@@ -312,14 +328,9 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 		}
 	}
 
-	// PR 2's exact key expression must build over the result. The index is
-	// created in a transaction that is rolled back, so the test leaves the
-	// schema as it found it.
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	// PR 2's exact key expression must build over the result, inside the
+	// transaction that dropped the real index: the rollback leaves the schema
+	// as it found it.
 	if _, err := tx.Exec(ctx, `CREATE UNIQUE INDEX fd02_dedupe_probe_uidx ON documents
 		(workspace_id, COALESCE(parent_id, ''), lower(title COLLATE "und-x-icu"))
 		WHERE kind = 'folder' AND archived_at IS NULL AND owner_id IS NULL`); err != nil {
@@ -328,25 +339,34 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 }
 
 // TestFolderNameKeyExpressionIsOneShape guards the shared duplicate key: the
-// pre-check query (document_names.sql) and the dedupe migration must write the
-// collation INSIDE lower(), never after it. Applied to the result, the outside
-// form resolves lower() under the cluster's default collation while every key
-// read back is the ICU one, so the two disagree about which strings are the
-// same name - the drift the appendix forbids.
+// pre-check query (document_names.sql), the dedupe migration of PR 1 and the
+// unique index of PR 2 must write the collation INSIDE lower(), never after
+// it. Applied to the result, the outside form resolves lower() under the
+// cluster's default collation while every key read back is the ICU one, so the
+// two disagree about which strings are the same name - the drift the appendix
+// forbids. Every file holding the key expression is listed here, so a fourth
+// copy cannot appear unnoticed.
 func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
-	matches, err := filepath.Glob("*_documents_folder_name_dedupe.up.sql")
-	if err != nil || len(matches) != 1 {
-		t.Fatalf("want one folder-name dedupe migration, found %v (%v)", matches, err)
+	var sources []string
+	for _, glob := range []string{
+		"*_documents_folder_name_dedupe.up.sql",
+		"*_documents_folder_name_uidx.up.sql",
+	} {
+		matches, err := filepath.Glob(glob)
+		if err != nil || len(matches) != 1 {
+			t.Fatalf("want one %s, found %v (%v)", glob, matches, err)
+		}
+		sources = append(sources, matches[0])
 	}
-	sources := map[string]string{matches[0]: stripSQLComments(readMigration(t, matches[0]))}
-	query, err := os.ReadFile(filepath.Join("..", "pkg", "db", "queries", "document_names.sql"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	sources[filepath.Join("..", "pkg", "db", "queries", "document_names.sql")] = stripSQLComments(string(query))
+	sources = append(sources, filepath.Join("..", "pkg", "db", "queries", "document_names.sql"))
 
 	const key = `COLLATE "und-x-icu"`
-	for name, sql := range sources {
+	for _, name := range sources {
+		raw, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sql := stripSQLComments(string(raw))
 		occurrences := 0
 		for i := 0; ; {
 			at := strings.Index(sql[i:], key)
