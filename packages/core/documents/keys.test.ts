@@ -96,6 +96,23 @@ describe("documentKeys", () => {
     expect(documentKeys.public("tok")).toEqual(["documents", "public", "tok"]);
   });
 
+  it("puts the archive impact under the workspace root so a document frame refreshes it", () => {
+    const key = documentKeys.archiveImpact("ws1", "d1");
+    expect(key).toEqual(["documents", "ws1", "archive-impact", "d1"]);
+    expect(startsWith(key, documentKeys.workspace("ws1"))).toBe(true);
+    expect(key).not.toEqual(documentKeys.archiveImpact("ws2", "d1"));
+  });
+
+  it("keeps the folders-only tree apart from the full one, under the same tree prefix", () => {
+    const full = documentKeys.tree("ws1");
+    const folders = documentKeys.tree("ws1", "", true);
+    expect(folders).toEqual(["documents", "ws1", "tree", "", "folders_only"]);
+    expect(folders).not.toEqual(full);
+    expect(startsWith(folders, full)).toBe(true);
+    expect(documentKeys.tree("ws1", "", false)).toEqual(full);
+    expect(documentKeys.tree("ws1", "r1", true)).toEqual(["documents", "ws1", "tree", "r1", "folders_only"]);
+  });
+
   it("answers recent and shared-with-me under their own segments", () => {
     expect(documentKeys.recent("ws1")).toEqual(["documents", "ws1", "recent"]);
     expect(documentKeys.sharedWithMe("ws1")).toEqual(["documents", "ws1", "shared"]);

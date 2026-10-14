@@ -227,6 +227,8 @@ export function isDocumentNotVerifiable(err: unknown): err is DocumentNotVerifia
 // the exported types narrow, and every list that cannot degrade safely has
 // its caller throw instead of rendering an empty page.
 
+const DocumentPathItemSchema = z.object({ id: z.string(), title: z.string() });
+
 export const DocumentSummarySchema = z.object({
   id: z.string(),
   organization_id: z.string().optional().default(""),
@@ -258,12 +260,22 @@ export const DocumentSummarySchema = z.object({
   updated_by_kind: z.string().optional().default("human"),
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
+  // Folders contract v1.0 (FD-05/FD-06): the ancestors a search row sits
+  // under, root first, cut at the first one the caller cannot read. Optional
+  // on the wire; missing or drifted reads as [] (a row at the root).
+  path: z.array(DocumentPathItemSchema).nullable().optional().catch([]).transform((p) => p ?? []),
 });
 /** Uploaded bytes, or something UniWork made (page, folder, blank file, converted copy). */
 export type DocumentOrigin = "upload" | "created";
 
+// The parser always fills `path` ([] when absent); the type keeps it optional
+// so a row a view builds by hand (a favorite, a fixture) need not carry one.
+type DocumentSummaryWire = Omit<z.infer<typeof DocumentSummarySchema>, "path"> & {
+  path?: z.infer<typeof DocumentPathItemSchema>[];
+};
+
 export type DocumentSummary = Omit<
-  z.infer<typeof DocumentSummarySchema>,
+  DocumentSummaryWire,
   "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin"
 > & {
   kind: DocumentKind;
@@ -278,7 +290,9 @@ export const DocumentListSchema = z.object({
   documents: z.array(DocumentSummarySchema),
   next_cursor: z.string().nullable().optional(),
 });
-export type DocumentList = z.infer<typeof DocumentListSchema>;
+export type DocumentList = Omit<z.infer<typeof DocumentListSchema>, "documents"> & {
+  documents: DocumentSummaryWire[];
+};
 
 /** Archive/restore answer: the moved document, its batch id and the ids that
  *  actually changed. Restore only recovers nodes of its own batch. */
@@ -291,7 +305,44 @@ export type DocumentArchive = Omit<z.infer<typeof DocumentArchiveSchema>, "docum
   document: Document;
 };
 
-/** One sidebar node; `children` recurse to five levels. */
+/**
+ * What archiving a subtree would move (folders contract v1.0, addendum §3.4).
+ * Under the cap: `folders`/`documents` exclude the root, `total` includes it.
+ * Past the cap the server does not count: only `too_large` and `max_nodes`.
+ * A count that is missing, negative or fractional fails the parse, so a
+ * drifted answer can never read as "0 items" in the delete dialog.
+ */
+export type DocumentArchiveImpact =
+  | { too_large: false; folders: number; documents: number; total: number; max_nodes: number }
+  | { too_large: true; max_nodes: number };
+
+const count = z.number().int().nonnegative();
+
+export const DocumentArchiveImpactSchema = z
+  .object({
+    folders: count.optional(),
+    documents: count.optional(),
+    total: count.optional(),
+    max_nodes: count,
+    too_large: z.boolean().optional().default(false),
+  })
+  .transform((raw, ctx): DocumentArchiveImpact => {
+    if (raw.too_large) return { too_large: true, max_nodes: raw.max_nodes };
+    if (raw.folders === undefined || raw.documents === undefined || raw.total === undefined) {
+      ctx.addIssue({ code: "custom", message: "archive impact without counts" });
+      return z.NEVER;
+    }
+    return {
+      too_large: false,
+      folders: raw.folders,
+      documents: raw.documents,
+      total: raw.total,
+      max_nodes: raw.max_nodes,
+    };
+  });
+
+/** One sidebar node; `children` recurse to TREE_MAX_LEVEL levels
+ *  (packages/core/documents/folder-limits.ts). */
 export interface DocumentTreeNode {
   id: string;
   parent_id?: string | null;
