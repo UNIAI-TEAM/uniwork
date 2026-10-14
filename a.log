@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+aff821536cebca421acc7cfa2b2bb8bd2585074d
+aff821536 chore: merge G7-07 ops runbook, alerts, support matrix (UNI-1381) into the G5-G7 root
+ebf9a2c02 docs(office): record G7-07 executed evidence on row G7-A05
+2e812bcd6 docs(ops): record the G5-D2 (c) no-split decision in the reconciling runbook
