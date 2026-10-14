@@ -138,7 +138,13 @@ describe("StepOrganization", () => {
     expect(screen.getAllByRole("radio")).toHaveLength(1);
     expect(screen.queryByRole("radio", { name: /Tạo tổ chức/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Tên tổ chức")).not.toBeInTheDocument();
+  });
+
+  it("asks for a pick when there are several organizations to choose from", () => {
+    renderStep({ organizations: [org, other] });
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toHaveAttribute("aria-checked", "false");
     expect(visibleHint()).toBe("Chọn tổ chức để tiếp tục.");
+    expectInactive(screen.getByRole("button", { name: "Tiếp tục" }));
   });
 
   it("offers the create form when the only membership was switched off (ADR 0032 D1)", () => {
@@ -209,6 +215,10 @@ describe("StepOrganization", () => {
     render(wrapWithNav(<StepOrganization organizations={[]} selected={null} onSelected={() => {}} />));
     submit("Acme");
     await screen.findByRole("alert");
+    // The step's own heading says what happened; the notice carries the rule.
+    expect(screen.getByRole("heading", { name: "Bạn đã có tổ chức." })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Đặt tên tổ chức của bạn." })).not.toBeInTheDocument();
+    expect(screen.getByText("Tổ chức mới chưa được tạo. Workspace của bạn nằm trong tổ chức hiện tại.")).toBeInTheDocument();
     expect(screen.queryByLabelText("Tên tổ chức")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tạo Acme" })).not.toBeInTheDocument();
     expect(visibleHint()).toBe("Tổ chức của bạn đã có sẵn.");
@@ -270,10 +280,45 @@ describe("StepOrganization", () => {
 
   it("resume: picking an existing org enables continue", () => {
     const onSelected = vi.fn();
-    renderStep({ organizations: [org], onSelected });
+    renderStep({ organizations: [org, other], onSelected });
     expectInactive(screen.getByRole("button", { name: "Tiếp tục" }));
     fireEvent.click(screen.getByRole("radio", { name: /Unicom/ }));
     fireEvent.click(screen.getByRole("button", { name: "Tiếp tục với Unicom" }));
     expect(onSelected).toHaveBeenCalledWith(org);
+  });
+
+  it("picks the one organization there is, so the person continues in one press", () => {
+    const onSelected = vi.fn();
+    renderStep({ organizations: [org], onSelected });
+    expect(screen.getByRole("radio", { name: /Unicom/ })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Tiếp tục với Unicom" }));
+    expect(onSelected).toHaveBeenCalledWith(org);
+  });
+
+  it("never unchecks a radio by pressing it again", () => {
+    renderStep({ organizations: [org, other] });
+    const unicom = screen.getByRole("radio", { name: /Unicom/ });
+    fireEvent.click(unicom);
+    fireEvent.click(unicom);
+    expect(unicom).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("button", { name: "Tiếp tục với Unicom" })).toBeInTheDocument();
+  });
+
+  it("lets a long organization name and address wrap in the card instead of cutting them off", () => {
+    const long = { ...org, name: "Công ty Cổ phần Giải pháp Công nghệ Ánh Dương Toàn Cầu", slug: "anh-duong-toan-cau" };
+    renderStep({ organizations: [long, other] });
+    const name = screen.getByText(long.name);
+    expect(name).not.toHaveClass("truncate");
+    expect(name).toHaveClass("line-clamp-2", "[overflow-wrap:anywhere]");
+    expect(screen.getByText(/anh-duong-toan-cau/)).not.toHaveClass("truncate");
+  });
+
+  it("lets a CTA that carries the organization's name wrap", () => {
+    renderStep();
+    fireEvent.change(screen.getByLabelText("Tên tổ chức"), {
+      target: { value: "Công ty Giải pháp Ánh Dương" },
+    });
+    const cta = screen.getByRole("button", { name: "Tạo Công ty Giải pháp Ánh Dương" });
+    expect(cta).toHaveClass("whitespace-normal", "h-auto");
   });
 });

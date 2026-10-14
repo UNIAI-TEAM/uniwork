@@ -4606,7 +4606,9 @@
       "already_member_title": "Bạn đã thuộc {{name}}",
       "already_member_title_unnamed": "Bạn đã thuộc một tổ chức",
       "already_member_body": "Mỗi tài khoản chỉ thuộc một tổ chức. Muốn tạo tổ chức mới, rời hoặc đóng tổ chức hiện tại trước.",
-      "already_member_hint": "Tổ chức của bạn đã có sẵn."
+      "already_member_hint": "Tổ chức của bạn đã có sẵn.",
+      "headline_refused": "Bạn đã có tổ chức.",
+      "lede_refused": "Tổ chức mới chưa được tạo. Workspace của bạn nằm trong tổ chức hiện tại."
     },
     "step_workspace": {
       "headline_first": "Đặt tên workspace.",

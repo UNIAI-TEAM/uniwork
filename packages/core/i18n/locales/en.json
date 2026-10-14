@@ -4607,7 +4607,9 @@
       "already_member_title": "You already belong to {{name}}",
       "already_member_title_unnamed": "You already belong to an organization",
       "already_member_body": "Each account belongs to one organization. To create a new one, leave or close your current organization first.",
-      "already_member_hint": "Your organization already exists."
+      "already_member_hint": "Your organization already exists.",
+      "headline_refused": "You already have an organization.",
+      "lede_refused": "No new organization was created. Your workspaces live in the one you have."
     },
     "step_workspace": {
       "headline_first": "Name your workspace.",
