@@ -169,11 +169,19 @@ trả 503.
 
 | Việc | Route | Body → kết quả |
 | --- | --- | --- |
-| Trạng thái + credit | `GET /orgs/{orgID}/ai/cloud` | `{ enabled, reason?, tools: { web_search, image_search, image_generate, media_analyze, transcribe }, credits: { unit: "ai.tokens", used, limit\|null, remaining\|null, period_end\|null } }`; **không bao giờ 403**: thiếu entitlement → `enabled:false` + `reason: "entitlement_required"` |
+| Trạng thái + credit | `GET /orgs/{orgID}/ai/cloud` | `{ enabled, reason?, tools: { web_search, image_search, image_generate, media_analyze, transcribe }, credits: { unit: "ai.tokens", used, limit\|null, remaining\|null, period_end\|null }, uniwork_model }`; **không bao giờ 403**: thiếu entitlement → `enabled:false` + `reason: "entitlement_required"` |
 | Tìm kiếm | `POST /orgs/{orgID}/ai/cloud/search` | `{ query ≤ 400, kind: "web"\|"image", max_results 1..10 (mặc định 6) }` → `{ results: [{ title, url, snippet, image_url?, thumbnail_url? }], answer? }` |
 | Sinh ảnh | `POST /orgs/{orgID}/ai/cloud/images` | `{ prompt ≤ 4000, aspect_ratio?, image_size?, reference_images?: [{ mime, data_base64 }] (≤ 4, mỗi ảnh ≤ 8 MiB; png/jpeg/webp) }` → `{ images: [{ mime, data_base64 }], model }`; body ≤ **44 MiB** |
 | Phân tích media | `POST /orgs/{orgID}/ai/cloud/media/analyze` | `{ requirements ≤ 4000, locale?, media: [{ mime, data_base64 }] (≤ 4, tổng ≤ 25 MiB) }` → `{ text }`; body ≤ 36 MiB |
 | Phiên âm | `POST /orgs/{orgID}/ai/cloud/transcribe` | `{ prompt?, audio: { mime, data_base64 } (≤ 25 MiB) }` → `{ text }`; body ≤ 36 MiB |
+
+**`uniwork_model`** (G6-05m, UNI-1632): mô hình Gateway phục vụ cho UniWork AI trong Office —
+`ResolveModel(office_uniwork_ai, <nhà cung cấp của Gateway>, env, allowlist)`, một override
+`AI_MODEL_OFFICE_UNIWORK_AI` nằm trong allowlist thắng mặc định của policy, ngoài allowlist thì giữ
+mặc định. `""` khi máy chủ chưa cấu hình nhà cung cấp AI hoặc UniWork AI đang tắt cho người gọi
+(cùng điều kiện với `tools.chat`). Client đọc hàng UniWork AI: có giá trị → hiện tên "UniWork AI" +
+tên mô hình; `""` hoặc máy chủ cũ không gửi trường → chỉ hiện nhãn "UniWork AI". Cùng trường này có ở
+`GET /office-frame/documents/{documentID}/ai/cloud` (cùng SDO).
 
 Client gửi **byte**; server không bao giờ tự tải URL media (không có mặt SSRF). Sinh slide vẫn
 ẩn, ngoài phạm vi. Tìm kiếm: body ≤ 1 MiB.
@@ -263,7 +271,8 @@ lịch sử hay lượt assistant của mình).
 | Chat, tài liệu (frame web) | `POST /office-frame/documents/{documentID}/ai/uniwork/chat/completions` | bearer frame-token | Module lấy từ **claim của token**; `module` trong body bị bỏ qua |
 
 Body (openai-compatible): `{ model?, messages, tools?, stream?, module? }` — `model`, `temperature`,
-`max_tokens`, `tool_choice` bị bỏ qua (policy của server quyết). `messages` là **một lượt**: câu hỏi
+`max_tokens`, `tool_choice` bị bỏ qua (policy của server quyết; mô hình Gateway thật đang phục vụ
+là `uniwork_model` của `GET /orgs/{orgID}/ai/cloud`, §3.3, G6-05m). `messages` là **một lượt**: câu hỏi
 mới (role `user`, đúng 1, message cuối) hoặc kết quả công cụ (role `tool` + `tool_call_id` do server
 cấp); lượt `assistant` của client bị bỏ qua, role `system`/`developer` → 400. Body ≤ **1 MiB**.
 
