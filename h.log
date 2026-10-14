@@ -1,0 +1,183 @@
+$ ls -R /tmp/g7-10-run | head -120; for f in $(find /tmp/g7-10-run -maxdepth 3 -name '*.json' -size -64k 2>/dev/null | grep -v -E 'deployment-profile|session' | head -30); do echo "=== $f"; head -c 4000 "$f"; echo; done; find /tmp/g7-10-run test-results -name 'evidence.jsonl' 2>/dev/null -exec sh -c 'echo "=== $1"; cat "$1"' _ {} \; ; true
+/tmp/g7-10-run:
+app-proxy.state
+artifacts
+display
+evidence.jsonl
+logs
+pids
+ports.env
+server-cwd
+server.env
+start-status.json
+tracer-loop-1.json
+tracer-loop-2.json
+tracer-loop-3.json
+uploads
+userdata
+xauthority
+
+/tmp/g7-10-run/artifacts:
+ev-g5-a03-0001.log
+ev-g5-a05-0001.log
+ev-g6-a03-0001.log
+
+/tmp/g7-10-run/logs:
+app.log
+app-proxy.log
+fork-build.log
+fork-clone.log
+fork-install.log
+lib.log
+migrate.log
+readyz.json
+server-build.log
+server.log
+web.log
+
+/tmp/g7-10-run/server-cwd:
+a
+
+/tmp/g7-10-run/server-cwd/a:
+b
+
+/tmp/g7-10-run/server-cwd/a/b:
+c
+
+/tmp/g7-10-run/server-cwd/a/b/c:
+
+/tmp/g7-10-run/uploads:
+v1
+
+/tmp/g7-10-run/uploads/v1:
+orgs
+
+/tmp/g7-10-run/uploads/v1/orgs:
+01M4XWE99GSXNG0H6B9GWSS1J0
+01M4XWFNZKZ0R2FJ46RR2S17JJ
+01M4XWFPGA07CBFM2QNV1SW2WC
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWE99GSXNG0H6B9GWSS1J0:
+workspaces
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWE99GSXNG0H6B9GWSS1J0/workspaces:
+01M4XWE99ZGCDK2VDNCKGF4WQW
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWE99GSXNG0H6B9GWSS1J0/workspaces/01M4XWE99ZGCDK2VDNCKGF4WQW:
+documents
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWE99GSXNG0H6B9GWSS1J0/workspaces/01M4XWE99ZGCDK2VDNCKGF4WQW/documents:
+files
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWE99GSXNG0H6B9GWSS1J0/workspaces/01M4XWE99ZGCDK2VDNCKGF4WQW/documents/files:
+2026
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWE99GSXNG0H6B9GWSS1J0/workspaces/01M4XWE99ZGCDK2VDNCKGF4WQW/documents/files/2026:
+10
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWE99GSXNG0H6B9GWSS1J0/workspaces/01M4XWE99ZGCDK2VDNCKGF4WQW/documents/files/2026/10:
+01M4XWE9ANVGNGGSCVF5HHK96A
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWE99GSXNG0H6B9GWSS1J0/workspaces/01M4XWE99ZGCDK2VDNCKGF4WQW/documents/files/2026/10/01M4XWE9ANVGNGGSCVF5HHK96A:
+original
+original.meta.json
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFNZKZ0R2FJ46RR2S17JJ:
+workspaces
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFNZKZ0R2FJ46RR2S17JJ/workspaces:
+01M4XWFNZV59J7QJJR44GARFGG
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFNZKZ0R2FJ46RR2S17JJ/workspaces/01M4XWFNZV59J7QJJR44GARFGG:
+documents
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFNZKZ0R2FJ46RR2S17JJ/workspaces/01M4XWFNZV59J7QJJR44GARFGG/documents:
+files
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFNZKZ0R2FJ46RR2S17JJ/workspaces/01M4XWFNZV59J7QJJR44GARFGG/documents/files:
+2026
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFNZKZ0R2FJ46RR2S17JJ/workspaces/01M4XWFNZV59J7QJJR44GARFGG/documents/files/2026:
+10
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFNZKZ0R2FJ46RR2S17JJ/workspaces/01M4XWFNZV59J7QJJR44GARFGG/documents/files/2026/10:
+01M4XWFP046HEN20C8SV1QZDQJ
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFNZKZ0R2FJ46RR2S17JJ/workspaces/01M4XWFNZV59J7QJJR44GARFGG/documents/files/2026/10/01M4XWFP046HEN20C8SV1QZDQJ:
+original
+original.meta.json
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFPGA07CBFM2QNV1SW2WC:
+workspaces
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFPGA07CBFM2QNV1SW2WC/workspaces:
+01M4XWFPGHMG2E06G2AXHVRSA6
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFPGA07CBFM2QNV1SW2WC/workspaces/01M4XWFPGHMG2E06G2AXHVRSA6:
+documents
+
+/tmp/g7-10-run/uploads/v1/orgs/01M4XWFPGA07CBFM2QNV1SW2WC/workspaces/01M4XWFPGHMG2E06G2AXHVRSA6/documents:
+files
+
+=== /tmp/g7-10-run/tracer-loop-3.json
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "GET /api/v1/documents/01M4XWFPH1NN62R5RYVTZ1M888/versions/commit -> 410: {\"error\":{\"code\":\"commit_intent_unknown\",\"message\":\"máy chủ không còn thông tin về lần lưu này\",\"fields\":{\"outcome\":\"unknown\"}}}\n",
+  "details": {
+    "loop": "3"
+  }
+}
+
+=== /tmp/g7-10-run/logs/readyz.json
+{"ready":true,"checks":[{"name":"db","ok":true},{"name":"migrations","ok":true,"detail":"9991791964490393_documents_ws_parent_all_idx"},{"name":"redis","ok":true},{"name":"storage","ok":true}]}
+
+=== /tmp/g7-10-run/userdata/projects/index.json
+{
+  "projects": [
+    {
+      "id": "default",
+      "name": "Default Project",
+      "createdAt": "2026-10-14T18:57:49.030Z",
+      "updatedAt": "2026-10-14T18:57:49.030Z"
+    }
+  ],
+  "fileMap": {}
+}
+=== /tmp/g7-10-run/userdata/app-settings.json
+{
+  "uniworkApiOrigin": "http://localhost:42997"
+}
+=== /tmp/g7-10-run/userdata/sheets-autosave/unsaved-new.json
+[]
+=== /tmp/g7-10-run/userdata/open-documents.json
+{"pid":23405,"updatedAt":"2026-10-14T18:57:48.850Z","paths":[]}
+=== /tmp/g7-10-run/userdata/control.json
+{"protocol":1,"pid":23405,"endpoint":"/tmp/g7-10-run/userdata/control.sock","token":"13af5aa2c95226bb6f5feead2bc532108fea5a5ab19d2b09"}
+=== /tmp/g7-10-run/tracer-loop-1.json
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('[data-testid=\"office-sheets-frame\"]') to be visible\n",
+  "details": {
+    "loop": "1"
+  }
+}
+
+=== /tmp/g7-10-run/start-status.json
+{"state":"up","reason":""}
+
+=== /tmp/g7-10-run/tracer-loop-2.json
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "GET /api/v1/documents/01M4XWFP0DG9MKR916381Q059F/versions/commit -> 410: {\"error\":{\"code\":\"commit_intent_unknown\",\"message\":\"máy chủ không còn thông tin về lần lưu này\",\"fields\":{\"outcome\":\"unknown\"}}}\n",
+  "details": {
+    "loop": "2"
+  }
+}
+
+=== /tmp/g7-10-run/evidence.jsonl
+{"evidenceId":"ev-g5-a03-0001","requirementId":"G5-A03","dSha":"51b075d99f0a8b91e59eb4329cf540caa34217fc","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","1","--run-dir","/tmp/g7-10-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g7-10-run/artifacts/ev-g5-a03-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T18:57:49.193Z","finishedAt":"2026-10-14T18:58:34.919Z"}
+{"evidenceId":"ev-g6-a03-0001","requirementId":"G6-A03","dSha":"51b075d99f0a8b91e59eb4329cf540caa34217fc","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 2 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","2","--run-dir","/tmp/g7-10-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g7-10-run/artifacts/ev-g6-a03-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T18:58:34.985Z","finishedAt":"2026-10-14T18:58:35.469Z"}
+{"evidenceId":"ev-g5-a05-0001","requirementId":"G5-A05","dSha":"51b075d99f0a8b91e59eb4329cf540caa34217fc","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 3 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","3","--run-dir","/tmp/g7-10-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g7-10-run/artifacts/ev-g5-a05-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T18:58:35.522Z","finishedAt":"2026-10-14T18:58:36.002Z"}

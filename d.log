@@ -1,0 +1,15 @@
+$ OFFICE_FORK_SHA=ab12238f HARNESS_RUN_DIR=/tmp/g7-10-run node scripts/office/g5g6g7/evidence.mjs run --req G5-A03 --fixture fx-xlsx-revenue-xyz --out /tmp/g7-10-run --checker harness:g7-10/tracer.mjs -- node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir /tmp/g7-10-run; echo "G710_LOOP1_EXIT $?"; true
+{"evidenceId":"ev-g5-a03-0001","requirementId":"G5-A03","dSha":"51b075d99f0a8b91e59eb4329cf540caa34217fc","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","1","--run-dir","/tmp/g7-10-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g7-10-run/artifacts/ev-g5-a03-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T18:57:49.193Z","finishedAt":"2026-10-14T18:58:34.919Z"}
+evidence: ev-g5-a03-0001 FAIL; last 11 line(s) of ../tmp/g7-10-run/artifacts/ev-g5-a03-0001.log:
+  | {
+  |   "exitCode": 1,
+  |   "status": "FAIL",
+  |   "reason": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('[data-testid=\"office-sheets-frame\"]') to be visible\n",
+  |   "details": {
+  |     "loop": "1"
+  |   }
+  | }
+  | FAILED: locator.waitFor: Timeout 30000ms exceeded.
+  | Call log:
+  |   - waiting for locator('[data-testid="office-sheets-frame"]') to be visible
+G710_LOOP1_EXIT 1

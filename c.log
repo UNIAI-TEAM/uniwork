@@ -1,0 +1,48 @@
+$ OFFICE_FORK_SHA=ab12238f HARNESS_RUN_DIR=/tmp/g7-10-run bash scripts/office/g5g6g7/harness/start.sh; echo "G710_START_EXIT $?"; cat /tmp/g7-10-run/ports.env 2>/dev/null | grep -v -i -E "key|secret|password|token"; true
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /tmp/g7-10-run
+harness: D server  http://localhost:42997 (metrics 127.0.0.1:33525)
+harness: D web     http://localhost:45309
+harness: fork      ab12238f
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:42997 ...
+harness: cloning the fork at ab12238f...
+harness: npm ci in the fork (--ignore-scripts; no Electron binary yet)...
+harness: fetching the Electron binary (node /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-ab12238f/node_modules/electron/install.js)...
+harness: building the fork apps (this is the slow step)...
+harness: starting the fork Electron app under xvfb...
+harness: app on :99 (pid 23392)
+harness: up
+  D server  http://localhost:42997
+  D web     http://localhost:45309
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-ab12238f @ ab12238f
+  pids      /tmp/g7-10-run/pids
+  next      OFFICE_FORK_SHA=ab12238f HARNESS_RUN_DIR=/tmp/g7-10-run node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /tmp/g7-10-run
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=ab12238f HARNESS_RUN_DIR=/tmp/g7-10-run \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /tmp/g7-10-run
+G710_START_EXIT 0
+# Written by scripts/office/g5g6g7/harness/lib.mjs (start.sh) - one run's ports and origins.
+HARNESS_RUN_DIR=/tmp/g7-10-run
+API_PORT=42997
+WEB_PORT=45309
+METRICS_PORT=33525
+PREVIEW_PORT=42653
+APP_PROXY_PORT=40273
+APP_CDP_PORT=41135
+API_ORIGIN=http://localhost:42997
+APP_API_ORIGIN=http://127.0.0.1:40273
+WEB_ORIGIN=http://localhost:45309
+OFFICE_FORK_SHA=ab12238f
+D_SHA=51b075d99f0a8b91e59eb4329cf540caa34217fc
+DISPLAY=:99
+XAUTHORITY=/tmp/g7-10-run/xauthority
+UNIWORK_USER_DATA=/tmp/g7-10-run/userdata
+ELECTRON_BIN=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-ab12238f/node_modules/electron/dist/electron
+SHELL_APP_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-ab12238f/apps/shell
+OFFICE_FORK_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-ab12238f
+HARNESS_DEPLOYMENT_ID=default

@@ -1,0 +1,3 @@
+$ node scripts/office/g5g6g7/evidence.mjs verify --out /tmp/g7-10-run; echo "G710_VERIFY_EXIT $?"; true
+evidence verify: OK (3 records)
+G710_VERIFY_EXIT 0

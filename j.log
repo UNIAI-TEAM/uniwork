@@ -1,0 +1,3 @@
+$ HARNESS_RUN_DIR=/tmp/g7-10-run bash scripts/office/g5g6g7/harness/stop.sh; echo "G710_STOP_EXIT $?"
+harness: stopped 4 process group(s) from /tmp/g7-10-run
+G710_STOP_EXIT 0
