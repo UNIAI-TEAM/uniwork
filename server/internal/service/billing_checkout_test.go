@@ -1,7 +1,9 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/billing"
@@ -90,6 +92,42 @@ func TestCheckoutReusesPendingIntentForSamePlan(t *testing.T) {
 		f.orgID,
 	).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("pending intents = %d (%v), want 1", n, err)
+	}
+}
+
+type recordingCheckout struct {
+	inputs []billing.CheckoutInput
+}
+
+func (recordingCheckout) Name() string { return "vnpay" }
+func (r *recordingCheckout) CreateCheckout(_ context.Context, in billing.CheckoutInput) (billing.CheckoutSession, error) {
+	r.inputs = append(r.inputs, in)
+	return billing.CheckoutSession{URL: "https://pay.example/ok"}, nil
+}
+func (recordingCheckout) ParseWebhook(*http.Request) (billing.Event, error) {
+	return billing.Event{}, billing.ErrProviderUnavailable
+}
+
+func TestCheckoutReusesIntentExpiry(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
+	rec := &recordingCheckout{}
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, rec)
+	if _, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.inputs) != 2 {
+		t.Fatalf("checkouts = %d, want 2", len(rec.inputs))
+	}
+	if rec.inputs[0].CreatedAt.IsZero() || rec.inputs[0].ExpiresAt.IsZero() {
+		t.Fatal("first checkout did not receive intent dates")
+	}
+	if !rec.inputs[1].ExpiresAt.Equal(rec.inputs[0].ExpiresAt) || !rec.inputs[1].CreatedAt.Equal(rec.inputs[0].CreatedAt) {
+		t.Fatalf("reused intent dates created %v->%v expires %v->%v",
+			rec.inputs[0].CreatedAt, rec.inputs[1].CreatedAt, rec.inputs[0].ExpiresAt, rec.inputs[1].ExpiresAt)
 	}
 }
 
