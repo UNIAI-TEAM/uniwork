@@ -31,7 +31,7 @@
 //   with `FAIL` (exit 1), never `BLOCKED` (77).
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -613,12 +613,50 @@ async function callTracerApi({
 
 async function seedFixtureDocument({
   apiOrigin,
+  runDir = "",
   fetchImpl = fetch,
   fixtureId,
   repoRoot = DEFAULT_REPO_ROOT,
   now = Date.now(),
 }) {
   const fixture = loadVerifiedFixture(fixtureId, repoRoot);
+  const filename = basename(fixture.entry.path);
+  const cachePath = runDir ? join(runDir, "g7-10-seeded-user.json") : "";
+
+  if (cachePath && existsSync(cachePath)) {
+    try {
+      const cached = JSON.parse(readFileSync(cachePath, "utf8"));
+      if (
+        cached &&
+        cached.apiOrigin === apiOrigin &&
+        cached.token &&
+        cached.userId &&
+        cached.organizationId &&
+        cached.workspaceId
+      ) {
+        const form = new FormData();
+        form.append("file", new Blob([fixture.bytes]), filename);
+        form.append("title", filename);
+        const docRes = await callTracerApi({
+          apiOrigin,
+          fetchImpl,
+          name: "createFileDocument",
+          params: { workspaceID: cached.workspaceId },
+          token: cached.token,
+          form,
+        });
+        return {
+          ...cached,
+          documentId: docRes.data.document.id,
+          filename,
+          fixture,
+        };
+      }
+    } catch {
+      // Cached account is stale or belongs to another server instance; seed a fresh one below.
+    }
+  }
+
   const stamp = `${now.toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const email = `g7-10-tracer-${stamp}@example.com`;
   const password = "password123";
@@ -661,7 +699,26 @@ async function seedFixtureDocument({
   });
   const workspaceId = wsRes.data.workspace.id;
 
-  const filename = basename(fixture.entry.path);
+  const accountRecord = {
+    apiOrigin,
+    email,
+    password,
+    token,
+    userId,
+    organizationId,
+    organizationSlug: orgRes.data.organization?.slug ?? organizationSlug,
+    workspaceId,
+    workspaceSlug: wsRes.data.workspace?.slug ?? workspaceSlug,
+  };
+  if (cachePath) {
+    try {
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(cachePath, `${JSON.stringify(accountRecord, null, 2)}\n`, { mode: 0o600 });
+    } catch {
+      // Best-effort cache for subsequent loops in the same runDir.
+    }
+  }
+
   const form = new FormData();
   form.append("file", new Blob([fixture.bytes]), filename);
   form.append("title", filename);
@@ -676,21 +733,21 @@ async function seedFixtureDocument({
   const documentId = docRes.data.document.id;
 
   return {
-    email,
-    password,
-    token,
-    userId,
-    organizationId,
-    organizationSlug: orgRes.data.organization?.slug ?? organizationSlug,
-    workspaceId,
-    workspaceSlug: wsRes.data.workspace?.slug ?? workspaceSlug,
+    ...accountRecord,
     documentId,
     filename,
     fixture,
   };
 }
 
-async function cleanupSeededOrganization({ apiOrigin, fetchImpl = fetch, seeded }) {
+async function cleanupSeededOrganization({ apiOrigin, fetchImpl = fetch, seeded, runDir = "" }) {
+  if (runDir) {
+    try {
+      rmSync(join(runDir, "g7-10-seeded-user.json"), { force: true });
+    } catch {
+      // ignore
+    }
+  }
   if (!seeded?.organizationId || !seeded?.organizationSlug || !seeded?.token) return;
   try {
     await callTracerApi({
@@ -750,17 +807,105 @@ function classifyAiResponse(aiTurnResult, expectedXyz = null) {
   return { status: "PASS", httpStatus: aiTurnResult.status };
 }
 
-// ---- Pure Outcome Decision Functions (G710-L1, G710-L2, G710-L3) ------------
+// ---- Pure Outcome Decision Functions (G710-L1, G710-L2, G710-L3, r3) ---------
+
+/**
+ * Pure decision function for desktop app sign-in (r3):
+ *   * When the app was not started (`!appStarted`) or CDP is unreachable (`!cdpConnected`),
+ *     returns `BLOCKED` (exit 77).
+ *   * When the OS keyring is unavailable or locked (`!keyringAvailable` or
+ *     `accountState` is `"keyring-unavailable"` / `"keystore-locked"`), returns
+ *     `BLOCKED` (exit 77).
+ *   * When the OS keyring is available (`keyringAvailable === true`), self sign-in
+ *     must leave BOTH `accountState === "signed-in"` (for `expectedUserId`) AND
+ *     `uniwork-auth/session.bin` on disk (`sessionBinExists === true`); any failure
+ *     returns `FAIL` (exit 1) with the reason, never `BLOCKED`.
+ */
+export function decideAppSignInOutcome({
+  appStarted = true,
+  cdpConnected = true,
+  keyringAvailable = false,
+  accountState = "unknown",
+  sessionBinExists = false,
+  signedInUserId = "",
+  expectedUserId = "",
+  signInError = "",
+  blockerReason = "",
+}) {
+  if (!appStarted || !cdpConnected) {
+    return {
+      exitCode: BLOCKED_EXIT,
+      status: "BLOCKED",
+      signedIn: false,
+      reason:
+        blockerReason ||
+        (!appStarted
+          ? "this run did not start the fork app (no UNIWORK_USER_DATA/ELECTRON_BIN/SHELL_APP_DIR in ports.env; HARNESS_SKIP_APP=1)"
+          : "the app is not signed in and could not be reached over CDP"),
+    };
+  }
+  if (!keyringAvailable || accountState === "keyring-unavailable" || accountState === "keystore-locked") {
+    return {
+      exitCode: BLOCKED_EXIT,
+      status: "BLOCKED",
+      signedIn: false,
+      reason:
+        blockerReason ||
+        `the app is not signed in (accountStatus.state=${accountState}, no uniwork-auth/session.bin; a headless Linux VM without an unlocked OS keyring cannot keep a desktop session)`,
+    };
+  }
+  if (signInError) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      signedIn: false,
+      reason: `desktop app sign-in failed while the OS keyring was available: ${signInError}`,
+    };
+  }
+  if (accountState !== "signed-in") {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      signedIn: false,
+      reason: `desktop app sign-in did not reach accountStatus.state="signed-in" while the OS keyring was available (got state="${accountState}")`,
+    };
+  }
+  if (!sessionBinExists) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      signedIn: false,
+      reason:
+        'desktop app reported accountStatus.state="signed-in" while the OS keyring was available, but uniwork-auth/session.bin was not written to disk',
+    };
+  }
+  if (expectedUserId && signedInUserId && signedInUserId !== expectedUserId) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      signedIn: false,
+      reason: `desktop app signed in as ${signedInUserId}, expected seeded user ${expectedUserId}`,
+    };
+  }
+  return {
+    exitCode: 0,
+    status: "PASS",
+    signedIn: true,
+    reason: "desktop app is signed in with uniwork-auth/session.bin on disk",
+  };
+}
 
 /**
  * Pure outcome decision for Loop 1 (`fx-xlsx-revenue-xyz`: web open -> AI turn ->
  * editor X/Y/Z save -> workspace change feed -> app reloads v2).
  *
- * Hard rules (G710-L1, G710-L3):
+ * Hard rules (G710-L1, G710-L3, r3):
  *   * Any protocol-only step (`webSaveSource === "protocol"` or
  *     `appObservedV2Source === "protocol"`) NEVER lets the loop `PASS`.
  *   * A G6-A03 violation (AI turn creating a version) or missing change-feed v2
  *     is always `FAIL` (exit 1).
+ *   * If the OS keyring was available and app sign-in failed (`appSignInFailureReason`),
+ *     the loop is `FAIL` (exit 1) with that reason.
  *   * If the app was signed in and driven (`appSignedIn && appDriven`) yet did
  *     not reload v2 (`!appObservedV2ViaFeed`), the loop is `FAIL` (exit 1).
  *   * Under `AI_PROVIDER=fake` (`!aiRealUpstream`), without a driven web UI
@@ -782,6 +927,7 @@ export function decideLoop1Outcome({
   appOpenedV1 = false,
   appObservedV2ViaFeed = false,
   appObservedV2Source = "protocol",
+  appSignInFailureReason = "",
   desktopBlockReason = "",
 }) {
   if (versionsAfterTurn !== versionsBeforeTurn) {
@@ -813,6 +959,13 @@ export function decideLoop1Outcome({
       exitCode: 1,
       status: "FAIL",
       reason: "workspace change feed did not report v2 after Save",
+    };
+  }
+  if (appSignInFailureReason) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: appSignInFailureReason,
     };
   }
   if (appSignedIn && appDriven && (!appOpenedV1 || !appObservedV2ViaFeed || appObservedV2Source !== "app")) {
@@ -873,6 +1026,7 @@ export function decideLoop2Outcome({
   appIntentsAfterTurn = 0,
   appSavedV2 = false,
   saveSource = "protocol",
+  appSignInFailureReason = "",
   desktopBlockReason = "",
 }) {
   if (versionsAfterTurn !== versionsBeforeTurn || appIntentsAfterTurn > 0) {
@@ -890,6 +1044,13 @@ export function decideLoop2Outcome({
       exitCode: 1,
       status: "FAIL",
       reason: `expected versionsAfterSave=${versionsBeforeTurn + 1} and commitIntentOutcome=committed, got versions=${versionsAfterSave}, outcome=${commitIntentOutcome}`,
+    };
+  }
+  if (appSignInFailureReason) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: appSignInFailureReason,
     };
   }
   if (appSignedIn && appDriven && (!appOpenedV1 || !appSavedV2 || saveSource !== "app")) {
@@ -945,8 +1106,16 @@ export function decideLoop3Outcome({
   appBindingAfterReconnect = null,
   appIntentsAfterReconnect = 0,
   serverVersionsAfterReconnect = 1,
+  appSignInFailureReason = "",
   desktopBlockReason = "",
 }) {
+  if (appSignInFailureReason) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: appSignInFailureReason,
+    };
+  }
   if (testCommittedBeforeApp || (appDriven && commitSource === "protocol")) {
     return {
       exitCode: 1,
@@ -1186,10 +1355,10 @@ export async function driveWebXlsxSave({
 
 /**
  * Connects to the running Electron app over CDP (`APP_CDP_PORT` from `ports.env`),
- * signs in as the seeded user if the OS keyring is available, and exposes
- * methods to open v1 via deep link, observe change-feed reloads in `binding.json`,
- * and drive online/offline Save through the app's own `window.aiOffice.uniworkSave`
- * and the harness-local TCP proxy (`setAppApiProxyOnline`).
+ * signs in as the seeded user if the OS keyring is available and no `session.bin`
+ * exists yet, and exposes methods to open v1 via deep link, observe change-feed
+ * reloads in `binding.json`, and drive online/offline Save through the app's own
+ * `window.aiOffice.uniworkSave` and the harness-local TCP proxy (`setAppApiProxyOnline`).
  */
 export async function connectAppController({
   portsEnv,
@@ -1201,23 +1370,27 @@ export async function connectAppController({
   userId,
   deploymentId = HARNESS_DEPLOYMENT_ID,
   timeoutMs = 20_000,
+  cdpConnector = null,
+  deepLinkDeliverer = deliverDeepLink,
 }) {
   if (!portsEnv?.UNIWORK_USER_DATA || !portsEnv?.ELECTRON_BIN || !portsEnv?.SHELL_APP_DIR) {
+    const out = decideAppSignInOutcome({ appStarted: false, cdpConnected: false });
     return {
       signedIn: false,
       driven: false,
-      blockerReason:
-        "this run did not start the fork app (no UNIWORK_USER_DATA/ELECTRON_BIN/SHELL_APP_DIR in ports.env; HARNESS_SKIP_APP=1)",
+      signInFailureReason: "",
+      blockerReason: out.reason,
       close: async () => {},
     };
   }
   const cdpPort = Number(portsEnv.APP_CDP_PORT || 0);
-  const chromium = cdpPort > 0 ? loadPlaywrightChromium(repoRoot) : null;
-  if (!cdpPort || !chromium) {
+  const chromium = cdpPort > 0 && !cdpConnector ? loadPlaywrightChromium(repoRoot) : null;
+  if (!cdpPort || (!cdpConnector && !chromium)) {
     const pre = checkDesktopPrecondition(portsEnv);
     return {
       signedIn: pre.ok,
       driven: false,
+      signInFailureReason: "",
       blockerReason: pre.ok
         ? "the app's Save cannot be driven headlessly (no APP_CDP_PORT in ports.env)"
         : pre.reason,
@@ -1227,12 +1400,15 @@ export async function connectAppController({
 
   let browser;
   try {
-    browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, { timeout: 10_000 });
+    browser = cdpConnector
+      ? await cdpConnector(cdpPort)
+      : await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, { timeout: 10_000 });
   } catch (err) {
     const pre = checkDesktopPrecondition(portsEnv);
     return {
       signedIn: pre.ok,
       driven: false,
+      signInFailureReason: "",
       blockerReason: pre.ok
         ? `could not connect to the running Electron app over CDP port ${cdpPort}: ${err.message}`
         : pre.reason,
@@ -1250,31 +1426,59 @@ export async function connectAppController({
     return null;
   };
 
-  const page = await findShellPage();
+  let page = await findShellPage();
+  for (let i = 0; i < 20 && !page; i += 1) {
+    await sleep(250);
+    page = await findShellPage();
+  }
   if (!page) {
     await browser.close().catch(() => {});
     return {
       signedIn: false,
       driven: false,
+      signInFailureReason: "",
       blockerReason: "connected to Electron CDP but found no shell renderer window exposing window.aiOffice",
       close: async () => {},
     };
   }
 
   let status = await page.evaluate(() => window.aiOffice.accountStatus());
+  const refreshDeadline = Date.now() + 5_000;
+  while (status?.state === "refreshing" && Date.now() < refreshDeadline) {
+    await sleep(200);
+    status = await page.evaluate(() => window.aiOffice.accountStatus());
+  }
+
   if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") {
     await browser.close().catch(() => {});
+    const out = decideAppSignInOutcome({
+      appStarted: true,
+      cdpConnected: true,
+      keyringAvailable: false,
+      accountState: status.state,
+    });
     return {
       signedIn: false,
       driven: false,
-      blockerReason: `the app is not signed in (accountStatus.state=${status.state}, no uniwork-auth/session.bin; a headless Linux VM without an unlocked OS keyring cannot keep a desktop session)`,
+      signInFailureReason: "",
+      blockerReason: out.reason,
       close: async () => {},
     };
   }
 
-  if (status?.state !== "signed-in" || (userId && status?.profile?.id && status.profile.id !== userId)) {
+  const sessionBinPath = join(portsEnv.UNIWORK_USER_DATA, "uniwork-auth", "session.bin");
+  const getProfileAccountId = (st) => st?.profile?.accountId ?? st?.profile?.id ?? "";
+  let signInError = "";
+
+  if (
+    status?.state !== "signed-in" ||
+    !existsSync(sessionBinPath) ||
+    (userId && getProfileAccountId(status) && getProfileAccountId(status) !== userId)
+  ) {
     if (status?.state === "signed-in") {
-      await page.evaluate(() => window.aiOffice.accountLogout());
+      await page.evaluate(() => window.aiOffice.accountLogout()).catch(() => {});
+    } else if (status?.state === "signing-in") {
+      await page.evaluate(() => window.aiOffice.accountCancelLogin?.()).catch(() => {});
     }
     try {
       const authUrl = await page.evaluate(
@@ -1300,6 +1504,9 @@ export async function connectAppController({
           }),
       );
       const attemptId = new URL(authUrl).searchParams.get("attempt_id");
+      if (!attemptId) {
+        throw new Error(`accountLogin URL carried no attempt_id: ${authUrl}`);
+      }
       const consentGet = await callTracerApi({
         apiOrigin,
         fetchImpl,
@@ -1308,6 +1515,9 @@ export async function connectAppController({
         token,
       });
       const csrfToken = consentGet.data?.csrf_token ?? "";
+      if (!csrfToken) {
+        throw new Error("getDesktopConsent returned no csrf_token");
+      }
       const consentPost = await callTracerApi({
         apiOrigin,
         fetchImpl,
@@ -1317,31 +1527,45 @@ export async function connectAppController({
       });
       const callbackUrl = consentPost.data?.callback_url ?? consentPost.data?.redirect_url ?? "";
       if (!callbackUrl) throw new Error("submitDesktopConsent returned no callback_url");
-      deliverDeepLink(portsEnv, callbackUrl);
+      const handoff = deepLinkDeliverer(portsEnv, callbackUrl);
+      if (handoff?.error || (typeof handoff?.status === "number" && handoff.status !== 0)) {
+        throw new Error(
+          `callback deep-link handoff failed (exit ${handoff?.status ?? "err"}): ${handoff?.stderr || handoff?.error?.message || ""}`.trim(),
+        );
+      }
       const signDeadline = Date.now() + 15_000;
       while (Date.now() < signDeadline) {
         status = await page.evaluate(() => window.aiOffice.accountStatus());
-        if (status?.state === "signed-in") break;
+        if (status?.state === "signed-in" && existsSync(sessionBinPath)) break;
         if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") break;
         await sleep(250);
       }
     } catch (err) {
-      await browser.close().catch(() => {});
-      return {
-        signedIn: false,
-        driven: false,
-        blockerReason: `desktop app sign-in could not complete on this VM: ${err.message}`,
-        close: async () => {},
-      };
+      signInError = err instanceof Error ? err.message : String(err);
+      status = await page.evaluate(() => window.aiOffice.accountStatus()).catch(() => status);
     }
   }
 
-  if (status?.state !== "signed-in") {
+  const keyringStillAvailable =
+    status?.state !== "keyring-unavailable" && status?.state !== "keystore-locked";
+  const signInOutcome = decideAppSignInOutcome({
+    appStarted: true,
+    cdpConnected: true,
+    keyringAvailable: keyringStillAvailable,
+    accountState: status?.state ?? "unknown",
+    sessionBinExists: existsSync(sessionBinPath),
+    signedInUserId: getProfileAccountId(status),
+    expectedUserId: userId ?? "",
+    signInError,
+  });
+
+  if (!signInOutcome.signedIn) {
     await browser.close().catch(() => {});
     return {
       signedIn: false,
       driven: false,
-      blockerReason: `the app is not signed in (accountStatus.state=${status?.state ?? "unknown"})`,
+      signInFailureReason: signInOutcome.status === "FAIL" ? signInOutcome.reason : "",
+      blockerReason: signInOutcome.status === "BLOCKED" ? signInOutcome.reason : "",
       close: async () => {},
     };
   }
@@ -1364,6 +1588,8 @@ export async function connectAppController({
   return {
     signedIn: true,
     driven: true,
+    signInFailureReason: "",
+    blockerReason: "",
     close: async () => {
       await browser.close().catch(() => {});
     },
@@ -1384,7 +1610,7 @@ export async function connectAppController({
       const ticket = launchRes.data?.ticket ?? launchRes.data?.launch_ticket ?? "";
       if (!ticket) return { opened: false, binding: null };
       const deepLink = officeDeepLink(DEV_CLIENT_ID, ticket);
-      const handoff = deliverDeepLink(portsEnv, deepLink);
+      const handoff = deepLinkDeliverer(portsEnv, deepLink);
       if (handoff.error || handoff.status !== 0) return { opened: false, binding: null };
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
@@ -1564,9 +1790,12 @@ async function runLoop1({
   timeoutMs = 20_000,
   webDriver = null,
   appDriver = null,
+  cdpConnector = null,
+  deepLinkDeliverer = deliverDeepLink,
 }) {
   const seeded = await seedFixtureDocument({
     apiOrigin,
+    runDir,
     fetchImpl,
     fixtureId: "fx-xlsx-revenue-xyz",
     repoRoot,
@@ -1584,6 +1813,8 @@ async function runLoop1({
       userId: seeded.userId,
       deploymentId,
       timeoutMs,
+      cdpConnector,
+      deepLinkDeliverer,
     }));
   try {
     const {
@@ -1880,6 +2111,7 @@ async function runLoop1({
       appOpenedV1,
       appObservedV2ViaFeed,
       appObservedV2Source,
+      appSignInFailureReason: appCtrl.signInFailureReason || "",
       desktopBlockReason: appCtrl.blockerReason || "",
     });
 
@@ -1907,7 +2139,7 @@ async function runLoop1({
         summary: "Protocol-level 0-version AI turn + v2 commit + workspace change feed check",
       },
       aiSegment,
-      appDesktopPrecondition: appCtrl.signedIn ? "signed_in" : appCtrl.blockerReason,
+      appDesktopPrecondition: appCtrl.signedIn ? "signed_in" : appCtrl.signInFailureReason || appCtrl.blockerReason,
     };
 
     return {
@@ -1916,7 +2148,6 @@ async function runLoop1({
     };
   } finally {
     if (typeof appCtrl?.close === "function") await appCtrl.close();
-    await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded });
   }
 }
 
@@ -1930,9 +2161,12 @@ async function runLoop2({
   fetchImpl = fetch,
   timeoutMs = 20_000,
   appDriver = null,
+  cdpConnector = null,
+  deepLinkDeliverer = deliverDeepLink,
 }) {
   const seeded = await seedFixtureDocument({
     apiOrigin,
+    runDir,
     fetchImpl,
     fixtureId: "fx-docx-report-vi",
     repoRoot,
@@ -1950,6 +2184,8 @@ async function runLoop2({
       userId: seeded.userId,
       deploymentId,
       timeoutMs,
+      cdpConnector,
+      deepLinkDeliverer,
     }));
   try {
     const { token, userId, workspaceId, documentId, filename } = seeded;
@@ -2150,6 +2386,7 @@ async function runLoop2({
       appIntentsAfterTurn,
       appSavedV2,
       saveSource,
+      appSignInFailureReason: appCtrl.signInFailureReason || "",
       desktopBlockReason: appCtrl.blockerReason || "",
     });
 
@@ -2172,7 +2409,7 @@ async function runLoop2({
         summary: "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save created version 2",
       },
       aiEditQualitySegment,
-      appDesktopPrecondition: appCtrl.signedIn ? "signed_in" : appCtrl.blockerReason,
+      appDesktopPrecondition: appCtrl.signedIn ? "signed_in" : appCtrl.signInFailureReason || appCtrl.blockerReason,
     };
 
     return {
@@ -2181,7 +2418,6 @@ async function runLoop2({
     };
   } finally {
     if (typeof appCtrl?.close === "function") await appCtrl.close();
-    await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded });
   }
 }
 
@@ -2196,9 +2432,12 @@ async function runLoop3({
   timeoutMs = 20_000,
   spawnAppHook = null,
   appDriver = null,
+  cdpConnector = null,
+  deepLinkDeliverer = deliverDeepLink,
 }) {
   const seeded = await seedFixtureDocument({
     apiOrigin,
+    runDir,
     fetchImpl,
     fixtureId: "fx-docx-report-vi",
     repoRoot,
@@ -2216,6 +2455,8 @@ async function runLoop3({
       userId: seeded.userId,
       deploymentId,
       timeoutMs,
+      cdpConnector,
+      deepLinkDeliverer,
     }));
   try {
     const { token, userId, workspaceId, documentId, filename } = seeded;
@@ -2471,6 +2712,7 @@ async function runLoop3({
       serverVersionsWhileCut: 1,
       testCommittedBeforeApp: false,
       commitSource: "protocol",
+      appSignInFailureReason: appCtrl.signInFailureReason || "",
       desktopBlockReason: appCtrl.blockerReason || "",
     });
 
@@ -2483,7 +2725,7 @@ async function runLoop3({
         workspaceId,
         protocolDiagnosticSegment,
         appReceiptSegment: {
-          status: "BLOCKED",
+          status: decision.status,
           source: "app",
           reason: decision.reason,
         },
@@ -2492,7 +2734,7 @@ async function runLoop3({
   } finally {
     setAppApiProxyOnline(runDir, true);
     if (typeof appCtrl?.close === "function") await appCtrl.close();
-    await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded });
+    await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded, runDir });
   }
 }
 
@@ -2546,6 +2788,8 @@ export async function runTracerLoop({
   spawnAppHook = null,
   webDriver = null,
   appDriver = null,
+  cdpConnector = null,
+  deepLinkDeliverer = deliverDeepLink,
 }) {
   const startStatus = readStartStatus(runDir);
   const gate = startGate(startStatus);
@@ -2591,6 +2835,8 @@ export async function runTracerLoop({
         timeoutMs,
         webDriver,
         appDriver,
+        cdpConnector,
+        deepLinkDeliverer,
       });
     }
     if (normalized === "2") {
@@ -2602,6 +2848,8 @@ export async function runTracerLoop({
         fetchImpl,
         timeoutMs,
         appDriver,
+        cdpConnector,
+        deepLinkDeliverer,
       });
     }
     if (normalized === "3") {
@@ -2614,6 +2862,8 @@ export async function runTracerLoop({
         timeoutMs,
         spawnAppHook,
         appDriver,
+        cdpConnector,
+        deepLinkDeliverer,
       });
     }
     return {

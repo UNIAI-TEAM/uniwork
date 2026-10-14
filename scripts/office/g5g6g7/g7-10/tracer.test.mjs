@@ -49,6 +49,8 @@ import {
   UPSTREAM_BLOCKED_REASON,
   buildEditedDocxFixtureBytes,
   buildXlsxRevenueWithXyzBytes,
+  connectAppController,
+  decideAppSignInOutcome,
   decideLoop1Outcome,
   decideLoop2Outcome,
   decideLoop3Outcome,
@@ -382,6 +384,25 @@ function createMockDServer({
         next_cursor: `cur-v${reported.version}`,
       });
     }
+    if (method === "GET" && path === "/api/v1/auth/desktop/authorize") {
+      const attemptId = url.searchParams.get("attempt_id") ?? "";
+      return json(200, {
+        status: "pending",
+        attempt_id: attemptId,
+        account_id: userId,
+        csrf_token: "csrf-test-token",
+      });
+    }
+    if (method === "POST" && path === "/api/v1/auth/desktop/authorize") {
+      if (state.failDesktopConsent) {
+        return json(500, { error: { code: "internal_error", message: "consent failed" } });
+      }
+      const body = JSON.parse(init.body);
+      return json(200, {
+        status: "approved",
+        callback_url: `uniwork-office-dev://auth/callback?code=code-${body.attempt_id}&state=st-test`,
+      });
+    }
     if (method === "POST" && path === `/api/v1/documents/${state.docId}/office/sessions`) {
       return json(200, { ticket: "tkt-123" });
     }
@@ -620,6 +641,284 @@ describe("G7-10 pure outcome decision functions (G710-L1..L3)", () => {
     });
     assert.equal(blockedNoApp.status, "BLOCKED");
     assert.equal(blockedNoApp.exitCode, BLOCKED_EXIT);
+  });
+
+  it("decideAppSignInOutcome: BLOCKED (77) when keyring is absent/locked, FAIL (1) when keyring is up and sign-in fails or leaves no session.bin, PASS (0) when signed-in + session.bin", () => {
+    // 1. Keyring unavailable / locked -> BLOCKED (77)
+    const noKeyring = decideAppSignInOutcome({
+      appStarted: true,
+      cdpConnected: true,
+      keyringAvailable: false,
+      accountState: "keyring-unavailable",
+      sessionBinExists: false,
+    });
+    assert.equal(noKeyring.status, "BLOCKED");
+    assert.equal(noKeyring.exitCode, BLOCKED_EXIT);
+    assert.equal(noKeyring.signedIn, false);
+
+    const lockedKeystore = decideAppSignInOutcome({
+      appStarted: true,
+      cdpConnected: true,
+      keyringAvailable: false,
+      accountState: "keystore-locked",
+      sessionBinExists: false,
+    });
+    assert.equal(lockedKeystore.status, "BLOCKED");
+    assert.equal(lockedKeystore.exitCode, BLOCKED_EXIT);
+
+    // 2. Keyring is up, sign-in throws an error -> FAIL (1) with reason
+    const errWithKeyring = decideAppSignInOutcome({
+      appStarted: true,
+      cdpConnected: true,
+      keyringAvailable: true,
+      accountState: "signed-out",
+      sessionBinExists: false,
+      signInError: "POST /api/v1/auth/desktop/authorize -> 500",
+    });
+    assert.equal(errWithKeyring.status, "FAIL");
+    assert.equal(errWithKeyring.exitCode, 1);
+    assert.match(errWithKeyring.reason, /500/);
+
+    // 3. Keyring is up, accountStatus did not reach signed-in -> FAIL (1)
+    const notSignedIn = decideAppSignInOutcome({
+      appStarted: true,
+      cdpConnected: true,
+      keyringAvailable: true,
+      accountState: "signed-out",
+      sessionBinExists: false,
+    });
+    assert.equal(notSignedIn.status, "FAIL");
+    assert.equal(notSignedIn.exitCode, 1);
+
+    // 4. Keyring is up, accountStatus is signed-in, but session.bin is missing on disk -> FAIL (1)
+    const noSessionBin = decideAppSignInOutcome({
+      appStarted: true,
+      cdpConnected: true,
+      keyringAvailable: true,
+      accountState: "signed-in",
+      sessionBinExists: false,
+      signedInUserId: "01JUSER1",
+      expectedUserId: "01JUSER1",
+    });
+    assert.equal(noSessionBin.status, "FAIL");
+    assert.equal(noSessionBin.exitCode, 1);
+    assert.match(noSessionBin.reason, /session\.bin/);
+
+    // 5. Keyring is up, signed in as wrong user -> FAIL (1)
+    const wrongUser = decideAppSignInOutcome({
+      appStarted: true,
+      cdpConnected: true,
+      keyringAvailable: true,
+      accountState: "signed-in",
+      sessionBinExists: true,
+      signedInUserId: "01JOTHER",
+      expectedUserId: "01JUSER1",
+    });
+    assert.equal(wrongUser.status, "FAIL");
+    assert.equal(wrongUser.exitCode, 1);
+
+    // 6. Keyring is up, accountStatus is signed-in, session.bin exists on disk -> PASS (0)
+    const pass = decideAppSignInOutcome({
+      appStarted: true,
+      cdpConnected: true,
+      keyringAvailable: true,
+      accountState: "signed-in",
+      sessionBinExists: true,
+      signedInUserId: "01JUSER1",
+      expectedUserId: "01JUSER1",
+    });
+    assert.equal(pass.status, "PASS");
+    assert.equal(pass.exitCode, 0);
+    assert.equal(pass.signedIn, true);
+  });
+
+  it("decideLoop1Outcome, decideLoop2Outcome, and decideLoop3Outcome return FAIL (1) when appSignInFailureReason is set (keyring up, sign-in failed), never BLOCKED", () => {
+    const l1 = decideLoop1Outcome({
+      versionsBeforeTurn: 1,
+      versionsAfterTurn: 1,
+      versionsAfterSave: 2,
+      v2ContainsExpectedXyz: true,
+      changeFeedDeliveredV2: true,
+      aiRealUpstream: false,
+      webUiDriven: false,
+      webSaveSource: "protocol",
+      appSignedIn: false,
+      appDriven: false,
+      appSignInFailureReason: "desktop app sign-in failed while the OS keyring was available: consent 500",
+    });
+    assert.equal(l1.status, "FAIL");
+    assert.equal(l1.exitCode, 1);
+    assert.match(l1.reason, /consent 500/);
+
+    const l2 = decideLoop2Outcome({
+      versionsBeforeTurn: 1,
+      versionsAfterTurn: 1,
+      versionsAfterSave: 2,
+      commitIntentOutcome: "committed",
+      aiRealUpstream: false,
+      appSignedIn: false,
+      appDriven: false,
+      appSignInFailureReason: "desktop app sign-in failed while the OS keyring was available: no session.bin",
+    });
+    assert.equal(l2.status, "FAIL");
+    assert.equal(l2.exitCode, 1);
+    assert.match(l2.reason, /no session\.bin/);
+
+    const l3 = decideLoop3Outcome({
+      appSignedIn: false,
+      appDriven: false,
+      appOpenedV1: false,
+      appHeldOfflineIntentWhileCut: false,
+      serverVersionsWhileCut: 1,
+      appSignInFailureReason: "desktop app sign-in failed while the OS keyring was available: callback rejected",
+    });
+    assert.equal(l3.status, "FAIL");
+    assert.equal(l3.exitCode, 1);
+    assert.match(l3.reason, /callback rejected/);
+  });
+});
+
+describe("G7-10 desktop app self sign-in when keyring is available (r3)", () => {
+  function makeFakeCdpBrowser({
+    initialState = "signed-out",
+    userDataDir,
+    signedInAccountId,
+    writeSessionBinOnCallback = true,
+    transitionToSignedInOnCallback = true,
+  }) {
+    let currentState = initialState;
+    let currentProfile = null;
+    const deliveredCallbacks = [];
+    const page = {
+      evaluate: async (fn) => {
+        const src = String(fn);
+        if (src.includes("typeof window.aiOffice")) return true;
+        if (src.includes("accountStatus")) {
+          return { state: currentState, profile: currentProfile };
+        }
+        if (src.includes("onAccountLogin") && src.includes("accountLogin")) {
+          return "http://127.0.0.1:18080/auth/desktop/authorize?attempt_id=01JATTEMPT000000000000001";
+        }
+        return null;
+      },
+    };
+    const browser = {
+      contexts: () => [{ pages: () => [page] }],
+      close: async () => {},
+    };
+    const deepLinkDeliverer = (_portsEnv, url) => {
+      deliveredCallbacks.push(url);
+      if (String(url).includes("/auth/callback")) {
+        if (writeSessionBinOnCallback) {
+          writeFileSync(join(userDataDir, "uniwork-auth", "session.bin"), Buffer.from("encrypted-session-bin"));
+        }
+        if (transitionToSignedInOnCallback) {
+          currentState = "signed-in";
+          currentProfile = { accountId: signedInAccountId, email: "seeded@example.com", name: "G7-10 tracer" };
+        }
+      }
+      return { status: 0 };
+    };
+    return { browser, deliveredCallbacks, cdpConnector: async () => browser, deepLinkDeliverer };
+  }
+
+  it("signs the app in before Loop 1 when keyring is available and no session.bin exists yet (accountLogin -> authorize -> callback -> session.bin + signed-in)", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: false });
+    writeFileSync(
+      join(scratch.dir, "ports.env"),
+      `${readFileSync(join(scratch.dir, "ports.env"), "utf8")}APP_CDP_PORT=19222\n`,
+    );
+    const mock = createMockDServer({ aiMode: "fake", userId: scratch.userId });
+    const fakeCdp = makeFakeCdpBrowser({
+      initialState: "signed-out",
+      userDataDir: scratch.userData,
+      signedInAccountId: scratch.userId,
+    });
+    try {
+      const ctrl = await connectAppController({
+        portsEnv: {
+          UNIWORK_USER_DATA: scratch.userData,
+          ELECTRON_BIN: join(scratch.dir, "fake-electron"),
+          SHELL_APP_DIR: join(scratch.dir, "shell"),
+          APP_CDP_PORT: "19222",
+        },
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        apiOrigin: "http://localhost:18080",
+        fetchImpl: mock.fetchImpl,
+        token: "tok-session",
+        userId: scratch.userId,
+        cdpConnector: fakeCdp.cdpConnector,
+        deepLinkDeliverer: fakeCdp.deepLinkDeliverer,
+      });
+      assert.equal(ctrl.signedIn, true);
+      assert.equal(ctrl.driven, true);
+      assert.equal(ctrl.signInFailureReason ?? "", "");
+      assert.equal(fakeCdp.deliveredCallbacks.length, 1);
+      assert.match(fakeCdp.deliveredCallbacks[0], /^uniwork-office-dev:\/\/auth\/callback\?code=code-01JATTEMPT000000000000001/);
+      await ctrl.close();
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("returns FAIL (exit 1) when the keyring is available and self sign-in fails (e.g. consent fails or session.bin is not written)", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: false });
+    writeFileSync(
+      join(scratch.dir, "ports.env"),
+      `${readFileSync(join(scratch.dir, "ports.env"), "utf8")}APP_CDP_PORT=19222\n`,
+    );
+    const mock = createMockDServer({ aiMode: "fake", userId: scratch.userId });
+    const fakeCdp = makeFakeCdpBrowser({
+      initialState: "signed-out",
+      userDataDir: scratch.userData,
+      signedInAccountId: scratch.userId,
+      writeSessionBinOnCallback: false,
+    });
+    try {
+      const res = await runTracerLoop({
+        loop: "1",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        cdpConnector: fakeCdp.cdpConnector,
+        deepLinkDeliverer: fakeCdp.deepLinkDeliverer,
+      });
+      assert.equal(res.exitCode, 1);
+      assert.equal(res.status, "FAIL");
+      assert.match(res.reason, /session\.bin/);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("returns BLOCKED (exit 77) when the keyring is unavailable (accountStatus.state === keyring-unavailable)", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: false });
+    writeFileSync(
+      join(scratch.dir, "ports.env"),
+      `${readFileSync(join(scratch.dir, "ports.env"), "utf8")}APP_CDP_PORT=19222\n`,
+    );
+    const mock = createMockDServer({ aiMode: "fake", userId: scratch.userId });
+    const fakeCdp = makeFakeCdpBrowser({
+      initialState: "keyring-unavailable",
+      userDataDir: scratch.userData,
+      signedInAccountId: scratch.userId,
+    });
+    try {
+      const res = await runTracerLoop({
+        loop: "3",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        cdpConnector: fakeCdp.cdpConnector,
+        deepLinkDeliverer: fakeCdp.deepLinkDeliverer,
+      });
+      assert.equal(res.exitCode, BLOCKED_EXIT);
+      assert.equal(res.status, "BLOCKED");
+      assert.match(res.reason, /keyring-unavailable|keyring/);
+    } finally {
+      scratch.cleanup();
+    }
   });
 });
 
