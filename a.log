@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+d2ef488a00e53b1dbcac7f063e703d8697d11237
+0f3f42bc22df209fb3b2fa1566da1000f960bf94
+d2ef488a test(ai): open the Settings pane the redesigned way in the model-list test
+54e95a89 Merge fork main 0f3f42bc (Settings redesign) into G6-05m
+79fc9a73 feat(ai): the Settings model dropdown offers the live list

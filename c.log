@@ -1,0 +1,55 @@
+$ npm run test:web; rc=$?; echo "TEST_WEB_EXIT=$rc"; (exit $rc)
+
+> genoffice@0.1.0 test:web
+> vitest run --root web/docs/protocol && vitest run --root web/docs/bridge --environment jsdom && vitest run --root web/docs/build && vitest run --root web/modules && vitest run --root web/modules/slides && vitest run --root web/modules/pdf
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/protocol
+
+
+ Test Files  4 passed (4)
+      Tests  174 passed (174)
+   Start at  10:39:06
+   Duration  378ms (transform 349ms, setup 0ms, import 446ms, tests 151ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/bridge
+
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+ ❯ uniwork-ai-no-save.test.ts (1 test | 1 failed) 18ms
+     × sends no request but the chat completion, and the edit only marks the document dirty 17ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  uniwork-ai-no-save.test.ts > a UniWork AI turn never saves (G6-A03, web) > sends no request but the chat completion, and the edit only marks the document dirty
+AssertionError: expected [ { …(2) }, { …(2) } ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ uniwork-ai-no-save.test.ts:120:18
+    118|     expect(aiRun.every((r) => r.state === 'running' || r.state === 'id…
+    119|     // the frame's only HTTP request is the chat completion on the Uni…
+    120|     expect(urls).toHaveLength(1)
+       |                  ^
+    121|     expect(urls[0]!.method).toBe('POST')
+    122|     expect(urls[0]!.url).toMatch(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 13 passed (14)
+      Tests  1 failed | 258 passed (259)
+   Start at  10:39:07
+   Duration  4.16s (transform 2.00s, setup 0ms, import 2.35s, tests 3.35s, environment 4.96s)
+
+TEST_WEB_EXIT=1
