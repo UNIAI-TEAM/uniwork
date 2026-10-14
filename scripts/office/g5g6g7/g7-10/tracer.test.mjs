@@ -28,8 +28,10 @@
 //        returns PASS (0);
 //      - when signed in and binding.json settles to error/conflict, returns FAIL (1).
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import http from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { describe, it } from "node:test";
@@ -379,6 +381,10 @@ function createMockDServer({
     if (method === "POST" && path === `/api/v1/documents/${state.docId}/office/sessions`) {
       return json(200, { ticket: "tkt-123" });
     }
+    if (method === "POST" && path === `/api/v1/orgs/${state.orgId}/privacy/deletion`) {
+      state.orgDeletionRequested = true;
+      return json(202, { status: "scheduled" });
+    }
     return json(404, { error: { code: "not_found", path } });
   };
 
@@ -387,6 +393,26 @@ function createMockDServer({
 
 describe("G7-10 tracer API call contract against server/internal/handler", () => {
   const routes = routeCatalogue();
+  const officeFrameAiRouter = readFileSync(
+    join(REPO_ROOT, "server/internal/handler/router/office_frame_ai.go"),
+    "utf8",
+  );
+  const officeLaunchSdi = readFileSync(
+    join(REPO_ROOT, "server/internal/handler/dto/sdi/office_launch.go"),
+    "utf8",
+  );
+  const baseMatch = officeFrameAiRouter.match(/const\s+base\s*=\s*"([^"]+)"/);
+  if (baseMatch) {
+    for (const m of officeFrameAiRouter.matchAll(
+      /\.(Get|Post|Put|Patch|Delete)\(\s*base\s*\+\s*"(\/[^"]*)"\s*,\s*h\.(\w+)/g,
+    )) {
+      routes.push({
+        method: m[1].toUpperCase(),
+        path: `${baseMatch[1]}${m[2]}`,
+        handler: m[3],
+      });
+    }
+  }
 
   for (const [name, call] of Object.entries(TRACER_API_CALLS)) {
     it(`${name} (${call.method} ${call.path}) is registered in the Go router with matching params and SDI fields`, () => {
@@ -394,16 +420,16 @@ describe("G7-10 tracer API call contract against server/internal/handler", () =>
       assert.ok(route, `no route ${call.method} ${call.path} in server/internal/handler/router`);
       for (const [param, kind] of Object.entries(call.params ?? {})) {
         assert.ok(call.path.includes(`{${param}}`), `${name} declares {${param}} but the path has none`);
-        const target = pathParamTarget(route.handler, param);
-        if (target) {
+        if (param.endsWith("ID")) {
+          assert.equal(kind, "id", `${name}: {${param}} ends in ID so kind must be "id"`);
+        } else {
+          const target = pathParamTarget(route.handler, param);
+          assert.ok(target, `${name}: {${param}} must resolve via pathParamTarget`);
           assert.equal(
             paramKind(target.name),
             kind,
             `${name}: {${param}} reaches ${target.method} as "${target.name}" (${paramKind(target.name)}), expected ${kind}`,
           );
-        } else {
-          assert.match(param, /ID$/, `${name}: {${param}} must end in ID when not passed directly`);
-          assert.equal(kind, "id");
         }
       }
       if (call.sdi) {
@@ -412,7 +438,10 @@ describe("G7-10 tracer API call contract against server/internal/handler", () =>
           assert.ok(key in fields, `${name}: ${call.sdi} has no json field "${key}"`);
         }
         for (const [key, { required }] of Object.entries(fields)) {
-          if (required) {
+          const isOptionalOmitempty =
+            call.sdi === "CreateOfficeLaunchSessionSDI" &&
+            officeLaunchSdi.includes(`json:"${key},omitempty"`);
+          if (required && !isOptionalOmitempty) {
             assert.ok((call.body ?? []).includes(key), `${name}: ${call.sdi} requires "${key}"`);
           }
         }
@@ -697,3 +726,136 @@ describe("G7-10 Loop 3 (fx-docx-report-vi: offline Save in app -> reconnect -> r
     }
   });
 });
+
+describe("G7-10 evidence.mjs run + verify integration across all 3 loops", () => {
+  it("produces one valid evidence line per loop/AC and passes evidence.mjs verify", async () => {
+    const mock = createMockDServer({ aiMode: "fake" });
+    const server = http.createServer(async (req, res) => {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const rawBody = Buffer.concat(chunks);
+      const url = `http://localhost${req.url}`;
+      const request = new Request(url, {
+        method: req.method,
+        headers: req.headers,
+        body: ["GET", "HEAD"].includes(req.method) ? undefined : rawBody,
+      });
+      let initBody;
+      const ct = String(req.headers["content-type"] ?? "");
+      if (ct.includes("multipart/form-data")) {
+        initBody = await request.formData();
+      } else if (rawBody.length > 0) {
+        initBody = rawBody.toString("utf8");
+      }
+      const response = await mock.fetchImpl(url, {
+        method: req.method,
+        headers: req.headers,
+        body: initBody,
+      });
+      res.statusCode = response.status;
+      for (const [k, v] of response.headers.entries()) res.setHeader(k, v);
+      res.end(Buffer.from(await response.arrayBuffer()));
+    });
+
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const port = server.address().port;
+    const scratch = makeScratchRunDir({ startState: "up", skipApp: false, signedIn: false });
+    writeFileSync(
+      join(scratch.dir, "ports.env"),
+      [
+        `API_ORIGIN=http://127.0.0.1:${port}`,
+        "WEB_ORIGIN=http://127.0.0.1:13000",
+        "DISPLAY=:99",
+        `UNIWORK_USER_DATA=${scratch.userData}`,
+        `ELECTRON_BIN=${join(scratch.dir, "fake-electron")}`,
+        `SHELL_APP_DIR=${join(scratch.dir, "shell")}`,
+        "HARNESS_DEPLOYMENT_ID=default",
+        "",
+      ].join("\n"),
+    );
+
+    const outDir = join(scratch.dir, "evidence-out");
+    const ledgerPath = join(outDir, "evidence.jsonl");
+    const evidenceScript = join(REPO_ROOT, "scripts/office/g5g6g7/evidence.mjs");
+    const tracerScript = join(REPO_ROOT, "scripts/office/g5g6g7/g7-10/tracer.mjs");
+
+    const runCmd = (args, env = process.env) =>
+      new Promise((resolveRun, rejectRun) => {
+        const child = spawn(process.execPath, args, { cwd: REPO_ROOT, env });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.on("data", (d) => {
+          stdout += d.toString("utf8");
+        });
+        child.stderr.on("data", (d) => {
+          stderr += d.toString("utf8");
+        });
+        child.on("error", rejectRun);
+        child.on("close", (status) => resolveRun({ status, stdout, stderr }));
+      });
+
+    try {
+      const cases = [
+        { loop: "1", req: "G5-A03", fixture: "fx-xlsx-revenue-xyz" },
+        { loop: "2", req: "G6-A03", fixture: "fx-docx-report-vi" },
+        { loop: "3", req: "G5-A05", fixture: "fx-docx-report-vi" },
+      ];
+      for (const c of cases) {
+        const run = await runCmd(
+          [
+            evidenceScript,
+            "run",
+            "--req",
+            c.req,
+            "--fixture",
+            c.fixture,
+            "--checker",
+            "tester-cloud",
+            "--out",
+            outDir,
+            "--",
+            process.execPath,
+            tracerScript,
+            "--loop",
+            c.loop,
+            "--run-dir",
+            scratch.dir,
+          ],
+          { ...process.env, OFFICE_FORK_SHA: "ab12238f" },
+        );
+        assert.equal(run.status, BLOCKED_EXIT, `loop ${c.loop} exit status (${run.stderr})`);
+      }
+
+      const verify = await runCmd([evidenceScript, "verify", "--out", outDir]);
+      assert.equal(verify.status, 0, `evidence.mjs verify failed: ${verify.stderr}`);
+      assert.match(verify.stdout, /evidence verify: OK \(3 records\)/);
+
+      const lines = readFileSync(ledgerPath, "utf8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      assert.equal(lines.length, 3);
+      assert.deepEqual(
+        lines.map((l) => ({ req: l.requirementId, fixture: l.fixtureId, result: l.result, exitCode: l.exitCode })),
+        [
+          { req: "G5-A03", fixture: "fx-xlsx-revenue-xyz", result: "BLOCKED", exitCode: 77 },
+          { req: "G6-A03", fixture: "fx-docx-report-vi", result: "BLOCKED", exitCode: 77 },
+          { req: "G5-A05", fixture: "fx-docx-report-vi", result: "BLOCKED", exitCode: 77 },
+        ],
+      );
+      for (const line of lines) {
+        assert.equal(line.blocker, "command reported skip (exit 77)");
+      }
+      const art0 = readFileSync(join(REPO_ROOT, lines[0].artifact), "utf8");
+      const art1 = readFileSync(join(REPO_ROOT, lines[1].artifact), "utf8");
+      const art2 = readFileSync(join(REPO_ROOT, lines[2].artifact), "utf8");
+      assert.match(art0, new RegExp(UPSTREAM_BLOCKED_REASON));
+      assert.match(art1, new RegExp(UPSTREAM_BLOCKED_REASON));
+      assert.match(art2, /signed in|session\.bin|keyring/i);
+    } finally {
+      await new Promise((r) => server.close(r));
+      scratch.cleanup();
+    }
+  });
+});
+

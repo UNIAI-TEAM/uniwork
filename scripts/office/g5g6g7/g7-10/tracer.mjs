@@ -31,7 +31,7 @@
 //   with `FAIL` (exit 1), never `BLOCKED` (77).
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -45,7 +45,12 @@ import {
   DEV_CLIENT_ID,
   HARNESS_DEPLOYMENT_ID,
   concludeAtStartGate,
+  evidenceLine,
+  fixtureSha256Of,
   handoffEnv,
+  harnessEvidenceId,
+  harnessPaths,
+  ledgerIdentity,
   officeDeepLink,
   readStartStatus,
   startGate,
@@ -585,12 +590,13 @@ async function seedFixtureDocument({
     body: { code: "123456" },
   });
 
+  const organizationSlug = `o-g710-${stamp}`;
   const orgRes = await callTracerApi({
     apiOrigin,
     fetchImpl,
     name: "createOrganization",
     token,
-    body: { name: "G7-10 tracer", slug: `o-g710-${stamp}` },
+    body: { name: "G7-10 tracer", slug: organizationSlug },
   });
   const organizationId = orgRes.data.organization.id;
 
@@ -623,11 +629,28 @@ async function seedFixtureDocument({
     token,
     userId,
     organizationId,
+    organizationSlug: orgRes.data.organization?.slug ?? organizationSlug,
     workspaceId,
     documentId,
     filename,
     fixture,
   };
+}
+
+async function cleanupSeededOrganization({ apiOrigin, fetchImpl = fetch, seeded }) {
+  if (!seeded?.organizationId || !seeded?.organizationSlug || !seeded?.token) return;
+  try {
+    await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "requestOrganizationDeletion",
+      params: { orgID: seeded.organizationId },
+      token: seeded.token,
+      body: { confirm_slug: seeded.organizationSlug },
+    });
+  } catch {
+    // Best-effort cleanup so throwaway orgs do not accumulate on a real server.
+  }
 }
 
 /**
@@ -688,266 +711,270 @@ async function runLoop1({
     fixtureId: "fx-xlsx-revenue-xyz",
     repoRoot,
   });
-  const { token, workspaceId, documentId, filename, fixture } = seeded;
+  try {
+    const { token, workspaceId, documentId, filename, fixture } = seeded;
 
-  // 1. Capture initial workspace change-feed snapshot cursor at v1.
-  const initialFeed = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "listDocumentChanges",
-    params: { workspaceID: workspaceId },
-    token,
-  });
-  const initialCursor = initialFeed.data?.next_cursor ?? "";
+    // 1. Capture initial workspace change-feed snapshot cursor at v1.
+    const initialFeed = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "listDocumentChanges",
+      params: { workspaceID: workspaceId },
+      token,
+    });
+    const initialCursor = initialFeed.data?.next_cursor ?? "";
 
-  // 2. Open on Web via the office-frame token + frame document/content API.
-  const frameTokenRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "mintOfficeFrameToken",
-    params: { documentID: documentId },
-    token,
-  });
-  const frameToken = frameTokenRes.data?.token;
-  if (!frameToken) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: "mintOfficeFrameToken returned an empty token",
-      details: {},
+    // 2. Open on Web via the office-frame token + frame document/content API.
+    const frameTokenRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "mintOfficeFrameToken",
+      params: { documentID: documentId },
+      token,
+    });
+    const frameToken = frameTokenRes.data?.token;
+    if (!frameToken) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: "mintOfficeFrameToken returned an empty token",
+        details: {},
+      };
+    }
+
+    const frameDoc = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "openOfficeFrameDocument",
+      params: { documentID: documentId },
+      token: frameToken,
+    });
+    const v1Revision = frameDoc.data?.revision;
+    const v1Version = frameDoc.data?.file?.version;
+    const v1Checksum = frameDoc.data?.file?.checksum_sha256;
+    if (v1Version !== 1 || v1Checksum !== fixture.sha256 || !v1Revision) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `openOfficeFrameDocument v1 mismatch: version=${v1Version}, checksum=${v1Checksum}, expected=${fixture.sha256}`,
+        details: { v1Version, v1Checksum, expectedSha256: fixture.sha256 },
+      };
+    }
+
+    const contentRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "getOfficeFrameDocumentContent",
+      params: { documentID: documentId },
+      token: frameToken,
+      expectBinary: true,
+    });
+    if (sha256Hex(contentRes.bytes) !== fixture.sha256) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: "getOfficeFrameDocumentContent bytes did not match fx-xlsx-revenue-xyz v1 sha256",
+        details: {},
+      };
+    }
+
+    // 3. Count server versions before the AI turn, run the AI turn, and verify
+    //    G6-A03 invariant: the AI turn itself creates 0 versions and 0 uploads.
+    const versionsBeforeRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "listDocumentVersions",
+      params: { documentID: documentId },
+      token,
+    });
+    const versionsBeforeTurn = versionsBeforeRes.data?.versions?.length ?? 0;
+
+    const aiTurnRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "aiUniworkFrameChatCompletions",
+      params: { documentID: documentId },
+      token: frameToken,
+      body: {
+        messages: [
+          {
+            role: "user",
+            content:
+              "Tính cột X (Tổng Q1+Q2), Y (Chênh lệch Q2-Q1), Z (Tỷ lệ tăng trưởng Y/Q1) cho bảng Doanh thu.",
+          },
+        ],
+      },
+      allowStatuses: [403, 503],
+    });
+
+    const versionsAfterTurnRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "listDocumentVersions",
+      params: { documentID: documentId },
+      token,
+    });
+    const versionsAfterTurn = versionsAfterTurnRes.data?.versions?.length ?? 0;
+    const docAfterTurnRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "getDocument",
+      params: { documentID: documentId },
+      token,
+    });
+    const revisionAfterTurn = docAfterTurnRes.data?.document?.revision;
+
+    if (versionsAfterTurn !== versionsBeforeTurn || revisionAfterTurn !== v1Revision) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `G6-A03 violation: AI turn created a server version or changed revision before user Save (versions ${versionsBeforeTurn} -> ${versionsAfterTurn}, revision ${v1Revision} -> ${revisionAfterTurn})`,
+        details: { versionsBeforeTurn, versionsAfterTurn, v1Revision, revisionAfterTurn },
+      };
+    }
+
+    // 4. Deterministic step: write the expected X/Y/Z columns in the workbook
+    //    and Save through the web office-frame upload + commit routes -> v2.
+    const v2Workbook = buildXlsxRevenueWithXyzBytes(repoRoot);
+    const uploadForm = new FormData();
+    uploadForm.append("file", new Blob([v2Workbook.bytes]), filename);
+    const uploadRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "uploadOfficeFrameFile",
+      params: { documentID: documentId },
+      token: frameToken,
+      form: uploadForm,
+    });
+    const uploadId = uploadRes.data?.upload_id;
+    if (!uploadId || uploadRes.data?.checksum_sha256 !== v2Workbook.sha256) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: "uploadOfficeFrameFile did not return a matching upload_id and sha256",
+        details: { upload: uploadRes.data, expectedSha256: v2Workbook.sha256 },
+      };
+    }
+
+    const commitKey = `g710-loop1-${documentId}-v2`;
+    const commitRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "commitOfficeFrameVersion",
+      params: { documentID: documentId },
+      token: frameToken,
+      headers: { "Idempotency-Key": commitKey },
+      body: { upload_id: uploadId, base_revision: v1Revision },
+    });
+    const v2Version = commitRes.data?.version?.version;
+    const v2Revision = commitRes.data?.document?.revision;
+    const v2Checksum = commitRes.data?.version?.checksum_sha256;
+    if (v2Version !== 2 || v2Checksum !== v2Workbook.sha256 || !v2Revision || v2Revision === v1Revision) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `commitOfficeFrameVersion did not produce version 2 (got version=${v2Version}, checksum=${v2Checksum})`,
+        details: { commit: commitRes.data },
+      };
+    }
+
+    const versionsAfterSaveRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "listDocumentVersions",
+      params: { documentID: documentId },
+      token,
+    });
+    const versionsAfterSave = versionsAfterSaveRes.data?.versions?.length ?? 0;
+    if (versionsAfterSave !== 2) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `expected 2 versions after web Save, got ${versionsAfterSave}`,
+        details: { versionsAfterSave },
+      };
+    }
+
+    // 5. Verify workspace change feed (G5-01b/G5-02) delivers the new v2 version.
+    const feedRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "listDocumentChanges",
+      params: { workspaceID: workspaceId },
+      query: initialCursor ? { cursor: initialCursor } : {},
+      token,
+    });
+    const feedItems = [
+      ...(Array.isArray(feedRes.data?.changes) ? feedRes.data.changes : []),
+      ...(Array.isArray(feedRes.data?.feed) ? feedRes.data.feed : []),
+    ];
+    const hitInFeed = feedItems.find(
+      (item) =>
+        item.document_id === documentId &&
+        item.version === 2 &&
+        item.checksum_sha256 === v2Workbook.sha256,
+    );
+    if (!hitInFeed) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `workspace change feed did not report document ${documentId} at version 2 (${v2Workbook.sha256})`,
+        details: { feedResponse: feedRes.data },
+      };
+    }
+
+    // 6. Classify the AI segment per contract-p0 §8.
+    const aiSegment = classifyAiResponse(aiTurnRes, v2Workbook.expectedXyz);
+    const desktopPre = checkDesktopPrecondition(portsEnv);
+    const details = {
+      loop: "1",
+      fixtureId: "fx-xlsx-revenue-xyz",
+      documentId,
+      workspaceId,
+      versionsBeforeTurn,
+      versionsAfterTurn,
+      versionsAfterSave,
+      v1Sha256: fixture.sha256,
+      v2Sha256: v2Workbook.sha256,
+      changeFeedDeliveredV2: true,
+      webSaveAndFeedSegment: {
+        status: "PASS",
+        summary: "Web frame open -> 0-version AI turn -> X/Y/Z v2 commit -> workspace change feed v2 verified",
+      },
+      aiSegment,
+      appDesktopPrecondition: desktopPre.ok ? "signed_in" : desktopPre.reason,
     };
-  }
 
-  const frameDoc = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "openOfficeFrameDocument",
-    params: { documentID: documentId },
-    token: frameToken,
-  });
-  const v1Revision = frameDoc.data?.revision;
-  const v1Version = frameDoc.data?.file?.version;
-  const v1Checksum = frameDoc.data?.file?.checksum_sha256;
-  if (v1Version !== 1 || v1Checksum !== fixture.sha256 || !v1Revision) {
+    if (aiSegment.status === "FAIL") {
+      return { exitCode: 1, status: "FAIL", reason: aiSegment.reason, details };
+    }
+    if (aiSegment.status === "BLOCKED") {
+      return {
+        exitCode: BLOCKED_EXIT,
+        status: "BLOCKED",
+        owner: UPSTREAM_BLOCKED_OWNER,
+        reason: `${UPSTREAM_BLOCKED_REASON}; deterministic web-save -> v2 -> change-feed half proven (versions ${versionsBeforeTurn}->${versionsAfterTurn} on AI turn, v2=${v2Workbook.sha256.slice(0, 12)} on Save)`,
+        details,
+      };
+    }
+    if (!desktopPre.ok) {
+      return {
+        exitCode: BLOCKED_EXIT,
+        status: "BLOCKED",
+        owner: UPSTREAM_BLOCKED_OWNER,
+        reason: desktopPre.reason,
+        details,
+      };
+    }
     return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `openOfficeFrameDocument v1 mismatch: version=${v1Version}, checksum=${v1Checksum}, expected=${fixture.sha256}`,
-      details: { v1Version, v1Checksum, expectedSha256: fixture.sha256 },
-    };
-  }
-
-  const contentRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "getOfficeFrameDocumentContent",
-    params: { documentID: documentId },
-    token: frameToken,
-    expectBinary: true,
-  });
-  if (sha256Hex(contentRes.bytes) !== fixture.sha256) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: "getOfficeFrameDocumentContent bytes did not match fx-xlsx-revenue-xyz v1 sha256",
-      details: {},
-    };
-  }
-
-  // 3. Count server versions before the AI turn, run the AI turn, and verify
-  //    G6-A03 invariant: the AI turn itself creates 0 versions and 0 uploads.
-  const versionsBeforeRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "listDocumentVersions",
-    params: { documentID: documentId },
-    token,
-  });
-  const versionsBeforeTurn = versionsBeforeRes.data?.versions?.length ?? 0;
-
-  const aiTurnRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "aiUniworkFrameChatCompletions",
-    params: { documentID: documentId },
-    token: frameToken,
-    body: {
-      messages: [
-        {
-          role: "user",
-          content:
-            "Tính cột X (Tổng Q1+Q2), Y (Chênh lệch Q2-Q1), Z (Tỷ lệ tăng trưởng Y/Q1) cho bảng Doanh thu.",
-        },
-      ],
-    },
-    allowStatuses: [403, 503],
-  });
-
-  const versionsAfterTurnRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "listDocumentVersions",
-    params: { documentID: documentId },
-    token,
-  });
-  const versionsAfterTurn = versionsAfterTurnRes.data?.versions?.length ?? 0;
-  const docAfterTurnRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "getDocument",
-    params: { documentID: documentId },
-    token,
-  });
-  const revisionAfterTurn = docAfterTurnRes.data?.document?.revision;
-
-  if (versionsAfterTurn !== versionsBeforeTurn || revisionAfterTurn !== v1Revision) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `G6-A03 violation: AI turn created a server version or changed revision before user Save (versions ${versionsBeforeTurn} -> ${versionsAfterTurn}, revision ${v1Revision} -> ${revisionAfterTurn})`,
-      details: { versionsBeforeTurn, versionsAfterTurn, v1Revision, revisionAfterTurn },
-    };
-  }
-
-  // 4. Deterministic step: write the expected X/Y/Z columns in the workbook
-  //    and Save through the web office-frame upload + commit routes -> v2.
-  const v2Workbook = buildXlsxRevenueWithXyzBytes(repoRoot);
-  const uploadForm = new FormData();
-  uploadForm.append("file", new Blob([v2Workbook.bytes]), filename);
-  const uploadRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "uploadOfficeFrameFile",
-    params: { documentID: documentId },
-    token: frameToken,
-    form: uploadForm,
-  });
-  const uploadId = uploadRes.data?.upload_id;
-  if (!uploadId || uploadRes.data?.checksum_sha256 !== v2Workbook.sha256) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: "uploadOfficeFrameFile did not return a matching upload_id and sha256",
-      details: { upload: uploadRes.data, expectedSha256: v2Workbook.sha256 },
-    };
-  }
-
-  const commitKey = `g710-loop1-${documentId}-v2`;
-  const commitRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "commitOfficeFrameVersion",
-    params: { documentID: documentId },
-    token: frameToken,
-    headers: { "Idempotency-Key": commitKey },
-    body: { upload_id: uploadId, base_revision: v1Revision },
-  });
-  const v2Version = commitRes.data?.version?.version;
-  const v2Revision = commitRes.data?.document?.revision;
-  const v2Checksum = commitRes.data?.version?.checksum_sha256;
-  if (v2Version !== 2 || v2Checksum !== v2Workbook.sha256 || !v2Revision || v2Revision === v1Revision) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `commitOfficeFrameVersion did not produce version 2 (got version=${v2Version}, checksum=${v2Checksum})`,
-      details: { commit: commitRes.data },
-    };
-  }
-
-  const versionsAfterSaveRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "listDocumentVersions",
-    params: { documentID: documentId },
-    token,
-  });
-  const versionsAfterSave = versionsAfterSaveRes.data?.versions?.length ?? 0;
-  if (versionsAfterSave !== 2) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `expected 2 versions after web Save, got ${versionsAfterSave}`,
-      details: { versionsAfterSave },
-    };
-  }
-
-  // 5. Verify workspace change feed (G5-01b/G5-02) delivers the new v2 version.
-  const feedRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "listDocumentChanges",
-    params: { workspaceID: workspaceId },
-    query: initialCursor ? { cursor: initialCursor } : {},
-    token,
-  });
-  const feedItems = [
-    ...(Array.isArray(feedRes.data?.changes) ? feedRes.data.changes : []),
-    ...(Array.isArray(feedRes.data?.feed) ? feedRes.data.feed : []),
-  ];
-  const hitInFeed = feedItems.find(
-    (item) =>
-      item.document_id === documentId &&
-      item.version === 2 &&
-      item.checksum_sha256 === v2Workbook.sha256,
-  );
-  if (!hitInFeed) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `workspace change feed did not report document ${documentId} at version 2 (${v2Workbook.sha256})`,
-      details: { feedResponse: feedRes.data },
-    };
-  }
-
-  // 6. Classify the AI segment per contract-p0 §8.
-  const aiSegment = classifyAiResponse(aiTurnRes, v2Workbook.expectedXyz);
-  const desktopPre = checkDesktopPrecondition(portsEnv);
-  const details = {
-    loop: "1",
-    fixtureId: "fx-xlsx-revenue-xyz",
-    documentId,
-    workspaceId,
-    versionsBeforeTurn,
-    versionsAfterTurn,
-    versionsAfterSave,
-    v1Sha256: fixture.sha256,
-    v2Sha256: v2Workbook.sha256,
-    changeFeedDeliveredV2: true,
-    webSaveAndFeedSegment: {
+      exitCode: 0,
       status: "PASS",
-      summary: "Web frame open -> 0-version AI turn -> X/Y/Z v2 commit -> workspace change feed v2 verified",
-    },
-    aiSegment,
-    appDesktopPrecondition: desktopPre.ok ? "signed_in" : desktopPre.reason,
-  };
-
-  if (aiSegment.status === "FAIL") {
-    return { exitCode: 1, status: "FAIL", reason: aiSegment.reason, details };
-  }
-  if (aiSegment.status === "BLOCKED") {
-    return {
-      exitCode: BLOCKED_EXIT,
-      status: "BLOCKED",
-      owner: UPSTREAM_BLOCKED_OWNER,
-      reason: `${UPSTREAM_BLOCKED_REASON}; deterministic web-save -> v2 -> change-feed half proven (versions ${versionsBeforeTurn}->${versionsAfterTurn} on AI turn, v2=${v2Workbook.sha256.slice(0, 12)} on Save)`,
+      reason: "Loop 1 passed end to end",
       details,
     };
+  } finally {
+    await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded });
   }
-  if (!desktopPre.ok) {
-    return {
-      exitCode: BLOCKED_EXIT,
-      status: "BLOCKED",
-      owner: UPSTREAM_BLOCKED_OWNER,
-      reason: desktopPre.reason,
-      details,
-    };
-  }
-  return {
-    exitCode: 0,
-    status: "PASS",
-    reason: "Loop 1 passed end to end",
-    details,
-  };
 }
 
 // ---- Loop 2: fx-docx-report-vi (AI edit turn -> 0 versions -> Save in App -> v2) ----
@@ -964,215 +991,219 @@ async function runLoop2({
     fixtureId: "fx-docx-report-vi",
     repoRoot,
   });
-  const { token, workspaceId, documentId, filename } = seeded;
-  const docxPair = buildEditedDocxFixtureBytes(repoRoot);
+  try {
+    const { token, workspaceId, documentId, filename } = seeded;
+    const docxPair = buildEditedDocxFixtureBytes(repoRoot);
 
-  // 1. Baseline check before AI turn: version count === 1, revision === v1.
-  const docBeforeRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "getDocument",
-    params: { documentID: documentId },
-    token,
-  });
-  const revisionBefore = docBeforeRes.data?.document?.revision;
-  const versionsBeforeRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "listDocumentVersions",
-    params: { documentID: documentId },
-    token,
-  });
-  const versionsBeforeTurn = versionsBeforeRes.data?.versions?.length ?? 0;
-  if (versionsBeforeTurn !== 1 || !revisionBefore) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `expected 1 version at baseline, got ${versionsBeforeTurn}`,
-      details: { versionsBeforeTurn, revisionBefore },
-    };
-  }
+    // 1. Baseline check before AI turn: version count === 1, revision === v1.
+    const docBeforeRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "getDocument",
+      params: { documentID: documentId },
+      token,
+    });
+    const revisionBefore = docBeforeRes.data?.document?.revision;
+    const versionsBeforeRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "listDocumentVersions",
+      params: { documentID: documentId },
+      token,
+    });
+    const versionsBeforeTurn = versionsBeforeRes.data?.versions?.length ?? 0;
+    if (versionsBeforeTurn !== 1 || !revisionBefore) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `expected 1 version at baseline, got ${versionsBeforeTurn}`,
+        details: { versionsBeforeTurn, revisionBefore },
+      };
+    }
 
-  // 2. Call the desktop app's document-scoped UniWork AI endpoint.
-  const aiTurnRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "aiUniworkDocumentChatCompletions",
-    params: { documentID: documentId },
-    token,
-    body: {
-      messages: [
-        {
-          role: "user",
-          content:
-            "Bổ sung mục 3 Kết luận cho Báo cáo tiến độ quý III bằng tiếng Việt.",
-        },
-      ],
-    },
-    allowStatuses: [403, 503],
-  });
-
-  // 3. G6-A03 early evidence: verify the AI turn created 0 server versions,
-  //    did not advance document.revision, and created no commit intent.
-  const versionsAfterTurnRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "listDocumentVersions",
-    params: { documentID: documentId },
-    token,
-  });
-  const versionsAfterTurn = versionsAfterTurnRes.data?.versions?.length ?? 0;
-  const docAfterTurnRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "getDocument",
-    params: { documentID: documentId },
-    token,
-  });
-  const revisionAfterTurn = docAfterTurnRes.data?.document?.revision;
-
-  const commitKey = `g710-loop2-${documentId}-v2`;
-  const intentBeforeSave = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "lookupCommitIntent",
-    params: { documentID: documentId },
-    token,
-    headers: { "Idempotency-Key": commitKey },
-  });
-
-  if (
-    versionsAfterTurn !== 1 ||
-    revisionAfterTurn !== revisionBefore ||
-    intentBeforeSave.data?.outcome !== "not_committed"
-  ) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `G6-A03 violation: AI turn created a version or save intent before explicit Save (versions=${versionsAfterTurn}, revision=${revisionAfterTurn}, intent=${intentBeforeSave.data?.outcome})`,
-      details: {
-        versionsBeforeTurn,
-        versionsAfterTurn,
-        revisionBefore,
-        revisionAfterTurn,
-        intentBeforeSave: intentBeforeSave.data,
+    // 2. Call the desktop app's document-scoped UniWork AI endpoint.
+    const aiTurnRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "aiUniworkDocumentChatCompletions",
+      params: { documentID: documentId },
+      token,
+      body: {
+        messages: [
+          {
+            role: "user",
+            content:
+              "Bổ sung mục 3 Kết luận cho Báo cáo tiến độ quý III bằng tiếng Việt.",
+          },
+        ],
       },
-    };
-  }
+      allowStatuses: [403, 503],
+    });
 
-  // 4. Drive explicit Save of the edited DOCX through the app's 2-step upload +
-  //    idempotent commit flow (`POST /documents/{id}/uploads` + `POST /documents/{id}/versions/commit`).
-  const uploadForm = new FormData();
-  uploadForm.append("file", new Blob([docxPair.v2Bytes]), filename);
-  const uploadRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "uploadDocumentFile",
-    params: { documentID: documentId },
-    token,
-    form: uploadForm,
-  });
-  const uploadId = uploadRes.data?.upload_id;
-  if (!uploadId || uploadRes.data?.checksum_sha256 !== docxPair.v2Sha256) {
+    // 3. G6-A03 early evidence: verify the AI turn created 0 server versions,
+    //    did not advance document.revision, and created no commit intent.
+    const versionsAfterTurnRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "listDocumentVersions",
+      params: { documentID: documentId },
+      token,
+    });
+    const versionsAfterTurn = versionsAfterTurnRes.data?.versions?.length ?? 0;
+    const docAfterTurnRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "getDocument",
+      params: { documentID: documentId },
+      token,
+    });
+    const revisionAfterTurn = docAfterTurnRes.data?.document?.revision;
+
+    const commitKey = `g710-loop2-${documentId}-v2`;
+    const intentBeforeSave = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "lookupCommitIntent",
+      params: { documentID: documentId },
+      token,
+      headers: { "Idempotency-Key": commitKey },
+    });
+
+    if (
+      versionsAfterTurn !== 1 ||
+      revisionAfterTurn !== revisionBefore ||
+      intentBeforeSave.data?.outcome !== "not_committed"
+    ) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `G6-A03 violation: AI turn created a version or save intent before explicit Save (versions=${versionsAfterTurn}, revision=${revisionAfterTurn}, intent=${intentBeforeSave.data?.outcome})`,
+        details: {
+          versionsBeforeTurn,
+          versionsAfterTurn,
+          revisionBefore,
+          revisionAfterTurn,
+          intentBeforeSave: intentBeforeSave.data,
+        },
+      };
+    }
+
+    // 4. Drive explicit Save of the edited DOCX through the app's 2-step upload +
+    //    idempotent commit flow (`POST /documents/{id}/uploads` + `POST /documents/{id}/versions/commit`).
+    const uploadForm = new FormData();
+    uploadForm.append("file", new Blob([docxPair.v2Bytes]), filename);
+    const uploadRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "uploadDocumentFile",
+      params: { documentID: documentId },
+      token,
+      form: uploadForm,
+    });
+    const uploadId = uploadRes.data?.upload_id;
+    if (!uploadId || uploadRes.data?.checksum_sha256 !== docxPair.v2Sha256) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: "uploadDocumentFile failed or returned wrong sha256",
+        details: { upload: uploadRes.data, expectedSha256: docxPair.v2Sha256 },
+      };
+    }
+
+    const commitRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "commitDocumentVersion",
+      params: { documentID: documentId },
+      token,
+      headers: { "Idempotency-Key": commitKey },
+      body: { upload_id: uploadId, base_revision: revisionBefore },
+    });
+    const v2Version = commitRes.data?.version?.version;
+    const v2Revision = commitRes.data?.document?.revision;
+    if (v2Version !== 2 || !v2Revision || v2Revision === revisionBefore) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `commitDocumentVersion did not create version 2 (got version=${v2Version})`,
+        details: { commit: commitRes.data },
+      };
+    }
+
+    const versionsAfterSaveRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "listDocumentVersions",
+      params: { documentID: documentId },
+      token,
+    });
+    const versionsAfterSave = versionsAfterSaveRes.data?.versions?.length ?? 0;
+    const intentAfterSave = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "lookupCommitIntent",
+      params: { documentID: documentId },
+      token,
+      headers: { "Idempotency-Key": commitKey },
+    });
+
+    if (versionsAfterSave !== 2 || intentAfterSave.data?.outcome !== "committed") {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `expected versionsAfterSave=2 and outcome=committed, got versions=${versionsAfterSave}, outcome=${intentAfterSave.data?.outcome}`,
+        details: { versionsAfterSave, intentAfterSave: intentAfterSave.data },
+      };
+    }
+
+    const aiEditQualitySegment = classifyAiResponse(aiTurnRes);
+    const desktopPre = checkDesktopPrecondition(portsEnv);
+    const details = {
+      loop: "2",
+      fixtureId: "fx-docx-report-vi",
+      documentId,
+      workspaceId,
+      versionsBeforeTurn,
+      versionsAfterTurn,
+      versionsAfterSave,
+      commitIntentOutcome: intentAfterSave.data.outcome,
+      v1Sha256: docxPair.v1Sha256,
+      v2Sha256: docxPair.v2Sha256,
+      noAutoSaveSegment: {
+        status: "PASS",
+        summary: "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save created version 2",
+      },
+      aiEditQualitySegment,
+      appDesktopPrecondition: desktopPre.ok ? "signed_in" : desktopPre.reason,
+    };
+
+    if (aiEditQualitySegment.status === "BLOCKED") {
+      return {
+        exitCode: BLOCKED_EXIT,
+        status: "BLOCKED",
+        owner: UPSTREAM_BLOCKED_OWNER,
+        reason: `${UPSTREAM_BLOCKED_REASON}; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) and explicit Save -> v2 (versionsAfterSave=2) proven`,
+        details,
+      };
+    }
+    if (!desktopPre.ok) {
+      return {
+        exitCode: BLOCKED_EXIT,
+        status: "BLOCKED",
+        owner: UPSTREAM_BLOCKED_OWNER,
+        reason: desktopPre.reason,
+        details,
+      };
+    }
     return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: "uploadDocumentFile failed or returned wrong sha256",
-      details: { upload: uploadRes.data, expectedSha256: docxPair.v2Sha256 },
-    };
-  }
-
-  const commitRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "commitDocumentVersion",
-    params: { documentID: documentId },
-    token,
-    headers: { "Idempotency-Key": commitKey },
-    body: { upload_id: uploadId, base_revision: revisionBefore },
-  });
-  const v2Version = commitRes.data?.version?.version;
-  const v2Revision = commitRes.data?.document?.revision;
-  if (v2Version !== 2 || !v2Revision || v2Revision === revisionBefore) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `commitDocumentVersion did not create version 2 (got version=${v2Version})`,
-      details: { commit: commitRes.data },
-    };
-  }
-
-  const versionsAfterSaveRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "listDocumentVersions",
-    params: { documentID: documentId },
-    token,
-  });
-  const versionsAfterSave = versionsAfterSaveRes.data?.versions?.length ?? 0;
-  const intentAfterSave = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "lookupCommitIntent",
-    params: { documentID: documentId },
-    token,
-    headers: { "Idempotency-Key": commitKey },
-  });
-
-  if (versionsAfterSave !== 2 || intentAfterSave.data?.outcome !== "committed") {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `expected versionsAfterSave=2 and outcome=committed, got versions=${versionsAfterSave}, outcome=${intentAfterSave.data?.outcome}`,
-      details: { versionsAfterSave, intentAfterSave: intentAfterSave.data },
-    };
-  }
-
-  const aiEditQualitySegment = classifyAiResponse(aiTurnRes);
-  const desktopPre = checkDesktopPrecondition(portsEnv);
-  const details = {
-    loop: "2",
-    fixtureId: "fx-docx-report-vi",
-    documentId,
-    workspaceId,
-    versionsBeforeTurn,
-    versionsAfterTurn,
-    versionsAfterSave,
-    commitIntentOutcome: intentAfterSave.data.outcome,
-    v1Sha256: docxPair.v1Sha256,
-    v2Sha256: docxPair.v2Sha256,
-    noAutoSaveSegment: {
+      exitCode: 0,
       status: "PASS",
-      summary: "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save created version 2",
-    },
-    aiEditQualitySegment,
-    appDesktopPrecondition: desktopPre.ok ? "signed_in" : desktopPre.reason,
-  };
-
-  if (aiEditQualitySegment.status === "BLOCKED") {
-    return {
-      exitCode: BLOCKED_EXIT,
-      status: "BLOCKED",
-      owner: UPSTREAM_BLOCKED_OWNER,
-      reason: `${UPSTREAM_BLOCKED_REASON}; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) and explicit Save -> v2 (versionsAfterSave=2) proven`,
+      reason: "Loop 2 passed end to end",
       details,
     };
+  } finally {
+    await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded });
   }
-  if (!desktopPre.ok) {
-    return {
-      exitCode: BLOCKED_EXIT,
-      status: "BLOCKED",
-      owner: UPSTREAM_BLOCKED_OWNER,
-      reason: desktopPre.reason,
-      details,
-    };
-  }
-  return {
-    exitCode: 0,
-    status: "PASS",
-    reason: "Loop 2 passed end to end",
-    details,
-  };
 }
 
 // ---- Loop 3: fx-docx-report-vi (Offline Save in App -> Reconnect -> Receipt) ----
@@ -1195,261 +1226,265 @@ async function runLoop3({
     fixtureId: "fx-docx-report-vi",
     repoRoot,
   });
-  const { token, userId, workspaceId, documentId, filename } = seeded;
-  const docxPair = buildEditedDocxFixtureBytes(repoRoot);
+  try {
+    const { token, userId, workspaceId, documentId, filename } = seeded;
+    const docxPair = buildEditedDocxFixtureBytes(repoRoot);
 
-  // 1. Server-side G5-06 queue/reconcile protocol proof:
-  //    - While offline (before dispatch), lookupCommitIntent with the queued
-  //      Idempotency-Key reports `not_committed`.
-  //    - On reconnect, the queued upload + commit with that Idempotency-Key
-  //      creates v2 and returns the receipt (`version_id`, `version: 2`, `revision`).
-  //    - A reconnect reconciliation lookup AND a duplicate retry with the same
-  //      Idempotency-Key return the exact same v2 receipt without creating v3.
-  const docBefore = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "getDocument",
-    params: { documentID: documentId },
-    token,
-  });
-  const v1Revision = docBefore.data?.document?.revision;
-  const offlineIntentKey = `g710-loop3-offline-${documentId}`;
+    // 1. Server-side G5-06 queue/reconcile protocol proof:
+    //    - While offline (before dispatch), lookupCommitIntent with the queued
+    //      Idempotency-Key reports `not_committed`.
+    //    - On reconnect, the queued upload + commit with that Idempotency-Key
+    //      creates v2 and returns the receipt (`version_id`, `version: 2`, `revision`).
+    //    - A reconnect reconciliation lookup AND a duplicate retry with the same
+    //      Idempotency-Key return the exact same v2 receipt without creating v3.
+    const docBefore = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "getDocument",
+      params: { documentID: documentId },
+      token,
+    });
+    const v1Revision = docBefore.data?.document?.revision;
+    const offlineIntentKey = `g710-loop3-offline-${documentId}`;
 
-  const lookupWhileOffline = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "lookupCommitIntent",
-    params: { documentID: documentId },
-    token,
-    headers: { "Idempotency-Key": offlineIntentKey },
-  });
-  if (lookupWhileOffline.data?.outcome !== "not_committed") {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `expected lookupCommitIntent before reconnect to be not_committed, got ${lookupWhileOffline.data?.outcome}`,
-      details: { lookupWhileOffline: lookupWhileOffline.data },
-    };
-  }
-
-  const uploadForm = new FormData();
-  uploadForm.append("file", new Blob([docxPair.v2Bytes]), filename);
-  const uploadRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "uploadDocumentFile",
-    params: { documentID: documentId },
-    token,
-    form: uploadForm,
-  });
-  const uploadId = uploadRes.data?.upload_id;
-
-  const commitRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "commitDocumentVersion",
-    params: { documentID: documentId },
-    token,
-    headers: { "Idempotency-Key": offlineIntentKey },
-    body: { upload_id: uploadId, base_revision: v1Revision },
-  });
-  const v2VersionId = commitRes.data?.version?.id;
-  const v2Version = commitRes.data?.version?.version;
-  const v2Revision = commitRes.data?.document?.revision;
-
-  const lookupAfterReconnect = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "lookupCommitIntent",
-    params: { documentID: documentId },
-    token,
-    headers: { "Idempotency-Key": offlineIntentKey },
-  });
-
-  const retryCommitRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "commitDocumentVersion",
-    params: { documentID: documentId },
-    token,
-    headers: { "Idempotency-Key": offlineIntentKey },
-    body: { upload_id: uploadId, base_revision: v1Revision },
-  });
-
-  const versionsAfterRetryRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "listDocumentVersions",
-    params: { documentID: documentId },
-    token,
-  });
-  const versionsAfterIdempotentRetry = versionsAfterRetryRes.data?.versions?.length ?? 0;
-
-  if (
-    v2Version !== 2 ||
-    lookupAfterReconnect.data?.outcome !== "committed" ||
-    lookupAfterReconnect.data?.version !== 2 ||
-    lookupAfterReconnect.data?.version_id !== v2VersionId ||
-    retryCommitRes.data?.version?.id !== v2VersionId ||
-    versionsAfterIdempotentRetry !== 2
-  ) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `G5-06 offline reconnect receipt reconciliation failed (v2Version=${v2Version}, outcome=${lookupAfterReconnect.data?.outcome}, versionsAfterRetry=${versionsAfterIdempotentRetry})`,
-      details: {
-        commit: commitRes.data,
-        lookupAfterReconnect: lookupAfterReconnect.data,
-        versionsAfterIdempotentRetry,
-      },
-    };
-  }
-
-  const serverReceiptSegment = {
-    status: "PASS",
-    versionId: v2VersionId,
-    version: v2Version,
-    revision: v2Revision,
-    versionsAfterIdempotentRetry,
-  };
-
-  // 2. Desktop app working-copy & receipt check (`binding.json`).
-  const desktopPre = checkDesktopPrecondition(portsEnv);
-  if (!desktopPre.ok) {
-    return {
-      exitCode: BLOCKED_EXIT,
-      status: "BLOCKED",
-      owner: UPSTREAM_BLOCKED_OWNER,
-      reason: `${desktopPre.reason}; server-side G5-06 offline intent commit + idempotent receipt reconciliation (v2=${v2VersionId}) proven`,
-      details: {
-        loop: "3",
-        fixtureId: "fx-docx-report-vi",
-        documentId,
-        workspaceId,
-        serverReceiptSegment,
-        appReceiptSegment: { status: "BLOCKED", reason: desktopPre.reason },
-      },
-    };
-  }
-
-  const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
-  const launchRes = await callTracerApi({
-    apiOrigin,
-    fetchImpl,
-    name: "mintLaunch",
-    params: { documentID: documentId },
-    token,
-    body: {
-      operation: "open",
-      deployment_id: deploymentId,
-      client_id: DEV_CLIENT_ID,
-      return_hint: "",
-    },
-  });
-  const ticket = launchRes.data?.ticket ?? launchRes.data?.launch_ticket ?? "";
-  if (!ticket) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: "mintLaunch returned an empty ticket",
-      details: { serverReceiptSegment },
-    };
-  }
-
-  const deepLink = officeDeepLink(DEV_CLIENT_ID, ticket);
-  if (typeof spawnAppHook === "function") {
-    await spawnAppHook({ deepLink, documentId, userId });
-  } else {
-    const childEnv = handoffEnv(portsEnv);
-    const handoff = spawnSync(
-      portsEnv.ELECTRON_BIN,
-      ["--no-sandbox", "--disable-gpu", "--password-store=gnome-libsecret", portsEnv.SHELL_APP_DIR, deepLink],
-      { env: childEnv, timeout: 20_000, encoding: "utf8" },
-    );
-    if (handoff.error || handoff.status !== 0) {
+    const lookupWhileOffline = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "lookupCommitIntent",
+      params: { documentID: documentId },
+      token,
+      headers: { "Idempotency-Key": offlineIntentKey },
+    });
+    if (lookupWhileOffline.data?.outcome !== "not_committed") {
       return {
         exitCode: 1,
         status: "FAIL",
-        reason: `second Electron instance failed handing off deep link (status=${handoff.status})`,
+        reason: `expected lookupCommitIntent before reconnect to be not_committed, got ${lookupWhileOffline.data?.outcome}`,
+        details: { lookupWhileOffline: lookupWhileOffline.data },
+      };
+    }
+
+    const uploadForm = new FormData();
+    uploadForm.append("file", new Blob([docxPair.v2Bytes]), filename);
+    const uploadRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "uploadDocumentFile",
+      params: { documentID: documentId },
+      token,
+      form: uploadForm,
+    });
+    const uploadId = uploadRes.data?.upload_id;
+
+    const commitRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "commitDocumentVersion",
+      params: { documentID: documentId },
+      token,
+      headers: { "Idempotency-Key": offlineIntentKey },
+      body: { upload_id: uploadId, base_revision: v1Revision },
+    });
+    const v2VersionId = commitRes.data?.version?.id;
+    const v2Version = commitRes.data?.version?.version;
+    const v2Revision = commitRes.data?.document?.revision;
+
+    const lookupAfterReconnect = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "lookupCommitIntent",
+      params: { documentID: documentId },
+      token,
+      headers: { "Idempotency-Key": offlineIntentKey },
+    });
+
+    const retryCommitRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "commitDocumentVersion",
+      params: { documentID: documentId },
+      token,
+      headers: { "Idempotency-Key": offlineIntentKey },
+      body: { upload_id: uploadId, base_revision: v1Revision },
+    });
+
+    const versionsAfterRetryRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "listDocumentVersions",
+      params: { documentID: documentId },
+      token,
+    });
+    const versionsAfterIdempotentRetry = versionsAfterRetryRes.data?.versions?.length ?? 0;
+
+    if (
+      v2Version !== 2 ||
+      lookupAfterReconnect.data?.outcome !== "committed" ||
+      lookupAfterReconnect.data?.version !== 2 ||
+      lookupAfterReconnect.data?.version_id !== v2VersionId ||
+      retryCommitRes.data?.version?.id !== v2VersionId ||
+      versionsAfterIdempotentRetry !== 2
+    ) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `G5-06 offline reconnect receipt reconciliation failed (v2Version=${v2Version}, outcome=${lookupAfterReconnect.data?.outcome}, versionsAfterRetry=${versionsAfterIdempotentRetry})`,
+        details: {
+          commit: commitRes.data,
+          lookupAfterReconnect: lookupAfterReconnect.data,
+          versionsAfterIdempotentRetry,
+        },
+      };
+    }
+
+    const serverReceiptSegment = {
+      status: "PASS",
+      versionId: v2VersionId,
+      version: v2Version,
+      revision: v2Revision,
+      versionsAfterIdempotentRetry,
+    };
+
+    // 2. Desktop app working-copy & receipt check (`binding.json`).
+    const desktopPre = checkDesktopPrecondition(portsEnv);
+    if (!desktopPre.ok) {
+      return {
+        exitCode: BLOCKED_EXIT,
+        status: "BLOCKED",
+        owner: UPSTREAM_BLOCKED_OWNER,
+        reason: `${desktopPre.reason}; server-side G5-06 offline intent commit + idempotent receipt reconciliation (v2=${v2VersionId}) proven`,
+        details: {
+          loop: "3",
+          fixtureId: "fx-docx-report-vi",
+          documentId,
+          workspaceId,
+          serverReceiptSegment,
+          appReceiptSegment: { status: "BLOCKED", reason: desktopPre.reason },
+        },
+      };
+    }
+
+    const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
+    const launchRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "mintLaunch",
+      params: { documentID: documentId },
+      token,
+      body: {
+        operation: "open",
+        deployment_id: deploymentId,
+        client_id: DEV_CLIENT_ID,
+        return_hint: "",
+      },
+    });
+    const ticket = launchRes.data?.ticket ?? launchRes.data?.launch_ticket ?? "";
+    if (!ticket) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: "mintLaunch returned an empty ticket",
         details: { serverReceiptSegment },
       };
     }
-  }
 
-  const deadline = Date.now() + (spawnAppHook ? 1_000 : timeoutMs);
-  let inspection = inspectWorkingCopy({
-    userDataDir: portsEnv.UNIWORK_USER_DATA,
-    deploymentId,
-    documentId,
-    expectedUserId: userId,
-    expectedSha256: docxPair.v2Sha256,
-  });
+    const deepLink = officeDeepLink(DEV_CLIENT_ID, ticket);
+    if (typeof spawnAppHook === "function") {
+      await spawnAppHook({ deepLink, documentId, userId });
+    } else {
+      const childEnv = handoffEnv(portsEnv);
+      const handoff = spawnSync(
+        portsEnv.ELECTRON_BIN,
+        ["--no-sandbox", "--disable-gpu", "--password-store=gnome-libsecret", portsEnv.SHELL_APP_DIR, deepLink],
+        { env: childEnv, timeout: 20_000, encoding: "utf8" },
+      );
+      if (handoff.error || handoff.status !== 0) {
+        return {
+          exitCode: 1,
+          status: "FAIL",
+          reason: `second Electron instance failed handing off deep link (status=${handoff.status})`,
+          details: { serverReceiptSegment },
+        };
+      }
+    }
 
-  while (Date.now() < deadline) {
-    if (
-      inspection.bindingPresent &&
-      inspection.filePresent &&
-      inspection.sha256Match &&
-      inspection.bindingState === "saved" &&
-      Number(inspection.binding?.baseVersion ?? 0) >= 2
-    ) {
-      break;
-    }
-    if (inspection.bindingState === "error" || inspection.bindingState === "conflict") {
-      break;
-    }
-    await sleep(250);
-    inspection = inspectWorkingCopy({
+    const deadline = Date.now() + (spawnAppHook ? 1_000 : timeoutMs);
+    let inspection = inspectWorkingCopy({
       userDataDir: portsEnv.UNIWORK_USER_DATA,
       deploymentId,
       documentId,
       expectedUserId: userId,
       expectedSha256: docxPair.v2Sha256,
     });
-  }
 
-  if (
-    !inspection.bindingPresent ||
-    !inspection.filePresent ||
-    !inspection.sha256Match ||
-    inspection.bindingState !== "saved" ||
-    Number(inspection.binding?.baseVersion ?? 0) < 2
-  ) {
+    while (Date.now() < deadline) {
+      if (
+        inspection.bindingPresent &&
+        inspection.filePresent &&
+        inspection.sha256Match &&
+        inspection.bindingState === "saved" &&
+        Number(inspection.binding?.baseVersion ?? 0) >= 2
+      ) {
+        break;
+      }
+      if (inspection.bindingState === "error" || inspection.bindingState === "conflict") {
+        break;
+      }
+      await sleep(250);
+      inspection = inspectWorkingCopy({
+        userDataDir: portsEnv.UNIWORK_USER_DATA,
+        deploymentId,
+        documentId,
+        expectedUserId: userId,
+        expectedSha256: docxPair.v2Sha256,
+      });
+    }
+
+    if (
+      !inspection.bindingPresent ||
+      !inspection.filePresent ||
+      !inspection.sha256Match ||
+      inspection.bindingState !== "saved" ||
+      Number(inspection.binding?.baseVersion ?? 0) < 2
+    ) {
+      return {
+        exitCode: 1,
+        status: "FAIL",
+        reason: `binding.json did not settle to saved v2 receipt (state=${inspection.bindingState}, error=${inspection.bindingError ?? "none"}, baseVersion=${inspection.binding?.baseVersion ?? "none"})`,
+        details: {
+          serverReceiptSegment,
+          appReceiptSegment: {
+            status: "FAIL",
+            bindingState: inspection.bindingState,
+            bindingError: inspection.bindingError,
+            baseVersion: inspection.binding?.baseVersion ?? null,
+          },
+        },
+      };
+    }
+
     return {
-      exitCode: 1,
-      status: "FAIL",
-      reason: `binding.json did not settle to saved v2 receipt (state=${inspection.bindingState}, error=${inspection.bindingError ?? "none"}, baseVersion=${inspection.binding?.baseVersion ?? "none"})`,
+      exitCode: 0,
+      status: "PASS",
+      reason: `Loop 3 passed: v2 receipt (${v2VersionId}) settled in binding.json`,
       details: {
+        loop: "3",
+        fixtureId: "fx-docx-report-vi",
+        documentId,
+        workspaceId,
         serverReceiptSegment,
         appReceiptSegment: {
-          status: "FAIL",
-          bindingState: inspection.bindingState,
-          bindingError: inspection.bindingError,
-          baseVersion: inspection.binding?.baseVersion ?? null,
+          status: "PASS",
+          baseVersion: inspection.binding?.baseVersion,
+          baseRevision: inspection.binding?.baseRevision,
+          baseVersionId: inspection.binding?.baseVersionId ?? v2VersionId,
+          baseChecksum: inspection.binding?.baseChecksum,
         },
       },
     };
+  } finally {
+    await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded });
   }
-
-  return {
-    exitCode: 0,
-    status: "PASS",
-    reason: `Loop 3 passed: v2 receipt (${v2VersionId}) settled in binding.json`,
-    details: {
-      loop: "3",
-      fixtureId: "fx-docx-report-vi",
-      documentId,
-      workspaceId,
-      serverReceiptSegment,
-      appReceiptSegment: {
-        status: "PASS",
-        baseVersion: inspection.binding?.baseVersion,
-        baseRevision: inspection.binding?.baseRevision,
-        baseVersionId: inspection.binding?.baseVersionId ?? v2VersionId,
-        baseChecksum: inspection.binding?.baseChecksum,
-      },
-    },
-  };
 }
 
 // ---- Entrypoint & Loop Router ------------------------------------------------
@@ -1568,6 +1603,7 @@ export async function runTracerLoop({
 }
 
 async function main() {
+  const startedAt = new Date().toISOString();
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     console.log(
@@ -1575,17 +1611,21 @@ async function main() {
     );
     return;
   }
+  const defaultReq = args.loop === "3" ? "G5-A05" : args.loop === "2" ? "G6-A03" : "G5-A03";
+  const defaultFixture = args.loop === "1" ? "fx-xlsx-revenue-xyz" : "fx-docx-report-vi";
+  const reqId = process.env.OFFICE_EVIDENCE_REQ || defaultReq;
+  const fixId = process.env.OFFICE_EVIDENCE_FIXTURE || defaultFixture;
+  const command = `node scripts/office/g5g6g7/g7-10/tracer.mjs --loop ${args.loop} --run-dir ${args.runDir}`;
+
   const startedGate = startGate(readStartStatus(args.runDir));
   if (startedGate.gate !== "proceed") {
-    const reqId = process.env.OFFICE_EVIDENCE_REQ || (args.loop === "3" ? "G5-A05" : args.loop === "2" ? "G6-A03" : "G5-A03");
-    const fixId = process.env.OFFICE_EVIDENCE_FIXTURE || (args.loop === "1" ? "fx-xlsx-revenue-xyz" : "fx-docx-report-vi");
     const exitCode = await concludeAtStartGate(startedGate, {
       runDir: args.runDir,
       requirementId: reqId,
       fixtureId: fixId,
-      command: `node scripts/office/g5g6g7/g7-10/tracer.mjs --loop ${args.loop} --run-dir ${args.runDir}`,
+      command,
       checker: "harness:g7-10/tracer.mjs",
-      startedAt: new Date().toISOString(),
+      startedAt,
       argv: [...process.argv],
     });
     process.exit(exitCode);
@@ -1595,6 +1635,37 @@ async function main() {
     runDir: args.runDir,
     timeoutMs: args.timeoutMs,
   });
+
+  mkdirSync(args.runDir, { recursive: true });
+  const artifactPath = join(args.runDir, `tracer-loop-${args.loop}.json`);
+  appendFileSync(artifactPath, `${JSON.stringify(res, null, 2)}\n`);
+
+  if (!process.env.OFFICE_EVIDENCE_ID) {
+    const paths = harnessPaths(args.runDir);
+    const portsText = existsSync(paths.envFile) ? readFileSync(paths.envFile, "utf8") : "";
+    const forkSha = process.env.OFFICE_FORK_SHA || parseEnvFile(portsText).OFFICE_FORK_SHA || "";
+    const line = evidenceLine({
+      evidenceId: harnessEvidenceId(reqId),
+      ...(await ledgerIdentity()),
+      requirementId: reqId,
+      fixtureId: fixId,
+      fixtureSha256: await fixtureSha256Of(fixId),
+      fSha: forkSha,
+      platform: `${process.platform}-${process.arch}`,
+      build: `node ${process.versions.node}`,
+      command,
+      argv: [...process.argv],
+      exitCode: res.exitCode,
+      result: res.status,
+      artifact: artifactPath,
+      checker: "harness:g7-10/tracer.mjs",
+      blocker: res.status === "BLOCKED" ? res.reason : "",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+    });
+    appendFileSync(paths.evidenceFile, `${JSON.stringify(line)}\n`);
+  }
+
   console.log(JSON.stringify(res, null, 2));
   if (res.status === "BLOCKED") {
     console.error(`BLOCKED: ${res.reason}`);
