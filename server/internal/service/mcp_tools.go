@@ -223,8 +223,32 @@ func (s *McpToolService) Search(ctx context.Context, p McpPrincipal, workspaceID
 	return out, nil
 }
 
-func (s *McpToolService) GetTask(ctx context.Context, p McpPrincipal, workspaceID, taskID string) (McpItem, error) {
-	return s.one(ctx, p, workspaceID, taskID, "task_id", s.ask.taskContext)
+func (s *McpToolService) GetTask(ctx context.Context, p McpPrincipal, workspaceID, taskRef string) (McpTask, error) {
+	if err := s.inGrant(ctx, p, workspaceID); err != nil {
+		return McpTask{}, err
+	}
+	t, err := s.task(ctx, p, workspaceID, taskRef)
+	if err != nil {
+		return McpTask{}, err
+	}
+	item, err := s.one(ctx, p, workspaceID, t.ID, "task_id", s.ask.taskContext)
+	if err != nil {
+		return McpTask{}, err
+	}
+	base, err := s.ask.base(ctx, workspaceID)
+	if err != nil {
+		return McpTask{}, err
+	}
+	out := s.taskOf(base, t)
+	// The item carries the full excerpt, with comments; the status and due
+	// date come from the row, which the excerpt reader does not set.
+	status, due := out.Status, out.DueDate
+	out.McpItem = item
+	out.Status, out.DueDate = status, due
+	if out.Labels, err = s.labelsOf(ctx, p, t.ID); err != nil {
+		return McpTask{}, hidden(err)
+	}
+	return out, nil
 }
 
 func (s *McpToolService) GetMeeting(ctx context.Context, p McpPrincipal, workspaceID, meetingID string) (McpItem, error) {
@@ -322,7 +346,7 @@ func McpTools(s *McpToolService) ai.Registry {
 				return json.Marshal(out)
 			}}
 	}
-	return ai.Registry{
+	r := ai.Registry{
 		tool("list_workspaces", "List workspaces", "Workspaces the user belongs to in the connected UniWork organization.", mcpSchemaNone, nil,
 			func(ctx context.Context, p McpPrincipal, _ mcpArgs) (any, error) { return s.ListWorkspaces(ctx, p) }),
 		tool("my_work", "My work", "Open tasks assigned to the user, most urgent first (overdue, due today, later, then undated), and the user's meetings in progress or starting today or tomorrow, with links.", mcpSchemaMyWork, []string{"workspace_id"},
@@ -333,7 +357,7 @@ func McpTools(s *McpToolService) ai.Registry {
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.Search(ctx, p, a.WorkspaceID, a.Query)
 			}),
-		tool("get_task", "Get task", "One task with its comments.", mcpSchemaTask, []string{"workspace_id", "task_id"},
+		tool("get_task", "Get task", "One task with its comments, labels and revision. task_id is the id or the PREFIX-N reference.", mcpSchemaTask, []string{"workspace_id", "task_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetTask(ctx, p, a.WorkspaceID, a.TaskID)
 			}),
@@ -342,4 +366,5 @@ func McpTools(s *McpToolService) ai.Registry {
 				return s.GetMeeting(ctx, p, a.WorkspaceID, a.MeetingID)
 			}),
 	}
+	return append(r, mcpTaskTools(s)...)
 }

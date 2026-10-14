@@ -29,6 +29,9 @@ var mcpToolCatalogue = []mcpCatalogueEntry{
 	{"search", "Search UniWork", ai.ToolRead, false},
 	{"get_task", "Get task", ai.ToolRead, false},
 	{"get_meeting", "Get meeting", ai.ToolRead, false},
+	{"list_members", "List members", ai.ToolRead, false},
+	{"task_options", "Task options", ai.ToolRead, false},
+	{"list_tasks", "List tasks", ai.ToolRead, false},
 }
 
 func TestMCPToolCatalogue(t *testing.T) {
@@ -86,12 +89,16 @@ func TestMCPWriteToolsDeclareUndo(t *testing.T) {
 // TestMCPReadToolsDoNotMutate fails for a read tool missing here.
 func mcpReadInputs(x *mcpToolWorld) map[string]string {
 	ws := x.w.ID
+	wsArg := `{"workspace_id":"` + ws + `"}`
 	return map[string]string{
 		"list_workspaces": `{}`,
 		"my_work":         `{}`,
 		"search":          `{"workspace_id":"` + ws + `","query":"báo cáo"}`,
 		"get_task":        `{"workspace_id":"` + ws + `","task_id":"` + x.taskID + `"}`,
 		"get_meeting":     `{"workspace_id":"` + ws + `","meeting_id":"` + x.meetingID + `"}`,
+		"list_members":    wsArg,
+		"task_options":    wsArg,
+		"list_tasks":      wsArg,
 	}
 }
 
@@ -775,6 +782,16 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	itemKeys := map[string]bool{"kind": true, "id": true, "workspace_id": true, "title": true, "excerpt": true, "url": true, "status": true, "due_date": true, "starts_at": true}
+	with := func(extra ...string) map[string]bool {
+		out := map[string]bool{}
+		for k := range itemKeys {
+			out[k] = true
+		}
+		for _, k := range extra {
+			out[k] = true
+		}
+		return out
+	}
 	check := func(name string, raw json.RawMessage, err error, allowed map[string]bool) {
 		t.Helper()
 		if err != nil {
@@ -806,8 +823,13 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 	check("list_workspaces", raw, err, map[string]bool{"id": true, "name": true, "url": true})
 	raw, err = callMcpTool(t, x.tools, x.p, "search", `{"workspace_id":"`+x.w.ID+`","query":"báo cáo kế hoạch"}`)
 	check("search", raw, err, itemKeys)
+	taskKeys := with("revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels")
 	raw, err = callMcpTool(t, x.tools, x.p, "get_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`"}`)
-	check("get_task", raw, err, itemKeys)
+	check("get_task", raw, err, taskKeys)
+	raw, err = callMcpTool(t, x.tools, x.p, "list_tasks", `{"workspace_id":"`+x.w.ID+`"}`)
+	check("list_tasks", raw, err, taskKeys)
+	raw, err = callMcpTool(t, x.tools, x.p, "list_members", `{"workspace_id":"`+x.w.ID+`"}`)
+	check("list_members", raw, err, map[string]bool{"user_id": true, "name": true, "role": true})
 	raw, err = callMcpTool(t, x.tools, x.p, "get_meeting", `{"workspace_id":"`+x.w.ID+`","meeting_id":"`+m.ID+`"}`)
 	check("get_meeting", raw, err, itemKeys)
 	raw, err = callMcpTool(t, x.tools, x.p, "my_work", `{}`)
@@ -1005,11 +1027,11 @@ func TestMcpExcerptsAreCapped(t *testing.T) {
 	if !strings.Contains(item.Excerpt, "Bình luận:") || strings.Count(item.Excerpt, "ệ") >= 40*500 {
 		t.Errorf("get_task comments: head kept, tail cut expected")
 	}
-	item, err = x.tools.GetMeeting(ctx, x.p, x.w.ID, m.ID)
+	meetingItem, err := x.tools.GetMeeting(ctx, x.p, x.w.ID, m.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkCut("get_meeting", item.Excerpt, 16000, "Trạng thái:")
+	checkCut("get_meeting", meetingItem.Excerpt, 16000, "Trạng thái:")
 
 	// Short items are returned whole, with no marker.
 	whole, err := x.tools.GetTask(ctx, x.p, x.w.ID, x.taskID)

@@ -72,6 +72,20 @@ JOIN users u ON u.id = m.user_id
 WHERE m.workspace_id = $1
 ORDER BY m.created_at;
 
+-- name: ListAssignableMembers :many
+-- Who can be given a task in the workspace: its members and the
+-- organization's owners and admins (implicit workspace admins), active only.
+-- Email is left out on purpose: the MCP connector hands this to an AI app.
+SELECT u.id::text AS user_id, u.display_name::text AS display_name,
+       COALESCE(wm.role, 'org_' || om.role)::text AS role
+FROM organization_members om
+JOIN users u ON u.id = om.user_id
+LEFT JOIN workspace_members wm ON wm.workspace_id = sqlc.arg(workspace_id)::text AND wm.user_id = om.user_id
+WHERE om.organization_id = sqlc.arg(organization_id)::text
+  AND om.deactivated_at IS NULL
+  AND (wm.user_id IS NOT NULL OR om.role IN ('owner', 'admin'))
+ORDER BY lower(u.display_name), u.id;
+
 -- name: CreateInvitation :one
 -- workspace_id is NULL for an invitation to the organization itself (F-03);
 -- organization_id is always set, so every invitation names a tenant.
