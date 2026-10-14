@@ -15,10 +15,11 @@ overrides this page. Every example below is taken from the repository as it is
   `/{noun}/{verb}`: `/login`, `/register`, `/onboarding`, `/invitations`,
   `/workspaces/new`, `/invite/{token}`. A hyphenated root (`/new-workspace`)
   is normally wrong: it collides with organization slugs and forces endless
-  reserved-slug audits. Reserving the noun protects the whole subtree. Three
+  reserved-slug audits. Reserving the noun protects the whole subtree. Four
   exceptions exist and every one of them is in `reserved_slugs.json`:
-  `/forgot-password`, `/reset-password` and `/why-uniwork` — a public page
-  whose URL is read by people, where the hyphenated phrase is the name.
+  `/forgot-password`, `/reset-password`, `/why-uniwork` — a public page
+  whose URL is read by people, where the hyphenated phrase is the name — and
+  `/get-started`, where a person with no organization lands (ADR 0032).
 - Workspace routes live under `/{orgSlug}/{workspaceSlug}/{section}`:
   `/acme/team/tasks`, `/acme/team/meetings/{id}/room`, `/acme/team/members`.
   Workspaces nest inside organizations; a workspace slug is unique only within
@@ -169,6 +170,11 @@ fails on drift. One flat namespace, keys nested by section:
 | organization | **tổ chức** | Organization | `"tên tổ chức không được để trống"` |
 | member | **thành viên** | Member | `workspace.members = "Thành viên"` |
 | invitation | **lời mời** / **mời** | Invitation / Invite | `workspace.invite = "Mời thành viên"` |
+| owner (UI label) | **chủ sở hữu** | Owner | `people.role_owner = "Chủ sở hữu"`; the label translates, the role value stays `owner` (see below) |
+| leave organization | **rời tổ chức** | Leave organization | `org.leave.title`; the member walks out, the organization stays |
+| transfer ownership | **chuyển quyền sở hữu** | Transfer ownership | `org.transfer.*`; immediate, no acceptance step; the former owner becomes `admin` |
+| close organization | **đóng tổ chức** | Close organization | `org.close.*`; archives the organization, deletes nothing (ADR 0032) — never "xóa tổ chức", which is the 5-day privacy deletion |
+| switch organization | **chuyển tổ chức** | Switch organization | `invitations.switch.*`; leave, transfer or close the current one and join another in one step — never "đổi tổ chức" |
 | comment | **bình luận** | Comment | |
 | channel (chat) | **kênh** | Channel | `chat.channel.*`; first-class room linked to a project |
 | thread (chat) | **thread** | Thread | kept English in vi when product/schema; not “chủ đề” for room threads |

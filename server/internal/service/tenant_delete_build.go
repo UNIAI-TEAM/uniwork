@@ -161,7 +161,7 @@ func (c *PrivacyDeletionConsumer) erase(ctx context.Context, row db.DataSubjectR
 		return err
 	}
 	if err := q.CancelOrganizationSubscriptions(ctx, db.CancelOrganizationSubscriptionsParams{
-		OrganizationID: row.OrganizationID, UpdatedBy: privacyDeleteActor,
+		OrganizationID: row.OrganizationID, UpdatedBy: privacyDeleteActor, UpdatedByKind: string(audit.KindSystem),
 	}); err != nil {
 		return err
 	}

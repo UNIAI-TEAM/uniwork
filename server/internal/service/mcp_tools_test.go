@@ -99,10 +99,9 @@ func (x *mcpToolWorld) meeting(t *testing.T, userID, workspaceID, title, descrip
 func (x *mcpToolWorld) org(t *testing.T, ownerID, name, slug string) (db.Organization, db.Workspace) {
 	t.Helper()
 	ctx := context.Background()
-	org, err := x.tools.ask.orgs.Create(ctx, ownerID, name, slug)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The world puts one person in several organizations, which only an
+	// account from before ADR 0032 can be; seed it the way those were built.
+	org := createLegacyOrganization(t, x.tools.ask.orgs, ownerID, name, slug)
 	v, err := x.tools.ws.CreateInOrg(ctx, ownerID, org.ID, "WS "+slug, "ws-"+slug)
 	if err != nil {
 		t.Fatal(err)
@@ -296,10 +295,9 @@ func TestMcpToolsRefuseMalformedArguments(t *testing.T) {
 func TestMcpToolsStayInGrantOrganization(t *testing.T) {
 	tools, p, wsID, _ := mcpToolFixture(t)
 	ctx := context.Background()
-	orgB, err := tools.ask.orgs.Create(ctx, p.UserID, "Org B", "org-b-mcp")
-	if err != nil {
-		t.Fatal(err)
-	}
+	// A second organization of the same person: an account from before
+	// ADR 0032 (D2), which only raw seeding can build now.
+	orgB := createLegacyOrganization(t, tools.ask.orgs, p.UserID, "Org B", "org-b-mcp")
 	vB, err := tools.ws.CreateInOrg(ctx, p.UserID, orgB.ID, "WS B", "ws-b-mcp")
 	if err != nil {
 		t.Fatal(err)

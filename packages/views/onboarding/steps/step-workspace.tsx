@@ -66,7 +66,9 @@ export function StepWorkspace({
           // the server's own hardcoded Vietnamese sentence and was rendered
           // verbatim to English-locale users.
           const failure = classifyCreateFailure(err);
-          if (failure === "unknown") {
+          // A workspace inside an organization the person already holds never
+          // trips the one-organization rule; were it to, it is not a slug fix.
+          if (failure === "unknown" || failure === "already_in_organization") {
             toast.error(t("onboarding.step_workspace.create_failed_toast"));
             return;
           }

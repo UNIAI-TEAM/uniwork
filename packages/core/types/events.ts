@@ -97,6 +97,7 @@ export const WS_EVENT_TYPES = [
   "member.removed",
   "member.role_changed",
   "notification.created",
+  "organization.closed",
   "organization.created",
   "organization.ownership_transferred",
   "organization.suspended",

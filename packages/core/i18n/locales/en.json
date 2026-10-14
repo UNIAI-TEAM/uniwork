@@ -332,6 +332,8 @@
       "gone": "The invitation was already used, was revoked, or the link is wrong.",
       "deactivated": "Your account in this organization is deactivated. Ask an admin to reactivate it.",
       "suspended": "This organization is currently suspended.",
+      "deletionScheduled": "This organization is scheduled for deletion, so it isn't taking new members.",
+      "askInviterHint": "If you think this is a mistake, ask the person who invited you.",
       "rateLimited": "Too many attempts. Wait a moment, then open the link again.",
       "wrongAccount": "This invitation was sent to a different email address than the account you're signed in with.",
       "wrongAccountHint": "Sign in with the address that received the invitation, then open the link again.",
@@ -3568,8 +3570,6 @@
     "sidebar_filter_empty_channel_hint": "Browse channels to join, or create a new one.",
     "sidebar_result_count_one": "{{count}} conversation",
     "sidebar_result_count_other": "{{count}} conversations",
-    "invite_joining": "Joining…",
-    "invite_join_failed": "Couldn't join the workspace. Try again.",
     "no_conversation_hint_hidden": "The conversation list is hidden. Show it to open a conversation.",
     "group_name_optional_label": "Group name (optional)",
     "errors": {
@@ -4328,7 +4328,7 @@
       "action": "Leave organization",
       "done": "You left the organization",
       "confirm_title": "Leave {{name}}?",
-      "confirm_body": "You will lose access to every workspace in {{name}}. To come back, an admin has to invite you again."
+      "confirm_body": "You lose access to every workspace in {{name}} right away. To come back, an admin has to invite you again."
     },
     "invitations": {
       "title": "Invite people to the organization",
@@ -4355,23 +4355,31 @@
       "description": "The new owner has full control of the organization. You become an admin and cannot take it back on your own.",
       "action": "Transfer ownership",
       "new_owner": "New owner",
+      "pick_placeholder": "Choose a member",
       "confirm_label": "Type the organization name to confirm",
-      "confirm_hint": "Type “{{name}}” exactly.",
       "password_label": "Your current password",
       "no_candidate": "No active member is available to receive ownership yet.",
       "done": "Ownership transferred",
-      "confirm_mismatch": "Doesn't match “{{name}}”.",
+      "confirm_mismatch": "Doesn't match \"{{name}}\".",
       "loading_candidates": "Loading members…",
-      "candidates_error": "Couldn't load the members to choose from."
+      "candidates_error": "Couldn't load the members to choose from.",
+      "confirm_title": "Transfer ownership of {{name}}?",
+      "confirm_prompt": "Type <v>{{name}}</v> below.",
+      "consequences": {
+        "new_owner": "The person you pick becomes the owner, with full control of the organization.",
+        "you_admin": "You become an admin.",
+        "no_undo": "You can't take ownership back on your own."
+      }
     },
     "deactivated": {
       "title": "Your account in this organization has been deactivated",
       "description": "An organization admin paused your access. Everything you created is still there. Ask an admin to restore it.",
-      "workspaces_link": "Go to your other organizations"
+      "get_started_link": "Create or join another organization"
     },
     "danger": {
       "title": "Danger zone",
-      "description": "These change who holds the organization, or take you out of it."
+      "description": "These change who holds the organization, or take you out of it.",
+      "description_member": "Leaving takes you out of every workspace inside it."
     },
     "reasons": {
       "leave_last_owner": "You are the owner. Transfer ownership to someone else before leaving.",
@@ -4383,17 +4391,106 @@
       "not_admin_role": "Only owners and admins can do this.",
       "not_owner_role": "Only the organization owner can do this.",
       "not_resource_owner": "You cannot do this to yourself.",
-      "fallback": "You can't do this yet."
+      "fallback": "You can't do this yet.",
+      "leave_sole_owner": "You are the owner and the only member. Close the organization instead of leaving.",
+      "organization_has_members": "Other members are still active. Transfer ownership before closing."
+    },
+    "close": {
+      "title": "Close this organization",
+      "description": "Archive the organization and leave it. Workspaces and data are kept, but nobody can open them any more.",
+      "action": "Close organization",
+      "confirm_title": "Close {{name}}?",
+      "confirm_body": "{{name}} will be archived: every workspace and all its data stay, but nobody can open them, you included. Only support can restore it. Pending invitations are revoked and the paid plan is cancelled.",
+      "confirm_label": "Type the organization URL to confirm",
+      "confirm_hint": "Type \"{{slug}}\" exactly.",
+      "confirm_mismatch": "Doesn't match \"{{slug}}\".",
+      "done": "Organization closed",
+      "confirm_lede": "Nothing is deleted, but the organization stops working.",
+      "confirm_prompt": "Type <v>{{slug}}</v> below.",
+      "consequences": {
+        "archived": "{{name}} is archived: every workspace and all its data stay.",
+        "no_access": "Nobody can open it any more, you included.",
+        "restore": "Only support can restore it.",
+        "billing": "Pending invitations are revoked and the paid plan is cancelled."
+      }
     }
   },
   "invitations": {
     "title": "You have an invitation",
-    "subtitle": "Join to start working with your teammates.",
+    "list_title": "Invitations waiting for you",
+    "subtitle": "Open an invitation to see the organization and your role, then join.",
+    "loading_description": "Opening your invitation.",
     "invitedBy": "{{name}} invited you to",
     "join": "Join",
-    "joinAll": "Join all",
     "empty": "No invitations",
-    "role": "as {{role}}"
+    "view": "View",
+    "viewLabel": "View the invitation to {{name}}",
+    "expires_on": "expires <time>{{date}}</time>",
+    "expires_soon": "Expires soon",
+    "load_error": "Couldn't load your invitations.",
+    "see_all": "See my invitations",
+    "preview": {
+      "title": "Join {{name}}",
+      "description": "You've been invited to join this organization.",
+      "description_inviter": "{{inviter}} invited you to join this organization.",
+      "organization": "Organization",
+      "workspace": "Workspace",
+      "no_workspace": "No workspace yet. You'll pick one after joining.",
+      "role": "Role",
+      "inviter": "Invited by",
+      "expiry": "Expires",
+      "expires_in_one": "In {{count}} day",
+      "expires_in_other": "In {{count}} days",
+      "join": "Join"
+    },
+    "gone": {
+      "title": "This invitation no longer works",
+      "expired": "The invitation has expired.",
+      "revoked": "The invitation was revoked.",
+      "accepted": "The invitation has already been used.",
+      "still_in": "You're still in {{name}}; nothing changed.",
+      "hint_expired": "Invitations work for a limited time. Ask whoever invited you to send a new link.",
+      "hint_revoked": "Whoever invited you withdrew this invitation. If you still need to join, ask them for a new one.",
+      "hint_accepted": "Each invitation works once. Ask whoever invited you for a new link if you need one."
+    },
+    "switch": {
+      "title": "Switch to {{name}}",
+      "description": "Each account belongs to one organization. Joining {{name}} means leaving your current one.",
+      "steps_label": "Steps to switch organization",
+      "step_position": "Step {{current}} of {{total}}",
+      "step_conflict": "Current organization",
+      "step_resolve": "Hand it off",
+      "step_confirm": "Confirm",
+      "conflict_heading": "You belong to {{names}}",
+      "route_label": "From {{from}} to {{to}}",
+      "now": "Now",
+      "after": "After the switch",
+      "role_as": "Role: {{role}}",
+      "lose_heading": "You'll lose access to {{name}}",
+      "lose_kept": "What you created stays there.",
+      "resolve_heading": "Hand off your current organization",
+      "changed": "Something changed while you were here. Review each item below.",
+      "leave_body": "You leave {{name}}; it keeps running as before.",
+      "leave_confirm": "I want to leave {{name}}",
+      "transfer_body": "You own {{name}}. Transfer ownership to another member, then you leave.",
+      "close_body": "You're the only member of {{name}}, so it will be closed.",
+      "close_badge": "Close organization",
+      "blocked": "{{name}} is suspended, so its ownership can't be transferred and it can't be closed yet. Contact support for help.",
+      "unknown": "{{name}} can't be handled on this page. Reload to try again.",
+      "incomplete": "Finish each item above to continue.",
+      "blocked_reason": "You can't continue while an organization is suspended.",
+      "wrong_password": "That password isn't right. Enter it again to transfer ownership.",
+      "no_password": "Transferring ownership of {{name}} is confirmed with your password, but your account doesn't have one (you sign in with Google). Contact support for help.",
+      "no_password_reason": "You can't continue while your account has no password.",
+      "confirm_heading": "Confirm the switch",
+      "confirm_leave": "Leave {{name}}",
+      "confirm_transfer": "Transfer ownership of {{name}} to {{person}}, then leave",
+      "confirm_close": "Close {{name}}",
+      "confirm_join": "Join {{name}} as {{role}}",
+      "confirm_note": "Everything happens in one go. If any step fails, you stay where you are.",
+      "action": "Switch to {{name}}",
+      "busy": "Another change to your account is in progress. Try again in a moment."
+    }
   },
   "onboarding": {
     "step_nav": {
@@ -4468,16 +4565,14 @@
     },
     "step_organization": {
       "headline_first": "Name your organization.",
-      "headline_resume": "Continue with {{name}}, or start another organization.",
-      "lede_first": "An organization is your company or team; every workspace lives inside one. You can add more later.",
-      "lede_resume": "Pick an organization you already belong to, or create a new one.",
+      "headline_resume": "Continue with {{name}}.",
+      "lede_first": "An organization is your company or team; every workspace lives inside one.",
+      "lede_resume": "Each account belongs to one organization. The new workspace goes inside the one you pick.",
       "name_label": "Organization name",
       "name_placeholder": "Unicom, Marketing Team, Class 12A…",
       "url_label": "URL",
       "slug_placeholder": "unicom",
-      "create_new_title": "Create a new organization",
-      "create_new_subtitle": "Start one of your own",
-      "hint_pick": "Pick an organization, or create one.",
+      "hint_pick": "Pick an organization to continue.",
       "hint_name_first": "Name your organization to create it.",
       "hint_creating": "This will create {{name}}.",
       "hint_creating_pending": "Creating {{name}}…",
@@ -4486,15 +4581,22 @@
       "cta_create_named": "Create {{name}}",
       "cta_creating": "Creating…",
       "cta_open": "Continue with {{name}}",
-      "slug_taken_error": "That organization slug is already taken.",
-      "headline_resume_many": "Pick one of your organizations, or start another.",
+      "slug_taken_error": "That URL is already taken.",
+      "headline_resume_many": "Pick your organization.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
       "hint_slug_needed": "Add a URL for your organization to create it.",
-      "create_failed_toast": "Couldn't create the organization. Please try again.",
+      "create_failed_toast": "Couldn't create the organization. Try again.",
       "picker_label": "Choose an organization",
       "url_preview_label": "Organization URL",
       "url_preview_prefix": "Everything in this organization lives under ",
-      "url_preview_suffix": "."
+      "url_preview_suffix": ".",
+      "manage_organization": "Manage organization",
+      "lede_resume_one": "The new workspace goes inside {{name}}. Each account belongs to one organization.",
+      "resume_other_org": "Need a different organization? Leave or close {{name}} first.",
+      "already_member_title": "You already belong to {{name}}",
+      "already_member_title_unnamed": "You already belong to an organization",
+      "already_member_body": "Each account belongs to one organization. To create a new one, leave or close your current organization first.",
+      "already_member_hint": "Your organization already exists."
     },
     "step_workspace": {
       "headline_first": "Name your workspace.",
@@ -4574,6 +4676,19 @@
       "save_failed": "Couldn't save your answer",
       "skip_failed": "Couldn't finish getting you started",
       "complete_failed": "Couldn't finish. Please try again."
+    },
+    "noOrganization": {
+      "title": "You're not in an organization yet",
+      "description": "Each account belongs to one organization. Create your own, or join one that invited you.",
+      "held_title": "You belong to {{name}}",
+      "held_description": "Each account belongs to one organization, so you cannot create another for now. You can still open an invitation from another organization.",
+      "create_title": "Create an organization",
+      "create_body": "Start an organization and its first workspace. You will be its owner.",
+      "create_action": "Create organization",
+      "join_title": "Join an organization",
+      "join_body": "Open an invitation to review it and join.",
+      "join_empty_title": "No invitations yet",
+      "join_empty_body": "Ask an admin of the organization to invite <email>{{email}}</email>."
     }
   },
   "ui": {
@@ -5079,7 +5194,7 @@
     "suspended": {
       "title": "Organization suspended",
       "description": "This organization is temporarily unavailable. Contact the organization owner for details.",
-      "workspaces_link": "Back to workspaces"
+      "get_started_link": "Join another organization"
     },
     "overview": {
       "title": "Overview",

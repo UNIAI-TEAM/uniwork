@@ -40,6 +40,33 @@ func (s *OrganizationService) Create(ctx context.Context, userID, name, slug str
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
+	// One account, one organization (ADR 0032): decided under the account's
+	// lock, so two tabs founding at once cannot both get through.
+	if err := lockMembership(ctx, q, userID); err != nil {
+		return db.Organization{}, err
+	}
+	current, err := activeOrganizations(ctx, q, userID)
+	if err != nil {
+		return db.Organization{}, err
+	}
+	if len(current) > 0 {
+		c := current[0]
+		return db.Organization{}, errAlreadyInOrganization(OrganizationRef{ID: c.ID, Name: c.Name, Slug: c.Slug})
+	}
+	o, err := createOrganizationQ(ctx, q, userID, name, slug)
+	if err != nil {
+		return db.Organization{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.Organization{}, err
+	}
+	return o, nil
+}
+
+// createOrganizationQ writes a new organization with its founder as owner,
+// inside the caller's transaction. Create decides first whether the founder
+// may have one (ADR 0032); this body does not.
+func createOrganizationQ(ctx context.Context, q *db.Queries, userID, name, slug string) (db.Organization, error) {
 	o, err := q.CreateOrganization(ctx, db.CreateOrganizationParams{
 		ID: util.NewID(), Slug: slug, Name: name, CreatedBy: userID,
 	})
@@ -96,9 +123,6 @@ func (s *OrganizationService) Create(ctx context.Context, userID, name, slug str
 	// the founder is its owner and can rename it.
 	if _, err := createAgent(ctx, q, o.ID, "UNI", DefaultAgentHandle,
 		"Đồng nghiệp AI mặc định của tổ chức", nil, userID, audit.System("organization.created")); err != nil {
-		return db.Organization{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return db.Organization{}, err
 	}
 	return o, nil

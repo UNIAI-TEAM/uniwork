@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { VERIFICATION_CODE, registerVerified } from "./auth-nav";
 import { latestChatFileMessage } from "./db";
+import { joinInvitation } from "./invitations";
 
 /**
  * Bước 0 regression for UNI-745 (chat file + voice messages, plan §6.1): pin
@@ -111,8 +112,7 @@ test.describe.serial("chat file and voice messages", () => {
     await createWorkspaceInviting(owner, memberEmail);
 
     await registerInvitee(member, "Thành Viên", memberEmail);
-    await member.goto("/invitations");
-    await member.getByRole("button", { name: /Tham gia|Chấp nhận/ }).first().click();
+    await joinInvitation(member, orgName);
     await expect(member).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/`), { timeout: 20_000 });
 
     fileBody = `Bước 0 chat file ${stamp}\n`.repeat(20);

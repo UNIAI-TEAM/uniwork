@@ -50,6 +50,7 @@ function builderTemplates(): string[] {
     paths.forgotPassword(),
     paths.resetPassword(),
     paths.onboarding(),
+    paths.getStarted(),
     paths.newWorkspace(),
     paths.invitations(),
     paths.workspaces(),

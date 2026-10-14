@@ -200,6 +200,11 @@ func (s *AdminService) SetOrganizationStatus(ctx context.Context, adminID, orgID
 	if before.Status == status {
 		return before, nil
 	}
+	if before.Status != OrganizationActive && before.Status != OrganizationSuspended {
+		// Archived (closed or deleted) is terminal here: reopening it would
+		// bring back an organization with no active owner (ADR 0032 D4).
+		return db.Organization{}, ErrConflict
+	}
 	params := db.AdminSetOrganizationStatusParams{ID: orgID, Status: status}
 	action, topic := audit.ActionOrganizationUnsuspended, "organization.unsuspended"
 	if status == OrganizationSuspended {
@@ -208,6 +213,10 @@ func (s *AdminService) SetOrganizationStatus(ctx context.Context, adminID, orgID
 		action, topic = audit.ActionOrganizationSuspended, "organization.suspended"
 	}
 	after, err := q.AdminSetOrganizationStatus(ctx, params)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Closed between the read and the write.
+		return db.Organization{}, ErrConflict
+	}
 	if err != nil {
 		return db.Organization{}, err
 	}

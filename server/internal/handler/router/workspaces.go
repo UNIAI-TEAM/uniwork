@@ -15,6 +15,7 @@ import (
 //	PATCH  /api/v1/workspaces/{workspaceID}/members/{userID}
 //	DELETE /api/v1/workspaces/{workspaceID}/members/{userID}
 //	POST   /api/v1/workspaces/{workspaceID}/invitations
+//	GET    /api/v1/invitations/{token}
 //	POST   /api/v1/invitations/{token}/accept
 func registerWorkspaces(r api, h Routes) {
 	r.Get("/orgs/{org}/workspaces/{wsSlug}", h.GetWorkspaceBySlugs, apiOp{
@@ -77,11 +78,26 @@ func registerWorkspaces(r api, h Routes) {
 		sdo:         sdo.InvitationCreateSDO{},
 		auth:        true,
 	})
+	r.Get("/invitations/{token}", h.PreviewInvitation, apiOp{
+		summary: "Preview invitation",
+		description: "Lời mời theo token, ở mọi trạng thái (pending | expired | revoked | accepted), cho đúng tài khoản " +
+			"đã xác minh email được mời. Khi pending, conflicts liệt kê các tổ chức người gọi đang thuộc và việc cần làm " +
+			"với từng tổ chức trước khi tham gia (leave | transfer | close | blocked). Không thay đổi gì. Lời mời pending vào " +
+			"tổ chức không nhận thêm người trả 403 organization_suspended | organization_deletion_scheduled như accept.",
+		tags: []string{"workspaces"},
+		sdo:  sdo.InvitationPreviewSDO{},
+		auth: true,
+	})
 	r.Post("/invitations/{token}/accept", h.AcceptInvitation, apiOp{
-		summary:     "Accept invitation",
-		description: "Vào workspace ghi trên token lời mời.",
-		tags:        []string{"workspaces"},
-		sdo:         sdo.WorkspaceSDO{},
-		auth:        true,
+		summary: "Accept invitation",
+		description: "Vào tổ chức (và workspace nếu có) ghi trên token lời mời. Body tùy chọn: resolve phải khớp đúng conflicts " +
+			"của bản xem trước; mọi bước rời / chuyển quyền / đóng tổ chức cũ và tham gia tổ chức mới chạy trong một transaction. " +
+			"409 organization_switch_required kèm conflicts mới nhất; 410 invitation_expired | invitation_revoked | invitation_accepted; " +
+			"403 organization_suspended | organization_deletion_scheduled khi tổ chức mời không nhận thêm người; " +
+			"gọi lại sau khi đã thành công trả 200 như lần đầu.",
+		tags: []string{"workspaces"},
+		sdi:  sdi.AcceptInvitationSDI{},
+		sdo:  sdo.AcceptInviteSDO{},
+		auth: true,
 	})
 }

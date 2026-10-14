@@ -249,7 +249,9 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   organizations through the API, with a row of A's in every tenant table but
   the few `isoUnseeded` names. B's owner calls every tenant route with A's
   ids, with B's parent and A's child ids, and with A's rows named in a body
-  (`isoReferences`) — the last two again once B's owner also joins A — and
+  (`isoReferences`) — the last two again once B's owner is also a member of
+  A, inserted by raw SQL because no API can create that account any more
+  (a multi-organization account left from before ADR 0032) — and
   the routes are called once more with no session at all. The answer is a
   refusal (403/404; 401 without a session) carrying no text or id of A's,
   every row with A's `organization_id` hashes the same before and after, and
@@ -274,6 +276,14 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   holds it. An organization has exactly one owner at a time
   (`idx_org_members_single_owner`); ownership moves only through
   `TransferOwnership`, never through a role change.
+- A person belongs to at most one active organization (ADR 0032): a
+  membership row with `deactivated_at` unset in an organization that is
+  `active` or `suspended`. `Create`, `AcceptInvite`, `Reactivate`, `Leave`
+  and `Close` take `LockUserMembership` (a per-user advisory lock) first and
+  check `activeOrganizations` inside the transaction; there is no unique
+  index, because accounts already in several organizations are kept. Closing
+  an organization archives it and deletes nothing.
+  `TestOneActiveOrganizationPerAccount` holds it.
 - `audit_events` is append-only. `REVOKE UPDATE, DELETE, TRUNCATE` plus a
   trigger that raises on both, so the rule holds even where the app owns the
   schema (ADR 0012). Retention never deletes; a wrong row is answered with

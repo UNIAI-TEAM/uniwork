@@ -191,17 +191,31 @@ func TestOfficeFrameAIRefusesEverythingButThisDocumentsToken(t *testing.T) {
 	otherDoc := w.createDocx(t, "other.docx", frameDocx(t, "other"))
 	otherDocToken := w.mintFrameToken(t, otherDoc)["token"].(string)
 
-	// A document in another organization the same owner holds.
-	res, out := doJSON(t, w.srv, "POST", "/api/v1/orgs", w.token0(), map[string]string{"name": "Other Org", "slug": "frame-ai-other"})
+	// A document in another organization the same owner holds. No API can
+	// put one person in two organizations any more (ADR 0032), so the owner
+	// joins the second one by raw seeding, as accounts from before it did.
+	founderTok, _ := filesRegister(t, w.srv, "frame-ai-other-founder@example.com")
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/orgs", founderTok, map[string]string{"name": "Other Org", "slug": "frame-ai-other"})
 	if res.StatusCode != 201 {
 		t.Fatalf("create org: %d %v", res.StatusCode, out)
 	}
 	org2 := out["organization"].(map[string]any)["id"].(string)
-	res, out = doJSON(t, w.srv, "POST", "/api/v1/orgs/"+org2+"/workspaces", w.token0(), map[string]string{"name": "Other WS", "slug": "frame-ai-other-ws"})
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/orgs/"+org2+"/workspaces", founderTok, map[string]string{"name": "Other WS", "slug": "frame-ai-other-ws"})
 	if res.StatusCode != 201 {
 		t.Fatalf("create ws: %d %v", res.StatusCode, out)
 	}
-	other := &officeWorld{srv: w.srv, q: w.q, token: w.token0(), wsID: out["workspace"].(map[string]any)["id"].(string)}
+	ws2 := out["workspace"].(map[string]any)["id"].(string)
+	if err := w.q.AddOrganizationMember(context.Background(), db.AddOrganizationMemberParams{
+		OrganizationID: org2, UserID: w.userID, Role: "admin",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.q.AddWorkspaceMember(context.Background(), db.AddWorkspaceMemberParams{
+		WorkspaceID: ws2, OrganizationID: org2, UserID: w.userID, Role: "admin",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	other := &officeWorld{srv: w.srv, q: w.q, token: w.token0(), wsID: ws2}
 	org2Doc := other.createDocx(t, "org2.docx", frameDocx(t, "org2"))
 	org2Token := other.mintFrameToken(t, org2Doc)["token"].(string)
 

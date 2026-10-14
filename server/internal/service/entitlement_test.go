@@ -323,7 +323,7 @@ func TestAcceptInviteOverQuotaRollsBack(t *testing.T) {
 		t.Fatalf("invite: %v (%d)", err, len(invs))
 	}
 	f.override(t, `{"members.max": 1}`)
-	if _, err := f.ws.AcceptInvite(f.ctx, invitee.ID, invs[0].Token); !errors.Is(err, ErrQuotaExceeded) {
+	if _, err := f.ws.AcceptInvite(f.ctx, invitee.ID, invs[0].Token, nil); !errors.Is(err, ErrQuotaExceeded) {
 		t.Fatalf("accept over members.max: got %v", err)
 	}
 	if _, err := f.orgs.RequireMember(f.ctx, f.orgID, invitee.ID); !errors.Is(err, ErrForbidden) {
@@ -334,7 +334,7 @@ func TestAcceptInviteOverQuotaRollsBack(t *testing.T) {
 	}
 	// Lifting the limit lets the same token through; the invitation is still pending.
 	f.override(t, `{}`)
-	if _, err := f.ws.AcceptInvite(f.ctx, invitee.ID, invs[0].Token); err != nil {
+	if _, err := f.ws.AcceptInvite(f.ctx, invitee.ID, invs[0].Token, nil); err != nil {
 		t.Fatalf("accept after lifting the limit: %v", err)
 	}
 }

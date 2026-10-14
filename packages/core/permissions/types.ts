@@ -39,6 +39,7 @@ export type DecisionReason =
   | "not_owner_role"
   | "member_deactivated"
   | "last_owner"
+  | "organization_has_members"
   | "not_resource_owner"
   | "insufficient_level"
   | "agent_paused"

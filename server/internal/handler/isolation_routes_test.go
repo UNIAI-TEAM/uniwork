@@ -507,6 +507,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{org}/transfer-ownership":                      {body: isoWith(map[string]string{"to_user_id": "third"}, map[string]any{"password": "password123"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/leave": {controlAs: "third"},
 	// Tenant rows named in the body rather than the path.
+	"GET /api/v1/invitations/{token}":         {class: isoScoped, skipControl: "the invitation is addressed to an invitee outside the tenant; only that verified mailbox may read it"},
 	"POST /api/v1/invitations/{token}/accept": {class: isoScoped, skipControl: "accepting consumes the invitation"},
 	"POST /api/v1/chat/voice/token":           {body: isoWith(map[string]string{"room_id": "room", "call_id": "callID"}, nil)},
 }

@@ -60,17 +60,20 @@ UPDATE subscriptions SET
   canceled_at = COALESCE(canceled_at, now()),
   updated_at = now(),
   updated_by = $2,
-  updated_by_kind = 'system'
+  updated_by_kind = $3
 WHERE organization_id = $1 AND status <> 'canceled'
 `
 
 type CancelOrganizationSubscriptionsParams struct {
 	OrganizationID string `json:"organization_id"`
 	UpdatedBy      string `json:"updated_by"`
+	UpdatedByKind  string `json:"updated_by_kind"`
 }
 
+// Privacy deletion cancels as the system; closing an organization cancels as
+// the owner who closed it.
 func (q *Queries) CancelOrganizationSubscriptions(ctx context.Context, arg CancelOrganizationSubscriptionsParams) error {
-	_, err := q.db.Exec(ctx, cancelOrganizationSubscriptions, arg.OrganizationID, arg.UpdatedBy)
+	_, err := q.db.Exec(ctx, cancelOrganizationSubscriptions, arg.OrganizationID, arg.UpdatedBy, arg.UpdatedByKind)
 	return err
 }
 
