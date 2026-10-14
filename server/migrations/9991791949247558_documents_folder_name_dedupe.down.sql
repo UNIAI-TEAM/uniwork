@@ -1,0 +1,5 @@
+-- No-op on purpose (E6 FD-02, UNI-1462 PR 1). The up migration is a data fix:
+-- it composes folder titles and renames the later member of every duplicate
+-- group. Nothing records which title a renamed row held before - a rollback
+-- would have to guess between two equal names - so the fix is not reversible:
+-- re-running the same file on the way up (it is idempotent) is the recovery.
