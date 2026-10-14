@@ -142,7 +142,9 @@ export function FormDialogFooter({
   const { t } = useTranslation();
   const inert = submitDisabled || submitting;
   return (
-    <DialogFooter className="items-center px-5 py-3">
+    // Below sm the footer stacks: actions take the full width, the size a
+    // thumb aims for; from sm up they sit side by side at their own width.
+    <DialogFooter className="items-stretch px-5 py-3 sm:items-center">
       {leading ? <div className="min-w-0 text-caption text-muted-foreground sm:mr-auto">{leading}</div> : null}
       <Button type="button" variant="outline" aria-disabled={submitting || undefined} onClick={onCancel}>
         {cancelLabel ?? t("common.cancel")}
