@@ -102,6 +102,7 @@ export const WS_EVENT_TYPES = [
   "office_lease.released",
   "office_lease.renewed",
   "office_lease.revoked",
+  "organization.closed",
   "organization.created",
   "organization.ownership_transferred",
   "organization.suspended",

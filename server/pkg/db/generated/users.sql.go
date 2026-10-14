@@ -79,10 +79,15 @@ func (q *Queries) ConsumeUserRecoveryCode(ctx context.Context, arg ConsumeUserRe
 }
 
 const countOwnedOrganizationsForUser = `-- name: CountOwnedOrganizationsForUser :one
-SELECT count(*) FROM organization_members WHERE user_id = $1 AND role = 'owner'
+SELECT count(*) FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.user_id = $1 AND m.role = 'owner' AND m.deactivated_at IS NULL
+  AND o.status IN ('active', 'suspended')
 `
 
 // tenant: self
+// Only an organization the account still belongs to (ADR 0032 D1) holds the
+// deletion back: a closed one keeps its owner row, deactivated, for a restore.
 func (q *Queries) CountOwnedOrganizationsForUser(ctx context.Context, userID string) (int64, error) {
 	row := q.db.QueryRow(ctx, countOwnedOrganizationsForUser, userID)
 	var count int64
@@ -647,12 +652,14 @@ func (q *Queries) RevokeAllPushSubscriptionsForUser(ctx context.Context, userID 
 
 const scrubMemberProfilesForUser = `-- name: ScrubMemberProfilesForUser :exec
 UPDATE organization_member_profiles SET
-  phone = NULL, phone_visible = false, location = NULL, bio = NULL, employee_code = NULL,
+  phone = '', phone_visible = false, location = '', bio = '', employee_code = NULL,
   search_text = '', updated_at = now()
 WHERE user_id = $1
 `
 
 // tenant: self
+// phone, location and bio are NOT NULL with an empty default (migration 134);
+// only employee_code is nullable, because its unique index skips NULLs.
 func (q *Queries) ScrubMemberProfilesForUser(ctx context.Context, userID string) error {
 	_, err := q.db.Exec(ctx, scrubMemberProfilesForUser, userID)
 	return err

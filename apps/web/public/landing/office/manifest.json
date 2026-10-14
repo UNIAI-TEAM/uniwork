@@ -1,0 +1,1819 @@
+{
+  "schema": 1,
+  "generated_at": "2026-10-14T03:21:56.579Z",
+  "approved_comp": ".impeccable/mocks/decision/office-20261014/a-split.png",
+  "produce": [
+    {
+      "id": "docs-en-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/docs.en.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork docs editor, installed pinned product frame /office-frame/docs/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 fb9d1222ac5c9e9d97cfb64f6744954a00d6eedffbd50b105c09aafa0cd5ce8b. Captured 2026-10-14T03:17:29.295Z from http://localhost:3000, language en, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample plan.docx supplied as raw bytes, SHA-256 8bc36e5c326e966cb0e6119be4c81f79e81d00501418ff2520e7f5adb19e60db; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 129066,
+      "sha256": "c5bfaa7cf2b692f240d91acc434435a6812a4d57d94bd52dea23146093d14e3a",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "docs",
+        "lang": "en",
+        "theme": "dark",
+        "filename": "docs.en.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 129066,
+        "capturedAt": "2026-10-14T03:17:29.295Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/docs/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "fb9d1222ac5c9e9d97cfb64f6744954a00d6eedffbd50b105c09aafa0cd5ce8b",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+          }
+        },
+        "sample": {
+          "name": "plan.docx",
+          "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "sha256": "8bc36e5c326e966cb0e6119be4c81f79e81d00501418ff2520e7f5adb19e60db",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "en-US",
+          "background": "rgb(37, 37, 37)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [
+        "The actual editor's native dark theme also darkens document paper; the approved visual comp depicted white paper."
+      ],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "docs-vi-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/docs.vi.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork docs editor, installed pinned product frame /office-frame/docs/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 fb9d1222ac5c9e9d97cfb64f6744954a00d6eedffbd50b105c09aafa0cd5ce8b. Captured 2026-10-14T03:17:05.019Z from http://localhost:3000, language vi, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample plan.docx supplied as raw bytes, SHA-256 8c88c5007affec831ed9b2c0a643d373db2cbf9e9755072d4188fa8f503fa985; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 138274,
+      "sha256": "96019ca3788dae0c00a1323ba77fd8c425d08c292eb975d7dd1d58e663cbca23",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "docs",
+        "lang": "vi",
+        "theme": "dark",
+        "filename": "docs.vi.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 138274,
+        "capturedAt": "2026-10-14T03:17:05.019Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/docs/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "fb9d1222ac5c9e9d97cfb64f6744954a00d6eedffbd50b105c09aafa0cd5ce8b",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+          }
+        },
+        "sample": {
+          "name": "plan.docx",
+          "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "sha256": "8c88c5007affec831ed9b2c0a643d373db2cbf9e9755072d4188fa8f503fa985",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "vi-VN",
+          "background": "rgb(37, 37, 37)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [
+        "The actual editor's native dark theme also darkens document paper; the approved visual comp depicted white paper."
+      ],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "html-en-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/html.en.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork html editor, installed pinned product frame /office-frame/html/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 f8947247e654ebef2850f2bd3144c13b9a17557908d8e1fb4004796add98dc8a. Captured 2026-10-14T03:19:59.401Z from http://localhost:3000, language en, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample summit.html supplied as raw bytes, SHA-256 d806ed4d29ae28de24df907fb3346aad9e7bd493bda4b7c93b6fced92f0e637e; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 87938,
+      "sha256": "eb9e2ed8d30ee010647505adaeaaac9465959d029698f97eb5128703b03575c4",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "html",
+        "lang": "en",
+        "theme": "dark",
+        "filename": "html.en.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 87938,
+        "capturedAt": "2026-10-14T03:19:59.401Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/html/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "f8947247e654ebef2850f2bd3144c13b9a17557908d8e1fb4004796add98dc8a",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+          },
+          "documents": [
+            {
+              "path": "/preview.html",
+              "value": "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; media-src data: blob: https:; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri https:; form-action 'none'; sandbox allow-scripts allow-forms allow-popups allow-modals; frame-ancestors 'self'"
+            }
+          ]
+        },
+        "sample": {
+          "name": "summit.html",
+          "mimeType": "text/html",
+          "sha256": "d806ed4d29ae28de24df907fb3346aad9e7bd493bda4b7c93b6fced92f0e637e",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "en-US",
+          "background": "rgb(30, 30, 30)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "html-vi-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/html.vi.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork html editor, installed pinned product frame /office-frame/html/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 f8947247e654ebef2850f2bd3144c13b9a17557908d8e1fb4004796add98dc8a. Captured 2026-10-14T03:19:55.237Z from http://localhost:3000, language vi, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample summit.html supplied as raw bytes, SHA-256 4ef5c38af38f3b68e953d17430eb77c2dcd80dfc13db6f8f39f411629e35ee59; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 93740,
+      "sha256": "908ad5a48f8478327705a4c1b22feab9ead555ab8bb6ec4d7d21183fd7acada6",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "html",
+        "lang": "vi",
+        "theme": "dark",
+        "filename": "html.vi.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 93740,
+        "capturedAt": "2026-10-14T03:19:55.237Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/html/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "f8947247e654ebef2850f2bd3144c13b9a17557908d8e1fb4004796add98dc8a",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+          },
+          "documents": [
+            {
+              "path": "/preview.html",
+              "value": "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; media-src data: blob: https:; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri https:; form-action 'none'; sandbox allow-scripts allow-forms allow-popups allow-modals; frame-ancestors 'self'"
+            }
+          ]
+        },
+        "sample": {
+          "name": "summit.html",
+          "mimeType": "text/html",
+          "sha256": "4ef5c38af38f3b68e953d17430eb77c2dcd80dfc13db6f8f39f411629e35ee59",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "vi-VN",
+          "background": "rgb(30, 30, 30)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "markdown-en-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/markdown.en.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork markdown editor, installed pinned product frame /office-frame/markdown/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 44d5162c19df93fa50893c2d8ac4662c44d4c974c77aba4c1d0f5e34fea1361c. Captured 2026-10-14T03:17:47.323Z from http://localhost:3000, language en, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample notes.md supplied as raw bytes, SHA-256 026b4baedbea1bdfcd2321d3111658b090baba23271e53dfa08b3bc1de14e142; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 95060,
+      "sha256": "d7be776c31d3612e351438ed65f6c543027bf193cb0db41d3ec5a3c88c7f31ec",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "markdown",
+        "lang": "en",
+        "theme": "dark",
+        "filename": "markdown.en.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 95060,
+        "capturedAt": "2026-10-14T03:17:47.323Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/markdown/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "44d5162c19df93fa50893c2d8ac4662c44d4c974c77aba4c1d0f5e34fea1361c",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+          }
+        },
+        "sample": {
+          "name": "notes.md",
+          "mimeType": "text/markdown",
+          "sha256": "026b4baedbea1bdfcd2321d3111658b090baba23271e53dfa08b3bc1de14e142",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "en-US",
+          "background": "rgb(42, 42, 42)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "markdown-vi-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/markdown.vi.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork markdown editor, installed pinned product frame /office-frame/markdown/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 44d5162c19df93fa50893c2d8ac4662c44d4c974c77aba4c1d0f5e34fea1361c. Captured 2026-10-14T03:17:25.753Z from http://localhost:3000, language vi, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample notes.md supplied as raw bytes, SHA-256 d2647b9f86869c3d591d886131bacea76d39b4e445a87e6b72f6f6b81025c3fe; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 93306,
+      "sha256": "1d952f68b59be0ed0eba9ae4620f3482f3ab6acba8de33d598f9eae94e6a2514",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "markdown",
+        "lang": "vi",
+        "theme": "dark",
+        "filename": "markdown.vi.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 93306,
+        "capturedAt": "2026-10-14T03:17:25.753Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/markdown/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "44d5162c19df93fa50893c2d8ac4662c44d4c974c77aba4c1d0f5e34fea1361c",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+          }
+        },
+        "sample": {
+          "name": "notes.md",
+          "mimeType": "text/markdown",
+          "sha256": "d2647b9f86869c3d591d886131bacea76d39b4e445a87e6b72f6f6b81025c3fe",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "vi-VN",
+          "background": "rgb(42, 42, 42)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "pdf-en-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/pdf.en.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork pdf editor, installed pinned product frame /office-frame/pdf/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 5cec351e7b2216de6b834de2502529b09780d7573e6754d3feaf57bd6d25cec2. Captured 2026-10-14T03:17:40.319Z from http://localhost:3000, language en, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample report.pdf supplied as raw bytes, SHA-256 4015b68598c78bf2c5837d1ac79fb9fed9784dbfb90cf1ffdc5466eef2e63b9c; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 124984,
+      "sha256": "4b81b63e2022b4c268d22dceb380d5e43654d351abc596ccc4575f25eaab367c",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "pdf",
+        "lang": "en",
+        "theme": "dark",
+        "filename": "pdf.en.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 124984,
+        "capturedAt": "2026-10-14T03:17:40.319Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/pdf/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "5cec351e7b2216de6b834de2502529b09780d7573e6754d3feaf57bd6d25cec2",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+          }
+        },
+        "sample": {
+          "name": "report.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "4015b68598c78bf2c5837d1ac79fb9fed9784dbfb90cf1ffdc5466eef2e63b9c",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "en-US",
+          "background": "rgb(37, 37, 37)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "pdf-vi-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/pdf.vi.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork pdf editor, installed pinned product frame /office-frame/pdf/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 5cec351e7b2216de6b834de2502529b09780d7573e6754d3feaf57bd6d25cec2. Captured 2026-10-14T03:17:18.420Z from http://localhost:3000, language vi, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample report.pdf supplied as raw bytes, SHA-256 1b212de1cf2e394a48b6ee9d5c6c654b7bdbbfcedf2ba4d44e1e64d5b3b7aa1e; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 124940,
+      "sha256": "955505962881e40f6e662eb924d788536ad7e3ab2ab63fd7884dd5955c68ac82",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "pdf",
+        "lang": "vi",
+        "theme": "dark",
+        "filename": "pdf.vi.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 124940,
+        "capturedAt": "2026-10-14T03:17:18.420Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/pdf/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "5cec351e7b2216de6b834de2502529b09780d7573e6754d3feaf57bd6d25cec2",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+          }
+        },
+        "sample": {
+          "name": "report.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "1b212de1cf2e394a48b6ee9d5c6c654b7bdbbfcedf2ba4d44e1e64d5b3b7aa1e",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "vi-VN",
+          "background": "rgb(37, 37, 37)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "sheets-en-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/sheets.en.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork sheets editor, installed pinned product frame /office-frame/sheets/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 5af7415b69ed3af01bf0fbc7e96f0e1344a443628ce01597f34841a3f707f76c. Captured 2026-10-14T03:17:32.943Z from http://localhost:3000, language en, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample revenue.xlsx supplied as raw bytes, SHA-256 28c3a22932a9d135ef1b50ce781a7e961af61e51dc7a1d5cf4b4de493fff16aa; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 89036,
+      "sha256": "83a87877c6071705b2a5fb2fcac0fdc56f97a7ae2ce66b60cbc70f8773ad31d6",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "sheets",
+        "lang": "en",
+        "theme": "dark",
+        "filename": "sheets.en.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 89036,
+        "capturedAt": "2026-10-14T03:17:32.943Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/sheets/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "5af7415b69ed3af01bf0fbc7e96f0e1344a443628ce01597f34841a3f707f76c",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+          }
+        },
+        "sample": {
+          "name": "revenue.xlsx",
+          "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "sha256": "28c3a22932a9d135ef1b50ce781a7e961af61e51dc7a1d5cf4b4de493fff16aa",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "en-US",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "sheets-vi-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/sheets.vi.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork sheets editor, installed pinned product frame /office-frame/sheets/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 5af7415b69ed3af01bf0fbc7e96f0e1344a443628ce01597f34841a3f707f76c. Captured 2026-10-14T03:17:08.892Z from http://localhost:3000, language vi, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample revenue.xlsx supplied as raw bytes, SHA-256 0d6369638b5d960a6cf4ef3d19653b48955eb53d5cd0cd45389d68fc40aff18e; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 94038,
+      "sha256": "95cd4c646aee62e79afdbddfea773ffa6691ce1b1d3066d59bbb76d03456541d",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "sheets",
+        "lang": "vi",
+        "theme": "dark",
+        "filename": "sheets.vi.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 94038,
+        "capturedAt": "2026-10-14T03:17:08.892Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/sheets/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "5af7415b69ed3af01bf0fbc7e96f0e1344a443628ce01597f34841a3f707f76c",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+          }
+        },
+        "sample": {
+          "name": "revenue.xlsx",
+          "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "sha256": "0d6369638b5d960a6cf4ef3d19653b48955eb53d5cd0cd45389d68fc40aff18e",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "vi-VN",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "slides-en-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/slides.en.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork slides editor, installed pinned product frame /office-frame/slides/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 c9fd550d1b888f4ec93888e1c977d968c8a2c86f39d9397b5d73133f3d98fa84. Captured 2026-10-14T03:17:36.672Z from http://localhost:3000, language en, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample results.pptx supplied as raw bytes, SHA-256 ecd665e884b4a135a39436c37a46468b0b455691a60fbccfb12cf3192ad2377a; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 99414,
+      "sha256": "23e4a590a1fd9ed36061e7946072eea1538878a7a5613dc047520ae78d066d81",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "slides",
+        "lang": "en",
+        "theme": "dark",
+        "filename": "slides.en.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 99414,
+        "capturedAt": "2026-10-14T03:17:36.672Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/slides/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "c9fd550d1b888f4ec93888e1c977d968c8a2c86f39d9397b5d73133f3d98fa84",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; media-src blob:"
+          }
+        },
+        "sample": {
+          "name": "results.pptx",
+          "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          "sha256": "ecd665e884b4a135a39436c37a46468b0b455691a60fbccfb12cf3192ad2377a",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "en-US",
+          "background": "rgb(37, 37, 37)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "slides-vi-dark",
+      "bucket": "produce",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/slides.vi.dark.webp",
+      "strategy": "real-product-frame-source-fixture-capture",
+      "prompt_used": null,
+      "origin": "Source: actual UniWork slides editor, installed pinned product frame /office-frame/slides/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 c9fd550d1b888f4ec93888e1c977d968c8a2c86f39d9397b5d73133f3d98fa84. Captured 2026-10-14T03:17:13.421Z from http://localhost:3000, language vi, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample results.pptx supplied as raw bytes, SHA-256 61ca9956891dd2593a0841618367b2b1b34c83d23c7acbd203197470ea52fa3f; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 118276,
+      "sha256": "56094a35b60eeb36c7fcd09e92549182e6a90b59723cf3eefe64be97049aa44f",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "capture": {
+        "editor": "slides",
+        "lang": "vi",
+        "theme": "dark",
+        "filename": "slides.vi.dark.webp",
+        "aiPanel": true,
+        "frame": "1200x750",
+        "width": 2400,
+        "height": 1500,
+        "bytes": 118276,
+        "capturedAt": "2026-10-14T03:17:13.421Z",
+        "captureMode": "installed-product-frame-source-fixture",
+        "entry": "/office-frame/slides/0.1.0-0d03b18/index.html",
+        "pin": {
+          "schema": 1,
+          "version": "0.1.0-0d03b18",
+          "gitSha": "0d03b18",
+          "entry": "index.html",
+          "manifestSha256": "c9fd550d1b888f4ec93888e1c977d968c8a2c86f39d9397b5d73133f3d98fa84",
+          "headers": {
+            "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; media-src blob:"
+          }
+        },
+        "sample": {
+          "name": "results.pptx",
+          "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          "sha256": "61ca9956891dd2593a0841618367b2b1b34c83d23c7acbd203197470ea52fa3f",
+          "illustrative": true
+        },
+        "effectiveCapabilities": {
+          "save": true,
+          "saveAs": false,
+          "recents": false,
+          "filePick": false,
+          "print": false,
+          "exportPdf": false,
+          "exportHtml": false,
+          "attachments": false,
+          "images": false,
+          "ai": true,
+          "webSearch": false,
+          "imageSearch": false,
+          "imageGeneration": false,
+          "desktopOpen": false
+        },
+        "state": {
+          "theme": "dark",
+          "locale": "vi-VN",
+          "background": "rgb(37, 37, 37)"
+        },
+        "errors": [],
+        "protocolErrors": []
+      },
+      "deviations": [],
+      "qa_status": "accepted"
+    }
+  ],
+  "direct": [
+    {
+      "id": "docs-en-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/docs.en.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork docs en light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob a823045635c51263f5ab35f48a3d39336098d4dc, exact file apps/web/public/landing/office/docs.en.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 120450,
+      "sha256": "4839077c056416594bf63fc35bf1bfbfc6dafa51d3ee9d07d405255623b4d270",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "a823045635c51263f5ab35f48a3d39336098d4dc",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "docs-vi-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/docs.vi.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork docs vi light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob 4c645d99ce05cb90142881549e7857d37581a975, exact file apps/web/public/landing/office/docs.vi.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 128514,
+      "sha256": "e00c7f238b2c85dd608934a59204feb290cd60d6f781930832d98763e6fc13ee",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "4c645d99ce05cb90142881549e7857d37581a975",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "html-en-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/html.en.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork html en light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob 8ca00803dd45a39d8b3c2de8d2360f75152e3946, exact file apps/web/public/landing/office/html.en.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 75860,
+      "sha256": "81e611aa9af6514b6f1edb09f8382c74dda0e8623549e440fc0c57e133ef3eff",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "8ca00803dd45a39d8b3c2de8d2360f75152e3946",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "html-vi-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/html.vi.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork html vi light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob 3f587a64fbe494725aba19121ba72ccc922c42c1, exact file apps/web/public/landing/office/html.vi.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 80774,
+      "sha256": "c083ce1751a5e17023a90fd0d2079799834407df40d28a634b487c3987f772b9",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "3f587a64fbe494725aba19121ba72ccc922c42c1",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "markdown-en-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/markdown.en.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork markdown en light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob edcc9417f1cde388553e852a3531a3c4b49e5f02, exact file apps/web/public/landing/office/markdown.en.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 90768,
+      "sha256": "0ff92c96651cf63626d8276b8c2a941da782b03052e3f148077e5b3688affef3",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "edcc9417f1cde388553e852a3531a3c4b49e5f02",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "markdown-vi-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/markdown.vi.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork markdown vi light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob 0b15f010db2873742b9dad91d3bc1af2f07e8bc7, exact file apps/web/public/landing/office/markdown.vi.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 88614,
+      "sha256": "27f64bbf29dd8fa97c8ca62503d445c4a52e92808f97cc1cbcfb484dd279d7e3",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "0b15f010db2873742b9dad91d3bc1af2f07e8bc7",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "pdf-en-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/pdf.en.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork pdf en light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob f7cf72167955c284c7a6a305062ab36ac3f40048, exact file apps/web/public/landing/office/pdf.en.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 103852,
+      "sha256": "d5a31f4ec7ca59266d522ac0e038876e543890910e728b306481964cad189a55",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "f7cf72167955c284c7a6a305062ab36ac3f40048",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "pdf-vi-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/pdf.vi.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork pdf vi light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob c862b9ced419d39578887d2a425e4bd6bf15bc74, exact file apps/web/public/landing/office/pdf.vi.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 106106,
+      "sha256": "eb064024ea063828685e27874c5214579579c9e1ae585f5722dae6efcd172c01",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "c862b9ced419d39578887d2a425e4bd6bf15bc74",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "sheets-en-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/sheets.en.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork sheets en light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob f568cc39dc0a301a8a99b1c4808c86bdbf34195c, exact file apps/web/public/landing/office/sheets.en.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 79412,
+      "sha256": "27c055da9bc30ba19bb6e02a13db906fd6b384f5c42597ee2e35293168d0f246",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "f568cc39dc0a301a8a99b1c4808c86bdbf34195c",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "sheets-vi-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/sheets.vi.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork sheets vi light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob 5814e80ba57d9b9dcb22af104098abb72391a5b3, exact file apps/web/public/landing/office/sheets.vi.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 82726,
+      "sha256": "4c7a347ea44da14678f6dde13bd3eb710b479951a3e705787d0d7976570da965",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "5814e80ba57d9b9dcb22af104098abb72391a5b3",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "slides-en-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/slides.en.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork slides en light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob e201deca504007a550bba2f4f95262fec48dbb6f, exact file apps/web/public/landing/office/slides.en.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 85008,
+      "sha256": "cde06e3bf4e0cc6f0304f20429afd45614e3d3bc98f09ec1e0227da19739fc3c",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "e201deca504007a550bba2f4f95262fec48dbb6f",
+      "deviations": [],
+      "qa_status": "accepted"
+    },
+    {
+      "id": "slides-vi-light",
+      "bucket": "direct",
+      "source_crop": null,
+      "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+      "output_path": "apps/web/public/landing/office/slides.vi.webp",
+      "strategy": "preserve-existing-committed-product-screenshot",
+      "prompt_used": null,
+      "origin": "Source: pre-existing UniWork slides vi light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob 61a26e0a89ea4749c44ec6954e5fc7ebedc0aae1, exact file apps/web/public/landing/office/slides.vi.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+      "dimensions": {
+        "width": 2400,
+        "height": 1500
+      },
+      "format": "webp",
+      "transparency": false,
+      "bytes": 98920,
+      "sha256": "09b1b2641b3715a4a620cae72ccf9feab05f4245a685b0ab211bd1a72f675ede",
+      "illustrative_data": true,
+      "source_files": [
+        {
+          "path": "scripts/office-landing/capture.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+        },
+        {
+          "path": "scripts/office-landing/samples.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+        },
+        {
+          "path": "scripts/office-landing/deck.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+        },
+        {
+          "path": "scripts/office-landing/report.mjs",
+          "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+          "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+        }
+      ],
+      "source_archive": {
+        "schema": 1,
+        "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+        "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+      },
+      "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "historical_blob": "61a26e0a89ea4749c44ec6954e5fc7ebedc0aae1",
+      "deviations": [],
+      "qa_status": "accepted"
+    }
+  ],
+  "semantic": [
+    {
+      "id": "editor-preview-presentation",
+      "implementation": "Use one semantic picture per editor with theme-specific sources and locale-aware asset names. The marketing page owns tab buttons, tab panels, illustrative-data caption, screenshot border, corner clipping and shadow in HTML/CSS. Keep the image undecorated; render copy and calls to action outside it.",
+      "notes": "The parent builds responsive composition A and exposes the active editor through accessible tabs. Screenshots preserve actual product UI but are static illustrations of source sample files.",
+      "qa_status": "needs_parent_review"
+    }
+  ],
+  "execution_order": [
+    "Open source samples in the installed real editor bundle through the standard frame protocol.",
+    "Capture native dark UI and encode 2400x1500 WebP.",
+    "Preserve existing light raster bytes and attach exact committed origins.",
+    "Review the complete contact sheet and consume matching light/dark locale pairs."
+  ],
+  "blockers": [],
+  "limitations": [
+    "Authenticated sample capture could not seed a document: the local preview API returned 503 storage_unavailable.",
+    "Fixture screenshots depict the actual installed renderer and source files; the fixture grants an empty AI panel and does not validate backend, authentication, save, customer data or AI execution.",
+    "Existing light rasters have exact committed origins; original capture timestamps and runtime sessions were not retained."
+  ],
+  "assumptions": [
+    "The approved hero requires real editor screenshots as final image assets.",
+    "All report/deck metrics belong to fictional sample documents and must retain the page's illustrative-data label."
+  ],
+  "totals": {
+    "rasters": 24,
+    "new_dark_rasters": 12,
+    "bytes": 2429076,
+    "dark_bytes": 1288072
+  }
+}

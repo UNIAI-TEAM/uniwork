@@ -36,6 +36,10 @@ export const NotificationSchema = z.object({
   resource_type: z.string(),
   resource_id: z.string(),
   resource_deleted: z.boolean().optional().default(false),
+  /** The recipient can no longer read the document; the server dropped the snippet. */
+  resource_access_lost: z.boolean().optional().default(false),
+  /** The notification's comment is gone; the document may still open. */
+  comment_deleted: z.boolean().optional().default(false),
   /** Where a resource with no page of its own lives: a chat message's room. */
   resource_parent_id: z.string().optional(),
   actor_kind: z.string().optional().default("system"),

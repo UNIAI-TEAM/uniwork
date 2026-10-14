@@ -19,6 +19,8 @@ export const createOfficeLaunchSessionRequestSchema = z.object({
   deployment_id: deploymentId,
   client_id: clientId,
   return_hint: z.enum(["office", "none"]).optional(),
+  /** The comment the app reveals on open (G8-07); the server drops one it does not know. */
+  comment_id: id.optional(),
 }).strict();
 
 export const officeLaunchSessionResponseSchema = z.object({

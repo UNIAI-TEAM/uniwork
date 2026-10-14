@@ -414,6 +414,26 @@ export function canLeaveOrg(ctx: PermissionContext): Decision {
 }
 
 /**
+ * Close the organization: archive it and leave it, without deleting anything
+ * (ADR 0032). Only the owner, and only while nobody else is an active member —
+ * otherwise ownership is transferred instead. `hasOtherActiveMembers` comes
+ * from the directory (the transfer candidates), which the context cannot carry.
+ * Backend: OrganizationMemberService.Close — not owner → 403,
+ * others active → 409 organization_has_members.
+ */
+export function canCloseOrg(ctx: PermissionContext, hasOtherActiveMembers: boolean): Decision {
+  const gate = requireActiveOrgMember(ctx);
+  if (gate) return gate;
+  if (ctx.orgRole !== "owner") {
+    return deny("not_owner_role", "Only the organization owner can close the organization.");
+  }
+  if (hasOtherActiveMembers) {
+    return deny("organization_has_members", "Transfer ownership while other members remain.");
+  }
+  return ALLOW;
+}
+
+/**
  * Create, rename and archive departments.
  * Backend: DepartmentService.requireAdmin (server/internal/service/department.go).
  */

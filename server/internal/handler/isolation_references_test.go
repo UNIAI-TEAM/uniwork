@@ -241,6 +241,12 @@ var isoReferences = []isoReference{
 	// own document from B's device names a row that is not B's.
 	{method: "PUT", pattern: "/api/v1/documents/{documentID}/office/offline-lease", what: "another tenant's lease", body: map[string]any{
 		"lease": isoRef("offlineLease")}},
+	// The path names a file document, so the own-row control must name a
+	// comment of THAT document; the attack still names A's comment, refused
+	// by the tenant pair alone.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/office/sessions", what: "comment of another document", body: map[string]any{
+		"operation": "view", "client_id": isoOfficeClient, "deployment_id": isoOfficeDeployment, "comment_id": isoRef("fileDocComment")},
+		covers: []string{"CreateOfficeLaunchSessionSDI.comment_id"}},
 	{method: "POST", pattern: "/api/v1/office/sessions/exchange", what: "ticket and device", body: map[string]any{
 		"launch_ticket": isoRef("launchTicket"), "client_id": "uniwork-office", "deployment_id": "default", "device_session_id": isoRef("deviceSession")},
 		noControl: "a redeemed ticket is spent, and the matrix signs B in with a browser token, not a device bearer", covers: []string{"ExchangeOfficeLaunchSessionSDI.device_session_id"}},
@@ -371,6 +377,9 @@ var isoRefFieldExempt = map[string]string{
 	"CreatePreviewScopeSDI.job_id":                   "an opaque label of the render the frame shows, signed into the capability; the capability still lists only assets the document owns (PreviewAssetSDI.asset_id has the case)",
 	"RevokeDesktopDeviceSDI.device_session_id":       "documentary body: DELETE /auth/desktop/devices/{deviceSessionID} keeps the id in the path, and the self pass attacks it with A's device",
 	"RevokeOfficeLaunchSessionSDI.launch_session_id": "documentary body: DELETE /office/sessions/{launchSessionID} keeps the id in the path, a tenant parameter the matrix attacks with A's receipt",
+	"SwitchResolutionSDI.organization_id":            "compared only with the caller's own active organizations, read under their membership lock; any other id is a mismatch answered 409 with the caller's own conflicts before a row of it is read, locked or written (TestSwitchResolveMustMatchTheConflicts: another tenant's organization)",
+	"SwitchResolutionSDI.transfer_to_user_id":        "only ever looked up as a member of the caller's own organization they own; somebody outside it has no such row and the switch rolls back with the caller's own conflicts (TestSwitchResolveMustMatchTheConflicts: a transfer to somebody outside the organization)",
+	"McpConsentSDI.organization_id":                  "the self pass sends A's live CSRF token and B's own organization against A's claimed attempt (400 csrf_invalid); TestIsolationMCP approves B's own attempt with B's own CSRF token into A's organization (403), and TestMcpApproveRefusals holds the same refusal against a stand-alone organization",
 }
 
 // A body field that names another row is an attack surface the path passes

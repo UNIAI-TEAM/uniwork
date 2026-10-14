@@ -19,6 +19,8 @@ type SelectProps<
   "aria-label"?: string
   /** Visual treatment for the generated trigger when `children` are omitted. */
   triggerVariant?: SelectTriggerVariant
+  /** Shown in the generated trigger while nothing is selected. */
+  placeholder?: React.ReactNode
 }
 
 /**
@@ -30,6 +32,7 @@ function Select<Value, Multiple extends boolean | undefined = false>({
   id,
   "aria-label": ariaLabel,
   triggerVariant = "default",
+  placeholder,
   ...props
 }: SelectProps<Value, Multiple>) {
   // Without children Base UI mounts nothing visible; a bare `<Select items />`
@@ -45,7 +48,7 @@ function Select<Value, Multiple extends boolean | undefined = false>({
           variant={triggerVariant}
           className="w-full"
         >
-          <SelectValue />
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
           {items.map((item: { value: unknown; label: React.ReactNode }) => (

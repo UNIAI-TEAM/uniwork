@@ -60,7 +60,7 @@ func TestEmailHubRetentionDeletesBodyObjects(t *testing.T) {
 	mid := seedObjectBodyThread(t, svc, q, acc, 2, now.AddDate(0, 0, -2))
 	recent := seedObjectBodyThread(t, svc, q, acc, 3, now)
 	stored := func(id string) bool {
-		_, ok := mem.objects[bodystore.ObjectKey(acc.ID, id)]
+		_, ok := mem.objects[bodystore.ObjectKey(acc.OrganizationID, acc.ID, id)]
 		return ok
 	}
 	if !stored(old.ID) || !stored(mid.ID) || !stored(recent.ID) {
@@ -78,8 +78,38 @@ func TestEmailHubRetentionDeletesBodyObjects(t *testing.T) {
 	}
 
 	key, err := q.InvalidateEmailHubThreadBody(ctx, recent.ID)
-	if err != nil || key != bodystore.ObjectKey(acc.ID, recent.ID) {
+	if err != nil || key != bodystore.ObjectKey(acc.OrganizationID, acc.ID, recent.ID) {
 		t.Fatalf("invalidate returned key=%q err=%v", key, err)
+	}
+}
+
+// UNI-1624: disconnecting drops the mailbox's body objects with its rows (the
+// rows are the only pointer to them), and leaves another mailbox's alone.
+func TestEmailHubDisconnectDeletesBodyObjects(t *testing.T) {
+	setEmailHubObjectBodyMode(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
+	mem := newMemStorage()
+	svc.SetObjectStorage(mem)
+	ctx := context.Background()
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	other := seedEmailHubAccountAddr(t, q, svc.box, user.ID, ws.OrganizationID, "other@gmail.com")
+	now := time.Now().UTC()
+	mine := seedObjectBodyThread(t, svc, q, acc, 1, now)
+	theirs := seedObjectBodyThread(t, svc, q, other, 1, now)
+	mineKey := bodystore.ObjectKey(acc.OrganizationID, acc.ID, mine.ID)
+	theirsKey := bodystore.ObjectKey(other.OrganizationID, other.ID, theirs.ID)
+	if _, ok := mem.objects[mineKey]; !ok {
+		t.Fatalf("seed did not upload %s", mineKey)
+	}
+
+	if err := svc.Disconnect(ctx, Human(user.ID), ws.ID, acc.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := mem.objects[mineKey]; ok {
+		t.Fatalf("disconnect left the body object %s", mineKey)
+	}
+	if _, ok := mem.objects[theirsKey]; !ok {
+		t.Fatalf("disconnect deleted another mailbox's body object %s", theirsKey)
 	}
 }
 
@@ -99,7 +129,7 @@ func TestGetThreadHydratesObjectBodyWithoutInvalidating(t *testing.T) {
 	row, err := q.GetEmailHubThread(ctx, db.GetEmailHubThreadParams{
 		ID: th.ID, AccountID: acc.ID, OrganizationID: ws.OrganizationID,
 	})
-	if err != nil || !row.BodyCached || row.BodyObjectKey != bodystore.ObjectKey(acc.ID, th.ID) {
+	if err != nil || !row.BodyCached || row.BodyObjectKey != bodystore.ObjectKey(acc.OrganizationID, acc.ID, th.ID) {
 		t.Fatalf("row after open: err=%v cached=%v key=%q", err, row.BodyCached, row.BodyObjectKey)
 	}
 }

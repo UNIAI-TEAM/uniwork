@@ -69,3 +69,8 @@ type TransferOwnershipSDI struct {
 	ToUserID string `json:"to_user_id" description:"ULID thành viên nhận quyền chủ sở hữu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	Password string `json:"password" description:"Mật khẩu hiện tại của chủ sở hữu" example:"••••••••"`
 }
+
+// CloseOrganizationSDI confirms a close by typing the organization's slug back.
+type CloseOrganizationSDI struct {
+	ConfirmSlug string `json:"confirm_slug" description:"Slug của tổ chức, gõ lại để xác nhận đóng" example:"unicom"`
+}

@@ -28,12 +28,14 @@ WHERE w.id = $1;
 -- name: ListWorkspacesForUser :many
 -- tenant: self
 -- Workspace user là thành viên trực tiếp, HOẶC thuộc org mà user là owner/admin.
+-- An archived organization (closed or deleted) keeps its workspace rows for a
+-- restore (ADR 0032 D4), but nobody can open them, so they are not listed.
 SELECT DISTINCT ON (w.created_at, w.id) w.*, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
 LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $1
 LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = $1
-WHERE m.user_id IS NOT NULL OR om.role IN ('owner','admin')
+WHERE (m.user_id IS NOT NULL OR om.role IN ('owner','admin')) AND o.status <> 'archived'
 ORDER BY w.created_at, w.id;
 
 -- name: GetWorkspaceAccess :one
@@ -77,14 +79,34 @@ INSERT INTO invitations (id, organization_id, workspace_id, email, role, org_rol
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
--- name: GetInvitationByToken :one
+-- name: LockInvitationByToken :one
 -- tenant: token
-SELECT * FROM invitations
-WHERE token = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now();
+-- Accepting reads the invitation under a row lock, whatever its state, so a
+-- revoke or a second accept running at the same moment queues behind it.
+SELECT * FROM invitations WHERE token = $1 FOR UPDATE;
 
--- name: MarkInvitationAccepted :exec
+-- name: GetInvitationByTokenAnyState :one
+-- tenant: token
+-- The invitation page reads the invitation whatever its state, so it can say
+-- why a link no longer works, with the names the invitee is shown: the
+-- organization, the workspace when there is one, and who sent it. Unlocked:
+-- accepting reads it again under LockInvitationByToken.
+SELECT i.id, i.organization_id, i.workspace_id, i.email, i.role, i.org_role,
+       i.expires_at, i.accepted_at, i.revoked_at,
+       o.name AS organization_name, o.slug AS organization_slug,
+       w.name AS workspace_name, w.slug AS workspace_slug,
+       u.display_name AS invited_by_name
+FROM invitations i
+JOIN organizations o ON o.id = i.organization_id
+LEFT JOIN workspaces w ON w.id = i.workspace_id
+LEFT JOIN users u ON u.id = i.invited_by
+WHERE i.token = $1;
+
+-- name: MarkInvitationAccepted :execrows
 -- tenant: by-id
-UPDATE invitations SET accepted_at = now() WHERE id = $1;
+-- Zero rows means the invitation stopped being pending; the accept rolls back.
+UPDATE invitations SET accepted_at = now()
+WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now();
 
 -- name: ListInvitationsForEmail :many
 -- tenant: self
@@ -119,6 +141,12 @@ LIMIT 1;
 UPDATE invitations SET revoked_at = now()
 WHERE id = $1 AND organization_id = $2 AND accepted_at IS NULL AND revoked_at IS NULL
 RETURNING *;
+
+-- name: RevokePendingInvitationsForOrg :execrows
+-- A closed organization takes nobody in: its open invitations are revoked
+-- with it, and the rows stay for the trail.
+UPDATE invitations SET revoked_at = now()
+WHERE organization_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL;
 
 -- name: UpdateWorkspaceMemberRole :one
 UPDATE workspace_members

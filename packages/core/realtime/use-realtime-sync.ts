@@ -14,7 +14,7 @@ import { chatKeys } from "../chat/hooks";
 import { catchUpLoadedRoomTimelines, catchUpOnChatSubscribeAck } from "../chat/room-timeline";
 import { documentKeys } from "../documents/keys";
 import { graphKeys } from "../graph/keys";
-import { invalidateEmailHubForRealtime } from "../email-hub/query-cache";
+import { invalidateEmailHubCounts, invalidateEmailHubForInboxChanged } from "../email-hub/query-cache";
 import { homeKeys } from "../home/keys";
 import { meetingKeys } from "../meetings/hooks";
 import { MOTION_TALLY_INVALIDATE_MS, motionKeys } from "../meetings/motion-hooks";
@@ -26,6 +26,8 @@ import { taskKeys } from "../tasks/hooks";
 import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
+import { documentFrameKeys } from "./document-events";
+import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
 import {
   createInvalidateScheduler,
   shouldInvalidateMeetingDetail,
@@ -109,6 +111,12 @@ function keysFor(
       push(homeKeys.summary(wsId));
     }
     pushCalendar();
+    return keys;
+  }
+
+  const documentFrame = documentFrameKeys(wsId, type, payload);
+  if (documentFrame) {
+    for (const k of documentFrame) push(k);
     return keys;
   }
 
@@ -281,51 +289,6 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.chat(payload.meeting_id));
       break;
     }
-    case "document.comment_added":
-    case "document.comment_updated":
-    case "document.comment_deleted":
-    case "document.comment_resolved":
-    case "document.comment_unresolved":
-    case "document.comment_reaction_added":
-    case "document.comment_reaction_removed":
-    case "document.comment_anchors_updated": {
-      // Comment frames are ids-only and change nothing but the thread (G1-07b
-      // owns these keys): invalidate exactly the comment key of the document
-      // the frame names, never the document itself - detail, versions and
-      // downloadMeta stay fresh. A frame without a document id refreshes
-      // nothing, like the other id-addressed cases.
-      if (payload.workspace_id && payload.workspace_id !== wsId) break;
-      if (payload.document_id) push(documentKeys.comments(wsId, payload.document_id));
-      break;
-    }
-    case "document.favorited":
-    case "document.unfavorited": {
-      // A user-scoped bookmark change: the favorites list is organization-
-      // scoped (G1-07b) and the frame never names the organization, so the
-      // whole small favorites prefix refreshes; the watching workspace's
-      // document root refreshes as before.
-      push(documentKeys.favoritesRoot);
-      if (!payload.workspace_id || payload.workspace_id === wsId) {
-        push(documentKeys.workspace(wsId));
-      }
-      break;
-    }
-    case "document.created":
-    case "document.updated":
-    case "document.version_created":
-    case "document.shared":
-    case "document.share_revoked":
-    case "document.link_created":
-    case "document.link_revoked": {
-      // Ids-only refetch: the workspace root is the prefix of every document
-      // key (list/tree roots, detail, versions, downloadMeta), so one
-      // invalidation covers the whole subtree. The frame only marks queries
-      // stale; an in-flight draft lives in the save machine, not the cache
-      // (documents/save-state.ts keeps it through conflict/unverified).
-      if (payload.workspace_id && payload.workspace_id !== wsId) break;
-      push(documentKeys.workspace(wsId));
-      break;
-    }
     case "summary.created": {
       if (payload.meeting_id) {
         push(meetingKeys.summary(payload.meeting_id));
@@ -345,6 +308,7 @@ function keysFor(
     case "member.invited":
     case "member.joined":
     case "member.removed":
+    case "organization.closed":
     case "organization.ownership_transferred": {
       // The directory and the membership list are keyed by organization SLUG,
       // because that is what the routes carry, while the event payload names
@@ -353,6 +317,7 @@ function keysFor(
       // showing a stale one.
       push(peopleRootKey);
       push(orgMemberRootKey);
+      if (changesOwnMembership(type, payload)) ownMembershipKeys.forEach(push);
       break;
     }
     case "recording.started":
@@ -526,6 +491,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       // Ahead of the chat and email early returns: those frames are the ones
       // that may carry a source file (documents home, "other modules").
       sources.onFrame(eventType, payload);
+      if (changesOwnMembership(eventType, payload)) void reloadSessionUser();
       if (handleChatRealtimeEvent(chatScheduler, eventType, payload)) {
         if (
           payload.room_id &&
@@ -535,16 +501,14 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         }
         return;
       }
-      if (
-        (eventType === "email_hub.inbox_changed" || eventType === "email_hub.new_mail") &&
-        payload.account_id
-      ) {
-        invalidateEmailHubForRealtime(
-          qc,
-          wsId,
-          payload.account_id,
-          eventType === "email_hub.inbox_changed",
-        );
+      if (eventType === "email_hub.inbox_changed" && payload.account_id) {
+        invalidateEmailHubForInboxChanged(qc, wsId, payload.account_id);
+        return;
+      }
+      if (eventType === "email_hub.new_mail" && payload.account_id) {
+        // new_mail duplicates the later inbox_changed mailbox refresh. Keep
+        // list/detail caches intact, but refresh the lightweight count badges.
+        invalidateEmailHubCounts(qc, wsId, payload.account_id);
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {

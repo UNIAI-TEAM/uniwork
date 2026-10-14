@@ -28,8 +28,11 @@ type Deps struct {
 	Minter        auth.TokenMinter
 	Auth          *service.AuthService
 	DesktopAuth   *service.DesktopAuthService
+	McpAuth       *service.McpAuthService
+	McpTools      *service.McpToolService
 	Verification  *service.VerificationService
 	PasswordReset *service.PasswordResetService
+	DemoRequests  *service.DemoRequestService
 	GoogleAuth    *service.GoogleAuthService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
@@ -147,6 +150,9 @@ type handlers struct {
 	// proxies is TRUSTED_PROXIES parsed once; sessions record the client
 	// address the same way the rate limiter keys on it.
 	proxies []*net.IPNet
+	// mcpHandler is the go-sdk server behind /mcp, built once; nil when the
+	// connector is not wired (McpAuth or McpTools missing).
+	mcpHandler http.Handler
 }
 
 // frameIdentity names the person behind an Office frame token for the global
@@ -199,6 +205,9 @@ func New(d Deps) http.Handler {
 		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
 	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
+	if d.McpAuth != nil && d.McpTools != nil {
+		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), d.Log)
+	}
 	aiMount := h.aiMountable(sessionAIActor)
 	frameAI := h.aiMountable(h.frameAIActor)
 	return rt.New(rt.Deps{
@@ -224,6 +233,9 @@ func New(d Deps) http.Handler {
 		Config:                     h.config,
 		OfficeDesktopDownload:      h.officeDesktopDownload,
 		RUM:                        h.rum,
+		CreateDemoRequest:          h.createDemoRequest,
+		AdminListDemoRequests:      h.adminListDemoRequests,
+		AdminUpdateDemoRequest:     h.adminUpdateDemoRequest,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
 		AdminGetOrganization:       h.adminGetOrganization,
@@ -246,6 +258,23 @@ func New(d Deps) http.Handler {
 		AdminRefundInvoice:         h.adminRefundInvoice,
 		AdminConfirmInvoiceRefund:  h.adminConfirmInvoiceRefund,
 		WS:                         h.ws,
+
+		McpProtectedResource:   h.mcpProtectedResource,
+		McpAuthorizationServer: h.mcpAuthorizationServer,
+		McpAuthorize:           h.mcpAuthorize,
+		McpToken:               h.mcpToken,
+		McpRegister:            h.mcpRegister,
+		McpRevoke:              h.mcpRevoke,
+		McpServe:               h.mcpServe,
+
+		McpConsent:            h.mcpConsent,
+		McpConsentCommand:     h.mcpConsentCommand,
+		MyConnectedApps:       h.myConnectedApps,
+		RevokeMyConnectedApp:  h.revokeMyConnectedApp,
+		OrgConnectedApps:      h.orgConnectedApps,
+		RevokeOrgConnectedApp: h.revokeOrgConnectedApp,
+		OrgMcpPolicy:          h.orgMcpPolicy,
+		SetOrgMcpPolicy:       h.setOrgMcpPolicy,
 
 		Register:              h.register,
 		Login:                 h.login,
@@ -294,6 +323,7 @@ func New(d Deps) http.Handler {
 		DeactivateOrgMember: h.deactivateOrgMember,
 		ReactivateOrgMember: h.reactivateOrgMember,
 		LeaveOrganization:   h.leaveOrganization,
+		CloseOrganization:   h.closeOrganization,
 
 		InviteToOrganization: h.inviteToOrganization,
 		ListOrgInvitations:   h.listOrgInvitations,
@@ -319,6 +349,7 @@ func New(d Deps) http.Handler {
 		PatchMember:         h.patchMember,
 		DeleteMember:        h.deleteMember,
 		CreateInvitation:    h.createInvitation,
+		PreviewInvitation:   h.previewInvitation,
 		AcceptInvitation:    h.acceptInvitation,
 
 		SeedWelcomeTask: h.seedWelcomeTask,

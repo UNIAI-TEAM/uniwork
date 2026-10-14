@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { paths } from "@uniwork/core/paths";
 import { useMarkRead, useMarkUnread, useNotificationPages, useUnreadCount } from "@uniwork/core/notifications";
 import type { Notification } from "@uniwork/core/types";
+import { useWorkspaces } from "@uniwork/core/workspaces";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -54,6 +55,7 @@ const COLUMN = "mx-auto w-full max-w-5xl px-2 md:px-4";
 export function InboxView() {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
+  const workspaces = useWorkspaces().data;
   const now = useNow();
   const [read, setRead] = useState<ReadFilter>("all");
   const [category, setCategory] = useState<CategoryFilter>("any");
@@ -279,7 +281,7 @@ export function InboxView() {
                     <NotificationRow
                       key={n.id}
                       notification={n}
-                      href={resourceHref(n, workspace)}
+                      href={resourceHref(n, workspace, workspaces ?? [])}
                       onOpen={open}
                       onToggleRead={toggleRead}
                       onArchive={(row) => archiveAndMove(row, ordered.indexOf(row))}

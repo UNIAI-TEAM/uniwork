@@ -79,4 +79,8 @@ export const K = {
   collabMentionNoMatch: `${C}.collabMentionNoMatch`,
   collabMentionNoCandidates: `${C}.collabMentionNoCandidates`,
   collabMentionError: `${C}.collabMentionError`,
+  // S15 page level (web only): a document opened from the Inbox that cannot show.
+  inboxDocGone: `${C}.inboxDocGone`,
+  inboxDocNoAccess: `${C}.inboxDocNoAccess`,
+  inboxBack: `${C}.inboxBack`,
 } as const;

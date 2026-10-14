@@ -18,6 +18,7 @@ import (
 //	POST /api/v1/orgs/{org}/members/{userID}/deactivate
 //	POST /api/v1/orgs/{org}/members/{userID}/reactivate
 //	POST /api/v1/orgs/{org}/leave
+//	POST /api/v1/orgs/{org}/close
 //	POST /api/v1/orgs/{org}/transfer-ownership
 //	GET  /api/v1/orgs/{orgID}/office/capabilities
 //	GET  /api/v1/orgs/{org}/invitations
@@ -145,6 +146,14 @@ func registerOrganizations(r api, h Routes) {
 		summary:     "Leave an organization",
 		description: "Tự rời tổ chức; xóa luôn tư cách thành viên mọi workspace trong tổ chức. Owner phải chuyển quyền trước.",
 		tags:        []string{"organizations"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/close", h.CloseOrganization, apiOp{
+		summary:     "Close an organization",
+		description: "Chủ sở hữu là thành viên hoạt động duy nhất đóng tổ chức: tổ chức được lưu trữ (không xóa dữ liệu), lời mời đang chờ bị thu hồi, gói dịch vụ bị hủy và chủ sở hữu được tự do tham gia hoặc tạo tổ chức khác. Phải gõ lại slug để xác nhận.",
+		tags:        []string{"organizations"},
+		sdi:         sdi.CloseOrganizationSDI{},
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})

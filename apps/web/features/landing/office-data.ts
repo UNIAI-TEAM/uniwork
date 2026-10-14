@@ -24,8 +24,9 @@ export const OFFICE_TASKS = [
 ] as const satisfies readonly { key: string; editor: OfficeEditorKey }[];
 
 export const OFFICE_EDITOR_ANCHOR = "office-editors";
+export const OFFICE_BUSINESS_ANCHOR = "office-business";
 
-/** Screenshots are shot once per language by scripts/office-landing/capture.mjs. */
-export function officeShotSrc(editor: OfficeEditorKey, language: string): string {
-  return `/landing/office/${editor}.${language.toLowerCase().startsWith("vi") ? "vi" : "en"}.webp`;
+/** Product captures are localized and have an explicit dark UI variant. */
+export function officeShotSrc(editor: OfficeEditorKey, language: string, theme: "light" | "dark" = "light"): string {
+  return `/landing/office/${editor}.${language.toLowerCase().startsWith("vi") ? "vi" : "en"}${theme === "dark" ? ".dark" : ""}.webp`;
 }

@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -69,6 +70,46 @@ func TestEveryRouteFieldIsBound(t *testing.T) {
 	for _, want := range []string{"GET /healthz", "GET /api/v1/admin/me", "GET /swagger/doc.json", "POST /api/v1/rum"} {
 		if _, ok := bound[want]; !ok {
 			t.Errorf("missing route %s", want)
+		}
+	}
+}
+
+// ADR 0031: the MCP connector's discovery documents and OAuth endpoints sit
+// outside the api wrapper, because their bodies are RFC forms and documents,
+// not SDI/SDO. They are bound here by hand and must stay off the OpenAPI spec.
+func TestMCPOAuthRoutesAreMountedOutsideTheAPIWrapper(t *testing.T) {
+	cfg := config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true}
+	mux := New(Deps{Cfg: cfg}, stubRoutes())
+	bound := walk(t, mux)
+	want := map[string]string{
+		"GET /.well-known/oauth-protected-resource":     "McpProtectedResource",
+		"GET /.well-known/oauth-protected-resource/mcp": "McpProtectedResource",
+		"GET /.well-known/oauth-authorization-server":   "McpAuthorizationServer",
+		"GET /oauth/authorize":                          "McpAuthorize",
+		"POST /oauth/token":                             "McpToken",
+		"POST /oauth/revoke":                            "McpRevoke",
+		"POST /oauth/register":                          "McpRegister",
+		"POST /mcp":                                     "McpServe",
+		"GET /mcp":                                      "McpServe",
+		"DELETE /mcp":                                   "McpServe",
+	}
+	for route, field := range want {
+		if got := bound[route]; got != field {
+			t.Errorf("%s is bound to %q, want Routes.%s", route, got, field)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/swagger/doc.json", nil))
+	var spec struct {
+		Paths map[string]json.RawMessage `json:"paths"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil || len(spec.Paths) == 0 {
+		t.Fatalf("swagger doc: %v (%d paths)", err, len(spec.Paths))
+	}
+	for path := range spec.Paths {
+		if strings.HasPrefix(path, "/oauth") || strings.HasPrefix(path, "/.well-known") || strings.HasPrefix(path, "/mcp") {
+			t.Errorf("%s is on the OpenAPI spec; RFC routes stay outside it (ADR 0031)", path)
 		}
 	}
 }

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { landingFont } from "../../platform/landing-font";
 import { SiteHeader } from "./site-header";
 import { SiteFooter } from "./site-footer";
-import { FinalCta } from "./final-cta";
+import { FinalCta, type ClosingAction } from "./final-cta";
 import "./landing.css";
 import "./landing-motion.css";
 import "./landing-explorer.css";
@@ -19,6 +19,7 @@ import "./landing-focus.css";
 import "./landing-decisions.css";
 import "./marketing-pages.css";
 import "./feature-visuals.css";
+import "./marketing-preview.css";
 
 /**
  * THESIS: Understand a feature before entering its demo.
@@ -31,16 +32,19 @@ import "./feature-visuals.css";
  * FINISH: The scoped implementation, evidence and review disposition are recorded in
  * docs/landing-feature-pages.md; the established global design system remains authoritative.
  */
-export function MarketingShell({ children, closingTitle, closingDemoHref }: {
+export function MarketingShell({ children, closingTitle, closingDemoHref, closingAction, showClosing = true, className = "" }: {
   children: ReactNode;
   closingTitle?: string;
   closingDemoHref?: string;
+  closingAction?: ClosingAction;
+  showClosing?: boolean;
+  className?: string;
 }) {
   const { t } = useTranslation();
-  return <div className={`landing-site marketing-site ${landingFont.variable}`} data-design-contract="uniwork-product-pages">
+  return <div className={`landing-site marketing-site ${landingFont.variable} ${className}`} data-design-contract="uniwork-product-pages">
     <a className="landing-skip" href="#marketing-main">{t("landing.studio.skip")}</a>
     <SiteHeader />
-    <main id="marketing-main">{children}<FinalCta compact titleKey={closingTitle} demoHref={closingDemoHref} /></main>
+    <main id="marketing-main">{children}{showClosing && <FinalCta compact titleKey={closingTitle} demoHref={closingDemoHref} secondaryAction={closingAction} />}</main>
     <SiteFooter />
   </div>;
 }

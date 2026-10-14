@@ -138,6 +138,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `organization.suspended` | 1 | `organization_id`, `user_id` | — | user | outbox |
 | `organization.unsuspended` | 1 | `organization_id`, `user_id` | — | user | outbox |
 | `organization.ownership_transferred` | 1 | `organization_id`, `user_id` | — | user | outbox |
+| `organization.closed` | 1 | `organization_id` | — | organization | outbox |
 | `profile.updated` | 1 | `organization_id`, `user_id` | — | organization | outbox |
 | `department.created` | 1 | `organization_id`, `department_id` | — | organization | outbox |
 | `department.updated` | 1 | `organization_id`, `department_id` | — | organization | outbox |

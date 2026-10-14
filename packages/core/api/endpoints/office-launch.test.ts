@@ -55,6 +55,15 @@ describe("Office launch endpoint contracts", () => {
     expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toBe(`http://api.test/api/v1/documents/${descriptor.id}/office/sessions`);
   });
 
+  it("carries an optional comment_id in the create request body", async () => {
+    const body = { operation: "edit", deployment_id: "production-eu", client_id: "uniwork-office", comment_id: "c-1" } as const;
+    expect(createOfficeLaunchSessionRequestSchema.parse(body)).toEqual(body);
+    expect(() => createOfficeLaunchSessionRequestSchema.parse({ ...body, comment_id: "" })).toThrow();
+    vi.mocked(fetch).mockResolvedValueOnce(json(session, 201));
+    await createOfficeLaunchSession(descriptor.id, body);
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual(body);
+  });
+
   it("keeps exchange strict and sends only the main-process request shape", async () => {
     expect(exchangeOfficeLaunchSessionRequestSchema.parse({ launch_ticket: ticket, deployment_id: "production-eu", client_id: "uniwork-office", device_session_id: "device-1" })).toEqual({ launch_ticket: ticket, deployment_id: "production-eu", client_id: "uniwork-office", device_session_id: "device-1" });
     expect(() => exchangeOfficeLaunchSessionRequestSchema.parse({ launch_ticket: ticket, deployment_id: "production-eu", client_id: "uniwork-office", device_session_id: "device-1", refresh_token: "secret" })).toThrow();

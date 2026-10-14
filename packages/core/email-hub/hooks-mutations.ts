@@ -3,9 +3,9 @@ import type { EmailHubThread } from "../types/email-hub";
 import * as api from "../api/endpoints/email-hub";
 import {
   emailHubKeys,
+  invalidateEmailHubCounts,
   invalidateEmailHubThreads,
   invalidateEmailHubThreadsForAccount,
-  invalidateEmailHubUnread,
   patchEmailHubThreadInLists,
   threadDetailKey,
 } from "./query-cache";
@@ -18,8 +18,7 @@ export function useSyncEmailHub(wsId: string) {
     onSuccess: (result, input) => {
       if (result?.synced) {
         invalidateEmailHubThreadsForAccount(qc, wsId, input.accountId);
-        invalidateEmailHubUnread(qc, wsId);
-        void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "sidebar-counts", input.accountId] });
+        invalidateEmailHubCounts(qc, wsId, input.accountId);
         void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
         void qc.invalidateQueries({
           predicate: (q) => q.queryKey[0] === "email-hub" && q.queryKey[2] === "imap-labels",
@@ -61,6 +60,7 @@ export function useMoveEmailHubThread(wsId: string) {
     onSuccess: (_data, input) => {
       qc.removeQueries({ queryKey: emailHubKeys.thread(wsId, input.accountId, input.threadId) });
       invalidateEmailHubThreads(qc, wsId, input.accountId);
+      invalidateEmailHubCounts(qc, wsId, input.accountId);
     },
   });
 }
@@ -90,7 +90,7 @@ export function useMarkEmailHubRead(wsId: string) {
       if (!thread) return;
       qc.setQueryData(threadDetailKey(wsId, input.accountId, input.threadId), thread);
       patchEmailHubThreadInLists(qc, wsId, input.accountId, input.threadId, { is_read: thread.is_read });
-      invalidateEmailHubUnread(qc, wsId);
+      invalidateEmailHubCounts(qc, wsId, input.accountId);
     },
   });
 }
@@ -114,7 +114,7 @@ export function useSnoozeEmailHubThread(wsId: string) {
         qc.setQueryData(threadDetailKey(wsId, input.accountId, input.threadId), thread);
       }
       invalidateEmailHubThreads(qc, wsId, input.accountId);
-      invalidateEmailHubUnread(qc, wsId);
+      invalidateEmailHubCounts(qc, wsId, input.accountId);
     },
   });
 }

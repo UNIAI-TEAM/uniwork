@@ -49,6 +49,11 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionAuthDesktopSessionCreated:   "covered by desktop_auth_test.go",
 	audit.ActionAuthDesktopTokenRotated:     "covered by desktop_auth_test.go",
 	audit.ActionAuthDesktopSessionRevoked:   "covered by desktop_auth_test.go",
+
+	audit.ActionMcpGrantCreated:              "covered by mcp_authorize_test.go",
+	audit.ActionMcpGrantRevoked:              "covered by mcp_grants_test.go",
+	audit.ActionMcpTokenFamilyRevoked:        "covered by mcp_tokens_test.go",
+	audit.ActionOrganizationMcpPolicyChanged: "covered by mcp_grants_test.go",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -160,6 +165,12 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionOrganizationOwnershipChanged: func(t *testing.T, f *auditFixture) {
 			f.addMember(t)
 			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, auditPassword); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOrganizationClosed: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if err := f.orgMem.Close(f.ctx, f.owner.ID, f.orgID, "audit-org"); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1455,6 +1466,7 @@ func auditActions() []string {
 		audit.ActionPeopleExported,
 		audit.ActionInvitationRevoked,
 		audit.ActionOrganizationOwnershipChanged,
+		audit.ActionOrganizationClosed,
 		audit.ActionWorkspaceCreated,
 		audit.ActionWorkspaceUpdated,
 		audit.ActionWorkspaceMemberAdded,
@@ -1559,6 +1571,10 @@ func auditActions() []string {
 		audit.ActionEmailHubAccountConnected,
 		audit.ActionEmailHubAccountDisconnected,
 		audit.ActionEmailHubAccountAuthFailed,
+		audit.ActionMcpGrantCreated,
+		audit.ActionMcpGrantRevoked,
+		audit.ActionMcpTokenFamilyRevoked,
+		audit.ActionOrganizationMcpPolicyChanged,
 	}
 }
 

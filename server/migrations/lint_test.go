@@ -286,10 +286,13 @@ const maxPreTenantMigrationPrefix = 65
 // Identity and infrastructure tables that are not tenant data. Add a name
 // here only with the reason beside it.
 var tenantExemptTables = map[string]string{
+	"demo_requests":             "public pre-account contact intake; the prospective team has no organization and only platform staff may read it",
 	"users":                     "identity, above every organization",
 	"refresh_tokens":            "session credential, keyed by user",
 	"desktop_auth_attempts":     "pending account authorization, before organization selection",
 	"device_sessions":           "account/session identity can span zero or many organizations; no single organization is correct",
+	"mcp_clients":               "OAuth client registry shared by every organization; a client is a program, not tenant data (UNI-1308)",
+	"mcp_auth_attempts":         "pending MCP authorization, before the person picks an organization; the approved attempt reaches its tenant through grant_id (UNI-1308)",
 	"email_verification_codes":  "pre-registration, no organization yet",
 	"password_reset_tokens":     "credential recovery, keyed by user",
 	"organizations":             "the tenant itself",

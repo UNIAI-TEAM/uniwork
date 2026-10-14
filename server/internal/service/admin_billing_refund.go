@@ -44,10 +44,18 @@ func (s *AdminService) RefundInvoice(ctx context.Context, adminID, invoiceID, re
 	}
 	partial := amount < refundable
 	providerRef = strings.TrimSpace(providerRef)
+	if inv.Provider == "vnpay" && inv.AmountRefunded > 0 {
+		return db.Invoice{}, CodedError{Code: "invoice_not_refundable", Status: http.StatusConflict,
+			Msg: "hóa đơn VNPay đã hoàn một lần — phần còn lại hoàn thủ công"}
+	}
 
 	switch inv.Provider {
 	case "manual":
-		return s.refundInvoiceManual(ctx, adminID, invoiceID, reason, providerRef, inv, amount)
+		if partial {
+			return db.Invoice{}, CodedError{Code: "invalid_refund_amount", Status: http.StatusBadRequest,
+				Msg: "hóa đơn thanh toán thủ công chỉ hoàn được toàn bộ"}
+		}
+		return s.refundInvoiceManual(ctx, adminID, invoiceID, reason, providerRef, inv)
 	case "vnpay":
 		return s.refundInvoiceVnpay(ctx, adminID, invoiceID, reason, providerRef, clientIP, inv, amount, partial)
 	default:
@@ -60,9 +68,7 @@ func (s *AdminService) refundInvoiceManual(
 	ctx context.Context,
 	adminID, invoiceID, reason, providerRef string,
 	inv db.AdminGetInvoiceByIDRow,
-	amount int64,
 ) (db.Invoice, error) {
-	_ = amount
 	ctx, traceID := ensureTrace(ctx)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -74,6 +80,10 @@ func (s *AdminService) refundInvoiceManual(
 	after, err := q.AdminMarkInvoiceRefunded(ctx, db.AdminMarkInvoiceRefundedParams{
 		ID: invoiceID, RefundProviderRef: nullTextOptional(providerRef), RefundReason: textRequired(reason),
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Invoice{}, CodedError{Code: "invoice_not_refundable", Status: http.StatusConflict,
+			Msg: "trạng thái hóa đơn đã đổi — tải lại danh sách"}
+	}
 	if err != nil {
 		return db.Invoice{}, err
 	}
@@ -157,38 +167,6 @@ func (s *AdminService) ConfirmInvoiceRefund(ctx context.Context, adminID, invoic
 		return db.Invoice{}, err
 	}
 	return after, nil
-}
-
-// adminInvoiceAfterPendingRace returns the invoice when a concurrent refund already moved it to pending.
-func (s *AdminService) adminInvoiceAfterPendingRace(ctx context.Context, q *db.Queries, invoiceID string, partial bool) (db.Invoice, error) {
-	row, err := q.AdminGetInvoiceByID(ctx, invoiceID)
-	if err != nil {
-		return db.Invoice{}, err
-	}
-	want := "refund_pending"
-	if partial {
-		want = "partial_refund_pending"
-	}
-	if row.Status != want {
-		return db.Invoice{}, CodedError{Code: "invoice_not_refundable", Status: http.StatusConflict,
-			Msg: "trạng thái hóa đơn đã đổi — tải lại danh sách"}
-	}
-	return adminGetInvoiceRowToInvoice(row), nil
-}
-
-func adminGetInvoiceRowToInvoice(row db.AdminGetInvoiceByIDRow) db.Invoice {
-	return db.Invoice{
-		ID: row.ID, OrganizationID: row.OrganizationID, SubscriptionID: row.SubscriptionID,
-		Provider: row.Provider, ProviderInvoiceID: row.ProviderInvoiceID, Number: row.Number,
-		Status: row.Status, AmountDue: row.AmountDue, AmountPaid: row.AmountPaid, Currency: row.Currency,
-		PeriodStart: row.PeriodStart, PeriodEnd: row.PeriodEnd, HostedUrl: row.HostedUrl,
-		IssuedAt: row.IssuedAt, PaidAt: row.PaidAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		InitiatedBy: row.InitiatedBy, InitiatedByKind: row.InitiatedByKind,
-		RefundedAt: row.RefundedAt, RefundProviderRef: row.RefundProviderRef, RefundRequestedAt: row.RefundRequestedAt,
-		AmountRefunded: row.AmountRefunded, PartialRefundAmount: row.PartialRefundAmount,
-		RefundReason: row.RefundReason, RefundConfirmReason: row.RefundConfirmReason,
-		PaymentIntentID: row.PaymentIntentID,
-	}
 }
 
 func textRequired(s string) pgtype.Text {

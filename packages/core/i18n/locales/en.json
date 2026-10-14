@@ -35,6 +35,56 @@
           "smallDialogs": "Form dialogs stay clear of small-screen edges and stack their leading content for easier interaction."
         },
         "note": "Email connections and AI features need the organization's corresponding configuration. Each feature follows the application's access permissions."
+      },
+      "v1_1_0": {
+        "title": "Organization data controls, Office and Email Hub updates",
+        "summary": "Export and schedule deletion of organization data, explore UniWork Office, follow application releases, and benefit from more reliable Email Hub and VNPay payments.",
+        "note": "Organization data export and deletion are for organization owners. The Documents home depends on the organization enabling that feature. Installer buttons appear only for published builds. Email connections and AI features still need the organization's corresponding configuration.",
+        "features": {
+          "ca1d8c53d5022a921403f4dc38949d308db212f2e": "Organization owners can export business data as a ZIP, schedule deletion after five days and cancel before it runs. Members cannot access the organization while deletion is pending; activity logs and invoices are retained.",
+          "cadea71f7d7b076297076d43eddb74258e3fbc453": "A public changelog at /changelog lists releases by month with new features, improvements and fixes, linked from the main menu and the footer.",
+          "c568278d78fe988cb444665922b5d161f58f487eb": "A public UniWork Office page at /office with the six editors, real screenshots and per-OS installer buttons; only published installers are shown. The new Documents home — folders, blank docx, pptx and pdf files, and files from chat, tasks, meetings and Email Hub — is available where the organization enables the Documents feature."
+        },
+        "improvements": {
+          "c71ffdf93b83f81b3b7b7bb3f6530b58373687b6e": "The landing page shows real captures of the tasks, chat, meetings and document editor screens, in the current language and matching the active light or dark theme.",
+          "cb79dc17d1dbcc8783e58379bbf1ff2edb430d04a": "Email Hub reuses thread details prefetched within the last 30 seconds, reducing repeated requests as you hover through the list.",
+          "c0b6f78a7b876b8a4c19fcb6d28edaf3c752019d4": "Email Hub avoids repeated mailbox refreshes for the same event and cancels list requests that are no longer needed."
+        },
+        "fixes": {
+          "c768fddab7062f11312bfa9bfd8d50c7967dac816": "VNPay payments are answered with the correct confirmation codes, so a completed payment is no longer treated as unconfirmed and retried.",
+          "ccb2733aec4322d35334e953e23ad6058a0149565": "Completed VNPay payments are still applied when the checkout link has expired or been replaced, updating the plan and creating the corresponding invoice.",
+          "c5e727e48bbd9c29c40c04b707315db20e6c086f1": "When VNPay's callback never arrives, an automatic reconciliation pass rechecks the transaction and applies a paid one, or marks it failed when unpaid.",
+          "cbea7437a334f574eb0916083fe1108575338371d": "Access to Email Hub message bodies consistently follows the user's permissions.",
+          "cd8d9d6735f802da39818b11f34d4484f1768faf0": "Outgoing email subjects with Vietnamese accents are encoded to the standard and no longer appear as broken characters for recipients.",
+          "c8ca4dcdc17f4c9a17b264412f20895eeaf2e2f40": "IMAP now has a time limit when opening the connection and signing in, so an unresponsive mail server reports an error instead of hanging.",
+          "c70e7e68ffc6f459dec9a14f590f82c1146f5d7b3": "Replying to a message in Sent addresses the original recipients instead of yourself.",
+          "c0109dcd7ecfa62901b357636b12b2171e13e903a": "Paging through the Snoozed folder no longer skips or repeats messages.",
+          "c4ac1f76ba20df9ffe1062b6ce768a2734c0043c2": "New-mail notifications stop for people who left the organization, were deactivated, or whose organization is suspended.",
+          "c56a8b72a1d4332176ae1361423a64694da765366": "The unread count stays correct after reading or marking messages on list pages that are already loaded.",
+          "c63db9e50bf5f1ab1273abb619174f7ca2ad5bbdd": "Creating several tasks from an email summary runs as one unit: a failure part-way leaves no stray tasks and the retry still works.",
+          "cd7bf6a7bd4323ce0c5ace8d31f2ac35d75916f6d": "Outgoing mail keeps its Vietnamese accents and line breaks, even when the HTML body is very long.",
+          "c7edda0f13968681d35798817688ff6abc3312a61": "Switching to another message while an AI summary is running no longer shows the previous message's summary and action items on the new one.",
+          "c872812edb8f905bd6add41ed8330ced0b92a52d4": "A folder's syncing state no longer stays stuck when the filter is changed part-way through.",
+          "c39042c585c161e0307083cc2b6d959e4cc34b522": "Disconnecting the open mailbox now moves to the most recent remaining mailbox instead of reselecting the one just removed.",
+          "c4449109cd71c872845a082d5e449db65c8608428": "Download the UniWork Office installer from the current page without opening and closing a GitHub tab.",
+          "cebd6f5acb86f81fe3d9bbb0b1a2716f57fec8e34": "Email Hub sidebar counts refresh after moving, snoozing, marking mail as read or syncing a mailbox.",
+          "cfc9fab018432964c96177b0205d4d17b0a976ae9": "Text or HTML attachments no longer replace the message body. Messages whose only content is an attachment remain readable.",
+          "cbaebb1de6eb919b01291da742a8707bd9adc46a3": "Cancelled or failed VNPay transactions are tracked separately, preventing later payments from remaining pending as mistaken duplicates."
+        }
+      },
+      "v1_2_0": {
+        "title": "Text size in Settings, read-only AI assistant connections and billing fixes",
+        "summary": "Pick a text size in Settings for easier reading; connect Claude, ChatGPT or Gemini to read your tasks, meetings and workspaces in UniWork, with a consent page and connection management; plus two billing fixes for invoice numbers and refunds.",
+        "note": "Text size is saved per device and does not yet apply to content opened in the Office editors. AI assistant connections are in pilot: the organization must have the feature enabled and an owner must turn on the switch in Settings › AI access. Connections only read data; they never create or change anything in UniWork. The AI access tab is for owners and admins.",
+        "features": {
+          "c2ed272790a5e7f71d9fd77926ad85854dc7df408": "Connect Claude, ChatGPT or Gemini to UniWork so an AI assistant can read your tasks, meetings and workspaces from inside the AI app. The connection is read-only, requires your approval on a UniWork consent page, and the assistant sees only the data you are allowed to see in the selected organization; your work list covers today's and tomorrow's meetings.",
+          "ce480747bc1afa886cce9de6d91949902606cff8a": "In Settings, the AI apps tab lets you review and revoke each of your own AI assistant connections, while owners and admins also get an AI access tab to turn the feature on or off for the whole organization and revoke any connection. Resetting your password, leaving the organization or deleting your account revokes connections.",
+          "cefde3523923a9318a79928fb309010f00fe608cf": "Settings › Preferences now has a Text size option with three levels — Default, Large and Extra large — so text is easier to read on a small screen or when you need bigger type. The level you pick applies as soon as a page opens, is saved per device and follows along in every tab of the same browser; layout, spacing and icons stay unchanged."
+        },
+        "fixes": {
+          "cbb792c946bfaa4df7d8d15502548baa760b1739e": "Two payments completing within the same second no longer share an invoice number, so the later payment is no longer left pending. The year in the invoice number follows Vietnam time.",
+          "c75c5ddc68ad9e7a61ff80b2a4c0fb4518e068a25": "When two refund requests are sent at once for the same payment, only one is processed; the other reports a conflict instead of sending a second refund."
+        }
       }
     }
   },
@@ -150,6 +200,32 @@
       "emailUnknown": "Email unavailable",
       "libraryWorkspace": "Document library"
     },
+    "connect": {
+      "eyebrow": "Connect an AI assistant",
+      "title": "Allow {{client}} to access UniWork?",
+      "description": "This app will read your work data in the organization you choose. It cannot create, change or delete anything.",
+      "verified": "Verified",
+      "unverified": "Unverified",
+      "unverifiedWarning": "UniWork has not verified this app. Continue only if you just added it yourself.",
+      "redirectHost": "The sign-in code goes to",
+      "organization": "Organization",
+      "orgDisabled": "An admin has not turned on AI connections for this organization",
+      "noOrganization": "None of your organizations allows AI assistants yet. Ask an admin to turn it on in Settings › AI access.",
+      "shares": "The app will be able to read",
+      "shareTasks": "Your tasks and tasks in your workspaces, with comments",
+      "shareMeetings": "Meetings and their AI summaries, without transcripts",
+      "shareNot": "Never chat messages or email",
+      "approve": "Allow",
+      "approving": "Allowing…",
+      "loading": "Loading the connection request…",
+      "resultTitle": "Connection result",
+      "approved": "Allowed. Returning to the app…",
+      "cancelled": "Cancelled. Returning to the app…",
+      "expired": "This connection request has expired. Add UniWork again from the AI app.",
+      "error": "Could not open this connection request. Try again, or add UniWork again from the AI app.",
+      "errorCode": "The AI app sent a request UniWork cannot accept ({{code}}). Add UniWork again from the AI app.",
+      "retry": "Try again"
+    },
     "forgot": {
       "title": "Forgot password",
       "subtitle": "Enter your account email and we will send a reset link.",
@@ -256,6 +332,8 @@
       "gone": "The invitation was already used, was revoked, or the link is wrong.",
       "deactivated": "Your account in this organization is deactivated. Ask an admin to reactivate it.",
       "suspended": "This organization is currently suspended.",
+      "deletionScheduled": "This organization is scheduled for deletion, so it isn't taking new members.",
+      "askInviterHint": "If you think this is a mistake, ask the person who invited you.",
       "rateLimited": "Too many attempts. Wait a moment, then open the link again.",
       "wrongAccount": "This invitation was sent to a different email address than the account you're signed in with.",
       "wrongAccountHint": "Sign in with the address that received the invitation, then open the link again.",
@@ -413,7 +491,9 @@
         "organization": "Organization members",
         "departments": "Departments",
         "security": "Security",
-        "shortcuts": "Keyboard shortcuts"
+        "shortcuts": "Keyboard shortcuts",
+        "connectedApps": "AI apps",
+        "aiAccess": "AI access"
       },
       "nav_label": "Settings sections",
       "section_picker": "Choose a settings section",
@@ -470,6 +550,12 @@
       },
       "appearanceHint": "Light, dark or follow the operating system. Saved on this device only.",
       "accentHint": "The colour of primary buttons, links and the selected item. Saved on this device only.",
+      "textSize": "Text size",
+      "textSizeHint": "Text size across the whole app. Saved on this device only.",
+      "textSizeDefault": "Default",
+      "textSizeLarge": "Large",
+      "textSizeXLarge": "Extra large",
+      "textSizeSample": "Aa",
       "languageHint": "Saved in this browser only. Other devices keep their own.",
       "timezoneHint": "Saved to your account, on every device. The daily email goes out at 08:00 in this zone.",
       "timezoneSearch": "Search a city or UTC…",
@@ -1213,6 +1299,46 @@
       "load_error": "Couldn't load the member list.",
       "danger_title": "Danger zone",
       "leave_description": "You lose access to this workspace's tasks, meetings and chat. To come back, someone has to invite you again."
+    },
+    "connectedApps": {
+      "title": "Connected AI apps",
+      "description": "Claude, ChatGPT, Gemini and other AI assistants you allowed to read your UniWork data.",
+      "connectTitle": "Connect an AI assistant",
+      "connectBody": "Paste this address where Claude, ChatGPT or Gemini CLI adds a connector, then sign in to UniWork when asked.",
+      "copy": "Copy address",
+      "copied": "Copied",
+      "section": "Connected apps",
+      "empty": "No AI apps are connected. Copy the address above and paste it into an AI app to connect it.",
+      "error": "Could not load your connected apps. Try again.",
+      "meta": "{{org}} · connected {{created}}",
+      "lastUsed": "last used {{when}}",
+      "verified": "Verified",
+      "revoke": "Revoke",
+      "revokeAria": "Revoke {{client}}",
+      "revokeTitle": "Revoke {{client}}?",
+      "revokeBody": "The app loses access to your UniWork data at once. To use it again, connect it again from the app.",
+      "revoked": "Revoked {{client}}",
+      "revokeFailed": "Could not revoke. Try again."
+    },
+    "aiAccess": {
+      "title": "AI assistant access",
+      "description": "Let members connect Claude, ChatGPT and Gemini to read the organization's tasks and meetings.",
+      "adminOnly": "Only organization owners and admins can see this.",
+      "toggleLabel": "Allow external AI assistants",
+      "toggleDescription": "Shared: tasks, comments, meetings and AI summaries. Never chat or email. Turning this off blocks every connected app at once.",
+      "addressBody": "Members paste this address where Claude, ChatGPT or Gemini CLI adds a connector. Send it to them if AI apps does not show in their settings yet.",
+      "unavailable": "This feature is not yet available to your organization.",
+      "saveFailed": "Could not save the change. Try again.",
+      "grantsTitle": "Connected apps in this organization",
+      "empty": "Nobody has connected an AI app. Members connect from Settings › AI apps.",
+      "error": "Could not load the list. Try again.",
+      "meta": "{{user}} · connected {{created}}",
+      "revoke": "Revoke",
+      "revokeAria": "Revoke {{user}}'s {{client}}",
+      "revokeTitle": "Revoke {{client}}?",
+      "revokeBody": "{{user}}'s app loses access to the organization's data at once.",
+      "revoked": "Revoked {{client}}",
+      "revokeFailed": "Could not revoke. Try again."
     },
     "state": {
       "load_error": "Couldn't load this section.",
@@ -3448,8 +3574,6 @@
     "sidebar_filter_empty_channel_hint": "Browse channels to join, or create a new one.",
     "sidebar_result_count_one": "{{count}} conversation",
     "sidebar_result_count_other": "{{count}} conversations",
-    "invite_joining": "Joining…",
-    "invite_join_failed": "Couldn't join the workspace. Try again.",
     "no_conversation_hint_hidden": "The conversation list is hidden. Show it to open a conversation.",
     "group_name_optional_label": "Group name (optional)",
     "errors": {
@@ -4208,7 +4332,7 @@
       "action": "Leave organization",
       "done": "You left the organization",
       "confirm_title": "Leave {{name}}?",
-      "confirm_body": "You will lose access to every workspace in {{name}}. To come back, an admin has to invite you again."
+      "confirm_body": "You lose access to every workspace in {{name}} right away. To come back, an admin has to invite you again."
     },
     "invitations": {
       "title": "Invite people to the organization",
@@ -4235,23 +4359,31 @@
       "description": "The new owner has full control of the organization. You become an admin and cannot take it back on your own.",
       "action": "Transfer ownership",
       "new_owner": "New owner",
+      "pick_placeholder": "Choose a member",
       "confirm_label": "Type the organization name to confirm",
-      "confirm_hint": "Type “{{name}}” exactly.",
       "password_label": "Your current password",
       "no_candidate": "No active member is available to receive ownership yet.",
       "done": "Ownership transferred",
-      "confirm_mismatch": "Doesn't match “{{name}}”.",
+      "confirm_mismatch": "Doesn't match \"{{name}}\".",
       "loading_candidates": "Loading members…",
-      "candidates_error": "Couldn't load the members to choose from."
+      "candidates_error": "Couldn't load the members to choose from.",
+      "confirm_title": "Transfer ownership of {{name}}?",
+      "confirm_prompt": "Type <v>{{name}}</v> below.",
+      "consequences": {
+        "new_owner": "The person you pick becomes the owner, with full control of the organization.",
+        "you_admin": "You become an admin.",
+        "no_undo": "You can't take ownership back on your own."
+      }
     },
     "deactivated": {
       "title": "Your account in this organization has been deactivated",
       "description": "An organization admin paused your access. Everything you created is still there. Ask an admin to restore it.",
-      "workspaces_link": "Go to your other organizations"
+      "get_started_link": "Create or join another organization"
     },
     "danger": {
       "title": "Danger zone",
-      "description": "These change who holds the organization, or take you out of it."
+      "description": "These change who holds the organization, or take you out of it.",
+      "description_member": "Leaving takes you out of every workspace inside it."
     },
     "reasons": {
       "leave_last_owner": "You are the owner. Transfer ownership to someone else before leaving.",
@@ -4263,17 +4395,106 @@
       "not_admin_role": "Only owners and admins can do this.",
       "not_owner_role": "Only the organization owner can do this.",
       "not_resource_owner": "You cannot do this to yourself.",
-      "fallback": "You can't do this yet."
+      "fallback": "You can't do this yet.",
+      "leave_sole_owner": "You are the owner and the only member. Close the organization instead of leaving.",
+      "organization_has_members": "Other members are still active. Transfer ownership before closing."
+    },
+    "close": {
+      "title": "Close this organization",
+      "description": "Archive the organization and leave it. Workspaces and data are kept, but nobody can open them any more.",
+      "action": "Close organization",
+      "confirm_title": "Close {{name}}?",
+      "confirm_body": "{{name}} will be archived: every workspace and all its data stay, but nobody can open them, you included. Only support can restore it. Pending invitations are revoked and the paid plan is cancelled.",
+      "confirm_label": "Type the organization URL to confirm",
+      "confirm_hint": "Type \"{{slug}}\" exactly.",
+      "confirm_mismatch": "Doesn't match \"{{slug}}\".",
+      "done": "Organization closed",
+      "confirm_lede": "Nothing is deleted, but the organization stops working.",
+      "confirm_prompt": "Type <v>{{slug}}</v> below.",
+      "consequences": {
+        "archived": "{{name}} is archived: every workspace and all its data stay.",
+        "no_access": "Nobody can open it any more, you included.",
+        "restore": "Only support can restore it.",
+        "billing": "Pending invitations are revoked and the paid plan is cancelled."
+      }
     }
   },
   "invitations": {
     "title": "You have an invitation",
-    "subtitle": "Join to start working with your teammates.",
+    "list_title": "Invitations waiting for you",
+    "subtitle": "Open an invitation to see the organization and your role, then join.",
+    "loading_description": "Opening your invitation.",
     "invitedBy": "{{name}} invited you to",
     "join": "Join",
-    "joinAll": "Join all",
     "empty": "No invitations",
-    "role": "as {{role}}"
+    "view": "View",
+    "viewLabel": "View the invitation to {{name}}",
+    "expires_on": "expires <time>{{date}}</time>",
+    "expires_soon": "Expires soon",
+    "load_error": "Couldn't load your invitations.",
+    "see_all": "See my invitations",
+    "preview": {
+      "title": "Join {{name}}",
+      "description": "You've been invited to join this organization.",
+      "description_inviter": "{{inviter}} invited you to join this organization.",
+      "organization": "Organization",
+      "workspace": "Workspace",
+      "no_workspace": "No workspace yet. You'll pick one after joining.",
+      "role": "Role",
+      "inviter": "Invited by",
+      "expiry": "Expires",
+      "expires_in_one": "In {{count}} day",
+      "expires_in_other": "In {{count}} days",
+      "join": "Join"
+    },
+    "gone": {
+      "title": "This invitation no longer works",
+      "expired": "The invitation has expired.",
+      "revoked": "The invitation was revoked.",
+      "accepted": "The invitation has already been used.",
+      "still_in": "You're still in {{name}}; nothing changed.",
+      "hint_expired": "Invitations work for a limited time. Ask whoever invited you to send a new link.",
+      "hint_revoked": "Whoever invited you withdrew this invitation. If you still need to join, ask them for a new one.",
+      "hint_accepted": "Each invitation works once. Ask whoever invited you for a new link if you need one."
+    },
+    "switch": {
+      "title": "Switch to {{name}}",
+      "description": "Each account belongs to one organization. Joining {{name}} means leaving your current one.",
+      "steps_label": "Steps to switch organization",
+      "step_position": "Step {{current}} of {{total}}",
+      "step_conflict": "Current organization",
+      "step_resolve": "Hand it off",
+      "step_confirm": "Confirm",
+      "conflict_heading": "You belong to {{names}}",
+      "route_label": "From {{from}} to {{to}}",
+      "now": "Now",
+      "after": "After the switch",
+      "role_as": "Role: {{role}}",
+      "lose_heading": "You'll lose access to {{name}}",
+      "lose_kept": "What you created stays there.",
+      "resolve_heading": "Hand off your current organization",
+      "changed": "Something changed while you were here. Review each item below.",
+      "leave_body": "You leave {{name}}; it keeps running as before.",
+      "leave_confirm": "I want to leave {{name}}",
+      "transfer_body": "You own {{name}}. Transfer ownership to another member, then you leave.",
+      "close_body": "You're the only member of {{name}}, so it will be closed.",
+      "close_badge": "Close organization",
+      "blocked": "{{name}} is suspended, so its ownership can't be transferred and it can't be closed yet. Contact support for help.",
+      "unknown": "{{name}} can't be handled on this page. Reload to try again.",
+      "incomplete": "Finish each item above to continue.",
+      "blocked_reason": "You can't continue while an organization is suspended.",
+      "wrong_password": "That password isn't right. Enter it again to transfer ownership.",
+      "no_password": "Transferring ownership of {{name}} is confirmed with your password, but your account doesn't have one (you sign in with Google). Contact support for help.",
+      "no_password_reason": "You can't continue while your account has no password.",
+      "confirm_heading": "Confirm the switch",
+      "confirm_leave": "Leave {{name}}",
+      "confirm_transfer": "Transfer ownership of {{name}} to {{person}}, then leave",
+      "confirm_close": "Close {{name}}",
+      "confirm_join": "Join {{name}} as {{role}}",
+      "confirm_note": "Everything happens in one go. If any step fails, you stay where you are.",
+      "action": "Switch to {{name}}",
+      "busy": "Another change to your account is in progress. Try again in a moment."
+    }
   },
   "onboarding": {
     "step_nav": {
@@ -4348,16 +4569,14 @@
     },
     "step_organization": {
       "headline_first": "Name your organization.",
-      "headline_resume": "Continue with {{name}}, or start another organization.",
-      "lede_first": "An organization is your company or team; every workspace lives inside one. You can add more later.",
-      "lede_resume": "Pick an organization you already belong to, or create a new one.",
+      "headline_resume": "Continue with {{name}}.",
+      "lede_first": "An organization is your company or team; every workspace lives inside one.",
+      "lede_resume": "Each account belongs to one organization. The new workspace goes inside the one you pick.",
       "name_label": "Organization name",
       "name_placeholder": "Unicom, Marketing Team, Class 12A…",
       "url_label": "URL",
       "slug_placeholder": "unicom",
-      "create_new_title": "Create a new organization",
-      "create_new_subtitle": "Start one of your own",
-      "hint_pick": "Pick an organization, or create one.",
+      "hint_pick": "Pick an organization to continue.",
       "hint_name_first": "Name your organization to create it.",
       "hint_creating": "This will create {{name}}.",
       "hint_creating_pending": "Creating {{name}}…",
@@ -4366,15 +4585,22 @@
       "cta_create_named": "Create {{name}}",
       "cta_creating": "Creating…",
       "cta_open": "Continue with {{name}}",
-      "slug_taken_error": "That organization slug is already taken.",
-      "headline_resume_many": "Pick one of your organizations, or start another.",
+      "slug_taken_error": "That URL is already taken.",
+      "headline_resume_many": "Pick your organization.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
       "hint_slug_needed": "Add a URL for your organization to create it.",
-      "create_failed_toast": "Couldn't create the organization. Please try again.",
+      "create_failed_toast": "Couldn't create the organization. Try again.",
       "picker_label": "Choose an organization",
       "url_preview_label": "Organization URL",
       "url_preview_prefix": "Everything in this organization lives under ",
-      "url_preview_suffix": "."
+      "url_preview_suffix": ".",
+      "manage_organization": "Manage organization",
+      "lede_resume_one": "The new workspace goes inside {{name}}. Each account belongs to one organization.",
+      "resume_other_org": "Need a different organization? Leave or close {{name}} first.",
+      "already_member_title": "You already belong to {{name}}",
+      "already_member_title_unnamed": "You already belong to an organization",
+      "already_member_body": "Each account belongs to one organization. To create a new one, leave or close your current organization first.",
+      "already_member_hint": "Your organization already exists."
     },
     "step_workspace": {
       "headline_first": "Name your workspace.",
@@ -4454,6 +4680,19 @@
       "save_failed": "Couldn't save your answer",
       "skip_failed": "Couldn't finish getting you started",
       "complete_failed": "Couldn't finish. Please try again."
+    },
+    "noOrganization": {
+      "title": "You're not in an organization yet",
+      "description": "Each account belongs to one organization. Create your own, or join one that invited you.",
+      "held_title": "You belong to {{name}}",
+      "held_description": "Each account belongs to one organization, so you cannot create another for now. You can still open an invitation from another organization.",
+      "create_title": "Create an organization",
+      "create_body": "Start an organization and its first workspace. You will be its owner.",
+      "create_action": "Create organization",
+      "join_title": "Join an organization",
+      "join_body": "Open an invitation to review it and join.",
+      "join_empty_title": "No invitations yet",
+      "join_empty_body": "Ask an admin of the organization to invite <email>{{email}}</email>."
     }
   },
   "ui": {
@@ -4530,11 +4769,17 @@
       "chat_reminder": "Reminder: {{body}}",
       "email_hub_new_mail": "You have {{count}} unread message(s) · {{mailbox}}",
       "document_commented": "{{actor}} commented on “{{document}}”",
+      "document_commented_untitled": "{{actor}} commented on a document",
       "document_mentioned": "{{actor}} mentioned you in a comment on “{{document}}”.",
+      "document_mentioned_untitled": "{{actor}} mentioned you in a comment on a document.",
       "document_comment_replied": "{{actor}} replied to your comment in “{{document}}”.",
+      "document_comment_replied_untitled": "{{actor}} replied to your comment in a document.",
       "document_discussion_mentioned": "{{actor}} mentioned you in a discussion on “{{document}}”.",
+      "document_discussion_mentioned_untitled": "{{actor}} mentioned you in a discussion on a document.",
       "document_discussion_replied": "{{actor}} replied to your discussion post in “{{document}}”.",
+      "document_discussion_replied_untitled": "{{actor}} replied to your discussion post in a document.",
       "document_comment_resolved": "{{actor}} marked your comment in “{{document}}” as resolved.",
+      "document_comment_resolved_untitled": "{{actor}} marked your comment in a document as resolved.",
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
       "chat_dm": "{{actor}} sent you a message",
       "chat_thread_replied": "{{actor}} replied to a thread in {{room}}"
@@ -4605,7 +4850,8 @@
       "trace": "Trace",
       "quota": "Quota",
       "system": "System",
-      "overview": "Overview"
+      "overview": "Overview",
+      "demo_requests": "Demo requests"
     },
     "common": {
       "retry": "Retry",
@@ -4970,7 +5216,7 @@
     "suspended": {
       "title": "Organization suspended",
       "description": "This organization is temporarily unavailable. Contact the organization owner for details.",
-      "workspaces_link": "Back to workspaces"
+      "get_started_link": "Join another organization"
     },
     "overview": {
       "title": "Overview",
@@ -4993,6 +5239,36 @@
       "suspended_hint": "Members stay locked out until unsuspended.",
       "realtime": "Realtime connections",
       "build": "Build {{version}} · {{commit}}"
+    },
+    "demo_requests": {
+      "title": "Demo requests",
+      "description": "Requests from the public website. Track and update their progress.",
+      "filter": "Filter demo requests",
+      "all": "All",
+      "status": {
+        "new": "New",
+        "in_progress": "In progress",
+        "completed": "Completed"
+      },
+      "refresh": "Refresh",
+      "empty": "No demo requests",
+      "empty_description": "Requests matching this filter will appear here when a visitor submits the form.",
+      "load_error": "Could not load demo requests",
+      "retry_hint": "Refresh to try again.",
+      "contact": "Contact",
+      "company": "Company / team",
+      "message": "Interested in",
+      "status_label": "Status",
+      "received": "Received",
+      "action": "Action",
+      "people": "{{size}} people",
+      "no_message": "No additional message",
+      "update": "Update",
+      "update_title": "Update demo request",
+      "update_error": "Could not update the request. Please try again.",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {{page}}"
     }
   },
   "people": {
@@ -5401,6 +5677,10 @@
       "office": {
         "title": "UniWork Office — the AI office app",
         "description": "Office apps for macOS, Windows and Linux: documents, spreadsheets, slides, PDF, HTML and Markdown with AI, sharing your UniWork account and workspace."
+      },
+      "demo": {
+        "title": "Request a demo | UniWork",
+        "description": "Arrange a UniWork walkthrough around your team's needs."
       }
     },
     "revision": {
@@ -6621,24 +6901,33 @@
       "filmStep2": "Know the next step"
     },
     "demo": {
-      "search": "Search example tasks",
-      "localOnly": "Local browser demo. Nothing is sent to the server.",
-      "tryIt": "Try searching, completing a task or sending a message",
-      "reset": "Reset demo",
-      "noResults": "No tasks found. Try a different search.",
-      "complete": "Mark complete",
-      "reopen": "Reopen task",
-      "openDiscussion": "Open discussion",
-      "openTask": "Open task",
-      "messageHistory": "Example conversation history",
-      "messageLabel": "Example message",
-      "messagePlaceholder": "Try a message to the team…",
-      "send": "Send message",
-      "you": "You",
-      "ownerQuestion": "Who owns the work?",
-      "ownerAnswer": "Hoàng Anh owns the onboarding design. Minh Linh owns the product brief, UNI gathers feedback, and Thanh Ngân owns the launch scope.",
-      "completedCount_one": "{{count}} of 4 example tasks is complete.",
-      "completedCount_other": "{{count}} of 4 example tasks are complete."
+      "cta": "Request a demo",
+      "back": "Back to home",
+      "headline": "Explore UniWork with your team.",
+      "description": "Tell us how your team works. See how UniWork brings tasks, conversations, and knowledge together in one place.",
+      "title": "Request a demo",
+      "form_description": "Leave your details so the UniWork team can get in touch to arrange a walkthrough.",
+      "benefits": {
+        "workflow": "Start with your team's workflows and needs.",
+        "product": "Explore tasks, conversations, and meetings in UniWork.",
+        "questions": "Discuss rollout and ask your questions."
+      },
+      "name": "Full name",
+      "email": "Work email",
+      "company": "Company or team",
+      "team_size": "Team size",
+      "choose_size": "Choose team size",
+      "people": "{{size}} people",
+      "message": "What would you like to explore? (optional)",
+      "message_placeholder": "For example: project management, collaboration, or team rollout.",
+      "submit": "Send demo request",
+      "submitting": "Sending...",
+      "privacy": "These details are used to contact you about your demo.",
+      "error": "Your request could not be sent. Your details are still here; please try again.",
+      "rate_limit": "You've sent several requests recently. Please try again later.",
+      "success_title": "Demo request received",
+      "success_description": "Your request has been saved. The UniWork team will contact {{email}} to arrange your demo.",
+      "receipt": "Request reference: {{id}}"
     },
     "explorer": {
       "sub": "Choose a feature. See how your team connects.",
@@ -6687,9 +6976,25 @@
       "fewerQuestions": "Fewer questions"
     },
     "studio": {
-      "heroLine1": "Your team.",
-      "heroLine2": "One workspace.",
-      "heroDescription": "UniWork Business OS connects tasks, meetings, conversations and AI in one workspace.",
+      "heroEyebrow": "One connected work platform",
+      "heroLine1": "Every piece of work.",
+      "heroLine2": "One platform.",
+      "heroDescription": "Tasks, conversations, meetings and AI in one workspace.",
+      "heroShowcaseAlt": "Rotating UniWork interfaces for tasks, conversations, meetings and documents",
+      "heroShowScreen": "Show {{screen}} screen",
+      "heroDocsScreen": "Documents",
+      "heroSheetsScreen": "Spreadsheets",
+      "heroSlidesScreen": "Presentations",
+      "heroPdfScreen": "PDF",
+      "heroWebScreen": "Web pages",
+      "heroWorkTitle": "Manage work",
+      "heroWorkDescription": "Keep every task clear and in one place",
+      "heroChatTitle": "Connect & collaborate",
+      "heroChatDescription": "Discuss ideas and stay in sync",
+      "heroMeetingsTitle": "Meet online",
+      "heroMeetingsDescription": "Work together from anywhere",
+      "heroAiTitle": "AI by your side",
+      "heroAiDescription": "Find, summarize and suggest next steps",
       "explore": "Explore UniWork",
       "heroNote": "English & Tiếng Việt · Built for modern teams",
       "previewModes": "Explore the illustrative product preview",
@@ -6775,7 +7080,8 @@
       "trustNote": "Your choice of AI model. The same shared work context.",
       "skip": "Skip to content",
       "previewLabel": "Illustrative experience",
-      "prelaunch": "UniWork is currently in pre-launch."
+      "prelaunch": "UniWork is currently in pre-launch.",
+      "heroHeadlineHighlight": "One <highlight>platform</highlight>."
     },
     "nav": {
       "main": "Main navigation",
@@ -7664,10 +7970,19 @@
       }
     },
     "office": {
+      "editions": {
+        "business": "Office for Enterprise",
+        "businessDescription": "Documents and AI connected to your team workspace.",
+        "personal": "Office for Personal",
+        "personalDescription": "The edition for individual use is in development.",
+        "development": "In development"
+      },
       "hero": {
         "kicker": "The UniWork office app",
         "title": "UniWork Office",
-        "sub": "AI office apps for macOS, Windows and Linux. Sign in with your UniWork account, open files from your team's workspace and save them back as a new version.",
+        "sub": "Create documents, spreadsheets and presentations with AI. Connected to your UniWork workspace.",
+        "explore": "Explore the editors",
+        "trial": "Download trial",
         "downloadFor": "Download for {{os}}",
         "variants": "{{os}} installers",
         "downloadBoth": {
@@ -7686,6 +8001,8 @@
         "formats": "Works with DOCX, XLSX, PPTX, PDF, HTML and Markdown",
         "tabs": "Editors",
         "imageAlt": "UniWork Office: {{editor}} with the AI panel",
+        "imageCaption": "Illustrative interface",
+        "imageUnavailable": "The preview image could not load. Reload the page to try again.",
         "docs": {
           "name": "Docs",
           "title": "Write documents with AI beside you",
@@ -7870,7 +8187,15 @@
       "collapse": "Collapse {{title}}",
       "moving": "Moving document…",
       "move_failed": "Could not move the document",
-      "too_deep": "The document tree is limited to five levels."
+      "too_deep": "The document tree is limited to {{max}} levels.",
+      "cycle_blocked": "A folder can't move into itself or into one of its subfolders.",
+      "menu": {
+        "open": "Open",
+        "new_subfolder": "New subfolder",
+        "rename": "Rename",
+        "move_to": "Move to…",
+        "delete": "Delete"
+      }
     },
     "page_ui": {
       "title_label": "Document title",
@@ -8229,7 +8554,19 @@
       "restore_failed": "Could not restore. Nothing changed.",
       "restore_not_archived": "This document is not in the trash.",
       "archive_folder_title": "Archive folder",
-      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later."
+      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later.",
+      "delete_title": "Delete folder",
+      "delete_subfolders_one": "{{count}} subfolder",
+      "delete_subfolders_other": "{{count}} subfolders",
+      "delete_documents_one": "{{count}} document",
+      "delete_documents_other": "{{count}} documents",
+      "delete_body": "{{subfolders}} and {{documents}} will move to the trash and can be restored within 30 days.",
+      "delete_loading": "Counting what's in the folder…",
+      "delete_impact_error": "Couldn't count what's in the folder. Try again before deleting.",
+      "delete_too_large": "The folder holds more than {{max}} items, so it can't go to the trash in one go. Delete what's inside in parts first.",
+      "delete_confirm": "Delete",
+      "delete_submitting": "Deleting…",
+      "delete_failed": "Couldn't delete. Nothing changed."
     },
     "public": {
       "loading": "Loading the document…",
@@ -8346,7 +8683,21 @@
         "empty": "No folders yet.",
         "rename": "Rename folder",
         "rename_label": "Folder name",
-        "rename_failed": "Could not rename the folder. Try again."
+        "rename_failed": "Could not rename the folder. Try again.",
+        "create_title_root": "New folder in Documents (root)",
+        "create_sub_title": "New subfolder in {{parent}}",
+        "create_title": "New folder",
+        "name_placeholder": "e.g. Contracts 2026",
+        "name_empty": "Enter a folder name.",
+        "name_too_long": "A folder name is at most {{max}} characters.",
+        "create_submit": "Create",
+        "rename_submit": "Save",
+        "toast": {
+          "created": "Created folder {{title}}",
+          "renamed": "Renamed to {{title}}",
+          "trashed": "Moved {{title}} to the trash",
+          "restored": "Restored {{title}}"
+        }
       },
       "greeting": {
         "morning": "Good morning. What would you like to create today?",
@@ -8416,6 +8767,9 @@
         "upload": {
           "card": "Upload file",
           "hint": "docx, xlsx, pptx, pdf, md, html, images"
+        },
+        "folder": {
+          "menu": "Folder"
         }
       },
       "sidebar": {
@@ -8494,7 +8848,8 @@
         "editor": "Edited by",
         "updated": "Updated",
         "size": "Size",
-        "actions": "Actions"
+        "actions": "Actions",
+        "type": "Type"
       },
       "row": {
         "open_folder": "Open folder",
@@ -8511,7 +8866,9 @@
         "move": "Move",
         "archive": "Archive",
         "open_chat": "Open Chat",
-        "open_email": "Open Email"
+        "open_email": "Open Email",
+        "new_subfolder": "New subfolder",
+        "rename": "Rename"
       },
       "empty": {
         "title": "No documents in this workspace yet",
@@ -8552,17 +8909,53 @@
         "description": "Pick a new folder for {{name}}.",
         "folder_description": "Pick a new folder for {{name}}. Everything inside it moves too.",
         "submit": "Move",
-        "moved": "Moved."
+        "moved": "Moved.",
+        "picker_title": "Move to",
+        "picker_label": "Choose a destination folder",
+        "root": "Documents (root)",
+        "reason_current": "Current location",
+        "reason_self": "Inside itself",
+        "reason_too_deep": "Too deep: at most {{max}} levels",
+        "moved_to": "Moved to {{folder}}",
+        "moved_renamed": "Moved and renamed to {{title}}"
       },
-      "open_office": "Open UniWork Office"
+      "open_office": "Open UniWork Office",
+      "sort": {
+        "label": "Sort by",
+        "name": "Name (A→Z)",
+        "updated": "Updated (newest)"
+      },
+      "folder_invalid": {
+        "title": "Can't open this folder",
+        "description": "The folder is no longer here, or you don't have access to it.",
+        "back": "Back to Documents (root)"
+      },
+      "breadcrumb_more": "Hidden levels",
+      "search": {
+        "placeholder": "Search folders and documents",
+        "label": "Search Documents",
+        "clear": "Clear search",
+        "filter_label": "Filter results",
+        "filter_all": "All",
+        "filter_folder": "Folders",
+        "filter_document": "Documents",
+        "path": "Path: {{path}}",
+        "path_root": "Documents (root)",
+        "loading": "Searching…",
+        "empty_title": "No results",
+        "empty_description": "Try another name or change the filter. Press Esc to go back to the folder.",
+        "error_title": "Couldn't search",
+        "error_description": "Check your connection and try again."
+      }
     },
     "errors": {
       "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; pages and files sit in a page or a folder.",
       "document_cycle": "An item can't move into itself or into something inside it.",
-      "document_too_deep": "The document tree is at most 5 levels deep.",
+      "document_too_deep": "The document tree is at most {{max}} levels deep.",
       "folder_not_supported": "A folder has no content to open or edit.",
       "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
-      "source_not_saveable": "This file can't be copied into Documents."
+      "source_not_saveable": "This file can't be copied into Documents.",
+      "folder_name_taken": "A folder with this name already exists here. Choose another name."
     }
   },
   "squads": {

@@ -1,0 +1,58 @@
+{
+  "concept": "B — Flowing ribbons",
+  "generator": "Built-in image_gen",
+  "reference": "C:/Users/admin/Desktop/uniwork/.impeccable/mocks/hero-modern-themes-20261014/b-flowing-ribbons.png",
+  "formatConversion": "Pillow WEBP quality=95 method=6, no resizing, cropping, compositing or pixel edits",
+  "resolutionNote": "The built-in image generator normalized the requested canvas dimensions. Assets retain generated native dimensions.",
+  "visualVerification": "Inspected all generated assets. Two smooth layered ribbon sweeps at lower-left and upper-right, white or charcoal center, no text or UI. Mobile variants regenerated with smaller corner forms and inspected after correction.",
+  "assets": [
+    {
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 2172,
+      "height": 724,
+      "bytes": 49046,
+      "requestedWidth": 2880,
+      "requestedHeight": 960,
+      "file": "ribbons-light.webp",
+      "publicPath": "/landing/hero-backgrounds/ribbons-light.webp",
+      "promptMetadata": "ribbons-light.webp.json"
+    },
+    {
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 2172,
+      "height": 724,
+      "bytes": 49690,
+      "requestedWidth": 2880,
+      "requestedHeight": 960,
+      "file": "ribbons-dark.webp",
+      "publicPath": "/landing/hero-backgrounds/ribbons-dark.webp",
+      "promptMetadata": "ribbons-dark.webp.json"
+    },
+    {
+      "theme": "light",
+      "viewport": "mobile",
+      "width": 1234,
+      "height": 1275,
+      "bytes": 35080,
+      "requestedWidth": 780,
+      "requestedHeight": 760,
+      "file": "ribbons-light-mobile.webp",
+      "publicPath": "/landing/hero-backgrounds/ribbons-light-mobile.webp",
+      "promptMetadata": "ribbons-light-mobile.webp.json"
+    },
+    {
+      "theme": "dark",
+      "viewport": "mobile",
+      "width": 1271,
+      "height": 1238,
+      "bytes": 40482,
+      "requestedWidth": 780,
+      "requestedHeight": 760,
+      "file": "ribbons-dark-mobile.webp",
+      "publicPath": "/landing/hero-backgrounds/ribbons-dark-mobile.webp",
+      "promptMetadata": "ribbons-dark-mobile.webp.json"
+    }
+  ]
+}

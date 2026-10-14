@@ -107,3 +107,32 @@ type AcceptInviteSDO struct {
 	Organization OrganizationDTO `json:"organization"`
 	Workspace    *WorkspaceDTO   `json:"workspace,omitempty"`
 }
+
+// InvitationPreviewDTO is the invitation as its invitee sees it, in any state.
+type InvitationPreviewDTO struct {
+	ID           string                  `json:"id" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
+	Status       string                  `json:"status" enum:"pending,expired,revoked,accepted" description:"pending | expired | revoked | accepted" example:"pending"`
+	ExpiresAt    string                  `json:"expires_at" example:"2026-09-01T09:00:00Z"`
+	Organization InvitationOrgDTO        `json:"organization"`
+	Workspace    *InvitationWorkspaceDTO `json:"workspace,omitempty" description:"Vắng mặt với lời mời cấp tổ chức"`
+	OrgRole      string                  `json:"org_role" description:"Vai trò tổ chức khi chấp nhận" example:"member"`
+	InviterName  string                  `json:"inviter_name,omitempty" description:"Tên hiển thị của người mời" example:"Nguyễn Văn An"`
+}
+
+// MembershipConflictDTO is one organization the caller belongs to that stands
+// between them and the invitation, with what it needs (ADR 0032). The 409
+// organization_switch_required carries the same shape in error.fields.conflicts.
+type MembershipConflictDTO struct {
+	Organization            InvitationOrgDTO `json:"organization"`
+	Role                    string           `json:"role" description:"Vai trò hiện tại trong tổ chức đó" example:"owner"`
+	RequiredAction          string           `json:"required_action" enum:"leave,transfer,close,blocked" description:"leave | transfer | close | blocked" example:"transfer"`
+	BlockedReason           string           `json:"blocked_reason,omitempty" description:"Với blocked: lý do" example:"owner_of_suspended_organization"`
+	TransferCandidatesCount int64            `json:"transfer_candidates_count" description:"Số thành viên active khác có thể nhận quyền chủ sở hữu" example:"3"`
+}
+
+// InvitationPreviewSDO is GET /api/v1/invitations/{token}. `conflicts` is
+// empty unless the invitation is pending.
+type InvitationPreviewSDO struct {
+	Invitation InvitationPreviewDTO    `json:"invitation"`
+	Conflicts  []MembershipConflictDTO `json:"conflicts"`
+}

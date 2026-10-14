@@ -183,7 +183,8 @@ type UpdateDocumentCommentSDI struct {
 type ListDocumentsSDI struct {
 	ParentID    *string `query:"parent_id" description:"ULID trang hoặc thư mục cha; bỏ trống = danh sách phẳng toàn workspace, chuỗi rỗng = các tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Query       *string `query:"q" description:"Tìm văn bản đã fold; kết quả kèm snippet ≤ 160 ký tự" example:"kế hoạch quý 4"`
-	Kind        *string `query:"kind" description:"Lọc page, file hoặc folder" example:"page"`
+	Match       *string `query:"match" description:"title = chỉ khớp tiêu đề đã fold; bỏ trống = tìm cả nội dung" example:"title"`
+	Kind        *string `query:"kind" description:"Lọc page, file, folder hoặc document (mọi loại trừ folder)" example:"page"`
 	Archived    *bool   `query:"archived" description:"1 = thùng rác (chỉ manage); bỏ trống = tài liệu sống" example:"false"`
 	UpdatedBy   *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
@@ -195,10 +196,13 @@ type ListDocumentsSDI struct {
 // ListRecentDocumentsSDI documents GET
 // /api/v1/workspaces/{workspaceID}/documents/recent: the documents the person
 // opened or edited recently (access log + updated_by). Only a human has a
-// "recent"; an agent gets 403.
+// "recent"; an agent gets 403. The recent query never applies q; match ("" or
+// "title", else 400) is validated identically to the list route so a shared
+// client query string is accepted and ignored.
 type ListRecentDocumentsSDI struct {
 	Cursor *string `query:"cursor" description:"next_cursor của trang trước" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"10"`
+	Match  *string `query:"match" description:"Chỉ nhận title (hoặc bỏ trống); recent không lọc theo q nên giá trị hợp lệ được chấp nhận và bỏ qua, giá trị khác -> 400" example:"title"`
 }
 
 // ListSharedWithMeSDI documents GET
@@ -218,7 +222,7 @@ type ListSharedWithMeSDI struct {
 // is not a folder answers not found there.
 type DocumentTreeSDI struct {
 	Root        *string `query:"root" description:"ULID gốc nhánh; bỏ trống = cả rừng tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	FoldersOnly *bool   `query:"folders_only" description:"1 = chỉ node thư mục (kind=folder), bỏ trang và tệp; bỏ trống = cả cây" example:"true"`
+	FoldersOnly *bool   `query:"folders_only" description:"true/1 = chỉ node thư mục (kind=folder), bỏ trang và tệp; bỏ trống hoặc false/0 = cả cây" example:"true"`
 }
 
 // MoveDocumentSDI is POST /api/v1/documents/{documentID}/move (C-01 §5.1):

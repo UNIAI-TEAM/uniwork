@@ -77,6 +77,18 @@ func (q *Queries) AdminConfirmInvoiceRefund(ctx context.Context, arg AdminConfir
 	return i, err
 }
 
+const adminCountDemoRequests = `-- name: AdminCountDemoRequests :one
+SELECT count(*) FROM demo_requests
+WHERE ($1::text IS NULL OR status = $1::text)
+`
+
+func (q *Queries) AdminCountDemoRequests(ctx context.Context, status pgtype.Text) (int64, error) {
+	row := q.db.QueryRow(ctx, adminCountDemoRequests, status)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const adminCountInvoices = `-- name: AdminCountInvoices :one
 SELECT count(*)::bigint FROM invoices i
 JOIN organizations o ON o.id = i.organization_id
@@ -146,6 +158,29 @@ func (q *Queries) AdminCountPaymentIntents(ctx context.Context, arg AdminCountPa
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const adminGetDemoRequest = `-- name: AdminGetDemoRequest :one
+SELECT id, request_key, full_name, work_email, company_name, team_size, message, locale, status, created_at, updated_at FROM demo_requests WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) AdminGetDemoRequest(ctx context.Context, id string) (DemoRequest, error) {
+	row := q.db.QueryRow(ctx, adminGetDemoRequest, id)
+	var i DemoRequest
+	err := row.Scan(
+		&i.ID,
+		&i.RequestKey,
+		&i.FullName,
+		&i.WorkEmail,
+		&i.CompanyName,
+		&i.TeamSize,
+		&i.Message,
+		&i.Locale,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const adminGetInvoiceByID = `-- name: AdminGetInvoiceByID :one
@@ -336,6 +371,51 @@ func (q *Queries) AdminListAuditEventsByCorrelation(ctx context.Context, correla
 			&i.ResourceID,
 			&i.RequestID,
 			&i.OccurredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminListDemoRequests = `-- name: AdminListDemoRequests :many
+SELECT id, request_key, full_name, work_email, company_name, team_size, message, locale, status, created_at, updated_at FROM demo_requests
+WHERE ($1::text IS NULL OR status = $1::text)
+ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $2
+`
+
+type AdminListDemoRequestsParams struct {
+	Status pgtype.Text `json:"status"`
+	Offset int32       `json:"offset"`
+	Limit  int32       `json:"limit"`
+}
+
+// Platform admin (F-11). Only service/admin.go calls these (arch test
+func (q *Queries) AdminListDemoRequests(ctx context.Context, arg AdminListDemoRequestsParams) ([]DemoRequest, error) {
+	rows, err := q.db.Query(ctx, adminListDemoRequests, arg.Status, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DemoRequest{}
+	for rows.Next() {
+		var i DemoRequest
+		if err := rows.Scan(
+			&i.ID,
+			&i.RequestKey,
+			&i.FullName,
+			&i.WorkEmail,
+			&i.CompanyName,
+			&i.TeamSize,
+			&i.Message,
+			&i.Locale,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -553,7 +633,6 @@ type AdminListOrganizationsRow struct {
 	TotalCount     int64              `json:"total_count"`
 }
 
-// Platform admin (F-11). Only service/admin.go calls these (arch test
 // TestAdminQueriesStayInAdminService). Metadata only: no task body, no
 // message, no file ever leaves through here.
 // tenant: platform
@@ -1048,8 +1127,8 @@ func (q *Queries) AdminRevertInvoiceRefundRequest(ctx context.Context, id string
 
 const adminSetOrganizationStatus = `-- name: AdminSetOrganizationStatus :one
 UPDATE organizations SET status = $2, suspended_at = $3, suspended_reason = $4, updated_at = now()
-WHERE id = $1
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, deletion_scheduled_at
+WHERE id = $1 AND status IN ('active', 'suspended')
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at
 `
 
 type AdminSetOrganizationStatusParams struct {
@@ -1059,6 +1138,8 @@ type AdminSetOrganizationStatusParams struct {
 	SuspendedReason pgtype.Text        `json:"suspended_reason"`
 }
 
+// Suspend and unsuspend only: an archived organization (closed or deleted)
+// stays archived, so no row comes back when it moved there under the caller.
 func (q *Queries) AdminSetOrganizationStatus(ctx context.Context, arg AdminSetOrganizationStatusParams) (Organization, error) {
 	row := q.db.QueryRow(ctx, adminSetOrganizationStatus,
 		arg.ID,
@@ -1077,7 +1158,37 @@ func (q *Queries) AdminSetOrganizationStatus(ctx context.Context, arg AdminSetOr
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
 		&i.DeletionScheduledAt,
+	)
+	return i, err
+}
+
+const adminUpdateDemoRequest = `-- name: AdminUpdateDemoRequest :one
+UPDATE demo_requests SET status = $2, updated_at = now() WHERE id = $1 RETURNING id, request_key, full_name, work_email, company_name, team_size, message, locale, status, created_at, updated_at
+`
+
+type AdminUpdateDemoRequestParams struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+}
+
+func (q *Queries) AdminUpdateDemoRequest(ctx context.Context, arg AdminUpdateDemoRequestParams) (DemoRequest, error) {
+	row := q.db.QueryRow(ctx, adminUpdateDemoRequest, arg.ID, arg.Status)
+	var i DemoRequest
+	err := row.Scan(
+		&i.ID,
+		&i.RequestKey,
+		&i.FullName,
+		&i.WorkEmail,
+		&i.CompanyName,
+		&i.TeamSize,
+		&i.Message,
+		&i.Locale,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

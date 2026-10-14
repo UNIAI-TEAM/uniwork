@@ -184,6 +184,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
 	d.Documents = docs
 	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
+	d.McpAuth = service.NewMcpAuthService(pool, q, d.Organizations, d.Cfg)
+	d.McpAuth.SetFlags(mcpTestFlags(true))
+	d.McpTools = service.NewMcpToolService(q, d.AskUNI, d.Home, d.Workspaces, d.Cfg.FrontendOrigin)
 	preview, err := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
 		Documents: docs, Origin: isoPreviewOrigin, Secret: "isolation-matrix-preview-secret-0123456789",
 		TTL: 5 * time.Minute, MaxBytes: 1 << 20,
@@ -486,6 +489,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	w.buildDocuments(t, tn)
 	w.buildOrganization(t, tn)
 	w.buildOffice(t, tn)
+	w.buildMcp(t, tn)
 	w.buildOfficeFrame(t, tn)
 	w.buildSeeded(t, tn)
 	w.buildActivity(t, tn)
@@ -696,6 +700,11 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		content: []byte("# " + m + " file body\n"),
 	})
 	tn.ids["fileDocument"] = isoID(t, out, "document")
+	// A comment on the file document itself: the office launch session's
+	// own-rows control must name a comment of the document its path names
+	// (R1-1 binds the ticket's comment to its document).
+	out = w.call(t, "POST", "/api/v1/documents/"+tn.ids["fileDocument"]+"/comments", tn.token, map[string]any{"body": m + " file doc comment", "type": "comment"})
+	tn.ids["fileDocComment"] = isoID(t, out, "comment")
 	status, raw := w.do(t, http.MethodPost, "/api/v1/documents/"+tn.ids["fileDocument"]+"/office/jobs", tn.token, isoBody{
 		json: map[string]any{"operation": "serialize"}, headers: map[string]string{"Idempotency-Key": util.NewID()},
 	})

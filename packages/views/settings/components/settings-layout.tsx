@@ -2,7 +2,7 @@
 
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleAlert, Check, RefreshCw } from "lucide-react";
+import { CircleAlert, Check, Info, RefreshCw } from "lucide-react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Card, CardContent } from "@uniwork/ui/components/ui/card";
@@ -318,7 +318,10 @@ export function SettingsBadge({
 /**
  * Every irreversible or lock-out action on a tab lives here, at the end:
  * delete, leave, transfer, cancel, archive. One frame so the reader learns
- * where the dangerous things are and that nothing else is.
+ * where the dangerous things are and that nothing else is. Same anatomy as a
+ * SettingsSection, flush with the cards above it: the red outline and the red
+ * heading are the only signals, so the rows inside stay readable instead of
+ * sitting in a tinted slab.
  */
 export function SettingsDangerZone({
   title,
@@ -329,25 +332,35 @@ export function SettingsDangerZone({
   description?: ReactNode;
   children: ReactNode;
 }) {
+  const headingId = useId();
   return (
-    <section
-      className="space-y-4 rounded-xl border-2 border-destructive/50 bg-destructive-soft p-4 shadow-sm sm:p-5"
-      aria-labelledby="settings-danger-zone-title"
-    >
-      <div className="min-w-0 space-y-2">
-        <h3 id="settings-danger-zone-title" className="text-title font-semibold text-destructive">
+    <section className="space-y-3" aria-labelledby={headingId}>
+      <div className="min-w-0">
+        <h3 id={headingId} className="text-body font-semibold text-destructive">
           {title}
         </h3>
         {description ? (
-          <p className="max-w-[68ch] text-body font-medium leading-6 text-pretty text-destructive-soft-foreground">
-            {description}
-          </p>
+          <p className="mt-1 max-w-[68ch] text-caption leading-5 text-pretty text-muted-foreground">{description}</p>
         ) : null}
       </div>
-      <Card className="gap-0 border border-destructive/30 bg-background py-0 shadow-none">
+      <Card className="gap-0 border-destructive/40 py-0 shadow-none">
         <CardContent className="divide-y divide-border px-0">{children}</CardContent>
       </Card>
     </section>
+  );
+}
+
+/**
+ * Why a row's action is unavailable right now, under its description. The
+ * glyph sets it apart from the consequence sentence above it; the action's
+ * `aria-describedby` points at the row description, which holds both.
+ */
+export function SettingsRowReason({ children }: { children: ReactNode }) {
+  return (
+    <span className="mt-1.5 flex items-start gap-1.5 text-foreground">
+      <Info aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+      <span className="text-pretty">{children}</span>
+    </span>
   );
 }
 

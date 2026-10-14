@@ -96,7 +96,9 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	// Read before the update: these are the organizations whose membership
 	// this deletion switches off, and each one records it as Deactivate does.
-	memberships, err := qtx.ListOrganizationsForUser(ctx, userID)
+	// Archived organizations included: their audit trail and Work Graph
+	// still carry the name this erasure removes.
+	memberships, err := qtx.ListOrganizationMembershipsForUser(ctx, userID)
 	if err != nil {
 		return err
 	}
@@ -108,6 +110,9 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	leases, err := revokeAllUserSessions(ctx, qtx, userID)
 	if err != nil {
+		return err
+	}
+	if _, err := revokeAllMcpGrantsForUser(ctx, qtx, userID); err != nil {
 		return err
 	}
 	if err := qtx.RevokeAllPushSubscriptionsForUser(ctx, userID); err != nil {
@@ -138,27 +143,27 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 			// which the marker also maps to the ACTOR node. No Changes: the
 			// old values are what the erasure removes.
 			if err := auditRecorder.Record(ctx, qtx, audit.Entry{
-				OrganizationID: m.ID,
+				OrganizationID: m.OrganizationID,
 				Actor:          audit.User(userID),
 				Action:         audit.ActionProfileUpdated,
 				ResourceType:   "organization_member_profile", ResourceID: userID,
 				Metadata: map[string]any{"reason": "account_deleted"},
 			}, audit.Event{Topic: "profile.updated", Payload: map[string]string{
-				"organization_id": m.ID, "user_id": userID,
+				"organization_id": m.OrganizationID, "user_id": userID,
 			}}); err != nil {
 				return err
 			}
 			continue
 		}
 		if err := auditRecorder.Record(ctx, qtx, audit.Entry{
-			OrganizationID: m.ID,
+			OrganizationID: m.OrganizationID,
 			Actor:          audit.User(userID),
 			Action:         audit.ActionMemberDeactivated,
 			ResourceType:   "organization_member", ResourceID: userID,
 			Changes:  audit.Diff(map[string]any{"status": MemberStatusActive}, map[string]any{"status": MemberStatusDeactivated}),
 			Metadata: map[string]any{"sessions_revoked": true, "reason": "account_deleted"},
 		}, audit.Event{Topic: "member.deactivated", Payload: map[string]string{
-			"organization_id": m.ID, "user_id": userID,
+			"organization_id": m.OrganizationID, "user_id": userID,
 		}}); err != nil {
 			return err
 		}

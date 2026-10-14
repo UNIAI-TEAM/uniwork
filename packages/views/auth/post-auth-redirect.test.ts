@@ -3,6 +3,8 @@ import { resolveLoggedInDestination } from "./post-auth-redirect";
 
 const fetchMy = vi.fn();
 vi.mock("@uniwork/core/workspaces", () => ({ fetchMyInvitations: (...a: unknown[]) => fetchMy(...a) }));
+const fetchOrgs = vi.fn();
+vi.mock("@uniwork/core/organizations", () => ({ fetchOrganizations: (...a: unknown[]) => fetchOrgs(...a) }));
 
 const verified = { email_verified_at: "2026-08-27T00:00:00Z", onboarded_at: null };
 const onboarded = { email_verified_at: "2026-08-27T00:00:00Z", onboarded_at: "2026-08-27T00:00:00Z" };
@@ -24,7 +26,21 @@ describe("resolveLoggedInDestination", () => {
   });
   it("onboarded → never checks invites", async () => {
     fetchMy.mockClear();
+    fetchOrgs.mockResolvedValueOnce([{ id: "o1", status: "active" }]);
     expect(await resolveLoggedInDestination(onboarded, [])).toBe("/workspaces/new");
     expect(fetchMy).not.toHaveBeenCalled();
+  });
+  it("onboarded without any organization → /get-started (ADR 0032 D12)", async () => {
+    fetchOrgs.mockResolvedValueOnce([]);
+    expect(await resolveLoggedInDestination(onboarded, [])).toBe("/get-started");
+  });
+  it("an organization list that fails to load does not block sign-in", async () => {
+    fetchOrgs.mockRejectedValueOnce(new Error("x"));
+    expect(await resolveLoggedInDestination(onboarded, [])).toBe("/workspaces/new");
+  });
+  it("the gates never wait on the organization list", async () => {
+    fetchOrgs.mockClear();
+    await resolveLoggedInDestination(unverified, []);
+    expect(fetchOrgs).not.toHaveBeenCalled();
   });
 });

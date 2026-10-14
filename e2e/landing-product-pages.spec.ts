@@ -23,7 +23,8 @@ test("product menu opens real introduction routes, with demo explicitly separate
   await expect(page.locator("h1")).toContainText("Rõ việc");
   await expect(page.locator('.marketing-actions a[href="/#du-an"]')).toBeVisible();
   await expect(page.locator("main")).not.toContainText("landing.productPages");
-  await expect(page.locator('.header-navigation a[href="/features/agents"]')).toHaveText("Nhân sự AI");
+  await product.click();
+  await expect(menu.locator('a[href="/features/agents"]')).toHaveText("Nhân sự AI");
 });
 
 test("all feature introductions have unique content, canonical URL and reference UI", async ({ page }) => {
@@ -92,7 +93,7 @@ test("English introductions and solution/resources links remain usable", async (
   await expect(page.locator("h1")).toHaveText("Meet together. Keep the context.");
   await page.locator(".header-directory-toggle").nth(1).click();
   await expect(page.locator('#header-directory-solutions a[href="/solutions/product"]')).toBeVisible();
-  await page.locator(".header-directory-toggle").nth(2).click();
+  await page.getByRole("banner").getByRole("button", { name: "Tìm hiểu", exact: true }).click();
   await expect(page.locator("#header-directory-solutions")).toHaveCount(0);
   await page.locator('#header-directory-learn a[href="/learn"]').first().click();
   await expect(page).toHaveURL(/\/learn$/);
