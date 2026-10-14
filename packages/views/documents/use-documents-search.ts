@@ -71,9 +71,15 @@ export function useDocumentsSearch(wsId: string, enabled: boolean): UseDocuments
 
   const [previousItems, setPreviousItems] = useState<DocumentSummary[]>([]);
   const [lastData, setLastData] = useState<typeof listQuery.data>(undefined);
+  const [lastFilter, setLastFilter] = useState<DocumentSearchFilter>(filter);
   if (!active || wsId !== queriedWsId) {
     if (previousItems.length > 0) setPreviousItems([]);
     if (lastData !== undefined) setLastData(undefined);
+    if (lastFilter !== filter) setLastFilter(filter);
+  } else if (filter !== lastFilter) {
+    setLastFilter(filter);
+    setPreviousItems([]);
+    setLastData(listQuery.data);
   } else if (listQuery.data !== undefined && listQuery.data !== lastData) {
     setLastData(listQuery.data);
     setPreviousItems(fetchedItems ?? []);
@@ -81,7 +87,7 @@ export function useDocumentsSearch(wsId: string, enabled: boolean): UseDocuments
 
   const items: DocumentSummary[] = !active
     ? []
-    : (fetchedItems ?? (listQuery.isError ? [] : previousItems));
+    : (fetchedItems ?? (listQuery.isError || filter !== lastFilter ? [] : previousItems));
 
   const clear = () => {
     setQuery("");

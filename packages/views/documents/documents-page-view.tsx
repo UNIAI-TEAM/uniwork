@@ -285,14 +285,23 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         tone={moduleTone("documents")}
         title={t("documents.page.title")}
         count={enabled && view.kind === "home" && !folderId && !listLoading && !state.hasMore ? listedCount : undefined}
-        className={enabled ? "h-auto min-h-12 flex-wrap py-2 sm:h-12 sm:flex-nowrap sm:py-0" : undefined}
+        className={
+          enabled
+            ? "h-auto min-h-12 flex-wrap py-2 sm:h-12 sm:flex-nowrap sm:py-0 [&>div:last-child]:contents sm:[&>div:last-child]:flex"
+            : undefined
+        }
         actions={
           enabled ? (
-            <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
-              <DocumentsSearchBox search={search} className="order-last w-full sm:order-first sm:w-64" />
-              {officeHome ? <OfficeHomeLaunch {...officeHome} /> : null}
-              {canCreate ? <CreateMenu {...createProps} /> : null}
-            </div>
+            <>
+              <DocumentsSearchBox
+                search={search}
+                className="order-last basis-full sm:order-first sm:basis-auto sm:w-48 md:w-64"
+              />
+              <div className="flex shrink-0 items-center gap-2">
+                {officeHome ? <OfficeHomeLaunch {...officeHome} /> : null}
+                {canCreate ? <CreateMenu {...createProps} /> : null}
+              </div>
+            </>
           ) : null
         }
       />

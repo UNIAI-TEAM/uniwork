@@ -8943,26 +8943,10 @@
         "path_root": "Documents (root)",
         "loading": "Searching…",
         "empty_title": "No results",
-        "empty_description": "Try another name or change the filter. Press Esc to go back to the folder.",
+        "empty_description": "Try another name or change the filter. Clear the search to go back to the folder.",
         "error_title": "Couldn't search",
         "error_description": "Check your connection and try again."
       }
-    },
-    "search": {
-      "placeholder": "Search folders and documents",
-      "label": "Search Documents",
-      "clear": "Clear search",
-      "filter_label": "Filter results",
-      "filter_all": "All",
-      "filter_folder": "Folders",
-      "filter_document": "Documents",
-      "path": "Path: {{path}}",
-      "path_root": "Documents (root)",
-      "loading": "Searching…",
-      "empty_title": "No results",
-      "empty_description": "Try another name or change the filter. Press Esc to go back to the folder.",
-      "error_title": "Couldn't search",
-      "error_description": "Check your connection and try again."
     },
     "errors": {
       "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; pages and files sit in a page or a folder.",

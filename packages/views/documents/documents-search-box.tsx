@@ -36,12 +36,12 @@ export function DocumentsSearchBox({ search, className }: DocumentsSearchBoxProp
         onCompositionStart={search.onCompositionStart}
         onCompositionEnd={search.onCompositionEnd}
         onKeyDown={search.onKeyDown}
-        placeholder={t("documents.search.placeholder")}
-        aria-label={t("documents.search.label")}
+        placeholder={t("documents.home.search.placeholder")}
+        aria-label={t("documents.home.search.label")}
         autoComplete="off"
         className={cn(
           "h-8 w-full pl-8 pointer-coarse:min-h-11 [&::-webkit-search-cancel-button]:hidden",
-          search.query.length > 0 && "pr-8",
+          search.query.length > 0 && "pr-8 pointer-coarse:pr-11",
         )}
       />
       {search.query.length > 0 ? (
@@ -49,9 +49,9 @@ export function DocumentsSearchBox({ search, className }: DocumentsSearchBoxProp
           type="button"
           variant="ghost"
           size="icon-xs"
-          aria-label={t("documents.search.clear")}
+          aria-label={t("documents.home.search.clear")}
           onClick={search.clear}
-          className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+          className="absolute inset-y-0 right-1 my-auto text-muted-foreground hover:text-foreground pointer-coarse:right-0 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
         >
           <X aria-hidden className="size-3.5" />
         </Button>

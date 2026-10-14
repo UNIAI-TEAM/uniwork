@@ -34,26 +34,25 @@ export function formatSearchPath(
   path: { id: string; title: string }[] | undefined,
   rootLabel?: string,
 ): { display: string; full: string } {
-  const suffix = rootLabel !== undefined ? " › " : "";
   const segments = (path ?? []).map((item) => item.title.trim()).filter(Boolean);
   if (segments.length === 0) {
     if (!rootLabel) return { display: "", full: "" };
-    return { display: `${rootLabel}${suffix}`, full: rootLabel };
+    return { display: rootLabel, full: rootLabel };
   }
   const full = segments.join(" › ");
-  const capped = segments.map(truncateSegmentFromLeft);
   if (segments.length <= MAX_VISIBLE_PATH_SEGMENTS && full.length <= MAX_VISIBLE_PATH_CHARS) {
-    return { display: `${capped.join(" › ")}${suffix}`, full };
+    return { display: full, full };
   }
+  const capped = segments.map(truncateSegmentFromLeft);
   const tailSegments = capped.slice(-MAX_VISIBLE_PATH_SEGMENTS);
   const tail = tailSegments.join(" › ");
   if (segments.length === 1) {
-    return { display: `${tail}${suffix}`, full };
+    return { display: tail, full };
   }
   if (tail.length > MAX_VISIBLE_PATH_CHARS) {
-    return { display: `… › ${tailSegments.at(-1)!}${suffix}`, full };
+    return { display: `… › ${tailSegments.at(-1)!}`, full };
   }
-  return { display: `… › ${tail}${suffix}`, full };
+  return { display: `… › ${tail}`, full };
 }
 
 export interface DocumentsSearchResultsProps {
@@ -77,11 +76,11 @@ export function DocumentsSearchResults({
   const chipLabel = (filter: DocumentSearchFilter): string => {
     switch (filter) {
       case "folder":
-        return t("documents.search.filter_folder");
+        return t("documents.home.search.filter_folder");
       case "document":
-        return t("documents.search.filter_document");
+        return t("documents.home.search.filter_document");
       default:
-        return t("documents.search.filter_all");
+        return t("documents.home.search.filter_all");
     }
   };
 
@@ -108,13 +107,13 @@ export function DocumentsSearchResults({
     }
   };
 
-  const rootLabel = t("documents.search.path_root");
+  const rootLabel = t("documents.home.search.path_root");
 
   return (
     <div className="flex flex-col gap-4">
       <div
         role="radiogroup"
-        aria-label={t("documents.search.filter_label")}
+        aria-label={t("documents.home.search.filter_label")}
         className="flex flex-wrap items-center gap-1.5"
       >
         {DOCUMENT_SEARCH_FILTERS.map((value) => {
@@ -132,7 +131,7 @@ export function DocumentsSearchResults({
               onClick={() => search.setFilter(value)}
               onKeyDown={(event) => handleRadioKeyDown(event, value)}
               className={cn(
-                "inline-flex h-7 shrink-0 items-center justify-center rounded-full border px-3 text-caption font-medium transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11",
+                "inline-flex h-7 min-w-11 shrink-0 items-center justify-center rounded-full border px-3 text-caption font-medium transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11",
                 checked
                   ? "border-foreground bg-foreground text-background"
                   : "border-input bg-background text-foreground hover:bg-accent",
@@ -148,7 +147,7 @@ export function DocumentsSearchResults({
         <div
           className="space-y-2"
           aria-busy="true"
-          aria-label={t("documents.search.loading")}
+          aria-label={t("documents.home.search.loading")}
         >
           {Array.from({ length: 5 }).map((_, index) => (
             <Skeleton key={index} className="h-11 w-full rounded-md" />
@@ -159,8 +158,8 @@ export function DocumentsSearchResults({
           icon={CircleAlert}
           tone="destructive"
           role="alert"
-          title={t("documents.search.error_title")}
-          description={t("documents.search.error_description")}
+          title={t("documents.home.search.error_title")}
+          description={t("documents.home.search.error_description")}
           actions={
             <Button type="button" variant="outline" size="sm" onClick={search.retry}>
               {t("documents.library.retry")}
@@ -171,13 +170,13 @@ export function DocumentsSearchResults({
         <CollectionPageState
           icon={Search}
           role="status"
-          title={t("documents.search.empty_title")}
-          description={t("documents.search.empty_description")}
+          title={t("documents.home.search.empty_title")}
+          description={t("documents.home.search.empty_description")}
         />
       ) : (
         <div className="flex flex-col">
           <div className="overflow-hidden rounded-lg border border-border">
-            <ul className="divide-y divide-border" aria-label={t("documents.search.label")}>
+            <ul className="divide-y divide-border" aria-label={t("documents.home.search.label")}>
               {search.items.map((item) => {
                 const isFolder = item.kind === "folder";
                 const title = item.title || t("documents.detail.untitled");
@@ -198,7 +197,10 @@ export function DocumentsSearchResults({
                         decorative
                         className={cn("size-5 shrink-0", isFolder && "text-muted-foreground")}
                       />
-                      <span className="flex min-w-0 flex-1 items-baseline gap-x-1.5">
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-x-2">
+                        <span className="min-w-0 truncate text-body font-medium text-foreground sm:shrink-0 sm:max-w-[70%]">
+                          {title}
+                        </span>
                         <span
                           aria-hidden
                           title={full}
@@ -206,11 +208,8 @@ export function DocumentsSearchResults({
                         >
                           {display}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
-                          {title}
-                        </span>
                         <span className="sr-only">
-                          {t("documents.search.path", { path: full })}
+                          {t("documents.home.search.path", { path: full })}
                         </span>
                       </span>
                     </button>

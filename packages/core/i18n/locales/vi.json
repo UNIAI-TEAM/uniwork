@@ -8938,26 +8938,10 @@
         "path_root": "Documents (gốc)",
         "loading": "Đang tìm…",
         "empty_title": "Không tìm thấy kết quả",
-        "empty_description": "Thử tên khác hoặc đổi bộ lọc. Nhấn Esc để quay lại thư mục.",
+        "empty_description": "Thử tên khác hoặc đổi bộ lọc. Xóa ô tìm để quay lại thư mục.",
         "error_title": "Không tìm được",
         "error_description": "Kiểm tra kết nối rồi thử lại."
       }
-    },
-    "search": {
-      "placeholder": "Tìm thư mục và tài liệu",
-      "label": "Tìm trong Documents",
-      "clear": "Xóa ô tìm",
-      "filter_label": "Lọc kết quả",
-      "filter_all": "Tất cả",
-      "filter_folder": "Thư mục",
-      "filter_document": "Tài liệu",
-      "path": "Đường dẫn: {{path}}",
-      "path_root": "Documents (gốc)",
-      "loading": "Đang tìm…",
-      "empty_title": "Không tìm thấy kết quả",
-      "empty_description": "Thử tên khác hoặc đổi bộ lọc. Nhấn Esc để quay lại thư mục.",
-      "error_title": "Không tìm được",
-      "error_description": "Kiểm tra kết nối rồi thử lại."
     },
     "errors": {
       "document_parent_kind": "Không đặt được ở đây: thư mục chỉ nằm ở gốc hoặc trong thư mục khác; trang và file nằm trong trang hoặc thư mục.",

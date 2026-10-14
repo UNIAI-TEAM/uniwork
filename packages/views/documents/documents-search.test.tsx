@@ -124,7 +124,7 @@ describe("Documents unified search (FD-10)", () => {
     renderSearchView();
     expect(await screen.findByText("Tài liệu gốc")).toBeInTheDocument();
 
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "hop dong" } });
 
     expect(await screen.findByText("Hợp đồng 2026")).toBeInTheDocument();
@@ -165,13 +165,13 @@ describe("Documents unified search (FD-10)", () => {
     });
 
     renderSearchView();
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "hop dong" } });
 
     expect(await screen.findByText("Hợp đồng mẫu")).toBeInTheDocument();
 
-    const group = screen.getByRole("radiogroup", { name: t("documents.search.filter_label") });
-    const folderRadio = within(group).getByRole("radio", { name: t("documents.search.filter_folder") });
+    const group = screen.getByRole("radiogroup", { name: t("documents.home.search.filter_label") });
+    const folderRadio = within(group).getByRole("radio", { name: t("documents.home.search.filter_folder") });
     fireEvent.click(folderRadio);
 
     await waitFor(() => {
@@ -193,17 +193,18 @@ describe("Documents unified search (FD-10)", () => {
     });
 
     renderSearchView();
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "hop" } });
 
-    const group = await screen.findByRole("radiogroup", { name: t("documents.search.filter_label") });
-    const allRadio = within(group).getByRole("radio", { name: t("documents.search.filter_all") });
-    const folderRadio = within(group).getByRole("radio", { name: t("documents.search.filter_folder") });
-    const docRadio = within(group).getByRole("radio", { name: t("documents.search.filter_document") });
+    const group = await screen.findByRole("radiogroup", { name: t("documents.home.search.filter_label") });
+    const allRadio = within(group).getByRole("radio", { name: t("documents.home.search.filter_all") });
+    const folderRadio = within(group).getByRole("radio", { name: t("documents.home.search.filter_folder") });
+    const docRadio = within(group).getByRole("radio", { name: t("documents.home.search.filter_document") });
 
     expect(allRadio).toHaveAttribute("aria-checked", "true");
     expect(allRadio).toHaveAttribute("tabindex", "0");
     expect(folderRadio).toHaveAttribute("tabindex", "-1");
+    expect(allRadio.className).toContain("min-w-11");
 
     allRadio.focus();
     fireEvent.keyDown(allRadio, { key: "ArrowRight" });
@@ -254,11 +255,15 @@ describe("Documents unified search (FD-10)", () => {
 
     expect(await screen.findByText("Tài liệu trong thư mục")).toBeInTheDocument();
 
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "ket qua" } });
 
     expect(await screen.findByText("Kết quả tìm kiếm")).toBeInTheDocument();
     expect(screen.queryByText("Tài liệu trong thư mục")).toBeNull();
+
+    const clearBtn = screen.getAllByRole("button", { name: t("documents.home.search.clear") })[0]!;
+    expect(clearBtn.className).not.toContain("-translate-y-1/2");
+    expect(clearBtn.className).toContain("inset-y-0");
 
     fireEvent.keyDown(searchInput, { key: "Escape" });
 
@@ -283,7 +288,7 @@ describe("Documents unified search (FD-10)", () => {
 
     renderSearchView();
     expect(await screen.findByText("Trang gốc")).toBeInTheDocument();
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
 
     vi.useFakeTimers();
     try {
@@ -329,7 +334,7 @@ describe("Documents unified search (FD-10)", () => {
     const nav = createNav();
     const onOpen = vi.fn((id: string) => nav.push(wsPaths.document(id)));
     renderSearchView(nav, onOpen);
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "dich" } });
 
     const docBtn = await screen.findByRole("button", { name: /Tài liệu đích/ });
@@ -347,7 +352,7 @@ describe("Documents unified search (FD-10)", () => {
     expect(nav.push).toHaveBeenLastCalledWith(wsPaths.documentsFolder("fo-target"));
   });
 
-  it("renders CollectionPageState when search results are empty or when the query errors", async () => {
+  it("renders CollectionPageState when search results are empty or when the query errors, without telling touch users to press Esc", async () => {
     let shouldFail = true;
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
@@ -359,21 +364,24 @@ describe("Documents unified search (FD-10)", () => {
     });
 
     renderSearchView();
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "khong co" } });
 
     const alertState = await screen.findByRole("alert");
-    expect(within(alertState).getByText(t("documents.search.error_title"))).toBeInTheDocument();
+    expect(within(alertState).getByText(t("documents.home.search.error_title"))).toBeInTheDocument();
 
     shouldFail = false;
     fireEvent.click(within(alertState).getByRole("button", { name: t("documents.library.retry") }));
 
-    expect(await screen.findByText(t("documents.search.empty_title"))).toBeInTheDocument();
-    expect(screen.getByText(t("documents.search.empty_description"))).toBeInTheDocument();
+    expect(await screen.findByText(t("documents.home.search.empty_title"))).toBeInTheDocument();
+    const emptyDesc = t("documents.home.search.empty_description");
+    expect(emptyDesc).not.toMatch(/Esc/i);
+    expect(screen.getByText(emptyDesc)).toBeInTheDocument();
   });
 
-  it("truncates long paths from the left (including long single ancestor titles) on a shrinkable span while preserving the full path in title and screen-reader text", async () => {
+  it("prioritizes the title in result rows and truncates long paths from the left (applying per-segment cap only when the path does not fit)", async () => {
     const longAncestor = "Thư mục Dự án Chuyển đổi Số Toàn diện Tập đoàn Quốc tế 2026";
+    const fittingAncestor = "Thư mục Dự án Chuyển đổi Số 2026"; // 32 chars (> 24, <= 36)
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
@@ -397,6 +405,12 @@ describe("Documents unified search (FD-10)", () => {
               title: "Biên bản nghiệm thu",
               path: [{ id: "p-long", title: longAncestor }],
             }),
+            summary({
+              id: "fitting-parent-doc",
+              kind: "page",
+              title: "Quyết định bổ nhiệm",
+              path: [{ id: "p-fit", title: fittingAncestor }],
+            }),
           ],
           next_cursor: null,
         });
@@ -405,23 +419,30 @@ describe("Documents unified search (FD-10)", () => {
     });
 
     renderSearchView();
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "bao cao" } });
 
-    expect(await screen.findByText("Báo cáo chi tiết")).toBeInTheDocument();
+    const titleEl = await screen.findByText("Báo cáo chi tiết");
+    expect(titleEl).toBeInTheDocument();
 
     const fullPath = "Khối Vận hành › Phòng Tài chính › Ban Kế toán › Năm 2026 › Quý 4";
     // Visual truncated path starts with ellipsis from the left and keeps the full path in `title`
     const pathEl = screen.getByTitle(fullPath);
-    expect(pathEl.textContent).toBe("… › Năm 2026 › Quý 4 › ");
+    expect(pathEl.textContent).toBe("… › Năm 2026 › Quý 4");
     expect(pathEl.className).not.toContain("shrink-0");
+    // Title comes before path in DOM order so title keeps priority
+    expect(titleEl.compareDocumentPosition(pathEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Screen reader text has the full path
-    expect(screen.getByText(t("documents.search.path", { path: fullPath }))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.home.search.path", { path: fullPath }))).toBeInTheDocument();
 
     const longAncestorEl = screen.getByTitle(longAncestor);
     expect(longAncestorEl.textContent?.startsWith("…")).toBe(true);
     expect(longAncestorEl.textContent!.length).toBeLessThan(longAncestor.length);
-    expect(screen.getByText(t("documents.search.path", { path: longAncestor }))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.home.search.path", { path: longAncestor }))).toBeInTheDocument();
+
+    // FE-R2-N2: a single 25-36 char ancestor that fits (<= 2 segments, <= 36 chars) is NOT capped at 24 chars
+    const fittingAncestorEl = screen.getByTitle(fittingAncestor);
+    expect(fittingAncestorEl.textContent).toBe(fittingAncestor);
   });
 
   it("keeps previous results visible without skeleton flicker while typing until the next query settles", async () => {
@@ -444,7 +465,7 @@ describe("Documents unified search (FD-10)", () => {
     });
 
     renderSearchView();
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "hop" } });
 
     expect(await screen.findByText("Hợp đồng khung")).toBeInTheDocument();
@@ -454,7 +475,7 @@ describe("Documents unified search (FD-10)", () => {
       fireEvent.change(searchInput, { target: { value: "hop dong" } });
       // Previous result stays visible during debounce instead of flashing skeletons.
       expect(screen.getByText("Hợp đồng khung")).toBeInTheDocument();
-      expect(screen.queryByLabelText(t("documents.search.loading"))).toBeNull();
+      expect(screen.queryByLabelText(t("documents.home.search.loading"))).toBeNull();
       act(() => {
         vi.advanceTimersByTime(250);
       });
@@ -464,4 +485,70 @@ describe("Documents unified search (FD-10)", () => {
 
     expect(await screen.findByText("Hợp đồng phụ lục")).toBeInTheDocument();
   });
+
+  it("drops previousItems when switching from All to Folders chip so the skeleton shows instead of wrong-kind document rows while pending (FE-R2-N1)", async () => {
+    let resolveFolderSearch: ((v: unknown) => void) | null = null;
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        if (queryOf(path).get("kind") === "folder") {
+          return new Promise((resolve) => {
+            resolveFolderSearch = resolve;
+          });
+        }
+        return Promise.resolve({
+          documents: [
+            summary({ id: "fo-1", kind: "folder", title: "Thư mục Hợp đồng" }),
+            summary({ id: "doc-1", kind: "page", title: "Tài liệu Hợp đồng" }),
+          ],
+          next_cursor: null,
+        });
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+
+    renderSearchView();
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    fireEvent.change(searchInput, { target: { value: "hop dong" } });
+
+    expect(await screen.findByText("Tài liệu Hợp đồng")).toBeInTheDocument();
+
+    const group = screen.getByRole("radiogroup", { name: t("documents.home.search.filter_label") });
+    fireEvent.click(within(group).getByRole("radio", { name: t("documents.home.search.filter_folder") }));
+
+    // While the Folders response is pending, the skeleton is shown and document rows from All are dropped.
+    expect(await screen.findByLabelText(t("documents.home.search.loading"))).toBeInTheDocument();
+    expect(screen.queryByText("Tài liệu Hợp đồng")).toBeNull();
+
+    act(() => {
+      resolveFolderSearch?.({
+        documents: [summary({ id: "fo-1", kind: "folder", title: "Thư mục Hợp đồng" })],
+        next_cursor: null,
+      });
+    });
+
+    expect(await screen.findByText("Thư mục Hợp đồng")).toBeInTheDocument();
+    expect(screen.queryByText("Tài liệu Hợp đồng")).toBeNull();
+  });
+
+  it("renders a single search box inside the header that wraps to a full-width row below sm and sits in the actions row from sm up (V-F1, V-F3)", () => {
+    requestMock.mockResolvedValue({ documents: [], next_cursor: null });
+    renderSearchView();
+
+    const heading = screen.getByRole("heading", { level: 1, name: t("documents.page.title") });
+    const header = heading.closest("header")!;
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    const searchBox = searchInput.parentElement!;
+
+    expect(header.contains(searchBox)).toBe(true);
+    expect(header.className).toContain("flex-wrap");
+    expect(header.className).toContain("[&>div:last-child]:contents");
+    expect(header.className).toContain("sm:[&>div:last-child]:flex");
+    expect(searchBox.className).toContain("order-last");
+    expect(searchBox.className).toContain("basis-full");
+    expect(searchBox.className).toContain("sm:order-first");
+    expect(searchBox.className).toContain("sm:w-48");
+    expect(searchBox.className).toContain("md:w-64");
+  });
 });
+
