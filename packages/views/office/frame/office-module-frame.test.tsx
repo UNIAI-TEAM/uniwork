@@ -33,7 +33,7 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, ackComments = false }: { onFrameCommentsChange?: (framePanel: boolean) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only" } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, ackComments = false, ackCapabilities }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only" } = {}) {
   requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : Promise.reject(new Error(`unexpected ${path}`))));
   lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -63,7 +63,7 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
     const m = message as Envelope;
     received.push(m);
     if (m.kind === "request" && m.type === "init") {
-      queueMicrotask(() => { void post(envelope("response", "init", { protocolVersion: 1, capabilities: ackComments ? { comments: true } : {} }, m.id)); });
+      queueMicrotask(() => { void post(envelope("response", "init", { protocolVersion: 1, capabilities: ackCapabilities ?? (ackComments ? { comments: true } : {}) }, m.id)); });
     }
   });
   return {
@@ -141,6 +141,49 @@ describe("OfficeModuleFrame", () => {
       await frame.ready({ module });
       await waitFor(() => expect(frame.inits()).toHaveLength(1));
       expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: false, webSearch: false, imageSearch: false, imageGeneration: false } });
+      cleanup();
+    }
+  });
+
+  // G6-05: UniWork AI is its own grant (`uniwork_ai`), independent of BYOK `ai`; the cloud tools
+  // follow their grants under either one, so an organization with only UniWork AI still gets them.
+  it.each(ALL_MODULES)("grants the %s frame uniworkAi and the cloud tools from a uniwork_ai grant alone", async (module) => {
+    const frame = mountFrame(module, { mint: mintWithAI(module, { ai: false, web_search: true, image_search: false, image_generation: true, uniwork_ai: true }) });
+    await frame.ready({ module });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: false, uniworkAi: true, webSearch: true, imageSearch: false, imageGeneration: true } });
+  });
+
+  // G6-05 task 2: the six frames still pinned at web-0.1.0-06d77a2 list `uniworkAi` in their protocol keys but
+  // claim it false (their host-claim table), so effective = host grant AND frame claim = false in the ack. The
+  // grant is neither a handshake failure nor a hash check at runtime: the session stays up.
+  it("stays up when the pinned frame answers a uniworkAi grant with its own uniworkAi: false claim", async () => {
+    const frame = mountFrame("pdf", {
+      mint: mintWithAI("pdf", { ai: true, web_search: false, image_search: false, image_generation: false, uniwork_ai: true }),
+      ackCapabilities: { ai: true, webSearch: true, imageSearch: true, imageGeneration: true, uniworkAi: false, desktopOpen: true, download: true },
+    });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: true, uniworkAi: true } });
+    await waitFor(() => expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull());
+    expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
+    expect(frame.iframe).toBeInTheDocument();
+  });
+
+  it("keeps uniworkAi off without the grant, with a drifted one, and keeps cloud tools off without either AI", async () => {
+    const cases: [OfficeModule, unknown][] = [
+      ["pdf", { ai: true, web_search: true, image_search: true, image_generation: true }],
+      ["markdown", { ai: true, web_search: false, image_search: false, image_generation: false, uniwork_ai: "yes" }],
+      ["html", { ai: false, web_search: true, image_search: true, image_generation: true, uniwork_ai: false }],
+      ["slides", undefined],
+    ];
+    for (const [module, ai] of cases) {
+      const frame = mountFrame(module, { mint: mintWithAI(module, ai) });
+      await frame.ready({ module });
+      await waitFor(() => expect(frame.inits()).toHaveLength(1));
+      const caps = (frame.inits()[0]?.payload as { capabilities: Record<string, boolean> }).capabilities;
+      expect(caps.uniworkAi).toBeFalsy();
+      if (module !== "pdf" && module !== "markdown") expect([caps.webSearch, caps.imageSearch, caps.imageGeneration]).toEqual([false, false, false]);
       cleanup();
     }
   });

@@ -45,11 +45,15 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
   AND (sqlc.narg(kind)::text IS NULL OR d.kind = sqlc.narg(kind))
+  AND (sqlc.narg(exclude_kind)::text IS NULL OR d.kind <> sqlc.narg(exclude_kind))
   AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
   AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.updated_at >= sqlc.narg(updated_from))
   AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.updated_at < sqlc.narg(updated_to))
   AND (sqlc.narg(query)::text IS NULL
-       OR d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
+       OR (NOT sqlc.arg(match_title)::boolean
+           AND d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
+       OR (sqlc.arg(match_title)::boolean
+           AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_at)::timestamptz IS NULL
        OR (d.updated_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))
 ORDER BY d.updated_at DESC, d.id DESC
@@ -80,11 +84,15 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
   AND (sqlc.narg(kind)::text IS NULL OR d.kind = sqlc.narg(kind))
+  AND (sqlc.narg(exclude_kind)::text IS NULL OR d.kind <> sqlc.narg(exclude_kind))
   AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
   AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.updated_at >= sqlc.narg(updated_from))
   AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.updated_at < sqlc.narg(updated_to))
   AND (sqlc.narg(query)::text IS NULL
-       OR d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
+       OR (NOT sqlc.arg(match_title)::boolean
+           AND d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
+       OR (sqlc.arg(match_title)::boolean
+           AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_position)::float8 IS NULL
        OR (d.position, d.id) > (sqlc.narg(cursor_position), sqlc.narg(cursor_id)::text))
 ORDER BY d.position, d.id
@@ -113,15 +121,44 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
   AND (sqlc.narg(kind)::text IS NULL OR d.kind = sqlc.narg(kind))
+  AND (sqlc.narg(exclude_kind)::text IS NULL OR d.kind <> sqlc.narg(exclude_kind))
   AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
   AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.archived_at >= sqlc.narg(updated_from))
   AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.archived_at < sqlc.narg(updated_to))
   AND (sqlc.narg(query)::text IS NULL
-       OR d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
+       OR (NOT sqlc.arg(match_title)::boolean
+           AND d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
+       OR (sqlc.arg(match_title)::boolean
+           AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_at)::timestamptz IS NULL
        OR (d.archived_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))
 ORDER BY d.archived_at DESC, d.id DESC
 LIMIT sqlc.arg(page_limit);
+
+-- Ancestor chain for a page of list results (E6/FD-05, UNI-1465). Both the
+-- anchor and the recursive step carry organization_id and workspace_id so a
+-- foreign-tenant "poison" parent can never be joined; max_level caps the walk
+-- at 2*maxDocumentDepth and visited guards against cycles.
+-- name: ListDocumentAncestors :many
+WITH RECURSIVE anc AS (
+  SELECT d.id, d.parent_id, d.title, d.visibility, d.acl_owner_id, d.owner_kind, d.archived_at,
+         1 AS lvl, ARRAY[d.id]::text[] AS visited
+  FROM documents d
+  WHERE d.organization_id = sqlc.arg(organization_id)
+    AND d.workspace_id = sqlc.arg(workspace_id)
+    AND d.id = ANY(sqlc.arg(ids)::text[])
+  UNION ALL
+  SELECT p.id, p.parent_id, p.title, p.visibility, p.acl_owner_id, p.owner_kind, p.archived_at,
+         anc.lvl + 1, anc.visited || p.id
+  FROM documents p
+  JOIN anc ON p.id = anc.parent_id
+  WHERE p.organization_id = sqlc.arg(organization_id)
+    AND p.workspace_id = sqlc.arg(workspace_id)
+    AND anc.lvl < sqlc.arg(max_level)::int
+    AND NOT (p.id = ANY(anc.visited))
+)
+SELECT DISTINCT id, parent_id, title, visibility, acl_owner_id, owner_kind, archived_at
+FROM anc;
 
 -- Every visible live document of one workspace in tree order - the
 -- DocumentTree endpoint assembles the forest in memory.

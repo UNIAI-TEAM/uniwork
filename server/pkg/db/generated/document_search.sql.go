@@ -32,15 +32,19 @@ WHERE d.organization_id = $1
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($7::text[]))))))
   AND ($8::text IS NULL OR d.kind = $8)
-  AND ($9::text IS NULL OR d.updated_by = $9)
-  AND ($10::timestamptz IS NULL OR d.archived_at >= $10)
-  AND ($11::timestamptz IS NULL OR d.archived_at < $11)
-  AND ($12::text IS NULL
-       OR d.search_text ILIKE '%' || $12::text || '%' ESCAPE '\')
-  AND ($13::timestamptz IS NULL
-       OR (d.archived_at, d.id) < ($13, $14::text))
+  AND ($9::text IS NULL OR d.kind <> $9)
+  AND ($10::text IS NULL OR d.updated_by = $10)
+  AND ($11::timestamptz IS NULL OR d.archived_at >= $11)
+  AND ($12::timestamptz IS NULL OR d.archived_at < $12)
+  AND ($13::text IS NULL
+       OR (NOT $14::boolean
+           AND d.search_text ILIKE '%' || $13::text || '%' ESCAPE '\')
+       OR ($14::boolean
+           AND uw_fold_search(d.title) ILIKE '%' || $13::text || '%' ESCAPE '\'))
+  AND ($15::timestamptz IS NULL
+       OR (d.archived_at, d.id) < ($15, $16::text))
 ORDER BY d.archived_at DESC, d.id DESC
-LIMIT $15
+LIMIT $17
 `
 
 type ListArchivedDocumentsPageParams struct {
@@ -52,10 +56,12 @@ type ListArchivedDocumentsPageParams struct {
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
+	ExcludeKind     pgtype.Text        `json:"exclude_kind"`
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
 	Query           pgtype.Text        `json:"query"`
+	MatchTitle      bool               `json:"match_title"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
 	PageLimit       int32              `json:"page_limit"`
@@ -73,10 +79,12 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 		arg.AllowShares,
 		arg.ShareWorkspaces,
 		arg.Kind,
+		arg.ExcludeKind,
 		arg.UpdatedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
 		arg.Query,
+		arg.MatchTitle,
 		arg.CursorAt,
 		arg.CursorID,
 		arg.PageLimit,
@@ -140,6 +148,82 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 	return items, nil
 }
 
+const listDocumentAncestors = `-- name: ListDocumentAncestors :many
+WITH RECURSIVE anc AS (
+  SELECT d.id, d.parent_id, d.title, d.visibility, d.acl_owner_id, d.owner_kind, d.archived_at,
+         1 AS lvl, ARRAY[d.id]::text[] AS visited
+  FROM documents d
+  WHERE d.organization_id = $1
+    AND d.workspace_id = $2
+    AND d.id = ANY($3::text[])
+  UNION ALL
+  SELECT p.id, p.parent_id, p.title, p.visibility, p.acl_owner_id, p.owner_kind, p.archived_at,
+         anc.lvl + 1, anc.visited || p.id
+  FROM documents p
+  JOIN anc ON p.id = anc.parent_id
+  WHERE p.organization_id = $1
+    AND p.workspace_id = $2
+    AND anc.lvl < $4::int
+    AND NOT (p.id = ANY(anc.visited))
+)
+SELECT DISTINCT id, parent_id, title, visibility, acl_owner_id, owner_kind, archived_at
+FROM anc
+`
+
+type ListDocumentAncestorsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+	MaxLevel       int32    `json:"max_level"`
+}
+
+type ListDocumentAncestorsRow struct {
+	ID         string             `json:"id"`
+	ParentID   pgtype.Text        `json:"parent_id"`
+	Title      string             `json:"title"`
+	Visibility string             `json:"visibility"`
+	AclOwnerID pgtype.Text        `json:"acl_owner_id"`
+	OwnerKind  pgtype.Text        `json:"owner_kind"`
+	ArchivedAt pgtype.Timestamptz `json:"archived_at"`
+}
+
+// Ancestor chain for a page of list results (E6/FD-05, UNI-1465). Both the
+// anchor and the recursive step carry organization_id and workspace_id so a
+// foreign-tenant "poison" parent can never be joined; max_level caps the walk
+// at 2*maxDocumentDepth and visited guards against cycles.
+func (q *Queries) ListDocumentAncestors(ctx context.Context, arg ListDocumentAncestorsParams) ([]ListDocumentAncestorsRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentAncestors,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Ids,
+		arg.MaxLevel,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentAncestorsRow{}
+	for rows.Next() {
+		var i ListDocumentAncestorsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentID,
+			&i.Title,
+			&i.Visibility,
+			&i.AclOwnerID,
+			&i.OwnerKind,
+			&i.ArchivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentsByParentPage = `-- name: ListDocumentsByParentPage :many
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision
 FROM documents d
@@ -163,15 +247,19 @@ WHERE d.organization_id = $1
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($10::text[]))))))
   AND ($11::text IS NULL OR d.kind = $11)
-  AND ($12::text IS NULL OR d.updated_by = $12)
-  AND ($13::timestamptz IS NULL OR d.updated_at >= $13)
-  AND ($14::timestamptz IS NULL OR d.updated_at < $14)
-  AND ($15::text IS NULL
-       OR d.search_text ILIKE '%' || $15::text || '%' ESCAPE '\')
-  AND ($16::float8 IS NULL
-       OR (d.position, d.id) > ($16, $17::text))
+  AND ($12::text IS NULL OR d.kind <> $12)
+  AND ($13::text IS NULL OR d.updated_by = $13)
+  AND ($14::timestamptz IS NULL OR d.updated_at >= $14)
+  AND ($15::timestamptz IS NULL OR d.updated_at < $15)
+  AND ($16::text IS NULL
+       OR (NOT $17::boolean
+           AND d.search_text ILIKE '%' || $16::text || '%' ESCAPE '\')
+       OR ($17::boolean
+           AND uw_fold_search(d.title) ILIKE '%' || $16::text || '%' ESCAPE '\'))
+  AND ($18::float8 IS NULL
+       OR (d.position, d.id) > ($18, $19::text))
 ORDER BY d.position, d.id
-LIMIT $18
+LIMIT $20
 `
 
 type ListDocumentsByParentPageParams struct {
@@ -186,10 +274,12 @@ type ListDocumentsByParentPageParams struct {
 	ShareLevels     []string           `json:"share_levels"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
+	ExcludeKind     pgtype.Text        `json:"exclude_kind"`
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
 	Query           pgtype.Text        `json:"query"`
+	MatchTitle      bool               `json:"match_title"`
 	CursorPosition  pgtype.Float8      `json:"cursor_position"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
 	PageLimit       int32              `json:"page_limit"`
@@ -210,10 +300,12 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 		arg.ShareLevels,
 		arg.ShareWorkspaces,
 		arg.Kind,
+		arg.ExcludeKind,
 		arg.UpdatedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
 		arg.Query,
+		arg.MatchTitle,
 		arg.CursorPosition,
 		arg.CursorID,
 		arg.PageLimit,
@@ -302,15 +394,19 @@ WHERE d.organization_id = $2
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($10::text[]))))))
   AND ($11::text IS NULL OR d.kind = $11)
-  AND ($12::text IS NULL OR d.updated_by = $12)
-  AND ($13::timestamptz IS NULL OR d.updated_at >= $13)
-  AND ($14::timestamptz IS NULL OR d.updated_at < $14)
+  AND ($12::text IS NULL OR d.kind <> $12)
+  AND ($13::text IS NULL OR d.updated_by = $13)
+  AND ($14::timestamptz IS NULL OR d.updated_at >= $14)
+  AND ($15::timestamptz IS NULL OR d.updated_at < $15)
   AND ($1::text IS NULL
-       OR d.search_text ILIKE '%' || $1::text || '%' ESCAPE '\')
-  AND ($15::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($15, $16::text))
+       OR (NOT $16::boolean
+           AND d.search_text ILIKE '%' || $1::text || '%' ESCAPE '\')
+       OR ($16::boolean
+           AND uw_fold_search(d.title) ILIKE '%' || $1::text || '%' ESCAPE '\'))
+  AND ($17::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($17, $18::text))
 ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $17
+LIMIT $19
 `
 
 type ListDocumentsPageParams struct {
@@ -325,9 +421,11 @@ type ListDocumentsPageParams struct {
 	ShareLevels     []string           `json:"share_levels"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
+	ExcludeKind     pgtype.Text        `json:"exclude_kind"`
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
+	MatchTitle      bool               `json:"match_title"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
 	PageLimit       int32              `json:"page_limit"`
@@ -414,9 +512,11 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 		arg.ShareLevels,
 		arg.ShareWorkspaces,
 		arg.Kind,
+		arg.ExcludeKind,
 		arg.UpdatedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
+		arg.MatchTitle,
 		arg.CursorAt,
 		arg.CursorID,
 		arg.PageLimit,
