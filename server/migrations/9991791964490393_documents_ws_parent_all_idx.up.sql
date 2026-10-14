@@ -1,0 +1,19 @@
+-- The archive/archive-impact subtree walk (C-01 §5.1, UNI-678; FD-03 row cap
+-- and FD-04 archive-impact). The recursive term has no archived_at predicate -
+-- it MUST walk archived rows, or a live child of an archived parent is
+-- unreachable - so the partial idx_documents_ws_parent of migration 949
+-- (WHERE archived_at IS NULL AND owner_id IS NULL) cannot serve it. On a
+-- workspace-dominant table the planner then falls back to a hash join and a
+-- sequential scan of the whole workspace per recursion level, which costs
+-- seconds for a workspace of millions of rows even when the subtree holds a
+-- thousand (BE-FD03-1 / BE-FD04-1).
+--
+-- This index is deliberately NOT partial. A partial index is only usable when
+-- the query proves its predicate, and ListLiveDocumentSubtreeIDs carries no
+-- owner_id predicate, so WHERE owner_id IS NULL here would leave the planner
+-- free to keep the sequential scan: measured on a 2M-row workspace the
+-- partial form still seq-scans documents 21 times and answers in 15.7 s,
+-- while this non-partial form makes the nested loop serve every level in
+-- 6.5 ms. It stays beside 949's index: the tree listing still wants the
+-- position column and its archived/owned filter.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_documents_ws_parent_all ON documents (workspace_id, parent_id);

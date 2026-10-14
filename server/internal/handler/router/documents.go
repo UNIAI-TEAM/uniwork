@@ -28,6 +28,7 @@ import (
 //	PATCH  /api/v1/documents/{documentID}
 //	POST   /api/v1/documents/{documentID}/move                    (G1-05b)
 //	POST   /api/v1/documents/{documentID}/archive                 (G1-05b)
+//	GET    /api/v1/documents/{documentID}/archive-impact          (FD-04)
 //	POST   /api/v1/documents/{documentID}/restore                 (G1-05b)
 //	GET    /api/v1/documents/{documentID}/shares                  (G1-05b)
 //	POST   /api/v1/documents/{documentID}/shares                  (G1-05b)
@@ -483,6 +484,15 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
+	})
+	d.Get("/documents/{documentID}/archive-impact", h.ArchiveImpact, apiOp{
+		summary: "Read the archive impact of a subtree",
+		description: "Số đếm cho hộp thoại xóa (FD-04): {folders, documents, total, max_nodes, too_large}, đọc trong một transaction RepeatableRead read-only nên id, quyền và số đến từ một snapshot. " +
+			"Cùng thứ tự kiểm với lệnh lưu trữ: manage trên gốc (không đủ -> cùng 403/404), cây con sống giới hạn 1000 nút, manage trên từng nút của đúng tập id đó. " +
+			"folders/documents không gồm gốc (trang con trong trang tính là documents); total gồm gốc = số dòng lệnh lưu trữ sẽ ghi. Vượt trần -> {too_large: true, max_nodes: 1000}, không có số đếm. Không ghi audit.",
+		tags: []string{"documents"},
+		sdo:  sdo.DocumentArchiveImpactSDO{},
+		auth: true,
 	})
 	d.Post("/documents/{documentID}/restore", h.RestoreDocument, apiOp{
 		summary:     "Restore an archived document",
