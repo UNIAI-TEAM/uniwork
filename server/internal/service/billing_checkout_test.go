@@ -122,7 +122,7 @@ func TestApplyProviderEventPaidAfterFailedIPN(t *testing.T) {
 	}
 }
 
-func TestApplyProviderEventRejectsWhenQuotaExceededAtIPN(t *testing.T) {
+func TestApplyProviderEventAppliesPaidPlanWhenOverQuotaAtIPN(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "free_small", 0, map[string]int64{FeatureWorkspacesMax: 1})
 	f.seedPlan(t, "paid_team", 500000, map[string]int64{FeatureWorkspacesMax: 1})
@@ -141,8 +141,23 @@ func TestApplyProviderEventRejectsWhenQuotaExceededAtIPN(t *testing.T) {
 		t.Fatal(err)
 	}
 	ev := billing.Event{ProviderEventID: "paid-quota", ProviderTxnRef: intentID, Paid: true, Amount: 500000, Currency: "VND"}
-	if err := f.billing.ApplyProviderEvent(f.ctx, ev); !errors.Is(err, ErrQuotaExceeded) {
-		t.Fatalf("want quota exceeded, got %v", err)
+	if err := f.billing.ApplyProviderEvent(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	if err := f.pool.QueryRow(f.ctx, `SELECT status FROM billing_payment_intents WHERE id = $1`, intentID).Scan(&status); err != nil || status != "completed" {
+		t.Fatalf("intent status = %q (%v), want completed", status, err)
+	}
+	snap, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+	if err != nil || snap.Plan.Code != "paid_team" {
+		t.Fatalf("plan = %q err=%v", snap.Plan.Code, err)
+	}
+	var n, paid int64
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*)::int, coalesce(sum(amount_paid), 0)::bigint FROM invoices WHERE organization_id = $1`, f.orgID).Scan(&n, &paid); err != nil || n != 1 || paid != 500000 {
+		t.Fatalf("invoices = %d paid=%d (%v), want 1 invoice of 500000", n, paid, err)
+	}
+	if _, err := f.ws.CreateInOrg(f.ctx, f.owner.ID, f.orgID, "three", "three"); !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("third workspace: got %v", err)
 	}
 }
 
