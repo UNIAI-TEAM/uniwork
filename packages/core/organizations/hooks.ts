@@ -75,13 +75,14 @@ export const orgMemberKeys = {
   me: (orgSlug: string) => ["org-members", orgSlug, "me"] as const,
 };
 
-export function useOrgMembers(orgSlug: string, status = "active") {
+/** `enabled: false` mounts the hook without reading (a screen that may need the list later). */
+export function useOrgMembers(orgSlug: string, status = "active", enabled = true) {
   return useInfiniteQuery({
     queryKey: orgMemberKeys.list(orgSlug, status),
     queryFn: ({ pageParam }) => orgMembers.listOrgMembers(orgSlug, status, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor || undefined,
-    enabled: !!orgSlug,
+    enabled: enabled && !!orgSlug,
   });
 }
 
@@ -173,14 +174,29 @@ export function useRevokeOrgInvitation(orgSlug: string) {
 }
 
 /**
- * Handing the organization over changes what the caller may do everywhere, so
- * the whole cache is refreshed rather than the membership list alone.
+ * Handing the organization over changes the caller's role (owner → admin)
+ * and the new owner's, so everything that role decides is refreshed: the
+ * organization list (which carries the caller's role and feeds the billing,
+ * audit and owner-only gates), this organization's member and people reads,
+ * and the workspace memberships an organization role makes implicit. The
+ * rest of the cache — tasks, meetings, documents — does not depend on it and
+ * is left alone.
  */
 export function useTransferOwnership(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ toUserId, password }: { toUserId: string; password: string }) =>
       orgMembers.transferOwnership(orgSlug, toUserId, password),
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: () =>
+      Promise.all(
+        [
+          organizationKeys.list(),
+          orgMemberKeys.all(orgSlug),
+          peopleKeys.all(orgSlug),
+          workspaceKeys.list(),
+          workspaceKeys.allMe(),
+          workspaceKeys.allMembers(),
+        ].map((queryKey) => qc.invalidateQueries({ queryKey })),
+      ),
   });
 }
