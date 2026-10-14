@@ -85,6 +85,38 @@
           "cbb792c946bfaa4df7d8d15502548baa760b1739e": "Hai giao dịch thanh toán hoàn tất trong cùng một giây không còn trùng số hóa đơn, nên lần thanh toán sau không bị kẹt ở trạng thái chờ. Năm trong số hóa đơn tính theo giờ Việt Nam.",
           "c75c5ddc68ad9e7a61ff80b2a4c0fb4518e068a25": "Khi hai yêu cầu hoàn tiền được gửi cùng lúc cho một giao dịch, chỉ một yêu cầu được xử lý; yêu cầu còn lại báo xung đột thay vì gửi thêm một lệnh hoàn tiền."
         }
+      },
+      "v1_3_0": {
+        "title": "Một tổ chức cho mỗi tài khoản, chuyển tổ chức ngay trong lời mời, bình luận trong tài liệu Office và nhiều bản sửa thanh toán",
+        "summary": "Mỗi tài khoản thuộc một tổ chức đang hoạt động; trang lời mời xem trước rồi đưa bạn qua tổ chức mới trong một bước, chủ sở hữu duy nhất đóng được tổ chức, và tài khoản chưa có tổ chức có trang Bắt đầu riêng. Tài liệu Office trong workspace có bình luận, nhắc tên và thanh đồng bộ. Trang giới thiệu cùng trang UniWork Office được làm lại kèm biểu mẫu đăng ký dùng thử. Kèm theo là các bản sửa cho hoàn tiền, hạn mức gói và chỗ ngồi thành viên.",
+        "note": "Quy tắc một tổ chức áp dụng cho các thao tác mới: tài khoản đang thuộc nhiều tổ chức từ trước vẫn giữ nguyên. Đóng tổ chức cần bạn là chủ sở hữu và là thành viên hoạt động duy nhất, phải gõ lại slug để xác nhận; tổ chức đã đóng chưa có thao tác khôi phục. Chủ sở hữu chỉ đăng nhập bằng Google (chưa đặt mật khẩu) chưa chuyển quyền sở hữu được. Bình luận và đồng bộ trong tài liệu Office cần tổ chức bật trình soạn Office; phần AI của UniWork trong Office và thư viện ngoại tuyến vẫn đang tắt. Kết nối trợ lý AI vẫn là tính năng thử nghiệm, chỉ đọc, và phải được bật cho tổ chức.",
+        "features": {
+          "c317521eedb704bb64491be34bc99bbeab0b53c3c": "Mỗi tài khoản thuộc một tổ chức đang hoạt động, và máy chủ giữ quy tắc này nên mở nhiều tab hay thao tác song song cũng không lách được. Khi bạn nhận lời mời sang tổ chức khác, trang lời mời xem trước lời mời rồi đưa bạn qua rời tổ chức cũ, chuyển quyền sở hữu rồi rời, hoặc đóng tổ chức cũ — tất cả trong một bước. Nếu lời mời đã hết hạn hoặc bị thu hồi, bạn vẫn giữ nguyên tổ chức hiện tại.",
+          "c42b1d55cbd34a928e5d29e5e316f0976f06d44b8": "Chủ sở hữu là thành viên hoạt động duy nhất có thể đóng tổ chức ngay trong Cài đặt › Tổ chức, sau khi gõ lại slug để xác nhận. Dữ liệu được giữ nguyên, các lời mời đang chờ bị thu hồi và gói đăng ký bị hủy, nên chủ sở hữu duy nhất không còn bị kẹt trong tổ chức của mình.",
+          "c342307d9f5222db6fe8c9269527923974cb0b379": "Tài khoản chưa thuộc tổ chức nào được đưa tới trang Bắt đầu để tạo tổ chức mới hoặc mở một lời mời đang chờ. Trong danh sách lời mời và ở thanh bên của chat, mỗi lời mời mở trang riêng của nó thay vì một nút tham gia tất cả.",
+          "ca56ba0bc29ea8ee7ab217cc110efc7d8bd463207": "Trang giới thiệu và trang UniWork Office trên website được dựng lại: điều hướng gọn hơn, ảnh trình soạn thảo theo giao diện sáng/tối, phần xem trước đủ chiều cao và nội dung giới thiệu được gom lại cho dễ theo dõi. Trang Đăng ký dùng thử mới gửi yêu cầu thẳng cho quản trị viên UniWork xử lý trong console, và phần tải UniWork Office đưa đúng các bản cài đặt mà hệ thống đang cấu hình.",
+          "c850c91de8bfa831de1dc9a0848d4d6003131d161": "Tài liệu Office mở trong workspace có luồng bình luận, nhắc tên bằng @ và hộp thư bình luận kèm thông báo, nên góp ý nằm ngay cạnh nội dung thay vì ở chỗ khác. Thanh đồng bộ cho biết bản lưu của bạn đã lên workspace hay còn trong hàng đợi."
+        },
+        "improvements": {
+          "c345cfe2bda271e6ac79e24c3e25fc54aebdc47c3": "Trong kết nối trợ lý AI, mỗi công cụ hiện tên dễ đọc — \"List workspaces\", \"My work\", \"Search UniWork\", \"Get task\", \"Get meeting\" — thay cho tên kỹ thuật viết liền bằng gạch dưới.",
+          "cc51ea0749ffbe14a51713e253a253999a70cc1c3": "Các màn hình lời mời, chuyển tổ chức và vùng nguy hiểm của tổ chức dễ đọc hơn: tên tổ chức dài xuống dòng thay vì bị cắt, tiêu đề lời mời vừa màn hình điện thoại, và thông báo về quyền truy cập cuộn được trên cửa sổ thấp kèm lối đăng xuất."
+        },
+        "fixes": {
+          "cf32bc6febcbeb9950a6e2cea84edcab99fd535d6": "Khi VNPay không trả lời hoặc trả lời không có chữ ký hợp lệ, yêu cầu hoàn tiền giữ trạng thái chờ thay vì đánh dấu hóa đơn đã thanh toán trở lại, nên lần thử sau không hoàn tiền hai lần. Một lời từ chối có chữ ký vẫn đưa hóa đơn về đã thanh toán và ghi lại việc đảo trạng thái.",
+          "c41036366d2f1d8ef62593e87cd7d23e1eec31cfd": "Hóa đơn VNPay đã hoàn tiền một lần không nhận thêm lệnh hoàn tự động mà phải được xử lý thủ công. Khi cổng thanh toán trả trạng thái 05 (vẫn đang xử lý), hóa đơn ở lại trạng thái chờ và gói đang dùng được giữ nguyên.",
+          "c23708f9f585b8ca6232132d44fd93fb4ff862b0c": "Hóa đơn thanh toán thủ công chỉ hoàn được toàn bộ: số tiền một phần, bằng 0 hoặc âm bị từ chối, nên không còn trường hợp hoàn một phần lại hoàn cả hóa đơn và hạ gói. Khi hai lệnh hoàn chạy cùng lúc, lệnh thua báo xung đột để tải lại danh sách.",
+          "c936c0301e9464116feee322d97ed825abf8f0f77": "Màu nhấn đang dùng hiện đúng trong Cài đặt › Tùy chọn cả khi trình duyệt chặn bộ nhớ cục bộ (Safari riêng tư, \"chặn mọi cookie\"), nên bạn chọn lại được màu mặc định mà không phải tải lại trang. Mọi tab đang mở cũng đổi màu theo tab vừa chọn.",
+          "c86ea7aff6ce6bfbf839a3ccec1d955b65e55b447": "Một lời mời cấp tổ chức không còn làm biến mất cả danh sách lời mời của bạn.",
+          "ca59d184212dadf80caaca158643727f0bbb428f9": "Xóa tài khoản không còn thất bại khi dọn hồ sơ thành viên, và một tổ chức đã đóng cũng không còn chặn việc xóa tài khoản.",
+          "c1e15e45c393de7c54cc985ffd33b51237d63c853": "Tổ chức đã đóng không còn để lại workspace của nó trong danh sách của bạn, màn hình của tổ chức đã đóng đưa bạn sang nơi phù hợp thay vì báo \"tạm ngưng\", và một tư cách thành viên đã tắt không còn bị tính là bạn vẫn đang thuộc tổ chức.",
+          "ca885949c7befc0fd233ccdedb166fb4c80c9e2c4": "Trang lời mời chỉ nhận lời mời một lần và không còn kẹt ở vòng quay sau khi bạn bấm đồng ý; trong lúc đang gửi, nút \"Để sau\" được ẩn đi. Khi một lời mời không dùng được nữa, trang nói rõ lý do.",
+          "cdc3b3b7163e63384dfb3ee0342e499adab5f2e80": "Chủ sở hữu chỉ đăng nhập bằng Google và chưa đặt mật khẩu được báo rõ là không xác nhận được việc chuyển quyền sở hữu, kèm hướng dẫn liên hệ hỗ trợ; ô chọn người nhận quyền cũng giải thích ngay tại chỗ khi chưa có ai để chọn.",
+          "c9396e4f00e2b6b840ef8513a0a29731e1642c88f": "Lời mời vào một tổ chức đang chờ xóa không nhận thêm ai và nói rõ lý do, thay vì đưa người mới vào một tổ chức sắp biến mất.",
+          "c09d515323c7162116cd98e97609e8d4fe52e5b24": "Gói không niêm yết giá (liên hệ để báo giá) không còn bị coi là miễn phí: chủ sở hữu không tự chuyển sang được mà phải liên hệ, nên thuê bao không còn rơi vào trạng thái quá hạn vì bỏ qua bước thanh toán.",
+          "caca841c7749de9e69bc7d0f2e48e413728d53d1e": "Chọn lại đúng gói đang dùng không còn đặt lại kỳ đo hạn mức, nên hạn mức của gói miễn phí không thể được làm đầy lại theo yêu cầu.",
+          "cc6ea1591b460e9232960b5aba194bea83bb3e163": "Gói không có kỳ thanh toán, như Starter, tính hạn mức cộng dồn theo tháng dương lịch giờ Việt Nam: dùng hết token AI trong tháng này thì tháng sau đếm lại từ đầu. Thuê bao có kỳ trả phí vẫn đếm theo kỳ của gói.",
+          "c98ec32ffe4a7e2deae280fb84e37e31672c5d96a": "Kích hoạt lại một thành viên đã tắt chỉ tính một chỗ ngồi, nên chỗ trống cuối cùng không còn bị đếm hai lần và thành viên được bật lại thật sự."
+        }
       }
     }
   },
@@ -8099,16 +8131,31 @@
       "connection": {
         "title": "Cùng tài khoản. Liền mạch với workspace.",
         "sub": "Làm việc trên máy, kết nối với dữ liệu và quyền truy cập của nhóm.",
-        "account": { "title": "Một tài khoản", "description": "Đăng nhập Office bằng tài khoản UniWork." },
-        "ai": { "title": "AI theo nhu cầu", "description": "Dùng gói của tổ chức hoặc khóa API riêng." },
-        "permissions": { "title": "Quyền truy cập nhất quán", "description": "File trong workspace theo phân quyền của tổ chức." },
+        "account": {
+          "title": "Một tài khoản",
+          "description": "Đăng nhập Office bằng tài khoản UniWork."
+        },
+        "ai": {
+          "title": "AI theo nhu cầu",
+          "description": "Dùng gói của tổ chức hoặc khóa API riêng."
+        },
+        "permissions": {
+          "title": "Quyền truy cập nhất quán",
+          "description": "File trong workspace theo phân quyền của tổ chức."
+        },
         "flow": {
           "title": "File trên máy và workspace",
-          "local": "Trên máy", "localDescription": "Lưu file tại máy, chỉnh sửa không cần mạng.",
-          "workspace": "Workspace", "workspaceDescription": "Lưu phiên bản, chia sẻ và bình luận cùng nhóm.",
-          "action": "Mở / Lưu phiên bản", "note": "Mở và lưu phiên bản trong workspace cần kết nối."
+          "local": "Trên máy",
+          "localDescription": "Lưu file tại máy, chỉnh sửa không cần mạng.",
+          "workspace": "Workspace",
+          "workspaceDescription": "Lưu phiên bản, chia sẻ và bình luận cùng nhóm.",
+          "action": "Mở / Lưu phiên bản",
+          "note": "Mở và lưu phiên bản trong workspace cần kết nối."
         },
-        "details": { "ai": "AI và dữ liệu của bạn", "files": "Lưu file và yêu cầu kết nối" }
+        "details": {
+          "ai": "AI và dữ liệu của bạn",
+          "files": "Lưu file và yêu cầu kết nối"
+        }
       },
       "faq": {
         "title": "Câu hỏi thường gặp",
