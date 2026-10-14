@@ -929,8 +929,8 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 	}
 }
 
-// buildWorkspaceAliases leaves an old task prefix on record and the current
-// one unchanged, so workspace_aliases holds a row of each tenant's.
+// buildWorkspaceAliases leaves an old task prefix and an old slug on record and
+// the current ones unchanged, so workspace_aliases holds a row of each tenant's.
 func (w *isoWorld) buildWorkspaceAliases(t *testing.T, tn *isoTenant) {
 	t.Helper()
 	ws := "/api/v1/workspaces/" + tn.wsID
@@ -941,6 +941,8 @@ func (w *isoWorld) buildWorkspaceAliases(t *testing.T, tn *isoTenant) {
 	}
 	w.call(t, "PATCH", ws, tn.token, map[string]string{"task_prefix": "ISO" + strings.ToUpper(tn.tag[:1]) + "OLD"})
 	w.call(t, "PATCH", ws, tn.token, map[string]string{"task_prefix": prefix})
+	w.call(t, "PATCH", ws, tn.token, map[string]string{"slug": tn.wsSlug + "-old"})
+	w.call(t, "PATCH", ws, tn.token, map[string]string{"slug": tn.wsSlug})
 }
 
 // buildActivity leaves the traces people leave by using the product - a

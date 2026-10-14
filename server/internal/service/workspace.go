@@ -103,6 +103,14 @@ func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name,
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
+	// A slug another workspace keeps as an old slug is taken (spec §4.4).
+	if err := q.LockWorkspaceSlugs(ctx, orgID); err != nil {
+		return WorkspaceView{}, err
+	}
+	if err := slugFreeFor(ctx, q, orgID, slug, ""); err != nil {
+		return WorkspaceView{}, err
+	}
+
 	// workspaces.max: refused here means the workspace row below is never
 	// written (spec F-02 §4.3).
 	if err := s.ent.Consume(ctx, q, ConsumeInput{OrganizationID: orgID, Meter: FeatureWorkspacesMax, Delta: 1, Actor: Human(userID)}); err != nil {
@@ -200,10 +208,7 @@ func (s *WorkspaceService) ListForUser(ctx context.Context, userID string) ([]Wo
 // has authenticated the caller and checks membership immediately after; every
 // HTTP path keeps using GetBySlugs, which does both.
 func (s *WorkspaceService) ResolveSlugs(ctx context.Context, orgSlug, wsSlug string) (string, error) {
-	r, err := s.q.GetWorkspaceBySlugs(ctx, db.GetWorkspaceBySlugsParams{Slug: orgSlug, Slug_2: wsSlug})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
-	}
+	r, err := s.workspaceBySlugs(ctx, orgSlug, wsSlug)
 	if err != nil {
 		return "", err
 	}
@@ -211,10 +216,7 @@ func (s *WorkspaceService) ResolveSlugs(ctx context.Context, orgSlug, wsSlug str
 }
 
 func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSlug string) (WorkspaceView, error) {
-	r, err := s.q.GetWorkspaceBySlugs(ctx, db.GetWorkspaceBySlugsParams{Slug: orgSlug, Slug_2: wsSlug})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return WorkspaceView{}, ErrNotFound
-	}
+	r, err := s.workspaceBySlugs(ctx, orgSlug, wsSlug)
 	if err != nil {
 		return WorkspaceView{}, err
 	}
@@ -228,7 +230,7 @@ func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSl
 		}
 		return WorkspaceView{}, ErrNotFound // không lộ sự tồn tại
 	}
-	return s.withIconURL(ctx, viewFromInOrgRow(db.ListWorkspacesInOrgRow(r))), nil
+	return s.withIconURL(ctx, viewFromInOrgRow(r)), nil
 }
 
 // RequireMember: quyền workspace = dòng workspace_members HOẶC owner/admin của
@@ -305,6 +307,7 @@ type UpdateWorkspaceInput struct {
 	Description *string
 	IconEmoji   *string
 	TaskPrefix  *string
+	Slug        *string
 }
 
 const (
@@ -423,7 +426,7 @@ const taskPrefixInvalid = "tiền tố mã task gồm 2–10 ký tự A-Z, 0-9 v
 
 // normalizeWorkspaceInput trims and validates every field that was sent.
 func normalizeWorkspaceInput(before db.Workspace, in UpdateWorkspaceInput) (UpdateWorkspaceInput, error) {
-	if in.Name == nil && in.Description == nil && in.IconEmoji == nil && in.TaskPrefix == nil {
+	if in.Name == nil && in.Description == nil && in.IconEmoji == nil && in.TaskPrefix == nil && in.Slug == nil {
 		return in, Invalid("không có thông tin nào để đổi")
 	}
 	out := UpdateWorkspaceInput{}
@@ -462,6 +465,16 @@ func normalizeWorkspaceInput(before db.Workspace, in UpdateWorkspaceInput) (Upda
 		}
 		out.TaskPrefix = &p
 	}
+	if in.Slug != nil {
+		slug := strings.TrimSpace(*in.Slug)
+		// Like the prefix, the slug a workspace already has passes unchecked.
+		if slug != before.Slug {
+			if err := ValidateSlug(slug); err != nil {
+				return out, err
+			}
+		}
+		out.Slug = &slug
+	}
 	return out, nil
 }
 
@@ -486,13 +499,26 @@ func workspaceChanges(before db.Workspace, in UpdateWorkspaceInput) (from, to ma
 	if in.TaskPrefix != nil {
 		change("task_prefix", before.TaskPrefix, *in.TaskPrefix)
 	}
+	if in.Slug != nil {
+		change("slug", before.Slug, *in.Slug)
+	}
 	return from, to
 }
 
 // applyWorkspaceChanges writes the changed fields inside the caller's
 // transaction; to holds only fields whose value really changes.
 func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Queries, before db.Workspace, in UpdateWorkspaceInput, to map[string]any) error {
-	// before is the locked row. An emoji replaces an uploaded icon, which
+	// before is the locked row. The slug lock comes after the workspace row
+	// lock; CreateInOrg takes it too but touches no existing workspace row.
+	if _, ok := to["slug"]; ok {
+		if err := q.LockWorkspaceSlugs(ctx, before.OrganizationID); err != nil {
+			return err
+		}
+		if err := slugFreeFor(ctx, q, before.OrganizationID, *in.Slug, before.ID); err != nil {
+			return err
+		}
+	}
+	// An emoji replaces an uploaded icon, which
 	// Update already released (spec 2026-10-14 §5.1).
 	if _, ok := to["icon_emoji"]; ok {
 		emoji := pgtype.Text{String: *in.IconEmoji, Valid: *in.IconEmoji != ""}
@@ -512,8 +538,14 @@ func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Quer
 	if _, ok := to["task_prefix"]; ok {
 		profile.TaskPrefix = pgtype.Text{String: *in.TaskPrefix, Valid: true}
 	}
-	if profile.Name.Valid || profile.Description.Valid || profile.TaskPrefix.Valid {
+	if _, ok := to["slug"]; ok {
+		profile.Slug = pgtype.Text{String: *in.Slug, Valid: true}
+	}
+	if profile.Name.Valid || profile.Description.Valid || profile.TaskPrefix.Valid || profile.Slug.Valid {
 		if _, err := q.UpdateWorkspaceProfile(ctx, profile); err != nil {
+			if isUniqueViolation(err) {
+				return ErrConflict
+			}
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
@@ -525,7 +557,47 @@ func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Quer
 			return err
 		}
 	}
+	if _, ok := to["slug"]; ok {
+		if err := moveWorkspaceAlias(ctx, q, before, "slug", before.Slug, *in.Slug); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// slugFreeFor refuses a slug another workspace of the organization keeps as
+// an old slug. The caller holds LockWorkspaceSlugs; current slugs are
+// guarded by the unique index on workspaces.
+func slugFreeFor(ctx context.Context, q *db.Queries, orgID, slug, workspaceID string) error {
+	owner, err := q.GetWorkspaceSlugAliasOwner(ctx, db.GetWorkspaceSlugAliasOwnerParams{OrganizationID: orgID, Value: slug})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if owner != workspaceID {
+		return ErrConflict
+	}
+	return nil
+}
+
+// workspaceBySlugs reads the workspace a URL pair names: by its current
+// slug, or by an old one it keeps (spec 2026-10-14 §5.3). The row carries
+// the current slug either way, so the client can move the URL.
+func (s *WorkspaceService) workspaceBySlugs(ctx context.Context, orgSlug, wsSlug string) (db.ListWorkspacesInOrgRow, error) {
+	r, err := s.q.GetWorkspaceBySlugs(ctx, db.GetWorkspaceBySlugsParams{Slug: orgSlug, Slug_2: wsSlug})
+	if err == nil {
+		return db.ListWorkspacesInOrgRow(r), nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return db.ListWorkspacesInOrgRow{}, err
+	}
+	a, err := s.q.GetWorkspaceBySlugAlias(ctx, db.GetWorkspaceBySlugAliasParams{OrgSlug: orgSlug, Value: wsSlug})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.ListWorkspacesInOrgRow{}, ErrNotFound
+	}
+	return db.ListWorkspacesInOrgRow(a), err
 }
 
 // moveWorkspaceAlias keeps the value a workspace is leaving answering for

@@ -517,3 +517,130 @@ func TestWorkspaceUnchangedLegacyPrefixIsNotRevalidated(t *testing.T) {
 		t.Fatalf("aliases = %d, err %v; want none", n, err)
 	}
 }
+
+func TestWorkspaceSlugChangeKeepsOldSlugAsAlias(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := "doi-beta"
+	if got, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Slug: &next}); err != nil || got.Slug != next {
+		t.Fatalf("change slug: %v %+v", err, got.Workspace)
+	}
+	old, err := f.ws.GetBySlugs(ctx, f.ua.ID, "unicom", "doi-alpha")
+	if err != nil || old.ID != w.ID || old.Slug != "doi-beta" {
+		t.Fatalf("old slug: %v %+v", err, old.Workspace)
+	}
+	if id, err := f.ws.ResolveSlugs(ctx, "unicom", "doi-alpha"); err != nil || id != w.ID {
+		t.Fatalf("ResolveSlugs(old): %v %q", err, id)
+	}
+	// An outsider learns nothing from an old slug.
+	if _, err := f.ws.GetBySlugs(ctx, f.uc.ID, "unicom", "doi-alpha"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("outsider on old slug: %v", err)
+	}
+	back := "doi-alpha"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Slug: &back}); err != nil {
+		t.Fatalf("going back: %v", err)
+	}
+	rows, err := f.pool.Query(ctx, `SELECT value FROM workspace_aliases WHERE workspace_id = $1 AND kind = 'slug'`, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vals, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil || len(vals) != 1 || vals[0] != "doi-beta" {
+		t.Fatalf("slug aliases after going back = %v %v", vals, err)
+	}
+}
+
+func TestWorkspaceOldSlugIsReservedInTheOrganization(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w1, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w2, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Gamma", "doi-gamma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := "doi-beta"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w1.ID, UpdateWorkspaceInput{Slug: &next}); err != nil {
+		t.Fatal(err)
+	}
+	old, taken := "doi-alpha", "doi-beta"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w2.ID, UpdateWorkspaceInput{Slug: &old}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("another workspace takes the old slug: %v", err)
+	}
+	if _, err := f.ws.Update(ctx, f.ua.ID, w2.ID, UpdateWorkspaceInput{Slug: &taken}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("another workspace takes the current slug: %v", err)
+	}
+	if _, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Mới", "doi-alpha"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("a new workspace takes the old slug: %v", err)
+	}
+}
+
+func TestWorkspaceSlugChangeRejectsBadAndIgnoresUnchanged(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"A", "Có Dấu", "-x-", "admin"} {
+		bad := bad
+		var ve ValidationError
+		if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Slug: &bad}); !errors.As(err, &ve) {
+			t.Errorf("slug %q: err = %v, want ValidationError", bad, err)
+		}
+	}
+	// A legacy slug that no longer passes validation is not a change when re-sent.
+	if _, err := f.pool.Exec(ctx, `UPDATE workspaces SET slug = 'x' WHERE id = $1`, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	same, name := "x", "Đội Alpha 2"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Slug: &same, Name: &name}); err != nil {
+		t.Fatalf("re-sent slug: %v", err)
+	}
+	var n int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM workspace_aliases WHERE workspace_id = $1`, w.ID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("aliases = %d, err %v; want none", n, err)
+	}
+}
+
+func TestWorkspaceConcurrentSlugChangesConflict(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w1, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w2, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Gamma", "doi-gamma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	slug := "cung-slug"
+	errs := make(chan error, 2)
+	for _, id := range []string{w1.ID, w2.ID} {
+		id := id
+		go func() {
+			_, err := f.ws.Update(ctx, f.ua.ID, id, UpdateWorkspaceInput{Slug: &slug})
+			errs <- err
+		}()
+	}
+	var ok, conflict int
+	for range 2 {
+		switch err := <-errs; {
+		case err == nil:
+			ok++
+		case errors.Is(err, ErrConflict):
+			conflict++
+		default:
+			t.Fatalf("unexpected: %v", err)
+		}
+	}
+	if ok != 1 || conflict != 1 {
+		t.Fatalf("ok=%d conflict=%d, want 1 and 1", ok, conflict)
+	}
+}

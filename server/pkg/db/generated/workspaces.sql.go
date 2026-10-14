@@ -770,6 +770,18 @@ func (q *Queries) LockInvitationByToken(ctx context.Context, token string) (Invi
 	return i, err
 }
 
+const lockWorkspaceSlugs = `-- name: LockWorkspaceSlugs :exec
+SELECT pg_advisory_xact_lock(hashtextextended('workspace-slug:' || $1::text, 0))
+`
+
+// Serializes slug changes and workspace creation in one organization, so the
+// check that a slug is nobody else's alias and the write that follows see
+// the same rows (spec 2026-10-14 §4.4).
+func (q *Queries) LockWorkspaceSlugs(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, lockWorkspaceSlugs, organizationID)
+	return err
+}
+
 const markInvitationAccepted = `-- name: MarkInvitationAccepted :execrows
 UPDATE invitations SET accepted_at = now()
 WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()

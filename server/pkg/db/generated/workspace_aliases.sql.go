@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteWorkspaceAlias = `-- name: DeleteWorkspaceAlias :exec
@@ -32,6 +34,80 @@ func (q *Queries) DeleteWorkspaceAlias(ctx context.Context, arg DeleteWorkspaceA
 		arg.Value,
 	)
 	return err
+}
+
+const getWorkspaceBySlugAlias = `-- name: GetWorkspaceBySlugAlias :one
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
+FROM workspace_aliases a
+JOIN workspaces w ON w.id = a.workspace_id AND w.organization_id = a.organization_id
+JOIN organizations o ON o.id = w.organization_id
+WHERE o.slug = $1 AND a.kind = 'slug' AND a.value = $2
+`
+
+type GetWorkspaceBySlugAliasParams struct {
+	OrgSlug string `json:"org_slug"`
+	Value   string `json:"value"`
+}
+
+type GetWorkspaceBySlugAliasRow struct {
+	ID               string             `json:"id"`
+	Slug             string             `json:"slug"`
+	Name             string             `json:"name"`
+	CreatedBy        string             `json:"created_by"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	OrganizationID   string             `json:"organization_id"`
+	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
+	TaskPrefix       string             `json:"task_prefix"`
+	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
+	OrganizationSlug string             `json:"organization_slug"`
+	OrganizationName string             `json:"organization_name"`
+}
+
+// tenant: by-id
+// An old slug: the workspace it belongs to, with its current slug, in the
+// shape of GetWorkspaceBySlugs.
+func (q *Queries) GetWorkspaceBySlugAlias(ctx context.Context, arg GetWorkspaceBySlugAliasParams) (GetWorkspaceBySlugAliasRow, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceBySlugAlias, arg.OrgSlug, arg.Value)
+	var i GetWorkspaceBySlugAliasRow
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.MatrixRoomID,
+		&i.TaskPrefix,
+		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
+		&i.OrganizationSlug,
+		&i.OrganizationName,
+	)
+	return i, err
+}
+
+const getWorkspaceSlugAliasOwner = `-- name: GetWorkspaceSlugAliasOwner :one
+SELECT workspace_id FROM workspace_aliases
+WHERE organization_id = $1 AND kind = 'slug' AND value = $2
+`
+
+type GetWorkspaceSlugAliasOwnerParams struct {
+	OrganizationID string `json:"organization_id"`
+	Value          string `json:"value"`
+}
+
+func (q *Queries) GetWorkspaceSlugAliasOwner(ctx context.Context, arg GetWorkspaceSlugAliasOwnerParams) (string, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceSlugAliasOwner, arg.OrganizationID, arg.Value)
+	var workspace_id string
+	err := row.Scan(&workspace_id)
+	return workspace_id, err
 }
 
 const insertWorkspaceAlias = `-- name: InsertWorkspaceAlias :exec

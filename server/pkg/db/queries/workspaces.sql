@@ -199,3 +199,9 @@ UPDATE workspaces
 SET task_prefix = $2, updated_at = now()
 WHERE id = $1 AND organization_id = $3
 RETURNING *;
+
+-- name: LockWorkspaceSlugs :exec
+-- Serializes slug changes and workspace creation in one organization, so the
+-- check that a slug is nobody else's alias and the write that follows see
+-- the same rows (spec 2026-10-14 §4.4).
+SELECT pg_advisory_xact_lock(hashtextextended('workspace-slug:' || sqlc.arg(organization_id)::text, 0));
