@@ -1327,7 +1327,7 @@
     },
     "aiAccess": {
       "title": "Truy cập của trợ lý AI",
-      "description": "Cho phép thành viên kết nối Claude, ChatGPT, Gemini để đọc công việc và cuộc họp của tổ chức.",
+      "description": "Cho phép thành viên kết nối Claude, ChatGPT, Gemini để đọc công việc, dự án và cuộc họp của tổ chức.",
       "adminOnly": "Chỉ owner và admin tổ chức xem được mục này.",
       "toggleLabel": "Cho phép trợ lý AI bên ngoài truy cập",
       "toggleDescription": "Dữ liệu chia sẻ: công việc, bình luận, dự án, cuộc họp và tóm tắt AI. Không gồm chat và email. Tắt sẽ chặn ngay mọi ứng dụng đã kết nối.",

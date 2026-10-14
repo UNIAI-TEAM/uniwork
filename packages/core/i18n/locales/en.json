@@ -1328,7 +1328,7 @@
     },
     "aiAccess": {
       "title": "AI assistant access",
-      "description": "Let members connect Claude, ChatGPT and Gemini to read the organization's tasks and meetings.",
+      "description": "Let members connect Claude, ChatGPT and Gemini to read the organization's tasks, projects and meetings.",
       "adminOnly": "Only organization owners and admins can see this.",
       "toggleLabel": "Allow external AI assistants",
       "toggleDescription": "Shared: tasks, comments, projects, meetings and AI summaries. Never chat or email. Turning this off blocks every connected app at once.",
