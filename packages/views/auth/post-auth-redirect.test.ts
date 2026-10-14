@@ -42,9 +42,23 @@ describe("resolveLoggedInDestination", () => {
   });
   it("onboarded → never checks invites", async () => {
     fetchMy.mockClear();
-    fetchOrgs.mockResolvedValueOnce([{ id: "o1", status: "active" }]);
+    fetchOrgs.mockResolvedValueOnce([{ id: "o1", status: "active", role: "owner" }]);
     expect(await resolveLoggedInDestination(onboarded, [])).toBe("/workspaces/new");
     expect(fetchMy).not.toHaveBeenCalled();
+  });
+  /**
+   * UNI-1472 on a fresh sign-in: a member whose invitation opened no
+   * workspace gets the same answer as right after the accept - told to wait
+   * for one, never sent to create an organization or a workspace.
+   */
+  it("a plain member with no workspace → /no-workspace", async () => {
+    fetchOrgs.mockResolvedValueOnce([{ id: "o1", status: "active", role: "member" }]);
+    expect(await resolveLoggedInDestination(onboarded, [])).toBe("/no-workspace");
+  });
+  it("a member with a workspace in the organization lands in it", async () => {
+    fetchOrgs.mockResolvedValueOnce([{ id: "o1", status: "active", role: "member" }]);
+    const ws = { id: "w1", slug: "sales", name: "Sales", organization_id: "o1", organization_slug: "beta", organization_name: "Beta" };
+    expect(await resolveLoggedInDestination(onboarded, [ws])).toBe("/beta/sales/tasks");
   });
   it("onboarded without any organization → /get-started (ADR 0032 D12)", async () => {
     fetchOrgs.mockResolvedValueOnce([]);

@@ -4715,6 +4715,17 @@
       "join_body": "Open an invitation to review it and join.",
       "join_empty_title": "No invitations yet",
       "join_empty_body": "Ask an admin of the organization to invite <email>{{email}}</email>."
+    },
+    "noWorkspace": {
+      "title": "You don't have a workspace yet",
+      "description": "You've joined {{name}}, but you haven't been added to a workspace yet.",
+      "description_admin": "{{name}} has no workspace yet.",
+      "ask_body": "Ask an admin of {{name}} to add you to a workspace, then select Check again.",
+      "create_body": "Create the first workspace so the organization can start working.",
+      "account": "You're signed in as <email>{{email}}</email>.",
+      "create_action": "Create workspace",
+      "check": "Check again",
+      "still_none": "Still no workspace for you."
     }
   },
   "ui": {

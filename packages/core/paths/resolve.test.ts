@@ -8,6 +8,7 @@ import {
   resolveHomeDestination,
   resolvePostAuthDestination,
   sanitizeNextUrl,
+  workspacelessDestination,
 } from "./index";
 import type { Workspace } from "../types";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
@@ -16,7 +17,8 @@ const ws = (org: string, slug: string): Workspace => ({
   id: slug, slug, name: slug, organization_id: org, organization_slug: org, organization_name: org,
 });
 
-const org = (id: string, status = "active") => ({ id, status });
+const org = (id: string, status = "active", role = "owner") => ({ id, status, role });
+const member = (id: string) => org(id, "active", "member");
 
 const verified = { email_verified_at: "2026-08-27T00:00:00Z", onboarded_at: null };
 const onboarded = { email_verified_at: "2026-08-27T00:00:00Z", onboarded_at: "2026-08-27T00:00:00Z" };
@@ -45,8 +47,33 @@ describe("resolvePostAuthDestination", () => {
   it("onboarded with no workspace → new workspace", () => {
     expect(resolvePostAuthDestination([], onboarded)).toBe("/workspaces/new");
   });
-  it("an organization without a workspace yet still leads to creating one", () => {
+  it("an owner or admin of an organization without a workspace yet is led to create one", () => {
     expect(resolvePostAuthDestination([], onboarded, [org("o1")])).toBe("/workspaces/new");
+    expect(resolvePostAuthDestination([], onboarded, [org("o1", "active", "admin")])).toBe("/workspaces/new");
+  });
+  /**
+   * UNI-1472: somebody who joined through an invitation that opened no
+   * workspace is a member of the organization with nowhere to go. They are
+   * told so and to ask an admin, never put through creating an organization
+   * or a workspace.
+   */
+  it("a plain member with no workspace lands on /no-workspace, never on the create flow", () => {
+    expect(resolvePostAuthDestination([], onboarded, [member("o1")])).toBe("/no-workspace");
+    expect(resolveHomeDestination([], onboarded, null, [member("o1")])).toBe("/no-workspace");
+    // An unknown role is read as the least privileged.
+    expect(resolvePostAuthDestination([], onboarded, [org("o1", "active", "guest")])).toBe("/no-workspace");
+    expect(resolvePostAuthDestination([], onboarded, [{ id: "o1", status: "active" }])).toBe("/no-workspace");
+  });
+  it("a member who has a workspace still lands in it", () => {
+    expect(resolvePostAuthDestination([ws("o1", "sales")], onboarded, [member("o1")])).toBe("/o1/sales/tasks");
+  });
+  it("workspacelessDestination is the same answer for the screens that have no workspace to offer", () => {
+    expect(workspacelessDestination([member("o1")])).toBe("/no-workspace");
+    expect(workspacelessDestination([org("o1")])).toBe("/workspaces/new");
+    expect(workspacelessDestination([])).toBe("/get-started");
+    expect(workspacelessDestination([{ ...member("o1"), deactivated: true }])).toBe("/get-started");
+    // Without the organization list the gates cannot tell; creating stays the way on.
+    expect(workspacelessDestination(undefined)).toBe("/workspaces/new");
   });
   it("no organization at all → /get-started (ADR 0032 D12)", () => {
     expect(resolvePostAuthDestination([], onboarded, [])).toBe("/get-started");
@@ -154,6 +181,15 @@ describe("getStarted", () => {
     expect(GLOBAL_PREFIXES).toContain("/get-started");
     expect(isGlobalPath("/get-started")).toBe(true);
     expect(isReservedSlug("get-started")).toBe(true);
+  });
+});
+
+describe("noWorkspace", () => {
+  it("is a global route whose first segment is reserved", () => {
+    expect(paths.noWorkspace()).toBe("/no-workspace");
+    expect(GLOBAL_PREFIXES).toContain("/no-workspace");
+    expect(isGlobalPath("/no-workspace")).toBe(true);
+    expect(isReservedSlug("no-workspace")).toBe(true);
   });
 });
 

@@ -360,8 +360,9 @@ describe("AcceptInviteView", () => {
       serve({ preview: { invitation: invitation(), conflicts: [] } });
       renderView();
       const later = await screen.findByRole("link", { name: "Để sau" });
-      // Acme has no workspace here, so home is where its organization starts.
-      await waitFor(() => expect(later).toHaveAttribute("href", "/workspaces/new"));
+      // A plain member of Acme with no workspace there waits to be given one
+      // (UNI-1472): home is /no-workspace, not the create flow.
+      await waitFor(() => expect(later).toHaveAttribute("href", "/no-workspace"));
       fireEvent.click(later);
       expect(acceptCalls()).toHaveLength(0);
     });

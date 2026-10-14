@@ -66,9 +66,10 @@ export function AcceptInviteView({
 }: {
   token: string;
   /**
-   * `workspace` is null for an invitation to the organization itself: the
-   * person is in the company but in no team yet, so the host sends them to the
-   * workspace picker instead of into a workspace (F-03).
+   * `workspace` is where the person lands: the invitation's workspace, the
+   * first one it granted, or any an owner or admin may open. Null when there
+   * is none yet; the host then sends them where the entry gates would - a
+   * member to /no-workspace, never to the create flow (UNI-1472).
    */
   onAccepted: (workspace: Workspace | null) => void;
   onAnon: () => void;

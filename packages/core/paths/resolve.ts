@@ -28,7 +28,7 @@ export function authStepPath(step: AuthStep): string {
  * What the entry gates read from GET /orgs, which leaves archived
  * organizations out but keeps switched-off memberships (F-03 §6.3).
  */
-type OrganizationGateRef = Pick<Organization, "id" | "status" | "deactivated">;
+type OrganizationGateRef = Pick<Organization, "id" | "status" | "deactivated" | "role">;
 
 /**
  * The workspaces a person may land in. GET /workspaces already leaves closed
@@ -45,10 +45,29 @@ function landable(workspaces: Workspace[], organizations: readonly OrganizationG
   return workspaces.filter((w) => !released.has(w.organization_id));
 }
 
-/** No workspace to land in: create one in the organization, or start over without one (D12). */
-function emptyDestination(organizations: readonly OrganizationGateRef[] | undefined): string {
-  if (organizations && !organizations.some(holdsOrganization)) return paths.getStarted();
-  return paths.newWorkspace();
+/**
+ * Whether the caller runs the organization. Any member may create a workspace
+ * (WorkspaceService.CreateInOrg; canCreateWorkspaceInOrg mirrors it), but who
+ * is *sent* to create the first one is a routing choice: the owner or an
+ * admin, who opens every workspace anyway. A plain member - or a role this
+ * client does not know - waits to be given one.
+ */
+function runsOrganization(org: OrganizationGateRef): boolean {
+  return org.role === "owner" || org.role === "admin";
+}
+
+/**
+ * Where a signed-in, onboarded person with no workspace to land in goes:
+ * no organization → /get-started (ADR 0032 D12); the owner or an admin →
+ * create a workspace; a plain member → /no-workspace, told to ask an admin
+ * and never put through the create flow (UNI-1472). Without the organization
+ * list nothing tells them apart, and creating stays the way on.
+ */
+export function workspacelessDestination(organizations: readonly OrganizationGateRef[] | undefined): string {
+  if (!organizations) return paths.newWorkspace();
+  const held = organizations.filter(holdsOrganization);
+  if (held.length === 0) return paths.getStarted();
+  return held.some(runsOrganization) ? paths.newWorkspace() : paths.noWorkspace();
 }
 
 export function resolvePostAuthDestination(
@@ -60,7 +79,7 @@ export function resolvePostAuthDestination(
   if (step) return authStepPath(step);
   const first = landable(workspaces, organizations)[0];
   if (first) return paths.workspace(first.organization_slug, first.slug).tasks();
-  return emptyDestination(organizations);
+  return workspacelessDestination(organizations);
 }
 
 export interface WorkspaceRef {
@@ -85,7 +104,7 @@ export function resolveHomeDestination(
   const target =
     (last && candidates.find((w) => w.organization_slug === last.orgSlug && w.slug === last.wsSlug)) ?? candidates[0];
   if (target) return paths.workspace(target.organization_slug, target.slug).root();
-  return emptyDestination(organizations);
+  return workspacelessDestination(organizations);
 }
 
 export function useHasOnboarded(): boolean {

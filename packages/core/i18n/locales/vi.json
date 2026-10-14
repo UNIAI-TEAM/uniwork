@@ -4711,6 +4711,17 @@
       "join_body": "Mở một lời mời để xem và tham gia.",
       "join_empty_title": "Chưa có lời mời nào",
       "join_empty_body": "Nhờ quản trị viên của tổ chức mời địa chỉ <email>{{email}}</email>."
+    },
+    "noWorkspace": {
+      "title": "Bạn chưa được cấp workspace",
+      "description": "Bạn đã tham gia {{name}}, nhưng chưa được thêm vào workspace nào.",
+      "description_admin": "{{name}} chưa có workspace nào.",
+      "ask_body": "Nhờ quản trị viên của {{name}} thêm bạn vào một workspace, rồi bấm Kiểm tra lại.",
+      "create_body": "Tạo workspace đầu tiên để cả tổ chức bắt đầu làm việc.",
+      "account": "Bạn đang đăng nhập bằng <email>{{email}}</email>.",
+      "create_action": "Tạo workspace",
+      "check": "Kiểm tra lại",
+      "still_none": "Vẫn chưa có workspace nào cho bạn."
     }
   },
   "ui": {
