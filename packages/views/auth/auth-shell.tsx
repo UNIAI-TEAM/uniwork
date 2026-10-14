@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Sparkles, type LucideIcon } from "lucide-react";
 import { Logo } from "@uniwork/ui/brand";
 import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { BrandRailAside, RAIL_COLUMN, RAIL_GUTTER, RAIL_WIDTH_AUTH } from "../layout/brand-rail";
 import { Bezel, Rise } from "../layout/brand-surface";
@@ -74,40 +75,63 @@ function RailCascade() {
  * user hears which page this is before the heading, and a sighted one can tell
  * the login tab from the workspace tab. Set here, on the client, because these
  * routes are client pages and their title is in the user's language.
+ *
+ * Without a `title` the screen cannot yet say which one it is (the session or
+ * a list it depends on is still loading): the whole frame is already there —
+ * landmark, lockup, language switch, an `<h1>` that says it is loading — and
+ * the heading and description hold their place as skeleton lines. The first
+ * real title that replaces it is an arrival, not a change, so it does not
+ * take focus; the heading never shows one title and then flips to another.
  */
 export function AuthShell({
   title,
   description,
   nameInTitle = false,
+  announce = false,
   children,
 }: {
-  title: string;
-  description: string;
+  /** Absent while the screen is still resolving which one it is. */
+  title?: string;
+  description?: string;
   /**
    * The title carries a name of any length (an organization's). On a phone
    * it steps down one size, so "Chuyển sang <a long name>" takes two lines
    * instead of four and the screen's own content starts above the fold.
    */
   nameInTitle?: boolean;
-  children: ReactNode;
+  /**
+   * The screen replaced another one in the middle of a task and has no field
+   * of its own to focus (an access notice swapped in for the workspace): its
+   * heading takes focus when it first shows, so the change is heard. Never
+   * for a screen the person opened, where first render leaves focus alone.
+   */
+  announce?: boolean;
+  children?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
   const heading = useRef<HTMLHeadingElement>(null);
-  const previous = useRef({ title, language: i18n.language });
+  const previous = useRef<{ title: string | undefined; language: string } | null>(null);
   useEffect(() => {
-    const languageChanged = previous.current.language !== i18n.language;
-    const titleChanged = previous.current.title !== title;
+    const before = previous.current;
     previous.current = { title, language: i18n.language };
+    if (title === undefined) return;
+    // First render, or the first real title after the loading frame: an
+    // arrival. Left alone so a field's `autoFocus` still wins.
+    if (!before || before.title === undefined) {
+      if (announce) heading.current?.focus();
+      return;
+    }
     // A language switch also rewrites the title, but the user is still on the
     // same screen with a hand on the switch; stealing focus to the heading
     // would drop a keyboard user in the middle of the page. `html[lang]` and
     // the switch's own relabelled text already say what happened.
-    if (languageChanged || !titleChanged) return;
+    if (before.language !== i18n.language || before.title === title) return;
     heading.current?.focus();
-  }, [title, i18n.language]);
+  }, [title, i18n.language, announce]);
   useEffect(() => {
-    document.title = `${title} · ${t("auth.wordmark")}`;
+    if (title !== undefined) document.title = `${title} · ${t("auth.wordmark")}`;
   }, [title, t]);
+  const loading = title === undefined;
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-app-shell">
       <div className="relative flex min-h-0 flex-1">
@@ -140,7 +164,7 @@ export function AuthShell({
           </div>
         </BrandRailAside>
 
-        <main className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto", RAIL_GUTTER)}>
+        <main aria-busy={loading || undefined} className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto", RAIL_GUTTER)}>
           <div className={cn(RAIL_COLUMN, "justify-center")}>
             {/* Below `lg` the aside is gone, so the lockup here is the only
                 place the product names itself, and the language switch has to
@@ -162,16 +186,24 @@ export function AuthShell({
                       ref={heading}
                       tabIndex={-1}
                       className={cn(
-                        "rounded-sm text-balance font-display font-bold text-foreground [overflow-wrap:anywhere]",
-                        nameInTitle ? "text-display-sm sm:text-display" : "text-display",
+                        loading
+                          ? "sr-only"
+                          : "rounded-sm text-balance font-display font-bold text-foreground [overflow-wrap:anywhere]",
+                        !loading && (nameInTitle ? "text-display-sm sm:text-display" : "text-display"),
                       )}
                     >
-                      {title}
+                      {title ?? t("common.loading")}
                     </h1>
-                    {/* Descriptions carry user strings (an email address) that
-                        have no break opportunity; without this a long one
-                        scrolls the phone. */}
-                    <p className="text-pretty text-body text-muted-foreground [overflow-wrap:anywhere]">{description}</p>
+                    {loading ? (
+                      <TitleSkeleton />
+                    ) : (
+                      /* Descriptions carry user strings (an email address) that
+                         have no break opportunity; without this a long one
+                         scrolls the phone. */
+                      <p className="text-pretty text-body text-muted-foreground [overflow-wrap:anywhere]">
+                        {description}
+                      </p>
+                    )}
                   </div>
                   {children}
                 </div>
@@ -179,6 +211,23 @@ export function AuthShell({
             </Rise>
           </div>
         </main>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The heading and description lines while the title is unknown, each bar
+ * sitting in a box of its line's height so nothing moves when the text lands.
+ */
+function TitleSkeleton() {
+  return (
+    <div aria-hidden className="flex flex-col gap-2">
+      <div className="flex h-10 items-center">
+        <Skeleton className="h-8 w-3/4" />
+      </div>
+      <div className="flex h-5 items-center">
+        <Skeleton className="h-4 w-full" />
       </div>
     </div>
   );

@@ -92,6 +92,39 @@ describe("NoOrganizationView", () => {
     expect(await within(join).findByRole("link", { name: /Beta/ })).toHaveAttribute("href", "/invite/tok-org");
   });
 
+  /**
+   * The title depends on the organization list: until it is in, the shell
+   * says it is loading instead of "Bạn chưa thuộc tổ chức nào", which a
+   * member of a suspended organization would see flip and steal focus.
+   */
+  it("does not show a title it would take back while the organization list loads", async () => {
+    let answerOrgs: (v: unknown) => void = () => {};
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/orgs"
+        ? new Promise((resolve) => {
+            answerOrgs = resolve;
+          })
+        : Promise.resolve({ invitations: [orgInvite] }),
+    );
+    renderView();
+    expect(screen.getByRole("heading", { level: 1, name: "Đang tải…" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Bạn chưa thuộc tổ chức nào" })).not.toBeInTheDocument();
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/orgs"));
+    answerOrgs({ organizations: [{ id: "o9", slug: "paused", name: "Paused", role: "member", status: "suspended" }] });
+    const title = await screen.findByRole("heading", { level: 1, name: "Bạn đang thuộc Paused" });
+    // An arrival, not a change: focus stays where the person left it.
+    expect(title).not.toHaveFocus();
+  });
+
+  it("holds the shell's frame, with its heading, while the host resolves the session", () => {
+    requestMock.mockResolvedValue({ invitations: [] });
+    render(wrapWithNav(<NoOrganizationView pending />));
+    expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("heading", { level: 1, name: "Đang tải…" })).toBeInTheDocument();
+    expect(screen.queryByText(/Chưa có lời mời nào/)).not.toBeInTheDocument();
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
   it("offers to create one when the only membership was switched off", async () => {
     requestMock.mockImplementation((path: string) =>
       path === "/api/v1/orgs"
