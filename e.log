@@ -1,0 +1,131 @@
+$ uname -m; node apps/sheets/native/xlsx-engine/wasm/build-wasm.mjs --update-checksum; rc=$?; echo "WASM_X64_CHECKSUM_EXIT=$rc"; cat apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256; git diff -- apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256; git checkout -- apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256; (exit $rc)
+x86_64
+[build-wasm] cargo fetch --manifest-path /tmp/uniwork-xlsx-sidecar-wasm/1f00ba113edc1c1a/xlsx-engine/Cargo.toml
+[build-wasm] cargo build --release --locked --target wasm32-wasip1 --target-dir /home/ubuntu/work/uniwork-office/apps/sheets/native/xlsx-engine/wasm/target
+   Compiling unicode-ident v1.0.24
+   Compiling proc-macro2 v1.0.106
+   Compiling cfg-if v1.0.4
+   Compiling quote v1.0.46
+   Compiling memchr v2.8.3
+   Compiling wasm-bindgen-shared v0.2.126
+   Compiling rustversion v1.0.23
+   Compiling autocfg v1.5.1
+   Compiling crc32fast v1.5.0
+   Compiling simd-adler32 v0.3.10
+   Compiling num-traits v0.2.19
+   Compiling serde_core v1.0.228
+   Compiling syn v2.0.119
+   Compiling adler2 v2.0.1
+   Compiling miniz_oxide v0.8.9
+   Compiling bumpalo v3.20.3
+   Compiling zlib-rs v0.6.6
+   Compiling wasm-bindgen v0.2.126
+   Compiling serde v1.0.228
+   Compiling siphasher v1.0.3
+   Compiling phf_shared v0.12.1
+   Compiling aho-corasick v1.1.4
+   Compiling flate2 v1.1.9
+   Compiling encoding_rs v0.8.35
+   Compiling regex-syntax v0.8.11
+   Compiling wasm-bindgen-macro-support v0.2.126
+   Compiling serde_derive v1.0.228
+   Compiling futures-task v0.3.32
+   Compiling zmij v1.0.23
+   Compiling hashbrown v0.17.1
+   Compiling futures-core v0.3.32
+   Compiling pin-project-lite v0.2.17
+   Compiling slab v0.4.12
+   Compiling once_cell v1.21.4
+   Compiling itoa v1.0.18
+   Compiling log v0.4.33
+   Compiling equivalent v1.0.2
+   Compiling chrono-tz v0.10.4
+   Compiling zopfli v0.8.3
+   Compiling indexmap v2.14.0
+   Compiling futures-util v0.3.32
+   Compiling wasm-bindgen-macro v0.2.126
+   Compiling regex-automata v0.4.16
+   Compiling bitcode_derive v0.6.9
+   Compiling phf v0.12.1
+   Compiling chrono v0.4.45
+   Compiling approx v0.5.1
+   Compiling csv-core v0.1.13
+   Compiling thiserror v1.0.69
+   Compiling byteorder v1.5.0
+   Compiling serde_json v1.0.150
+   Compiling ryu v1.0.23
+   Compiling getrandom v0.4.3
+   Compiling bytemuck v1.25.2
+   Compiling csv v1.4.0
+   Compiling bitcode v0.6.9
+   Compiling regex v1.13.1
+   Compiling statrs v0.18.0
+   Compiling js-sys v0.3.103
+   Compiling thiserror-impl v1.0.69
+   Compiling either v1.17.0
+   Compiling debug_unsafe v0.1.4
+   Compiling typed-path v0.12.3
+   Compiling zip v8.6.0
+   Compiling atoi_simd v0.18.1
+   Compiling itertools v0.12.1
+   Compiling zip v0.6.6 (/tmp/uniwork-xlsx-sidecar-wasm/1f00ba113edc1c1a/xlsx-engine/wasm/.vendor/zip-0.6.6)
+warning: unused import: `std::time::SystemTime`
+  --> .vendor/zip-0.6.6/src/types.rs:11:5
+   |
+11 | use std::time::SystemTime;
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `std::convert::TryInto`
+  --> .vendor/zip-0.6.6/src/write.rs:10:5
+   |
+10 | use std::convert::TryInto;
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> .vendor/zip-0.6.6/src/write.rs:414:17
+    |
+414 |             let mut crypto_header = [0u8; 12];
+    |                 ----^^^^^^^^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+   Compiling quick-xml v0.41.0
+warning: eliding a lifetime that's named elsewhere is confusing
+    --> .vendor/zip-0.6.6/src/read.rs:1033:14
+     |
+1033 |     reader: &'a mut R,
+     |              ^^ the lifetime is named here
+1034 | ) -> ZipResult<Option<ZipFile<'_>>> {
+     |                               -- the same lifetime is elided here
+     |
+     = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+     = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: consistently use `'a`
+     |
+1034 - ) -> ZipResult<Option<ZipFile<'_>>> {
+1034 + ) -> ZipResult<Option<ZipFile<'a>>> {
+     |
+
+   Compiling codepage v0.1.2
+   Compiling fast-float2 v0.2.3
+warning: `zip` (lib) generated 4 warnings (run `cargo fix --lib -p zip` to apply 2 suggestions)
+   Compiling roxmltree v0.19.0
+   Compiling uuid v1.24.0
+   Compiling ironcalc_base v0.7.1
+   Compiling calamine v0.36.0
+   Compiling zip v4.6.1
+   Compiling quick-xml v0.38.4
+   Compiling roxmltree v0.21.1
+   Compiling base64 v0.22.1
+   Compiling ironcalc v0.7.1
+   Compiling xlsx-sidecar v0.1.0 (/tmp/uniwork-xlsx-sidecar-wasm/1f00ba113edc1c1a/xlsx-engine)
+   Compiling xlsx-sidecar-wasm v0.1.0 (/tmp/uniwork-xlsx-sidecar-wasm/1f00ba113edc1c1a/xlsx-engine/wasm)
+    Finished `release` profile [optimized] target(s) in 1m 02s
+[build-wasm] wrote apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256 for linux-x64: 51042bf3e0145fdddb46a58832fbf5e1369e212ef7ca028b694a007a67d14e3e (5224093 bytes)
+WASM_X64_CHECKSUM_EXIT=0
+bd3873bce684c97952c66d6f80bc23ae98af57da5f65b995323098e962757445  xlsx-sidecar.wasm  linux-arm64
+51042bf3e0145fdddb46a58832fbf5e1369e212ef7ca028b694a007a67d14e3e  xlsx-sidecar.wasm  linux-x64

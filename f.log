@@ -1,0 +1,513 @@
+$ npm run build:web -- --all; rc=$?; echo "BUILD_WEB_EXIT=$rc"; (exit $rc)
+
+> genoffice@0.1.0 build:web
+> node web/scripts/build-web.mjs --all
+
+
+== build:web --module docs
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 781 modules transformed.
+rendering chunks...
+computing gzip size...
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficePUABlank-DhfF4Y_f.woff2                     0.31 kB
+../../dist-web/docs/0.1.0-c9f3172/index.html                                                 0.85 kB │ gzip:     0.52 kB
+../../dist-web/docs/0.1.0-c9f3172/assets/send-enter-off-B0IfWMyy.png                         4.25 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficeCheLatinKR-CFVfemg_.woff2                   8.30 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficePoppins-Bold-subset-CLJyStaw.woff2         14.13 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficePoppins-Regular-subset-RElVmxhA.woff2      14.16 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/Caladea-Bold-CZKSWaR4.woff2                         18.43 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/Caladea-Regular-DaybilA1.woff2                      18.85 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/Caladea-BoldItalic-Ba27xK_q.woff2                   19.33 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/Caladea-Italic-BlypM-0H.woff2                       19.62 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficeUIKanaJP-Regular-Bj_7JzTT.woff2            25.29 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficeUIKanaJP-Bold-DbcaglVT.woff2               26.20 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficeDMSans-Bold-subset-DVFBF4J5.woff2          28.43 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficeDMSans-Regular-subset-DEQZCK4K.woff2       28.63 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficeTamil-Regular-DLISHPmH.woff2               33.07 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/NotoSansArabic-Regular-subset-D207GVuU.woff2        63.67 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/NotoNaskhArabic-Regular-subset-DQSqx2ZA.woff2       69.62 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationMono-Italic-Bprp0jhy.woff2               114.73 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationMono-BoldItalic-BTDQyQp_.woff2           117.03 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationMono-Bold-BZxqunF8.woff2                 122.93 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationMono-Regular-Bv_fWIHn.woff2              126.00 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationSerif-Bold-DS5JG3CL.woff2                141.07 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationSerif-Regular-Bm6iK1hG.woff2             146.88 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationSans-Regular-r-gFvyde.woff2              147.11 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationSerif-BoldItalic-DqILcGx7.woff2          147.13 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationSerif-Italic-BdGY3XA4.woff2              147.54 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationSans-Bold-BlSkeIb-.woff2                 148.76 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationSans-BoldItalic-BYHlqTuw.woff2           150.91 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/LiberationSans-Italic-B67WhyiB.woff2               153.14 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/Carlito-Regular-fal-2WfU.woff2                     190.60 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/Carlito-Bold-DN11iCUU.woff2                        198.47 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/Carlito-Italic-CcV9hCBk.woff2                      202.00 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/Carlito-BoldItalic-BqaEwLjh.woff2                  207.12 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficeSansKR-Regular-subset-CVxxonE8.woff2      266.13 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficeGothicKR-Regular-subset-Bkvj_MFZ.woff2    281.98 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/GenOfficeSerifKR-Regular-subset-BkQyd75u.woff2     512.44 kB
+../../dist-web/docs/0.1.0-c9f3172/assets/parse-worker-Bi7ay5ZX.js                          628.62 kB
+../../dist-web/docs/0.1.0-c9f3172/assets/pdf.worker.min-CLrFZWeq.mjs                     1,312.45 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/NotoSansCJKsc-Regular-subset-BuHGXxnc.woff2      2,533.16 kB
+../../dist-web/docs/0.1.0-c9f3172/fonts/NotoSerifCJKsc-Regular-subset-CLPB6QGT.woff2     3,495.93 kB
+../../dist-web/docs/0.1.0-c9f3172/assets/index-C8ELZX2M.css                                305.12 kB │ gzip:    48.39 kB
+../../dist-web/docs/0.1.0-c9f3172/assets/pdf.worker.min-D8Djv3Xg.js                          0.09 kB │ gzip:     0.11 kB
+../../dist-web/docs/0.1.0-c9f3172/assets/pdf-Db4OFiBi.js                                   489.68 kB │ gzip:   148.85 kB
+../../dist-web/docs/0.1.0-c9f3172/assets/index-Bz-PTC5c.js                               5,325.02 kB │ gzip: 1,654.48 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-docs 0.1.0-c9f3172: 46 files, 17.17 MiB (gzip 11.81); initial 5.37 MiB (gzip 1.62), deferred 11.80 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/docs/0.1.0-c9f3172
+✓ built in 9.06s
+
+== build:web --module pdf
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 640 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../dist-web/pdf/0.1.0-c9f3172/index.html                                         0.92 kB │ gzip:     0.55 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/send-enter-off-B0IfWMyy.png                 4.25 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationMono-Italic-BaW6sbi8.ttf         281.54 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationMono-BoldItalic-CW50-m9W.ttf     284.07 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationMono-Bold-JpIqZVyK.ttf           308.00 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationMono-Regular-CscJ8ftk.ttf        319.51 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationSerif-Bold-CT7WGLoV.ttf          370.10 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationSerif-Italic-Bwtmn-ni.ttf        375.63 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationSerif-BoldItalic-DHf5skZ4.ttf    376.77 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationSerif-Regular-DREh6cMU.ttf       393.58 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationSans-BoldItalic-BC07J_j6.ttf     409.00 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationSans-Regular-CqxnOoBp.ttf        410.71 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationSans-Bold-CAnzDFU4.ttf           414.46 kB
+../../../dist-web/pdf/0.1.0-c9f3172/fonts/LiberationSans-Italic-D6GtLuAT.ttf         415.82 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/hb-subset-_PGx1ra3.wasm                   634.89 kB │ gzip:   251.98 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/pdf.worker.min-CLrFZWeq.mjs             1,312.45 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/pdfium-BJ2Yip8Q.wasm                    4,646.93 kB │ gzip: 2,150.22 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/index-DMsgk7T8.css                        120.51 kB │ gzip:    21.49 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/blank-pdf-C-Yiuugn.js                       0.23 kB │ gzip:     0.21 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/_commonjsHelpers-Cpj98o6Y.js                0.24 kB │ gzip:     0.18 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/font-cmap-L73PrRvk.js                       1.16 kB │ gzip:     0.61 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/annot-delete-CAR61Qgm.js                    2.18 kB │ gzip:     1.07 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/image-edit-DUZCmS5t.js                      8.16 kB │ gzip:     3.03 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/save-pdf-BV6k3-7S.js                       28.23 kB │ gzip:     9.89 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/text-edit-BvcX3s4N.js                      35.98 kB │ gzip:    13.21 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/jszip.min-DXD3Oxvq.js                      97.16 kB │ gzip:    30.09 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/index.browser-ptmcIt33.js                 156.79 kB │ gzip:    38.68 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/PDFButton-BqhJDxMv.js                     428.67 kB │ gzip:   177.69 kB
+../../../dist-web/pdf/0.1.0-c9f3172/assets/index-C94Pqc21.js                       2,281.69 kB │ gzip:   706.47 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[vite-plugin-static-copy] Copied 3 items.
+
+web-pdf 0.1.0-c9f3172: 229 files, 16.80 MiB (gzip 7.89); initial 2.29 MiB (gzip 0.69), deferred 14.51 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/pdf/0.1.0-c9f3172
+✓ built in 4.86s
+
+== build:web --module markdown
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 2734 modules transformed.
+node_modules/wavedrom/lib/eva.js (17:21): Use of eval in "node_modules/wavedrom/lib/eva.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+node_modules/wavedrom/lib/eva.js (23:21): Use of eval in "node_modules/wavedrom/lib/eva.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+rendering chunks...
+computing gzip size...
+../../../dist-web/markdown/0.1.0-c9f3172/index.html                                           0.94 kB │ gzip:     0.55 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Size3-Regular-gV2CO0n9.woff2             3.62 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/send-enter-off-B0IfWMyy.png                   4.25 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Size4-Regular-Dl5lxZxV.woff2             4.93 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Size2-Regular-Dy4dx90m.woff2             5.21 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Size1-Regular-mCD8mA8B.woff2             5.47 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2       6.91 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2          6.91 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Script-Regular-D3wIWfF6.woff2            9.64 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2        10.34 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Fraktur-Regular-CTYiF6lA.woff2          11.32 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Fraktur-Bold-CL6g_b3V.woff2             11.35 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_SansSerif-Italic-C3H0VqGB.woff2         12.03 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_SansSerif-Bold-D1sUS0GD.woff2           12.22 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Typewriter-Regular-CO6r4hn1.woff2       13.57 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2          16.40 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Math-Italic-t53AETM-.woff2              16.44 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2          16.78 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Main-Italic-NWA7e6Wa.woff2              16.99 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Main-Bold-Cx986IdX.woff2                25.32 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_Main-Regular-B22Nviop.woff2             26.27 kB
+../../../dist-web/markdown/0.1.0-c9f3172/fonts/KaTeX_AMS-Regular-BQhdFMY1.woff2              28.08 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/pdf.worker.min-CLrFZWeq.mjs               1,312.45 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/index-CaEgkPNJ.css                          139.21 kB │ gzip:    24.76 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/pdf.worker.min-D8Djv3Xg.js                    0.09 kB │ gzip:     0.11 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/channel-flMHVI2Y.js                           0.12 kB │ gzip:     0.13 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/init-Gi6I4Gst.js                              0.15 kB │ gzip:     0.13 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/chunk-2Q5K7J3B-DXrYUmqF.js                    0.19 kB │ gzip:     0.16 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/chunk-JWPE2WC7-DnZ1bmhA.js                    0.23 kB │ gzip:     0.17 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/chunk-XXDRQBXY-DkxZvY4i.js                    0.23 kB │ gzip:     0.20 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/chunk-5VM5RSS4-B-70mm6x.js                    0.37 kB │ gzip:     0.27 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/stateDiagram-v2-MP3YSRHH-Dmd8Y7Hz.js          0.43 kB │ gzip:     0.30 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/classDiagram-ZZMXUADV-DwMSEkGR.js             0.47 kB │ gzip:     0.32 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/classDiagram-v2-VYDZK3BY-DwMSEkGR.js          0.47 kB │ gzip:     0.32 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/chunk-POPQ4Y6H-cfOUBOwl.js                    0.51 kB │ gzip:     0.36 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/swimlanesDiagram-VR7AAH4N-OfWoL3tR.js         0.55 kB │ gzip:     0.37 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/infoDiagram-27XIBGKW-BzZntY06.js              0.59 kB │ gzip:     0.40 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/sizeCapture-INFHLROL-Da5BWU-b.js              0.94 kB │ gzip:     0.53 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/ordinal-Cboi1Yqb.js                           1.19 kB │ gzip:     0.57 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/railroadDiagram-O6MQD6OU-CXy43eid.js          1.61 kB │ gzip:     0.76 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/abnfDiagram-VCTEODGH-CRjT-OMN.js              1.81 kB │ gzip:     0.89 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/chunk-F27PBJKO-BIoeM6Ww.js                    1.88 kB │ gzip:     0.83 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/pegDiagram-XKGWAZYB-CYR7rKyb.js               1.96 kB │ gzip:     0.92 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/ebnfDiagram-PWID7BFC-BgQ1YUH4.js              2.01 kB │ gzip:     0.88 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/arc-Du_A2DQl.js                               3.44 kB │ gzip:     1.49 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/diagram-Z3DM3KII-CxUOzxAG.js                  4.21 kB │ gzip:     1.83 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/defaultLocale-DX6XiGOO.js                     4.69 kB │ gzip:     2.18 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/linear-NDqN40pF.js                            5.66 kB │ gzip:     2.31 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/diagram-UQ7AKVKN-DSCdgw_S.js                  6.08 kB │ gzip:     2.62 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/pieDiagram-E7YTZNPT-CcOmzuR6.js               6.29 kB │ gzip:     2.62 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/diagram-S7CK7UJ4-biWWHDYu.js                  8.22 kB │ gzip:     3.67 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/cynefinDiagram-5FMLGOSQ-D94O39Rp.js          10.10 kB │ gzip:     3.63 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/stateDiagram-D77RDMKH-BD6nFo8r.js            10.36 kB │ gzip:     3.62 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/dagre-GXQ25YYZ-d2C1N38s.js                   10.68 kB │ gzip:     4.03 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/diagram-VSXAHHWV-CUMs87Qh.js                 10.72 kB │ gzip:     4.13 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/chunk-SVP7TREG-BdFUYR8D.js                   15.74 kB │ gzip:     4.41 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/diagram-VX7I27RA-DcpBH2Fw.js                 15.96 kB │ gzip:     5.69 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/ishikawaDiagram-5VMMS53U-B255BhTb.js         17.47 kB │ gzip:     6.64 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/kanban-definition-UXKFOSKX-D66d2iq7.js       20.29 kB │ gzip:     7.20 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/mindmap-definition-YA3MSWOX-C9qrzB6I.js      23.18 kB │ gzip:     7.83 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/sankeyDiagram-P5KCCOFB-BhXW7ciw.js           23.20 kB │ gzip:     8.56 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/journeyDiagram-3NMN7TZE-wThj2gXn.js          23.57 kB │ gzip:     8.35 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/wardleyDiagram-VM6X3IG4-DrgQ6Vsg.js          25.50 kB │ gzip:     6.79 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/index-CfVoXhG5.js                            27.06 kB │ gzip:     7.80 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/gitGraphDiagram-WWUBYQGX-BAArpOal.js         29.42 kB │ gzip:     8.70 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/erDiagram-RLTQ6QDP-BjHPCmxK.js               30.79 kB │ gzip:    10.59 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/timeline-definition-24CTP7MA-DIT_qctv.js     30.83 kB │ gzip:    10.15 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/requirementDiagram-BXWQKSXE-DzUDYbEP.js      31.00 kB │ gzip:     9.73 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/quadrantDiagram-AXDQQJYC-DB7tPao6.js         34.01 kB │ gzip:     9.98 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/layout-DklGwmqD.js                           35.44 kB │ gzip:    12.75 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/chunk-IMKFNOWR-MSIquxBc.js                   38.08 kB │ gzip:    12.51 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/blockDiagram-I7D4REHJ-ChL_WPWE.js            41.76 kB │ gzip:    13.58 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/vennDiagram-4TSXK5OY-CYgFPqOC.js             41.96 kB │ gzip:    15.70 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/xychartDiagram-S5SC5T6Z-ZageTlIQ.js          44.51 kB │ gzip:    12.60 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/chunk-TICWLB2K-DfGiNIEr.js                   49.18 kB │ gzip:    15.75 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/flowDiagram-HODETNUW-CWndFZ5o.js             61.85 kB │ gzip:    19.87 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/c4Diagram-7LVT6UL2-DNrLyk_r.js               65.47 kB │ gzip:    18.79 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/ganttDiagram-EL5Y4UJY-Bl0LbMvs.js            69.70 kB │ gzip:    23.56 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/cose-bilkent-JH36ORCC-Dh26HzDS.js            81.70 kB │ gzip:    22.47 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/index-BkszVdio.js                           104.67 kB │ gzip:    23.77 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/swimlanes-42K2YHIH-Cdf3ifGi.js              115.79 kB │ gzip:    42.51 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/sequenceDiagram-WJ2MYXX4-UYNU26-J.js        116.96 kB │ gzip:    31.14 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/architectureDiagram-5GKGNRK7-CYh1dZUM.js    151.83 kB │ gzip:    43.14 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/cytoscape.esm-BB4DxJjf.js                   443.04 kB │ gzip:   141.98 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/pdf-Db4OFiBi.js                             489.68 kB │ gzip:   148.85 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/mermaid.core-ltYlxFVs.js                    683.41 kB │ gzip:   169.13 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/cynefin-OW5HDTMX-Dy8loqC4.js                688.15 kB │ gzip:   154.16 kB
+../../../dist-web/markdown/0.1.0-c9f3172/assets/index-Bghgg0Oo.js                         3,421.09 kB │ gzip: 1,101.68 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-markdown 0.1.0-c9f3172: 90 files, 8.49 MiB (gzip 2.72); initial 3.40 MiB (gzip 1.07), deferred 5.10 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/markdown/0.1.0-c9f3172
+✓ built in 12.25s
+
+== build:web --module html
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 464 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../dist-web/html/0.1.0-c9f3172/index.html                              0.92 kB │ gzip:   0.55 kB
+../../../dist-web/html/0.1.0-c9f3172/assets/send-enter-off-B0IfWMyy.png      4.25 kB
+../../../dist-web/html/0.1.0-c9f3172/assets/index-rbm8Ypm7.css             108.32 kB │ gzip:  18.69 kB
+../../../dist-web/html/0.1.0-c9f3172/assets/index-DN82Bj1E.js            2,235.95 kB │ gzip: 732.91 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-html 0.1.0-c9f3172: 7 files, 2.25 MiB (gzip 0.72); initial 2.24 MiB (gzip 0.71), deferred 0.01 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/html/0.1.0-c9f3172
+✓ built in 2.79s
+
+== build:web --module slides
+vite v7.3.6 building client environment for production...
+(node:21809) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/ubuntu/work/uniwork-office/web/modules/slides/vite-web.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/ubuntu/work/uniwork-office/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+transforming...
+✓ 955 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/export-render.tsx is dynamically imported by /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/zoom-actions.ts but also statically imported by /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/ai/AiPanel.tsx, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/clipboard-actions.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/components/PrintDialog.tsx, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/export-pages.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/file-actions.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/slide-actions.ts, dynamic import will not move module into another chunk.
+
+computing gzip size...
+../../../dist-web/slides/0.1.0-c9f3172/index.html                                   0.95 kB │ gzip:     0.56 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/send-enter-off-B0IfWMyy.png           4.25 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/marble-D7ttTB12.png                   9.07 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/parchment-BKiptb7w.png               17.39 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/paper-DUijYpax.png                   19.39 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/canvas-BRJXZk8M.png                  23.00 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/wood-D70XEBVa.png                    23.40 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/denim-DTrT_oct.png                   29.17 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/cork-BseXy6tu.png                    29.53 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/granite--1xJtYY3.png                 41.09 kB
+../../../dist-web/slides/0.1.0-c9f3172/fonts/Carlito-Regular-fal-2WfU.woff2       190.60 kB
+../../../dist-web/slides/0.1.0-c9f3172/fonts/Carlito-Bold-DN11iCUU.woff2          198.47 kB
+../../../dist-web/slides/0.1.0-c9f3172/fonts/Carlito-Italic-CcV9hCBk.woff2        202.00 kB
+../../../dist-web/slides/0.1.0-c9f3172/fonts/Carlito-BoldItalic-BqaEwLjh.woff2    207.12 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/index-CcbZZGtO.css                  182.09 kB │ gzip:    32.08 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/AiPanel-C4b87R9l.js                 422.31 kB │ gzip:   149.50 kB
+../../../dist-web/slides/0.1.0-c9f3172/assets/index-Cs1EYV3A.js                 4,555.46 kB │ gzip: 1,384.36 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-slides 0.1.0-c9f3172: 19 files, 5.87 MiB (gzip 2.37); initial 4.52 MiB (gzip 1.34), deferred 1.35 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/slides/0.1.0-c9f3172
+✓ built in 6.30s
+
+== build:web --module sheets
+vite v7.3.6 building client environment for production...
+[build-wasm] inputs unchanged: reusing dist/xlsx-sidecar.wasm
+[build-wasm] verified 51042bf3e0145fdddb46a58832fbf5e1369e212ef7ca028b694a007a67d14e3e (5224093 bytes)
+transforming...
+✓ 4119 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../dist-web/sheets/0.1.0-c9f3172/index.html                                      0.93 kB │ gzip:     0.55 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/send-enter-off-B0IfWMyy.png              4.25 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/engine.worker-DtHCiJnC.js               26.14 kB
+../../../dist-web/sheets/0.1.0-c9f3172/fonts/Carlito-Regular-fal-2WfU.woff2          190.60 kB
+../../../dist-web/sheets/0.1.0-c9f3172/fonts/Carlito-Bold-DN11iCUU.woff2             198.47 kB
+../../../dist-web/sheets/0.1.0-c9f3172/fonts/Carlito-Italic-CcV9hCBk.woff2           202.00 kB
+../../../dist-web/sheets/0.1.0-c9f3172/fonts/Carlito-BoldItalic-BqaEwLjh.woff2       207.12 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/xlsx-sidecar-D8YSPIU9.wasm           5,224.09 kB │ gzip: 1,751.85 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/App-lluOJ4Jf.css                        15.17 kB │ gzip:     3.29 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/index-BRr1r42o.css                     242.56 kB │ gzip:    40.67 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-CN-CTS-yWd0.js                        0.30 kB │ gzip:     0.27 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/it-IT-OJCIbIdf.js                        0.30 kB │ gzip:     0.24 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-TW-CaZsz0BY.js                        0.30 kB │ gzip:     0.27 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pt-BR-C3MNNzIV.js                        0.30 kB │ gzip:     0.24 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/es-ES-CM-oY1Ro.js                        0.30 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pl-PL-CCvkoj39.js                        0.30 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ko-KR-DwPxMKwa.js                        0.31 kB │ gzip:     0.27 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/vi-VN-Di44AXPD.js                        0.31 kB │ gzip:     0.26 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fr-FR-CYBs2aWj.js                        0.31 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-DE-DWY9xZ-H.js                        0.31 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/id-ID-CLBTwyiA.js                        0.31 kB │ gzip:     0.24 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ja-JP-B2xdLP0I.js                        0.33 kB │ gzip:     0.28 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ar-SA-DiScoCaq.js                        0.34 kB │ gzip:     0.28 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ru-RU-SsqRwJsj.js                        0.40 kB │ gzip:     0.31 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pa-C54UG8eN-EW_8hrTF.js                  0.53 kB │ gzip:     0.23 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/or-50rxpoq4-B_XNinj_.js                  0.57 kB │ gzip:     0.24 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/gu-Bjl0l-cf-Bb_OSiMJ.js                  0.58 kB │ gzip:     0.24 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/hi-DsAaTPCC-lc1bUHMk.js                  0.61 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/mr-CjWJPVmH-BKMRnoAc.js                  0.61 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/as-BPtSu6VN-CYxxmKqh.js                  0.63 kB │ gzip:     0.26 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/bn-NCLZcWHi-CsgykzQM.js                  0.63 kB │ gzip:     0.26 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/te-B5Spl2Jk-DYnT8Dmf.js                  0.63 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/kn-C6Lov-DP-D7dHjlY1.js                  0.63 kB │ gzip:     0.26 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ta-BcghgTbD-D3SGVeDl.js                  0.71 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ml-2xLVYkVY-CBhOFsDv.js                  0.81 kB │ gzip:     0.30 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pi-B9cgjyG1-v-IB86gp.js                  0.86 kB │ gzip:     0.35 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-CN-bM-MCtaa.js                        1.02 kB │ gzip:     0.61 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-TW-BUtnLCUn.js                        1.02 kB │ gzip:     0.62 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ko-KR-BHJP4Ef5.js                        1.14 kB │ gzip:     0.63 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/id-ID-B444qzLX.js                        1.15 kB │ gzip:     0.53 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pl-PL-ClV90AKP.js                        1.16 kB │ gzip:     0.58 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/it-IT-LGVs5uM3.js                        1.20 kB │ gzip:     0.56 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/es-ES-Ch5ZBKED.js                        1.21 kB │ gzip:     0.57 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-DE-CD9ASyK5.js                        1.21 kB │ gzip:     0.56 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pt-BR-Cu9ubD3s.js                        1.22 kB │ gzip:     0.56 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fr-FR-CUPOjABx.js                        1.23 kB │ gzip:     0.57 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-latn-pinyin-BdYb-Ey_-BpSBSv6m.js      1.28 kB │ gzip:     0.22 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-CN-BYMbIAdY.js                        1.29 kB │ gzip:     0.77 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ja-JP-BjzMIXBr.js                        1.29 kB │ gzip:     0.67 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ar-SA-BifmkFeE.js                        1.30 kB │ gzip:     0.62 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/id-ID-Ba_Py2hF.js                        1.32 kB │ gzip:     0.71 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-TW-C1WN84CC.js                        1.33 kB │ gzip:     0.83 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-DE-Dmpmc6rE.js                        1.40 kB │ gzip:     0.73 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/vi-VN-bwzJBjj2.js                        1.40 kB │ gzip:     0.67 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ko-KR-DVFhOBdX.js                        1.48 kB │ gzip:     0.84 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/it-IT-C_T9-xFc.js                        1.48 kB │ gzip:     0.73 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pl-PL-CLu2V1JC.js                        1.50 kB │ gzip:     0.80 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/eu-Ctv_kq9Z-DMhU9kwg.js                  1.52 kB │ gzip:     0.22 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/es-ES-BG-mCupa.js                        1.53 kB │ gzip:     0.75 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ja-JP-BXqs1-1I.js                        1.53 kB │ gzip:     0.89 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pt-BR-DnEA3xnP.js                        1.57 kB │ gzip:     0.78 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fr-FR-CUr4Oyfx.js                        1.63 kB │ gzip:     0.77 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/vi-VN-C9pKLXUx.js                        1.66 kB │ gzip:     0.87 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ar-SA-DYsZbN0C.js                        1.76 kB │ gzip:     0.84 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ru-RU-DsVpeQzi.js                        1.88 kB │ gzip:     0.73 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ru-RU-DIv05wdC.js                        1.96 kB │ gzip:     0.92 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-TW-CtlWd9_b.js                        1.99 kB │ gzip:     1.10 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-CN-ElBX_yi2.js                        1.99 kB │ gzip:     1.10 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pt-Cum2_NUC-D8aZaPM_.js                  2.29 kB │ gzip:     0.31 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/it-IT-DmB0q7p-.js                        2.34 kB │ gzip:     1.05 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ko-KR-C0r9uV-n.js                        2.34 kB │ gzip:     1.16 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-DE-XTocmpTT.js                        2.34 kB │ gzip:     1.10 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/es-ES-Ceh_jXgJ.js                        2.36 kB │ gzip:     1.07 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pt-BR-DW5jqDyh.js                        2.37 kB │ gzip:     1.10 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/id-ID-DicYvfMT.js                        2.38 kB │ gzip:     1.04 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pl-PL-D59c_Xtb.js                        2.43 kB │ gzip:     1.18 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/vi-VN-BWjVTlT1.js                        2.45 kB │ gzip:     1.15 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fr-FR-BrUWGSLh.js                        2.45 kB │ gzip:     1.10 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ja-JP-CtMl-dOS.js                        2.47 kB │ gzip:     1.22 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/id-DifDyWg9-1QUBE4o0.js                  2.52 kB │ gzip:     0.64 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/oc-P_i3-xLA-Cg0Gj-PC.js                  2.56 kB │ gzip:     0.68 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/kmr-Cfwhwuff-DNWs8Gbk.js                 2.73 kB │ gzip:     0.80 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ar-SA-CINS6hNG.js                        2.74 kB │ gzip:     1.20 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-CN-BxN_TT7y.js                        2.84 kB │ gzip:     1.59 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-TW-c8C_cURd.js                        2.84 kB │ gzip:     1.59 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-TW-C8xwFqcb.js                        3.00 kB │ gzip:     1.47 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-CN-ZnMDRfKG.js                        3.00 kB │ gzip:     1.46 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/id-ID-C-gFPtW4.js                        3.04 kB │ gzip:     1.45 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fi-RW5VB8Yp-C_52fTOR.js                  3.19 kB │ gzip:     0.78 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/la-DuvHjUWw-BcBNkSEh.js                  3.19 kB │ gzip:     0.63 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ru-RU-BOzJdCn6.js                        3.21 kB │ gzip:     1.31 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/it-IT-B9lHpLC0.js                        3.30 kB │ gzip:     1.51 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/es-ES-ZVMEWMa9.js                        3.31 kB │ gzip:     1.52 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-DE-DKQCU3dh.js                        3.31 kB │ gzip:     1.55 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pl-PL-s5nY-7Ar.js                        3.32 kB │ gzip:     1.62 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pt-BR-BAzytTq-.js                        3.35 kB │ gzip:     1.54 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ko-KR-D-LWMtgt.js                        3.35 kB │ gzip:     1.57 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ko-KR-iDRrizzq.js                        3.36 kB │ gzip:     1.73 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pms-BRGfm5gS-DtZRgBhp.js                 3.38 kB │ gzip:     0.91 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ja-JP-DkcfEwEp.js                        3.40 kB │ gzip:     1.61 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fr-FR-D9n4vupW.js                        3.46 kB │ gzip:     1.57 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ja-JP-D4LNH6zt.js                        3.50 kB │ gzip:     1.81 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/id-ID-51j3DJpq.js                        3.50 kB │ gzip:     1.37 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/vi-VN-CXD_kuUb.js                        3.50 kB │ gzip:     1.68 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pt-BR-NhJkHJrI.js                        3.53 kB │ gzip:     1.48 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pl-PL-Ba3dw403.js                        3.56 kB │ gzip:     1.52 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/it-IT-DM3cg_hR.js                        3.56 kB │ gzip:     1.45 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/es-ES-By1eBNvD.js                        3.57 kB │ gzip:     1.45 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-TW-CwtY40lc.js                        3.58 kB │ gzip:     1.67 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-CN-DzSfqI3-.js                        3.58 kB │ gzip:     1.67 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/it-Bt_Meacx-BwawXXgW.js                  3.63 kB │ gzip:     0.88 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-DE-Bj13GxsZ.js                        3.64 kB │ gzip:     1.50 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/vi-VN-B2IQO574.js                        3.66 kB │ gzip:     1.53 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/rm-C0MIK9N4-DeBfDBrx.js                  3.67 kB │ gzip:     0.95 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/mul-ethi-D_CMSMEq-2TGBnG-Z.js            3.69 kB │ gzip:     0.92 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fr-FR-CHu3kz5k.js                        3.73 kB │ gzip:     1.50 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ko-KR-CJmgTNxt.js                        3.82 kB │ gzip:     1.68 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ar-SA-Cx4oxuOQ.js                        3.84 kB │ gzip:     1.68 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fur-AC12wySk-Ulg0Fy5V.js                 3.90 kB │ gzip:     1.02 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/tr-CIHIuzqc-ZkOY1dVp.js                  3.97 kB │ gzip:     0.34 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-DE-DufIlO-L.js                        4.09 kB │ gzip:     1.56 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/id-ID-5p7yMte3.js                        4.11 kB │ gzip:     1.48 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/es-ES-COqOMw-S.js                        4.13 kB │ gzip:     1.54 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pt-BR-slXJQEMI.js                        4.15 kB │ gzip:     1.58 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/it-IT-BKGbTfJt.js                        4.15 kB │ gzip:     1.51 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ja-JP-DNloJswb.js                        4.17 kB │ gzip:     1.79 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pl-PL-BdKxoU7R.js                        4.20 kB │ gzip:     1.66 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ar-SA-D8JQBMQ4.js                        4.29 kB │ gzip:     1.61 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fr-FR-Dx5iU6vK.js                        4.39 kB │ gzip:     1.62 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/vi-VN-Bs5FVJCs.js                        4.55 kB │ gzip:     1.74 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/mn-cyrl-x-lmc-3aetruI8-mEBV16An.js       4.83 kB │ gzip:     1.21 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/el-monoton-D3aKqTz2-DpMW17GV.js          4.87 kB │ gzip:     0.89 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ru-RU-BTpFlL4e.js                        4.92 kB │ gzip:     1.90 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ru-RU-DyheoVko.js                        5.04 kB │ gzip:     1.83 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ar-SA-nqeAdLku.js                        5.08 kB │ gzip:     1.77 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ru-RU-Dye1tDJK.js                        5.77 kB │ gzip:     1.97 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ia-Cr4TJH0c-BcFKNbxH.js                  6.49 kB │ gzip:     1.83 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/cop-C3sk0IUo-Cj8cOj0I.js                 6.89 kB │ gzip:     0.71 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ro-0fmdH0HA-1lLksn9e.js                  7.27 kB │ gzip:     2.14 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ca-SUf6Y2Om-Dp4lcbPL.js                  7.86 kB │ gzip:     1.13 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/la-x-classic-yTyAOQEt-DuDJBVty.js        8.93 kB │ gzip:     2.31 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/sa-CKY9c_Vq-DzgpFnfw.js                  9.71 kB │ gzip:     1.66 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-TW-CfQ43u0-.js                       10.85 kB │ gzip:     1.89 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-CN-BURBx3sU.js                       11.09 kB │ gzip:     1.89 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/hr-DT1SBBes-CkK3TemH.js                 11.36 kB │ gzip:     0.95 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/hy-e995ysyO-Cf-NYmW5.js                 11.93 kB │ gzip:     0.31 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/mn-cyrl-lHM4n0oC-QhYuXAWB.js            12.15 kB │ gzip:     2.15 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/id-ID-DPiSozih.js                       12.18 kB │ gzip:     1.92 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/sl-DpiklF-D-_46w5B9b.js                 12.60 kB │ gzip:     3.40 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/it-IT-C7QxBvbD.js                       12.61 kB │ gzip:     1.92 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/es-ES-D8JWVcM7.js                       12.70 kB │ gzip:     1.83 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/da-CCDXfXtG-C3O8h2wc.js                 12.72 kB │ gzip:     3.45 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pt-BR-BG59veHu.js                       12.74 kB │ gzip:     1.92 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pl-PL-DMr4krT_.js                       12.92 kB │ gzip:     1.98 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ko-KR-CtJhpaQS.js                       12.95 kB │ gzip:     2.00 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-DE-D1C3f37C.js                       13.26 kB │ gzip:     2.04 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fr-FR-CWMoOQa_.js                       13.36 kB │ gzip:     1.87 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/hsb-DC_ITc1e-C4pa9vvS.js                14.01 kB │ gzip:     1.94 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/vi-VN-LocTwPji.js                       14.26 kB │ gzip:     2.01 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/lt-BBe8DlDF-CObMPDIF.js                 14.77 kB │ gzip:     3.60 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ja-JP-BTK3hMiO.js                       14.83 kB │ gzip:     2.08 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ar-SA-DUscCtD8.js                       15.29 kB │ gzip:     2.08 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/tk-BMbKB10q-cqtw6prh.js                 16.96 kB │ gzip:     0.99 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/el-polyton-ogVWcTzh-BOWLBXgh.js         17.63 kB │ gzip:     2.87 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ru-RU-B79nqAUu.js                       18.07 kB │ gzip:     2.21 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/la-x-liturgic-CXeQb4FY-DNU_Uk5t.js      22.82 kB │ gzip:     5.72 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fr-BC2onEz9-BGmqATrI.js                 24.14 kB │ gzip:     4.29 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ka-jyoLzyDE-CZftRBZr.js                 26.19 kB │ gzip:     4.51 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/be-CrQ0smca-B2EeXxUh.js                 27.83 kB │ gzip:     2.23 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/sh-latn-sRy4Tuaj-DcyoDtEt.js            29.78 kB │ gzip:     5.29 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/sr-cyrl-Dpzrbd0W-DKfS_grW.js            31.60 kB │ gzip:     5.56 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/sk-_iOeDNrQ-BXQc18Za.js                 31.69 kB │ gzip:     6.79 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/sh-cyrl-BpCRFOmq-Cv4-R-p6.js            32.50 kB │ gzip:     5.45 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/gl-DZGc-K_G-DLl5jmsP.js                 33.64 kB │ gzip:     4.26 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/cs-CmAteokq-TjIVgNl6.js                 39.76 kB │ gzip:     9.95 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/es-DcaaHPU_-sYKznHcq.js                 44.13 kB │ gzip:     6.27 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pl-9fg-ESVt-DpPW5ISU.js                 46.09 kB │ gzip:     7.70 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/et-B_spaleu-BaO20FM2.js                 47.21 kB │ gzip:    11.42 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/is-BT8UVRze-BXloJ18M.js                 48.41 kB │ gzip:    12.72 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/sv-CFm5y56M-I8ncZ9Nb.js                 56.81 kB │ gzip:    14.42 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/bg-CrQqGwni-Pt9yPLke.js                 56.93 kB │ gzip:     4.83 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/uk-Dir3oxLs-BVEQM3Jf.js                 63.99 kB │ gzip:     8.64 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/th-DWX5iPSo-BI_G36o8.js                 68.62 kB │ gzip:    13.26 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/grc-DOlGgO8T-C7K_Bcib.js                71.61 kB │ gzip:     8.92 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/xlsx-threaded-comments-B1kSx4Zp.js      79.16 kB │ gzip:    25.11 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/cy-BBPa6z2x-BONU7bVJ.js                 80.20 kB │ gzip:    19.05 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ga-Cn6LkudM-WsF4_z3Y.js                 82.15 kB │ gzip:    20.04 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ru-v4l-ayaq-BZkHNr9F.js                 85.31 kB │ gzip:    16.94 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/en-gb-B7Al27b_-BFFr9zKP.js             105.38 kB │ gzip:    26.11 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/lv-Q2BBHnzp-DRPSUjhQ.js                112.68 kB │ gzip:    16.09 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/nl-BHQJ6Gvn-BMWl-SdQ.js                138.51 kB │ gzip:    36.10 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/save-plan-COsLLz_B.js                  157.74 kB │ gzip:    48.28 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/cu-CBUlrW6Y-BrxB2kb-.js                168.80 kB │ gzip:    26.17 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/af-DK_CjRn6-C81U6qP1.js                179.89 kB │ gzip:    38.97 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-ch-1901-hVThVHVb-CC5Yf8hX.js        264.34 kB │ gzip:    70.50 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-1996-BL6awyxG-BSuIomZy.js           266.94 kB │ gzip:    71.07 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-1901-CWoAOigE-yOXirf_M.js           270.04 kB │ gzip:    71.86 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-TW-BxI9VFMn.js                      292.09 kB │ gzip:    64.32 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/zh-CN-Bi-ATtsG.js                      294.08 kB │ gzip:    63.09 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ko-KR-D6DnZ_A3.js                      319.32 kB │ gzip:    60.88 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/id-ID-BGqZ4ajf.js                      324.34 kB │ gzip:    60.23 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pl-PL-Bac768mT.js                      325.08 kB │ gzip:    61.25 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/it-IT-CALrtqQo.js                      325.81 kB │ gzip:    60.57 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/pt-BR-B6y-AXV2.js                      326.01 kB │ gzip:    60.77 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/de-DE-CDBhmQEi.js                      326.86 kB │ gzip:    60.97 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/fr-FR-DtI6R9dN.js                      327.82 kB │ gzip:    61.07 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ar-SA-B1MdFHpX.js                      330.72 kB │ gzip:    61.72 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/no-B8ItS0F3-BlrHaK3Z.js                341.90 kB │ gzip:    87.84 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/nb-DI8u59ch-S2a9vUN_.js                341.92 kB │ gzip:    87.85 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/nn-ntZvarUK-cMBifkqM.js                341.92 kB │ gzip:    87.85 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/es-ES-CzcdftS2.js                      344.89 kB │ gzip:    62.78 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ja-JP-CaR_PNDy.js                      369.84 kB │ gzip:    66.70 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/vi-VN-CnQYhBvr.js                      383.86 kB │ gzip:    69.08 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/ru-RU-B4H3YPyO.js                      548.64 kB │ gzip:    79.41 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/hu-DVk7Y_ka-CCTZJfqn.js                765.41 kB │ gzip:   172.84 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/index-DrBJscLh.js                    3,581.71 kB │ gzip: 1,009.70 kB
+../../../dist-web/sheets/0.1.0-c9f3172/assets/App-Bj_ZkTtK.js                      8,573.94 kB │ gzip: 2,441.63 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-sheets 0.1.0-c9f3172: 219 files, 27.23 MiB (gzip 7.77); initial 3.65 MiB (gzip 1.00), deferred 23.57 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/sheets/0.1.0-c9f3172
+✓ built in 22.23s
+BUILD_WEB_EXIT=0
