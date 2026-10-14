@@ -1,0 +1,4 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin develop; git rev-parse HEAD; git log --oneline -2
+79feb34ecc68b78bbb4a852a88600f6bf32c546d
+79feb34ec Merge remote-tracking branch 'origin/develop' into feature/UNI-923-develop-ci-dev13
+474a1503d chore(deploy): offer UniWork Office 1.0.0-beta.2 installers (#295)

@@ -1,0 +1,4 @@
+$ node --test scripts/changelog-draft.test.mjs scripts/changelog-automation.test.mjs scripts/changelog-review-notify.test.mjs scripts/changelog-workflow.test.mjs scripts/changelog-review-pr.test.mjs 2>&1 | grep -E '^# (pass|fail)|^not ok' ; echo "CONTRACT2_EXIT=${PIPESTATUS[0]}"
+# pass 28
+# fail 0
+CONTRACT2_EXIT=0

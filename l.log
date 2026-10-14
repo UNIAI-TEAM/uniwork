@@ -1,0 +1,18 @@
+$ REQUIRE_XLSX_GATEWAY=1 pnpm test 2>&1 | grep -E 'Test Files|Tests |FAIL|ERR_' | tail -40; echo "UNIT_TEST_EXIT=${PIPESTATUS[0]}"
+@uniwork/office-contracts:test:  Test Files  3 passed (3)
+@uniwork/office-contracts:test:       Tests  38 passed (38)
+@uniwork/web:test:  Test Files  18 passed (18)
+@uniwork/web:test:       Tests  190 passed (190)
+@uniwork/office-engine-app:test:  Test Files  10 passed (10)
+@uniwork/office-engine-app:test:       Tests  107 passed | 11 skipped (121)
+@uniwork/ui:test:  Test Files  38 passed (38)
+@uniwork/ui:test:       Tests  322 passed (322)
+@uniwork/office-engine:test:  Test Files  71 passed | 1 skipped (72)
+@uniwork/office-engine:test:       Tests  921 passed | 5 skipped (926)
+@uniwork/core:test:  Test Files  239 passed (239)
+@uniwork/core:test:       Tests  2306 passed (2306)
+@uniwork/views:test: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+@uniwork/views:test:  FAIL  layout/sidebar-pins.test.tsx > AppSidebar pinned items > keeps the pins one click away in the icon rail, behind a counted menu
+@uniwork/views:test:  Test Files  1 failed | 546 passed (547)
+@uniwork/views:test:       Tests  1 failed | 4452 passed (4453)
+UNIT_TEST_EXIT=1
