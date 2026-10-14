@@ -1,0 +1,9 @@
+$ cd server && go test -count=1 ./internal/emailhub/... ./internal/storage/... 2>&1 | tail -15; echo "EMAILHUB_STORAGE_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub	0.001s
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/bodystore	0.005s
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/imapclient	5.578s
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/netguard	0.004s
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/retention	0.002s
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient	0.307s
+ok  	github.com/unicomhub/uniwork/server/internal/storage	0.551s
+EMAILHUB_STORAGE_EXIT=0
