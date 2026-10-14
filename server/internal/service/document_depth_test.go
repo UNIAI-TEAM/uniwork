@@ -108,7 +108,7 @@ func TestDocumentDepthBound(t *testing.T) {
 		// Two levels past the bound: a row shape the create check refuses, to
 		// prove the read cuts at the bound instead of rendering it.
 		chain := f.depthChain(t, tn, wantDepth+2, treeDocSpec{aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
-		tree, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, "")
+		tree, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, "", false)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -166,14 +166,25 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 
 // getDocumentTree is GET /workspaces/{workspaceID}/documents/tree?root=: the
 // sidebar forest to the depth bound, metadata only. An unreadable root is not
-// found; its children are not leaked through it.
+// found; its children are not leaked through it. folders_only serves the
+// FOLDERS sidebar: the same nodes cut to kind=folder.
 func (h *handlers) getDocumentTree(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	root := strings.TrimSpace(r.URL.Query().Get("root"))
-	nodes, err := h.Documents.DocumentTree(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), root)
+	q := r.URL.Query()
+	root := strings.TrimSpace(q.Get("root"))
+	foldersOnly := false
+	if raw := strings.TrimSpace(q.Get("folders_only")); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", "folders_only must be 0/1 or true/false")
+			return
+		}
+		foldersOnly = v
+	}
+	nodes, err := h.Documents.DocumentTree(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), root, foldersOnly)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

@@ -212,10 +212,13 @@ type ListSharedWithMeSDI struct {
 }
 
 // DocumentTreeSDI documents GET /api/v1/workspaces/{workspaceID}/documents/tree:
-// the sidebar forest to five levels, metadata only. root names one branch; an
-// unreadable root is not found, its children are not leaked through it.
+// the sidebar forest to the depth bound, metadata only. root names one branch;
+// an unreadable root is not found, its children are not leaked through it.
+// folders_only cuts the forest to folders for the FOLDERS sidebar: a root that
+// is not a folder answers not found there.
 type DocumentTreeSDI struct {
-	Root *string `query:"root" description:"ULID gốc nhánh; bỏ trống = cả rừng tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Root        *string `query:"root" description:"ULID gốc nhánh; bỏ trống = cả rừng tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	FoldersOnly *bool   `query:"folders_only" description:"1 = chỉ node thư mục (kind=folder), bỏ trang và tệp; bỏ trống = cả cây" example:"true"`
 }
 
 // MoveDocumentSDI is POST /api/v1/documents/{documentID}/move (C-01 §5.1):

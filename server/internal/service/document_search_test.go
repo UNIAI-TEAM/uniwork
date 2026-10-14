@@ -220,7 +220,7 @@ func TestDocumentSearch(t *testing.T) {
 			t.Fatalf("member missed shared docs: %v", ids)
 		}
 		// The tree hides them from the agent as well.
-		tree, err := f.svc.DocumentTree(f.ctx, agentActor(tn.agent), tn.wsA, "")
+		tree, err := f.svc.DocumentTree(f.ctx, agentActor(tn.agent), tn.wsA, "", false)
 		if err != nil {
 			t.Fatal(err)
 		}

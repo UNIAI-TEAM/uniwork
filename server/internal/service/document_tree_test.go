@@ -136,7 +136,7 @@ func TestDocumentTree(t *testing.T) {
 		if view.Document.ParentID.String != root.ID {
 			t.Fatalf("parent = %v, want %s", view.Document.ParentID, root.ID)
 		}
-		tree, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, "")
+		tree, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, "", false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -356,7 +356,7 @@ func TestDocumentTree(t *testing.T) {
 		open := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: root.ID})
 		secret := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: root.ID})
 		grand := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: secret.ID})
-		tree, err := f.svc.DocumentTree(f.ctx, Human(tn.member.ID), tn.wsA, root.ID)
+		tree, err := f.svc.DocumentTree(f.ctx, Human(tn.member.ID), tn.wsA, root.ID, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -375,6 +375,75 @@ func TestDocumentTree(t *testing.T) {
 		}
 		if !sawOpen {
 			t.Fatalf("visible child missing from member tree: %v", ids)
+		}
+	})
+}
+
+// FD-03 (UNI-1463): the FOLDERS sidebar reads the same forest cut to folders
+// (kind=folder) through the same rules; pages and files leave the cut with
+// their subtrees, and a root that is not a folder is not part of it.
+func TestDocumentTreeFoldersOnly(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "foldersonly")
+	owner := Human(tn.owner.ID)
+	spec := func(parent, kind, title string) treeDocSpec {
+		return treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			parent: parent, kind: kind, title: title,
+		}
+	}
+	outer := f.treeDoc(t, tn, spec("", DocumentKindFolder, "Ngoài"))
+	inner := f.treeDoc(t, tn, spec(outer.ID, DocumentKindFolder, "Trong"))
+	leaf := f.treeDoc(t, tn, spec(inner.ID, DocumentKindPage, "Trang trong thư mục"))
+	pageRoot := f.treeDoc(t, tn, spec("", DocumentKindPage, "Trang gốc"))
+	pageChild := f.treeDoc(t, tn, spec(pageRoot.ID, DocumentKindPage, "Trang con"))
+
+	t.Run("the folder cut drops pages and files", func(t *testing.T) {
+		full, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, "", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var all []string
+		treeIDs(full, &all)
+		if len(all) != 5 {
+			t.Fatalf("uncut tree = %v, want all five nodes", all)
+		}
+		cut, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, "", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []string
+		treeIDs(cut, &ids)
+		for _, id := range ids {
+			if id == leaf.ID || id == pageRoot.ID || id == pageChild.ID {
+				t.Fatalf("a page leaked into the folder cut: %v", ids)
+			}
+		}
+		if len(ids) != 2 {
+			t.Fatalf("folder cut = %v, want the two folders", ids)
+		}
+	})
+
+	t.Run("a folder branch keeps its folders and loses its pages", func(t *testing.T) {
+		branch, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, outer.ID, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(branch) != 1 || branch[0].ID != inner.ID {
+			t.Fatalf("folder branch = %+v, want the inner folder", branch)
+		}
+		if len(branch[0].Children) != 0 {
+			t.Fatalf("inner folder still carries children: %+v", branch[0].Children)
+		}
+	})
+
+	t.Run("a root that is not a folder is not found in the cut", func(t *testing.T) {
+		if _, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, pageRoot.ID, true); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("page root in the folder cut = %v, want not found", err)
+		}
+		// The same root answers without the cut.
+		if _, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, pageRoot.ID, false); err != nil {
+			t.Fatalf("page root without the cut: %v", err)
 		}
 	})
 }

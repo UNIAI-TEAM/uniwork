@@ -463,7 +463,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Get("/workspaces/{workspaceID}/documents/tree", h.DocumentTree, apiOp{
 		summary:     "Read the document tree",
-		description: "Cây sidebar tối đa 20 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được -> 404.",
+		description: "Cây sidebar tối đa 20 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh, folders_only=1 chỉ trả thư mục. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được (hoặc không phải thư mục khi folders_only) -> 404.",
 		tags:        []string{"documents"},
 		sdi:         sdi.DocumentTreeSDI{},
 		sdo:         sdo.DocumentTreeSDO{},
