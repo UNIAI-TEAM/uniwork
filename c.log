@@ -1,0 +1,492 @@
+$ pnpm --filter @uniwork/views test; echo "VIEWS_TEST_EXIT=$?"
+
+> @uniwork/views@0.0.0 test /workspace/packages/views
+> vitest run --coverage
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+      Coverage enabled with v8
+
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:243:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:250:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:243:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:250:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:243:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:250:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+ ❯ documents/use-library-row-dialogs.test.tsx (11 tests | 1 failed) 1738ms
+     × explains a refused move in the dialog and lets the person try again 1054ms
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at FakeNotification.notification.onclick (/workspace/packages/core/platform/system-notification.ts:118:14)
+    at /workspace/packages/views/layout/workspace-chat-attention.test.tsx:142:19
+    at file:///workspace/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  documents/use-library-row-dialogs.test.tsx > move > explains a refused move in the dialog and lets the person try again
+TestingLibraryElementError: Unable to find an element with the text: Cây tài liệu tối đa {{max}} cấp.. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<div[39m
+  [33maria-describedby[39m=[32m"base-ui-_r_e_"[39m
+  [33maria-labelledby[39m=[32m"base-ui-_r_d_"[39m
+  [33mclass[39m=[32m"fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-surface-raised p-4 text-body text-popover-foreground shadow-[var(--floating-shadow)] ring-1 ring-surface-border outline-none origin-center transition-[opacity,scale] duration-(--duration-standard) ease-out-quart data-starting-style:scale-[0.98] data-starting-style:opacity-0 data-ending-style:scale-[0.98] data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 motion-reduce:transition-opacity sm:max-w-md"[39m
+  [33mdata-base-ui-focusable[39m=[32m""[39m
+  [33mdata-open[39m=[32m""[39m
+  [33mdata-slot[39m=[32m"dialog-content"[39m
+  [33mid[39m=[32m"_r_b_"[39m
+  [33mrole[39m=[32m"dialog"[39m
+  [33mstyle[39m=[32m"--nested-dialogs: 0;"[39m
+  [33mtabindex[39m=[32m"-1"[39m
+[36m>[39m
+  [36m<div[39m
+    [33mclass[39m=[32m"flex flex-col gap-2"[39m
+    [33mdata-slot[39m=[32m"dialog-header"[39m
+  [36m>[39m
+    [36m<h2[39m
+      [33mclass[39m=[32m"font-heading text-title-sm leading-none font-medium"[39m
+      [33mdata-slot[39m=[32m"dialog-title"[39m
+      [33mid[39m=[32m"base-ui-_r_d_"[39m
+    [36m>[39m
+      [0mDi chuyển[0m
+    [36m</h2>[39m
+    [36m<p[39m
+      [33mclass[39m=[32m"text-body text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground"[39m
+      [33mdata-slot[39m=[32m"dialog-description"[39m
+      [33mid[39m=[32m"base-ui-_r_e_"[39m
+    [36m>[39m
+      [0mChọn thư mục mới cho Kế hoạch.[0m
+    [36m</p>[39m
+  [36m</div>[39m
+  [36m<div[39m
+    [33maria-label[39m=[32m"Chọn thư mục"[39m
+    [33mclass[39m=[32m"max-h-72 overflow-y-auto rounded-md border border-border p-1"[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m>[39m
+    [36m<button[39m
+      [33maria-pressed[39m=[32m"false"[39m
+      [33mclass[39m=[32m"flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-body hover:bg-accent/60 pointer-coarse:min-h-11"[39m
+      [33mstyle[39m=[32m"padding-left: 8px;"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [36m<svg[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"lucide lucide-folder-root size-4 text-muted-foreground"[39m
+        [33mfill[39m=[32m"none"[39m
+        [33mheight[39m=[32m"24"[39m
+        [33mstroke[39m=[32m"currentColor"[39m
+        [33mstroke-linecap[39m=[32m"round"[39m
+        [33mstroke-linejoin[39m=[32m"round"[39m
+        [33mstroke-width[39m=[32m"2"[39m
+        [33mviewBox[39m=[32m"0 0 24 24"[39m
+        [33mwidth[39m=[32m"24"[39m
+        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+      [36m>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"[39m
+        [36m/>[39m
+        [36m<circle[39m
+          [33mcx[39m=[32m"12"[39m
+          [33mcy[39m=[32m"13"[39m
+          [33mr[39m=[32m"2"[39m
+        [36m/>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M12 15v5"[39m
+        [36m/>[39m
+      [36m</svg>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"truncate"[39m
+      [36m>[39m
+        [0mThư mục gốc của workspace[0m
+      [36m</span>[39m
+    [36m</button>[39m
+    [36m<button[39m
+      [33maria-pressed[39m=[32m"true"[39m
+      [33mclass[39m=[32m"flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-body hover:bg-accent/60 pointer-coarse:min-h-11 bg-accent font-medium"[39m
+      [33mstyle[39m=[32m"padding-left: 24px;"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [36m<svg[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"lucide lucide-folder size-4 text-muted-foreground"[39m
+        [33mfill[39m=[32m"none"[39m
+        [33mheight[39m=[32m"24"[39m
+        [33mstroke[39m=[32m"currentColor"[39m
+        [33mstroke-linecap[39m=[32m"round"[39m
+        [33mstroke-linejoin[39m=[32m"round"[39m
+        [33mstroke-width[39m=[32m"2"[39m
+        [33mviewBox[39m=[32m"0 0 24 24"[39m
+        [33mwidth[39m=[32m"24"[39m
+        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+      [36m>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"[39m
+        [36m/>[39m
+      [36m</svg>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"truncate"[39m
+      [36m>[39m
+        [0mHợp đồng[0m
+      [36m</span>[39m
+    [36m</button>[39m
+    [36m<button[39m
+      [33maria-pressed[39m=[32m"false"[39m
+      [33mclass[39m=[32m"flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-body hover:bg-accent/60 pointer-coarse:min-h-11"[39m
+      [33mstyle[39m=[32m"padding-left: 40px;"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [36m<svg[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"lucide lucide-folder size-4 text-muted-foreground"[39m
+        [33mfill[39m=[32m"none"[39m
+        [33mheight[39m=[32m"24"[39m
+        [33mstroke[39m=[32m"currentColor"[39m
+        [33mstroke-linecap[39m=[32m"round"[39m
+        [33mstroke-linejoin[39m=[32m"round"[39m
+        [33mstroke-width[39m=[32m"2"[39m
+        [33mviewBox[39m=[32m"0 0 24 24"[39m
+        [33mwidth[39m=[32m"24"[39m
+        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+      [36m>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"[39m
+        [36m/>[39m
+      [36m</svg>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"truncate"[39m
+      [36m>[39m
+        [0mQuý 4[0m
+      [36m</span>[39m
+    [36m</button>[39m
+  [36m</div>[39m
+  [36m<p[39m
+    [33mclass[39m=[32m"text-caption text-destructive"[39m
+    [33mrole[39m=[32m"alert"[39m
+  [36m>[39m
+    [0mCây tài liệu tối đa 20 cấp.[0m
+  [36m</p>[39m
+  [36m<div[39m
+    [33mclass[39m=[32m"flex flex-col-reverse gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:flex-row sm:justify-end px-0 pb-0"[39m
+    [33mdata-slot[39m=[32m"dialog-footer"[39m
+  [36m>[39m
+    [36m<button[39m
+      [33mclass[39m=[32m"group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 border-input bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30 dark:hover:bg-input/50 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+      [33mdata-slot[39m=[32m"button"[39m
+      [33mtabindex[39m=[32m"0"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [0mHủy[0m
+    [36m</button>[39m
+    [36m<button[39m
+      [33mclass[39m=[32m"group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground [a]:hover:bg-primary/80 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+      [33mdata-slot[39m=[32m"button"[39m
+      [33mtabindex[39m=[32m"0"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [0mDi chuyển[0m
+    [36m</button>[39m
+  [36m</div>[39m
+  [36m<button[39m
+    [33mclass[39m=[32m"group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 size-7 rounded-md in-data-[slot=button-group]:rounded-md absolute top-2 right-2"[39m
+    [33mdata-slot[39m=[32m"dialog-close"[39m
+    [33mtabindex[39m=[32m"0"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m>[39m
+    [36m<svg[39m
+      [33maria-hidden[39m=[32m"true"[39m
+      [33mclass[39m=[32m"lucide lucide-x"[39m
+      [33mfill[39m=[32m"none"[39m
+      [33mheight[39m=[32m"24"[39m
+      [33mstroke[39m=[32m"currentColor"[39m
+      [33mstroke-linecap[39m=[32m"round"[39m
+      [33mstroke-linejoin[39m=[32m"round"[39m
+      [33mstroke-width[39m=[32m"2"[39m
+      [33mviewBox[39m=[32m"0 0 24 24"[39m
+      [33mwidth[39m=[32m"24"[39m
+      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+    [36m>[39m
+      [36m<path[39m
+        [33md[39m=[32m"M18 6 6 18"[39m
+      [36m/>[39m
+      [36m<path[39m
+        [33md[39m=[32m"m6 6 12 12"[39m
+      [36m/>[39m
+    [36m</svg>[39m
+    [36m<span[39m
+      [33mclass[39m=[32m"sr-only"[39m
+    [36m>[39m
+      [0mĐóng[0m
+    [36m</span>[39m
+  [36m</button>[39m
+[36m</div>[39m
+
+Ignored nodes: comments, script, style
+[36m<div[39m
+  [33maria-describedby[39m=[32m"base-ui-_r_e_"[39m
+  [33maria-labelledby[39m=[32m"base-ui-_r_d_"[39m
+  [33mclass[39m=[32m"fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-surface-raised p-4 text-body text-popover-foreground shadow-[var(--floating-shadow)] ring-1 ring-surface-border outline-none origin-center transition-[opacity,scale] duration-(--duration-standard) ease-out-quart data-starting-style:scale-[0.98] data-starting-style:opacity-0 data-ending-style:scale-[0.98] data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 motion-reduce:transition-opacity sm:max-w-md"[39m
+  [33mdata-base-ui-focusable[39m=[32m""[39m
+  [33mdata-open[39m=[32m""[39m
+  [33mdata-slot[39m=[32m"dialog-content"[39m
+  [33mid[39m=[32m"_r_b_"[39m
+  [33mrole[39m=[32m"dialog"[39m
+  [33mstyle[39m=[32m"--nested-dialogs: 0;"[39m
+  [33mtabindex[39m=[32m"-1"[39m
+[36m>[39m
+  [36m<div[39m
+    [33mclass[39m=[32m"flex flex-col gap-2"[39m
+    [33mdata-slot[39m=[32m"dialog-header"[39m
+  [36m>[39m
+    [36m<h2[39m
+      [33mclass[39m=[32m"font-heading text-title-sm leading-none font-medium"[39m
+      [33mdata-slot[39m=[32m"dialog-title"[39m
+      [33mid[39m=[32m"base-ui-_r_d_"[39m
+    [36m>[39m
+      [0mDi chuyển[0m
+    [36m</h2>[39m
+    [36m<p[39m
+      [33mclass[39m=[32m"text-body text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground"[39m
+      [33mdata-slot[39m=[32m"dialog-description"[39m
+      [33mid[39m=[32m"base-ui-_r_e_"[39m
+    [36m>[39m
+      [0mChọn thư mục mới cho Kế hoạch.[0m
+    [36m</p>[39m
+  [36m</div>[39m
+  [36m<div[39m
+    [33maria-label[39m=[32m"Chọn thư mục"[39m
+    [33mclass[39m=[32m"max-h-72 overflow-y-auto rounded-md border border-border p-1"[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m>[39m
+    [36m<button[39m
+      [33maria-pressed[39m=[32m"false"[39m
+      [33mclass[39m=[32m"flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-body hover:bg-accent/60 pointer-coarse:min-h-11"[39m
+      [33mstyle[39m=[32m"padding-left: 8px;"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [36m<svg[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"lucide lucide-folder-root size-4 text-muted-foreground"[39m
+        [33mfill[39m=[32m"none"[39m
+        [33mheight[39m=[32m"24"[39m
+        [33mstroke[39m=[32m"currentColor"[39m
+        [33mstroke-linecap[39m=[32m"round"[39m
+        [33mstroke-linejoin[39m=[32m"round"[39m
+        [33mstroke-width[39m=[32m"2"[39m
+        [33mviewBox[39m=[32m"0 0 24 24"[39m
+        [33mwidth[39m=[32m"24"[39m
+        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+      [36m>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"[39m
+        [36m/>[39m
+        [36m<circle[39m
+          [33mcx[39m=[32m"12"[39m
+          [33mcy[39m=[32m"13"[39m
+          [33mr[39m=[32m"2"[39m
+        [36m/>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M12 15v5"[39m
+        [36m/>[39m
+      [36m</svg>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"truncate"[39m
+      [36m>[39m
+        [0mThư mục gốc của workspace[0m
+      [36m</span>[39m
+    [36m</button>[39m
+    [36m<button[39m
+      [33maria-pressed[39m=[32m"true"[39m
+      [33mclass[39m=[32m"flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-body hover:bg-accent/60 pointer-coarse:min-h-11 bg-accent font-medium"[39m
+      [33mstyle[39m=[32m"padding-left: 24px;"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [36m<svg[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"lucide lucide-folder size-4 text-muted-foreground"[39m
+        [33mfill[39m=[32m"none"[39m
+        [33mheight[39m=[32m"24"[39m
+        [33mstroke[39m=[32m"currentColor"[39m
+        [33mstroke-linecap[39m=[32m"round"[39m
+        [33mstroke-linejoin[39m=[32m"round"[39m
+        [33mstroke-width[39m=[32m"2"[39m
+        [33mviewBox[39m=[32m"0 0 24 24"[39m
+        [33mwidth[39m=[32m"24"[39m
+        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+      [36m>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"[39m
+        [36m/>[39m
+      [36m</svg>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"truncate"[39m
+      [36m>[39m
+        [0mHợp đồng[0m
+      [36m</span>[39m
+    [36m</button>[39m
+    [36m<button[39m
+      [33maria-pressed[39m=[32m"false"[39m
+      [33mclass[39m=[32m"flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-body hover:bg-accent/60 pointer-coarse:min-h-11"[39m
+      [33mstyle[39m=[32m"padding-left: 40px;"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [36m<svg[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"lucide lucide-folder size-4 text-muted-foreground"[39m
+        [33mfill[39m=[32m"none"[39m
+        [33mheight[39m=[32m"24"[39m
+        [33mstroke[39m=[32m"currentColor"[39m
+        [33mstroke-linecap[39m=[32m"round"[39m
+        [33mstroke-linejoin[39m=[32m"round"[39m
+        [33mstroke-width[39m=[32m"2"[39m
+        [33mviewBox[39m=[32m"0 0 24 24"[39m
+        [33mwidth[39m=[32m"24"[39m
+        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+      [36m>[39m
+        [36m<path[39m
+          [33md[39m=[32m"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"[39m
+        [36m/>[39m
+      [36m</svg>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"truncate"[39m
+      [36m>[39m
+        [0mQuý 4[0m
+      [36m</span>[39m
+    [36m</button>[39m
+  [36m</div>[39m
+  [36m<p[39m
+    [33mclass[39m=[32m"text-caption text-destructive"[39m
+    [33mrole[39m=[32m"alert"[39m
+  [36m>[39m
+    [0mCây tài liệu tối đa 20 cấp.[0m
+  [36m</p>[39m
+  [36m<div[39m
+    [33mclass[39m=[32m"flex flex-col-reverse gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:flex-row sm:justify-end px-0 pb-0"[39m
+    [33mdata-slot[39m=[32m"dialog-footer"[39m
+  [36m>[39m
+    [36m<button[39m
+      [33mclass[39m=[32m"group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 border-input bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30 dark:hover:bg-input/50 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+      [33mdata-slot[39m=[32m"button"[39m
+      [33mtabindex[39m=[32m"0"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [0mHủy[0m
+    [36m</button>[39m
+    [36m<button[39m
+      [33mclass[39m=[32m"group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground [a]:hover:bg-primary/80 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+      [33mdata-slot[39m=[32m"button"[39m
+      [33mtabindex[39m=[32m"0"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [0mDi chuyển[0m
+    [36m</button>[39m
+  [36m</div>[39m
+  [36m<button[39m
+    [33mclass[39m=[32m"group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 size-7 rounded-md in-data-[slot=button-group]:rounded-md absolute top-2 right-2"[39m
+    [33mdata-slot[39m=[32m"dialog-close"[39m
+    [33mtabindex[39m=[32m"0"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m>[39m
+    [36m<svg[39m
+      [33maria-hidden[39m=[32m"true"[39m
+      [33mclass[39m=[32m"lucide lucide-x"[39m
+      [33mfill[39m=[32m"none"[39m
+      [33mheight[39m=[32m"24"[39m
+      [33mstroke[39m=[32m"currentColor"[39m
+      [33mstroke-linecap[39m=[32m"round"[39m
+      [33mstroke-linejoin[39m=[32m"round"[39m
+      [33mstroke-width[39m=[32m"2"[39m
+      [33mviewBox[39m=[32m"0 0 24 24"[39m
+      [33mwidth[39m=[32m"24"[39m
+      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+    [36m>[39m
+      [36m<path[39m
+        [33md[39m=[32m"M18 6 6 18"[39m
+      [36m/>[39m
+      [36m<path[39m
+        [33md[39m=[32m"m6 6 12 12"[39m
+      [36m/>[39m
+    [36m</svg>[39m
+    [36m<span[39m
+      [33mclass[39m=[32m"sr-only"[39m
+    [36m>[39m
+      [0mĐóng[0m
+    [36m</span>[39m
+  [36m</button>[39m
+[36m</div>[39m
+ ❯ waitForWrapper ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ documents/use-library-row-dialogs.test.tsx:102:33
+    100|     fireEvent.click(within(dialog).getByRole("button", { name: "Hợp đồ…
+    101|     fireEvent.click(within(dialog).getByRole("button", { name: t("docu…
+    102|     expect(await within(dialog).findByText(t("documents.errors.documen…
+       |                                 ^
+    103|
+    104|     fireEvent.click(within(dialog).getByRole("button", { name: t("docu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 532 passed (533)
+      Tests  1 failed | 4243 passed (4244)
+   Start at  02:33:39
+   Duration  327.11s (transform 14.74s, setup 110.29s, import 203.39s, tests 403.86s, environment 140.03s)
+
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 test: `vitest run --coverage`
+Exit status 1
+VIEWS_TEST_EXIT=1

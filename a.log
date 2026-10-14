@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+e46a7a1eef4ec13382bfa01ca17370ae14ca8d45
+e46a7a1ee fix(documents): name the depth limit in the tree's too-deep toast
+c384c8ab2 feat(documents): map folder_name_taken and pass the depth limit
+51eeb8e2b feat(realtime): refresh documents on moved, archived and restored
+1233a5421 feat(documents): documentsFolder path builder
+533866918 feat(documents): folder client contract v1.0 in core
+8e0d8871b feat(i18n): add the folder keys of the whole E6 epic (UNI-1466)
+49b239b10 chore: merge G5-01b incremental change feed (UNI-1346) into the G5-G7 root
+0fdba3f2a chore: merge G6-03b UniWork AI runs (UNI-1370) into the G5-G7 root

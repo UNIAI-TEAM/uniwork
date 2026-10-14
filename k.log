@@ -1,0 +1,172 @@
+$ node --test scripts/i18n-duplicate-keys.test.mjs scripts/i18n-chat-key-parity.test.mjs scripts/events-catalogue.test.mjs scripts/governance.test.mjs scripts/no-legacy-tokens.test.mjs scripts/lucide-aliases.test.mjs; echo "SCRIPTS_EXIT=$?"
+TAP version 13
+# Subtest: the Go catalogue and the documented table agree
+ok 1 - the Go catalogue and the documented table agree
+  ---
+  duration_ms: 10.657029
+  ...
+# Subtest: every catalogue row has the one-line shape this file parses
+ok 2 - every catalogue row has the one-line shape this file parses
+  ---
+  duration_ms: 1.170421
+  ...
+# Subtest: the client knows every event that has a realtime audience
+ok 3 - the client knows every event that has a realtime audience
+  ---
+  duration_ms: 0.859804
+  ...
+# Subtest: event names follow <entity>.<verb> and carry no version
+ok 4 - event names follow <entity>.<verb> and carry no version
+  ---
+  duration_ms: 1.771823
+  ...
+# Subtest: payload keys are ids or revisions; content travels only through Patch
+ok 5 - payload keys are ids or revisions; content travels only through Patch
+  ---
+  duration_ms: 1.578266
+  ...
+# Subtest: the patchable task fields are exactly the ones ADR 0015 accepted
+ok 6 - the patchable task fields are exactly the ones ADR 0015 accepted
+  ---
+  duration_ms: 0.573746
+  ...
+# Subtest: the client decodes exactly the fields task.updated lists in Patch
+ok 7 - the client decodes exactly the fields task.updated lists in Patch
+  ---
+  duration_ms: 0.865883
+  ...
+# Subtest: every event has a scope or is explicitly infrastructure
+ok 8 - every event has a scope or is explicitly infrastructure
+  ---
+  duration_ms: 1.174923
+  ...
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 9 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 2.129613
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 10 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 3.89379
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 11 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.34384
+  ...
+# Subtest: both hooks exist and are executable
+ok 12 - both hooks exist and are executable
+  ---
+  duration_ms: 0.194146
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 13 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 1.56618
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 14 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 60.341686
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 15 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 1.918897
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 16 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.197135
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 17 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 6.066802
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 18 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.513473
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 19 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 11.074732
+  ...
+# Subtest: every plan says whether it shipped
+ok 20 - every plan says whether it shipped
+  ---
+  duration_ms: 30.967964
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 21 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 0.902726
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 22 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 48.852823
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 23 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 1.046452
+  ...
+# Subtest: chat.* i18n keys match between vi and en
+ok 24 - chat.* i18n keys match between vi and en
+  ---
+  duration_ms: 43.380105
+  ...
+# Subtest: packages/core/i18n/locales/vi.json has no duplicate keys
+ok 25 - packages/core/i18n/locales/vi.json has no duplicate keys
+  ---
+  duration_ms: 1548.906502
+  ...
+# Subtest: packages/core/i18n/locales/en.json has no duplicate keys
+ok 26 - packages/core/i18n/locales/en.json has no duplicate keys
+  ---
+  duration_ms: 1503.554698
+  ...
+# Subtest: the scanner reports real duplicates and only those
+ok 27 - the scanner reports real duplicates and only those
+  ---
+  duration_ms: 0.364083
+  ...
+# Subtest: the committed alias list matches the installed lucide-react
+ok 28 - the committed alias list matches the installed lucide-react
+  ---
+  duration_ms: 15.327078
+  ...
+# Subtest: no source file imports a deprecated lucide alias
+ok 29 - no source file imports a deprecated lucide alias
+  ---
+  duration_ms: 53.764452
+  ...
+# Subtest: spinners go through Spinner, not a raw LoaderCircle
+ok 30 - spinners go through Spinner, not a raw LoaderCircle
+  ---
+  duration_ms: 10.355403
+  ...
+# Subtest: no --uw-* token references remain
+ok 31 - no --uw-* token references remain
+  ---
+  duration_ms: 30.072686
+  ...
+# Subtest: no legacy token utilities remain
+ok 32 - no legacy token utilities remain
+  ---
+  duration_ms: 45.983809
+  ...
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3157.843624
+SCRIPTS_EXIT=0
