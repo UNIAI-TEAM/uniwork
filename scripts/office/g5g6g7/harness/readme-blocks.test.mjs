@@ -74,3 +74,11 @@ test("the headless keyring section documents keyring-session.sh --exec wrapping 
   assert.match(wrapped, /scripts\/office\/g5g6g7\/harness\/stop\.sh/);
   assert.equal(bashSyntaxError(wrapped), null);
 });
+
+test("the README documents the warm-run-dir rule: a previous start's recorded groups are stopped first, the userData is per start, and an app that is gone is a FAIL (ADDENDUM r5 G2)", () => {
+  assert.match(README, /exit `1`|FAIL/, "the rule must say what an app that is gone means: a FAIL, not BLOCKED");
+  assert.match(README, /pids/, "the README names the run dir's PID file the stop reuses");
+  assert.match(README, /userdata\.previous-/, "the README names where the previous start's userdata goes");
+  assert.match(README, /single-instance lock/, "the README explains why a second app on one userData is wrong");
+  assert.match(README, /HARNESS_APP_SETTLE_SECONDS/, "the settle knob is in the environment table");
+});

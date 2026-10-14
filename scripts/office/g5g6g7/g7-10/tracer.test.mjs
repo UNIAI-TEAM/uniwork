@@ -34,7 +34,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -51,6 +51,7 @@ import {
   WEB_SHEETS_IFRAME_SELECTOR,
   WEB_SHEETS_READY_SELECTOR,
   buildEditedDocxFixtureBytes,
+  buildSanitizedAppSignInRecord,
   buildXlsxRevenueWithXyzBytes,
   classifyAiResponse,
   connectAppController,
@@ -59,13 +60,44 @@ import {
   decideLoop2Outcome,
   decideLoop3Outcome,
   interpretCommitIntentLookup,
+  isProcessAlive,
   listAppSyncIntentFiles,
   parseArgs,
+  readAppProcessRecord,
+  redactSignInError,
   runTracerLoop,
+  verifyXlsxContainsExpectedXyz,
 } from "./tracer.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../../../..");
+
+/**
+ * G710-BE-10: every test in this file pins the process env it depends on (repo
+ * CLAUDE.md). `classifyAiResponse` reads `AI_PROVIDER` from the ambient
+ * environment as an upstream safety net, so a cloud VM that exports
+ * `AI_PROVIDER=fake` decided three tests here before this file pinned it: F1a,
+ * the Loop 1 PASS path and BE-5 all drive the real-upstream branch with
+ * `fetchImpl.allowRealAiUpstream = true` and went BLOCKED. The file starts from a
+ * known pair and restores the caller's environment once the run is over.
+ * `HARNESS_ALLOW_REAL_AI_UPSTREAM` is the other half of the same expression.
+ */
+const PINNED_AI_PROVIDER = "openai";
+const AI_ENV_KEYS = ["AI_PROVIDER", "HARNESS_ALLOW_REAL_AI_UPSTREAM"];
+const savedAiEnv = {};
+before(() => {
+  for (const key of AI_ENV_KEYS) {
+    savedAiEnv[key] = process.env[key];
+    if (key === "AI_PROVIDER") process.env[key] = PINNED_AI_PROVIDER;
+    else delete process.env[key];
+  }
+});
+after(() => {
+  for (const key of AI_ENV_KEYS) {
+    if (savedAiEnv[key] === undefined) delete process.env[key];
+    else process.env[key] = savedAiEnv[key];
+  }
+});
 
 function sha256Hex(buf) {
   return createHash("sha256").update(buf).digest("hex");
@@ -2283,6 +2315,315 @@ describe("G7-10 r4 cloud r2 findings (F1-F4)", () => {
       assert.equal(res.status, "FAIL");
     } finally {
       scratch.cleanup();
+    }
+  });
+});
+
+/** A pid no process holds: a child reaped before the test uses its number. */
+async function deadPid() {
+  return new Promise((resolveDead) => {
+    const child = spawn("true", [], { stdio: "ignore" });
+    child.on("close", () => resolveDead(child.pid));
+    child.on("error", () => resolveDead(null));
+  });
+}
+
+describe("G7-10 ADDENDUM r5 (G710-BE-10..13, G1-G3)", () => {
+  const withCdpPort = (scratch, port = "19222") =>
+    writeFileSync(
+      join(scratch.dir, "ports.env"),
+      `${readFileSync(join(scratch.dir, "ports.env"), "utf8")}APP_CDP_PORT=${port}\n`,
+    );
+  /** The run's PID file as start.sh writes it: `<name> <pid> <port>` per line (G1). */
+  const withAppPid = (scratch, pid) =>
+    writeFileSync(
+      join(scratch.dir, "pids"),
+      `server ${process.pid} 1\nweb ${process.pid} 2\napp ${pid} 0\n`,
+    );
+  const appPortsEnv = (scratch, port = "19222") => ({
+    UNIWORK_USER_DATA: scratch.userData,
+    ELECTRON_BIN: join(scratch.dir, "fake-electron"),
+    SHELL_APP_DIR: join(scratch.dir, "shell"),
+    APP_CDP_PORT: port,
+  });
+
+  it("G710-BE-10: the file pins AI_PROVIDER itself, so a runner that exports AI_PROVIDER=fake cannot change an outcome here", () => {
+    assert.equal(
+      process.env.AI_PROVIDER,
+      PINNED_AI_PROVIDER,
+      "tracer.test.mjs must pin AI_PROVIDER (CLAUDE.md: tests pin every env they depend on)",
+    );
+    assert.notEqual(PINNED_AI_PROVIDER, "fake");
+    const realAnswer = {
+      ok: true,
+      status: 200,
+      data: {
+        provider: "uniwork",
+        model: "uniwork-office",
+        choices: [{ message: { content: "Net Revenue 270" } }],
+      },
+    };
+    assert.equal(classifyAiResponse(realAnswer, null, { allowRealUpstream: true }).status, "PASS");
+    // Why the pin matters: the same call, with the ambient env left at the value
+    // a cloud VM may export, goes BLOCKED — so a test that drives the
+    // real-upstream branch must not inherit the runner's environment.
+    const previous = process.env.AI_PROVIDER;
+    try {
+      process.env.AI_PROVIDER = "fake";
+      assert.equal(
+        classifyAiResponse(realAnswer, null, { allowRealUpstream: true }).status,
+        "BLOCKED",
+        "AI_PROVIDER=fake must still block a real-labelled answer; that is what makes the pin necessary",
+      );
+    } finally {
+      process.env.AI_PROVIDER = previous;
+    }
+  });
+
+  it("G710-BE-11: verifyXlsxContainsExpectedXyz checks X, Y and Z by cell reference and value, row by row — never by substring", () => {
+    const { bytes, expectedXyz } = buildXlsxRevenueWithXyzBytes();
+    const [first] = expectedXyz;
+    assert.equal(verifyXlsxContainsExpectedXyz(bytes, expectedXyz), true, "the built v2 carries all three rows");
+    // Substrings the old check accepted: 12 is inside C2's 120 and 270, 15 is
+    // inside D2's 150 and F3's 15 — and Z was never read at all.
+    assert.equal(
+      verifyXlsxContainsExpectedXyz(bytes, [{ ...first, X: 12, Y: 15 }]),
+      false,
+      "a substring of another cell must not satisfy the row",
+    );
+    assert.equal(verifyXlsxContainsExpectedXyz(bytes, [{ ...first, Z: 9 }]), false, "Z must be checked");
+    assert.equal(
+      verifyXlsxContainsExpectedXyz(bytes, [{ ...first, X: first.Y, Y: first.X }]),
+      false,
+      "X and Y are matched per column, not as one bag of numbers",
+    );
+    assert.equal(
+      verifyXlsxContainsExpectedXyz(bytes, [{ ...first, X: expectedXyz[1].X }]),
+      false,
+      "a value from another row must not satisfy this row",
+    );
+    assert.equal(
+      verifyXlsxContainsExpectedXyz(bytes, expectedXyz.slice(0, 2)),
+      true,
+      "the rows given are read from their own cells",
+    );
+    const v1Bytes = readFileSync(join(REPO_ROOT, "docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.xlsx"));
+    assert.equal(verifyXlsxContainsExpectedXyz(v1Bytes, [first]), false, "the v1 fixture has no X/Y/Z cells");
+    assert.equal(verifyXlsxContainsExpectedXyz(Buffer.from("not a zip"), [first]), false);
+  });
+
+  it("G710-BE-13: buildSanitizedAppSignInRecord redacts signInError — the error class survives, no URL query, token or credential does", () => {
+    const base = {
+      appStarted: true,
+      cdpConnected: true,
+      cdpAttempted: true,
+      shellWindowFound: true,
+      keyringAvailable: true,
+      accountState: "signed-out",
+      sessionBinExists: false,
+    };
+    const record = buildSanitizedAppSignInRecord({
+      ...base,
+      signInError:
+        "Error: the desktop consent callback uniwork-office-dev://auth/callback?code=01JSECRETCODE&state=st-01JSECRETSTATE was refused",
+    });
+    const serialized = JSON.stringify(record);
+    assert.ok(!serialized.includes("01JSECRETCODE"), "no authorization code may reach the loop JSON");
+    assert.ok(!serialized.includes("01JSECRETSTATE"));
+    assert.ok(!serialized.includes("?code="), "no URL query may reach the loop JSON");
+    assert.match(record.decisionInput.signInError, /the desktop consent callback/, "the error context stays");
+    assert.match(record.decisionInput.signInError, /<url>/);
+    assert.equal(record.decisionResult.status, "FAIL");
+
+    const tokenRecord = buildSanitizedAppSignInRecord({
+      ...base,
+      signInError: "accountLogin rejected refresh_token=uwm_rt_01J8ZZZZZZZZZZZZZZZZZZZZ",
+    });
+    assert.ok(!JSON.stringify(tokenRecord).includes("uwm_rt_"), "a bare credential must be redacted");
+    assert.match(tokenRecord.decisionInput.signInError, /accountLogin rejected/);
+    assert.match(tokenRecord.decisionInput.signInError, /refresh_token=/);
+
+    assert.equal(redactSignInError("accountLogin url timeout"), "accountLogin url timeout");
+    assert.equal(redactSignInError(""), "");
+    assert.equal(redactSignInError(null), "");
+    assert.ok(redactSignInError("x".repeat(400)).length < 300, "a runaway message is truncated");
+  });
+
+  it("G1: an app start.sh reported but whose recorded process is gone at loop start FAILs (exit 1) with the pid, never BLOCKED", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+    const gone = await deadPid();
+    assert.equal(isProcessAlive(gone), false, "the test's own precondition: the pid is gone");
+    withCdpPort(scratch);
+    withAppPid(scratch, gone);
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      for (const loop of ["1", "2", "3"]) {
+        const res = await runTracerLoop({
+          loop,
+          runDir: scratch.dir,
+          repoRoot: REPO_ROOT,
+          fetchImpl: mock.fetchImpl,
+          cdpConnector: async () => {
+            throw new Error("browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:19222");
+          },
+        });
+        assert.equal(res.exitCode, 1, `loop ${loop} must FAIL when the recorded app process is gone`);
+        assert.equal(res.status, "FAIL");
+        assert.match(res.reason, new RegExp(String(gone)), `loop ${loop} names the app pid`);
+        assert.equal(res.appSignIn.decisionInput.appProcessAlive, false);
+        assert.equal(res.appSignIn.decisionInput.appPid, gone);
+        assert.equal(res.appSignIn.decisionResult.status, "FAIL");
+      }
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("G1: CDP refused while the app process is alive FAILs (exit 1) with the reason; the app-not-started run keeps BLOCKED", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+    withCdpPort(scratch);
+    withAppPid(scratch, process.pid);
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      const refused = await runTracerLoop({
+        loop: "1",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        cdpConnector: async () => {
+          throw new Error("browserType.connectOverCDP: connect ECONNREFUSED 127.0.0.1:19222");
+        },
+      });
+      assert.equal(refused.exitCode, 1);
+      assert.equal(refused.status, "FAIL");
+      assert.match(refused.reason, /ECONNREFUSED 127\.0\.0\.1:19222/);
+      assert.equal(refused.appSignIn.decisionInput.appProcessAlive, true);
+      assert.equal(refused.appSignIn.decisionInput.cdpAttempted, true);
+      assert.equal(refused.appSignIn.decisionInput.cdpConnected, false);
+    } finally {
+      scratch.cleanup();
+    }
+
+    // The same run dir with HARNESS_SKIP_APP's shape (no app inputs at all) is a
+    // step that cannot be driven by design, so it stays BLOCKED. Its own mock: a
+    // second loop on one mock re-commits a document the first already committed.
+    const skipped = makeScratchRunDir({ startState: "up", skipApp: true });
+    const skippedMock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      const res = await runTracerLoop({ loop: "1", runDir: skipped.dir, repoRoot: REPO_ROOT, fetchImpl: skippedMock.fetchImpl });
+      assert.equal(res.exitCode, BLOCKED_EXIT, `a run without an app stays BLOCKED: ${res.reason}`);
+      assert.equal(res.status, "BLOCKED");
+      assert.equal(res.appSignIn.decisionInput.appStarted, false);
+      assert.equal(res.appSignIn.decisionInput.appProcessAlive, null);
+    } finally {
+      skipped.cleanup();
+    }
+  });
+
+  it("G1: a CDP connection whose pages expose no window.aiOffice FAILs with the no-shell-window reason and the pid it saw", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+    withCdpPort(scratch);
+    withAppPid(scratch, process.pid);
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      const ctrl = await connectAppController({
+        portsEnv: appPortsEnv(scratch),
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        apiOrigin: "http://127.0.0.1:18080",
+        fetchImpl: mock.fetchImpl,
+        token: "tok-session",
+        userId: scratch.userId,
+        // One page that answers no window.aiOffice: the shell renderer the tracer
+        // needs is not there (the r3 "no shell renderer window" shape).
+        cdpConnector: async () => ({
+          contexts: () => [{ pages: () => [{ evaluate: async () => false }] }],
+          close: async () => {},
+        }),
+      });
+      assert.equal(ctrl.signedIn, false);
+      assert.equal(ctrl.driven, false);
+      assert.match(ctrl.signInFailureReason, /no shell renderer window/);
+      assert.equal(ctrl.blockerReason, "");
+      assert.equal(ctrl.appSignIn.decisionInput.shellWindowFound, false);
+      assert.equal(ctrl.appSignIn.decisionInput.cdpConnected, true);
+      assert.equal(ctrl.appSignIn.decisionInput.appProcessAlive, true);
+      assert.equal(ctrl.appSignIn.decisionInput.appPid, process.pid);
+      assert.equal(ctrl.appSignIn.decisionResult.status, "FAIL");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("G3: keyringAvailable is recorded only when the app reported it (null when unknown), so it never contradicts a session.bin left on disk", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+    withCdpPort(scratch);
+    withAppPid(scratch, process.pid);
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      const ctrl = await connectAppController({
+        portsEnv: appPortsEnv(scratch),
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        apiOrigin: "http://127.0.0.1:18080",
+        fetchImpl: mock.fetchImpl,
+        token: "tok-session",
+        userId: scratch.userId,
+        cdpConnector: async () => {
+          throw new Error("connect ECONNREFUSED 127.0.0.1:19222");
+        },
+      });
+      assert.equal(
+        ctrl.appSignIn.decisionInput.keyringAvailable,
+        null,
+        "an app the tracer never reached must not be recorded as 'no keyring'",
+      );
+      assert.equal(ctrl.appSignIn.decisionInput.sessionBinExists, true, "session.bin is not a keyring statement");
+      assert.equal(ctrl.appSignIn.decisionResult.status, "FAIL");
+
+      // The missing-keyring precondition itself is still BLOCKED.
+      const locked = decideAppSignInOutcome({
+        appStarted: true,
+        appProcessAlive: true,
+        cdpAttempted: true,
+        cdpConnected: true,
+        shellWindowFound: true,
+        keyringAvailable: false,
+        accountState: "keyring-unavailable",
+        sessionBinExists: true,
+      });
+      assert.equal(locked.status, "BLOCKED");
+      assert.equal(locked.exitCode, BLOCKED_EXIT);
+      assert.match(locked.reason, /keyring/);
+      // ... and so is a run whose app was never started at all.
+      const notStarted = decideAppSignInOutcome({
+        appStarted: false,
+        appProcessAlive: null,
+        cdpAttempted: false,
+        cdpConnected: false,
+        keyringAvailable: null,
+        accountState: "not-started",
+        sessionBinExists: false,
+      });
+      assert.equal(notStarted.status, "BLOCKED");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("G1: readAppProcessRecord reads the app pid start.sh recorded, and reports an unknown pid as null rather than dead", () => {
+    const dir = mkdtempSync(join(tmpdir(), "g7-10-pids-"));
+    try {
+      assert.deepEqual(readAppProcessRecord(dir), { appPid: null, appProcessAlive: null, appProcessSource: "no-pid-file" });
+      writeFileSync(join(dir, "pids"), `server 111 8080\nweb 222 3000\napp ${process.pid} 0\n`);
+      const record = readAppProcessRecord(dir);
+      assert.equal(record.appPid, process.pid);
+      assert.equal(record.appProcessAlive, true);
+      assert.equal(isProcessAlive(null), null);
+      writeFileSync(join(dir, "pids"), "server 111 8080\nweb 222 3000\n");
+      assert.equal(readAppProcessRecord(dir).appProcessAlive, null, "no app line is unknown, not dead");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

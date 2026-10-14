@@ -18,6 +18,7 @@ import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FO
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
 const START_SH = join(HERE, "start.sh");
+const STOP_SH = join(HERE, "stop.sh");
 
 // Every temp dir this file creates goes through tmpDir(), and every one of
 // them is removed by the hook below: `afterEach` so a test cannot leave its
@@ -373,7 +374,7 @@ function LOADER_SERVER(root, readyFile) {
  * on the path start.sh execs, pnpm/electron sleep) — this is the "dry-run with a
  * fake server/web" the fix asks for, not a stand-in for the real stack.
  */
-function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false, loaderServer = false } = {}) {
+function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false, loaderServer = false, electronBody } = {}) {
   const root = tmpDir("harness-start-");
   const bin = join(root, "bin");
   const harness = join(root, "scripts", "office", "g5g6g7", "harness");
@@ -386,6 +387,9 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
     mkdirSync(dir, { recursive: true });
   }
   copyFileSync(START_SH, join(harness, "start.sh"));
+  // start.sh stops a previous start's process groups through stop.sh (G2), so the
+  // fake stack carries the real one too.
+  copyFileSync(STOP_SH, join(harness, "stop.sh"));
   if (lib) writeFileSync(join(harness, "lib.mjs"), lib);
   else copyFileSync(LIB, join(harness, "lib.mjs"));
 
@@ -444,7 +448,7 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
     'exec "$@"',
     "",
   ].join("\n"));
-  shim("fake-electron", `#!/usr/bin/env bash\nenv > ${JSON.stringify(join(root, "electron-env"))}\nprintf '%s\\n' "$@" > ${JSON.stringify(join(root, "electron-argv"))}\nsleep 600\n`);
+  shim("fake-electron", electronBody ?? `#!/usr/bin/env bash\nenv > ${JSON.stringify(join(root, "electron-env"))}\nprintf '%s\\n' "$@" > ${JSON.stringify(join(root, "electron-argv"))}\nsleep 600\n`);
   // Records its argv (the install strategy is asserted from it) and answers with
   // npmExit, so a failing install is exercised without a real npm. `ci
   // --ignore-scripts` on a clean tree leaves the two things start.sh then probes
@@ -519,6 +523,9 @@ function runStart(stack, extraEnv = {}) {
       HARNESS_RUN_DIR: stack.runDir,
       OFFICE_FORK_CACHE: stack.cacheDir,
       NVM_DIR: stack.nvmDir,
+      // The app-liveness settle start.sh waits before it calls the run up; the
+      // stub app answers at once, so the tests shorten it (production default 2).
+      HARNESS_APP_SETTLE_SECONDS: "1",
       ...extraEnv,
     },
   });
@@ -932,6 +939,102 @@ test("a failed start is recorded as failed, a missing precondition as blocked", 
     assert.match(status.reason, /no network to /);
   } finally {
     stopFakeStack(noNetwork);
+  }
+});
+
+// ---- ADDENDUM r5 G2: a warm run dir must not be handed to a second start -----
+// The r3 cloud round ran twice on one run dir (HARNESS_RUN_DIR=/tmp/g7-10-run-r3):
+// the first attempt's harness was never stopped, its app stayed alive, and the
+// rerun's app shared the same userData and single-instance lock. The second app
+// lost the lock to the stale one and quit, and the loops read a missing app as
+// BLOCKED. start.sh now stops the process groups the run dir's own PID file
+// records (the stop.sh logic, never a process by name) before it starts anything,
+// hands the app a userData of its own per start, and refuses to call the run "up"
+// for an app that is already gone.
+
+/** A sleeping process in its own group (`start.sh`/`stop.sh` signal the group). */
+function spawnSleepGroup() {
+  const child = spawn("sleep", ["600"], { detached: true, stdio: "ignore" });
+  child.unref();
+  return child.pid;
+}
+
+function killGroup(pid) {
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    // already gone
+  }
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // already gone
+  }
+}
+
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
+}
+
+/** A killed child is reaped by Node a moment later; give the pid time to go. */
+async function waitForGone(pid) {
+  for (let i = 0; i < 40 && processAlive(pid); i += 1) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+test("start.sh stops the process groups a previous start of the same run dir recorded, then starts the app on a userData of its own (ADDENDUM r5 G2)", async () => {
+  const stack = mkFakeStack();
+  const stalePid = spawnSleepGroup();
+  const bystanderPid = spawnSleepGroup();
+  try {
+    mkdirSync(stack.runDir, { recursive: true });
+    writeFileSync(join(stack.runDir, "pids"), `server 999999 1\napp ${stalePid} 0\n`);
+    mkdirSync(join(stack.runDir, "userdata", "uniwork-auth"), { recursive: true });
+    writeFileSync(join(stack.runDir, "userdata", "uniwork-auth", "session.bin"), "stale-session");
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /stopping the process groups/);
+    await waitForGone(stalePid);
+    assert.equal(processAlive(stalePid), false, "the recorded stale group must be stopped");
+    assert.equal(processAlive(bystanderPid), true, "a process the run's own PID file does not name must not be touched");
+    // The app's userData is per start: the previous start's session.bin must not
+    // be the session the new app comes up with.
+    assert.ok(
+      !existsSync(join(stack.runDir, "userdata", "uniwork-auth", "session.bin")),
+      "the new app must not inherit the previous start's session.bin",
+    );
+    const moved = readdirSync(stack.runDir).filter((name) => name.startsWith("userdata.previous-"));
+    assert.equal(moved.length, 1, `the previous userdata is kept aside: ${readdirSync(stack.runDir).join(", ")}`);
+    assert.ok(
+      existsSync(join(stack.runDir, moved[0], "uniwork-auth", "session.bin")),
+      "the previous start's userdata stays readable for the round's artifacts",
+    );
+    assert.match(result.stdout, /userdata\.previous-/);
+  } finally {
+    killGroup(stalePid);
+    killGroup(bystanderPid);
+    stopFakeStack(stack);
+  }
+});
+
+test("start.sh FAILs instead of reporting 'up' when the app it started is already gone (ADDENDUM r5 G2)", () => {
+  // The dev build quits quietly when it loses Electron's single-instance lock, and
+  // the display file start.sh waits for is written before Electron even starts, so
+  // "the wrapper ran" is not evidence of an app.
+  const stack = mkFakeStack({ electronBody: "#!/usr/bin/env bash\nexit 7\n" });
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 1, `expected FAILED (1), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /the Electron app exited while starting/);
+    assert.equal(readStartStatus(stack.runDir).state, "failed");
+  } finally {
+    stopFakeStack(stack);
   }
 });
 
