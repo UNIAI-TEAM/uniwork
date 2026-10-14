@@ -5194,6 +5194,8 @@
     "suspended": {
       "title": "Organization suspended",
       "description": "This organization is temporarily unavailable. Contact the organization owner for details.",
+      "description_named": "{{name}} is temporarily unavailable. Contact the organization owner for details.",
+      "owner_description": "{{name}} is temporarily unavailable. As its owner, contact support to find out why and to reopen it.",
       "get_started_link": "Join another organization"
     },
     "overview": {

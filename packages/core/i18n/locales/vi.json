@@ -5190,6 +5190,8 @@
     "suspended": {
       "title": "Tổ chức đang tạm ngưng",
       "description": "Tổ chức này tạm thời không truy cập được. Liên hệ chủ sở hữu tổ chức để biết thêm.",
+      "description_named": "{{name}} tạm thời không truy cập được. Liên hệ chủ sở hữu tổ chức để biết thêm.",
+      "owner_description": "{{name}} tạm thời không truy cập được. Bạn là chủ sở hữu: liên hệ bộ phận hỗ trợ để biết lý do và mở lại tổ chức.",
       "get_started_link": "Tham gia tổ chức khác"
     },
     "overview": {
