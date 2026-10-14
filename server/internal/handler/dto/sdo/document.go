@@ -160,37 +160,45 @@ type DocumentDownloadSDO struct {
 
 // --- G1-05b (UNI-679, C-01 §5.1/§5.3/§5.4) --------------------------------
 
+// DocumentPathItemSDO is one ancestor entry in DocumentSummaryDTO.path,
+// ordered from the root (or the highest readable ancestor) to the direct parent.
+type DocumentPathItemSDO struct {
+	ID    string `json:"id" description:"ULID tổ tiên" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	Title string `json:"title" description:"Tiêu đề tổ tiên" example:"Tài liệu nội bộ"`
+}
+
 // DocumentSummaryDTO is one list row (list/recent/shared-with-me): the
 // metadata a library row renders, without the page content a list never
 // carries. `snippet` rides only on a search hit; `my_level`/`via` are the
 // level the service resolved for the viewer on that row (list, recent,
 // folder children, shared-with-me), never guessed.
 type DocumentSummaryDTO struct {
-	ID             string  `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	OrganizationID string  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
-	WorkspaceID    string  `json:"workspace_id" description:"Workspace chứa tài liệu; có thể khác workspace gọi shared-with-me" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	ParentID       *string `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
-	Kind           string  `json:"kind" description:"page, file hoặc folder" example:"page"`
-	Title          string  `json:"title" example:"Kế hoạch Q4"`
-	Icon           *string `json:"icon,omitempty" example:"📄"`
-	Visibility     string  `json:"visibility" description:"workspace hoặc restricted" example:"workspace"`
-	Revision       string  `json:"revision" description:"Revision làm việc, chuỗi thập phân" example:"41"`
-	CurrentVersion int32   `json:"current_version" description:"Ordinal phiên bản mới nhất; 0 = chưa có mốc" example:"3"`
-	Position       float64 `json:"position" description:"Thứ tự trong cây" example:"0"`
-	SizeBytes      int64   `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
-	Origin         string  `json:"origin" description:"upload (file tải lên) hoặc created (trang, thư mục, file trống, bản chuyển đổi)" example:"upload"`
-	Snippet        *string `json:"snippet,omitempty" description:"Đoạn khớp ≤ 160 ký tự khi tìm bằng q" example:"…kế hoạch quý 4 gồm ba mốc…"`
-	MyLevel        *string `json:"my_level,omitempty" description:"view, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view" example:"view"`
-	Via            *string `json:"via,omitempty" description:"member, share, link hoặc ai_context" example:"share"`
-	OwnerKind      *string `json:"owner_kind,omitempty" example:"work_product"`
-	OwnerID        *string `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
-	ArchivedAt     *string `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
-	CreatedBy      string  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	CreatedByKind  string  `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
-	UpdatedBy      string  `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UpdatedByKind  string  `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
-	CreatedAt      string  `json:"created_at" example:"2026-09-27T09:00:00Z"`
-	UpdatedAt      string  `json:"updated_at" example:"2026-09-27T09:00:00Z"`
+	ID             string                `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	OrganizationID string                `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	WorkspaceID    string                `json:"workspace_id" description:"Workspace chứa tài liệu; có thể khác workspace gọi shared-with-me" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	ParentID       *string               `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	Kind           string                `json:"kind" description:"page, file hoặc folder" example:"page"`
+	Title          string                `json:"title" example:"Kế hoạch Q4"`
+	Icon           *string               `json:"icon,omitempty" example:"📄"`
+	Visibility     string                `json:"visibility" description:"workspace hoặc restricted" example:"workspace"`
+	Revision       string                `json:"revision" description:"Revision làm việc, chuỗi thập phân" example:"41"`
+	CurrentVersion int32                 `json:"current_version" description:"Ordinal phiên bản mới nhất; 0 = chưa có mốc" example:"3"`
+	Position       float64               `json:"position" description:"Thứ tự trong cây" example:"0"`
+	SizeBytes      int64                 `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
+	Origin         string                `json:"origin" description:"upload (file tải lên) hoặc created (trang, thư mục, file trống, bản chuyển đổi)" example:"upload"`
+	Snippet        *string               `json:"snippet,omitempty" description:"Đoạn khớp ≤ 160 ký tự khi tìm bằng q" example:"…kế hoạch quý 4 gồm ba mốc…"`
+	Path           []DocumentPathItemSDO `json:"path,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha trực tiếp; cắt ở tổ tiên đầu tiên người gọi không đọc được"`
+	MyLevel        *string               `json:"my_level,omitempty" description:"view, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view" example:"view"`
+	Via            *string               `json:"via,omitempty" description:"member, share, link hoặc ai_context" example:"share"`
+	OwnerKind      *string               `json:"owner_kind,omitempty" example:"work_product"`
+	OwnerID        *string               `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
+	ArchivedAt     *string               `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	CreatedBy      string                `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedByKind  string                `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
+	UpdatedBy      string                `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedByKind  string                `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
+	CreatedAt      string                `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	UpdatedAt      string                `json:"updated_at" example:"2026-09-27T09:00:00Z"`
 }
 
 // DocumentListSDO is the page shape shared by list, recent and
