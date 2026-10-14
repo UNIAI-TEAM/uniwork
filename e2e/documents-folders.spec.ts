@@ -1942,16 +1942,22 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
   await sidebar.getByRole("button", { name: "Công việc" }).click();
   await expect(page.getByText(sourceFileName).first()).toBeVisible();
 
-  // The link still opens the real document: its title renders (heading when
-  // read-only, title field when editable) and neither the not-found nor the
-  // load-error state is shown. A bare URL check would also pass on an error page.
+  // The link still opens the real document. It is an uploaded file, so the detail
+  // screen is the file view, not the editor: its title is the BreadcrumbHeader leaf
+  // (document-workspace.tsx:475-477, doc.title for kind=file; no h1, no title
+  // field) and the file card carries the heading "Lịch sử phiên bản"
+  // (vi.json documents.file.history_title, document-file-view.tsx). The
+  // not-found, load-error and no-permission states (documents.detail.not_found,
+  // load_error, revoked_title) must be absent. A bare URL check would also pass
+  // on an error page.
   await page.goto(docUrl);
   await expect(page).toHaveURL(new RegExp(`/documents/${doc.id}$`));
   await expect(
-    page
-      .getByRole("heading", { name: "Báo cáo Giữ nguyên ID", exact: true })
-      .or(page.getByRole("textbox", { name: "Tiêu đề tài liệu" })),
+    page.getByText("Báo cáo Giữ nguyên ID", { exact: true }).first(),
   ).toBeVisible({ timeout: 15_000 });
+  await expect(
+    page.getByRole("heading", { name: "Lịch sử phiên bản" }),
+  ).toBeVisible();
   await expect(page.getByText("Không tìm thấy tài liệu này")).toHaveCount(0);
   await expect(page.getByText("Không tải được tài liệu")).toHaveCount(0);
   await expect(
