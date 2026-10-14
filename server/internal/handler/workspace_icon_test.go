@@ -105,16 +105,30 @@ func TestOrgWorkspaceListCarriesProfileFields(t *testing.T) {
 		t.Fatalf("patch: %d %v", res.StatusCode, out)
 	}
 	orgID := out["workspace"].(map[string]any)["organization_id"].(string)
-	res, out = doJSON(t, srv, "GET", "/api/v1/orgs/"+orgID+"/workspaces", token, nil)
-	if res.StatusCode != 200 {
-		t.Fatalf("list: %d %v", res.StatusCode, out)
+	listed := func() map[string]any {
+		t.Helper()
+		res, out := doJSON(t, srv, "GET", "/api/v1/orgs/"+orgID+"/workspaces", token, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("list: %d %v", res.StatusCode, out)
+		}
+		list := out["workspaces"].([]any)
+		if len(list) != 1 {
+			t.Fatalf("workspaces = %v", list)
+		}
+		return list[0].(map[string]any)
 	}
-	list := out["workspaces"].([]any)
-	if len(list) != 1 {
-		t.Fatalf("workspaces = %v", list)
-	}
-	ws := list[0].(map[string]any)
-	if ws["description"] != "Nhóm làm sản phẩm" || ws["icon_emoji"] != "🚀" || ws["task_prefix"] == "" {
+	ws := listed()
+	if ws["description"] != "Nhóm làm sản phẩm" || ws["icon_emoji"] != "🚀" || ws["icon_url"] != "" || ws["task_prefix"] == "" {
 		t.Fatalf("workspace = %v", ws)
+	}
+	// An uploaded image replaces the emoji and must be presigned in the list too.
+	up := postWorkspaceIcon(t, srv, token, wsID, docsPNG)
+	_ = up.Body.Close()
+	if up.StatusCode != 200 {
+		t.Fatalf("upload: %d", up.StatusCode)
+	}
+	ws = listed()
+	if ws["icon_url"] == "" || ws["icon_emoji"] != "" || ws["description"] != "Nhóm làm sản phẩm" || ws["task_prefix"] == "" {
+		t.Fatalf("workspace after upload = %v", ws)
 	}
 }
