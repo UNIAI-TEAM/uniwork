@@ -1,0 +1,402 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18680 FRONTEND_ORIGIN=http://localhost:13600 API_PUBLIC_URL=http://localhost:18680 PREVIEW_ORIGIN=http://localhost:13601 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18680 NEXT_PUBLIC_WS_URL=ws://localhost:18680 NEXT_PUBLIC_APP_URL=http://localhost:13600 E2E_BASE_URL=http://localhost:13600 E2E_API_URL=http://localhost:18680; pnpm --filter @uniwork/e2e test --reporter=line 2>&1 | tail -400; rc=${PIPESTATUS[0]}; echo "E2E_EXIT=$rc"; exit $rc
+[96/306] landing-density.spec.ts:5:3 › product stage shares the landing frame at 1440px
+[97/306] landing-density.spec.ts:5:3 › product stage shares the landing frame at 768px
+[98/306] landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px
+[99/306] landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: en
+[100/306] landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: vi
+[101/306] landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: en
+[102/306] landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: vi
+[103/306] landing-dual-navigation.spec.ts:6:3 › manual navigation layers share one preview at 1440px
+[104/306] landing-dual-navigation.spec.ts:6:3 › manual navigation layers share one preview at 768px
+[105/306] landing-dual-navigation.spec.ts:6:3 › manual navigation layers share one preview at 390px
+[106/306] landing-dual-navigation.spec.ts:54:3 › English dark navigation stays legible at 1440px
+[107/306] landing-dual-navigation.spec.ts:54:3 › English dark navigation stays legible at 390px
+[108/306] landing-fast-refresh.spec.ts:10:3 › a mounted en landing updates dictionary copy without losing state
+[109/306] landing-fast-refresh.spec.ts:10:3 › a mounted vi landing updates dictionary copy without losing state
+[110/306] landing-feature-visuals.spec.ts:6:1 › every product chapter retains visual examples on a narrow English screen
+[111/306] landing-feature-visuals.spec.ts:31:1 › visual directory navigates to chapters and the full preview still expands
+[112/306] landing-hydration.spec.ts:7:3 › landing SSR and hydration use the same current en copy
+[113/306] landing-hydration.spec.ts:7:3 › landing SSR and hydration use the same current vi copy
+[114/306] landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-light
+[115/306] landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-dark
+[116/306] landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 390-dark
+[117/306] landing-lovable.spec.ts:61:1 › scaled action film keeps the explicit assignment and completion sequence
+[118/306] landing-lovable.spec.ts:87:1 › expanded film preserves reduced motion and exposes playback controls
+[119/306] landing-lovable.spec.ts:110:1 › meeting listing pauses the film and returning to the room restores it
+[120/306] landing-meetings.spec.ts:5:1 › online meetings are a view of the same workspace
+[121/306] landing-meetings.spec.ts:17:1 › meeting controls are accessible local simulations, with conditional AI follow-up
+[122/306] landing-motion.spec.ts:5:1 › landing demo controls perform the actions they advertise without workspace writes
+[123/306] landing-motion.spec.ts:29:1 › product showcase, cinematic playback and reduced motion remain usable
+[124/306] landing-motion.spec.ts:55:1 › hero offers registration and a demo request in a minimal opening
+[125/306] landing-motion.spec.ts:74:1 › Starter and FAQ signals animate only while visible and respect reduced motion
+[126/306] landing-motion.spec.ts:100:1 › framed scenes arrive on scroll and remain readable after the entrance
+[127/306] landing-motion.spec.ts:150:1 › nonessential motion stops offscreen
+[128/306] landing-motion.spec.ts:177:1 › GPU unavailable leaves the product showcase and demo intact
+[129/306] landing-office-design.spec.ts:20:3 › Office B has working themed editors at 1306px light en
+[130/306] landing-office-design.spec.ts:20:3 › Office B has working themed editors at 1440px dark vi
+[131/306] landing-office-design.spec.ts:20:3 › Office B has working themed editors at 768px light en
+[132/306] landing-office-design.spec.ts:20:3 › Office B has working themed editors at 390px light vi
+[133/306] landing-office-design.spec.ts:20:3 › Office B has working themed editors at 390px dark en
+[134/306] landing-office-design.spec.ts:112:1 › Office images follow an explicit theme change
+[135/306] landing-office-editions.spec.ts:10:3 › Office menu keeps Enterprise and truthful upcoming Personal at 1440px in light
+[136/306] landing-office-editions.spec.ts:10:3 › Office menu keeps Enterprise and truthful upcoming Personal at 390px in dark
+[137/306] landing-office-editions.spec.ts:36:1 › Office trial opens a published Windows installer download
+[138/306] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1440px
+  1) landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1440px ───────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.header-navigation .header-nav-link')
+    Timeout: 5000ms
+    - Expected  - 0
+    + Received  + 1
+
+    @@ -2,6 +2,7 @@
+        "Sản phẩm",
+        "Giải pháp",
+        "Office",
+        "Tìm hiểu",
+        "Bảng giá",
+    +   "Nhật ký cập nhật",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('.header-navigation .header-nav-link')
+        14 × locator resolved to 6 elements
+
+
+      56 |     const header = page.getByRole("banner");
+      57 |     if (width >= 1100) {
+    > 58 |       await expect(page.locator(".header-navigation .header-nav-link")).toHaveText(["Sản phẩm", "Giải pháp", "Office", "Tìm hiểu", "Bảng giá"]);
+         |                                                                         ^
+      59 |       const toggle = header.getByRole("button", { name: "Sản phẩm", exact: true });
+      60 |       await toggle.click();
+      61 |       await expect(page.locator("#header-directory-products")).toBeVisible();
+        at /workspace/e2e/landing-opening.spec.ts:58:73
+
+    Error Context: test-results/landing-opening-opening-st-3d71f-orking-navigation-at-1440px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-opening-opening-st-3d71f-orking-navigation-at-1440px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-opening-opening-st-3d71f-orking-navigation-at-1440px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+(node:19888) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:19888) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[139/306] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1280px
+  2) landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1280px ───────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.header-navigation .header-nav-link')
+    Timeout: 5000ms
+    - Expected  - 0
+    + Received  + 1
+
+    @@ -2,6 +2,7 @@
+        "Sản phẩm",
+        "Giải pháp",
+        "Office",
+        "Tìm hiểu",
+        "Bảng giá",
+    +   "Nhật ký cập nhật",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('.header-navigation .header-nav-link')
+        14 × locator resolved to 6 elements
+
+
+      56 |     const header = page.getByRole("banner");
+      57 |     if (width >= 1100) {
+    > 58 |       await expect(page.locator(".header-navigation .header-nav-link")).toHaveText(["Sản phẩm", "Giải pháp", "Office", "Tìm hiểu", "Bảng giá"]);
+         |                                                                         ^
+      59 |       const toggle = header.getByRole("button", { name: "Sản phẩm", exact: true });
+      60 |       await toggle.click();
+      61 |       await expect(page.locator("#header-directory-products")).toBeVisible();
+        at /workspace/e2e/landing-opening.spec.ts:58:73
+
+    Error Context: test-results/landing-opening-opening-st-b2cd3-orking-navigation-at-1280px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-opening-opening-st-b2cd3-orking-navigation-at-1280px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-opening-opening-st-b2cd3-orking-navigation-at-1280px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+(node:19964) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:19964) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[140/306] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1100px
+  3) landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1100px ───────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.header-navigation .header-nav-link')
+    Timeout: 5000ms
+    - Expected  - 0
+    + Received  + 1
+
+    @@ -2,6 +2,7 @@
+        "Sản phẩm",
+        "Giải pháp",
+        "Office",
+        "Tìm hiểu",
+        "Bảng giá",
+    +   "Nhật ký cập nhật",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('.header-navigation .header-nav-link')
+        14 × locator resolved to 6 elements
+
+
+      56 |     const header = page.getByRole("banner");
+      57 |     if (width >= 1100) {
+    > 58 |       await expect(page.locator(".header-navigation .header-nav-link")).toHaveText(["Sản phẩm", "Giải pháp", "Office", "Tìm hiểu", "Bảng giá"]);
+         |                                                                         ^
+      59 |       const toggle = header.getByRole("button", { name: "Sản phẩm", exact: true });
+      60 |       await toggle.click();
+      61 |       await expect(page.locator("#header-directory-products")).toBeVisible();
+        at /workspace/e2e/landing-opening.spec.ts:58:73
+
+    Error Context: test-results/landing-opening-opening-st-51736-orking-navigation-at-1100px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-opening-opening-st-51736-orking-navigation-at-1100px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-opening-opening-st-51736-orking-navigation-at-1100px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+(node:20033) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:20033) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[141/306] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1099px
+[142/306] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 768px
+[143/306] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 390px
+[144/306] landing-opening.spec.ts:107:3 › opening supports English and dark mode at 1440px
+[145/306] landing-opening.spec.ts:107:3 › opening supports English and dark mode at 390px
+[146/306] landing-opening.spec.ts:125:1 › opening respects a changed reduced-motion preference
+[147/306] landing-playback.spec.ts:8:1 › preview plays a real sequence, pauses and stops outside the viewport
+[148/306] landing-playback.spec.ts:29:1 › reduced motion is still by default and manual exploration retains local actions
+[149/306] landing-playback.spec.ts:49:3 › every storyboard reaches its last beat without clipping at 1440px
+[150/306] landing-playback.spec.ts:99:1 › storyboards become readable three-step stories at 390px
+[151/306] landing-playback.spec.ts:121:1 › original UNI wears the shared mark and retains its static fallback
+[152/306] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: desktop-vi
+[153/306] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: desktop-en
+[154/306] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: mobile-vi
+[155/306] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: mobile-en
+[156/306] landing-product-pages.spec.ts:6:1 › product menu opens real introduction routes, with demo explicitly separate
+[157/306] landing-product-pages.spec.ts:32:1 › all feature introductions have unique content, canonical URL and reference UI
+[158/306] landing-product-pages.spec.ts:60:3 › public pages render without overflow 1440-light
+[159/306] landing-product-pages.spec.ts:60:3 › public pages render without overflow 390-dark
+[160/306] landing-product-pages.spec.ts:94:1 › English introductions and solution/resources links remain usable
+[161/306] landing-realism.spec.ts:11:3 › pending and source destination stay readable at 1440px
+[162/306] landing-realism.spec.ts:11:3 › pending and source destination stay readable at 820px
+[163/306] landing-realism.spec.ts:46:1 › Today and Projects task links open manual details even on direct entry
+[164/306] landing-realism.spec.ts:68:1 › chat waits for creation before attaching the task
+[165/306] landing-realism.spec.ts:85:1 › email keeps the same thread and Ask UNI only opens its cited source
+[166/306] landing-realism.spec.ts:114:1 › assignment opens details and a member picker without completing the task
+[167/306] landing-realism.spec.ts:136:1 › screen sharing needs source selection and confirmation; planned entries never autoplay
+[168/306] landing-reference.spec.ts:8:3 › Lovable reference structure and remaining landing sections at 1440px
+[169/306] landing-reference.spec.ts:8:3 › Lovable reference structure and remaining landing sections at 390px
+[170/306] landing-reference.spec.ts:69:34 › Today rows and counts share completion, reopening and reset state at 1440px
+[171/306] landing-reference.spec.ts:69:34 › Today rows and counts share completion, reopening and reset state at 390px
+[172/306] landing-reference.spec.ts:95:1 › skip link remains hidden without focus across tall section captures
+[173/306] landing-scenes.spec.ts:6:1 › original UNI artwork and face stay unchanged while the foreleg waves
+[174/306] landing-scenes.spec.ts:57:3 › mascot expression and native scene handoff: desktop
+[175/306] landing-scenes.spec.ts:57:3 › mascot expression and native scene handoff: mobile
+[176/306] landing-scenes.spec.ts:103:1 › missing original artwork leaves the shared mark without removed controls
+[177/306] landing-scenes.spec.ts:116:1 › shirt mark and artwork share coordinates before and after resize
+[178/306] landing-scroll.spec.ts:7:3 › all explorer states and disclosures have translated text and labels: vi
+[179/306] landing-scroll.spec.ts:7:3 › all explorer states and disclosures have translated text and labels: en
+[180/306] landing-scroll.spec.ts:38:1 › grouped feature navigation supports keyboard selection
+[181/306] landing-scroll.spec.ts:58:1 › security and roadmap details are available without overwhelming the default view
+[182/306] landing-scroll.spec.ts:74:1 › decision sections use prominent semantic icon anchors
+[183/306] landing-scroll.spec.ts:103:1 › trust band explains provider choice without repeating security claims
+[184/306] landing-scroll.spec.ts:118:1 › feature selector stays visible in reduced motion without a decorative rail
+[185/306] landing-studio.spec.ts:8:1 › studio demo switches views and tabs locally, with keyboard support
+[186/306] landing-studio.spec.ts:39:1 › mobile menu closes with Escape and returns focus
+[187/306] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop
+[188/306] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile
+[189/306] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: user-1294
+[190/306] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop-dark-en
+[191/306] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile-dark-en
+[192/306] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1536 en light
+[193/306] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1280 vi dark
+[194/306] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 768 vi light
+[195/306] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 390 en dark
+[196/306] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 390 vi light
+[197/306] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 320 vi dark
+[198/306] landing-updates.spec.ts:8:1 › new product stories are local demos with truthful availability
+[199/306] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-vi
+[200/306] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-en
+[201/306] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-vi
+[202/306] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-en
+[203/306] landing-updates.spec.ts:65:1 › workspace finishes revealing without extra scrolling and respect reduced motion
+[204/306] landing-why.spec.ts:14:3 › Why UniWork — 1440px vi light
+[205/306] landing-why.spec.ts:14:3 › Why UniWork — 1510px en dark
+[206/306] landing-why.spec.ts:14:3 › Why UniWork — 768px en light
+[207/306] landing-why.spec.ts:14:3 › Why UniWork — 390px en dark
+[208/306] landing-why.spec.ts:14:3 › Why UniWork — 320px vi light
+[209/306] landing-workspace.spec.ts:5:1 › one workspace stage replaces the index and separate feature bands
+[210/306] landing-workspace.spec.ts:22:1 › feature deep links select the right panel and sidebar works with keyboard
+[211/306] landing-workspace.spec.ts:40:1 › local state survives view switches and the global reset clears every demo
+[212/306] landing-workspace.spec.ts:68:1 › tablet product stage stays readable and Starter keeps one honest action
+[213/306] landing.spec.ts:48:3 › landing › dải tin cậy, FAQ và hai trang giải pháp
+[214/306] landing.spec.ts:141:3 › landing › đổi ngôn ngữ và chế độ sáng tối ngay trên header
+[215/306] landing.spec.ts:175:3 › landing › mỗi request nhận đúng ngôn ngữ của chính nó
+[216/306] landing.spec.ts:198:5 › landing › tương phản chữ đạt WCAG AA — light
+[217/306] landing.spec.ts:198:5 › landing › tương phản chữ đạt WCAG AA — dark
+[218/306] meeting-prejoin-contrast.spec.ts:20:3 › chữ trong khung camera tắt ở màn chuẩn bị vào họp đạt WCAG AA — light
+[219/306] meeting-prejoin-contrast.spec.ts:20:3 › chữ trong khung camera tắt ở màn chuẩn bị vào họp đạt WCAG AA — dark
+[220/306] meetings-attendance.spec.ts:13:1 › attendance: secretary marks, quorum warns, finalize locks and shows on the timeline
+[221/306] meetings-livekit.spec.ts:17:3 › meeting livekit smoke › instant meeting → prejoin → stage shell
+[222/306] meetings-livekit.spec.ts:45:3 › meeting livekit smoke › a signed-in user from another organization joins through an invite link (UNI-901)
+[223/306] meetings-livekit.spec.ts:86:3 › meeting livekit smoke › recording: egress writes the file, the webhook completes it, playback seeks
+[224/306] meetings.spec.ts:19:1 › meeting: create → start → summary panel → ics → end
+[225/306] meetings.spec.ts:77:1 › recording playback: listed, exact bytes, member reads, other org blocked @files-smoke
+[226/306] notifications.spec.ts:34:1 › assigning a task lights the assignee's inbox badge without a reload
+[227/306] office-docs-web.spec.ts:52:3 › frame serving › index.html carries the pinned CSP, same-origin framing and revalidation
+[228/306] office-docs-web.spec.ts:65:3 › frame serving › hashed assets and fonts are immutable and match the manifest digest
+[229/306] office-docs-web.spec.ts:78:3 › frame serving › an unpinned version is a 404 that still carries the locked-down policy
+[230/306] office-docs-web.spec.ts:84:3 › frame serving › the frame boots under its own CSP without a single violation
+[231/306] office-docs-web.spec.ts:117:3 › open, edit, save › a DOCX opens in the frame, an edit is saved as a new version and survives a reopen
+[232/306] office-docs-web.spec.ts:154:3 › open, edit, save › Save as makes a copy, the page follows it and the frame keeps editing the copy
+[233/306] office-docs-web.spec.ts:197:3 › open, edit, save › an inserted image passes the frame CSP and is stored in the docx
+[234/306] office-docs-web.spec.ts:225:3 › open, edit, save › PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback
+[235/306] office-docs-web.spec.ts:252:3 › open, edit, save › a token mint the server refuses with feature_disabled shows the unavailable notice
+[236/306] office-docs-web.spec.ts:263:3 › open, edit, save › an organization override turning the flag off shows the unavailable notice and no frame mounts
+[237/306] office-docs-web.spec.ts:277:3 › bundle not installed › a flag-on organization sees the not-set-up notice and no iframe is mounted
+[238/306] office-markdown-assets-web.spec.ts:64:3 › markdown pictures › a relative picture resolves, and a pasted one is stored as a document asset
+[239/306] office-markdown-web.spec.ts:30:3 › bundle installed › index.html is served with the module's pinned CSP and same-origin framing
+[240/306] office-markdown-web.spec.ts:60:5 › bundle installed › open, edit, save › a .md opens in the markdown frame and the handshake completes
+[241/306] office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (vi, light)
+[242/306] office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (vi, dark)
+[243/306] office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (en, light)
+[244/306] office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (en, dark)
+[245/306] office-markdown-web.spec.ts:90:5 › bundle installed › open, edit, save › an edit is saved as a new version and survives a reopen
+[246/306] office-markdown-web.spec.ts:110:5 › bundle installed › open, edit, save › with the flag off the unavailable notice shows and no frame mounts
+[247/306] office-markdown-web.spec.ts:125:3 › bundle not installed › a flag-on organization sees the not-set-up notice and no iframe is mounted
+[248/306] office-modules-web.spec.ts:115:5 › served headers › pdf: index.html is served with the pinned policy
+[249/306] office-modules-web.spec.ts:115:5 › served headers › html: index.html is served with the pinned policy
+[250/306] office-modules-web.spec.ts:115:5 › served headers › slides: index.html is served with the pinned policy
+[251/306] office-modules-web.spec.ts:115:5 › served headers › sheets: index.html is served with the pinned policy
+[252/306] office-modules-web.spec.ts:126:3 › served headers › html: preview.html is served with its own sandboxed policy, not the frame's
+[253/306] office-modules-web.spec.ts:163:5 › pdf module › a text.pdf opens in the pdf frame and the handshake completes
+[254/306] office-modules-web.spec.ts:176:5 › pdf module › a pdf frame bundle that answers 404 shows the load failure, not an endless skeleton
+[255/306] office-modules-web.spec.ts:187:7 › pdf module › a frame whose script is blocked shows the load failure at once and says why
+[256/306] office-modules-web.spec.ts:163:5 › html module › a page.html opens in the html frame and the handshake completes
+[257/306] office-modules-web.spec.ts:176:5 › html module › a html frame bundle that answers 404 shows the load failure, not an endless skeleton
+[258/306] office-modules-web.spec.ts:203:7 › html module › an edit in the html frame is saved as a new version
+[259/306] office-modules-web.spec.ts:163:5 › slides module › a deck.pptx opens in the slides frame and the handshake completes
+[260/306] office-modules-web.spec.ts:176:5 › slides module › a slides frame bundle that answers 404 shows the load failure, not an endless skeleton
+[261/306] office-modules-web.spec.ts:163:5 › sheets module › a book.xlsx opens in the sheets frame and the handshake completes
+[262/306] office-modules-web.spec.ts:176:5 › sheets module › a sheets frame bundle that answers 404 shows the load failure, not an endless skeleton
+[263/306] office-modules-web.spec.ts:203:7 › sheets module › an edit in the sheets frame is saved as a new version
+[264/306] onboarding-contrast.spec.ts:13:3 › tương phản chữ đạt WCAG AA — light
+[265/306] onboarding-contrast.spec.ts:13:3 › tương phản chữ đạt WCAG AA — dark
+[266/306] onboarding-focus.spec.ts:14:1 › mọi điểm dừng Tab đều có chỉ báo focus nhìn thấy được — cả 4 bước
+[267/306] onboarding-focus.spec.ts:61:1 › chỉ có MỘT chỉ báo focus, không lồng hai vòng
+[268/306] onboarding-focus.spec.ts:84:1 › vòng focus tách được khỏi nền ngay sát nó (>= 3:1) — cả 4 bước
+[269/306] onboarding-mobile.spec.ts:11:1 › không có thanh cuộn ngang ở bất kỳ bước nào
+[270/306] onboarding-mobile.spec.ts:23:1 › rail ẩn, thanh tiến độ nói được vị trí bước
+[271/306] onboarding-mobile.spec.ts:31:1 › mọi vùng chạm đạt 44px ở mọi bước
+[272/306] onboarding-mobile.spec.ts:82:1 › CTA chính không bị vệt mờ của vùng cuộn ăn vào
+[273/306] onboarding-shell.spec.ts:36:1 › onboarding — structural blocks match the column width on every step
+[274/306] onboarding-shell.spec.ts:56:1 › onboarding — the shell survives step changes instead of re-mounting
+[275/306] onboarding-smoke.spec.ts:10:1 › register → onboarding 4 bước → 🎉 → task hướng dẫn
+[276/306] organization-invite-workspaces.spec.ts:20:3 › organization invitation with workspaces › an invitation that grants B's workspace lands the switched person in it
+[277/306] organization-invite-workspaces.spec.ts:50:3 › organization invitation with workspaces › an invitation that grants no workspace lands a member on 'no workspace yet', not on create
+[278/306] organization-switch.spec.ts:32:3 › organization switch › a member of A opens B's invitation, leaves A in the wizard and lands in B
+[279/306] organization-switch.spec.ts:84:3 › organization switch › a sole owner closes the organization, lands on /get-started and founds a new one
+[280/306] people.spec.ts:47:1 › directory, department, accent-insensitive search, then deactivation
+[281/306] projects-suite-parity-smoke.spec.ts:35:1 › projects suite: list + detail TaskSurface always on
+[282/306] reset-password.spec.ts:5:1 › quên mật khẩu → link trong mail → mật khẩu mới đăng nhập được
+[283/306] sidebar-rail.spec.ts:9:1 › every nav row is clickable in the collapsed icon rail
+[284/306] smoke.spec.ts:9:1 › register → workspace → task → meeting
+[285/306] smoke.spec.ts:70:1 › đường dẫn không tồn tại hiện trang không tìm thấy, không phải màn hình trắng
+[286/306] task-detail-parity-smoke.spec.ts:55:1 › task detail: suite comment + attachment always on
+[287/306] tasks-collection-parity-smoke.spec.ts:34:1 › tasks collection: suite mode controls always on
+[288/306] tasks-table.spec.ts:187:1 › board → table stays responsive and navigation still works
+[289/306] tasks-table.spec.ts:204:1 › title sort holds across Tải thêm pages
+[290/306] tasks-table.spec.ts:216:1 › search finds a task outside the first page
+[291/306] tasks-table.spec.ts:236:1 › a child on the third page nests under its parent
+[292/306] tasks-table.spec.ts:265:1 › groups by project, then by priority
+[293/306] tasks-table.spec.ts:281:1 › a select property edits in place and survives reload
+[294/306] tasks-table.spec.ts:309:1 › keyboard column reorder persists across reload
+[295/306] text-size.spec.ts:16:1 › the largest text size scales the app, survives a reload and keeps screens in bounds
+[296/306] verify.spec.ts:10:1 › mã sai → lỗi; gửi lại đang khoá; mã đúng → onboarding; cổng chặn khi chưa xác thực
+[297/306] verify.spec.ts:39:1 › nút Google chỉ hiện khi server báo có Google
+[298/306] verify.spec.ts:47:1 › tương phản chữ đạt WCAG AA — /verify light và dark
+(node:21699) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:21699) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[299/306] files-chat.spec.ts:129:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke
+files-chat.spec.ts:129:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke
+[api] 401 POST http://localhost:18680/api/v1/auth/refresh
+
+[api] 401 POST http://localhost:18680/api/v1/auth/refresh
+
+[300/306] files-chat.spec.ts:154:3 › chat file and voice messages › a voice message plays for the second member with its duration
+[301/306] files-chat.spec.ts:179:3 › chat file and voice messages › a resend with the same client_msg_id does not duplicate the message
+[302/306] files-chat.spec.ts:215:3 › chat file and voice messages › a member of another organization cannot reach the workspace or its files
+[303/306] files-chat.spec.ts:243:3 › chat file and voice messages › an unsupported file type is refused before it is sent
+[304/306] files-chat.spec.ts:265:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions
+files-chat.spec.ts:265:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions
+[api] 403 POST http://localhost:18680/api/v1/workspaces/01M4XZV02302TKR59FV16J448H/chat/rooms/01M4XZVCJHZYEX2TSE7B5EGMVZ/read
+
+(node:21816) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:21816) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[305/306] meetings-governance.spec.ts:154:1 › votes: the secretary drafts, opens and closes an item; the result reaches the detail page and the timeline
+[306/306] meetings-governance.spec.ts:253:3 › votes in the meeting room › a member votes through the prompt card and the secret result reaches the room
+  3 failed
+    landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1440px ────────
+    landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1280px ────────
+    landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1100px ────────
+  45 skipped
+  258 passed (17.6m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=line`
+Exit status 1
+E2E_EXIT=1
