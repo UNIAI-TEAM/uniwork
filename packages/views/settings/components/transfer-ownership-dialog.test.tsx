@@ -68,7 +68,7 @@ describe("TransferOwnershipDialog", () => {
     fireEvent.change(screen.getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "pw" } });
     expect(submitButton()).toHaveAttribute("aria-disabled", "true");
     expect(field).toHaveAttribute("aria-invalid", "true");
-    expect(field).toHaveAccessibleDescription(/Chưa khớp với “Acme”/);
+    expect(field).toHaveAccessibleDescription(/Chưa khớp với "Acme"/);
   });
 
   it("stays quiet while a correct prefix is being typed", () => {

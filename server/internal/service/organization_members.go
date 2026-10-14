@@ -314,6 +314,20 @@ func (s *OrganizationMemberService) Reactivate(ctx context.Context, actorID, org
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	// A person who has moved to another organization since is not pulled
+	// back (ADR 0032); the refusal does not say where they went.
+	if err := lockMembership(ctx, q, targetID); err != nil {
+		return db.OrganizationMember{}, err
+	}
+	current, err := activeOrganizations(ctx, q, targetID)
+	if err != nil {
+		return db.OrganizationMember{}, err
+	}
+	for _, o := range current {
+		if o.ID != orgID {
+			return db.OrganizationMember{}, errMemberInOtherOrganization()
+		}
+	}
 	// Gives back the rooms Deactivate left; it reads deactivated_at, so it
 	// runs before the clear.
 	if err := q.RestoreChatRoomsLeftAtDeactivation(ctx, db.RestoreChatRoomsLeftAtDeactivationParams{
@@ -356,54 +370,17 @@ func (s *OrganizationMemberService) Reactivate(ctx context.Context, actorID, org
 // organization row and every workspace row inside it go in one transaction.
 // The owner cannot leave — they hand the organization over first.
 func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID string) error {
-	m, err := s.orgs.RequireMember(ctx, orgID, actorID)
-	if err != nil {
-		return err
-	}
-	if m.Role == OrgRoleOwner {
-		return errLastOwner()
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	if err := q.DeleteWorkspaceMembershipsInOrg(ctx, db.DeleteWorkspaceMembershipsInOrgParams{
-		OrganizationID: orgID, UserID: actorID,
-	}); err != nil {
+	if err := lockMembership(ctx, q, actorID); err != nil {
 		return err
 	}
-	if err := q.DeleteOrganizationMember(ctx, db.DeleteOrganizationMemberParams{
-		OrganizationID: orgID, UserID: actorID,
-	}); err != nil {
-		return err
-	}
-	if err := q.LeaveChatRoomsInOrganizationForUser(ctx, db.LeaveChatRoomsInOrganizationForUserParams{
-		OrganizationID: orgID, UserID: actorID,
-	}); err != nil {
-		return err
-	}
-	mailboxes, err := q.DisconnectEmailHubAccountsForUser(ctx, db.DisconnectEmailHubAccountsForUserParams{
-		UserID: actorID, OrganizationID: pgtype.Text{String: orgID, Valid: true},
-	})
+	mailboxes, err := s.leaveQ(ctx, q, actorID, orgID, nil)
 	if err != nil {
-		return err
-	}
-	if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
-		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: -1, Actor: Human(actorID),
-	}); err != nil {
-		return err
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: orgID,
-		Actor:          audit.User(actorID),
-		Action:         audit.ActionMemberLeft,
-		ResourceType:   "organization_member", ResourceID: actorID,
-		Changes: audit.Diff(map[string]any{"role": m.Role}, nil),
-	}, audit.Event{Topic: "member.left", Payload: map[string]string{
-		"organization_id": orgID, "user_id": actorID,
-	}}); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -411,6 +388,83 @@ func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID st
 	}
 	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, mailboxes)
 	return nil
+}
+
+// leaveQ is Leave's transaction body, for a caller that already holds the
+// account's membership lock in q's transaction. The decision is made under the
+// row lock: an ownership transfer to the leaver that commits first makes them
+// the owner, and they are then refused instead of leaving the organization
+// without one. The caller cleans up the returned mailboxes after commit.
+//
+// It does not go through RequireMember: a member or admin of a suspended
+// organization, or of one waiting for deletion, may still leave it (ADR 0032
+// D9). A deactivated row is refused as everywhere else. meta lands on the
+// member.left audit row (the invitation a switch left for, spec §5).
+func (s *OrganizationMemberService) leaveQ(ctx context.Context, q *db.Queries, actorID, orgID string, meta map[string]any) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+	m, err := q.LockOrganizationMemberForUpdate(ctx, db.LockOrganizationMemberForUpdateParams{
+		OrganizationID: orgID, UserID: actorID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrForbidden
+	}
+	if err != nil {
+		return nil, err
+	}
+	org, err := q.GetOrganizationByID(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case m.DeactivatedAt.Valid:
+		return nil, errMemberDeactivated()
+	case org.Status != OrganizationActive && org.Status != OrganizationSuspended:
+		return nil, errOrganizationSuspended()
+	case m.Role == OrgRoleOwner:
+		return nil, errLastOwner()
+	}
+	if err := q.DeleteWorkspaceMembershipsInOrg(ctx, db.DeleteWorkspaceMembershipsInOrgParams{
+		OrganizationID: orgID, UserID: actorID,
+	}); err != nil {
+		return nil, err
+	}
+	if err := q.DeleteOrganizationMember(ctx, db.DeleteOrganizationMemberParams{
+		OrganizationID: orgID, UserID: actorID,
+	}); err != nil {
+		return nil, err
+	}
+	// A person who leaves takes no AI connector access with them (spec §8).
+	if err := revokeMcpGrantsForUserInOrg(ctx, q, orgID, actorID); err != nil {
+		return nil, err
+	}
+	if err := q.LeaveChatRoomsInOrganizationForUser(ctx, db.LeaveChatRoomsInOrganizationForUserParams{
+		OrganizationID: orgID, UserID: actorID,
+	}); err != nil {
+		return nil, err
+	}
+	mailboxes, err := q.DisconnectEmailHubAccountsForUser(ctx, db.DisconnectEmailHubAccountsForUserParams{
+		UserID: actorID, OrganizationID: pgtype.Text{String: orgID, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
+		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: -1, Actor: Human(actorID),
+	}); err != nil {
+		return nil, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: orgID,
+		Actor:          audit.User(actorID),
+		Action:         audit.ActionMemberLeft,
+		ResourceType:   "organization_member", ResourceID: actorID,
+		Changes:  audit.Diff(map[string]any{"role": m.Role}, nil),
+		Metadata: meta,
+	}, audit.Event{Topic: "member.left", Payload: map[string]string{
+		"organization_id": orgID, "user_id": actorID,
+	}}); err != nil {
+		return nil, err
+	}
+	return mailboxes, nil
 }
 
 // requireAdmin is the gate every administrative command starts with.

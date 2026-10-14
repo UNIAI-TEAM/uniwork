@@ -91,6 +91,21 @@ export async function leaveOrganization(orgSlug: string): Promise<boolean> {
   }).status === "ok";
 }
 
+/**
+ * Closing the organization as its only active member (ADR 0032). The owner
+ * types the slug back, and the server compares it exactly; nothing is deleted,
+ * the organization is archived and the caller leaves it.
+ */
+export async function closeOrganization(orgSlug: string, confirmSlug: string): Promise<boolean> {
+  const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/close`, {
+    method: "POST",
+    body: { confirm_slug: confirmSlug },
+  });
+  return parseWithFallback<{ status: string }>(raw, StatusResponse, { status: "" }, {
+    endpoint: "POST /api/v1/orgs/{org}/close",
+  }).status === "ok";
+}
+
 const InvitationListResponse = z.object({
   invitations: z.array(OrgInvitationSchema),
   skipped: z.array(z.string()).default([]),

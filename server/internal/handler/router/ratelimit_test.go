@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -277,4 +278,194 @@ func TestChatWritesBudgetEachUserPerRoute(t *testing.T) {
 			t.Fatalf("%s %s: a second person behind the same address was refused", tc.method, tc.path(tc.budget))
 		}
 	}
+}
+
+// OAuth endpoints for external MCP clients (ADR 0031): authorize, token and
+// revoke ride the credential budget, 60 a minute per address and path;
+// registration is a public write that creates rows, so it gets 10 an hour.
+// The discovery documents stay on the global budget only.
+func TestMCPOAuthRoutesAreBudgeted(t *testing.T) {
+	h, _ := limitedMux(t)
+	for i, route := range []struct{ method, path string }{
+		{http.MethodGet, "/oauth/authorize"},
+		{http.MethodPost, "/oauth/token"},
+		{http.MethodPost, "/oauth/revoke"},
+	} {
+		c := caller{ip: fmt.Sprintf("10.20.1.%d", i+1)}
+		c.spend(t, h, route.method, route.path, 60)
+		c.wantRefused(t, h, route.method, route.path, "credential budget: 60 a minute")
+	}
+
+	c := caller{ip: "10.20.1.10"}
+	c.spend(t, h, http.MethodPost, "/oauth/register", 10)
+	c.wantRefused(t, h, http.MethodPost, "/oauth/register", "registration budget: 10 an hour")
+
+	// The budgets are per route: an address that spent registration still
+	// reaches the token endpoint, and the reverse.
+	c.spend(t, h, http.MethodPost, "/oauth/token", 1)
+	d := caller{ip: "10.20.1.11"}
+	d.spend(t, h, http.MethodPost, "/oauth/token", 60)
+	d.spend(t, h, http.MethodPost, "/oauth/register", 1)
+
+	// Another address has its own budget.
+	caller{ip: "10.20.1.12"}.spend(t, h, http.MethodPost, "/oauth/register", 1)
+
+	for _, path := range []string{
+		"/.well-known/oauth-protected-resource",
+		"/.well-known/oauth-protected-resource/mcp",
+		"/.well-known/oauth-authorization-server",
+	} {
+		anonymous := caller{ip: "10.20.1.13"}
+		anonymous.spend(t, h, http.MethodGet, path, 100)
+	}
+}
+
+// With no Redis the limiters are no-ops, as everywhere else: the routes stay
+// reachable and the mux still binds the same handlers.
+func TestMCPOAuthRoutesWorkWithoutRedis(t *testing.T) {
+	mux := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000"}}, stubRoutes())
+	for _, c := range []struct{ method, path, want string }{
+		{http.MethodGet, "/oauth/authorize", "McpAuthorize"},
+		{http.MethodPost, "/oauth/token", "McpToken"},
+		{http.MethodPost, "/oauth/revoke", "McpRevoke"},
+		{http.MethodPost, "/oauth/register", "McpRegister"},
+		{http.MethodPost, "/mcp", "McpServe"},
+		{http.MethodGet, "/mcp", "McpServe"},
+		{http.MethodDelete, "/mcp", "McpServe"},
+	} {
+		for i := 0; i < 70; i++ {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(c.method, c.path, nil))
+			if rec.Code != http.StatusOK || rec.Body.String() != c.want {
+				t.Fatalf("%s %s #%d = %d %q, want 200 %s", c.method, c.path, i, rec.Code, rec.Body.String(), c.want)
+			}
+		}
+	}
+}
+
+// /mcp budgets each access token, 120 a minute, and is off the global limiter.
+// The global limiter names only session JWTs, so an MCP token would fall back
+// to its client address, and every team behind one AI vendor's egress address
+// would share 300 a minute. Four tokens from one address spend 480 here.
+func TestMCPBudgetsEachAccessTokenAndSkipsTheGlobalLimiter(t *testing.T) {
+	h, _ := limitedMux(t)
+	vendor := "10.30.0.1"
+	teams := []string{"uwm_at_team-a", "uwm_at_team-b", "uwm_at_team-c", "uwm_at_team-d"}
+	for _, token := range teams {
+		caller{ip: vendor, bearer: token}.spend(t, h, http.MethodPost, "/mcp", 120)
+	}
+	caller{ip: vendor, bearer: teams[0]}.wantRefused(t, h, http.MethodPost, "/mcp", "per-token budget: 120 a minute")
+	caller{ip: vendor, bearer: "uwm_at_team-e"}.spend(t, h, http.MethodPost, "/mcp", 1)
+
+	// 480 requests did not touch the address's global budget either.
+	rest := caller{ip: vendor}
+	rest.spend(t, h, http.MethodGet, "/api/v1/meetings/m1/motions", 300)
+	rest.wantRefused(t, h, http.MethodGet, "/api/v1/meetings/m1/motions", "the global limiter still covers every other route")
+}
+
+// Whatever cannot be one of our tokens shares its address's budget: nobody
+// mints a fresh one by changing the bearer, and a session JWT is not an MCP
+// token.
+func TestMCPCredentialsThatAreNotAccessTokensShareTheAddressBudget(t *testing.T) {
+	h, minter := limitedMux(t)
+	ip := "10.30.0.2"
+	caller{ip: ip}.spend(t, h, http.MethodPost, "/mcp", 40)
+	caller{ip: ip, bearer: "junk-1"}.spend(t, h, http.MethodPost, "/mcp", 40)
+	caller{ip: ip, bearer: mustMint(t, minter, "user-a")}.spend(t, h, http.MethodPost, "/mcp", 40)
+	caller{ip: ip, bearer: "junk-2"}.wantRefused(t, h, http.MethodPost, "/mcp", "no token of ours: the address's 120 a minute is spent")
+	caller{ip: ip, bearer: mustMint(t, minter, "user-b")}.wantRefused(t, h, http.MethodPost, "/mcp", "a session JWT is not an access token")
+
+	// Another address, and a real token from the spent one, are unaffected.
+	caller{ip: "10.30.0.3"}.spend(t, h, http.MethodPost, "/mcp", 1)
+	caller{ip: ip, bearer: "uwm_at_someone"}.spend(t, h, http.MethodPost, "/mcp", 1)
+}
+
+// POST, GET and DELETE are one connection's traffic: one budget.
+func TestMCPMethodsShareOneBudget(t *testing.T) {
+	h, _ := limitedMux(t)
+	c := caller{ip: "10.30.0.4", bearer: "uwm_at_methods"}
+	c.spend(t, h, http.MethodPost, "/mcp", 100)
+	c.spend(t, h, http.MethodGet, "/mcp", 20)
+	c.wantRefused(t, h, http.MethodDelete, "/mcp", "one budget for every method")
+}
+
+func TestMCPBearerKey(t *testing.T) {
+	req := func(authorization string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		if authorization != "" {
+			r.Header.Set("Authorization", authorization)
+		}
+		return r
+	}
+	a := mcpBearer(req("Bearer uwm_at_aaa"))
+	if a == "" || a != mcpBearer(req("bearer uwm_at_aaa")) || a != mcpBearer(req("BEARER  uwm_at_aaa ")) {
+		t.Fatalf("the same token must key the same whatever the scheme's case or the spacing: %q", a)
+	}
+	if b := mcpBearer(req("Bearer uwm_at_bbb")); b == "" || b == a {
+		t.Fatalf("another token must key differently: %q vs %q", b, a)
+	}
+	if strings.Contains(a, "uwm_at_aaa") {
+		t.Fatalf("the key must not carry the token: %q", a)
+	}
+	for name, header := range map[string]string{
+		"none": "", "scheme only": "Bearer", "empty": "Bearer ", "Basic": "Basic uwm_at_aaa", "refresh token": "Bearer uwm_rt_aaa", "jwt": "Bearer eyJhbGciOiJIUzI1NiJ9.e30.x",
+	} {
+		if got := mcpBearer(req(header)); got != "" {
+			t.Errorf("%s: key = %q, want the address fallback", name, got)
+		}
+	}
+}
+
+// Ruling 28: the per-token budget is read before authentication, so a caller
+// who rotates well-formed uwm_at_ strings gets a fresh 120 a minute from each.
+// A per-address ceiling of 1200 a minute sits in front of it and counts every
+// request of the address whatever token it carries. Four teams behind one
+// vendor address (480 a minute at their own ceilings) fit under it.
+func TestMCPAddressCeilingStopsRotatingTokens(t *testing.T) {
+	h, _ := limitedMux(t)
+	c := caller{ip: "10.30.1.1"}
+	for i := 0; i < 1200; i++ {
+		c.bearer = fmt.Sprintf("uwm_at_rotating-%d", i)
+		if code := c.send(h, http.MethodPost, "/mcp"); code == http.StatusTooManyRequests {
+			t.Fatalf("request %d of 1200 from one address was refused with 429", i+1)
+		}
+	}
+	c.bearer = "uwm_at_rotating-1200"
+	c.wantRefused(t, h, http.MethodPost, "/mcp", "the 1201st request of an address in a minute, with a token never seen before")
+	// The refusal carries the standard envelope and Retry-After.
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.RemoteAddr = c.ip + ":40000"
+	req.Header.Set("Authorization", "Bearer uwm_at_rotating-1201")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") != "60" {
+		t.Fatalf("429 answer: %d Retry-After %q", rec.Code, rec.Header().Get("Retry-After"))
+	}
+
+	// A token the address spent is still limited by its own 120, and another
+	// address has its own ceiling.
+	other := caller{ip: "10.30.1.2", bearer: "uwm_at_one-team"}
+	other.spend(t, h, http.MethodPost, "/mcp", 120)
+	other.wantRefused(t, h, http.MethodPost, "/mcp", "per-token budget still applies under the ceiling")
+	caller{ip: "10.30.1.3", bearer: "uwm_at_fresh"}.spend(t, h, http.MethodPost, "/mcp", 1)
+}
+
+// The ceiling counts GET and DELETE too, and does not touch routes that are
+// not /mcp.
+func TestMCPAddressCeilingCoversEveryMethodAndNothingElse(t *testing.T) {
+	h, _ := limitedMux(t)
+	c := caller{ip: "10.30.1.4"}
+	for i := 0; i < 1200; i++ {
+		c.bearer = fmt.Sprintf("uwm_at_m-%d", i)
+		method := []string{http.MethodPost, http.MethodGet, http.MethodDelete}[i%3]
+		if code := c.send(h, method, "/mcp"); code == http.StatusTooManyRequests {
+			t.Fatalf("request %d refused", i+1)
+		}
+	}
+	c.bearer = "uwm_at_m-last"
+	c.wantRefused(t, h, http.MethodDelete, "/mcp", "one ceiling for every method")
+	// The discovery documents and OAuth endpoints are on their own budgets.
+	c.bearer = ""
+	c.spend(t, h, http.MethodGet, "/.well-known/oauth-protected-resource", 5)
+	c.spend(t, h, http.MethodPost, "/oauth/token", 5)
 }

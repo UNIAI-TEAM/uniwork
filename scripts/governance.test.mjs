@@ -123,29 +123,46 @@ test("the commit-msg hook enforces exactly the prefixes CLAUDE.md documents", ()
   );
 });
 
+const historicalCommitExceptions = new Map([
+  ["e88a05532ceb9b820a64d583fea43685457facd6", "Enhance UI components with transition classes and improve localization"],
+  ["c416bc6f1fee784862607faa4a8cd2519f252b2f", "add env"],
+  ["e6eaf72d530ee4b03481797e874c48fa99c55145", "change to new domain"],
+]);
+
+function rejectedCommitSubjects(commits, types) {
+  const re = new RegExp(`^(${types})(\\([a-z0-9._/-]+\\))?: .+`);
+  return commits.filter(({ sha, subject }) =>
+    historicalCommitExceptions.get(sha) !== subject &&
+    !re.test(subject) &&
+    !/^(Merge|Revert|fixup!|squash!|amend!|UNI-\d+:)/.test(subject),
+  ).map(({ subject }) => subject);
+}
+
 test("the commit-msg hook accepts this repo's whole history", () => {
   // A rule that would have rejected the commits already in the tree is not a
   // rule, it is a trap for the next person who writes a correct message.
   //
-  // e88a055 landed on develop via PR #62 and c416bc6 was pushed straight to
-  // develop, both without a conventional prefix; rewriting shared history is
-  // not an option, so keep the subjects here and nowhere else.
-  const historicalExceptions = new Set([
-    "Enhance UI components with transition classes and improve localization",
-    "add env",
-  ]);
-  const subjects = execFileSync("git", ["log", "--format=%s"], { cwd: root, encoding: "utf8" })
+  // e88a055 landed on develop via PR #62; c416bc6 and e6eaf72d5 were pushed
+  // straight to develop without a conventional prefix. Shared history cannot
+  // be rewritten; pin both SHA and subject so a new commit cannot reuse an
+  // exempt subject to escape this check.
+  const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })
     .split("\n")
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(line => { const [sha, subject] = line.split("\0"); return { sha, subject }; });
   const types = read(".githooks/commit-msg").match(/^TYPES="([^"]+)"/m)[1];
-  const re = new RegExp(`^(${types})(\\([a-z0-9._/-]+\\))?: .+`);
-  const rejected = subjects.filter(
-    (s) =>
-      !historicalExceptions.has(s) &&
-      !re.test(s) &&
-      !/^(Merge|Revert|fixup!|squash!|amend!|UNI-\d+:)/.test(s),
-  );
+  const rejected = rejectedCommitSubjects(commits, types);
   assert.deepEqual(rejected, [], "commit-msg would reject commits already in history");
+});
+
+test("historical message exceptions only allow their immutable commit and subject", () => {
+  const types = read(".githooks/commit-msg").match(/^TYPES="([^"]+)"/m)[1];
+  for (const [sha, subject] of historicalCommitExceptions) {
+    assert.deepEqual(rejectedCommitSubjects([{ sha, subject }], types), []);
+    assert.deepEqual(rejectedCommitSubjects([{ sha: "f".repeat(40), subject }], types), [subject]);
+    assert.deepEqual(rejectedCommitSubjects([{ sha, subject: "another invalid message" }], types), ["another invalid message"]);
+  }
+  assert.deepEqual(rejectedCommitSubjects([{ sha: "f".repeat(40), subject: "fix(changelog): validate content" }], types), []);
 });
 
 test("make doctor reads pinned versions from the files that own them", () => {

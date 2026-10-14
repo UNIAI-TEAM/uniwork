@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_mcp_auth_attempts_code_digest;

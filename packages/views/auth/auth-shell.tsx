@@ -78,10 +78,17 @@ function RailCascade() {
 export function AuthShell({
   title,
   description,
+  nameInTitle = false,
   children,
 }: {
   title: string;
   description: string;
+  /**
+   * The title carries a name of any length (an organization's). On a phone
+   * it steps down one size, so "Chuyển sang <a long name>" takes two lines
+   * instead of four and the screen's own content starts above the fold.
+   */
+  nameInTitle?: boolean;
   children: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
@@ -153,7 +160,10 @@ export function AuthShell({
                     <h1
                       ref={heading}
                       tabIndex={-1}
-                      className="text-balance font-display text-display font-bold text-foreground outline-none"
+                      className={cn(
+                        "text-balance font-display font-bold text-foreground outline-none",
+                        nameInTitle ? "text-display-sm sm:text-display" : "text-display",
+                      )}
                     >
                       {title}
                     </h1>

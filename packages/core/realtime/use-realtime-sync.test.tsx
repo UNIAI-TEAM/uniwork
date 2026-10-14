@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider, QueryObserver, type QueryKey } from "@tanstack/react-query";
 import { renderHook, act } from "@testing-library/react";
 import { describe, expect, it, vi, afterEach } from "vitest";
+import * as authApi from "../api/endpoints/auth";
 import * as chatApi from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
@@ -8,7 +9,10 @@ import { chatKeys } from "../chat/hooks";
 import { emailHubKeys } from "../email-hub/hooks";
 import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline";
 import { graphKeys } from "../graph/keys";
+import { setSessionUser } from "../auth/hooks";
+import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
 import type { Task } from "../types/task";
+import type { User } from "../types/user";
 import { useRealtimeSync } from "./use-realtime-sync";
 
 /**
@@ -212,6 +216,45 @@ describe("useRealtimeSync", () => {
     const { invalidate, client } = setup();
     client.emit({ type: "email_hub.inbox_changed", payload: { account_id: "a1", user_id: "u1" } });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(emailHubKeys.accounts("ws1")));
+  });
+
+  it.each(["email_hub.inbox_changed", "email_hub.new_mail"] as const)(
+    "%s invalidates unread and canonical sidebar counts",
+    (type) => {
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { account_id: "a1", user_id: "u1" } });
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([
+          JSON.stringify(emailHubKeys.unread("ws1")),
+          JSON.stringify(emailHubKeys.sidebarCounts("ws1", "a1")),
+        ]),
+      );
+    },
+  );
+
+  it("keeps Email Hub caches intact on new_mail and invalidates them on inbox_changed", () => {
+    vi.useFakeTimers();
+    const { qc, client } = setup();
+    const listKey = emailHubKeys.threads("ws1", "a1", "INBOX", {});
+    const conversationKey = emailHubKeys.conversation("ws1", "a1", "th1");
+    qc.setQueryData(listKey, { pages: [], pageParams: [] });
+    qc.setQueryData(conversationKey, { messages: [] });
+
+    client.emit({
+      type: "email_hub.new_mail",
+      payload: { account_id: "a1", user_id: "u1", workspace_id: "ws1" },
+    });
+
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(conversationKey)?.isInvalidated).toBe(false);
+
+    client.emit({
+      type: "email_hub.inbox_changed",
+      payload: { account_id: "a1", user_id: "u1", workspace_id: "ws1" },
+    });
+
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(conversationKey)?.isInvalidated).toBe(true);
   });
 
   it("invalidates catalog statuses on task_status.created", () => {
@@ -1169,5 +1212,85 @@ describe("useRealtimeSync › meeting motions", () => {
       vi.advanceTimersByTime(250);
     });
     expect(keysCalled(invalidate)).not.toContain(activity);
+  });
+});
+
+describe("useRealtimeSync › own organization membership", () => {
+  const me: User = {
+    id: "u1",
+    email: "a@b.c",
+    display_name: "A",
+    onboarded_at: "2026-10-01T00:00:00Z",
+    email_verified_at: "2026-10-01T00:00:00Z",
+    onboarding_questionnaire: {},
+    locale: "vi",
+  };
+  const organizations = JSON.stringify(["organizations"]);
+  const workspaces = JSON.stringify(["workspaces"]);
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    resetAuthStoreForTests();
+  });
+
+  it.each(["member.left", "member.joined"] as const)(
+    "%s for the signed-in user refreshes the organization and workspace lists and the session user",
+    async (type) => {
+      vi.useFakeTimers();
+      setSessionUser(me);
+      const fetchMe = vi.spyOn(authApi, "me").mockResolvedValue({ ...me, display_name: "A2" });
+      const { invalidate, client } = setup();
+      // Done in another tab: this tab learns it only from the frame (ADR 0032).
+      client.emit({ type, payload: { organization_id: "o1", user_id: "u1" } } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([organizations, workspaces]));
+      expect(fetchMe).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(useAuthStore.getState().user?.display_name).toBe("A2"));
+    },
+  );
+
+  it("organization.closed refreshes the lists and the session user of the members it reaches", async () => {
+    vi.useFakeTimers();
+    setSessionUser(me);
+    const fetchMe = vi.spyOn(authApi, "me").mockResolvedValue(me);
+    const { invalidate, client } = setup();
+    client.emit({ type: "organization.closed", payload: { organization_id: "o1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([organizations, workspaces]));
+    await vi.waitFor(() => expect(fetchMe).toHaveBeenCalledTimes(1));
+  });
+
+  it("a session user that changed while /me was out is not overwritten", async () => {
+    setSessionUser(me);
+    let answer: (u: User) => void = () => {};
+    vi.spyOn(authApi, "me").mockReturnValue(new Promise<User | null>((r) => (answer = r)));
+    const { client } = setup();
+    client.emit({ type: "member.left", payload: { organization_id: "o1", user_id: "u1" } } as WSMessage);
+    setSessionUser({ ...me, id: "u9" });
+    answer({ ...me, display_name: "stale" });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(useAuthStore.getState().user?.id).toBe("u9");
+  });
+
+  it("someone else's membership change leaves the caller's lists and session alone", () => {
+    vi.useFakeTimers();
+    setSessionUser(me);
+    const fetchMe = vi.spyOn(authApi, "me").mockResolvedValue(me);
+    const { invalidate, client } = setup();
+    client.emit({ type: "member.left", payload: { organization_id: "o1", user_id: "u2" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(JSON.stringify(["people"]));
+    expect(keys).not.toContain(organizations);
+    expect(keys).not.toContain(workspaces);
+    expect(fetchMe).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ import type { Task } from "../types/task";
 import type { Member } from "../types/workspace";
 import {
   canChangeMemberRole,
+  canCloseOrg,
   canChangeOrgRole,
   canCreateWorkspaceInOrg,
   canDeactivateMember,
@@ -169,6 +170,8 @@ export function usePeoplePermissions(orgSlug: string): {
   decideEditProfile: (target: { user_id: string } | null) => Decision;
   decideChangeRole: (target: { user_id: string; role: string } | null) => Decision;
   decideDeactivate: (target: { user_id: string; role: string } | null) => Decision;
+  /** Close the organization; the caller knows whether anyone else is still active. */
+  decideClose: (hasOtherActiveMembers: boolean) => Decision;
   isLoading: boolean;
 } {
   const { user, status } = useSession();
@@ -194,6 +197,7 @@ export function usePeoplePermissions(orgSlug: string): {
       decideEditProfile: pending,
       decideChangeRole: pending,
       decideDeactivate: pending,
+      decideClose: pending,
       isLoading: loading,
     };
   }
@@ -207,6 +211,7 @@ export function usePeoplePermissions(orgSlug: string): {
     decideEditProfile: (target) => canEditProfile(target, ctx),
     decideChangeRole: (target) => canChangeOrgRole(target, ctx),
     decideDeactivate: (target) => canDeactivateMember(target, ctx),
+    decideClose: (hasOtherActiveMembers) => canCloseOrg(ctx, hasOtherActiveMembers),
     isLoading: loading,
   };
 }

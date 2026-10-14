@@ -38,7 +38,10 @@ type ToolContext struct {
 }
 
 type Tool struct {
-	Name        string
+	Name string
+	// Title is the human-readable label an MCP client shows the person; Ask
+	// UNI's tools leave it empty.
+	Title       string
 	Description string
 	Kind        ToolKind
 	Risk        RiskLevel

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
+  closeOrganization,
   deactivateOrgMember,
   inviteToOrganization,
   listOrgInvitations,
@@ -96,5 +97,27 @@ describe("organization member endpoints", () => {
     await expect(leaveOrganization("acme")).resolves.toBe(true);
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: 1 }));
     await expect(leaveOrganization("acme")).resolves.toBe(false);
+  });
+
+  it("closeOrganization posts the typed slug and reports failure rather than throwing", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    await expect(closeOrganization("acme", "acme")).resolves.toBe(true);
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/orgs/acme/close");
+    expect(init).toMatchObject({ method: "POST" });
+    expect(JSON.parse(String(init!.body))).toEqual({ confirm_slug: "acme" });
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: 1 }));
+    await expect(closeOrganization("acme", "acme")).resolves.toBe(false);
+  });
+
+  it("closeOrganization surfaces a refusal as an ApiError carrying its code", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ error: { code: "organization_has_members", message: "x" } }, 409),
+    );
+    await expect(closeOrganization("acme", "acme")).rejects.toMatchObject({
+      code: "organization_has_members",
+      status: 409,
+    });
   });
 });

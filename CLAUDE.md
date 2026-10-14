@@ -249,7 +249,9 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   organizations through the API, with a row of A's in every tenant table but
   the few `isoUnseeded` names. B's owner calls every tenant route with A's
   ids, with B's parent and A's child ids, and with A's rows named in a body
-  (`isoReferences`) — the last two again once B's owner also joins A — and
+  (`isoReferences`) — the last two again once B's owner is also a member of
+  A, inserted by raw SQL because no API can create that account any more
+  (a multi-organization account left from before ADR 0032) — and
   the routes are called once more with no session at all. The answer is a
   refusal (403/404; 401 without a session) carrying no text or id of A's,
   every row with A's `organization_id` hashes the same before and after, and
@@ -261,7 +263,10 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   with a reason. A request field ending in `_id`/`_ids` fails
   `TestEveryBodyIDFieldHasAReferenceCase` until it has an `isoReferences`
   case or an exemption with a reason. `TestIsolationRealtime` holds the two
-  WebSockets, delivery included.
+  WebSockets, delivery included. `TestIsolationMCP` holds `/mcp` (ADR 0031): a
+  grant reads its own organization only, whatever ids its tools name, each
+  refusal is the tools' one not-found answer, and A's own grant runs every
+  attacked tool as the control.
 - Organization membership has a lifecycle (F-03). A member with
   `organization_members.deactivated_at` set keeps every row they own —
   workspace membership, authored content, history — and is refused by BOTH
@@ -271,6 +276,14 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   holds it. An organization has exactly one owner at a time
   (`idx_org_members_single_owner`); ownership moves only through
   `TransferOwnership`, never through a role change.
+- A person belongs to at most one active organization (ADR 0032): a
+  membership row with `deactivated_at` unset in an organization that is
+  `active` or `suspended`. `Create`, `AcceptInvite`, `Reactivate`, `Leave`
+  and `Close` take `LockUserMembership` (a per-user advisory lock) first and
+  check `activeOrganizations` inside the transaction; there is no unique
+  index, because accounts already in several organizations are kept. Closing
+  an organization archives it and deletes nothing.
+  `TestOneActiveOrganizationPerAccount` holds it.
 - `audit_events` is append-only. `REVOKE UPDATE, DELETE, TRUNCATE` plus a
   trigger that raises on both, so the rule holds even where the app owns the
   schema (ADR 0012). Retention never deletes; a wrong row is answered with
@@ -336,6 +349,13 @@ Every command that changes business state writes an `audit_events` row and its
   cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
   `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
   `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
+- External AI clients (Claude, ChatGPT, Gemini) reach UniWork only through
+  the MCP connector, with UniWork as their OAuth server (ADR 0031). They get
+  opaque tokens (`uwm_at_`, `uwm_rt_`) that only `/mcp` accepts, and `/mcp`
+  never accepts a session JWT: `TestMcpTokenRejectedByREST` and
+  `TestSessionTokenRejectedByMCP`. Its tools act as the human who consented,
+  through `RequireMember`, and only read: `TestMCPToolsAreReadOnly`. A write
+  tool, when one exists, follows ADR 0010.
 
 ## Platform Admin and Observability
 
@@ -442,9 +462,14 @@ database and never reveal whether an id exists to a non-member.
   `OptionalAuth` user or an HMAC-signed guest session, the chat
   presence/typing limiter uses the bearer user, and anything unverified falls
   back to the IP. Each limiter Redis call gives up after
-  100ms and fails open. The LiveKit webhook skips the global limiter; the
-  credential routes carry their own small budget in
-  `server/internal/handler/router/router.go`, whose tests pin all of it.
+  100ms and fails open. The LiveKit webhook and `/mcp` skip the global
+  limiter. `/mcp` is budgeted per access-token hash (`mcp`, 120/min; the
+  router reads no database, so the token is not verified there) under a
+  per-address ceiling (`mcp-ip`, 1200/min):
+  `TestMCPBudgetsEachAccessTokenAndSkipsTheGlobalLimiter` and
+  `TestMCPAddressCeilingStopsRotatingTokens`. The credential routes carry
+  their own small budget in `server/internal/handler/router/router.go`,
+  whose tests pin all of it.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get
@@ -459,7 +484,11 @@ database and never reveal whether an id exists to a non-member.
   `server/internal/handler/dto/sdo/` with `description` and `example`
   tags. A new `{param}` name needs a `pathParamSDI` case in
   `server/internal/handler/router/openapi.go`. Full checklist:
-  `docs/api-sdi-sdo.md`. `GET /api/v1/ws` stays off the spec.
+  `docs/api-sdi-sdo.md`. `GET /api/v1/ws` stays off the spec, and so do
+  `/oauth/*`, `/.well-known/oauth-*` and `/mcp` (ADR 0031): their bodies
+  follow the RFCs and the MCP spec, not SDI/SDO, so they are mounted outside
+  the `api` wrapper and cap their own bodies instead of going through
+  `decode`. `TestMCPOAuthRoutesAreMountedOutsideTheAPIWrapper` pins them.
 
 ## Web Features
 
