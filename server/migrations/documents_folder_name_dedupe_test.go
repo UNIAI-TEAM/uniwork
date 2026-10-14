@@ -41,6 +41,21 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 	cleanup()
 	t.Cleanup(cleanup)
 
+	// PR 2's idx_documents_folder_name_uidx refuses the duplicate live
+	// siblings this exercise exists to dedupe, so the whole run happens in a
+	// transaction with the index dropped: the rollback restores it. The
+	// email-hub dedupe test drops its index for the same reason. The seed
+	// cleanup above runs before the transaction on purpose - DROP INDEX holds
+	// ACCESS EXCLUSIVE on documents, so a later pool statement would wait.
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx`); err != nil {
+		t.Fatal(err)
+	}
+
 	seed := []struct {
 		id, kind, title, parent string
 		archived                bool
@@ -61,7 +76,7 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 		{id: "01DOCDEDUPECO000000000000013", kind: "folder", title: "Con", parent: "01DOCDEDUPEPR000000000000012", createdAgo: "2 hours"},
 	}
 	for _, s := range seed {
-		if _, err := pool.Exec(ctx, `
+		if _, err := tx.Exec(ctx, `
 			INSERT INTO documents (id, organization_id, workspace_id, kind, title, visibility,
 			  parent_id, created_by, created_by_kind, updated_by, updated_by_kind, created_at)
 			VALUES ($1, '01ORGDEDUPE0000000000000001', $2, $3, $4, 'workspace', nullif($5, ''),
@@ -70,7 +85,7 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := pool.Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		UPDATE documents SET archived_at = now(), purge_after = now() + interval '30 days'
 		WHERE id = '01DOCDEDUPEAR100000000000009'`); err != nil {
 		t.Fatal(err)
@@ -78,13 +93,13 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 
 	run := func() {
 		t.Helper()
-		if _, err := pool.Exec(ctx, dedupe); err != nil {
+		if _, err := tx.Exec(ctx, dedupe); err != nil {
 			t.Fatalf("%s: %v", matches[0], err)
 		}
 	}
 	titles := func() map[string]string {
 		t.Helper()
-		rows, err := pool.Query(ctx, `SELECT id, title FROM documents WHERE workspace_id = $1`, ws)
+		rows, err := tx.Query(ctx, `SELECT id, title FROM documents WHERE workspace_id = $1`, ws)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -142,7 +157,7 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 
 	// No audit row: a data fix is not a user command.
 	var audits int
-	if err := pool.QueryRow(ctx,
+	if err := tx.QueryRow(ctx,
 		`SELECT count(*) FROM audit_events WHERE resource_id LIKE '01DOCDEDUPE%'`).Scan(&audits); err != nil {
 		t.Fatal(err)
 	}
