@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18380 13300; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18380/tcp 13300/tcp 2>/dev/null; sleep 1; for p in 18380 13300; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+94ffbcb810e4d0ac533f042f1fd374e58ff062a7
+94ffbcb81 test(e2e): FD-A10 accepts the Office editor frame as the opened file view
+ba66a57b6 test(e2e): FD-A10 checks what the file view renders for an uploaded file
+0fec965e4 test(e2e): give FD-A03 sort seed distinct updated times
+9373109cc test(e2e): FD-A10 asserts the document renders after its link is opened
