@@ -18,11 +18,12 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 )
 
-// The office pack (G6-14, UNI-1369) ships as one registry entry
-// office_uniwork_ai@1 with six assembled System variants. These tests pin its
-// text three ways: golden files (wording), the draft's token estimator (the
-// G6-D1 A2 caps) and a per-version sha256 pin (a wording change cannot ride a
-// regenerated golden into @1).
+// The office pack (G6-14, UNI-1369; tuned in G6-08, UNI-1373) ships as
+// versioned registry entries office_uniwork_ai@1 and office_uniwork_ai@2 with
+// six assembled System variants. These tests pin their text three ways: golden
+// files (wording), the draft's token estimator (the G6-D1 A2 caps) and a
+// per-version sha256 pin (a wording change cannot ride a regenerated golden
+// into an existing version).
 
 func officePack(t *testing.T) Prompt {
 	t.Helper()
@@ -30,19 +31,24 @@ func officePack(t *testing.T) Prompt {
 	if !ok {
 		t.Fatalf("%s is not registered", PromptOfficeUniworkAI)
 	}
-	if p.ID != "office_uniwork_ai" || p.Version != 1 {
-		t.Fatalf("registry entry is %s, want office_uniwork_ai@1", p.Key())
+	if p.ID != "office_uniwork_ai" || p.Version != 2 {
+		t.Fatalf("registry entry is %s, want office_uniwork_ai@2", p.Key())
 	}
 	return p
 }
 
-func officeGolden(t *testing.T, name string) string {
+func officeGoldenVersion(t *testing.T, version int, name string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("testdata", "office_uniwork_ai_v1_"+name+".golden"))
+	b, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("office_uniwork_ai_v%d_%s.golden", version, name)))
 	if err != nil {
-		t.Fatalf("%s golden: %v", name, err)
+		t.Fatalf("v%d %s golden: %v", version, name, err)
 	}
 	return string(b)
+}
+
+func officeGolden(t *testing.T, name string) string {
+	t.Helper()
+	return officeGoldenVersion(t, 2, name)
 }
 
 // firstDiff names the first differing byte so a wording drift points at the
@@ -72,7 +78,7 @@ func clip(s string) string {
 
 // TestOfficePackGoldens pins every section verbatim (one golden per section)
 // and the assembled system text: COMMON + "\n\n" + MODULE[section] + "\n" +
-// UntrustedFooter (draft §0).
+// UntrustedFooter (draft §0), for both @1 and @2.
 func TestOfficePackGoldens(t *testing.T) {
 	p := officePack(t)
 
@@ -104,6 +110,20 @@ func TestOfficePackGoldens(t *testing.T) {
 				t.Errorf("%s assembled drift: %s", m.module, firstDiff(want, got))
 			}
 		})
+	}
+
+	// @1 stays registered and matches its v1 goldens untouched.
+	p1, ok := LookupPrompt("office_uniwork_ai@1")
+	if !ok {
+		t.Fatal("office_uniwork_ai@1 is not registered")
+	}
+	if c1 := officeGoldenVersion(t, 1, "common"); c1 != p1.System {
+		t.Errorf("v1 common section drift: %s", firstDiff(c1, p1.System))
+	}
+	for _, m := range officeModuleSections {
+		if s1 := officeGoldenVersion(t, 1, m.section); s1 != p1.Sections[m.section] {
+			t.Errorf("v1 %s section drift: %s", m.section, firstDiff(s1, p1.Sections[m.section]))
+		}
 	}
 
 	// Every section is reachable from a module key and no section is orphaned.
@@ -171,13 +191,11 @@ func officeEstimate(s string) int {
 // each module <= 1200, every assembled variant <= 2000 — with the draft's
 // estimator, pinned on purpose: the provider tokenizer of the target models
 // is not vendored in the repo, and the estimator over-counts English BPE
-// (chars/3.5 is ~15% above ~4 chars/token). The numbers are the draft §3 table
-// re-measured after the review round 1 wording (g14-w7-fix-report.md);
-// wording changes move them and fail here too.
+// (chars/3.5 is ~15% above ~4 chars/token).
 func TestOfficePackTokenCaps(t *testing.T) {
 	p := officePack(t)
 	wantEst := map[string]int{
-		"common": 800, "sheets": 1090, "docs": 571, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
+		"common": 790, "sheets": 1190, "docs": 595, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
 	}
 	commonVariant := p.System + "\n" + UntrustedFooter
 	if got := officeEstimate(commonVariant); got != wantEst["common"] || got > 800 {
@@ -203,24 +221,19 @@ func TestOfficePackTokenCaps(t *testing.T) {
 			worst = got
 		}
 	}
-	if worst != 1890 {
-		t.Errorf("worst assembled estimate %d, pinned 1890", worst)
+	if worst != 1980 {
+		t.Errorf("worst assembled estimate %d, pinned 1980", worst)
 	}
 }
 
 // officePackPins pins the released text of every office pack version: one
 // sha256 over the common variant and all assembled module variants.
 // Regenerating the goldens does not re-pin a version — to change wording,
-// bump office_uniwork_ai to @2 and add its pin, so a usage row's prompt_id
-// keeps explaining the text that was actually sent.
-//
-// The @1 pin was updated in place twice, with the G6-14 review round 1 wording
-// (UNI-1369) and the round 2 wording (FE14-13..-15): @1 had never left the lane
-// branch (not merged, never served),
-// so no usage row could name the earlier text. That exception closes when @1
-// is merged.
+// bump office_uniwork_ai to a new version and add its pin, so a usage row's
+// prompt_id keeps explaining the text that was actually sent.
 var officePackPins = map[string]string{
 	"office_uniwork_ai@1": "610071c053949cca830cacac60883e3491fa131418e377757893b5965d8b1faa",
+	"office_uniwork_ai@2": "1e47cf912b53dfb5c481f34bce6c27cc0c7e2e310f1ba22088083c8b0a3e5a82",
 }
 
 // officePackDigest is sha256 over the released text of one pack version in
@@ -454,5 +467,29 @@ func TestGatewayOfficeUniworkUsageRow(t *testing.T) {
 		if row.Capability != string(CapOfficeUniworkAI) {
 			t.Fatalf("%s: usage row capability = %q, want %q", name, row.Capability, CapOfficeUniworkAI)
 		}
+	}
+}
+
+func TestOfficePackModuleMaxTokens(t *testing.T) {
+	want := map[string]int{
+		"xlsx": 2048,
+		"docx": 3072,
+		"pptx": 2048,
+		"pdf":  2048,
+		"md":   3072,
+		"html": 4096,
+	}
+	capCeiling := policies[CapOfficeUniworkAI].MaxTokens
+	for _, m := range officeModuleSections {
+		got := OfficeModuleMaxTokens(m.module)
+		if got != want[m.module] {
+			t.Errorf("OfficeModuleMaxTokens(%q) = %d, want %d", m.module, got, want[m.module])
+		}
+		if got <= 0 || got > capCeiling {
+			t.Errorf("OfficeModuleMaxTokens(%q) = %d outside (0, %d]", m.module, got, capCeiling)
+		}
+	}
+	if got := OfficeModuleMaxTokens("unknown"); got != capCeiling {
+		t.Errorf("OfficeModuleMaxTokens(unknown) = %d, want %d", got, capCeiling)
 	}
 }

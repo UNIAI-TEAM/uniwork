@@ -49,18 +49,59 @@ var (
 )
 
 var policies = map[Capability]ModelPolicy{
+	// Structured JSON summary + decisions + action items over a full meeting transcript.
 	CapMeetingSummarization: {Default: flagship, MaxTokens: 4096, Temperature: 0},
-	CapCopilotAnswer:        {Default: flagship, MaxTokens: 1500, Temperature: 0},
-	CapChatCatchUp:          {Default: flagship, MaxTokens: 2048, Temperature: 0},
-	CapChatCallSummary:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
-	CapEmailThreadSummary:   {Default: flagship, MaxTokens: 2048, Temperature: 0},
-	CapContextExtraction:    {Default: fast, MaxTokens: 800, Temperature: 0},
-	CapAgentPlanning:        {Default: flagship, MaxTokens: 4096, Temperature: 0},
-	CapAgentGeneration:      {Default: flagship, MaxTokens: 8192, Temperature: 0.2},
-	CapAgentEvaluation:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
-	CapEmbedding:            {Default: embedding, MaxTokens: 0, Temperature: 0},
-	CapMediaAnalysis:        {Default: flagship, MaxTokens: 4096, Temperature: 0},
-	CapOfficeUniworkAI:      {Default: officeUniwork, MaxTokens: 4096, Temperature: 0},
+	// Grounded workspace Q&A answer with source citations; bounded to concise prose.
+	CapCopilotAnswer: {Default: flagship, MaxTokens: 1500, Temperature: 0},
+	// Unread chat catch-up JSON (summary, highlights, action items).
+	CapChatCatchUp: {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	// Completed voice-call summary JSON (summary, highlights, action items).
+	CapChatCallSummary: {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	// Email thread summary JSON (summary, key points, action items, reply hint).
+	CapEmailThreadSummary: {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	// Compact fact extraction for context cards; kept tight for fast models.
+	CapContextExtraction: {Default: fast, MaxTokens: 800, Temperature: 0},
+	// Multi-step workflow plan generation.
+	CapAgentPlanning: {Default: flagship, MaxTokens: 4096, Temperature: 0},
+	// Long-form artifact and draft generation.
+	CapAgentGeneration: {Default: flagship, MaxTokens: 8192, Temperature: 0.2},
+	// Rubric and output evaluation JSON.
+	CapAgentEvaluation: {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	// Vector embedding request; no completion tokens emitted.
+	CapEmbedding: {Default: embedding, MaxTokens: 0, Temperature: 0},
+	// Multimodal attachment and document analysis JSON.
+	CapMediaAnalysis: {Default: flagship, MaxTokens: 4096, Temperature: 0},
+	// Capability-wide ceiling covering the largest single-turn Office tool call (HTML/DOCX); per-module ceilings are in officeModuleMaxTokens.
+	CapOfficeUniworkAI: {Default: officeUniwork, MaxTokens: 4096, Temperature: 0},
+}
+
+// officeModuleMaxTokens tunes the max output tokens per genoffice module (G6-08,
+// UNI-1373): each module is capped to the largest single-turn tool-call JSON or
+// answer its dev-set and editing workflows require, bounded by
+// policies[CapOfficeUniworkAI].MaxTokens (4096).
+var officeModuleMaxTokens = map[string]int{
+	// Spreadsheet tool calls (read_range, summarize_range, propose_operations) and scoped numerical answers fit within 2048 tokens.
+	"xlsx": 2048,
+	// Word multi-paragraph replace_blocks / apply_ops payloads plus verbatim before/after edit summaries fit within 3072 tokens.
+	"docx": 3072,
+	// Slide shape text rewrites via apply_ops and slide-scoped summaries are compact per slide and fit within 2048 tokens.
+	"pptx": 2048,
+	// PDF page-scoped answers, notes and single-block text edits fit within 2048 tokens.
+	"pdf": 2048,
+	// Markdown multi-block apply_ops batches preserve surrounding source verbatim and fit within 3072 tokens.
+	"md": 3072,
+	// HTML DOM apply_ops batches can carry larger element subtrees up to the 4096 capability ceiling.
+	"html": 4096,
+}
+
+// OfficeModuleMaxTokens returns the tuned max output token ceiling for a
+// genoffice module, falling back to policies[CapOfficeUniworkAI].MaxTokens when
+// the module is not in officeModuleMaxTokens.
+func OfficeModuleMaxTokens(module string) int {
+	if n, ok := officeModuleMaxTokens[module]; ok {
+		return n
+	}
+	return policies[CapOfficeUniworkAI].MaxTokens
 }
 
 // allowedModels is the allowlist every override is checked against
