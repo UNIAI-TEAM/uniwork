@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+05fd209671dcb77a25a935401617579cc277b39a
+06d77a2fc3b0148a020fd0bec3b34a5a3d55a664
+05fd2096 Merge branch 'main' of github.com:UNIAI-TEAM/uniwork-office into feature/UNI-1371-g6-05-uniwork-adapter
+18514d75 test(ai): pin the Slides one-shot request builder call and a newer draft surviving the question restore
+f199a7ea fix(ai): a real provider choice in Settings while UniWork AI is hidden is written, not dropped
