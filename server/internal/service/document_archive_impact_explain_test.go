@@ -10,6 +10,17 @@ package service
 // default suite skips it. FD04_EXPLAIN_REPORT names a file the markdown
 // evidence is written to (the run report the lead reads).
 //
+// The last shape is workspace-dominant: one workspace holds 1M rows (a
+// sibling folder's children) plus a 951-node 20-level spine. The walk is the
+// statement both archive and archive-impact send, and its recursive term has
+// no archived_at predicate - it MUST traverse archived rows - so the partial
+// idx_documents_ws_parent of migration 949 cannot serve it and only the
+// non-partial idx_documents_ws_parent_all (BE-FD03-1 / BE-FD04-1) keeps the
+// planner off a sequential scan of the workspace per level. The shape asserts
+// the walk's plan uses that index, no node sequential-scans documents, and the
+// walk answers well under a second; without the index the same shape answers
+// seconds late (measured by dropping it in the test database).
+//
 // Every measurement runs the statement the generated code sends: a recording
 // DBTX captures the SQL and the arguments, and the plan runs with those same
 // arguments. The end-to-end number is the real DocumentService.ArchiveImpact
@@ -82,6 +93,24 @@ func measureCount(t *testing.T, pool *pgxpool.Pool, params db.CountLiveDocumentS
 	return probe
 }
 
+// assertWalkUsesTheParentAllIndex fails loudly with the plan when the walk's
+// recursive term falls back to a sequential scan of the whole workspace. That
+// is the BE-FD03-1 / BE-FD04-1 shape: the recursive term carries no
+// archived_at predicate (it must traverse archived rows), so the partial
+// idx_documents_ws_parent cannot serve it and the planner picks a hash join
+// plus a seq scan of the workspace per level - seconds on a workspace of
+// millions of rows. The non-partial idx_documents_ws_parent_all is what keeps
+// the nested loop in place.
+func assertWalkUsesTheParentAllIndex(t *testing.T, probe walkProbe) {
+	t.Helper()
+	if strings.Contains(probe.plan, "Seq Scan on documents") {
+		t.Fatalf("the walk sequential-scans documents; idx_documents_ws_parent_all should serve the recursive term:\n%s", probe.plan)
+	}
+	if !strings.Contains(probe.plan, "idx_documents_ws_parent_all") {
+		t.Fatalf("the walk's plan does not use idx_documents_ws_parent_all:\n%s", probe.plan)
+	}
+}
+
 // planArrayRe matches an id array literal a plan echoes back (the count query
 // carries up to archiveBound()+1 ids): a thousand ids in one line would hide
 // the shape the evidence is about.
@@ -114,6 +143,44 @@ func (f *docPermFixture) fd04Impact(t *testing.T, actor Actor, root string) (Doc
 		t.Fatalf("ArchiveImpact on %s: %v", root, err)
 	}
 	return got, wall
+}
+
+// TestDocumentArchiveWalkIndexExists is the cheap default-suite guard for
+// BE-FD03-1 / BE-FD04-1: the non-partial (workspace_id, parent_id) index the
+// archive walk needs is present, valid and shaped the way the recursive term
+// requires once every migration has run. The expensive measurement - 200k+
+// rows in one workspace, the plan and the latency - lives in
+// TestFD04ArchiveImpactEvidence behind FD04_EXPLAIN.
+//
+// The shape is the assertion: the recursive term has no archived_at or
+// owner_id predicate (it must traverse archived rows), so an index carrying
+// either cannot serve it, which is why migration 949's partial index is kept
+// for the tree listing and this non-partial one is added beside it.
+func TestDocumentArchiveWalkIndexExists(t *testing.T) {
+	f := newDocPermFixture(t)
+	var def string
+	var valid bool
+	if err := f.pool.QueryRow(f.ctx, `
+		SELECT pg_get_indexdef(i.indexrelid), i.indisvalid
+		FROM pg_index i
+		JOIN pg_class c ON c.oid = i.indexrelid
+		WHERE c.relname = 'idx_documents_ws_parent_all'`).Scan(&def, &valid); err != nil {
+		t.Fatalf("idx_documents_ws_parent_all: %v", err)
+	}
+	if !valid {
+		t.Fatalf("idx_documents_ws_parent_all is present but not valid: %s", def)
+	}
+	if !strings.Contains(def, "(workspace_id, parent_id)") {
+		t.Fatalf("index = %s, want (workspace_id, parent_id)", def)
+	}
+	// The index must NOT be partial. A partial index is only usable when the
+	// query proves its predicate, and ListLiveDocumentSubtreeIDs carries no
+	// owner_id or archived_at predicate, so either would leave the planner
+	// free to keep the sequential scan (measured: 15.7 s on a 2M-row
+	// workspace, against 6.5 ms with this index).
+	if strings.Contains(def, "WHERE") {
+		t.Fatalf("index = %s: a partial predicate makes it unusable for the archive walk", def)
+	}
 }
 
 func TestFD04ArchiveImpactEvidence(t *testing.T) {
@@ -230,6 +297,64 @@ func TestFD04ArchiveImpactEvidence(t *testing.T) {
 	fmt.Fprintf(&md, "count rows=%v, count query %s, count EXPLAIN %s\n\n", deepCount.ids, deepCount.queryWall.Round(time.Microsecond), deepCount.planWall.Round(time.Microsecond))
 	fmt.Fprintf(&md, "```\n%s\n```\n\n```\n%s\n```\n\n", deepWalk.plan, deepCount.plan)
 	f.dropShape(t, deepWS)
+
+	// Workspace-dominant: one workspace holds the bulk of the table (a sibling
+	// folder's children) plus a 951-node 20-level spine, the layout the FD-03
+	// review measured at 11 s before the non-partial index existed. The walk is
+	// the statement both archive and archive-impact send, so this is the
+	// archive walk's plan on the shape that broke it.
+	domSizes := []int{1000000}
+	if raw := os.Getenv("FD04_EXPLAIN_DOMINANT_SIZES"); raw != "" {
+		domSizes = nil
+		for _, part := range strings.Split(raw, ",") {
+			n, err := strconv.Atoi(strings.TrimSpace(part))
+			if err != nil {
+				t.Fatalf("FD04_EXPLAIN_DOMINANT_SIZES: %v", err)
+			}
+			domSizes = append(domSizes, n)
+		}
+	}
+	for _, n := range domSizes {
+		domWS := f.newWorkspace(t, tn, fmt.Sprintf("dominant-%d", n))
+		// The workspace's bulk: sibling folders with n live children between
+		// them, so the walk's per-level lookup has n rows to look through.
+		// Several parents, not one: a workspace whose million rows hang off a
+		// single folder is not a product shape, and its skewed parent_id
+		// statistics would measure the statistics, not the index.
+		bulkFolders := 200
+		for i := 0; i < bulkFolders; i++ {
+			f.seedFlatTree(t, tn, domWS, n/bulkFolders)
+		}
+		domRoot := f.seedSpineTree(t, tn, domWS, levels, fanout)
+		f.analyzeDocuments(t)
+		domImpact, domWall := f.fd04Impact(t, owner, domRoot)
+		if domImpact.Total != 1+(levels-1)*fanout || domImpact.TooLarge {
+			t.Fatalf("dominant impact = %+v, want %d total and not too_large", domImpact, 1+(levels-1)*fanout)
+		}
+		domWalk := measureWalk(t, f.pool, walkParams(domWS, domRoot))
+		if len(domWalk.ids) != 1+(levels-1)*fanout {
+			t.Fatalf("dominant walk returned %d ids, want %d", len(domWalk.ids), 1+(levels-1)*fanout)
+		}
+		assertWalkUsesTheParentAllIndex(t, domWalk)
+		if domWalk.queryWall >= time.Second {
+			t.Fatalf("dominant walk took %s (>= 1s) on a %d-row workspace; idx_documents_ws_parent_all should serve it:\n%s",
+				domWalk.queryWall, n, domWalk.plan)
+		}
+		if domWall >= 3*time.Second {
+			t.Fatalf("dominant end-to-end archive-impact took %s (>= 3s) on a %d-row workspace:\n%s",
+				domWall, n, domWalk.plan)
+		}
+		domCount := measureCount(t, f.pool, db.CountLiveDocumentSubtreeByKindParams{
+			OrganizationID: tn.orgID, WorkspaceID: domWS, Ids: domWalk.ids, RootID: domRoot,
+		})
+		fmt.Fprintf(&md, "## Workspace-dominant: 1 workspace with %d bulk rows + a %d-node %d-level spine\n\n", n, 1+(levels-1)*fanout, levels)
+		fmt.Fprintf(&md, "impact %+v, end-to-end %s\n", domImpact, domWall.Round(time.Microsecond))
+		fmt.Fprintf(&md, "walk ids=%d recursive-union rows=%d largest heap node=%d, walk query %s, walk EXPLAIN %s\n",
+			len(domWalk.ids), domWalk.walkRows, domWalk.heapRows, domWalk.queryWall.Round(time.Microsecond), domWalk.planWall.Round(time.Microsecond))
+		fmt.Fprintf(&md, "count rows=%v, count query %s, count EXPLAIN %s\n\n", domCount.ids, domCount.queryWall.Round(time.Microsecond), domCount.planWall.Round(time.Microsecond))
+		fmt.Fprintf(&md, "```\n%s\n```\n\n```\n%s\n```\n\n", domWalk.plan, domCount.plan)
+		f.dropShape(t, domWS)
+	}
 
 	if path := os.Getenv("FD04_EXPLAIN_REPORT"); path != "" {
 		if err := os.WriteFile(path, []byte(md.String()), 0o644); err != nil {
