@@ -72,7 +72,7 @@ function NavItem({
       aria-current={current ? "page" : undefined}
       onClick={onClick}
       className={cn(
-        "flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
+        "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
         current && "bg-accent font-medium",
       )}
     >
@@ -87,7 +87,7 @@ function NavItem({
 
 function SectionLabel({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="mt-4 flex items-center justify-between px-2 pb-1">
+    <div className="mt-4 flex shrink-0 items-center justify-between px-2 pb-1">
       <h3 className="text-caption font-medium uppercase tracking-wide text-muted-foreground">{children}</h3>
       {action}
     </div>
@@ -152,7 +152,7 @@ export function DocumentsSidebar({
         currentId={folderId}
         onOpen={onFolder}
         emptyLabel={t("documents.home.folders.empty")}
-        className="overflow-visible p-0"
+        className="shrink-0 overflow-visible p-0"
       />
 
       {sourcesAvailable ? (
@@ -175,6 +175,7 @@ export function DocumentsSidebar({
         onOpenChange={setCreateOpen}
         mode="create"
         root
+        wsId={wsId}
         initialName={t("documents.home.folders.default_name")}
         pending={newFolderPending}
         onSubmit={(title) => onNewFolder(title)}
@@ -193,7 +194,7 @@ export function DocumentsSidebarSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="flex w-full flex-col gap-0 p-0 sm:max-w-xs" closeLabel={t("common.close")}>
-        <SheetHeader className="border-b border-border px-4 py-3 text-left">
+        <SheetHeader className="shrink-0 border-b border-border px-4 py-3 text-left">
           <SheetTitle className="flex items-center gap-2 text-title">
             <FolderTree aria-hidden className="size-4 text-muted-foreground" />
             {t("documents.tree.sheet_title")}
