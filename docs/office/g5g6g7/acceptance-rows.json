@@ -463,6 +463,19 @@
       "gate": "G6-D1",
       "blocker": null,
       "evidence": [],
+      "partialEvidence": [
+        {
+          "task": "G6-05",
+          "revision": "ad6a9981e6a265c6e2ab525a537fee83338680c8",
+          "repo": "uniwork-office feature/UNI-1371-g6-05-uniwork-adapter @ ad6a9981e6a265c6e2ab525a537fee83338680c8",
+          "run": "web run-71666cc9 (c.log), office-ci-test run-d1cf162b (t.log)",
+          "report": "reports/g6-ai_server/tester-cloud-g05-5.md (web shard TEST_WEB_EXIT=0, WEB_E2E_EXIT=0; office-ci-test 21/21 steps exit 0; the report prints package totals, not per-file counts, and no cited file has a skip)",
+          "tests": [
+            "apps/shell/tests/uniwork-ai-no-save.test.ts (desktop, real streamUniwork over the real shell transport, real documents service and durable store: the request list after a turn that edits is exactly [POST chat]; no save/upload/commit request, no save intent, the tab stays dirty)",
+            "web/docs/bridge/uniwork-ai-no-save.test.ts (web, real module bridge; every frame message of the turn counted: no api.save/saveAs/upload/commit/draft/intent, only the dirty report of the edit; the frame's only HTTP request is the chat completion)"
+          ]
+        }
+      ],
       "status": "NOT_RUN",
       "reviewer": "pending reviewer_be (UNI-1376)"
     },
@@ -652,6 +665,29 @@
             "TestAIUniworkGlobalLimiterKeysFrameTokenByIdentity (router; the global limiter names the frame token's person and document, so one address no longer pools every frame)",
             "TestRateLimitBucketRefusalCode (middleware; the ai-uniwork bucket answers ai_rate_limited + Retry-After: 60, another bucket keeps rate_limited)"
           ]
+        },
+        {
+          "task": "G6-05",
+          "revision": "ad6a9981e6a265c6e2ab525a537fee83338680c8",
+          "repo": "uniwork-office feature/UNI-1371-g6-05-uniwork-adapter @ ad6a9981e6a265c6e2ab525a537fee83338680c8",
+          "run": "web run-71666cc9 (c.log), office-ci-test run-d1cf162b (t.log)",
+          "report": "reports/g6-ai_server/tester-cloud-g05-5.md (web shard TEST_WEB_EXIT=0; office-ci-test 21/21 steps exit 0; package totals only, no cited file has a skip; the web/modules root reports one skipped file the log does not name)",
+          "tests": [
+            "web/docs/bridge/frame-capabilities.test.ts ('<module>: uniworkAi alone is effective and opens AI without credentials' and '<module>: no uniworkAi without the host grant', for each of the six modules)",
+            "web/modules/shared/ai/ai.test.ts ('aiHostGrants: uniworkAi alone opens the panel, no credentials, no cloud tools'; 'uniworkAi alone: active, no credential list read, an unlocked UniWork AI entry chosen by default'; 'without the uniworkAi grant there is no UniWork AI entry, and a stored choice of it is ignored'; 'office_capability_off before any run: the entry hides, the key goes off, no error chip, BYOK untouched')",
+            "web/modules/sheets/ai.test.ts ('sheetsHostGrants uniworkAi alone: the panel opens, no credentials entry, no cloud tools')",
+            "apps/shell/tests/uniwork-ai-availability.test.ts (desktop: 'offered when the cloud is ready with chat and the format is on'; hidden when the format is not in ai_uniwork_formats, when ai_uniwork is off, when tools.chat is false, when the cloud is not ready)",
+            "packages/ai-provider/tests/uniwork-protocol.test.ts ('second request carries only the tool results and both ids, never an assistant turn'; 'sends only the module tools, cloud tools only with office.ai_cloud' (no MCP tool); 'dropped_tool_calls reach onNotice with view_only / not_allowlisted'; 'run_limit_reached ends the run with aiErrRunLimit'; 'office_capability_off before any run id reports uniwork-off')"
+          ]
+        },
+        {
+          "task": "G6-05 (D frame grant)",
+          "revision": "a474d581f (this repo, feature/UNI-1371-g6-05-frame-grant)",
+          "report": "reports/g6-ai_server/g05-d1-report.md (local run through the lane lock, exit 0; not a cloud round)",
+          "tests": [
+            "packages/views/office/frame/docs-frame-session-model.test.ts (officeModuleCapabilities: uniwork_ai alone grants uniworkAi with ai false and the cloud tools following their own grants; no grant, a drifted or absent uniwork_ai, or neither AI keeps uniworkAi and the cloud tools off; a module without AI panels grants nothing)",
+            "packages/views/office/frame/office-module-frame.test.tsx ('grants the <module> frame uniworkAi and the cloud tools from a uniwork_ai grant alone' for the six modules; 'keeps uniworkAi off without the grant, with a drifted one, and keeps cloud tools off without either AI')"
+          ]
         }
       ],
       "status": "NOT_RUN",
@@ -717,6 +753,18 @@
             "TestAIUniworkBusySetsRetryAfter (handler: the ai_uniwork_busy refusal carries Retry-After: 5)",
             "TestAIUniworkRateLimitedHasRetryAfter (router: the ai-uniwork bucket answers 429 ai_rate_limited + Retry-After: 60)",
             "TestAIUniworkStepLimitInJSONAndSSE (handler: x_uniwork.step/limit on the wire at step 0)"
+          ]
+        },
+        {
+          "task": "G6-05",
+          "revision": "ad6a9981e6a265c6e2ab525a537fee83338680c8",
+          "repo": "uniwork-office feature/UNI-1371-g6-05-uniwork-adapter @ ad6a9981e6a265c6e2ab525a537fee83338680c8",
+          "run": "web run-71666cc9 (c.log), office-ci-test run-d1cf162b (t.log)",
+          "report": "reports/g6-ai_server/tester-cloud-g05-5.md (web shard TEST_WEB_EXIT=0; office-ci-test 21/21 steps exit 0; package totals only, no cited file has a skip)",
+          "tests": [
+            "packages/ai-provider/tests/uniwork-retry-after.test.ts (decideRateLimitWait: Retry-After 0 retries at once, 120 waits, 300 waited and 301 gives up, HTTP-date, missing gives up, a fourth wait gives up)",
+            "packages/ai-provider/tests/uniwork-protocol.test.ts ('streamUniwork: Retry-After (429 rule)': the run id kept on the retry, rate-limit-wait notices never an error, Stop during a wait ends the turn; 'a transport that never answers mid-turn is a disconnect, not overloaded'; 'a 503 leaves no state that breaks the next BYOK turn' (ai_disabled, then a BYOK turn completes))",
+            "packages/ai-provider/tests/uniwork-errors.test.ts ('UniWork AI errors branch on the code': codes classify by code, a status without a known code falls back by status, the message never carries the server text)"
           ]
         }
       ],
