@@ -1,0 +1,8 @@
+$ npm run check:english-comments
+
+> genoffice@0.1.0 check:english-comments
+> node tools/check-english-comments.mjs && node --test tools/check-english-comments.test.mjs
+
+Chinese text found in code comments or docs:
+  docs/upstream/PORTED.md:15: | 3   | c0e7b66d | feat(docs): first-line indents in character units — 2 字符 that rescale with the font size (#1892) (#1898)        | ported  | 50b9279a           |                                                                                    |
+Comments and documentation must be English-only. Move CJK text into string literals or rewrite the comment in English.
