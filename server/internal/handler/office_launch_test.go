@@ -8,6 +8,11 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 func TestOfficeLaunchCreateRouteBindsTicketToDocumentAndHidesItFromNonMembers(t *testing.T) {
@@ -155,5 +160,51 @@ func TestOfficeLaunchCreateRouteCarriesOptionalCommentID(t *testing.T) {
 	})
 	if res.StatusCode != 404 {
 		t.Fatalf("unknown comment id = %d %v", res.StatusCode, out)
+	}
+}
+
+// R1-1: the ticket may only name a comment of ITS OWN document. A live
+// comment of another document in the same workspace must be refused with the
+// same 404 as an unknown id, and no launch row may be stored; the same id
+// still works on its own document.
+func TestOfficeLaunchCommentIDMustBelongToTheDocument(t *testing.T) {
+	var pool *pgxpool.Pool
+	w := newOfficeWorldTweaked(t, true, func(*filesfake.Fake) service.OfficeEngine { return newHandlerStubEngine(t) },
+		func(_ *Deps, p *pgxpool.Pool) { pool = p })
+	documentID := w.createMarkdownFile(t, "# comment owner\n")
+	otherDocumentID := w.createMarkdownFile(t, "# foreign comment\n")
+
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+otherDocumentID+"/comments", w.token, map[string]any{"body": "bình luận của tài liệu khác"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create foreign comment: %d %v", res.StatusCode, out)
+	}
+	foreignCommentID := out["comment"].(map[string]any)["id"].(string)
+
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": foreignCommentID,
+	})
+	if res.StatusCode != 404 {
+		t.Fatalf("foreign-document comment id = %d %v", res.StatusCode, out)
+	}
+	if _, ok := out["launch_ticket"]; ok {
+		t.Fatalf("refused launch answered a ticket: %v", out)
+	}
+	var stored int
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM office_launch_sessions WHERE document_id = $1", documentID).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored != 0 {
+		t.Fatalf("foreign-document comment stored %d launch rows", stored)
+	}
+
+	// Control: the same comment id on its own document is accepted.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+otherDocumentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": foreignCommentID,
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("own-document comment id = %d %v", res.StatusCode, out)
+	}
+	if got, _ := out["comment_id"].(string); got != foreignCommentID {
+		t.Fatalf("own-document comment echo = %q, want %q", got, foreignCommentID)
 	}
 }

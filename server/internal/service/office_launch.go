@@ -166,17 +166,25 @@ func (s *OfficeLaunchService) Create(ctx context.Context, actor Actor, in Office
 		}
 	}
 	// The optional comment rides the ticket (G8-07 §3). It must be a live
-	// comment of THIS document, proven through the tenant pair, so the ticket
-	// can never name a comment of another document or tenant; an unknown id
-	// is refused rather than stored.
+	// comment of THIS document, proven through the tenant pair and the extra
+	// document identity check below, so the ticket can never name a comment
+	// of another document or tenant; an unknown id, including a comment of
+	// another document in the same workspace, is refused rather than stored.
 	commentID := strings.TrimSpace(in.CommentID)
 	if commentID != "" {
-		if _, err := s.docs.q.GetDocumentComment(ctx, db.GetDocumentCommentParams{
+		comment, err := s.docs.q.GetDocumentComment(ctx, db.GetDocumentCommentParams{
 			ID: commentID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-		}); errors.Is(err, pgx.ErrNoRows) {
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
 			return OfficeLaunchSession{}, ErrNotFound
 		} else if err != nil {
 			return OfficeLaunchSession{}, err
+		}
+		// The query scopes the id to the tenant pair, not to the document:
+		// a live comment of another document in this workspace would pass it
+		// untouched, so compare the document id as well.
+		if comment.DocumentID != doc.ID {
+			return OfficeLaunchSession{}, ErrNotFound
 		}
 	}
 	raw, err := randomLaunchTicket()
