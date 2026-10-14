@@ -145,6 +145,24 @@ func TestMcpTokenRejectedByREST(t *testing.T) {
 	}
 }
 
+// mcpReadToolCount is how many tools the router lists for a grant that cannot
+// write: the read tools of the registry it serves, so a new read tool does not
+// break the tests that count them. An empty registry is a wiring bug, not a
+// count to compare with.
+func mcpReadToolCount(t *testing.T, d Deps) int {
+	t.Helper()
+	n := 0
+	for _, tool := range service.McpTools(d.McpTools) {
+		if tool.Kind == ai.ToolRead {
+			n++
+		}
+	}
+	if n == 0 {
+		t.Fatal("the registry has no read tool")
+	}
+	return n
+}
+
 func TestMcpToolsOverHTTP(t *testing.T) {
 	srv, d := newMcpTestServer(t)
 	pair, wsID := mcpTestPair(t, srv, d, "mcp-http@example.com", "mcp-http")
@@ -156,8 +174,8 @@ func TestMcpToolsOverHTTP(t *testing.T) {
 		t.Fatalf("tools/list: %d %v", res.StatusCode, out)
 	}
 	tools := out["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 5 {
-		t.Fatalf("tools = %v", tools)
+	if want := mcpReadToolCount(t, d); len(tools) != want {
+		t.Fatalf("listed %d tools, want the %d read tools of the registry: %v", len(tools), want, tools)
 	}
 	for _, raw := range tools {
 		tool := raw.(map[string]any)
