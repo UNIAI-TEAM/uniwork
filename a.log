@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+6ec437603c9220b776d0ef66a69dbd0b1f0e37d1
+6ec437603 chore: merge the G5-G7 root (9d987d353) into FD-08
+9d987d353 chore: merge the G5-G7 root (0d767e164) into FD-04
+0d767e164 chore: merge FD-02 PR1 folder names (UNI-1462) into the G5-G7 root
+a6d172771 fix(documents): enforce 44x44 coarse-pointer minimum on toolbar chips and tabs
+2370270e9 chore: merge the G5-G7 root 8cf3fb18c into FD-08 (accept-invite flake fix, G6-05 frame grant)
+ec6516cf2 chore: merge the G5-G7 root (8cf3fb18c) into FD-04
+f2db875ee chore: merge FD-02 PR1 (5905ef049) into FD-04
+8cf3fb18c test(views): commit the heir pick with a pointerdown so the password-refusal tests stop flaking
