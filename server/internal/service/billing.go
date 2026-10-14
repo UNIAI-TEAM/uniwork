@@ -141,13 +141,18 @@ func planListPrice(p db.Plan) int64 {
 // two people changing the plan at once. Platform staff use
 // AdminService.ChangePlan.
 func (s *BillingService) ChangePlan(ctx context.Context, userID, orgID, planCode string, expectedVersion int32) (EntitlementSnapshot, error) {
-	return s.changePlan(ctx, userID, orgID, planCode, expectedVersion, false)
+	return s.changePlan(ctx, userID, orgID, planCode, expectedVersion, false, nil)
 }
+
+// planChangeHook runs on the subscription transaction, after the plan row and
+// its audit event and before commit. The owner path passes nil. AdminService
+// uses it to insert admin_actions in that same transaction.
+type planChangeHook func(ctx context.Context, q *db.Queries, beforeCode, afterCode string) error
 
 // changePlan is the shared switch. asAdmin is the platform console path: it
 // skips the owner check, the inactive-plan refusal, checkout_required and
 // the paid-downgrade refusal. The customer routes always pass false.
-func (s *BillingService) changePlan(ctx context.Context, userID, orgID, planCode string, expectedVersion int32, asAdmin bool) (EntitlementSnapshot, error) {
+func (s *BillingService) changePlan(ctx context.Context, userID, orgID, planCode string, expectedVersion int32, asAdmin bool, hook planChangeHook) (EntitlementSnapshot, error) {
 	if !asAdmin {
 		if err := s.requireOwner(ctx, userID, orgID); err != nil {
 			return EntitlementSnapshot{}, err
@@ -212,6 +217,11 @@ func (s *BillingService) changePlan(ctx context.Context, userID, orgID, planCode
 	}
 	if err := s.recordChange(ctx, q, actor, after, "change_plan", map[string]any{"plan_code": before.Code}, map[string]any{"plan_code": plan.Code}); err != nil {
 		return EntitlementSnapshot{}, err
+	}
+	if hook != nil {
+		if err := hook(ctx, q, before.Code, plan.Code); err != nil {
+			return EntitlementSnapshot{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return EntitlementSnapshot{}, err
