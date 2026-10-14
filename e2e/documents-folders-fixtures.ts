@@ -7,11 +7,11 @@ import {
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { e2eApiUrl } from "./api-url";
+import { VERIFICATION_CODE } from "./auth-nav";
 import {
   createRecordingAccount,
   joinWorkspaceAsMember,
   loginViaUi,
-  registerApiUser,
 } from "./meeting-recording-fixture";
 
 /**
@@ -251,12 +251,51 @@ async function fetchUserId(page: Page, token: string): Promise<string> {
   return body.user.id;
 }
 
+// Same password as meeting-recording-fixture.ts, which loginViaUi signs in with.
+const FOLDER_USER_PASSWORD = "password123";
+
+/**
+ * Registers and verifies a user like `registerApiUser`, but retries on 429:
+ * /auth/register shares a 60/min per-IP credential limit with every parallel
+ * worker, and A12 registers several extra members per run.
+ */
+async function registerFolderUser(
+  page: Page,
+  tag: string,
+): Promise<{ token: string; email: string }> {
+  const email = `${tag}-${Date.now()}@example.com`;
+  const created = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/auth/register`, {
+      data: { email, password: FOLDER_USER_PASSWORD, display_name: tag },
+    }),
+  );
+  const createdText = await created.text();
+  expect(
+    created.ok(),
+    `register ${email}: HTTP ${created.status()} ${createdText}`,
+  ).toBeTruthy();
+  const { access_token: token } = JSON.parse(createdText) as {
+    access_token: string;
+  };
+  const verified = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/me/email/verify`, {
+      headers: authHeaders(token),
+      data: { code: VERIFICATION_CODE },
+    }),
+  );
+  expect(
+    verified.ok(),
+    `verify ${email}: HTTP ${verified.status()} ${await verified.text()}`,
+  ).toBeTruthy();
+  return { token, email };
+}
+
 async function addWorkspaceMember(
   page: Page,
   owner: { token: string; wsId: string },
   tag: string,
 ): Promise<FolderTestUser> {
-  const peer = await registerApiUser(page, e2eApiUrl, tag);
+  const peer = await registerFolderUser(page, tag);
   await joinWorkspaceAsMember(page, e2eApiUrl, owner.token, owner.wsId, peer);
   const done = await requestWithRetry429(() =>
     page.request.post(`${e2eApiUrl}/api/v1/me/onboarding/complete`, {
