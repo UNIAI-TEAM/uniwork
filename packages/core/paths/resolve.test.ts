@@ -51,15 +51,23 @@ describe("resolvePostAuthDestination", () => {
   it("no organization at all → /get-started (ADR 0032 D12)", () => {
     expect(resolvePostAuthDestination([], onboarded, [])).toBe("/get-started");
   });
-  it("skips workspaces of an organization the user no longer belongs to", () => {
-    // A closed organization leaves the organization list while its workspaces
-    // may still be listed; those are not a destination.
+  it("skips workspaces of an organization the list says the user no longer holds", () => {
     const list = [ws("closed", "alpha"), ws("acme", "team")];
-    expect(resolvePostAuthDestination(list, onboarded, [org("acme")])).toBe("/acme/team/tasks");
-    expect(resolvePostAuthDestination([ws("closed", "alpha")], onboarded, [])).toBe("/get-started");
+    expect(resolvePostAuthDestination(list, onboarded, [org("closed", "archived"), org("acme")])).toBe(
+      "/acme/team/tasks",
+    );
     expect(resolvePostAuthDestination([ws("closed", "alpha")], onboarded, [org("closed", "archived")])).toBe(
       "/get-started",
     );
+  });
+  /**
+   * GET /orgs degrades to [] when its answer drifts, and GET /workspaces
+   * already leaves closed organizations out: an empty list must not send a
+   * person who still has workspaces to /get-started.
+   */
+  it("an empty or drifted organization list does not hide the workspaces the server lists", () => {
+    expect(resolvePostAuthDestination([ws("acme", "team")], onboarded, [])).toBe("/acme/team/tasks");
+    expect(resolveHomeDestination([ws("acme", "team")], onboarded, null, [])).toBe("/acme/team");
   });
   it("a suspended organization still counts as belonging (ADR 0032 D1)", () => {
     expect(resolvePostAuthDestination([], onboarded, [org("o1", "suspended")])).toBe("/workspaces/new");
@@ -100,10 +108,11 @@ describe("resolveHomeDestination", () => {
     expect(resolveHomeDestination([], onboarded, { orgSlug: "acme", wsSlug: "team" })).toBe("/workspaces/new");
   });
   it("no organization at all → /get-started, even with a remembered workspace", () => {
-    expect(resolveHomeDestination(list, onboarded, { orgSlug: "acme", wsSlug: "team" }, [])).toBe("/get-started");
+    expect(resolveHomeDestination([], onboarded, { orgSlug: "acme", wsSlug: "team" }, [])).toBe("/get-started");
   });
-  it("never returns to a workspace of an organization the user left", () => {
-    expect(resolveHomeDestination(list, onboarded, { orgSlug: "acme", wsSlug: "team" }, [org("unicom")])).toBe(
+  it("never returns to a workspace of a membership that was switched off", () => {
+    const off = { ...org("acme"), deactivated: true };
+    expect(resolveHomeDestination(list, onboarded, { orgSlug: "acme", wsSlug: "team" }, [org("unicom"), off])).toBe(
       "/unicom/alpha",
     );
     expect(resolveHomeDestination([], onboarded, null, [org("unicom")])).toBe("/workspaces/new");

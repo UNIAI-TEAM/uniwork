@@ -86,6 +86,26 @@ describe("DashboardGuard when the organization was closed", () => {
     expect(screen.queryByText("workspace body")).not.toBeInTheDocument();
   });
 
+  /** A closed organization answers like a suspended one: say nothing until the list tells them apart. */
+  it("announces no suspension while the organization list is still loading", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/orgs") return new Promise(() => {});
+      if (path === "/api/v1/workspaces") return Promise.resolve({ workspaces: [] });
+      return Promise.reject(new ApiError("suspended", "organization_suspended", 403));
+    });
+    render(
+      wrapWithNav(
+        <DashboardGuard orgSlug="acme" wsSlug="team">
+          {() => <p>workspace body</p>}
+        </DashboardGuard>,
+        nav(),
+      ),
+    );
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/orgs"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tổ chức đang tạm ngưng")).not.toBeInTheDocument();
+  });
+
   it("keeps the suspended notice while the organization is still listed", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path === "/api/v1/orgs") {
