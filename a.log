@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+9373109ccda0c5b31149a877105d877d3d258a56
+9373109cc test(e2e): FD-A10 asserts the document renders after its link is opened
+a8e1c4766 test(e2e): match FD-12 seeded names exactly in role lookups
+9d2e50716 test(e2e): retry 429 when FD-12 registers extra workspace members
+27b3c6b0a test(e2e): ungate FD-09 folder tests and apply review fixes R1-R14 to FD-12
