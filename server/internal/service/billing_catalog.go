@@ -61,7 +61,7 @@ func (s *BillingService) GetPlanCatalogByCode(ctx context.Context, code string) 
 	if err != nil {
 		return AdminPlanCatalogView{}, err
 	}
-	return s.planCatalogView(ctx, plan)
+	return s.planCatalogView(ctx, s.q, plan)
 }
 
 // ListAllPlansCatalog returns every plan, including inactive, with features.
@@ -85,8 +85,9 @@ func (s *BillingService) ListAllPlansCatalog(ctx context.Context) ([]AdminPlanCa
 	return out, nil
 }
 
-// AddPlanCatalog inserts a plan and seeds plan_features from the features catalogue (disabled until configured).
-func (s *BillingService) AddPlanCatalog(ctx context.Context, in CreatePlanCatalogInput) (AdminPlanCatalogView, error) {
+// AddPlanCatalog inserts a plan and seeds plan_features from the features
+// catalogue (disabled until configured). q is the caller's transaction.
+func (s *BillingService) AddPlanCatalog(ctx context.Context, q *db.Queries, in CreatePlanCatalogInput) (AdminPlanCatalogView, error) {
 	code, err := normalizePlanCode(in.Code)
 	if err != nil {
 		return AdminPlanCatalogView{}, err
@@ -107,12 +108,6 @@ func (s *BillingService) AddPlanCatalog(ctx context.Context, in CreatePlanCatalo
 	if in.PriceAmount != nil {
 		price = pgtype.Int8{Int64: *in.PriceAmount, Valid: true}
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return AdminPlanCatalogView{}, err
-	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
 	plan, err := q.InsertPlanCatalog(ctx, db.InsertPlanCatalogParams{
 		ID: util.NewID(), Code: code, Name: in.Name, Description: strings.TrimSpace(in.Description),
 		BillingPeriod: period, PriceAmount: price, PriceCurrency: currency,
@@ -135,15 +130,13 @@ func (s *BillingService) AddPlanCatalog(ctx context.Context, in CreatePlanCatalo
 			return AdminPlanCatalogView{}, err
 		}
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return AdminPlanCatalogView{}, err
-	}
-	return s.planCatalogView(ctx, plan)
+	return s.planCatalogView(ctx, q, plan)
 }
 
 // SetPlanCatalogMeta writes catalog metadata. Default plan cannot be deactivated.
-func (s *BillingService) SetPlanCatalogMeta(ctx context.Context, code string, in UpdatePlanCatalogInput) (AdminPlanCatalogView, error) {
-	before, err := s.q.GetPlanByCode(ctx, code)
+// q is the caller's transaction.
+func (s *BillingService) SetPlanCatalogMeta(ctx context.Context, q *db.Queries, code string, in UpdatePlanCatalogInput) (AdminPlanCatalogView, error) {
+	before, err := q.GetPlanByCode(ctx, code)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AdminPlanCatalogView{}, ErrNotFound
 	}
@@ -157,18 +150,29 @@ func (s *BillingService) SetPlanCatalogMeta(ctx context.Context, code string, in
 	if in.PriceAmount != nil {
 		price = pgtype.Int8{Int64: *in.PriceAmount, Valid: true}
 	}
-	after, err := s.q.UpdatePlanCatalog(ctx, db.UpdatePlanCatalogParams{
+	after, err := q.UpdatePlanCatalog(ctx, db.UpdatePlanCatalogParams{
 		Code: code, Name: in.Name, Description: in.Description, BillingPeriod: in.BillingPeriod,
 		PriceAmount: price, PriceCurrency: in.PriceCurrency, IsActive: in.IsActive, SortOrder: in.SortOrder,
 	})
 	if err != nil {
 		return AdminPlanCatalogView{}, err
 	}
-	return s.planCatalogView(ctx, after)
+	return s.planCatalogView(ctx, q, after)
 }
 
-func (s *BillingService) planCatalogView(ctx context.Context, plan db.Plan) (AdminPlanCatalogView, error) {
-	features, err := s.q.ListPlanFeatures(ctx, plan.ID)
+func (s *BillingService) planCatalogByCode(ctx context.Context, q *db.Queries, code string) (AdminPlanCatalogView, error) {
+	plan, err := q.GetPlanByCode(ctx, code)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AdminPlanCatalogView{}, ErrNotFound
+	}
+	if err != nil {
+		return AdminPlanCatalogView{}, err
+	}
+	return s.planCatalogView(ctx, q, plan)
+}
+
+func (s *BillingService) planCatalogView(ctx context.Context, q *db.Queries, plan db.Plan) (AdminPlanCatalogView, error) {
+	features, err := q.ListPlanFeatures(ctx, plan.ID)
 	if err != nil {
 		return AdminPlanCatalogView{}, err
 	}
@@ -184,15 +188,16 @@ func planFeaturesToAll(rows []db.ListPlanFeaturesRow) []db.ListAllPlanFeaturesRo
 }
 
 // SetPlanFeatureEntitlement sets enabled/quota for one feature on a plan.
-func (s *BillingService) SetPlanFeatureEntitlement(ctx context.Context, planCode, featureKey string, in UpdatePlanFeatureInput) (AdminPlanCatalogView, error) {
-	plan, err := s.q.GetPlanByCode(ctx, planCode)
+// q is the caller's transaction.
+func (s *BillingService) SetPlanFeatureEntitlement(ctx context.Context, q *db.Queries, planCode, featureKey string, in UpdatePlanFeatureInput) (AdminPlanCatalogView, error) {
+	plan, err := q.GetPlanByCode(ctx, planCode)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AdminPlanCatalogView{}, ErrNotFound
 	}
 	if err != nil {
 		return AdminPlanCatalogView{}, err
 	}
-	feat, err := s.q.GetFeatureByKey(ctx, featureKey)
+	feat, err := q.GetFeatureByKey(ctx, featureKey)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AdminPlanCatalogView{}, ErrNotFound
 	}
@@ -206,10 +211,10 @@ func (s *BillingService) SetPlanFeatureEntitlement(ctx context.Context, planCode
 		}
 		quota = pgtype.Int8{Int64: *in.QuotaLimit, Valid: true}
 	}
-	if _, err := s.q.UpsertPlanFeatureRow(ctx, db.UpsertPlanFeatureRowParams{
+	if _, err := q.UpsertPlanFeatureRow(ctx, db.UpsertPlanFeatureRowParams{
 		PlanID: plan.ID, FeatureKey: featureKey, Enabled: in.Enabled, QuotaLimit: quota,
 	}); err != nil {
 		return AdminPlanCatalogView{}, err
 	}
-	return s.planCatalogView(ctx, plan)
+	return s.planCatalogView(ctx, q, plan)
 }
