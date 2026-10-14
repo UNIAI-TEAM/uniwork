@@ -3793,7 +3793,7 @@
     "user_not_found": "No user found with this email.",
     "start_dm": "Message",
     "contacts_empty": "No conversations yet. Press + to message someone, or wait for someone to message you.",
-    "pending_invites": "Workspace invitations",
+    "pending_invites": "Pending invitations",
     "workspace_room": "General",
     "workspace_section": "Workspace",
     "workspace_room_hint": "Shared room — everyone in the workspace talks here.",

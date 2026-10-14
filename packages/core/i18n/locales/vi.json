@@ -3792,7 +3792,7 @@
     "user_not_found": "Không tìm thấy người dùng với email này.",
     "start_dm": "Nhắn tin",
     "contacts_empty": "Chưa có cuộc trò chuyện. Bấm + để nhắn tin, hoặc đợi người khác nhắn cho bạn.",
-    "pending_invites": "Lời mời workspace",
+    "pending_invites": "Lời mời đang chờ",
     "workspace_room": "Chung",
     "workspace_section": "Workspace",
     "workspace_room_hint": "Phòng chung — mọi thành viên đều nhắn ở đây.",
