@@ -49,29 +49,18 @@ var (
 )
 
 var policies = map[Capability]ModelPolicy{
-	// Structured JSON summary + decisions + action items over a full meeting transcript.
 	CapMeetingSummarization: {Default: flagship, MaxTokens: 4096, Temperature: 0},
-	// Grounded workspace Q&A answer with source citations; bounded to concise prose.
-	CapCopilotAnswer: {Default: flagship, MaxTokens: 1500, Temperature: 0},
-	// Unread chat catch-up JSON (summary, highlights, action items).
-	CapChatCatchUp: {Default: flagship, MaxTokens: 2048, Temperature: 0},
-	// Completed voice-call summary JSON (summary, highlights, action items).
-	CapChatCallSummary: {Default: flagship, MaxTokens: 2048, Temperature: 0},
-	// Email thread summary JSON (summary, key points, action items, reply hint).
-	CapEmailThreadSummary: {Default: flagship, MaxTokens: 2048, Temperature: 0},
-	// Compact fact extraction for context cards; kept tight for fast models.
-	CapContextExtraction: {Default: fast, MaxTokens: 800, Temperature: 0},
-	// Multi-step workflow plan generation.
-	CapAgentPlanning: {Default: flagship, MaxTokens: 4096, Temperature: 0},
-	// Long-form artifact and draft generation.
-	CapAgentGeneration: {Default: flagship, MaxTokens: 8192, Temperature: 0.2},
-	// Rubric and output evaluation JSON.
-	CapAgentEvaluation: {Default: flagship, MaxTokens: 2048, Temperature: 0},
-	// Vector embedding request; no completion tokens emitted.
-	CapEmbedding: {Default: embedding, MaxTokens: 0, Temperature: 0},
-	// Multimodal attachment and document analysis JSON.
-	CapMediaAnalysis: {Default: flagship, MaxTokens: 4096, Temperature: 0},
-	// Capability-wide ceiling covering the largest single-turn Office tool call (HTML/DOCX); per-module ceilings are in officeModuleMaxTokens.
+	CapCopilotAnswer:        {Default: flagship, MaxTokens: 1500, Temperature: 0},
+	CapChatCatchUp:          {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	CapChatCallSummary:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	CapEmailThreadSummary:   {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	CapContextExtraction:    {Default: fast, MaxTokens: 800, Temperature: 0},
+	CapAgentPlanning:        {Default: flagship, MaxTokens: 4096, Temperature: 0},
+	CapAgentGeneration:      {Default: flagship, MaxTokens: 8192, Temperature: 0.2},
+	CapAgentEvaluation:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	CapEmbedding:            {Default: embedding, MaxTokens: 0, Temperature: 0},
+	CapMediaAnalysis:        {Default: flagship, MaxTokens: 4096, Temperature: 0},
+	// Capability-wide ceiling covering the largest single-turn Office tool call (HTML); per-module ceilings are lowered in officeModuleMaxTokens.
 	CapOfficeUniworkAI: {Default: officeUniwork, MaxTokens: 4096, Temperature: 0},
 }
 
