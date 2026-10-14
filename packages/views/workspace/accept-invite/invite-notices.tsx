@@ -43,11 +43,15 @@ export function RetryNotice({ why }: { why: RetryReason }) {
   );
 }
 
-/** The situation changed under the person (a conflict, nothing failed): look again. */
+/**
+ * The situation changed under the person (a conflict, nothing failed): look
+ * again. A status, not an alert: it appears as the step heading takes focus,
+ * and an alert would cut that announcement off.
+ */
 export function ChangedNotice() {
   const { t } = useTranslation();
   return (
-    <Alert variant="warning">
+    <Alert variant="warning" role="status">
       <TriangleAlert aria-hidden />
       <AlertDescription>{t("invitations.switch.changed")}</AlertDescription>
     </Alert>

@@ -348,7 +348,12 @@ describe("AcceptInviteView", () => {
       renderView();
       fireEvent.click(await screen.findByRole("button", { name: "Tham gia" }));
       expect(await screen.findByRole("heading", { name: "Bạn đang thuộc Acme" })).toBeInTheDocument();
-      expect(screen.getByText("Tình hình đã thay đổi trong lúc bạn thao tác. Xem lại từng mục dưới đây.")).toBeInTheDocument();
+      // A status, not an alert: the step heading takes focus at the same
+      // moment, and an alert would cut its announcement off.
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Tình hình đã thay đổi trong lúc bạn thao tác. Xem lại từng mục dưới đây.",
+      );
+      expect(screen.queryByRole("alert")).toBeNull();
     });
 
     it("keeps the person on the page when the server is busy with another change", async () => {
