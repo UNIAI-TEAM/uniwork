@@ -1,6 +1,6 @@
 # UniWork — Connector MCP v2: bộ tool đọc và ghi (Task, Dự án, Cuộc họp, Tài liệu)
 
-> **Trạng thái:** in-progress — spec chờ duyệt (UNI-1567); triển khai theo năm phase ở §12.
+> **Trạng thái:** in-progress — spec đã duyệt; plan chờ duyệt (UNI-1567); triển khai theo năm phase ở §12.
 
 **Ngày:** 2026-10-14
 **Issue:** UNI-1567 (parent UNI-1308)
@@ -68,7 +68,7 @@ hỏi trước mỗi lệnh ghi. Rủi ro còn lại (prompt injection trong n�
 - Ghi file docx/xlsx/pptx/pdf; trích text từ docx/pdf.
 - Chia sẻ, đổi quyền tài liệu; tạo thư mục.
 - Sửa danh mục (tạo status, tạo nhãn, thuộc tính tùy biến).
-- Nút hạ scope `write` → `read` (người dùng thu hồi rồi kết nối lại).
+- Nút hạ scope `write` → `read` trong cài đặt (hôm nay: kết nối lại và bỏ chọn ô ghi, hoặc thu hồi).
 - MCP `elicitation`, `resources`, `prompts`; MCP Apps / Apps SDK UI.
 - Nộp Directory (UNI-1428).
 
@@ -90,9 +90,10 @@ hỏi trước mỗi lệnh ghi. Rủi ro còn lại (prompt injection trong n�
   chọn, **mặc định không chọn**).
 - Dòng "Tạo và sửa" chỉ hiện khi yêu cầu có `write` **và** flag `mcp_connector_write` bật
   **và** tổ chức được chọn đã bật ghi. Thiếu một điều kiện → grant chỉ `read`.
-- Grant đã có của (user, tổ chức, client) với `read`, nay yêu cầu `write`: màn đồng ý hiện
-  lại; duyệt có chọn ghi thì grant lên `read write`, audit `mcp_grant.scope_changed`
-  (`from`, `to`). Không có đường hạ scope ngoài thu hồi.
+- Grant đã có của (user, tổ chức, client): mỗi lần duyệt đặt scope của grant theo lựa
+  chọn lần đó. Chọn ghi → `read write`; không chọn (hoặc dòng ghi không hiện) → `read`.
+  Scope đổi thì audit `mcp_grant.scope_changed` (`from`, `to`). Vậy kết nối lại và bỏ
+  chọn ô ghi là đường hạ scope, cùng với thu hồi.
 
 ### 4.3 Bật/tắt (cả ba phải đúng thì tool ghi mới tồn tại)
 
@@ -208,7 +209,7 @@ tổ chức của grant) và `hidden()` như v1. Tham số id task nhận cả U
 
 | Tool | Tham số | Service |
 | --- | --- | --- |
-| `list_members` | `workspace_id` | `WorkspaceService.Members`, cộng owner/admin tổ chức có quyền ngầm (hôm nay bị thiếu; sửa ở query hoặc service, dùng chung cho UI). Trả tên, vai trò, `user_id`. **Không trả email** |
+| `list_members` | `workspace_id` | Query riêng `ListAssignableMembers` qua `WorkspaceService.AssignableMembers`: thành viên workspace cộng owner/admin tổ chức có quyền ngầm (vai trò `org_owner`/`org_admin`), bỏ người đã bị vô hiệu. Danh sách thành viên của UI không đổi. Trả tên, vai trò, `user_id`. **Không trả email** |
 | `task_options` | `workspace_id` | `ListTaskStatuses` (key, tên, nhóm), `ListTaskLabels` (id, tên), danh sách ưu tiên `none/low/medium/high/urgent` |
 | `list_tasks` | `workspace_id`, `status?`, `project_id?`, `limit?` | `TaskService.QueryTasks` |
 | `create_task` | `workspace_id`, `title`, `description?` (Markdown), `status?`, `priority?`, `assignee_id?`, `start_date?`, `due_date?` (`YYYY-MM-DD`), `project_id?`, `parent_task_id?`, `label_ids?` | `TaskService.Create`; `AllowDuplicate` luôn false |
@@ -233,7 +234,7 @@ Gắn task vào dự án qua `project_id` của `create_task` / `update_task`.
 
 | Tool | Tham số | Service |
 | --- | --- | --- |
-| `list_meetings` | `workspace_id`, `from`, `to` (ISO 8601), `mine?`, `status?` | `MeetingService.ListFiltered` |
+| `list_meetings` | `workspace_id`, `from`, `to` (ISO 8601 có offset, cách nhau tối đa 92 ngày), `hosted_by_me?`, `status?` | `MeetingService.ListFiltered` theo `starts_at` |
 | `schedule_meeting` | `workspace_id`, `title`, `description?`, `starts_at`, `ends_at` (ISO có offset), `timezone?`, `attendee_ids?`, `project_id?` | `MeetingService.Create`. `timezone` trống → múi giờ trong hồ sơ người dùng (`PeopleService`), không có thì `Asia/Ho_Chi_Minh` |
 | `update_meeting` | `meeting_id`, `revision`, `title?`, `description?`, `starts_at?`, `ends_at?`, `timezone?`, `project_id?` | `MeetingService.Update` với `ExpectedVersion`. Chỉ host hoặc admin; đang họp không đổi giờ |
 | `invite_to_meeting` | `meeting_id`, `user_ids` (tối đa 20) | `MeetingService.Invite` từng người; trả kết quả từng người |
@@ -351,9 +352,9 @@ Chuỗi trong `ai.Tool.Undo` là cột phải của bảng; test bắt buộc m�
 
 | Luật | Test |
 | --- | --- |
-| Tool đọc không ghi | `TestMCPReadToolsDoNotMutate` (thay `TestMCPToolsAreReadOnly`): mọi tool `ToolRead` chạy xong, số dòng `audit_events` không đổi |
+| Tool đọc không ghi | `TestMCPReadToolsDoNotMutate` (thay `TestMCPToolsAreReadOnly`): mọi tool `ToolRead` chạy xong, số dòng `audit_events` và `outbox_events` không đổi |
 | Tool ghi cần đủ ba điều kiện | `TestMCPWriteToolsNeedScopeFlagAndPolicy`: thiếu từng điều kiện → không có trong `tools/list` và lời gọi bị từ chối đúng mã |
-| Không có tool xóa | `TestMCPHasNoDeleteTool`: không tên `delete_*`/`remove_*`; arch test: `mcp_tools*.go` không gọi `Delete*`, `BatchDelete*`, `ArchiveDocument` |
+| Không có tool xóa | `TestMCPHasNoDeleteTool`: không tên `delete_*`/`remove_*`; arch test `TestMcpToolsCallNoDelete`: `mcp_tools*.go` không gọi `Delete*`, `BatchDelete*`, `ArchiveDocument` |
 | Mọi tool ghi có hoàn tác | `TestMCPWriteToolsDeclareUndo` |
 | Annotation đúng | `TestMcpToolListCarriesAnnotationsAndSchemas` mở rộng: `readOnlyHint`, `destructiveHint` theo bảng §5 |
 | Cách ly tenant | `TestIsolationMCP` thêm mọi tool ghi: id của tổ chức A qua grant của B bị từ chối bằng câu chung, hash dòng của A không đổi; grant của A làm control |
@@ -412,7 +413,7 @@ Spec này và ADR 0033 merge trước Phase 0, dưới UNI-1567.
 
 **Việc sau (spec riêng)**
 
-1. Nút hạ scope `write` → `read`.
+1. Nút hạ scope `write` → `read` trong cài đặt.
 2. Trích text từ docx/pdf cho `get_document`.
 3. Tool tạo thư mục, chia sẻ tài liệu.
 4. MCP Apps / Apps SDK: thẻ task tương tác.
