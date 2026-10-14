@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+807ce6437920ef792e190260dfb802af49f5780f
+807ce6437 chore: merge the G5-G7 root e4db1a636 into FD-07 (FD-03 accepted, develop CI fixes)
+e4db1a636 chore: merge the develop CI-green fixes (PR #280) into the G5-G7 root
+2ac6599d7 chore: merge FD-03 tree depth 20 and row cap (UNI-1463) into the G5-G7 root
+26ab35007 chore(deploy): point the Office dev installers at v0.11.0-dev.12
+ed15dd0e1 chore: merge G8-07 inbox deep link (UNI-1402) into the G5-G7 root
+af9a112e8 test(landing): pin the redesigned Office page and header
+d6ecd1fb6 chore: record the develop squash of PR #279 in the G5-G7 root
+eaa266eb6 test(handler): give the isolation matrix a demo request id
