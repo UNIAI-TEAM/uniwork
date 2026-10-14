@@ -34,7 +34,7 @@ func registerWorkspaces(r api, h Routes) {
 	})
 	r.Patch("/workspaces/{workspaceID}", h.PatchWorkspace, apiOp{
 		summary:     "Update workspace",
-		description: "Đổi tên, mô tả hoặc icon emoji của workspace; trường không gửi giữ nguyên. Cần admin workspace (hoặc owner/admin tổ chức).",
+		description: "Đổi tên, mô tả, icon emoji hoặc tiền tố mã task của workspace; trường không gửi giữ nguyên. Cần admin workspace (hoặc owner/admin tổ chức).",
 		tags:        []string{"workspaces"},
 		sdi:         sdi.PatchWorkspaceSDI{},
 		sdo:         sdo.WorkspaceSDO{},

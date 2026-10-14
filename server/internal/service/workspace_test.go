@@ -408,3 +408,45 @@ func TestWorkspaceUpdateSameValueWritesNoAudit(t *testing.T) {
 		t.Fatalf("audit rows for an unchanged name = %d, want 0", n)
 	}
 }
+
+func TestWorkspaceTaskPrefixAliases(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliases := func() []string {
+		rows, err := f.pool.Query(ctx, `SELECT value FROM workspace_aliases WHERE workspace_id = $1 AND kind = 'task_prefix' ORDER BY value`, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		vals, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			t.Fatal(err)
+		}
+		return vals
+	}
+	original := w.TaskPrefix
+	lower := "mkt"
+	got, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &lower})
+	if err != nil || got.TaskPrefix != "MKT" {
+		t.Fatalf("lower-case prefix: %v %q", err, got.TaskPrefix)
+	}
+	if a := aliases(); len(a) != 1 || a[0] != original {
+		t.Fatalf("aliases after %s→MKT = %v", original, a)
+	}
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &original}); err != nil {
+		t.Fatal(err)
+	}
+	if a := aliases(); len(a) != 1 || a[0] != "MKT" {
+		t.Fatalf("aliases after going back = %v", a)
+	}
+	for _, bad := range []string{"1AB", "A", "ABCDEFGHIJK", "A-B"} {
+		bad := bad
+		var ve ValidationError
+		if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &bad}); !errors.As(err, &ve) {
+			t.Errorf("prefix %q: err = %v, want ValidationError", bad, err)
+		}
+	}
+}

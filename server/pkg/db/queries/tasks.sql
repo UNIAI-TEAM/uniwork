@@ -190,7 +190,15 @@ WHERE organization_id = sqlc.arg('organization_id')
 SELECT t.* FROM tasks t
 INNER JOIN workspaces w
   ON w.id = t.workspace_id AND w.organization_id = t.organization_id
-WHERE upper(w.task_prefix) = upper(sqlc.arg('prefix'))
+WHERE (
+    upper(w.task_prefix) = upper(sqlc.arg('prefix'))
+    -- An old prefix the workspace keeps (spec 2026-10-14 §5.3).
+    OR EXISTS (
+      SELECT 1 FROM workspace_aliases a
+      WHERE a.workspace_id = w.id AND a.organization_id = w.organization_id
+        AND a.kind = 'task_prefix' AND upper(a.value) = upper(sqlc.arg('prefix'))
+    )
+  )
   AND t.number = sqlc.arg('number');
 
 -- name: ListMyTasks :many

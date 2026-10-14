@@ -71,7 +71,7 @@ func (h *handlers) patchWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws, err := h.Workspaces.Update(r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), service.UpdateWorkspaceInput{Name: in.Name, Description: in.Description, IconEmoji: in.IconEmoji})
+		chi.URLParam(r, "workspaceID"), service.UpdateWorkspaceInput{Name: in.Name, Description: in.Description, IconEmoji: in.IconEmoji, TaskPrefix: in.TaskPrefix})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

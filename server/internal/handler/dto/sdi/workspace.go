@@ -12,6 +12,7 @@ type PatchWorkspaceSDI struct {
 	Name        *string `json:"name" description:"Tên workspace mới" example:"Team"`
 	Description *string `json:"description" description:"Mô tả ngắn, tối đa 500 ký tự; chuỗi rỗng để xoá" example:"Nhóm làm sản phẩm"`
 	IconEmoji   *string `json:"icon_emoji" description:"Emoji làm icon; chuỗi rỗng để xoá. Đặt emoji sẽ bỏ ảnh icon" example:"🚀"`
+	TaskPrefix  *string `json:"task_prefix" description:"Tiền tố mã task mới, 2–10 ký tự A-Z/0-9, bắt đầu bằng chữ; mã cũ vẫn tra được" example:"MKT"`
 }
 
 // UploadWorkspaceIconSDI is POST /api/v1/workspaces/{workspaceID}/icon (multipart).

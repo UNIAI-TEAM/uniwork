@@ -2217,6 +2217,15 @@ type WorkspaceAgentMember struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type WorkspaceAlias struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Kind           string             `json:"kind"`
+	Value          string             `json:"value"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type WorkspaceMember struct {
 	WorkspaceID    string             `json:"workspace_id"`
 	UserID         string             `json:"user_id"`

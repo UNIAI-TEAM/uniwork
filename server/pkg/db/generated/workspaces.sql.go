@@ -903,14 +903,18 @@ const updateWorkspaceProfile = `-- name: UpdateWorkspaceProfile :one
 UPDATE workspaces SET
   name        = COALESCE($1, name),
   description = COALESCE($2, description),
+  slug        = COALESCE($3, slug),
+  task_prefix = COALESCE($4, task_prefix),
   updated_at  = now()
-WHERE id = $3 AND organization_id = $4
+WHERE id = $5 AND organization_id = $6
 RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
 `
 
 type UpdateWorkspaceProfileParams struct {
 	Name           pgtype.Text `json:"name"`
 	Description    pgtype.Text `json:"description"`
+	Slug           pgtype.Text `json:"slug"`
+	TaskPrefix     pgtype.Text `json:"task_prefix"`
 	ID             string      `json:"id"`
 	OrganizationID string      `json:"organization_id"`
 }
@@ -920,6 +924,8 @@ func (q *Queries) UpdateWorkspaceProfile(ctx context.Context, arg UpdateWorkspac
 	row := q.db.QueryRow(ctx, updateWorkspaceProfile,
 		arg.Name,
 		arg.Description,
+		arg.Slug,
+		arg.TaskPrefix,
 		arg.ID,
 		arg.OrganizationID,
 	)

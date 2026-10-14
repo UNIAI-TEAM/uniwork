@@ -199,3 +199,36 @@ func TestGetTaskByIdentifierAmbiguousAcrossWorkspaces(t *testing.T) {
 		t.Fatalf("GetByRef(%q) = id=%s err=%v, want ErrNotFound", ref, got.ID, err)
 	}
 }
+
+func TestGetTaskByIdentifierAfterPrefixChange(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	task, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "Old ref"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := strconv.FormatInt(task.Number, 10)
+	oldRef := w.TaskPrefix + "-" + n
+	next := "ZQX"
+	if _, err := s.ws.Update(ctx, ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &next}); err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range []string{"ZQX-" + n, oldRef, strings.ToLower(oldRef)} {
+		got, err := s.GetByRef(ctx, actor, ref)
+		if err != nil || got.ID != task.ID {
+			t.Fatalf("GetByRef(%q) after the change: err=%v id=%s", ref, err, got.ID)
+		}
+	}
+	// Taking the old prefix back keeps both refs working, each matching once.
+	back := w.TaskPrefix
+	if _, err := s.ws.Update(ctx, ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &back}); err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range []string{oldRef, "zqx-" + n} {
+		got, err := s.GetByRef(ctx, actor, ref)
+		if err != nil || got.ID != task.ID {
+			t.Fatalf("GetByRef(%q) after going back: err=%v id=%s", ref, err, got.ID)
+		}
+	}
+}

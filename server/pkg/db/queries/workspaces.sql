@@ -12,6 +12,8 @@ SELECT * FROM workspaces WHERE id = $1;
 UPDATE workspaces SET
   name        = COALESCE(sqlc.narg('name'), name),
   description = COALESCE(sqlc.narg('description'), description),
+  slug        = COALESCE(sqlc.narg('slug'), slug),
+  task_prefix = COALESCE(sqlc.narg('task_prefix'), task_prefix),
   updated_at  = now()
 WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
 RETURNING *;

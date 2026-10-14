@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	netmail "net/mail"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -303,6 +304,7 @@ type UpdateWorkspaceInput struct {
 	Name        *string
 	Description *string
 	IconEmoji   *string
+	TaskPrefix  *string
 }
 
 const (
@@ -310,6 +312,9 @@ const (
 	maxWorkspaceDescriptionRunes = 500
 	maxWorkspaceIconEmojiRunes   = 16
 )
+
+// taskPrefixPattern: an upper-case letter, then 1-9 letters or digits.
+var taskPrefixPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,9}$`)
 
 // Update changes what an owner or admin may edit about a workspace (spec
 // 2026-10-14 §5.1). A nil field keeps its value; a field sent with its
@@ -368,7 +373,7 @@ func (s *WorkspaceService) requireWorkspaceAdmin(ctx context.Context, userID, wo
 
 // normalizeWorkspaceInput trims and validates every field that was sent.
 func normalizeWorkspaceInput(in UpdateWorkspaceInput) (UpdateWorkspaceInput, error) {
-	if in.Name == nil && in.Description == nil && in.IconEmoji == nil {
+	if in.Name == nil && in.Description == nil && in.IconEmoji == nil && in.TaskPrefix == nil {
 		return in, Invalid("không có thông tin nào để đổi")
 	}
 	out := UpdateWorkspaceInput{}
@@ -398,6 +403,13 @@ func normalizeWorkspaceInput(in UpdateWorkspaceInput) (UpdateWorkspaceInput, err
 		}
 		out.IconEmoji = &e
 	}
+	if in.TaskPrefix != nil {
+		p := strings.ToUpper(strings.TrimSpace(*in.TaskPrefix))
+		if !taskPrefixPattern.MatchString(p) {
+			return out, Invalid("tiền tố mã task gồm 2–10 ký tự A-Z, 0-9 và bắt đầu bằng chữ")
+		}
+		out.TaskPrefix = &p
+	}
 	return out, nil
 }
 
@@ -418,6 +430,9 @@ func workspaceChanges(before db.Workspace, in UpdateWorkspaceInput) (from, to ma
 	}
 	if in.IconEmoji != nil {
 		change("icon_emoji", before.IconEmoji.String, *in.IconEmoji)
+	}
+	if in.TaskPrefix != nil {
+		change("task_prefix", before.TaskPrefix, *in.TaskPrefix)
 	}
 	return from, to
 }
@@ -448,7 +463,10 @@ func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Quer
 	if _, ok := to["description"]; ok {
 		profile.Description = pgtype.Text{String: *in.Description, Valid: true}
 	}
-	if profile.Name.Valid || profile.Description.Valid {
+	if _, ok := to["task_prefix"]; ok {
+		profile.TaskPrefix = pgtype.Text{String: *in.TaskPrefix, Valid: true}
+	}
+	if profile.Name.Valid || profile.Description.Valid || profile.TaskPrefix.Valid {
 		if _, err := q.UpdateWorkspaceProfile(ctx, profile); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
@@ -456,7 +474,28 @@ func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Quer
 			return err
 		}
 	}
+	if _, ok := to["task_prefix"]; ok {
+		if err := moveWorkspaceAlias(ctx, q, before, "task_prefix", before.TaskPrefix, *in.TaskPrefix); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// moveWorkspaceAlias keeps the value a workspace is leaving answering for
+// it, and drops the alias of the value it takes back (spec 2026-10-14 §4.4).
+// Deleting before inserting keeps one row per value.
+func moveWorkspaceAlias(ctx context.Context, q *db.Queries, w db.Workspace, kind, from, to string) error {
+	for _, v := range []string{to, from} {
+		if err := q.DeleteWorkspaceAlias(ctx, db.DeleteWorkspaceAliasParams{
+			OrganizationID: w.OrganizationID, WorkspaceID: w.ID, Kind: kind, Value: v,
+		}); err != nil {
+			return err
+		}
+	}
+	return q.InsertWorkspaceAlias(ctx, db.InsertWorkspaceAliasParams{
+		ID: util.NewID(), OrganizationID: w.OrganizationID, WorkspaceID: w.ID, Kind: kind, Value: from,
+	})
 }
 
 // recordWorkspaceUpdated writes the one audit row and outbox event of a

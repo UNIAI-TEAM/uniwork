@@ -1120,7 +1120,15 @@ const listTasksByIdentifier = `-- name: ListTasksByIdentifier :many
 SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at FROM tasks t
 INNER JOIN workspaces w
   ON w.id = t.workspace_id AND w.organization_id = t.organization_id
-WHERE upper(w.task_prefix) = upper($1)
+WHERE (
+    upper(w.task_prefix) = upper($1)
+    -- An old prefix the workspace keeps (spec 2026-10-14 §5.3).
+    OR EXISTS (
+      SELECT 1 FROM workspace_aliases a
+      WHERE a.workspace_id = w.id AND a.organization_id = w.organization_id
+        AND a.kind = 'task_prefix' AND upper(a.value) = upper($1)
+    )
+  )
   AND t.number = $2
 `
 
