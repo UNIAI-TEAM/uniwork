@@ -4,9 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
 // mcpCallTool runs tools/call on /mcp with one grant's access token and
@@ -21,6 +25,59 @@ func mcpCallTool(t *testing.T, w *isoWorld, bearer, tool string, args map[string
 	res, out := mcpRPC(t, w.srv, "Bearer "+bearer, "", body)
 	raw, _ := json.Marshal(out)
 	return res.StatusCode, raw
+}
+
+// mcpCallToolJSON is mcpCallTool for arguments that are not all strings
+// (revisions, lists, null).
+func mcpCallToolJSON(t *testing.T, w *isoWorld, bearer, tool string, args map[string]any) (int, []byte) {
+	t.Helper()
+	argJSON, _ := json.Marshal(args)
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":%q,"arguments":%s}}`, tool, argJSON)
+	res, out := mcpRPC(t, w.srv, "Bearer "+bearer, "", body)
+	raw, _ := json.Marshal(out)
+	return res.StatusCode, raw
+}
+
+// swapIDs is args with every string equal to a key of stand-ins replaced by
+// its value. B's refusal for A's real row is compared with the refusal for an
+// id that never existed: the two must read the same, or the answer tells B
+// which ids exist.
+func swapIDs(t *testing.T, args map[string]any, standIns map[string]string) map[string]any {
+	t.Helper()
+	raw, err := json.Marshal(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	for from, to := range standIns {
+		text = strings.ReplaceAll(text, `"`+from+`"`, `"`+to+`"`)
+	}
+	var out map[string]any
+	if err := json.Unmarshal([]byte(text), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// taskRef is the PREFIX-N a person reads for a task.
+func (w *isoWorld) taskRef(t *testing.T, id string) string {
+	t.Helper()
+	var ref string
+	if err := w.pool.QueryRow(context.Background(),
+		`SELECT w.task_prefix || '-' || t.number FROM tasks t JOIN workspaces w ON w.id = t.workspace_id WHERE t.id = $1`, id).Scan(&ref); err != nil {
+		t.Fatal(err)
+	}
+	return ref
+}
+
+// taskRevision is a task's current revision, the one update_task must send.
+func (w *isoWorld) taskRevision(t *testing.T, id string) int64 {
+	t.Helper()
+	var rev int64
+	if err := w.pool.QueryRow(context.Background(), `SELECT revision FROM tasks WHERE id = $1`, id).Scan(&rev); err != nil {
+		t.Fatal(err)
+	}
+	return rev
 }
 
 // isToolError reports a tools/call answer that carries result.isError: the way
@@ -66,6 +123,16 @@ func TestIsolationMCP(t *testing.T) {
 	w.bravo = w.buildTenant(t, "bravo")
 	a, b := w.alpha, w.bravo
 	aTask, aMeeting := a.get(t, "task"), a.get(t, "meeting")
+	aTask2, aProject, aLabel, aComment := a.get(t, "task2"), a.get(t, "project"), a.get(t, "label"), a.get(t, "taskComment")
+	bTask := b.get(t, "task")
+	// A holds a third task, so it has a PREFIX-N that B's workspace does not:
+	// both workspaces count from 1 under the same prefix, and a ref that B's
+	// own workspace can answer would test nothing.
+	aTask3 := isoID(t, w.call(t, "POST", "/api/v1/workspaces/"+a.wsID+"/tasks", a.token, map[string]any{"title": a.marker + " Third Task"}), "task")
+	a.ids["task3"] = aTask3
+	aRef, aRef3, bRef := w.taskRef(t, aTask), w.taskRef(t, aTask3), w.taskRef(t, bTask)
+	// B's task changes nowhere in this test, so its revision is read once.
+	bRev := w.taskRevision(t, bTask)
 
 	attacks := []struct {
 		tool string
@@ -77,14 +144,85 @@ func TestIsolationMCP(t *testing.T) {
 		{"get_meeting", map[string]string{"workspace_id": a.wsID, "meeting_id": aMeeting}},
 		{"get_task", map[string]string{"workspace_id": b.wsID, "task_id": aTask}},
 		{"get_meeting", map[string]string{"workspace_id": b.wsID, "meeting_id": aMeeting}},
+		// The task tools of Phase 1: the lists and options of A's workspace,
+		// and a task named by its PREFIX-N, which is resolved inside the
+		// workspace the call names.
+		{"list_members", map[string]string{"workspace_id": a.wsID}},
+		{"task_options", map[string]string{"workspace_id": a.wsID}},
+		{"list_tasks", map[string]string{"workspace_id": a.wsID}},
+		{"get_task", map[string]string{"workspace_id": a.wsID, "task_id": aRef3}},
+		{"get_task", map[string]string{"workspace_id": b.wsID, "task_id": aRef3}},
+	}
+	// writeAttacks aim B's write grant at A's rows: A's workspace and task, and
+	// A's ids named in a call that is about B's own workspace and task. Each
+	// is refused with the answer an id that never existed gets (want is its
+	// prefix; the not-found text when empty) and changes none of A's rows.
+	// control is the same call by A's own grant on A's rows, which must
+	// succeed; it carries no revision (update_task) and no title (create_task):
+	// the control run reads the first and makes up the second. Phases 2-4 add
+	// their rows here.
+	writeAttacks := []struct {
+		tool    string
+		args    map[string]any
+		control map[string]any
+		want    string
+	}{
+		{"create_task", map[string]any{"workspace_id": a.wsID, "title": "iso-write"},
+			map[string]any{"workspace_id": a.wsID}, ""},
+		{"create_task", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "parent_task_id": aTask},
+			map[string]any{"workspace_id": a.wsID, "parent_task_id": aTask}, ""},
+		{"create_task", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "parent_task_id": aRef3},
+			map[string]any{"workspace_id": a.wsID, "parent_task_id": aRef3}, ""},
+		{"create_task", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "project_id": aProject},
+			map[string]any{"workspace_id": a.wsID, "project_id": aProject}, ""},
+		// A person of A's is not a member of B's workspace; the answer is the
+		// one a user id that does not exist gets, so it is not an oracle.
+		{"create_task", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "assignee_id": a.userID},
+			map[string]any{"workspace_id": a.wsID, "assignee_id": a.userID}, "assignee_not_member:"},
+		{"create_task", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "label_ids": []string{aLabel}},
+			map[string]any{"workspace_id": a.wsID, "label_ids": []string{aLabel}}, "invalid arguments: "},
+		{"update_task", map[string]any{"workspace_id": a.wsID, "task_id": aTask, "revision": 1, "title": "iso"},
+			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "title": "iso-control"}, ""},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": aTask, "revision": 1, "title": "iso"},
+			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "title": "iso-control"}, ""},
+		{"update_task", map[string]any{"workspace_id": a.wsID, "task_id": aRef3, "revision": 1, "title": "iso"},
+			map[string]any{"workspace_id": a.wsID, "task_id": aRef3, "title": "iso-control"}, ""},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "revision": bRev, "parent_task_id": aTask},
+			map[string]any{"workspace_id": a.wsID, "task_id": aTask2, "parent_task_id": aTask}, ""},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "revision": bRev, "project_id": aProject},
+			map[string]any{"workspace_id": a.wsID, "task_id": aTask2, "project_id": aProject}, ""},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "revision": bRev, "assignee_id": a.userID},
+			map[string]any{"workspace_id": a.wsID, "task_id": aTask2, "assignee_id": a.userID}, "assignee_not_member:"},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "revision": bRev, "add_label_ids": []string{aLabel}},
+			map[string]any{"workspace_id": a.wsID, "task_id": aTask2, "add_label_ids": []string{aLabel}}, "invalid arguments: add_label_ids"},
+		// A's task has A's label on it, so the control can take it off.
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "revision": bRev, "remove_label_ids": []string{aLabel}},
+			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "remove_label_ids": []string{aLabel}}, "invalid arguments: remove_label_ids"},
+		{"add_comment", map[string]any{"workspace_id": a.wsID, "task_id": aTask, "body": "iso"},
+			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "body": "iso-control"}, ""},
+		{"add_comment", map[string]any{"workspace_id": b.wsID, "task_id": aTask, "body": "iso"},
+			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "body": "iso-control"}, ""},
+		{"add_comment", map[string]any{"workspace_id": a.wsID, "task_id": aRef3, "body": "iso"},
+			map[string]any{"workspace_id": a.wsID, "task_id": aRef3, "body": "iso-control"}, ""},
+		{"add_comment", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "body": "iso", "reply_to": aComment},
+			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "body": "iso-control", "reply_to": aComment}, ""},
+	}
+	// missing gives every id of A's that a write attack names a stand-in that
+	// never existed; the twin of an attack is the same call with those swapped in.
+	missing := map[string]string{
+		a.wsID: util.NewID(), aTask: util.NewID(), aProject: util.NewID(), aLabel: util.NewID(),
+		a.userID: util.NewID(), aComment: util.NewID(), aRef3: strings.Split(aRef3, "-")[0] + "-9999",
 	}
 	// refused runs every attack with B's access token: each answers 200 with
 	// isError and the not-found text (the tenancy refusal, not a transport
-	// failure, a bad argument or an infrastructure error) and carries nothing
-	// of A's. It takes the subtest's t, so a failure is reported on the subtest
-	// that ran it and not on the parent.
+	// failure, a bad argument or an infrastructure error; a write attack's
+	// answer may instead be the validation text of the id it names) and carries
+	// nothing of A's. Afterwards A's tenant digest is as it was and no row of
+	// B's names a row of A's. It takes the subtest's t, so a failure is
+	// reported on the subtest that ran it and not on the parent.
 	refused := func(t *testing.T, label string) {
 		t.Helper()
+		before, preRefs := w.tenantDigest(t, a), w.referencesTo(t, b, a)
 		for _, at := range attacks {
 			status, raw := mcpCallTool(t, w, b.ids["mcpAccess"], at.tool, at.args)
 			if status != http.StatusOK || !isToolError(raw) || toolText(raw) != mcpNotFoundText {
@@ -104,6 +242,54 @@ func TestIsolationMCP(t *testing.T) {
 		}
 		if !strings.Contains(string(raw), b.wsID) {
 			t.Errorf("%s list_workspaces does not show B's own workspace: %s", label, raw)
+		}
+
+		// Both workspaces count their tasks from 1 under the same prefix, so A's
+		// first ref may also be B's. A ref is read in the workspace the call
+		// names: B's call then answers B's own task and nothing of A's.
+		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "get_task", map[string]string{"workspace_id": b.wsID, "task_id": aRef})
+		if aRef == bRef && (status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), bTask)) {
+			t.Errorf("%s get_task %s in B's workspace is not B's own task: %d %s", label, aRef, status, raw)
+		}
+		if aRef != bRef && (status != http.StatusOK || !isToolError(raw) || toolText(raw) != mcpNotFoundText) {
+			t.Errorf("%s get_task %s in B's workspace: %d %s", label, aRef, status, raw)
+		}
+		if leak := a.leakIn(raw, ""); leak != "" {
+			t.Errorf("%s get_task %s in B's workspace leaked %s: %s", label, aRef, leak, raw)
+		}
+		// A's project filters B's workspace to nothing; the answer names none of A's.
+		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "list_tasks", map[string]string{"workspace_id": b.wsID, "project_id": aProject})
+		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), `\"tasks\":[]`) {
+			t.Errorf("%s list_tasks in B's workspace by A's project: %d %s", label, status, raw)
+		}
+		if leak := a.leakIn(raw, ""); leak != "" {
+			t.Errorf("%s list_tasks by A's project leaked %s: %s", label, leak, raw)
+		}
+
+		for _, at := range writeAttacks {
+			status, raw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, at.args)
+			text := toolText(raw)
+			want, ok := at.want, strings.HasPrefix(text, at.want)
+			if want == "" {
+				want, ok = mcpNotFoundText, text == mcpNotFoundText
+			}
+			if status != http.StatusOK || !isToolError(raw) || !ok {
+				t.Errorf("%s %s %v: status %d, not refused with %q: %s", label, at.tool, at.args, status, want, raw)
+			}
+			if leak := a.leakIn(raw, ""); leak != "" {
+				t.Errorf("%s %s %v leaked %s: %s", label, at.tool, at.args, leak, raw)
+			}
+			// The same call naming ids that never existed reads the same.
+			twin := swapIDs(t, at.args, missing)
+			if tStatus, tRaw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, twin); tStatus != status || toolText(tRaw) != text {
+				t.Errorf("%s %s %v: A's rows answer %q, rows that do not exist answer %q", label, at.tool, at.args, text, toolText(tRaw))
+			}
+		}
+		if changed := isoDiff(before, w.tenantDigest(t, a)); len(changed) > 0 {
+			t.Errorf("%s: an attack changed A's rows in %v", label, changed)
+		}
+		if refs := w.referencesTo(t, b, a); strings.Join(refs, ",") != strings.Join(preRefs, ",") {
+			t.Errorf("%s: an attack left B's rows naming A's: %v, before %v", label, refs, preRefs)
 		}
 	}
 
@@ -127,8 +313,10 @@ func TestIsolationMCP(t *testing.T) {
 				t.Errorf("A's own %s %v through MCP: %d %s", at.tool, args, status, raw)
 				continue
 			}
+			// A task named by its PREFIX-N is not in the answer under that
+			// name; it shows A's marker like a list does.
 			want := a.marker
-			if id := args["task_id"] + args["meeting_id"]; id != "" {
+			if id := args["task_id"] + args["meeting_id"]; len(id) >= 20 {
 				want = id
 			}
 			if !strings.Contains(strings.ToLower(string(raw)), strings.ToLower(want)) {
@@ -142,6 +330,42 @@ func TestIsolationMCP(t *testing.T) {
 		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "get_task", map[string]string{"workspace_id": b.wsID, "task_id": b.get(t, "task")})
 		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), b.get(t, "task")) {
 			t.Fatalf("B reading B's own task through MCP: %d %s", status, raw)
+		}
+
+		// A's own grant runs every attacked write tool with the attack's own
+		// ids. A title may not repeat an active task's (a create is refused as
+		// a duplicate), so each control names its own; update_task wants the
+		// revision the task holds now.
+		written := w.tenantDigest(t, a)
+		for i, at := range writeAttacks {
+			args := maps.Clone(at.control)
+			if _, titled := args["title"]; titled || at.tool == "create_task" {
+				args["title"] = fmt.Sprintf("iso-control-%s-%d", a.tag, i)
+			}
+			if at.tool == "update_task" {
+				task := fmt.Sprint(args["task_id"])
+				if task == aRef3 {
+					task = aTask3
+				}
+				args["revision"] = w.taskRevision(t, task)
+			}
+			status, raw := mcpCallToolJSON(t, w, a.ids["mcpAccess"], at.tool, args)
+			var done struct {
+				Result struct {
+					StructuredContent struct {
+						Item struct {
+							ID string `json:"id"`
+						} `json:"item"`
+					} `json:"structuredContent"`
+				} `json:"result"`
+			}
+			if status != http.StatusOK || isToolError(raw) || json.Unmarshal(raw, &done) != nil || done.Result.StructuredContent.Item.ID == "" {
+				t.Errorf("A's own %s %v through MCP: %d %s", at.tool, args, status, raw)
+			}
+		}
+		// The digest sees these writes, so "unchanged" in refused means something.
+		if changed := isoDiff(written, w.tenantDigest(t, a)); !slices.Contains(changed, "tasks") || !slices.Contains(changed, "task_comments") {
+			t.Errorf("A's own writes changed the digest of %v only, want tasks and task_comments among them", changed)
 		}
 	})
 
