@@ -53,7 +53,7 @@ function firstName(nodes: DocumentTreeNode[]): string | null {
  * Archive shows the impact first: for a folder, `useDocumentArchiveImpact`
  * reads the server's separate subfolder and document counts (`enabled: open`,
  * `staleTime: 0`), locks confirmation until the counts arrive, replaces the
- * confirm button when `too_large` is true, and surfaces 403 as the subtree
+ * confirm button when `too_large` is true, and surfaces 403/404 as the subtree
  * permission message. For non-folder documents, the subtree is read as before.
  * Restore explains the batch rule: exactly the group one archive moved comes
  * back, and a child whose parent stays in the trash returns to the workspace root.
@@ -166,7 +166,7 @@ export function DocumentArchiveDialog({
     }
     if (impact.isError || !impact.data) {
       const cls = classifyDocumentError(impact.error);
-      if (cls.cls === "permission") {
+      if (cls.cls === "permission" || cls.cls === "missing") {
         return (
           <AlertDialogDescription render={<p role="alert" className="text-caption text-destructive" />}>
             {t("documents.archive.archive_forbidden")}
@@ -318,4 +318,3 @@ export function DocumentArchiveDialog({
     </AlertDialog>
   );
 }
-

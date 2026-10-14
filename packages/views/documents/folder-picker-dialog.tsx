@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronRight, Folder, FolderRoot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
@@ -89,8 +89,6 @@ export interface FolderPickerDialogProps {
   currentFolderId?: string | null;
   /** Id of the document or folder being moved. Marks itself/its subtree with `reason_self` and too-deep targets with `reason_too_deep`. */
   movingId?: string | null;
-  /** Custom predicate for additional refused folder ids. */
-  refuse?: (folderId: string) => boolean;
   pending: boolean;
   error: string | null;
   onSubmit: (folderId: string | null) => void;
@@ -115,7 +113,6 @@ export function FolderPickerDialog({
   initialFolderId,
   currentFolderId,
   movingId,
-  refuse,
   pending,
   error,
   onSubmit,
@@ -126,30 +123,30 @@ export function FolderPickerDialog({
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => allFolderIds(folders));
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
-  const disabledReason = (targetId: string | null): string | null => {
-    if (currentFolderId !== undefined && targetId === currentFolderId) {
-      return t("documents.home.move.reason_current");
-    }
-    if (targetId !== null) {
-      if (movingId && moveRefused(tree, movingId, targetId)) {
-        return t("documents.home.move.reason_self");
+  const disabledReason = useCallback(
+    (targetId: string | null): string | null => {
+      if (currentFolderId !== undefined && targetId === currentFolderId) {
+        return t("documents.home.move.reason_current");
       }
-      if (movingId && findTreeNode(tree, movingId)) {
-        if (moveTooDeep(tree, movingId, targetId)) {
-          return t("documents.home.move.reason_too_deep", { max: TREE_MAX_LEVEL });
+      if (targetId !== null) {
+        if (movingId && moveRefused(tree, movingId, targetId)) {
+          return t("documents.home.move.reason_self");
         }
-      } else {
-        const level = nodeLevel(tree, targetId);
-        if (level !== null && level + 1 > TREE_MAX_LEVEL) {
-          return t("documents.home.move.reason_too_deep", { max: TREE_MAX_LEVEL });
+        if (movingId && findTreeNode(tree, movingId)) {
+          if (moveTooDeep(tree, movingId, targetId)) {
+            return t("documents.home.move.reason_too_deep", { max: TREE_MAX_LEVEL });
+          }
+        } else {
+          const level = nodeLevel(tree, targetId);
+          if (level !== null && level + 1 > TREE_MAX_LEVEL) {
+            return t("documents.home.move.reason_too_deep", { max: TREE_MAX_LEVEL });
+          }
         }
       }
-      if (refuse?.(targetId)) {
-        return t("documents.home.move.reason_self");
-      }
-    }
-    return null;
-  };
+      return null;
+    },
+    [currentFolderId, movingId, t, tree],
+  );
 
   const initialReason = disabledReason(initialFolderId);
   const [picked, setPicked] = useState<string | null | undefined>(() =>
@@ -162,20 +159,10 @@ export function FolderPickerDialog({
   useEffect(() => {
     if (open) {
       setExpanded(allFolderIds(folders));
-      const blocked =
-        (currentFolderId !== undefined && initialFolderId === currentFolderId) ||
-        (initialFolderId !== null &&
-          Boolean(
-            (movingId && moveRefused(tree, movingId, initialFolderId)) ||
-              (movingId && findTreeNode(tree, movingId)
-                ? moveTooDeep(tree, movingId, initialFolderId)
-                : (nodeLevel(tree, initialFolderId) ?? 0) + 1 > TREE_MAX_LEVEL) ||
-              refuse?.(initialFolderId),
-          ));
-      setPicked(blocked ? undefined : initialFolderId);
+      setPicked(disabledReason(initialFolderId) === null ? initialFolderId : undefined);
       setFocusedKey(rowKey(currentFolderId !== undefined ? currentFolderId : initialFolderId));
     }
-  }, [open, initialFolderId, currentFolderId, movingId, tree, folders, refuse]);
+  }, [open, initialFolderId, currentFolderId, folders, disabledReason]);
 
   const rootReason = disabledReason(null);
   const rootEntry: PickerRow = {
@@ -269,13 +256,9 @@ export function FolderPickerDialog({
         focusRow(pickerRows[pickerRows.length - 1]?.key);
         break;
       case "Enter":
-        event.preventDefault();
-        if (!row.disabled) setPicked(row.id);
-        break;
       case " ":
         event.preventDefault();
         if (!row.disabled) setPicked(row.id);
-        else if (row.hasChildren && row.id) toggle(row.id);
         break;
       default:
         break;
@@ -410,4 +393,3 @@ export function FolderPickerDialog({
     </Dialog>
   );
 }
-

@@ -390,19 +390,33 @@ describe("DocumentArchiveDialog", () => {
       expect(screen.getByRole("button", { name: t("common.cancel") })).toBeInTheDocument();
     });
 
-    it("shows the permission message on 403 from archive-impact and keeps confirm locked", async () => {
+    it("shows the permission message on 403 and 404 (missing) from archive-impact without a retry button and keeps confirm locked", async () => {
+      let status = 403;
+      let code = "forbidden";
       requestMock.mockImplementation((path: string) => {
         if (path === "/api/v1/documents/f1/archive-impact") {
-          return Promise.reject(new ApiError("forbidden", "forbidden", 403));
+          return Promise.reject(new ApiError(code, code, status));
         }
         return Promise.resolve({});
       });
 
+      const { unmount } = renderDialog({ doc: folderFixture() });
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        t("documents.archive.archive_forbidden"),
+      );
+      expect(screen.queryByRole("button", { name: t("documents.archive.retry") })).toBeNull();
+      expect(screen.getByRole("button", { name: t("documents.archive.delete_confirm") })).toBeDisabled();
+      unmount();
+
+      status = 404;
+      code = "not_found";
       renderDialog({ doc: folderFixture() });
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         t("documents.archive.archive_forbidden"),
       );
+      expect(screen.queryByRole("button", { name: t("documents.archive.retry") })).toBeNull();
       expect(screen.getByRole("button", { name: t("documents.archive.delete_confirm") })).toBeDisabled();
     });
 
