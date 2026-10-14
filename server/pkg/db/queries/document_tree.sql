@@ -197,9 +197,15 @@ RETURNING id;
 
 -- The live (not archived) ids of a subtree, at most max_rows of them: the
 -- archive command asks for one row past its bound to learn the subtree is too
--- big without walking all of it. The recursion walks through archived nodes
--- like ListDocumentSubtree and only the output is filtered; its level cap is
--- max_level from subtreeMaxLevel.
+-- big without walking all of it. The walk STOPS after max_rows live rows:
+-- UNION ALL, the live filter in the outer query over the primary key, and no
+-- ORDER BY before LIMIT - an ordering step would force the whole CTE to be
+-- evaluated, while Postgres only computes the CTE rows the outer query really
+-- takes. Archived nodes on the way are still walked (a live child of an
+-- archived parent must stay reachable) but do not count against the cap. The
+-- ids come back in no particular order; a caller that needs a stable order
+-- sorts them itself. max_level is the corrupted-chain guard from
+-- subtreeMaxLevel.
 -- name: ListLiveDocumentSubtreeIDs :many
 WITH RECURSIVE sub AS (
   SELECT r.id, 1 AS lvl
@@ -219,38 +225,26 @@ SELECT d.id
 FROM sub
 JOIN documents d ON d.id = sub.id
 WHERE d.archived_at IS NULL
-ORDER BY d.id
 LIMIT sqlc.arg(max_rows);
 
--- The live nodes of a subtree the actor does not hold manage on through a path
--- plain SQL can read: a workspace owner/admin (is_ws_admin), the ACL owner
--- (a workspace member only, is_ws_member), or a live user/organization share at
--- manage. A node it returns is not refused - it still needs the full
--- effectiveLevel (workspace-principal shares, work-product owners); a node it
--- omits is manageable, so one query replaces a per-node access loop for the
--- common archive. Owned documents are always returned: the owner resolver
--- decides them, never these columns. It never walks the tree itself: the
--- caller hands it the bounded id set ListLiveDocumentSubtreeIDs returned, so
--- the gate runs on at most one archive bound of rows whatever the tree size.
+-- The live nodes of the bounded id set the archive walk returned that the
+-- actor does not hold manage on through a path plain SQL can read: a workspace
+-- owner/admin (is_ws_admin), the ACL owner (a workspace member only,
+-- is_ws_member), or a live user/organization share at manage. A node it
+-- returns is not refused - it still needs the full effectiveLevel
+-- (workspace-principal shares, work-product owners); a node it omits is
+-- manageable, so one query replaces a per-node access loop for the common
+-- archive. Owned documents are always returned: the owner resolver decides
+-- them, never these columns. It never walks the tree itself: the caller hands
+-- it the bounded id set ListLiveDocumentSubtreeIDs returned, so the gate runs
+-- on at most one archive bound of rows whatever the tree size.
 -- name: ListDocumentSubtreeNeedingAccessCheck :many
-WITH RECURSIVE sub AS (
-  SELECT r.id, 1 AS lvl
-  FROM documents r
-  WHERE r.organization_id = sqlc.arg(organization_id)
-    AND r.workspace_id = sqlc.arg(workspace_id)
-    AND r.id = sqlc.arg(root_id)
-  UNION ALL
-  SELECT d.id, sub.lvl + 1
-  FROM documents d
-  JOIN sub ON d.parent_id = sub.id
-  WHERE d.organization_id = sqlc.arg(organization_id)
-    AND d.workspace_id = sqlc.arg(workspace_id)
-    AND sub.lvl < sqlc.arg(max_level)::int
-)
 SELECT d.id
-FROM sub
-JOIN documents d ON d.id = sub.id
-WHERE d.archived_at IS NULL
+FROM documents d
+WHERE d.organization_id = sqlc.arg(organization_id)
+  AND d.workspace_id = sqlc.arg(workspace_id)
+  AND d.id = ANY(sqlc.arg(ids)::text[])
+  AND d.archived_at IS NULL
   AND (
     d.owner_kind IS NOT NULL
     OR NOT (

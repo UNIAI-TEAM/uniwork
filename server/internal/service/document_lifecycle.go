@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -70,9 +71,10 @@ func errFolderTooLarge() error {
 // requireManageOnSubtree refuses (ErrForbidden) unless the actor holds manage
 // on every live node of the subtree. One query names the nodes a human actor
 // does not trivially manage (workspace owner/admin, ACL owner, a user or
-// organization manage share); only those get the full effectiveLevel, and the
-// first refusal ends the walk. Anyone else is checked node by node, bounded by
-// documentArchiveMaxNodes.
+// organization manage share) over the bounded id set the archive walk already
+// read - it never walks the tree a second time; only those get the full
+// effectiveLevel, and the first refusal ends the walk. Anyone else is checked
+// node by node, bounded by documentArchiveMaxNodes.
 func (s *DocumentService) requireManageOnSubtree(ctx context.Context, q *db.Queries, actor Actor, root db.Document, live []string) error {
 	check := live
 	if actor.Kind == audit.KindHuman {
@@ -82,8 +84,7 @@ func (s *DocumentService) requireManageOnSubtree(ctx context.Context, q *db.Quer
 		}
 		check, err = q.ListDocumentSubtreeNeedingAccessCheck(ctx, db.ListDocumentSubtreeNeedingAccessCheckParams{
 			IsWsAdmin: isAdmin, IsWsMember: isMember, ActorID: actor.ID,
-			OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, RootID: root.ID,
-			MaxLevel: subtreeMaxLevel(),
+			OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, Ids: live,
 		})
 		if err != nil {
 			return err
@@ -211,7 +212,8 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 			return DocumentArchiveResult{View: view, BatchID: doc.ArchiveBatchID.String}, nil
 		}
 		// One bounded read of the live subtree: a huge folder is refused before
-		// any lock-holding work, and the access check below is one query.
+		// any lock-holding work, and the access check below is one query over
+		// the same ids. The walk stops after the bound is passed.
 		live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
 			MaxRows: int32(s.archiveBound()) + 1, MaxLevel: subtreeMaxLevel(),
@@ -222,6 +224,10 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 		if len(live) > s.archiveBound() {
 			return DocumentArchiveResult{}, errFolderTooLarge()
 		}
+		// The walk cannot sort (that would evaluate the whole CTE), so the
+		// command sorts the ids it did read: the refusal order and the log
+		// stay stable however the planner returns them.
+		sort.Strings(live)
 		// Never archive a restricted child the caller cannot manage: refuse the
 		// whole command, never leave the child orphaned live.
 		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
