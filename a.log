@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 9bbadb81 HEAD && echo main-merged-ok
+5f604f869485bbd9c173a1136d631fdd9166ee31
+fa2ed957a653b838f8ddf42727a41e8caf12657e
+5f604f86 merge: fork main 9bbadb81 (G8 pdf comments lane) into the G5-09 lane
+d449c225 test(e2e): address the S5 head close button by role and name (W10)
+05014b62 test(e2e): scope the step-1 button order to the S5 action row (W9)
+91267bf0 test(e2e): select the S5 dialog actions by role and name (FE-304)
+8c4cc520 test(e2e): allow the S18 metadata re-read in the web-launch route check (W9)
+79431590 fix(e2e): let the safeStorage backend decide the Local State wait (FE-302)
+571b56c8 fix(shell): conflict dialog visual-1 polish (V-01 V-02 V-04 V-06, FE-303)
+dfaa7740 merge: fork main 428686df (G8-14 slides comments) into the G5-09 lane
+main-merged-ok
