@@ -45,8 +45,12 @@ function transient(err: unknown): boolean {
   return !(err instanceof ApiError) || err.status >= 500 || err.status === 429;
 }
 
-/** One state of the page: what its shell says, and what it shows under that. */
-type Screen = { id: string; title: string; description: string; body: ReactNode; nameInTitle?: boolean };
+/**
+ * One state of the page: what its shell says, and what it shows under that.
+ * No title (and no description) is the shell's loading frame: the page does
+ * not yet know which screen it is.
+ */
+type Screen = { id: string; title?: string; description?: string; body: ReactNode; nameInTitle?: boolean };
 
 /**
  * /invite/{token} (spec 2026-10-13 §6.1). Opening the link reads the
@@ -142,12 +146,19 @@ export function AcceptInviteView({
     }
   });
 
-  const loading = (): Screen => ({
-    id: "loading",
-    title: t("invitations.title"),
-    description: t("invitations.loading_description"),
-    body: <InvitePreviewSkeleton />,
-  });
+  // The first read gives the shell no title: AuthShell holds the heading's
+  // place, and the real title arrives without taking focus. A read again
+  // after the situation changed keeps a title, so the screen that follows it
+  // is heard as the change it is.
+  const loading = (): Screen =>
+    round === 0
+      ? { id: "loading", body: <InvitePreviewSkeleton /> }
+      : {
+          id: "loading",
+          title: t("invitations.title"),
+          description: t("invitations.loading_description"),
+          body: <InvitePreviewSkeleton />,
+        };
   // `retrying`: the invitation is being read again after a failed read. With
   // nothing cached that read shows the skeleton; with a stale preview cached
   // the error stays on screen, so its Retry button carries the wait.

@@ -125,8 +125,9 @@ describe("AcceptInviteView", () => {
       renderView();
       const heading = await screen.findByRole("heading", { name: "Không dùng được lời mời này" });
       expect(screen.queryByText("not found")).not.toBeInTheDocument();
-      // The page keeps one shell, so the new title moves focus to it: that announces the refusal.
-      await waitFor(() => expect(heading).toHaveFocus());
+      // The first real title is an arrival, not a change: the loading frame
+      // had no title to replace, so focus is left where the page opened.
+      expect(heading).not.toHaveFocus();
       // The focus it took is visible to a keyboard user: the global
       // :focus-visible outline is not switched off on the heading, and a name
       // with no break opportunity wraps instead of overflowing the card.
@@ -275,7 +276,12 @@ describe("AcceptInviteView", () => {
       signIn();
       serve({ preview: { invitation: invitation(), conflicts: [] } });
       renderView();
-      expect(await screen.findByRole("heading", { name: "Tham gia Beta" })).toBeInTheDocument();
+      const heading = await screen.findByRole("heading", { name: "Tham gia Beta" });
+      // While the invitation was read the shell said nothing it would take
+      // back (no "Bạn có lời mời" swapped for the real title), so the real
+      // one arrives without moving focus.
+      expect(screen.queryByText("Bạn có lời mời")).not.toBeInTheDocument();
+      expect(heading).not.toHaveFocus();
       expect(screen.getByText("Lan mời bạn tham gia tổ chức này.")).toBeInTheDocument();
       // The organization leads the card as its identity; the list holds the facts.
       expect(screen.getByText("Beta")).toBeInTheDocument();
