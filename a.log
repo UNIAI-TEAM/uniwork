@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+517d57a1ac05d5cf2005f47ced82269c9a211d42
+1b8c09aa04d224bced15ebda1293f96224880d7d
+517d57a1 Merge remote-tracking branch 'origin/main' into feature/UNI-1371-g6-05-uniwork-adapter
+5890539c fix(ai): a UniWork AI request that never connects offline reads as offline
+9f1588a6 fix(ai): report the server run id in the desktop aiRun
