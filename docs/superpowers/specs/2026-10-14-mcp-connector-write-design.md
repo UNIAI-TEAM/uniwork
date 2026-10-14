@@ -229,7 +229,7 @@ editor web; server không chuyển đổi.
 | Tool | Tham số | Service |
 | --- | --- | --- |
 | `list_projects` | `workspace_id`, `query?`, `status?`, `include_closed?` | `ListProjects`; có `query` thì `SearchProjects` |
-| `get_project` | `project_id` | `GetProject`, `ProjectStats`, 20 task cập nhật gần nhất qua `QueryTasks` |
+| `get_project` | `project_id` | `GetProject`, `ProjectStats`, 20 task đầu theo thứ tự của `QueryTasks` (khóa trạng thái theo chữ cái, rồi vị trí) |
 | `create_project` | `workspace_id`, `title`, `description?`, `status?`, `priority?`, `lead_id?`, `start_date?`, `due_date?` | `CreateProject` với `CreateChannel=false` |
 | `update_project` | `project_id`, `revision`, cùng các trường | `UpdateProject` (gate `authorizeProjectEdit`) |
 
