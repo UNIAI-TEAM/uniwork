@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -184,11 +185,19 @@ func TestDocumentAccessLog(t *testing.T) {
 
 // countingTracer counts every query the pool sends, so a test can prove
 // FilterReadableDocuments is bounded by the number of documents on the page
-// and never by the number of notifications that name them.
-type countingTracer struct{ n atomic.Int64 }
+// and never by the number of notifications that name them. orgGate counts
+// the organization membership gate separately (R1-3): one tenant check per
+// distinct organization, not one per document.
+type countingTracer struct {
+	n       atomic.Int64
+	orgGate atomic.Int64
+}
 
-func (c *countingTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryStartData) context.Context {
+func (c *countingTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	c.n.Add(1)
+	if strings.Contains(data.SQL, "FROM organization_members") {
+		c.orgGate.Add(1)
+	}
 	return ctx
 }
 func (c *countingTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
@@ -231,6 +240,7 @@ func TestFilterReadableDocuments(t *testing.T) {
 			ids = append(ids, doc().ID)
 		}
 		before := counter.n.Load()
+		beforeGate := counter.orgGate.Load()
 		states, err := svc.FilterReadableDocuments(f.ctx, tn.member.ID, ids)
 		if err != nil {
 			t.Fatal(err)
@@ -251,6 +261,11 @@ func TestFilterReadableDocuments(t *testing.T) {
 		}
 		if spent > int64(docs)*5+4 {
 			t.Fatalf("query count %d exceeds the per-document bound for %d documents", spent, docs)
+		}
+		// R1-3: the organization gate is memoized for the page - one tenant
+		// check for the one organization, not one per document.
+		if gate := counter.orgGate.Load() - beforeGate; gate != 1 {
+			t.Fatalf("organization gate ran %d times for one organization, want 1", gate)
 		}
 
 		// The same documents named by many notifications (duplicates) cost

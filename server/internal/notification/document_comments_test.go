@@ -746,6 +746,12 @@ func TestServiceDocumentInboxGoneIsResourceDeleted(t *testing.T) {
 	if !it.ResourceDeleted || it.ResourceAccessLost {
 		t.Fatalf("archived row: %+v", it)
 	}
+	// R1-5: gone is decided before the organization/level gate, so a revoked
+	// recipient of a trashed document would otherwise keep the comment
+	// snippet; the content keys go for gone as they do for access_lost.
+	if contains(it.Params, "snippet") || contains(it.Params, "document") {
+		t.Fatalf("snippet keys survived a gone document: %s", it.Params)
+	}
 }
 
 // A comment gone (tombstoned or hard-deleted) raises comment_deleted while

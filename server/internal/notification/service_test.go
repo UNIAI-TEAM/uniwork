@@ -196,3 +196,25 @@ func TestServiceRestoreIntoReopenedGroup(t *testing.T) {
 		t.Fatalf("unread after joint unarchive = %d", openCount())
 	}
 }
+
+// R1-4: a params value that is not a string (e.g. {"count":3}) must not stop
+// the key removal the access_lost path relies on, and the other keys keep
+// their value types.
+func TestDropParamKeysKeepsNonStringValues(t *testing.T) {
+	got := dropParamKeys(`{"snippet":"x","count":3,"document":"Tài liệu"}`, "snippet", "document")
+	if contains(got, "snippet") || contains(got, "document") {
+		t.Fatalf("snippet keys survived a non-string value: %s", got)
+	}
+	if !contains(got, `"count":3`) {
+		t.Fatalf("a non-string key was dropped or rewritten: %s", got)
+	}
+	if got := dropParamKeys(`{"snippet":"x","count":3}`, "snippet"); !contains(got, `"count":3`) {
+		t.Fatalf("other keys did not survive: %s", got)
+	}
+	if got := dropParamKeys("not json", "snippet"); got != "not json" {
+		t.Fatalf("malformed params were rewritten: %s", got)
+	}
+	if got := dropParamKeys("", "snippet"); got != "" {
+		t.Fatalf("empty params were rewritten: %q", got)
+	}
+}
