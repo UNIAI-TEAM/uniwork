@@ -51,12 +51,9 @@ func (s *McpAuthService) Start(ctx context.Context, in McpAuthorizeInput) (strin
 	if in.CodeChallengeMethod != "S256" || !validChallenge(in.CodeChallenge) {
 		return fail("invalid_request", "PKCE with code_challenge_method S256 is required")
 	}
-	scope := in.Scope
-	if scope == "" {
-		scope = mcpScopeRead
-	}
-	if scope != mcpScopeRead {
-		return fail("invalid_scope", "only the read scope exists")
+	scope, ok := parseMcpScope(in.Scope)
+	if !ok {
+		return fail("invalid_scope", "scope must be read, write or both")
 	}
 	resource := in.Resource
 	if resource == "" {

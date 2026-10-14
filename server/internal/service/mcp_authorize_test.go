@@ -54,7 +54,7 @@ func TestMcpStartRedirectsProtocolErrors(t *testing.T) {
 	for name, mut := range map[string]func(*McpAuthorizeInput){
 		"unsupported_response_type": func(in *McpAuthorizeInput) { in.ResponseType = "token" },
 		"invalid_request":           func(in *McpAuthorizeInput) { in.CodeChallengeMethod = "plain" },
-		"invalid_scope":             func(in *McpAuthorizeInput) { in.Scope = "write" },
+		"invalid_scope":             func(in *McpAuthorizeInput) { in.Scope = "admin" },
 		"invalid_target":            func(in *McpAuthorizeInput) { in.Resource = "https://elsewhere.test/mcp" },
 	} {
 		in := base
