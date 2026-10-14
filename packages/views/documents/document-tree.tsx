@@ -205,6 +205,8 @@ export interface DocumentTreeProps {
   /** Opens a document; Enter or a click on the row. */
   onOpen?: (documentId: string) => void;
   enabled?: boolean;
+  /** False while a host container (such as a closed sheet) hides the tree. */
+  visible?: boolean;
   className?: string;
   /** Show folders only (the Documents sidebar); pages and files stay in the library. */
   folders?: boolean;
@@ -234,7 +236,7 @@ export interface DocumentTreeProps {
  * changes when that answer lands and the workspace keys are invalidated. A
  * refused or failed move therefore leaves every position exactly where it was.
  */
-export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, folders = false, currentId = null, emptyLabel }: DocumentTreeProps) {
+export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = true, className, folders = false, currentId = null, emptyLabel }: DocumentTreeProps) {
   const { t } = useTranslation();
   const query = useDocumentTree(wsId, rootId, { enabled, foldersOnly: folders });
   const move = useMoveDocument(wsId);
@@ -250,7 +252,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
     return folders ? foldersOnly(forest) : forest;
   }, [query.data, folders]);
   const rows = useMemo(() => flattenTree(nodes, expanded), [nodes, expanded]);
-  useTreeReveal({ wsId, currentId, enabled, rows, rowRefs, setExpanded });
+  useTreeReveal({ wsId, currentId, enabled, visible, rows, rowRefs, setExpanded });
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const registerRef = (id: string, el: HTMLDivElement | null) => {

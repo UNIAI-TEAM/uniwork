@@ -47,6 +47,8 @@ export interface DocumentsSidebarProps {
   canCreate: boolean;
   /** A folder is being created: the "+" holds still until the server answers. */
   newFolderPending?: boolean;
+  /** False while a host sheet is closed. */
+  open?: boolean;
   onView: (view: LibraryView) => void;
   onFolder: (folderId: string) => void;
   onNewFolder: (title?: string) => Promise<boolean | void> | boolean | void;
@@ -106,6 +108,7 @@ export function DocumentsSidebar({
   sourcesAvailable,
   canCreate,
   newFolderPending = false,
+  open = true,
   onView,
   onFolder,
   onNewFolder,
@@ -149,6 +152,7 @@ export function DocumentsSidebar({
       <DocumentTree
         wsId={wsId}
         folders
+        visible={open}
         currentId={folderId}
         onOpen={onFolder}
         emptyLabel={t("documents.home.folders.empty")}
@@ -193,7 +197,12 @@ export function DocumentsSidebarSheet({
   const { t } = useTranslation();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="flex w-full flex-col gap-0 p-0 sm:max-w-xs" closeLabel={t("common.close")}>
+      <SheetContent
+        side="left"
+        initialFocus={false}
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-xs"
+        closeLabel={t("common.close")}
+      >
         <SheetHeader className="shrink-0 border-b border-border px-4 py-3 text-left">
           <SheetTitle className="flex items-center gap-2 text-title">
             <FolderTree aria-hidden className="size-4 text-muted-foreground" />
@@ -201,7 +210,7 @@ export function DocumentsSidebarSheet({
           </SheetTitle>
           <SheetDescription className="mt-0.5">{t("documents.tree.sheet_description")}</SheetDescription>
         </SheetHeader>
-        <DocumentsSidebar {...sidebar} className="flex-1" />
+        <DocumentsSidebar {...sidebar} open={open} className="flex-1" />
       </SheetContent>
     </Sheet>
   );
