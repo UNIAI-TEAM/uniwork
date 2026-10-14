@@ -1,9 +1,21 @@
 "use client";
 
+import { useId, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Clock, FolderTree, House, Plus, Star, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { FOLDER_TITLE_MAX } from "@uniwork/core/documents";
 import type { DocumentSourceKind } from "@uniwork/core/documents/sources-schema";
+import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@uniwork/ui/components/ui/dialog";
+import { Input } from "@uniwork/ui/components/ui/input";
+import { Label } from "@uniwork/ui/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -47,7 +59,7 @@ export interface DocumentsSidebarProps {
   newFolderPending?: boolean;
   onView: (view: LibraryView) => void;
   onFolder: (folderId: string) => void;
-  onNewFolder: () => void;
+  onNewFolder: (title?: string) => Promise<boolean | void> | boolean | void;
   className?: string;
 }
 
@@ -110,7 +122,45 @@ export function DocumentsSidebar({
   className,
 }: DocumentsSidebarProps) {
   const { t } = useTranslation();
+  const inputId = useId();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const busy = submitting || newFolderPending;
+
   const isView = (kind: LibraryView["kind"]) => view.kind === kind && !(kind === "home" && folderId);
+
+  const openCreateDialog = () => {
+    if (busy) return;
+    setDraftName(t("documents.home.folders.default_name"));
+    setNameError(null);
+    setCreateOpen(true);
+  };
+
+  const submitRootFolder = async () => {
+    if (submittingRef.current || newFolderPending) return;
+    const trimmed = draftName.trim();
+    if (!trimmed) {
+      setNameError(t("documents.home.folders.name_empty"));
+      return;
+    }
+    if (trimmed.length > FOLDER_TITLE_MAX) {
+      setNameError(t("documents.home.folders.name_too_long", { max: FOLDER_TITLE_MAX }));
+      return;
+    }
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      const ok = await onNewFolder(trimmed);
+      if (ok !== false) setCreateOpen(false);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+
   return (
     <nav aria-label={t("documents.home.sidebar.label")} className={cn("flex min-h-0 flex-col overflow-y-auto p-2", className)}>
       <NavItem icon={House} label={t("documents.home.sidebar.home")} current={isView("home")} onClick={() => onView({ kind: "home" })} />
@@ -123,10 +173,8 @@ export function DocumentsSidebar({
           canCreate ? (
             <button
               type="button"
-              onClick={() => {
-                if (!newFolderPending) onNewFolder();
-              }}
-              aria-disabled={newFolderPending || undefined}
+              onClick={openCreateDialog}
+              aria-disabled={busy || undefined}
               aria-label={t("documents.home.folders.new")}
               title={t("documents.home.folders.new")}
               className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:size-11"
@@ -161,6 +209,54 @@ export function DocumentsSidebar({
           ))}
         </>
       ) : null}
+
+      <Dialog open={createOpen} onOpenChange={(next) => (busy ? undefined : setCreateOpen(next))}>
+        <DialogContent className="sm:max-w-md" showCloseButton={!busy} closeLabel={t("common.close")}>
+          <DialogHeader>
+            <DialogTitle>{t("documents.home.folders.create_title_root")}</DialogTitle>
+          </DialogHeader>
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitRootFolder();
+            }}
+          >
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={inputId}>{t("documents.home.folders.rename_label")}</Label>
+              <Input
+                id={inputId}
+                value={draftName}
+                placeholder={t("documents.home.folders.name_placeholder")}
+                disabled={busy}
+                onChange={(event) => {
+                  setDraftName(event.target.value);
+                  if (nameError) setNameError(null);
+                }}
+              />
+            </div>
+            {nameError ? (
+              <p role="alert" className="text-caption text-destructive">
+                {nameError}
+              </p>
+            ) : null}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (!busy) setCreateOpen(false);
+                }}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" aria-disabled={busy || undefined}>
+                {t("documents.home.folders.create_submit")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </nav>
   );
 }

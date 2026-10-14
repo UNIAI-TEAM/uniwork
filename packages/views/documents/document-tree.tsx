@@ -34,6 +34,7 @@ import {
   TREE_MAX_LEVEL,
   type TreeRow,
 } from "./document-tree-model";
+import { useTreeReveal } from "./use-tree-reveal";
 
 /* ---- rows --------------------------------------------------------------- */
 
@@ -187,7 +188,7 @@ export interface DocumentTreeProps {
  */
 export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, folders = false, currentId = null, emptyLabel }: DocumentTreeProps) {
   const { t } = useTranslation();
-  const query = useDocumentTree(wsId, rootId, { enabled });
+  const query = useDocumentTree(wsId, rootId, { enabled, foldersOnly: folders });
   const move = useMoveDocument(wsId);
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -201,6 +202,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
     return folders ? foldersOnly(forest) : forest;
   }, [query.data, folders]);
   const rows = useMemo(() => flattenTree(nodes, expanded), [nodes, expanded]);
+  useTreeReveal({ wsId, currentId, enabled, rows, rowRefs, setExpanded });
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const registerRef = (id: string, el: HTMLDivElement | null) => {

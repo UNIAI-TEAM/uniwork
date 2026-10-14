@@ -58,16 +58,17 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
     }
   };
 
-  /** A new folder takes its default name; the caller navigates into it. */
-  const newFolder = async (parentId: string | null): Promise<string | null> => {
+  /** A new folder takes the given or default name; the caller navigates into it. */
+  const newFolder = async (parentId: string | null, customTitle?: string): Promise<string | null> => {
     if (folderBusy.current) return null;
     folderBusy.current = true;
     try {
       const folder = await createFolder.mutateAsync({
-        title: t("documents.home.folders.default_name"),
+        title: (customTitle ?? t("documents.home.folders.default_name")).trim(),
         ...(parentId ? { parentId } : {}),
         idempotencyKey: createSafeId(),
       });
+      toast.success(t("documents.home.folders.toast.created", { title: folder.title }));
       return folder.id;
     } catch (error) {
       toast.error(documentErrorMessage(error, t, "documents.home.folders.create_failed"));
