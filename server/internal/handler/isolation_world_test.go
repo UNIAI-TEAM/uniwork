@@ -679,6 +679,11 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		content: []byte("# " + m + " file body\n"),
 	})
 	tn.ids["fileDocument"] = isoID(t, out, "document")
+	// A comment on the file document itself: the office launch session's
+	// own-rows control must name a comment of the document its path names
+	// (R1-1 binds the ticket's comment to its document).
+	out = w.call(t, "POST", "/api/v1/documents/"+tn.ids["fileDocument"]+"/comments", tn.token, map[string]any{"body": m + " file doc comment", "type": "comment"})
+	tn.ids["fileDocComment"] = isoID(t, out, "comment")
 	status, raw := w.do(t, http.MethodPost, "/api/v1/documents/"+tn.ids["fileDocument"]+"/office/jobs", tn.token, isoBody{
 		json: map[string]any{"operation": "serialize"}, headers: map[string]string{"Idempotency-Key": util.NewID()},
 	})
