@@ -6,7 +6,7 @@ import type { InvitationPreview } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { BusyNotice, ChangedNotice } from "./invite-notices";
+import { ChangedNotice, RetryNotice, type RetryReason } from "./invite-notices";
 import { LaterLink } from "./invite-screens";
 import { OrgMark, RoleBadge } from "./org-mark";
 
@@ -84,7 +84,7 @@ export function JoinInvitationBody({
   label,
   notice,
   pending,
-  busy,
+  retry,
   onJoin,
 }: {
   invitation: Invitation;
@@ -93,8 +93,8 @@ export function JoinInvitationBody({
   /** The switch the person was in resolved itself (409 with no conflicts left). */
   notice: boolean;
   pending: boolean;
-  /** The server was busy with another change to this account; nothing changed. */
-  busy: boolean;
+  /** Why the last attempt changed nothing and can be sent again; null when there was none. */
+  retry: RetryReason | null;
   onJoin: () => void;
 }) {
   const { t } = useTranslation();
@@ -103,7 +103,7 @@ export function JoinInvitationBody({
       {notice ? <ChangedNotice /> : null}
       <InvitationDetails invitation={invitation} label={label} />
       <div className="flex flex-col gap-2">
-        {busy ? <BusyNotice /> : null}
+        {retry ? <RetryNotice why={retry} /> : null}
         <Button
           type="button"
           size="lg"

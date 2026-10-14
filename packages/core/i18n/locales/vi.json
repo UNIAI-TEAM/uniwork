@@ -4488,7 +4488,8 @@
       "confirm_join": "Tham gia {{name}} với vai trò {{role}}",
       "confirm_note": "Mọi bước diễn ra cùng lúc. Nếu một bước không thành, bạn vẫn ở tổ chức hiện tại như cũ.",
       "action": "Chuyển sang {{name}}",
-      "busy": "Đang có một thay đổi khác với tài khoản của bạn. Thử lại sau giây lát."
+      "busy": "Đang có một thay đổi khác với tài khoản của bạn. Thử lại sau giây lát.",
+      "send_failed": "Chưa gửi được yêu cầu chuyển tổ chức. Bạn vẫn ở tổ chức hiện tại và các lựa chọn ở trên vẫn được giữ. Bấm nút bên dưới để gửi lại."
     }
   },
   "onboarding": {

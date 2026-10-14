@@ -209,6 +209,40 @@ describe("AcceptInviteView", () => {
       expect(acceptCalls()).toEqual([undefined]);
     });
 
+    /** The repeat ask failed in passing: "Thử lại" asks again instead of spinning on "accepted". */
+    it("asks again after a failed repeat accept when the person retries", async () => {
+      signIn();
+      let calls = 0;
+      serve({
+        preview: { invitation: invitation("accepted"), conflicts: [] },
+        onAccept: async () => {
+          calls += 1;
+          if (calls === 1) throw new ApiError("boom", "internal", 500);
+          return { organization: beta, workspace: betaWorkspace };
+        },
+      });
+      const onAccepted = renderView();
+      fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+      await waitFor(() => expect(onAccepted).toHaveBeenCalledWith(expect.objectContaining({ id: "w2" })));
+      expect(acceptCalls()).toHaveLength(2);
+    });
+
+    it("offers a retry instead of a spinner when the repeat accept meets another change", async () => {
+      signIn();
+      let calls = 0;
+      serve({
+        preview: { invitation: invitation("accepted"), conflicts: [] },
+        onAccept: async () => {
+          calls += 1;
+          if (calls === 1) throw new ApiError("x", "membership_busy", 409);
+          return { organization: beta, workspace: betaWorkspace };
+        },
+      });
+      const onAccepted = renderView();
+      fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+      await waitFor(() => expect(onAccepted).toHaveBeenCalled());
+    });
+
     it("tells anybody else the invitation was already used", async () => {
       signIn();
       serve({
@@ -503,6 +537,22 @@ describe("AcceptInviteView", () => {
       expect(await screen.findByRole("status")).toHaveTextContent("Thử lại sau giây lát.");
       fireEvent.click(screen.getByRole("button", { name: "Chuyển sang Beta" }));
       await waitFor(() => expect(onAccepted).toHaveBeenCalled());
+    });
+
+    /** A network or server failure leaves the choices made; the same button sends them again. */
+    it("keeps the confirmation and what was chosen when the switch fails in passing", async () => {
+      let calls = 0;
+      const onAccepted = await reachConfirm([conflict("leave")], async () => {
+        calls += 1;
+        if (calls === 1) throw new ApiError("boom", "internal", 502);
+        return { organization: beta, workspace: betaWorkspace };
+      });
+      expect(await screen.findByRole("status")).toHaveTextContent("Chưa gửi được yêu cầu chuyển tổ chức.");
+      fireEvent.click(screen.getByRole("button", { name: "Chuyển sang Beta" }));
+      await waitFor(() => expect(onAccepted).toHaveBeenCalled());
+      const calls2 = acceptCalls();
+      expect(calls2).toHaveLength(2);
+      expect(calls2[1]).toEqual(calls2[0]);
     });
 
     /** Once sent, the switch cannot be called off: "Để sau" would only hide that it went through. */

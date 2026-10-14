@@ -25,17 +25,20 @@ export function InviteNotice({ icon, tone, children }: { icon: LucideIcon; tone:
   );
 }
 
+/** Why the last attempt changed nothing and can simply be sent again. */
+export type RetryReason = "busy" | "failed";
+
 /**
- * The account was busy with another change and nothing happened: a passing
- * state, so a polite status in the warning tone, placed right above the
- * button that tries again.
+ * The account was busy with another change, or the request never got an
+ * answer, and nothing happened: a passing state, so a polite status in the
+ * warning tone, placed right above the button that tries again.
  */
-export function BusyNotice() {
+export function RetryNotice({ why }: { why: RetryReason }) {
   const { t } = useTranslation();
   return (
     <Alert variant="warning" role="status">
       <Hourglass aria-hidden />
-      <AlertDescription>{t("invitations.switch.busy")}</AlertDescription>
+      <AlertDescription>{why === "busy" ? t("invitations.switch.busy") : t("invitations.switch.send_failed")}</AlertDescription>
     </Alert>
   );
 }

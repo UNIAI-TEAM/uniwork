@@ -7,7 +7,7 @@ import type { InvitationPreview, MembershipConflict, SwitchResolution } from "@u
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { BusyNotice, ChangedNotice } from "./invite-notices";
+import { ChangedNotice, RetryNotice, type RetryReason } from "./invite-notices";
 import { LaterLink } from "./invite-screens";
 import { ResolveBlock } from "./resolve-block";
 import { EMPTY_DRAFT, draftReady, toResolution, type SwitchDraft } from "./switch-draft";
@@ -30,7 +30,7 @@ export function SwitchWizard({
   startAt = 1,
   notice = false,
   pending,
-  busy,
+  retry,
   onSubmit,
 }: {
   invitation: InvitationPreview["invitation"];
@@ -39,8 +39,8 @@ export function SwitchWizard({
   /** The conflicts were refreshed by a refusal: tell the person to look again. */
   notice?: boolean;
   pending: boolean;
-  /** The last attempt met another change to this account; nothing changed. */
-  busy: boolean;
+  /** Why the last attempt changed nothing and can be sent again; null when there was none. */
+  retry: RetryReason | null;
   /** Sends the switch; `onPasswordRefused` runs when the server refuses the owner's password. */
   onSubmit: (resolve: SwitchResolution[], onPasswordRefused: (why: PasswordRefusal) => void) => void;
 }) {
@@ -170,7 +170,7 @@ export function SwitchWizard({
           <>
             <StepHeading ref={heading}>{t("invitations.switch.confirm_heading")}</StepHeading>
             <ConfirmStepBody invitation={invitation} conflicts={conflicts} drafts={drafts} />
-            {busy ? <BusyNotice /> : null}
+            {retry ? <RetryNotice why={retry} /> : null}
             <StepActions sending={pending}>
               <Button
                 type="button"

@@ -4489,7 +4489,8 @@
       "confirm_join": "Join {{name}} as {{role}}",
       "confirm_note": "Everything happens in one go. If any step fails, you stay where you are.",
       "action": "Switch to {{name}}",
-      "busy": "Another change to your account is in progress. Try again in a moment."
+      "busy": "Another change to your account is in progress. Try again in a moment.",
+      "send_failed": "The switch request did not go through. You are still in your current organization and your choices above are kept. Press the button below to send it again."
     }
   },
   "onboarding": {
