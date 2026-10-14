@@ -106,7 +106,7 @@ with the variables above exported (Node 22).
   shared `uniwork_document_conflicts_total{kind="file",code="document_version_conflict"}` (reuse decision, G5-07),
   not a separate office counter.
 - Change feed (G5-01b): lag gauge `uniwork_office_change_feed_lag_seconds` (age of the oldest committed document
-  change a served page had not delivered). Two known quiet modes, no alert yet (G7-07 owns alerts). (1) **xmin
+  change a served page had not delivered). Two known quiet modes; the alert is `OfficeChangeFeedLagHigh` (threshold pending G7-D1, runbook `docs/runbooks/OfficeChangeFeedLagHigh.md`). (1) **xmin
   horizon**: one long-running transaction (a migration, a backup, a stuck reader) holds `pg_snapshot_xmin` back, so
   every later commit is held and no page delivers while the lag stays non-zero; the page that can advance nothing
   answers `has_more=false` with its cursor position unchanged - keyset intact, token re-signed (the client polls again later), so `has_more` is the wrong
@@ -378,6 +378,9 @@ Rollback steps and the user-facing wording: [`docs/office/g3g4/runbook.md`](../o
 
 ## Follow-ups
 
+- Sync, offline lease and UniWork AI operations of the G5/G6/G7 phase (cursor resync, reconciling, upload expiry, lease,
+  revoke, upstream switch, usage reconciliation, installer rollback, TTL workers, concurrency cap):
+  [`RUNBOOK_OFFICE_SYNC.md`](RUNBOOK_OFFICE_SYNC.md).
 - Helm: the chart exists (above). Still open per environment: the checklist items in
   [`OFFICE_ENV_CHECKLIST.md`](OFFICE_ENV_CHECKLIST.md) and the first real production rollout with the engine on.
 - The engine's `/metrics` is not yet scraped by `deploy/prometheus.yml`; add it with the first alert rule
