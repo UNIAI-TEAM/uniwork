@@ -42,7 +42,7 @@ func (b bytesReader) Read(p []byte) (int, error) {
 
 func TestHydrateThreadBodyFromObject(t *testing.T) {
 	mem := &memStorageGet{memStorage: *newMemStorage()}
-	key := bodystore.ObjectKey("acc", "thr")
+	key := bodystore.ObjectKey("org", "acc", "thr")
 	data, err := bodystore.Encode("text ?id=12345", "<b width=600>x</b>")
 	if err != nil {
 		t.Fatal(err)

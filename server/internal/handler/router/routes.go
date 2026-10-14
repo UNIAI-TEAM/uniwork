@@ -34,6 +34,27 @@ type Routes struct {
 	AdminRefundInvoice         http.HandlerFunc
 	AdminConfirmInvoiceRefund  http.HandlerFunc
 
+	// MCP connector: OAuth discovery and endpoints, and /mcp itself (ADR
+	// 0031), mounted by registerMCP.
+	McpProtectedResource   http.HandlerFunc
+	McpAuthorizationServer http.HandlerFunc
+	McpAuthorize           http.HandlerFunc
+	McpToken               http.HandlerFunc
+	McpRegister            http.HandlerFunc
+	McpRevoke              http.HandlerFunc
+	McpServe               http.HandlerFunc
+
+	// MCP connector, web side (registerConnect): consent, connected apps, the
+	// organization's switch.
+	McpConsent            http.HandlerFunc
+	McpConsentCommand     http.HandlerFunc
+	MyConnectedApps       http.HandlerFunc
+	RevokeMyConnectedApp  http.HandlerFunc
+	OrgConnectedApps      http.HandlerFunc
+	RevokeOrgConnectedApp http.HandlerFunc
+	OrgMcpPolicy          http.HandlerFunc
+	SetOrgMcpPolicy       http.HandlerFunc
+
 	Register              http.HandlerFunc
 	Login                 http.HandlerFunc
 	ForgotPassword        http.HandlerFunc
@@ -81,6 +102,7 @@ type Routes struct {
 	DeactivateOrgMember http.HandlerFunc
 	ReactivateOrgMember http.HandlerFunc
 	LeaveOrganization   http.HandlerFunc
+	CloseOrganization   http.HandlerFunc
 
 	InviteToOrganization http.HandlerFunc
 	ListOrgInvitations   http.HandlerFunc
@@ -106,6 +128,7 @@ type Routes struct {
 	PatchMember         http.HandlerFunc
 	DeleteMember        http.HandlerFunc
 	CreateInvitation    http.HandlerFunc
+	PreviewInvitation   http.HandlerFunc
 	AcceptInvitation    http.HandlerFunc
 
 	SeedWelcomeTask http.HandlerFunc

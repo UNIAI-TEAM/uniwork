@@ -32,6 +32,13 @@ describe("organizations endpoints", () => {
     await expect(list()).resolves.toEqual([]);
   });
 
+  it("list keeps the deactivated flag, so a switched-off membership is not counted as held", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ organizations: [{ ...org, deactivated: true }, org] }));
+    const [off, on] = await list();
+    expect(off?.deactivated).toBe(true);
+    expect(on?.deactivated).toBeUndefined();
+  });
+
   it("create posts the body and returns null on drift", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ organization: org }));
     expect((await create({ name: "Acme", slug: "acme" }))?.id).toBe("o1");

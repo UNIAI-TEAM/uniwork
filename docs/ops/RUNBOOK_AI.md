@@ -164,6 +164,10 @@ Khi có sự cố:
 - **Đối soát không tiến**: kiểm worker TTL còn chạy (log `uniwork ai conversation sweep`) và khóa `AI_CONVERSATION_KEY`
   chưa xoay (transcript cũ không giải mã được).
 
+Alert của `office_uniwork_ai` (lỗi, latency, usage unknown, run, tool call bị bỏ): `deploy/alerts.yml` nhóm `uniwork-ai`,
+runbook theo tên alert trong [`docs/runbooks/README.md`](../runbooks/README.md) (ngưỡng pending G7-D1). Upstream sập/đổi,
+đối soát usage và trần đồng thời: [`RUNBOOK_OFFICE_SYNC.md`](RUNBOOK_OFFICE_SYNC.md).
+
 ## Không bao giờ
 
 - Không log prompt, nguồn hay câu trả lời. `ai_messages` là dữ liệu người dùng,

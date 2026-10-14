@@ -238,3 +238,25 @@ func TestAdminListAndTrace(t *testing.T) {
 		t.Fatalf("system: %v %+v", err, sys)
 	}
 }
+
+// A closed organization is archived for good in this scope (ADR 0032 D4):
+// suspend and unsuspend must not bring it back to life without an owner.
+func TestAdminStatusLeavesAClosedOrganizationArchived(t *testing.T) {
+	f := newAuditFixture(t)
+	f.build(t)
+	ctx := context.Background()
+	if _, err := f.pool.Exec(ctx, `UPDATE organizations SET status = 'archived', suspended_reason = 'organization_closed' WHERE id = $1`, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	for _, status := range []string{OrganizationActive, OrganizationSuspended} {
+		if _, err := f.admin.SetOrganizationStatus(ctx, f.third.ID, f.orgID, status, "reopen a closed organization"); !errors.Is(err, ErrConflict) {
+			t.Fatalf("set %s on an archived organization: %v", status, err)
+		}
+	}
+	if o, _ := f.q.GetOrganizationByID(ctx, f.orgID); o.Status != "archived" {
+		t.Fatalf("status after refused change: %s", o.Status)
+	}
+	if rows, _ := f.q.ListAdminActionsByTarget(ctx, db.ListAdminActionsByTargetParams{TargetType: "organization", TargetID: f.orgID, Limit: 10}); len(rows) != 0 {
+		t.Fatalf("a refused change wrote %d admin_actions rows", len(rows))
+	}
+}

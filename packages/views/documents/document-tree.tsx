@@ -31,6 +31,7 @@ import {
   moveTooDeep,
   siblingMovePosition,
   siblingsOf,
+  TREE_MAX_LEVEL,
   type TreeRow,
 } from "./document-tree-model";
 
@@ -248,7 +249,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
   const refuseMove = (draggedId: string, targetId: string): boolean => {
     if (moveRefused(nodes, draggedId, targetId)) return true;
     if (moveTooDeep(nodes, draggedId, targetId)) {
-      toast.error(t("documents.tree.too_deep"));
+      toast.error(t("documents.tree.too_deep", { max: TREE_MAX_LEVEL }));
       return true;
     }
     return false;

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useSession } from "@uniwork/core/auth";
+import { useOrganizations } from "@uniwork/core/organizations";
 import { paths, resolvePostAuthDestination, useHasOnboarded, usePendingAuthStep } from "@uniwork/core/paths";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { useNavigation } from "@uniwork/views/navigation";
@@ -12,6 +13,9 @@ export default function OnboardingPage() {
   const hasOnboarded = useHasOnboarded();
   const step = usePendingAuthStep();
   const { data: workspaces = [], isFetched } = useWorkspaces();
+  // An onboarded account that left or closed its organization belongs on
+  // /get-started (ADR 0032 D12); the resolver needs the list to tell.
+  const { data: organizations, isFetched: orgsFetched } = useOrganizations(status === "authed" && hasOnboarded);
   // Latch: while onComplete is pushing, the guard (which just saw onboarded_at
   // flip) must not replace over it.
   const completing = useRef(false);
@@ -19,10 +23,10 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (status === "anon") replace(paths.login());
     if (status === "authed" && step === "verify") replace(paths.verify());
-    if (status === "authed" && hasOnboarded && isFetched && !completing.current) {
-      replace(resolvePostAuthDestination(workspaces, user));
+    if (status === "authed" && hasOnboarded && isFetched && orgsFetched && !completing.current) {
+      replace(resolvePostAuthDestination(workspaces, user, organizations));
     }
-  }, [status, step, user, hasOnboarded, isFetched, workspaces, replace]);
+  }, [status, step, user, hasOnboarded, isFetched, orgsFetched, workspaces, organizations, replace]);
 
   if (status !== "authed" || step === "verify" || (hasOnboarded && !completing.current)) return null;
   return (

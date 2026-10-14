@@ -191,6 +191,16 @@ func TestOrganizationMemberAdministrationEndToEnd(t *testing.T) {
 	if code := errorCode(out); code != "member_deactivated" {
 		t.Fatalf("error code: %q", code)
 	}
+	// The switcher still lists it (F-03 §6.3), flagged, because a switched-off
+	// membership no longer counts as belonging (ADR 0032 D1).
+	res, out = doJSON(t, srv, "GET", "/api/v1/orgs", memberToken, nil)
+	if orgs, _ := out["organizations"].([]any); res.StatusCode != 200 || len(orgs) != 1 || orgs[0].(map[string]any)["deactivated"] != true {
+		t.Fatalf("organization list while deactivated: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/orgs", ownerToken, nil)
+	if orgs, _ := out["organizations"].([]any); res.StatusCode != 200 || len(orgs) != 1 || orgs[0].(map[string]any)["deactivated"] != nil {
+		t.Fatalf("owner's organization list: %d %v", res.StatusCode, out)
+	}
 	// members/me still answers, because that is what the blocked screen reads.
 	res, out = doJSON(t, srv, "GET", "/api/v1/orgs/acme/members/me", memberToken, nil)
 	if res.StatusCode != 200 || out["deactivated_at"] == "" {

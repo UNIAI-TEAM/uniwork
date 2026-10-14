@@ -153,8 +153,50 @@ func (h *handlers) createInvitation(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.InvitationCreateSDO{Invitations: out, Skipped: skipped})
 }
 
+// GET /invitations/{token} — the invitation page reads it before anything is
+// accepted (spec §4.3).
+func (h *handlers) previewInvitation(w http.ResponseWriter, r *http.Request) {
+	p, err := h.Workspaces.PreviewInvitation(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "token"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.InvitationPreviewSDO{
+		Invitation: sdo.InvitationPreviewDTO{
+			ID: p.ID, Status: p.Status, ExpiresAt: p.ExpiresAt.UTC().Format(time.RFC3339),
+			Organization: sdo.InvitationOrgDTO{ID: p.Organization.ID, Slug: p.Organization.Slug, Name: p.Organization.Name},
+			OrgRole:      p.OrgRole, InviterName: p.InviterName,
+		},
+		Conflicts: make([]sdo.MembershipConflictDTO, 0, len(p.Conflicts)),
+	}
+	if p.Workspace != nil {
+		out.Invitation.Workspace = &sdo.InvitationWorkspaceDTO{ID: p.Workspace.ID, Slug: p.Workspace.Slug, Name: p.Workspace.Name}
+	}
+	for _, c := range p.Conflicts {
+		out.Conflicts = append(out.Conflicts, sdo.MembershipConflictDTO{
+			Organization: sdo.InvitationOrgDTO{ID: c.Organization.ID, Slug: c.Organization.Slug, Name: c.Organization.Name},
+			Role:         c.Role, RequiredAction: c.RequiredAction, BlockedReason: c.BlockedReason,
+			TransferCandidatesCount: c.TransferCandidatesCount,
+		})
+	}
+	respondJSON(w, 200, out)
+}
+
+// POST /invitations/{token}/accept — the body is optional, so a client that
+// sends nothing still joins when nothing stands in the way.
 func (h *handlers) acceptInvitation(w http.ResponseWriter, r *http.Request) {
-	result, err := h.Workspaces.AcceptInvite(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "token"))
+	var in sdi.AcceptInvitationSDI
+	if !decodeOptionalBody(w, r, &in) {
+		return
+	}
+	resolve := make([]service.SwitchResolution, 0, len(in.Resolve))
+	for _, x := range in.Resolve {
+		resolve = append(resolve, service.SwitchResolution{
+			OrganizationID: x.OrganizationID, Action: x.Action,
+			TransferToUserID: x.TransferToUserID, Password: x.Password, ConfirmSlug: x.ConfirmSlug,
+		})
+	}
+	result, err := h.Workspaces.AcceptInvite(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "token"), resolve)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

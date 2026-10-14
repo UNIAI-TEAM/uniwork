@@ -152,7 +152,7 @@ UPDATE billing_payment_intents SET
   provider_transaction_no = COALESCE(sqlc.narg('provider_transaction_no'), provider_transaction_no),
   provider_order_info = COALESCE(sqlc.narg('provider_order_info'), provider_order_info),
   provider_pay_date = COALESCE(sqlc.narg('provider_pay_date'), provider_pay_date)
-WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed')
+WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed', 'expired')
 RETURNING *;
 
 -- name: PatchBillingPaymentIntentProviderMeta :exec
@@ -179,6 +179,21 @@ UPDATE billing_payment_intents SET
   END,
   updated_at = now()
 WHERE id = $1 AND organization_id = $2 AND status = 'completed';
+
+-- name: ClaimStaleBillingPaymentIntentsForReconcile :many
+-- tenant: system
+UPDATE billing_payment_intents SET reconcile_attempted_at = now()
+WHERE id IN (
+  SELECT id FROM billing_payment_intents
+  WHERE provider = 'vnpay' AND status IN ('pending', 'expired')
+    AND created_at < now() - interval '15 minutes'
+    AND created_at > now() - interval '7 days'
+    AND (reconcile_attempted_at IS NULL OR reconcile_attempted_at < now() - interval '10 minutes')
+  ORDER BY created_at
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
 
 -- name: ListCompletedBillingIntentsMissingProviderMeta :many
 -- tenant: system

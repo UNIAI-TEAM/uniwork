@@ -1048,8 +1048,8 @@ func (q *Queries) AdminRevertInvoiceRefundRequest(ctx context.Context, id string
 
 const adminSetOrganizationStatus = `-- name: AdminSetOrganizationStatus :one
 UPDATE organizations SET status = $2, suspended_at = $3, suspended_reason = $4, updated_at = now()
-WHERE id = $1
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, deletion_scheduled_at
+WHERE id = $1 AND status IN ('active', 'suspended')
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at
 `
 
 type AdminSetOrganizationStatusParams struct {
@@ -1059,6 +1059,8 @@ type AdminSetOrganizationStatusParams struct {
 	SuspendedReason pgtype.Text        `json:"suspended_reason"`
 }
 
+// Suspend and unsuspend only: an archived organization (closed or deleted)
+// stays archived, so no row comes back when it moved there under the caller.
 func (q *Queries) AdminSetOrganizationStatus(ctx context.Context, arg AdminSetOrganizationStatusParams) (Organization, error) {
 	row := q.db.QueryRow(ctx, adminSetOrganizationStatus,
 		arg.ID,
@@ -1077,6 +1079,8 @@ func (q *Queries) AdminSetOrganizationStatus(ctx context.Context, arg AdminSetOr
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
 		&i.DeletionScheduledAt,
 	)
 	return i, err

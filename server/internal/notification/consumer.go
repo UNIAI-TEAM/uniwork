@@ -44,6 +44,10 @@ func NewConsumer(pool *pgxpool.Pool, q *db.Queries, members MemberChecker) *Cons
 // SetMetrics attaches counters; called once from main.
 func (c *Consumer) SetMetrics(m Metrics) { c.metrics = m }
 
+// SetOrgMembers wires the organization permission port used by
+// organization-scoped rules. Unwired, those rules deliver nothing.
+func (c *Consumer) SetOrgMembers(o OrgMemberChecker) { c.env.orgs = o }
+
 // SetDocumentReaders wires the document permission port the document rules
 // filter recipients through. DocumentService satisfies it; the package
 // declares it here so notification never imports internal/service. Unwired,

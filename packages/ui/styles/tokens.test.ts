@@ -7,6 +7,7 @@ import { UI_EASE_OUT, UI_EASE_SETTLE, UI_MOTION_DURATION } from "../lib/motion";
 // environment rewrites module URLs to a non-file scheme, and vitest always runs
 // a package's tests with that package as the working directory.
 const css = readFileSync(resolve(process.cwd(), "styles/tokens.css"), "utf8");
+const baseCss = readFileSync(resolve(process.cwd(), "styles/base.css"), "utf8");
 
 /** Nội dung của một khối `selector { ... }` ở cấp cao nhất trong file. */
 function block(selector: string): string {
@@ -47,6 +48,23 @@ function value(selector: string, token: string): string {
   if (!match?.[1]) throw new Error(`${token} not found in ${selector}`);
   return match[1].trim();
 }
+
+/** Raw value of one declaration in the @theme inline block, packed lines included. */
+function themeValue(token: string): string {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = block("@theme inline").match(new RegExp(`(?:^|;)\\s*${escaped}\\s*:\\s*([^;]+);`, "m"));
+  if (!match?.[1]) throw new Error(`${token} not found in @theme inline`);
+  return match[1].trim();
+}
+
+const SCALED_STEPS = [
+  "micro", "overline", "caption", "label", "body", "body-lg",
+  "title-sm", "title", "title-lg", "display-sm", "display",
+] as const;
+const FIXED_STEPS = [
+  "hero-sm", "hero", "hero-lg", "hero-xl",
+  "hero-opening", "hero-opening-tablet", "hero-opening-mobile", "avatar-stage",
+] as const;
 
 /** sRGB 0..1. Handles the two notations the file uses: #rrggbb and oklch(). */
 function srgb(css: string): [number, number, number] {
@@ -450,5 +468,42 @@ describe("token contract", () => {
         }
       }
     });
+  });
+});
+
+describe("text size", () => {
+  it("scales every reading step and its leading by --font-scale", () => {
+    for (const step of SCALED_STEPS) {
+      expect(themeValue(`--text-${step}`), `--text-${step}`).toContain("var(--font-scale)");
+      expect(themeValue(`--text-${step}--line-height`), `--text-${step}--line-height`).toContain(
+        "var(--font-scale)",
+      );
+    }
+  });
+
+  it("keeps the marketing and meeting-stage steps out of the scale", () => {
+    for (const step of FIXED_STEPS) {
+      expect(themeValue(`--text-${step}`), `--text-${step}`).not.toContain("--font-scale");
+    }
+  });
+
+  it("keeps the default level at today's pixel sizes", () => {
+    // Default must not move a pixel: the onboarding e2e specs are a contract.
+    expect(themeValue("--text-body")).toBe("calc(14px * var(--font-scale))");
+    expect(themeValue("--text-body--line-height")).toBe("calc(20px * var(--font-scale))");
+    expect(themeValue("--text-display")).toBe("calc(36px * var(--font-scale))");
+    expect(css).toMatch(/:root,\s*\[data-text-size="default"\]\s*\{\s*--font-scale:\s*1;\s*\}/);
+  });
+
+  it("maps the two larger levels to a 16px and an 18px body", () => {
+    expect(css).toMatch(/\[data-text-size="large"\]\s*\{\s*--font-scale:\s*calc\(16 \/ 14\);\s*\}/);
+    expect(css).toMatch(/\[data-text-size="xlarge"\]\s*\{\s*--font-scale:\s*calc\(18 \/ 14\);\s*\}/);
+  });
+
+  it("sizes body copy and touch inputs off the scaled body step", () => {
+    expect(baseCss).toMatch(/body\s*\{[^}]*font-size:\s*var\(--text-body\);/);
+    // 16px stops iOS zooming on focus; at the larger levels the field must
+    // not read smaller than the copy around it.
+    expect(baseCss).toMatch(/textarea\s*\{\s*font-size:\s*max\(16px, var\(--text-body\)\);\s*\}/);
   });
 });

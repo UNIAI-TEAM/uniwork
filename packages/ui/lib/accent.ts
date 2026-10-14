@@ -121,8 +121,12 @@ export function readStoredAccent(): AccentName {
  * Runs before first paint, from a blocking inline <script> in the document
  * head — the same trick next-themes uses for `.dark`. Without it the app paints
  * one frame of the default blue before React mounts and repaints in the chosen accent.
- * Serialised as a string because it must not wait for a bundle.
+ * Serialised as a string because it must not wait for a bundle. It also stays
+ * on as the page's `storage` listener: only Settings mounts `useAccent`, so
+ * this is what re-accents every other page when another tab picks.
  */
 export function accentBootScript(): string {
-  return `(function(){try{var a=localStorage.getItem(${JSON.stringify(ACCENT_STORAGE_KEY)});var t=${JSON.stringify(ACCENTS)};if(!a||a===${JSON.stringify(DEFAULT_ACCENT)}||!t[a])return;var e=document.documentElement,v=t[a];e.setAttribute("data-accent",a);e.style.setProperty("--accent-h",v.h);e.style.setProperty("--accent-c",v.c);e.style.setProperty("--accent-l",v.l);e.style.setProperty("--accent-l-dark",v.lDark);}catch(_){}})()`;
+  const key = JSON.stringify(ACCENT_STORAGE_KEY);
+  const props = JSON.stringify({ "--accent-h": "h", "--accent-c": "c", "--accent-l": "l", "--accent-l-dark": "lDark" });
+  return `(function(){var e=document.documentElement,t=${JSON.stringify(ACCENTS)},p=${props};function a(){try{var n=localStorage.getItem(${key}),v=n!==${JSON.stringify(DEFAULT_ACCENT)}&&t[n];if(v)e.setAttribute("data-accent",n);else e.removeAttribute("data-accent");for(var k in p)v?e.style.setProperty(k,v[p[k]]):e.style.removeProperty(k);}catch(_){}}a();window.addEventListener("storage",function(s){if(s.key===${key})a();});})()`;
 }

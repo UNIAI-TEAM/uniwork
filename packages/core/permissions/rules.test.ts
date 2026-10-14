@@ -15,6 +15,7 @@ import {
   canEditTask,
   canExportPeople,
   canInviteMembers,
+  canCloseOrg,
   canLeaveOrg,
   canManageAgents,
   canManageAuditSettings,
@@ -213,6 +214,7 @@ describe("Organization & People — mirror OrganizationMemberService and PeopleS
       canDeactivateMember({ user_id: "u2", role: "member" }, off),
       canTransferOwnership(off),
       canLeaveOrg(off),
+      canCloseOrg(off, false),
       canManageDepartments(off),
       canExportPeople(off),
     ]) {
@@ -250,6 +252,15 @@ describe("Organization & People — mirror OrganizationMemberService and PeopleS
     expect(canLeaveOrg(owner).reason).toBe("last_owner");
     expect(canLeaveOrg(admin).allowed).toBe(true);
     expect(canLeaveOrg(member).allowed).toBe(true);
+  });
+
+  it("only the owner closes, and only as the organization's last active member (ADR 0032)", () => {
+    expect(canCloseOrg(owner, false).allowed).toBe(true);
+    expect(canCloseOrg(owner, true).reason).toBe("organization_has_members");
+    expect(canCloseOrg(admin, false).reason).toBe("not_owner_role");
+    expect(canCloseOrg(member, false).reason).toBe("not_owner_role");
+    expect(canCloseOrg(ctx({ orgRole: null }), false).reason).toBe("not_org_member");
+    expect(canCloseOrg(ctx({ userId: null, orgRole: "owner" }), false).reason).toBe("not_authenticated");
   });
 
   it("reading the directory is open to members; shaping and exporting it are not", () => {
