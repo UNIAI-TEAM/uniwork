@@ -323,6 +323,41 @@ describe("S12 anchored comments", () => {
     expect(writes).toEqual([]);
   });
 
+  // S15 resolved row: opened from a notification the thread is readable, its edit history opens,
+  // and the status stays resolved - the open itself sends no resolve or reopen.
+  it("opens a resolved comment from a notification with its group expanded, its history readable and its status unchanged", async () => {
+    installApi(
+      {
+        comments: [
+          row({ id: "r1", author_id: ME, display_name: "Minh", body: "Bản 2", revision: 2, resolved_at: "2026-10-13T04:00:00Z", updated_at: "2026-10-13T03:30:00Z" }),
+          row({ id: "open", body: "Còn mở" }),
+        ],
+      },
+      (method, path) =>
+        method === "GET" && path.endsWith("/r1/revisions")
+          ? Promise.resolve({ revisions: [{ id: "v1", revision: 1, body: "Bản 1", created_by_id: ME, created_at: "2026-10-13T03:00:00Z" }] })
+          : undefined,
+    );
+    renderPanel({ search: "comment=r1" });
+    const pane = await screen.findByTestId("document-comments-pane");
+    await waitFor(() => expect(within(thread("r1")).getByRole("heading")).toHaveFocus());
+    // The Resolved group is expanded and the thread is open inside it, still resolved (Reopen, not Resolve).
+    const fold = within(pane).getByRole("button", { name: t(K.collabLabelCount, { label: t(K.collabResolved), count: 1 }) });
+    expect(fold).toHaveAttribute("aria-expanded", "true");
+    expect(thread("r1")).toHaveTextContent(t(K.collabResolved));
+    expect(within(thread("r1")).getByRole("button", { name: t(K.collabReopen) })).toBeInTheDocument();
+    expect(within(thread("r1")).queryByRole("button", { name: t(K.collabResolve) })).toBeNull();
+    // The edit history of the resolved thread is readable, newest first under the current text.
+    fireEvent.click(within(thread("r1")).getByRole("button", { expanded: false, name: new RegExp(t(K.collabEdited, { time: "" }).trim().split(" ")[0]!) }));
+    const history = await within(thread("r1")).findByTestId("document-comment-history-r1");
+    await within(history).findByText("Bản 1");
+    expect(within(history).getAllByTestId("document-comment-body").map((b) => b.textContent)).toEqual(["Bản 2", "Bản 1"]);
+    // Nothing was written: no resolve, reopen or any other non-GET request.
+    const writes = requestMock.mock.calls.filter(([, init]) => ((init as Init | undefined)?.method ?? "GET") !== "GET");
+    expect(writes).toEqual([]);
+    expect(thread("r1")).toHaveTextContent(t(K.collabResolved));
+  });
+
   it("says a deep-linked comment is gone when the list no longer has it", async () => {
     installApi({ comments: [] });
     renderPanel({ doc: docxDoc(), search: "comment=gone" });

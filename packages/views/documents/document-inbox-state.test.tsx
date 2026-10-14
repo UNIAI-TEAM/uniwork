@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
-import type { User, Workspace } from "@uniwork/core/types";
+import { DocumentSchema } from "@uniwork/core/types/document";
+import type { Notification, User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
+import { resourceHref } from "../notifications/resource-href";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentDetailView } from "./document-detail-view";
 
@@ -13,8 +15,8 @@ const { t } = initI18n();
 const user = { id: "u1", display_name: "An" } as User;
 const workspace = { id: "ws1", slug: "doi", organization_id: "o1", organization_slug: "acme" } as Workspace;
 
-function renderPage(search: string) {
-  const nav = fakeNav("/acme/doi/documents/d1");
+function renderPage(search: string, pathname = "/acme/doi/documents/d1") {
+  const nav = fakeNav(pathname);
   nav.searchParams = new URLSearchParams(search);
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
   render(
@@ -72,5 +74,46 @@ describe("DocumentDetailView opened from the Inbox", () => {
     renderPage("comment=c1");
     expect(await screen.findByText(t("documents.detail.load_error"))).toBeInTheDocument();
     expect(screen.queryByText("Tài liệu không còn tồn tại hoặc đã bị xóa.")).toBeNull();
+  });
+});
+
+// UNI-1389 (c): a document shared directly from a workspace the recipient is not in. The
+// Inbox link falls back to the open workspace, and the page at that URL must open the document
+// (GET /documents/{id} answers by the document's own access), not refuse it as an S15 state.
+describe("a direct-share document opened from the Inbox in the open workspace", () => {
+  const sharedNotification = {
+    id: "n1", kind: "document_commented", workspace_id: "ws-other", organization_id: "o1", resource_type: "document",
+    resource_id: "d1", resource_deleted: false, resource_access_lost: false, comment_deleted: false,
+    actor_kind: "human", actor_id: "u2", title_key: "notifications.kind.document_commented",
+    params: { comment_id: "c1", kind: "comment", document: "Hợp đồng" }, count: 1, created_at: "",
+  } as Notification;
+
+  it("links to the open workspace and the page opens the document without a refusal", async () => {
+    // The recipient's own workspaces do not include ws-other, so the link takes the open one.
+    const href = resourceHref(sharedNotification, workspace, [workspace]);
+    expect(href).toBe("/acme/doi/documents/d1?comment=c1");
+    const [pathname, search] = href.split("?") as [string, string];
+
+    const shared = DocumentSchema.parse({
+      id: "d1", workspace_id: "ws-other", organization_id: "o1", kind: "page", title: "Hợp đồng chung",
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Điều khoản" }] }] },
+      content_text: "Điều khoản", revision: "3", current_version: 1, my_level: "edit", via: "share",
+      created_at: "2026-09-28T03:00:00Z", updated_at: "2026-09-28T03:00:00Z",
+    });
+    // Desktop rail: on a narrow window the deep link opens the comments sheet, which hides the page from role queries.
+    window.innerWidth = 1400;
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") return Promise.resolve({ document: shared });
+      if (path.startsWith("/api/v1/documents/d1/comments")) return Promise.resolve({ comments: [], mentions: [], list_token: "lt1:a" });
+      return Promise.resolve({ versions: [], next_cursor: null, favorites: [] });
+    });
+    renderPage(search, pathname);
+
+    expect(await screen.findByRole("textbox", { name: t("documents.page_ui.title_label") }, { timeout: 15_000 })).toHaveValue("Hợp đồng chung");
+    expect(screen.queryByRole("heading", { level: 2, name: "Bạn không có quyền truy cập tài liệu này." })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 2, name: "Tài liệu không còn tồn tại hoặc đã bị xóa." })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Về Hộp việc" })).toBeNull();
+    // The page asked for the document by its own id: the access decision is the document's.
+    expect(requestMock.mock.calls.some(([path]) => path === "/api/v1/documents/d1")).toBe(true);
   });
 });
