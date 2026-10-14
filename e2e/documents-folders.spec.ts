@@ -9,6 +9,7 @@ import {
   createFolderChain,
   createPage,
   documentIdsLinkedIn,
+  expectLaterUpdatedAt,
   expectRowOrder,
   getArchiveImpact,
   getDocument,
@@ -27,6 +28,7 @@ import {
   seedFolderSubtreeParallel,
   seedFolderWorkspace,
   uploadFixtureFile,
+  waitPastUpdatedSecond,
 } from "./documents-folders-fixtures";
 
 test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to depth 20; rejects blank, >255 chars, and depth 21", async ({
@@ -450,33 +452,37 @@ test("FD-A03 open folder content view lists only direct children, folders first,
 test("FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă after A) or by last update, folders first, and the choice is remembered", async ({
   page,
 }) => {
+  test.slow();
   const ws = await seedFolderWorkspace(page, "fd-a03-sort");
-  const parent = await createFolder(
-    page,
-    ws.owner.token,
-    ws.wsId,
-    "Thư mục Sắp xếp",
+  // The server stamps updated_at with second precision, so every write below waits
+  // for a later second than the previous one and is checked for it: the recency
+  // order then has no ties and the full byUpdated assertion stays exact.
+  let lastStamp: string | undefined;
+  const stamped = async <T extends { updated_at?: string }>(
+    label: string,
+    write: () => Promise<T>,
+  ): Promise<T> => {
+    await waitPastUpdatedSecond(lastStamp);
+    const written = await write();
+    expectLaterUpdatedAt(label, written, lastStamp);
+    lastStamp = written.updated_at;
+    return written;
+  };
+  const parent = await stamped("create parent", () =>
+    createFolder(page, ws.owner.token, ws.wsId, "Thư mục Sắp xếp"),
   );
   // Byte order (A < B < E < Ă < Đ) differs from the vi collator order
   // (A < Ă < B < Đ < E) and from creation order, so only the right sort passes.
   const folders: Record<string, { id: string; revision: string }> = {};
   for (const name of ["Eo", "Ba", "Ăn", "Đông", "An"]) {
-    folders[name] = await createFolder(
-      page,
-      ws.owner.token,
-      ws.wsId,
-      name,
-      parent.id,
+    folders[name] = await stamped(`create folder ${name}`, () =>
+      createFolder(page, ws.owner.token, ws.wsId, name, parent.id),
     );
   }
   const docs: Record<string, { id: string; revision: string }> = {};
   for (const name of ["Em bé", "Bản vẽ", "Ăn vặt", "Đề án", "An ninh"]) {
-    docs[name] = await createPage(
-      page,
-      ws.owner.token,
-      ws.wsId,
-      name,
-      parent.id,
+    docs[name] = await stamped(`create page ${name}`, () =>
+      createPage(page, ws.owner.token, ws.wsId, name, parent.id),
     );
   }
   // Touch one folder and one document so each becomes the most recently updated of its kind.
@@ -484,14 +490,18 @@ test("FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă aft
     ["Eo", "Eo 2", folders["Eo"]!],
     ["Bản vẽ", "Bản vẽ v2", docs["Bản vẽ"]!],
   ] as const) {
-    const renamed = await patchDocument(page, ws.owner.token, entry.id, {
-      revision: entry.revision,
-      title: to,
+    const renamed = await stamped(`rename ${from}`, async () => {
+      const res = await patchDocument(page, ws.owner.token, entry.id, {
+        revision: entry.revision,
+        title: to,
+      });
+      expect(
+        res.ok && res.data,
+        `rename ${from}: ${res.status} ${JSON.stringify(res.error)}`,
+      ).toBeTruthy();
+      return res.data!;
     });
-    expect(
-      renamed.ok,
-      `rename ${from}: ${renamed.status} ${JSON.stringify(renamed.error)}`,
-    ).toBe(true);
+    expect(renamed.title).toBe(to);
   }
 
   const byName = [

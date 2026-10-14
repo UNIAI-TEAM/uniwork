@@ -105,6 +105,8 @@ interface DocumentDTO {
   archived_at?: string | null;
   my_level: "view" | "edit" | "manage";
   breadcrumbs?: DocumentBreadcrumbDTO[];
+  /** RFC 3339 UTC with SECOND precision (server/internal/handler/document_collections.go:343). */
+  updated_at?: string;
 }
 
 interface DocumentSummaryDTO {
@@ -534,6 +536,41 @@ export async function seedFolderSubtreeParallel(
     ),
   );
   return Date.now() - startedAt;
+}
+
+/**
+ * The server serializes `updated_at` with second precision, so two writes in the
+ * same wall-clock second tie and the order of tied rows under "Cập nhật (mới nhất)"
+ * is undefined. Waits (bounded) until the clock is in a later second than `updatedAt`,
+ * so the next write is stamped distinctly. No-op without a previous stamp.
+ */
+export async function waitPastUpdatedSecond(
+  updatedAt: string | undefined,
+): Promise<void> {
+  if (!updatedAt) return;
+  const stamped = Math.floor(Date.parse(updatedAt) / 1000);
+  expect(Number.isFinite(stamped), `updated_at parses: ${updatedAt}`).toBe(true);
+  const deadline = Date.now() + 5_000;
+  while (Math.floor(Date.now() / 1000) <= stamped && Date.now() < deadline) {
+    await sleep(100);
+  }
+}
+
+/**
+ * Asserts `next` was stamped in a later second than `previous`, so a recency
+ * order built on them has no ties. Fails with both stamps when it did not.
+ */
+export function expectLaterUpdatedAt(
+  label: string,
+  next: { updated_at?: string },
+  previous: string | undefined,
+): void {
+  expect(next.updated_at, `${label} has updated_at`).toBeTruthy();
+  if (!previous) return;
+  expect(
+    Math.floor(Date.parse(next.updated_at!) / 1000),
+    `${label} updated_at ${next.updated_at} is later than the previous write ${previous}`,
+  ).toBeGreaterThan(Math.floor(Date.parse(previous) / 1000));
 }
 
 /**
