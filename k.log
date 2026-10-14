@@ -1,0 +1,9 @@
+$ pnpm knip 2>&1 | tail -15; echo "KNIP_EXIT=${PIPESTATUS[0]}"
+
+> uniwork@ knip /workspace
+> knip
+
+Unused exports (1)
+OfficeEditorSummary  function  apps/web/features/landing/office-editors.tsx:62:17
+ ELIFECYCLE  Command failed with exit code 1.
+KNIP_EXIT=1

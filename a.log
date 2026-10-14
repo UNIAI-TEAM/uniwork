@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+c05390ec1fb86dd52c4f43ae1a690ffd025be11c
+c05390ec1 chore: merge develop ba7c11b84 into the develop CI fix branch
+ba7c11b84 chore(deploy): offer UniWork Office 0.11.0-beta.1 installers (#290)
+193e96d54 test(e2e): settle the streamed page after every goto in every landing spec
