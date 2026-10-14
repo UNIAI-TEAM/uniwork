@@ -1,0 +1,231 @@
+$ WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e sheets-ai -g "screenshots" --repeat-each=5 --workers=1 --trace=retain-on-failure --reporter=list; rc=$?; echo "SHEETS_SHOTS_REPEAT_EXIT=$rc"; for f in $(find web/e2e/.results -name error-context.md 2>/dev/null | head -5); do echo "=== $f"; cat "$f"; done; (exit $rc)
+
+Running 20 tests using 1 worker
+
+(node:9533) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots light en (2.8s)
+  ✓   2 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots light vi (2.7s)
+  ✘   3 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark en (32.6s)
+(node:9630) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   4 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark vi (2.3s)
+(node:9700) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   5 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots light en (2.3s)
+  ✓   6 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots light vi (2.2s)
+  ✓   7 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark en (2.2s)
+  ✓   8 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark vi (2.2s)
+(node:9802) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   9 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots light en (2.3s)
+  ✓  10 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots light vi (2.2s)
+  ✓  11 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark en (2.3s)
+  ✓  12 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark vi (2.3s)
+(node:9903) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  13 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots light en (2.3s)
+  ✓  14 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots light vi (2.3s)
+  ✓  15 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark en (2.3s)
+  ✓  16 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark vi (2.3s)
+(node:10007) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  17 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots light en (2.3s)
+  ✓  18 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots light vi (2.3s)
+  ✓  19 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark en (2.3s)
+  ✓  20 [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark vi (2.3s)
+
+
+  1) [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark en ──────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.ai-msg-assistant').last()
+    Expected substring: "AI credits used up"
+    Received string:    "Hello from the UniWork AI proxy."
+    Timeout: 30000ms
+
+    Call log:
+      - Expect "toContainText" with timeout 30000ms
+      - waiting for locator('.ai-msg-assistant').last()
+        - locator resolved to <div class="ai-msg ai-msg-assistant ai-msg-streaming">…</div>
+        63 × unexpected value "Hello from the UniWork AI proxy."
+           - locator resolved to <div class="ai-msg ai-msg-assistant">…</div>
+        - unexpected value "Hello from the UniWork AI proxy."
+
+
+      400 |         })
+      401 |         await ask(frame, 'Again')
+    > 402 |         await expect(frame.locator('.ai-msg-assistant').last()).toContainText(
+          |                                                                 ^
+      403 |           lang === 'vi' ? 'Đã hết tín dụng AI' : 'AI credits used up',
+      404 |           { timeout: 30_000 },
+      405 |         )
+        at /home/ubuntu/work/uniwork-office/web/e2e/sheets-ai.spec.ts:402:65
+
+    Error Context: web/e2e/.results/sheets-ai-sheets-web-AI-screenshots-dark-en-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    web/e2e/.results/sheets-ai-sheets-web-AI-screenshots-dark-en-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace web/e2e/.results/sheets-ai-sheets-web-AI-screenshots-dark-en-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › web/e2e/sheets-ai.spec.ts:388:11 › sheets: web AI › screenshots dark en ───────────
+  19 passed (1.4m)
+SHEETS_SHOTS_REPEAT_EXIT=1
+=== web/e2e/.results/sheets-ai-sheets-web-AI-screenshots-dark-en-chromium/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: sheets-ai.spec.ts >> sheets: web AI >> screenshots dark en
+- Location: web/e2e/sheets-ai.spec.ts:388:11
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('.ai-msg-assistant').last()
+Expected substring: "AI credits used up"
+Received string:    "Hello from the UniWork AI proxy."
+Timeout: 30000ms
+
+Call log:
+  - Expect "toContainText" with timeout 30000ms
+  - waiting for locator('.ai-msg-assistant').last()
+    - locator resolved to <div class="ai-msg ai-msg-assistant ai-msg-streaming">…</div>
+    63 × unexpected value "Hello from the UniWork AI proxy."
+       - locator resolved to <div class="ai-msg ai-msg-assistant">…</div>
+    - unexpected value "Hello from the UniWork AI proxy."
+
+```
+
+```yaml
+- paragraph: Hello from the UniWork AI proxy.
+```
+
+# Test source
+
+```ts
+  302 |     const xml = await zip.file('xl/worksheets/sheet1.xml')!.async('text')
+  303 |     expect(xml).toMatch(/<c r="C2"[^>]*><v>7<\/v><\/c>/)
+  304 |     // the turn after the tool result went back to the proxy with the tool outcome
+  305 |     const chats = (await aiLog(request)).filter((l) => l.path.endsWith('/chat/completions'))
+  306 |     expect(chats.length).toBeGreaterThanOrEqual(2)
+  307 |     await expectClean(page, frame, problems)
+  308 |   })
+  309 | 
+  310 |   for (const s of KEY_CODES) {
+  311 |     test(`grant on: HTTP ${s.status} renders the ${s.code} state`, async ({ page, request }) => {
+  312 |       await fake(request)
+  313 |       await fake(request, {
+  314 |         credentials: OPENAI_KEY,
+  315 |         fail: [
+  316 |           {
+  317 |             status: s.status,
+  318 |             ...(s.status === 429 ? {} : { code: s.code }),
+  319 |             ...('retryAfter' in s ? { retryAfter: s.retryAfter } : {}),
+  320 |             path: '/chat/completions',
+  321 |           },
+  322 |         ],
+  323 |       })
+  324 |       const problems = await watch(page)
+  325 |       const { frame } = await open(page, { lang: 'en', ai: '1' })
+  326 |       await expect(panel(frame)).toBeVisible({ timeout: 30_000 })
+  327 |       await ask(frame, 'Say hello')
+  328 |       // one surface: the panel's inline error; no floating card beside it
+  329 |       const inline = frame.locator('.ai-msg-assistant').last()
+  330 |       await expect(inline).toContainText(s.title, { timeout: 30_000 })
+  331 |       if (s.status === 429) await expect(inline).toContainText('7 s')
+  332 |       await expect(frame.locator('.ow-ai-state')).toHaveCount(0)
+  333 |       await expectClean(page, frame, problems, true)
+  334 |     })
+  335 |   }
+  336 | 
+  337 |   test('grant on: 503 cloud_unavailable from a cloud tool renders its state', async ({
+  338 |     page,
+  339 |     request,
+  340 |   }) => {
+  341 |     await fake(request)
+  342 |     await fake(request, {
+  343 |       credentials: OPENAI_KEY,
+  344 |       fail: [{ status: 503, code: 'cloud_unavailable', path: '/cloud/search' }],
+  345 |     })
+  346 |     const problems = await watch(page)
+  347 |     const { frame } = await open(page, { lang: 'en', ai: '1' })
+  348 |     await expect(panel(frame)).toBeVisible({ timeout: 30_000 })
+  349 |     const r = await frame.evaluate(() =>
+  350 |       (
+  351 |         window as unknown as {
+  352 |           desktopApi: { webSearch(q: string): Promise<{ method: string; error?: string }> }
+  353 |         }
+  354 |       ).desktopApi.webSearch('cats'),
+  355 |     )
+  356 |     expect(r.method).toBe('error')
+  357 |     await expect(frame.locator('.ow-ai-state[data-ai-state="cloud_unavailable"]')).toBeVisible()
+  358 |     await expectClean(page, frame, problems, true)
+  359 |   })
+  360 | 
+  361 |   test('AI settings = UniWork credentials: add a key from the gear, reply streams', async ({
+  362 |     page,
+  363 |     request,
+  364 |   }) => {
+  365 |     await fake(request)
+  366 |     const problems = await watch(page)
+  367 |     const { frame } = await open(page, { lang: 'en', ai: '1' })
+  368 |     await expect(panel(frame)).toBeVisible({ timeout: 30_000 })
+  369 |     await frame.locator('.ai-panel-header').getByRole('button', { name: 'AI Settings' }).click()
+  370 |     const dialog = frame.locator('.ow-ai-dialog')
+  371 |     await expect(dialog).toBeVisible()
+  372 |     await dialog.locator('select[name="provider"]').selectOption('openai')
+  373 |     await dialog.locator('input[name="api_key"]').fill('sk-live-key-9876')
+  374 |     await dialog.getByRole('button', { name: 'Save key' }).click()
+  375 |     await expect(dialog).toContainText('Saved key …9876')
+  376 |     expect(await dialog.innerHTML()).not.toContain('sk-live-key')
+  377 |     await dialog.getByRole('button', { name: 'Done' }).click()
+  378 |     await ask(frame, 'Say hello')
+  379 |     await expect(frame.locator('.ai-msg-assistant').last()).toContainText(REPLY, {
+  380 |       timeout: 60_000,
+  381 |     })
+  382 |     await expectClean(page, frame, problems, true)
+  383 |   })
+  384 | 
+  385 |   // visual evidence for tester_visual: the panel with a reply and a state card, both themes and languages
+  386 |   for (const theme of ['light', 'dark'] as const) {
+  387 |     for (const lang of ['en', 'vi'] as const) {
+  388 |       test(`screenshots ${theme} ${lang}`, async ({ page, request }) => {
+  389 |         await fake(request)
+  390 |         await fake(request, { credentials: OPENAI_KEY })
+  391 |         const { frame } = await open(page, { lang, theme, ai: '1' })
+  392 |         await expect(panel(frame)).toBeVisible({ timeout: 30_000 })
+  393 |         await ask(frame, 'Say hello')
+  394 |         await expect(frame.locator('.ai-msg-assistant').last()).toContainText(REPLY, {
+  395 |           timeout: 60_000,
+  396 |         })
+  397 |         await page.screenshot({ path: screenshotPath('ai', `sheets-panel-${theme}-${lang}`) })
+  398 |         await fake(request, {
+  399 |           fail: [{ status: 402, code: 'credits_exhausted', path: '/chat/completions' }],
+  400 |         })
+  401 |         await ask(frame, 'Again')
+> 402 |         await expect(frame.locator('.ai-msg-assistant').last()).toContainText(
+      |                                                                 ^ Error: expect(locator).toContainText(expected) failed
+  403 |           lang === 'vi' ? 'Đã hết tín dụng AI' : 'AI credits used up',
+  404 |           { timeout: 30_000 },
+  405 |         )
+  406 |         await expect(frame.locator('.ow-ai-state')).toHaveCount(0)
+  407 |         await page.screenshot({ path: screenshotPath('ai', `sheets-state-${theme}-${lang}`) })
+  408 |       })
+  409 |     }
+  410 |   }
+  411 | })
+  412 | 
+```
