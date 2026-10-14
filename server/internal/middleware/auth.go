@@ -35,8 +35,14 @@ func RequireAuthWithDevice(m auth.TokenMinter, check func(context.Context, strin
 				return
 			}
 			uid, sid := at.UserID, at.SessionID
+			ctx := r.Context()
+			if !at.Web {
+				// A native device session: the desktop app's sync writes, the
+				// only caller office_sync_write gates (G5-07).
+				ctx = context.WithValue(ctx, deviceSessionKey, true)
+			}
 			if check != nil && !at.Web {
-				if err := check(r.Context(), uid, sid); err != nil {
+				if err := check(ctx, uid, sid); err != nil {
 					if codedErrorCode(err) == "device_revoked" {
 						writeDeviceRevoked(w)
 						return
@@ -47,7 +53,7 @@ func RequireAuthWithDevice(m auth.TokenMinter, check func(context.Context, strin
 			}
 			platform, _, _ := ClientMetadataFromContext(r.Context())
 			telemetry.SetActor(r.Context(), uid, string(audit.KindHuman), platform)
-			ctx := context.WithValue(WithUserID(r.Context(), uid), sessionIDKey, sid)
+			ctx = context.WithValue(WithUserID(ctx, uid), sessionIDKey, sid)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -81,9 +87,19 @@ func writeDeviceRevoked(w http.ResponseWriter) {
 type ctxKey int
 
 const (
-	userIDKey    ctxKey = 1
-	sessionIDKey ctxKey = 2
+	userIDKey        ctxKey = 1
+	sessionIDKey     ctxKey = 2
+	deviceSessionKey ctxKey = 3
 )
+
+// DeviceSession reports whether the request's bearer token is a native device
+// session (RequireAuthWithDevice when the token is not marked web). The desktop
+// app's sync writes are the only caller office_sync_write gates (G5-07);
+// browser sessions and the web frame leave it false.
+func DeviceSession(ctx context.Context) bool {
+	v, _ := ctx.Value(deviceSessionKey).(bool)
+	return v
+}
 
 func RequireAuth(m auth.TokenMinter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

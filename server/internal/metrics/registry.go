@@ -27,9 +27,12 @@ type Registry struct {
 	Outbox        *Outbox
 	Notifications *Notifications
 	AI            *AI
+	AIUniwork     *AIUniwork
 	WebVitals     *WebVitals
 	Documents     *Documents
 	Office        *Office
+	OfficeChanges *OfficeChangeFeed
+	OfficeLeases  *OfficeLease
 	Billing       *Billing
 	Graph         *Graph
 	Mcp           *Mcp
@@ -83,6 +86,9 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	aiMetrics := NewAI()
 	reg.MustRegister(aiMetrics.Collectors()...)
 
+	aiUniworkMetrics := NewAIUniwork()
+	reg.MustRegister(aiUniworkMetrics.Collectors()...)
+
 	webVitals := NewWebVitals()
 	reg.MustRegister(webVitals.Collectors()...)
 
@@ -90,6 +96,10 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	reg.MustRegister(documentMetrics.Collectors()...)
 	officeMetrics := NewOffice()
 	reg.MustRegister(officeMetrics.Collectors()...)
+	officeChangeMetrics := NewOfficeChangeFeed()
+	reg.MustRegister(officeChangeMetrics.Collectors()...)
+	officeLeaseMetrics := NewOfficeLease()
+	reg.MustRegister(officeLeaseMetrics.Collectors()...)
 	billingMetrics := NewBilling()
 	reg.MustRegister(billingMetrics.Collectors()...)
 	graphMetrics := NewGraph()
@@ -107,9 +117,12 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		Outbox:        outboxMetrics,
 		Notifications: notificationMetrics,
 		AI:            aiMetrics,
+		AIUniwork:     aiUniworkMetrics,
 		WebVitals:     webVitals,
 		Documents:     documentMetrics,
 		Office:        officeMetrics,
+		OfficeChanges: officeChangeMetrics,
+		OfficeLeases:  officeLeaseMetrics,
 		Billing:       billingMetrics,
 		Graph:         graphMetrics,
 		Mcp:           mcpMetrics,

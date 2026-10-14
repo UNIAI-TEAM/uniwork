@@ -45,7 +45,7 @@ func TestDocumentCommentDeleteTakesItsReactions(t *testing.T) {
 	if _, err := f.svc.AddDocumentCommentReaction(f.ctx, member, c.ID, "👍"); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.svc.DeleteDocumentComment(f.ctx, member, c.ID); err != nil {
+	if _, err := f.svc.DeleteDocumentComment(f.ctx, member, c.ID); err != nil {
 		t.Fatal(err)
 	}
 	var n int

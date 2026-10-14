@@ -26,7 +26,7 @@ function OfficeCapture({ src, theme, alt, unavailable, priority }: {
 }
 
 /** CSS selects the correct capture before hydration, including manually selected themes. */
-export function OfficeShot({ editor, priority = false }: { editor: OfficeEditorKey; priority?: boolean }) {
+function OfficeShot({ editor, priority = false }: { editor: OfficeEditorKey; priority?: boolean }) {
   const { t, i18n } = useTranslation();
   const alt = t("landing.office.editors.imageAlt", { editor: t(`landing.office.editors.${editor}.name`) });
   return <figure className="office-shot">

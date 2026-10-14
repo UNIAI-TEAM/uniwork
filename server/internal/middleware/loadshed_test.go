@@ -76,6 +76,63 @@ func TestLoadShedRefusesPastTheBound(t *testing.T) {
 	}
 }
 
+// A route pattern skips by shape, not by prefix: the UniWork AI routes are
+// exempt while their siblings under the same prefix are shed (G6-03a §7.4),
+// and a {param} segment stands for exactly one non-empty path segment.
+func TestLoadShedExemptsRoutePatterns(t *testing.T) {
+	release := make(chan struct{})
+	var started sync.WaitGroup
+	slow := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/slow" {
+			started.Done()
+			<-release
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	h := LoadShed(1, "/healthz",
+		"/api/v1/orgs/{orgID}/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
+	)(slow)
+
+	started.Add(1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/slow", nil))
+	}()
+	started.Wait()
+
+	for _, path := range []string{
+		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, nil))
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s while shedding: status %d, want the route pattern to pass", path, rec.Code)
+		}
+	}
+	for _, path := range []string{
+		// The same prefix, a route the pattern does not name (the BYOK proxy
+		// and the cloud tools): a prefix exemption would have passed these too.
+		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/byok/openai/chat/completions",
+		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/cloud/search",
+		// A {param} segment is exactly one non-empty segment.
+		"/api/v1/orgs//ai/uniwork/chat/completions",
+		"/api/v1/orgs/a/b/ai/uniwork/chat/completions",
+		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions/extra",
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, nil))
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s while shedding: status %d, want 503 (not exempt)", path, rec.Code)
+		}
+	}
+
+	close(release)
+	<-done
+}
+
 // An admitted request has bodyReadTimeout to send its body, so a client that
 // stalls mid-body gives its slot back. A handler still working once its body
 // is in, or one with no body, keeps its context past the deadline.

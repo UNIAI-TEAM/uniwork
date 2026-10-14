@@ -107,7 +107,7 @@ func TestMcpExchangeAcceptsEveryRFC7636VerifierCharacter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID)
+	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, false)
 	if err != nil {
 		t.Fatal(err)
 	}

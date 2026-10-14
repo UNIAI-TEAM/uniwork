@@ -71,6 +71,26 @@ func TestPushGone(t *testing.T) {
 	}
 }
 
+// FE-1/OQ-C8: a document mention push carries the short kindTitle, not the
+// content sentence, so the title line reads the same as the Inbox will render
+// it (G8-07).
+func TestPushUsesShortKindTitle(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "workspace", "Đẩy nhắc tên")
+	f.commentOf(t, f.owner.ID, docID, mentionOf(f.member)+" xem giúp", "comment")
+	f.handleComment(t)
+	f.subscribe(t, f.member.ID, "https://push.example/short")
+
+	spy := &spySender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+	if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.sent) != 1 || spy.sent[0].Title != kindTitles["vi"][KindDocumentMentioned] {
+		t.Fatalf("sent = %+v, want the short kindTitle", spy.sent)
+	}
+}
+
 // Three ticks inside the window queue one mail; nothing when there is
 // nothing unread; nothing to an unverified address.
 func TestDigestOncePerDay(t *testing.T) {

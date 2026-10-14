@@ -391,3 +391,43 @@ func TestRateLimitPerRoute_SharesOneBudgetAcrossIDs(t *testing.T) {
 		t.Fatalf("another caller on the same address: status %d, want their own budget", code)
 	}
 }
+
+// A bucket may name its own refusal code (G6-03b §5.2): the ai-uniwork bucket
+// answers ai_rate_limited so the client tells a limiter 429 of the UniWork
+// turn from every other bucket's rate_limited, which stays the default for a
+// bucket that names no code.
+func TestRateLimitBucketRefusalCode(t *testing.T) {
+	rdb := newRedisTestClient(t)
+	send := func(h http.Handler, path string) (int, string, string) {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "10.0.3.1:9000"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		var body struct {
+			Error struct{ Code string } `json:"error"`
+		}
+		_ = json.NewDecoder(rec.Body).Decode(&body)
+		return rec.Code, body.Error.Code, rec.Header().Get("Retry-After")
+	}
+
+	uniwork := RateLimitByIdentityBucket(rdb, "ai-uniwork", 1, time.Minute, nil, nil, "ai_rate_limited")(okHandler)
+	other := RateLimitByIdentityBucket(rdb, "ai-cloud", 1, time.Minute, nil, nil)(okHandler)
+
+	if code, _, _ := send(uniwork, "/documents/d1/ai/uniwork/chat/completions"); code != http.StatusOK {
+		t.Fatalf("first turn: status %d, want 200", code)
+	}
+	code, refusal, retry := send(uniwork, "/documents/d2/ai/uniwork/chat/completions")
+	if code != http.StatusTooManyRequests || refusal != "ai_rate_limited" {
+		t.Fatalf("second turn = %d %s, want 429 ai_rate_limited", code, refusal)
+	}
+	if retry != "60" {
+		t.Fatalf("Retry-After = %q, want the 60 s window", retry)
+	}
+
+	if code, _, _ := send(other, "/orgs/o1/ai/cloud/search"); code != http.StatusOK {
+		t.Fatalf("first cloud tool: status %d, want 200", code)
+	}
+	if code, refusal, _ := send(other, "/orgs/o1/ai/cloud/images"); code != http.StatusTooManyRequests || refusal != "rate_limited" {
+		t.Fatalf("a bucket without a code = %d %s, want 429 rate_limited", code, refusal)
+	}
+}

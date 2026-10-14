@@ -22,5 +22,8 @@ export interface CommentLike {
   created_at?: string;
   updated_at?: string;
   resolved_at?: string | null;
+  /** Set on a document comment deleted while replies survive (G8-03): the
+   *  row stays as an empty frame holding the thread together. */
+  deleted_at?: string | null;
   reactions?: CommentReaction[] | null;
 }

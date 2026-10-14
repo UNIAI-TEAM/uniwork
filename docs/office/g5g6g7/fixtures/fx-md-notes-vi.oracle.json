@@ -1,0 +1,70 @@
+{
+  "fixtureId": "fx-md-notes-vi",
+  "format": "md",
+  "fixtureSha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def",
+  "synthetic": true,
+  "headings": [
+    {
+      "level": 1,
+      "text": "Ghi chú họp rà soát doanh thu quý 1"
+    },
+    {
+      "level": 2,
+      "text": "Tóm tắt"
+    },
+    {
+      "level": 2,
+      "text": "Doanh thu theo khu vực"
+    },
+    {
+      "level": 2,
+      "text": "Công thức tham chiếu"
+    },
+    {
+      "level": 2,
+      "text": "Việc cần làm"
+    }
+  ],
+  "tables": [
+    {
+      "header": [
+        "Khu vực",
+        "Doanh thu Q1 (đồng)",
+        "Tỷ trọng"
+      ],
+      "rows": [
+        [
+          "Bắc",
+          "9.060.000",
+          "41,1%"
+        ],
+        [
+          "Nam",
+          "7.200.000",
+          "32,6%"
+        ],
+        [
+          "Trung",
+          "5.800.000",
+          "26,3%"
+        ],
+        [
+          "Tổng cộng",
+          "22.060.000",
+          "100,0%"
+        ]
+      ]
+    }
+  ],
+  "codeBlocks": [
+    {
+      "lang": "excel",
+      "code": "=SUMIF('Doanh thu Q1'!$B$2:$B$7, $A2, 'Doanh thu Q1'!$G$2:$G$7)"
+    }
+  ],
+  "taskItems": [
+    "Thống nhất cách nhập giảm giá: dùng 10% thay cho số 10.",
+    "Sửa các ô lỗi trong bảng doanh thu quý 2."
+  ],
+  "lineEndings": "LF"
+}

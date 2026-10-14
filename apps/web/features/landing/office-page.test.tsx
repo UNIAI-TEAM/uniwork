@@ -2,6 +2,7 @@ import { act, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
+import { paths } from "@uniwork/core/paths";
 import { QueryProvider } from "@uniwork/core/provider";
 
 // The transport is the only mock (the real config schema reads the answer); the shell is a
@@ -24,9 +25,12 @@ vi.mock("./faq", async () => {
 });
 
 import { OfficePage } from "./office-page";
-import { OfficeHeroDownloads } from "./office-downloads";
 import viMessages from "@uniwork/core/i18n/locales/vi.json";
 import enMessages from "@uniwork/core/i18n/locales/en.json";
+
+const EDITORS = ["docs", "sheets", "slides", "pdf", "html", "markdown"] as const;
+const tabs = () => [...container.querySelectorAll<HTMLElement>("[role=tab]")];
+const shots = () => [...container.querySelectorAll<HTMLImageElement>(".office-tabs img")].map(img => new URL(img.src).pathname);
 
 const url = (name: string) => `https://downloads.uniwork.test/office/${name}`;
 const installers = {
@@ -43,21 +47,13 @@ const scrollIntoView = vi.fn();
 let root: Root;
 let container: HTMLDivElement;
 
-async function render(config: unknown, component = OfficePage): Promise<void> {
+async function render(config: unknown): Promise<void> {
   request.mockResolvedValue(config);
-  await act(async () => { root.render(createElement(QueryProvider, null, createElement(component))); });
+  await act(async () => { root.render(createElement(QueryProvider, null, createElement(OfficePage))); });
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 }
 const hrefs = (selector: string) => [...container.querySelectorAll<HTMLAnchorElement>(selector)].map((a) => a.getAttribute("href"));
 const tick = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-
-const MAC_SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
-const LINUX_UA = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0";
-/** The visitor's browser: a user agent and, for Chromium, the client hints it would answer. */
-function browser(userAgent: string, hints?: { platform: string; architecture: string }): void {
-  vi.spyOn(navigator, "userAgent", "get").mockReturnValue(userAgent);
-  if (hints) Object.defineProperty(navigator, "userAgentData", { configurable: true, value: { platform: hints.platform, mobile: false, getHighEntropyValues: () => Promise.resolve({ architecture: hints.architecture, bitness: "64" }) } });
-}
 
 beforeEach(async () => {
   Element.prototype.scrollIntoView = scrollIntoView;
@@ -68,14 +64,13 @@ beforeEach(async () => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
-  Reflect.deleteProperty(navigator, "userAgentData");
+
   act(() => root.unmount());
   container.remove();
   request.mockReset();
   scrollIntoView.mockReset();
 });
 
-const renderHero = (config: unknown) => render(config, OfficeHeroDownloads);
 
 describe("the Office page", () => {
   it("keeps one editor selector and the selected example, without a second use-case grid", async () => {
@@ -172,44 +167,61 @@ describe("the Office page", () => {
     expect(container.querySelector(".office-preview-error")).toBeNull();
     expect(container.querySelectorAll(".office-shot img")).toHaveLength(2);
   });
-});
-
-// Standalone download-button behavior remains covered independently of the page's catalogue.
-describe("OfficeHeroDownloads", () => {
-  it.each([
-    ["Apple Silicon", "arm", "UniWork-Office-1.2.0-arm64.dmg"],
-    ["Intel", "x86", "UniWork-Office-1.2.0-x64.dmg"],
-  ])("picks the %s build for a Mac whose chip the browser proves, keeping the variants beneath", async (_chip, architecture, file) => {
-    browser(MAC_SAFARI, { platform: "macOS", architecture });
-    await renderHero({ flags: {}, office_installers: installers });
-    expect(hrefs(".office-os[data-office-os=macos] .office-os-button")).toEqual([url(file)]);
-    expect(hrefs(".office-os[data-office-os=macos] .office-os-variants a")).toEqual([url("UniWork-Office-1.2.0-arm64.dmg"), url("UniWork-Office-1.2.0-x64.dmg")]);
-    expect(container.querySelector(".office-os-help")).toBeNull();
+  it("leads with the promise, a trial button to the download block and a demo request, above the editor preview", async () => {
+    await render({ flags: {}, office_installers: installers });
+    const hero = container.querySelector(".office-hero");
+    expect(hero?.querySelector("h1")?.textContent).toBe("UniWork Office");
+    expect(hero?.querySelector(".office-sub")?.textContent).toBe("Soạn thảo tài liệu, bảng tính và bài trình bày với AI. Kết nối cùng workspace UniWork.");
+    const trial = hero?.querySelector<HTMLAnchorElement>(".office-trial-action");
+    expect(trial?.textContent).toBe("Tải dùng thử");
+    expect(trial?.getAttribute("href")).toBe("#office-download");
+    expect(container.querySelector("#office-download")).not.toBeNull();
+    const demo = hero?.querySelector<HTMLAnchorElement>(".office-explore-action");
+    expect(demo?.textContent).toBe("Yêu cầu demo");
+    expect(demo?.getAttribute("href")).toBe(paths.requestDemo());
+    // The six-tab preview sits in the hero; the installers are not repeated there.
+    expect(hero?.querySelector("#office-editors [role=tablist]")).not.toBeNull();
+    expect(hero?.querySelector("[download]")).toBeNull();
+    expect(hero?.querySelector(".office-hero-downloads")).toBeNull();
   });
 
-  it("shows both Mac builds with a hint when the chip cannot be told", async () => {
-    browser(MAC_SAFARI);
-    await renderHero({ flags: {}, office_installers: installers });
-    const mac = container.querySelector(".office-os[data-office-os=macos]");
-    expect([...mac?.querySelectorAll(".office-os-button") ?? []].map((a) => a.textContent)).toEqual(["Tải cho Mac Apple Silicon", "Tải cho Mac Intel"]);
-    expect(mac?.querySelector(".office-os-help")?.textContent).toContain("Giới thiệu về máy Mac");
-  });
 
-  it("shows the only published Mac build as the one button", async () => {
-    browser(MAC_SAFARI);
-    await renderHero({ flags: {}, office_installers: { stable: installers.stable.filter((row) => row.platform !== "darwin-x64") } });
-    expect(hrefs(".office-os[data-office-os=macos] .office-os-button")).toEqual([url("UniWork-Office-1.2.0-arm64.dmg")]);
-  });
-
-  it("leads Linux with the visitor's format and falls back to the first published one", async () => {
-    browser(LINUX_UA, { platform: "Linux", architecture: "x86" });
+  it("lists every published Linux format and leaves out the one that is not published", async () => {
     const both = [...installers.stable, { platform: "linux-x64-appimage", kind: ".AppImage", url: url("UniWork-Office-1.2.0.AppImage"), version: "1.2.0" }];
-    await renderHero({ flags: {}, office_installers: { stable: both } });
-    expect(hrefs(".office-os[data-office-os=linux] .office-os-button")).toEqual([url("UniWork-Office-1.2.0-amd64.deb")]);
+    await render({ flags: {}, office_installers: { stable: both } });
+    expect(hrefs(".office-download-column[data-office-os=linux] a")).toEqual([url("UniWork-Office-1.2.0-amd64.deb"), url("UniWork-Office-1.2.0.AppImage")]);
     act(() => root.unmount());
     root = createRoot(container);
-    await renderHero({ flags: {}, office_installers: { stable: both.filter((row) => row.platform !== "linux-x64-deb") } });
-    expect(hrefs(".office-os[data-office-os=linux] .office-os-button")).toEqual([url("UniWork-Office-1.2.0.AppImage")]);
+    await render({ flags: {}, office_installers: { stable: both.filter((row) => row.platform !== "linux-x64-deb") } });
+    expect(hrefs(".office-download-column[data-office-os=linux] a")).toEqual([url("UniWork-Office-1.2.0.AppImage")]);
   });
 
+
+  it("drops a frame whose image had already failed before it could report an error", async () => {
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(0);
+    await render({ flags: {}, office_installers: installers });
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+    expect(container.querySelectorAll(".office-preview-error[role=status]")).toHaveLength(2);
+    expect(container.querySelector(".office-preview-error")?.textContent).toBe("Không tải được ảnh xem trước. Tải lại trang để thử lại.");
+  });
+
+
+  it("serves a light and a dark screenshot per editor and language, and drops a frame whose image fails", async () => {
+    await render({ flags: {}, office_installers: installers });
+    // Only the selected editor's panel is mounted: its two theme variants.
+    expect(shots()).toEqual(["/landing/office/docs.vi.webp", "/landing/office/docs.vi.dark.webp"]);
+    expect([...container.querySelectorAll<HTMLImageElement>(".office-tabs img")].map((img) => img.dataset.theme)).toEqual(["light", "dark"]);
+    for (const [index, editor] of EDITORS.entries()) {
+      await act(async () => { tabs()[index]?.click(); });
+      expect(shots()).toEqual([`/landing/office/${editor}.vi.webp`, `/landing/office/${editor}.vi.dark.webp`]);
+    }
+    await setLocale("en");
+    await tick();
+    expect(shots()).toEqual(["/landing/office/markdown.en.webp", "/landing/office/markdown.en.dark.webp"]);
+    const first = container.querySelector<HTMLImageElement>(".office-tabs img");
+    await act(async () => { first?.dispatchEvent(new Event("error")); });
+    expect(container.querySelectorAll(".office-tabs img")).toHaveLength(1);
+    expect(container.querySelectorAll(".office-tabs .office-preview-error")).toHaveLength(1);
+  });
 });

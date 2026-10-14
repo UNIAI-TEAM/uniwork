@@ -7,6 +7,8 @@ type AiCloudToolsDTO struct {
 	ImageGenerate bool `json:"image_generate" example:"true"`
 	MediaAnalyze  bool `json:"media_analyze" example:"true"`
 	Transcribe    bool `json:"transcribe" example:"false"`
+	// Chat is UniWork AI chat in the Office editors (G6-03c).
+	Chat bool `json:"chat" description:"UniWork AI chat: thành viên, gói có office.ai_cloud, server đã cấu hình UniWork AI và office_ai_uniwork bật cho người gọi; không phụ thuộc credit (hết credit xem reason)" example:"true"`
 }
 
 // AiCloudCreditsDTO is the ai.tokens meter of the current billing period.
@@ -21,7 +23,7 @@ type AiCloudCreditsDTO struct {
 // AiCloudStatusSDO is GET /api/v1/orgs/{orgID}/ai/cloud.
 type AiCloudStatusSDO struct {
 	Enabled bool              `json:"enabled" example:"true"`
-	Reason  string            `json:"reason,omitempty" description:"Khi enabled=false: entitlement_required, subscription_inactive hoặc cloud_unavailable" example:"entitlement_required"`
+	Reason  string            `json:"reason,omitempty" description:"Khi enabled=false: entitlement_required, subscription_inactive hoặc cloud_unavailable. Khi enabled=true: credits_exhausted nếu credit của kỳ đã hết (client hiện trạng thái credits-exhausted), rỗng nếu sẵn sàng" example:"entitlement_required"`
 	Tools   AiCloudToolsDTO   `json:"tools"`
 	Credits AiCloudCreditsDTO `json:"credits"`
 }

@@ -127,6 +127,8 @@ const historicalCommitExceptions = new Map([
   ["e88a05532ceb9b820a64d583fea43685457facd6", "Enhance UI components with transition classes and improve localization"],
   ["c416bc6f1fee784862607faa4a8cd2519f252b2f", "add env"],
   ["e6eaf72d530ee4b03481797e874c48fa99c55145", "change to new domain"],
+  ["d95c9fe14681711d109556f4cff0976c03d692c6", "change AI_PROVIDER"],
+  ["78e441abd9f861ea0cc1d19fae35c47129b31239", "(deploy): change AI_PROVIDER"],
 ]);
 
 function rejectedCommitSubjects(commits, types) {
@@ -142,8 +144,8 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   // A rule that would have rejected the commits already in the tree is not a
   // rule, it is a trap for the next person who writes a correct message.
   //
-  // e88a055 landed on develop via PR #62; c416bc6 and e6eaf72d5 were pushed
-  // straight to develop without a conventional prefix. Shared history cannot
+  // e88a055 landed on develop via PR #62; c416bc6, e6eaf72d5, d95c9fe14 and
+  // 78e441abd were pushed straight to develop without a conventional prefix. Shared history cannot
   // be rewritten; pin both SHA and subject so a new commit cannot reuse an
   // exempt subject to escape this check.
   const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })

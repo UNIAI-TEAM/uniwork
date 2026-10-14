@@ -220,6 +220,14 @@ func (s *AdminService) SetOrganizationStatus(ctx context.Context, adminID, orgID
 	if err != nil {
 		return db.Organization{}, err
 	}
+	// Suspension bumps the offline policy epoch (G5-D1 row 8): a lease of
+	// the old epoch no longer renews, and the lease revoker consumer of
+	// organization.suspended revokes the live rows.
+	if status == OrganizationSuspended {
+		if _, err := q.BumpOfficeOfflinePolicyEpoch(ctx, orgID); err != nil {
+			return db.Organization{}, err
+		}
+	}
 	changes := map[string]any{"status": status}
 	if err := s.recordAdmin(ctx, q, traceID, adminID, action, "organization", orgID, map[string]any{"status": before.Status}, changes, reason); err != nil {
 		return db.Organization{}, err

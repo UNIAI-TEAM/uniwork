@@ -68,6 +68,10 @@ type CommitFileVersionInput struct {
 	BaseRevision   int64
 	IdempotencyKey string
 	Engine         DocumentEngineInfo
+	// Sync marks the desktop sync path - a native device session - the only
+	// caller office_sync_write gates (G5-07). A browser session and the web
+	// frame leave it false and keep saving while the flag is off.
+	Sync bool
 }
 
 func errDocumentDeleted() error {
@@ -79,6 +83,16 @@ func errDocumentVersionConflict(current int64) error {
 	return CodedError{Code: "document_version_conflict", Status: http.StatusConflict, Err: ErrConflict,
 		Msg:    "tài liệu đã có phiên bản mới hơn kể từ lần bạn mở nó",
 		Fields: map[string]any{"current_revision": strconv.FormatInt(current, 10)}}
+}
+
+// contentBaseCurrent is the OQ-P1 (a1) base check of a file write: the base
+// the caller read still describes the content when it lies between the
+// revision of the last content change and the current revision. A move,
+// unarchive or rename since the base bumps only revision and passes; a
+// content change since the base, or a base the document never reached, is
+// document_version_conflict.
+func contentBaseCurrent(locked db.Document, base int64) bool {
+	return locked.ContentRevision <= base && base <= locked.Revision
 }
 
 func errEngineIncompatible() error {
@@ -249,15 +263,81 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 		return DocumentFileResult{}, NormalizeIdempotencyError(err)
 	}
 	if replay != nil {
+		s.intentCounters().IncOfficeIdempotentReplay()
 		return replayWithAccess(replay.Body, current)
+	}
+	// The intent claim below is a write, so the permission is decided before
+	// it as well as again inside the mutation: a caller who may only view
+	// leaves no intent row behind.
+	if err := decideDocumentAccess(doc, current, DocumentLevelEdit); err != nil {
+		return DocumentFileResult{}, err
+	}
+	// office_sync_write hides new sync commits only (G5-07, X-03): it gates
+	// the desktop device session's path, never the web host or the web frame;
+	// a replay above and the intent lookup keep answering while it is off.
+	if in.Sync && !s.syncWriteEnabled(ctx, actor, doc.OrganizationID) {
+		return DocumentFileResult{}, errOfficeCapabilityOff(officeSyncWriteCapability)
+	}
+	// The logical intent is claimed before the transaction, in its own, so a
+	// lookup sees this attempt in flight (document_commit_intent.go).
+	var claim *commitIntentClaim
+	if in.IdempotencyKey != "" {
+		c, committed, err := s.claimOrAwaitCommitIntent(ctx, actor, doc, in.IdempotencyKey, opts.Fingerprint)
+		if err != nil {
+			return DocumentFileResult{}, err
+		}
+		if committed {
+			return s.replayCommittedIntent(ctx, actor, doc, in, opts, current)
+		}
+		claim = &c
+	}
+	res, replayed, err := s.commitClaimedFileVersion(ctx, actor, doc, scope, file, in, opts, claim)
+	if err != nil && claim != nil {
+		s.releaseCommitIntent(ctx, doc, *claim)
+	}
+	if err == nil && replayed {
+		s.intentCounters().IncOfficeIdempotentReplay()
+	}
+	return res, err
+}
+
+// replayCommittedIntent answers the post-claim race: the intent was already
+// committed when this attempt claimed it (another attempt committed after our
+// ledger peek), so its ledger answer is the one to replay. The commit is
+// counted as a replay like every other path that answers from the ledger.
+func (s *DocumentService) replayCommittedIntent(
+	ctx context.Context, actor Actor, doc db.Document, in CommitFileVersionInput, opts IdempotencyOptions, current DocumentAccess,
+) (DocumentFileResult, error) {
+	replay, err := PeekIdempotent(ctx, s.q, doc.OrganizationID, doc.WorkspaceID, idempotencyScopeDocumentVersionCommit, in.IdempotencyKey, actor.ID, opts)
+	if err != nil {
+		return DocumentFileResult{}, NormalizeIdempotencyError(err)
+	}
+	if replay == nil {
+		return DocumentFileResult{}, NormalizeIdempotencyError(ErrIdempotencyInFlight)
+	}
+	s.intentCounters().IncOfficeIdempotentReplay()
+	return replayWithAccess(replay.Body, current)
+}
+
+// commitClaimedFileVersion is the commit after the intent claim: the format
+// check and the one transaction. replayed reports a ledger answer found
+// inside the transaction.
+func (s *DocumentService) commitClaimedFileVersion(
+	ctx context.Context, actor Actor, doc db.Document, scope files.Scope, file files.File,
+	in CommitFileVersionInput, opts IdempotencyOptions, claim *commitIntentClaim,
+) (DocumentFileResult, bool, error) {
+	fs, err := s.fileService()
+	if err != nil {
+		return DocumentFileResult{}, false, err
 	}
 	// The editor format check streams the bytes, so it runs before the
 	// transaction opens (FS-C1 §5.5).
 	if _, err := s.checkStoredFile(ctx, fs, scope, file); err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
 
 	var res DocumentFileResult
+	replayed := false
 	err = s.withDocumentMutation(ctx, actor, doc.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, access DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
 			return errDocumentDeleted()
@@ -267,8 +347,24 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 			return NormalizeIdempotencyError(err)
 		}
 		if replay != nil {
-			res, err = replayWithAccess(replay.Body, access)
-			return err
+			replayed = true
+			if res, err = replayWithAccess(replay.Body, access); err != nil {
+				return err
+			}
+			// A ledger answer with no committed intent (a commit from before
+			// the intents existed) settles this attempt's intent on it, so a
+			// lookup does not report in_flight or not_committed for it.
+			if claim != nil && fenceCommitIntent(ctx, q, locked, in.IdempotencyKey, *claim) == nil {
+				return s.markCommitIntentCommitted(ctx, q, locked, *claim, res)
+			}
+			return nil
+		}
+		// The fence: this attempt commits only while it still holds a live
+		// claim; the row stays locked until the transaction ends.
+		if claim != nil {
+			if err := fenceCommitIntent(ctx, q, locked, in.IdempotencyKey, *claim); err != nil {
+				return err
+			}
 		}
 		job, err := officeJobForOutput(ctx, q, locked, file.ID)
 		if err != nil {
@@ -298,7 +394,7 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 				// version of its source.
 				return errOfficeUploadInvalid("office_job_export_not_a_version")
 			}
-			if locked.Revision != job.BaseRevision || locked.FileVersionID.String != job.BaseVersionID {
+			if !contentBaseCurrent(locked, job.BaseRevision) || locked.FileVersionID.String != job.BaseVersionID {
 				return errDocumentVersionConflict(locked.Revision)
 			}
 			eng = officeEngineInfo()
@@ -306,7 +402,7 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 			if err := checkEngine(in.Engine); err != nil {
 				return err
 			}
-			if locked.Revision != in.BaseRevision {
+			if !contentBaseCurrent(locked, in.BaseRevision) {
 				return errDocumentVersionConflict(locked.Revision)
 			}
 			eng = in.Engine
@@ -377,12 +473,17 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 				return err
 			}
 		}
+		if claim != nil {
+			if err := s.markCommitIntentCommitted(ctx, q, locked, *claim, res); err != nil {
+				return err
+			}
+		}
 		return storeDocumentFileResult(commit, http.StatusOK, res)
 	})
 	if err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
-	return res, nil
+	return res, replayed, nil
 }
 
 // RestoreFileVersionInput restores an earlier file version on a base
@@ -431,7 +532,7 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 			res, err = replayWithAccess(replay.Body, access)
 			return err
 		}
-		if locked.Revision != in.BaseRevision {
+		if !contentBaseCurrent(locked, in.BaseRevision) {
 			return errDocumentVersionConflict(locked.Revision)
 		}
 		src, err := q.GetDocumentVersion(ctx, db.GetDocumentVersionParams{

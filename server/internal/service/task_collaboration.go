@@ -19,11 +19,26 @@ const idempotencyScopeCommentCreate = "tasks.comment_create"
 
 // AddCommentInput is a threaded comment create (optional parent).
 type AddCommentInput struct {
-	Body          string
-	ParentID      *string
-	CommentType   string
+	Body        string
+	ParentID    *string
+	CommentType string
+	// LegacyType is the pre-G8 document wire field `type`: validated against
+	// its old allowlist and otherwise ignored - it never picks the thread
+	// kind, which is CommentType (kind) alone. Tasks never set it.
+	LegacyType    string
 	Origin        string  // e.g. "chat" when mirrored from a thread reply
 	ChatMessageID *string // set when the comment mirrors a chat message
+
+	// Anchor and BaseVersionID are the document anchored-create wire fields
+	// (G8-04): Anchor is the raw per-format JSON, BaseVersionID the version
+	// row the editor wrote it against. AddDocumentComment validates both and
+	// binds the canonical form below; tasks never set them.
+	Anchor        json.RawMessage
+	BaseVersionID string
+
+	// anchor is the validated binding AddDocumentComment resolved for this
+	// create; the document adapter stores it, every other adapter ignores it.
+	anchor *documentCommentAnchor
 }
 
 // UpdateCommentInput edits comment body (revision bump).
@@ -78,7 +93,10 @@ func (a taskCommentAdapter) tenantGet(ctx context.Context, q *db.Queries, ref Co
 }
 
 func (taskCommentAdapter) identity(c db.TaskComment) commentIdentity {
-	return commentIdentity{ID: c.ID, ResourceID: c.TaskID, AuthorID: c.AuthorID, AuthorKind: c.AuthorKind}
+	return commentIdentity{
+		ID: c.ID, ResourceID: c.TaskID, AuthorID: c.AuthorID,
+		AuthorKind: c.AuthorKind, CommentType: c.CommentType,
+	}
 }
 
 func (taskCommentAdapter) insert(ctx context.Context, q *db.Queries, ref CommentRef, in AddCommentInput, p preparedComment) (db.TaskComment, error) {
@@ -90,7 +108,7 @@ func (taskCommentAdapter) insert(ctx context.Context, q *db.Queries, ref Comment
 	})
 }
 
-func (taskCommentAdapter) updateBody(ctx context.Context, q *db.Queries, ref CommentRef, c db.TaskComment, body string) (db.TaskComment, error) {
+func (taskCommentAdapter) updateBody(ctx context.Context, q *db.Queries, ref CommentRef, _ Actor, c db.TaskComment, body string) (db.TaskComment, error) {
 	return q.UpdateTaskCommentBody(ctx, db.UpdateTaskCommentBodyParams{
 		ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID, Body: body,
 	})
@@ -116,8 +134,10 @@ func (taskCommentAdapter) unresolve(ctx context.Context, q *db.Queries, ref Comm
 	})
 }
 
-func (taskCommentAdapter) commentTypes() []string {
-	return []string{"comment", "status_change", "progress_update", "system"}
+// resolveCommentType keeps the task allowlist (a system row is legal there);
+// a task reply never inherits its parent's type - empty means "comment".
+func (taskCommentAdapter) resolveCommentType(kind, _ string) (string, error) {
+	return normalizeCommentType(kind, []string{"comment", "status_change", "progress_update", "system"})
 }
 
 func (taskCommentAdapter) foreignParentError() error {

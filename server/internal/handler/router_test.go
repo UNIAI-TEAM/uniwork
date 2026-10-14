@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,6 +17,45 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 )
+
+// A UniWork AI turn may hold its slot for the whole 55 s, so its three routes
+// are exempt from LoadShed by pattern (G6-03a §7.4): a few slow turns must not
+// shed the rest of the pod, while a route that is not exempt still is. The
+// shed answer is the one carrying code server_busy, which keeps this assertion
+// apart from the 503 a UniWork AI route answers when its service is absent.
+func TestAIUniworkLoadShedExemption(t *testing.T) {
+	d := Deps{}
+	d.Cfg.HTTPMaxInFlight = 1
+	r := New(d).(chi.Router)
+	release := make(chan struct{})
+	defer close(release)
+	started := make(chan struct{})
+	r.Get("/api/v1/loadshed-block", func(w http.ResponseWriter, _ *http.Request) {
+		close(started)
+		<-release
+		w.WriteHeader(http.StatusNoContent)
+	})
+	go r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/loadshed-block", nil))
+	<-started
+
+	for _, path := range []string{
+		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+		"/api/v1/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+	} {
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`)))
+		if strings.Contains(rec.Body.String(), "server_busy") {
+			t.Errorf("%s was shed while the one in-flight slot was held; the route pattern must be exempt", path)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/tasks", nil))
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "server_busy") {
+		t.Errorf("GET /api/v1/tasks = %d %s while the one slot was held, want 503 server_busy", rec.Code, rec.Body.String())
+	}
+}
 
 // The router must never replace r.RemoteAddr with a forwarded header: the
 // rate limiter keys its buckets by RemoteAddr and only consults

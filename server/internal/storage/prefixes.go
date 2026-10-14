@@ -14,9 +14,10 @@ const (
 )
 
 // FileServiceKeyPrefix opens every object key FileService mints
-// (service.mintObjectKey). Those objects are tenant data read only through
-// FileAccessService's authorized route; the legacy /uploads/* route refuses
-// them (LocalStorage.ServeFile).
+// (service.mintObjectKey), and the Email Hub body cache under
+// v1/orgs/<org>/email-hub/ (bodystore.ObjectKey). Those objects are tenant
+// data read only through their services' authorized routes; the legacy
+// /uploads/* route refuses them (LocalStorage.ServeFile).
 const FileServiceKeyPrefix = "v1/"
 
 // KeyRoot is the environment's folder inside a bucket that several
