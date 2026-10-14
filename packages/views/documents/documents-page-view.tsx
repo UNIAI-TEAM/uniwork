@@ -25,7 +25,7 @@ import { CreateCards, CreateMenu, DocumentsGreeting } from "./documents-home-cre
 import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library-row";
 import { FolderBreadcrumb, LibraryToolbar, type ScopeTab } from "./documents-library-toolbar";
-import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
+import { DocumentsSidebar, DocumentsSidebarSheet, SOURCE_KINDS, type LibraryView } from "./documents-sidebar";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
@@ -33,6 +33,46 @@ import { useDocumentsLibrary } from "./use-documents-library";
 import { documentErrorMessage } from "./document-error-message";
 import { useDropUpload } from "./use-drop-upload";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
+import { shouldRetryFolderDetail } from "./use-tree-reveal";
+
+function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
+  if (searchParams.get("folder")) return { kind: "home" };
+  const rawView = searchParams.get("view");
+  switch (rawView) {
+    case "recent":
+    case "starred":
+    case "shared":
+    case "archived":
+      return { kind: rawView };
+    case "sources": {
+      const rawSource = searchParams.get("source");
+      const source =
+        rawSource && (SOURCE_KINDS as readonly string[]).includes(rawSource)
+          ? (rawSource as (typeof SOURCE_KINDS)[number])
+          : null;
+      return { kind: "sources", source };
+    }
+    default:
+      return { kind: "home" };
+  }
+}
+
+function buildDocumentsViewUrl(
+  wsPaths: ReturnType<typeof paths.workspace>,
+  next: LibraryView,
+  nextFolder: string | null,
+): string {
+  const targetFolder = next.kind === "home" ? nextFolder : null;
+  if (targetFolder) return wsPaths.documentsFolder(targetFolder);
+  const base = wsPaths.documents();
+  if (next.kind === "home") return base;
+  if (next.kind === "sources") {
+    return next.source
+      ? `${base}?view=sources&source=${encodeURIComponent(next.source)}`
+      : `${base}?view=sources`;
+  }
+  return `${base}?view=${next.kind}`;
+}
 
 export interface DocumentsPageViewProps {
   wsId: string;
@@ -58,7 +98,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const orgId = context?.workspace.organization_id ?? "";
   const { push, searchParams } = useNavigation();
 
-  const [view, setView] = useState<LibraryView>({ kind: "home" });
+  const searchKey = searchParams.toString();
+  const [lastSearchKey, setLastSearchKey] = useState(searchKey);
+  const [view, setView] = useState<LibraryView>(() => viewFromSearchParams(searchParams));
+  if (searchKey !== lastSearchKey) {
+    setLastSearchKey(searchKey);
+    setView(viewFromSearchParams(searchParams));
+  }
   const [chip, setChip] = useState<TypeChip>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("folder");
   const [navOpen, setNavOpen] = useState(false);
@@ -73,7 +119,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   );
 
   const library = useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip });
-  const folder = useDocument(wsId, folderId ?? "", { enabled: enabled && !!folderId });
+  const folder = useDocument(wsId, folderId ?? "", {
+    enabled: enabled && !!folderId,
+    retry: shouldRetryFolderDetail,
+  });
   const renameFolder = useUpdateDocument(wsId, folderId ?? "");
   const createFile = useCreateDocumentFile(wsId);
   const creator = useCreateOfType(wsId, onOpen);
@@ -119,10 +168,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     setView(next);
     setNavOpen(false);
     const targetFolder = next.kind === "home" ? nextFolder : null;
-    if (targetFolder) {
-      push(wsPaths.documentsFolder(targetFolder));
-    } else if (urlFolderId !== null) {
-      push(wsPaths.documents());
+    const currentView = viewFromSearchParams(searchParams);
+    const sameDestination =
+      targetFolder === urlFolderId &&
+      currentView.kind === next.kind &&
+      (currentView.kind !== "sources" || next.kind !== "sources" || currentView.source === next.source);
+    if (!sameDestination) {
+      push(buildDocumentsViewUrl(wsPaths, next, targetFolder));
     }
   };
 

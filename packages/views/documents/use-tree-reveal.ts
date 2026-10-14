@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { ApiError } from "@uniwork/core/api";
 import { useDocument } from "@uniwork/core/documents/hooks";
+
+/** Do not retry 4xx (403/404) folder detail reads so invalid folders surface at once. */
+export function shouldRetryFolderDetail(failureCount: number, error: unknown): boolean {
+  if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+    return false;
+  }
+  return failureCount < 1;
+}
 
 export interface UseTreeRevealOptions {
   wsId: string;
@@ -33,6 +42,7 @@ export function useTreeReveal({
 }: UseTreeRevealOptions): void {
   const detail = useDocument(wsId, currentId ?? "", {
     enabled: enabled && Boolean(currentId),
+    retry: shouldRetryFolderDetail,
   });
   const revealedForRef = useRef<string | null>(null);
   const pendingScrollForRef = useRef<string | null>(null);

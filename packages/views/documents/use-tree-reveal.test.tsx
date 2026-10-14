@@ -83,11 +83,13 @@ function StatefulNavHost({ nav, children }: { nav: TestNav; children: React.Reac
   return <NavigationProvider value={value}>{children}</NavigationProvider>;
 }
 
-function renderWithUrl(initialUrl = `/org/${WS}/documents`) {
-  const nav = createTestNav(initialUrl);
-  const queryClient = new QueryClient({
+function renderWithUrl(
+  initialUrl = `/org/${WS}/documents`,
+  queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } },
-  });
+  }),
+) {
+  const nav = createTestNav(initialUrl);
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
   const view = render(
     <QueryClientProvider client={queryClient}>
@@ -405,5 +407,94 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
       }),
     );
     await waitFor(() => expect(nav.searchParams.get("folder")).toBe("fo-root"));
+  });
+
+  it("returns to the open folder when navigating folder -> Recent -> Back", async () => {
+    route({
+      tree: () => [folderNode("fo1", "Hợp đồng")],
+      list: (path) =>
+        path.startsWith(`${LIST_BASE}/recent`)
+          ? [{ id: "r1", workspace_id: WS, kind: "page", title: "Tài liệu gần đây", revision: "1", updated_at: "2026-10-14T00:00:00Z" }]
+          : [],
+      detail: (id) => (id === "fo1" ? folderDetail("fo1", "Hợp đồng") : null),
+    });
+
+    const { nav } = renderWithUrl(`/org/${WS}/documents?folder=fo1`);
+
+    const crumbs = await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+    expect(within(crumbs).getByText("Hợp đồng")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("treeitem", { name: /Hợp đồng/ })).toHaveAttribute("aria-current", "true");
+
+    fireEvent.click(screen.getAllByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) })[0]!);
+    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.recent") })).toBeInTheDocument();
+    expect(await screen.findByText("Tài liệu gần đây")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: t("documents.home.breadcrumb_label") })).toBeNull();
+
+    act(() => {
+      nav.back();
+    });
+
+    await waitFor(() => expect(nav.searchParams.get("folder")).toBe("fo1"));
+    const restoredCrumbs = await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+    expect(within(restoredCrumbs).getByText("Hợp đồng")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("treeitem", { name: /Hợp đồng/ })).toHaveAttribute("aria-current", "true");
+    expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.recent") })).toBeNull();
+  });
+
+  it("restores Recent when navigating Recent -> Starred -> Back", async () => {
+    route({
+      tree: () => [],
+      list: (path) =>
+        path.startsWith(`${LIST_BASE}/recent`)
+          ? [{ id: "r1", workspace_id: WS, kind: "page", title: "Tài liệu gần đây", revision: "1", updated_at: "2026-10-14T00:00:00Z" }]
+          : [],
+    });
+
+    const { nav } = renderWithUrl(`/org/${WS}/documents`);
+    await screen.findByText(t("documents.home.empty.title"));
+
+    fireEvent.click(screen.getAllByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) })[0]!);
+    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.recent") })).toBeInTheDocument();
+    expect(await screen.findByText("Tài liệu gần đây")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: new RegExp(t("documents.home.sidebar.starred")) })[0]!);
+    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.starred") })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.recent") })).toBeNull();
+
+    act(() => {
+      nav.back();
+    });
+
+    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.recent") })).toBeInTheDocument();
+    expect(await screen.findByText("Tài liệu gần đây")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.starred") })).toBeNull();
+  });
+
+  it.each([
+    ["forbidden (403)", 403, "forbidden"],
+    ["unknown (404)", 404, "not_found"],
+  ])("shows the invalid-folder error state on the first %s response without waiting for retries", async (_label, status, code) => {
+    let detailCalls = 0;
+    route({
+      tree: () => [],
+      list: () => [],
+      detail: () => {
+        detailCalls += 1;
+        throw new ApiError(code, code, status);
+      },
+    });
+
+    const queryClientWithRetries = new QueryClient({
+      defaultOptions: {
+        queries: { retry: 3, retryDelay: 10_000 },
+        mutations: { retry: false },
+      },
+    });
+
+    renderWithUrl(`/org/${WS}/documents?folder=bad`, queryClientWithRetries);
+
+    const alert = await screen.findByRole("alert", undefined, { timeout: 500 });
+    expect(within(alert).getByText(t("documents.home.folder_invalid.title"))).toBeInTheDocument();
+    expect(detailCalls).toBe(1);
   });
 });
