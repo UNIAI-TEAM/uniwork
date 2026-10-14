@@ -30,7 +30,7 @@ async function checkHeaderFits(page: Page) {
   expect(outside).toEqual([]);
 }
 
-for (const width of [1440, 1280, 1100, 1099, 768, 390]) {
+for (const width of [1440, 1280, 1240, 1239, 1100, 768, 390]) {
   test(`opening stays readable with working navigation at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: "reduce" });
