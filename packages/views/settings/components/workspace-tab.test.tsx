@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -152,5 +152,31 @@ describe("WorkspaceTab", () => {
     fireEvent.change(input, { target: { files: [big] } });
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("Ảnh lớn hơn 2 MB. Chọn ảnh nhỏ hơn."));
     expect(callsWith("POST")).toHaveLength(0);
+  });
+
+  it("changes the task prefix with a preview of the new identifier", async () => {
+    renderAs("admin", { ...workspace, task_prefix: "TASK" }, { patch: { workspace: { ...workspace, task_prefix: "MKT" } } });
+    fireEvent.click(await screen.findByRole("button", { name: "Đổi tiền tố" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Tiền tố mới" }), { target: { value: "mkt" } });
+    expect(within(dialog).getByText("TASK-12 → MKT-12")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Đổi tiền tố" }));
+    await waitFor(() => expect(patchBodies()).toContainEqual({ task_prefix: "MKT" }));
+  });
+
+  it("flags a task prefix the server would refuse instead of sending it", async () => {
+    renderAs("admin", { ...workspace, task_prefix: "TASK" });
+    fireEvent.click(await screen.findByRole("button", { name: "Đổi tiền tố" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Tiền tố mới" }), { target: { value: "1ab" } });
+    expect(within(dialog).getByText("Dùng 2–10 ký tự A–Z hoặc 0–9, bắt đầu bằng chữ.")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Đổi tiền tố" }));
+    expect(patchBodies()).toHaveLength(0);
+  });
+
+  it("does not offer a member the prefix change", async () => {
+    renderAs("member", { ...workspace, task_prefix: "TASK" });
+    expect(await screen.findByText("TASK")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Đổi tiền tố" })).not.toBeInTheDocument();
   });
 });

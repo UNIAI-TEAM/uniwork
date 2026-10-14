@@ -27,6 +27,7 @@ import {
 } from "./settings-layout";
 import { useAutoSave } from "./use-auto-save";
 import { WorkspaceIconField } from "./workspace-icon-field";
+import { WorkspaceTaskPrefixDialog } from "./workspace-task-prefix-dialog";
 
 function namesEqual(left: string, right: string) {
   return left === right;
@@ -62,6 +63,8 @@ export function WorkspaceTab() {
   const { canUpdateSettings, isLoading: permissionsLoading } = useWorkspacePermissions(workspace.id);
   const patchWorkspace = usePatchWorkspace(workspace.organization_slug, workspace.slug);
   const savedDescription = workspace.description ?? "";
+  const prefix = workspace.task_prefix ?? "";
+  const [prefixOpen, setPrefixOpen] = useState(false);
   const [name, setName] = useState(workspace.name);
   const [description, setDescription] = useState(savedDescription);
   const canEdit = canUpdateSettings.allowed;
@@ -245,10 +248,27 @@ export function WorkspaceTab() {
             </Button>
           </div>
         </SettingsRow>
+        {prefix ? (
+          <SettingsRow
+            label={t("workspace.task_prefix")}
+            description={t("workspace.task_prefix_hint", { example: `${prefix}-12` })}
+            size="none"
+          >
+            <div className="flex items-center gap-2 sm:justify-end">
+              <SettingsValue className="font-mono">{prefix}</SettingsValue>
+              {canEdit ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => setPrefixOpen(true)}>
+                  {t("workspace.task_prefix_change")}
+                </Button>
+              ) : null}
+            </div>
+          </SettingsRow>
+        ) : null}
         <SettingsRow label={t("workspace.organization")} description={t("workspace.organization_hint")} size="text">
           <SettingsValue>{workspace.organization_name}</SettingsValue>
         </SettingsRow>
       </SettingsCard>
+      {canEdit ? <WorkspaceTaskPrefixDialog workspace={workspace} open={prefixOpen} onOpenChange={setPrefixOpen} /> : null}
     </SettingsTab>
   );
 }

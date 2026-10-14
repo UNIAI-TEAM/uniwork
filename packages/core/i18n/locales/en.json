@@ -587,7 +587,17 @@
       "icon_remove": "Remove icon",
       "icon_error": "Couldn't change the icon. Try again.",
       "icon_upload_error": "Couldn't upload the image. Use a PNG, JPEG, GIF or WebP up to 2 MB.",
-      "name_required": "The workspace name can't be empty."
+      "name_required": "The workspace name can't be empty.",
+      "task_prefix": "Task ID prefix",
+      "task_prefix_hint": "Comes before each task's number, for example {{example}}.",
+      "task_prefix_change": "Change prefix",
+      "task_prefix_dialog_title": "Change the task ID prefix",
+      "task_prefix_dialog_body": "Every task will show the new ID. Old IDs still work, so links and mentions of older tasks don't break.",
+      "task_prefix_new": "New prefix",
+      "task_prefix_preview": "{{from}} → {{to}}",
+      "task_prefix_invalid": "Use 2–10 characters A–Z or 0–9, starting with a letter.",
+      "task_prefix_saved": "Task ID prefix changed",
+      "cancel": "Cancel"
     },
     "integrations": {
       "description": "Connect UniWork to the tools you already use. Only what works today and what is on the roadmap is listed.",
