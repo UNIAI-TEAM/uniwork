@@ -126,7 +126,7 @@ func (w *mcpConnectWorld) connect(t *testing.T, u mcpTenant) (access, grantID st
 	if err != nil {
 		t.Fatal(err)
 	}
-	back, err := svc.Approve(ctx, u.userID, id, consent.CSRFToken, u.orgID)
+	back, err := svc.Approve(ctx, u.userID, id, consent.CSRFToken, u.orgID, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestMcpConsentShapeAndCSRFRotation(t *testing.T) {
 		t.Fatalf("read: %d %v", res.StatusCode, consent)
 	}
 	wantNoStore(t, res)
-	wantKeys(t, "consent", consent, "attempt_id", "status", "client", "redirect_host", "scope", "organizations", "csrf_token")
+	wantKeys(t, "consent", consent, "attempt_id", "status", "client", "redirect_host", "scope", "organizations", "csrf_token", "write_requested")
 	client, _ := consent["client"].(map[string]any)
 	wantKeys(t, "consent client", client, "client_id", "name", "logo_uri", "verified")
 	if consent["attempt_id"] != attempt || consent["status"] != "pending" || consent["scope"] != "read" || client["name"] != "Test" || client["verified"] != false {
@@ -264,7 +264,7 @@ func TestMcpConsentShapeAndCSRFRotation(t *testing.T) {
 		t.Fatalf("organizations = %v", orgs)
 	}
 	org := orgs[0].(map[string]any)
-	wantKeys(t, "consent organization", org, "id", "slug", "name", "enabled", "reason")
+	wantKeys(t, "consent organization", org, "id", "slug", "name", "enabled", "write_enabled", "reason")
 	if org["id"] != w.owner.orgID || org["slug"] != w.owner.slug || org["enabled"] != true || org["reason"] != "" {
 		t.Fatalf("organization = %v", org)
 	}
@@ -294,6 +294,47 @@ func TestMcpConsentShapeAndCSRFRotation(t *testing.T) {
 	}
 }
 
+// The consent screen tells the person that the app asked for write and whether
+// the organization allows it; their tick decides the grant's scope.
+func TestMcpConsentWriteChoiceOverHTTP(t *testing.T) {
+	w := newMcpConnectWorld(t, "write", nil)
+	w.setPolicy(t, w.owner, true)
+	if _, err := w.d.McpAuth.SetWritePolicy(context.Background(), w.owner.userID, w.owner.orgID, true); err != nil {
+		t.Fatal(err)
+	}
+	clientID := mcpRegister(t, w.srv, mcpTestRedirect)
+	to, err := w.d.McpAuth.Start(context.Background(), service.McpAuthorizeInput{
+		ResponseType: "code", ClientID: clientID, RedirectURI: mcpTestRedirect,
+		CodeChallenge: mcpTestChallenge, CodeChallengeMethod: "S256", State: "st", Scope: "read write",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(to)
+	attempt := u.Query().Get("attempt")
+
+	res, consent := w.read(t, w.owner.token, attempt)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("read consent: %d %v", res.StatusCode, consent)
+	}
+	org := consent["organizations"].([]any)[0].(map[string]any)
+	if consent["write_requested"] != true || consent["scope"] != "read write" || org["write_enabled"] != true {
+		t.Fatalf("consent = %v", consent)
+	}
+
+	res, out := w.decide(t, w.owner.token, attempt, map[string]any{
+		"decision": "approve", "csrf_token": consent["csrf_token"], "organization_id": org["id"], "write": true,
+	})
+	if res.StatusCode != http.StatusOK || out["status"] != "approved" {
+		t.Fatalf("approve: %d %v", res.StatusCode, out)
+	}
+	_, mine := doJSON(t, w.srv, "GET", "/api/v1/me/connected-apps", w.owner.token, nil)
+	grants, _ := mine["grants"].([]any)
+	if len(grants) != 1 || grants[0].(map[string]any)["scope"] != "read write" {
+		t.Fatalf("connected apps = %v, want one grant with scope read write", mine)
+	}
+}
+
 func TestMcpConsentAfterTheAttemptEnds(t *testing.T) {
 	w := newMcpConnectWorld(t, "ended", nil)
 	w.setPolicy(t, w.owner, true)
@@ -304,7 +345,7 @@ func TestMcpConsentAfterTheAttemptEnds(t *testing.T) {
 		if res.StatusCode != http.StatusOK {
 			t.Fatalf("%s: %d %v", what, res.StatusCode, out)
 		}
-		wantKeys(t, what, out, "attempt_id", "status", "client", "redirect_host", "scope", "organizations", "csrf_token")
+		wantKeys(t, what, out, "attempt_id", "status", "client", "redirect_host", "scope", "organizations", "csrf_token", "write_requested")
 		if out["status"] != status || out["client"] != nil || out["csrf_token"] != "" || out["attempt_id"] != attempt {
 			t.Errorf("%s = %v, want status %s, no client and no token", what, out, status)
 		}

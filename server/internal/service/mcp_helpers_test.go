@@ -113,7 +113,7 @@ func (w *mcpWorld) approveAs(t *testing.T, u db.User, c McpClient, redirect stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	to, err := w.svc.Approve(w.ctx, u.ID, id, consent.CSRFToken, w.org.ID)
+	to, err := w.svc.Approve(w.ctx, u.ID, id, consent.CSRFToken, w.org.ID, false)
 	if err != nil {
 		t.Fatal(err)
 	}

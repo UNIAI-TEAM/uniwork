@@ -76,6 +76,11 @@ INSERT INTO mcp_grants (id, organization_id, user_id, client_id, scope, created_
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
+-- name: SetMcpGrantScope :one
+-- tenant: by-id
+UPDATE mcp_grants SET scope = $2 WHERE id = $1 AND revoked_at IS NULL
+RETURNING *;
+
 -- name: GetMcpGrantByID :one
 -- tenant: by-id
 SELECT * FROM mcp_grants WHERE id = $1;

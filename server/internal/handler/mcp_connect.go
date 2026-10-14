@@ -31,13 +31,13 @@ func mcpTimePtr(t *time.Time) *string {
 func consentSDO(c service.McpConsent) sdo.McpConsentSDO {
 	out := sdo.McpConsentSDO{
 		AttemptID: c.AttemptID, Status: c.Status, RedirectHost: c.RedirectHost, Scope: c.Scope,
-		CSRFToken: c.CSRFToken, Organizations: []sdo.McpConsentOrgSDO{},
+		CSRFToken: c.CSRFToken, WriteRequested: c.WriteRequested, Organizations: []sdo.McpConsentOrgSDO{},
 	}
 	if c.Client.ClientID != "" { // an attempt that has ended names no client
 		out.Client = &sdo.McpConsentClientSDO{ClientID: c.Client.ClientID, Name: c.Client.Name, LogoURI: c.Client.LogoURI, Verified: c.Client.Verified}
 	}
 	for _, o := range c.Organizations {
-		out.Organizations = append(out.Organizations, sdo.McpConsentOrgSDO{ID: o.ID, Slug: o.Slug, Name: o.Name, Enabled: o.Enabled, Reason: o.Reason})
+		out.Organizations = append(out.Organizations, sdo.McpConsentOrgSDO{ID: o.ID, Slug: o.Slug, Name: o.Name, Enabled: o.Enabled, WriteEnabled: o.WriteEnabled, Reason: o.Reason})
 	}
 	return out
 }
@@ -100,7 +100,7 @@ func (h *handlers) mcpConsentCommand(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusBadRequest, "invalid_request", "organization_id is required to approve")
 			return
 		}
-		to, err = h.McpAuth.Approve(r.Context(), userID, attempt, in.CSRFToken, orgID)
+		to, err = h.McpAuth.Approve(r.Context(), userID, attempt, in.CSRFToken, orgID, in.Write)
 		status = "approved"
 	case "cancel": // the organization is not read
 		to, err = h.McpAuth.Cancel(r.Context(), userID, attempt, in.CSRFToken)

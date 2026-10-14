@@ -998,6 +998,37 @@ func (q *Queries) RevokeMcpTokensForUserInOrganization(ctx context.Context, arg 
 	return result.RowsAffected(), nil
 }
 
+const setMcpGrantScope = `-- name: SetMcpGrantScope :one
+UPDATE mcp_grants SET scope = $2 WHERE id = $1 AND revoked_at IS NULL
+RETURNING id, organization_id, user_id, client_id, scope, created_by, created_by_kind, created_at, last_used_at, revoked_at, revoked_by, revoked_by_kind
+`
+
+type SetMcpGrantScopeParams struct {
+	ID    string `json:"id"`
+	Scope string `json:"scope"`
+}
+
+// tenant: by-id
+func (q *Queries) SetMcpGrantScope(ctx context.Context, arg SetMcpGrantScopeParams) (McpGrant, error) {
+	row := q.db.QueryRow(ctx, setMcpGrantScope, arg.ID, arg.Scope)
+	var i McpGrant
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.UserID,
+		&i.ClientID,
+		&i.Scope,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.RevokedAt,
+		&i.RevokedBy,
+		&i.RevokedByKind,
+	)
+	return i, err
+}
+
 const setOrganizationMcpPolicy = `-- name: SetOrganizationMcpPolicy :one
 UPDATE organizations SET
   mcp_enabled_at = CASE WHEN $1::bool THEN COALESCE(mcp_enabled_at, now()) ELSE NULL END,

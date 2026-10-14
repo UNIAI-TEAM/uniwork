@@ -204,7 +204,7 @@ func (w *mcpOAuthWorld) code(t *testing.T, clientID, redirect string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	back, err := w.d.McpAuth.Approve(ctx, w.userID, attempt, consent.CSRFToken, w.orgID)
+	back, err := w.d.McpAuth.Approve(ctx, w.userID, attempt, consent.CSRFToken, w.orgID, false)
 	if err != nil {
 		t.Fatal(err)
 	}

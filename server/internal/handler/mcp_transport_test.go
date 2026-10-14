@@ -55,7 +55,7 @@ func mcpTestPair(t *testing.T, srv *httptest.Server, d Deps, email, slug string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	back, err := d.McpAuth.Approve(ctx, userID, attempt, consent.CSRFToken, orgID)
+	back, err := d.McpAuth.Approve(ctx, userID, attempt, consent.CSRFToken, orgID, false)
 	if err != nil {
 		t.Fatal(err)
 	}

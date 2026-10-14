@@ -7,6 +7,7 @@ type McpConsentSDI struct {
 	Decision       string `json:"decision" description:"approve hoặc cancel" example:"approve"`
 	CSRFToken      string `json:"csrf_token" description:"Token CSRF lấy từ lần đọc attempt gần nhất" example:"m3Vq0tFz9kE"`
 	OrganizationID string `json:"organization_id,omitempty" description:"ULID tổ chức được chia sẻ; bắt buộc khi approve, bỏ qua khi cancel" example:"01J8X4ORG0N1P2Q3R4S5T6U7V8"`
+	Write          bool   `json:"write,omitempty" description:"Người dùng cho phép tạo và sửa; bỏ qua khi ứng dụng không xin quyền ghi hoặc tổ chức chưa mở" example:"false"`
 }
 
 // McpPolicySDI is PUT /api/v1/orgs/{org}/mcp-policy.
