@@ -247,6 +247,17 @@ func seedNumberedPages(t *testing.T, env *folderNamesEnv, parent, base string, f
 	}
 }
 
+// contentRevisionOf reads the column a content save compares against: a
+// metadata write must leave it where it was.
+func contentRevisionOf(t *testing.T, env *folderNamesEnv, id string) int64 {
+	t.Helper()
+	var rev int64
+	if err := env.f.pool.QueryRow(env.ctx, `SELECT content_revision FROM documents WHERE id = $1`, id).Scan(&rev); err != nil {
+		t.Fatal(err)
+	}
+	return rev
+}
+
 func TestDocumentMoveAutoRename(t *testing.T) {
 	env := newFolderNamesEnv(t)
 
@@ -389,6 +400,36 @@ func TestDocumentMoveAutoRename(t *testing.T) {
 		}
 		if after := env.f.live(t, moving.ID); after.ParentID.Valid || after.Title != "Tên" {
 			t.Fatalf("the refused move left the page as %q under %v", after.Title, after.ParentID)
+		}
+	})
+
+	t.Run("a rename moves the revision and never the content revision", func(t *testing.T) {
+		dst := env.folder(t, "", "Đích nội dung")
+		env.page(t, dst.ID, "Trang nội dung")
+		moving, err := env.svc.CreatePage(env.ctx, env.member, env.tn.wsA, CreatePageInput{
+			Title: "Trang nội dung", Content: pageJSON("nội dung ban đầu"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := contentRevisionOf(t, env, moving.Document.ID)
+		moved, err := env.svc.MoveDocument(env.ctx, env.member, moving.Document.ID, MoveDocumentInput{ParentID: dst.ID, Revision: moving.Document.Revision})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if moved.Document.Title != "Trang nội dung (2)" {
+			t.Fatalf("title = %q, want Trang nội dung (2)", moved.Document.Title)
+		}
+		// G5 contentBaseCurrent: the auto-rename is metadata, so the content
+		// base a client held stays current and a save after it is not a
+		// conflict.
+		if got := contentRevisionOf(t, env, moving.Document.ID); got != before {
+			t.Fatalf("the auto-rename moved content_revision: %d -> %d", before, got)
+		}
+		if _, err := env.svc.UpdateDocument(env.ctx, env.member, moving.Document.ID, UpdateDocumentInput{
+			Revision: moved.Document.Revision, Content: pageJSON("nội dung mới"),
+		}); err != nil {
+			t.Fatalf("a content save on the renamed document: %v", err)
 		}
 	})
 

@@ -86,11 +86,14 @@ func TestDocumentRestoreNames(t *testing.T) {
 		}
 	})
 
-	t.Run("an old batch with an internal duplicate pair comes back distinct", func(t *testing.T) {
+	t.Run("two orphans of one old batch with one name come back distinct", func(t *testing.T) {
 		batch := util.NewID()
 		live := env.folder(t, "", "Gốc trùng")
-		first := env.archivedFolder(t, "", "Gốc trùng", 0)
-		second := env.archivedFolder(t, "", "Gốc trùng", 1)
+		// Their parent sits in the trash in another batch, so both members
+		// detach to the root, where the live folder already holds the name.
+		gone := env.archivedFolder(t, "", "Cha mất", 0)
+		first := env.archivedFolder(t, gone.ID, "Gốc trùng", 0)
+		second := env.archivedFolder(t, gone.ID, "Gốc trùng", 1)
 		setArchiveBatch(t, env, batch, first.ID, second.ID)
 		res, err := env.svc.RestoreDocument(env.ctx, env.member, second.ID, ArchiveDocumentInput{})
 		if err != nil {
@@ -101,10 +104,14 @@ func TestDocumentRestoreNames(t *testing.T) {
 		}
 		names := map[string]string{}
 		for _, id := range []string{first.ID, second.ID} {
-			names[id] = env.f.live(t, id).Title
+			row := env.f.live(t, id)
+			if row.ParentID.Valid {
+				t.Fatalf("orphan %s still points at %v", id, row.ParentID)
+			}
+			names[id] = row.Title
 		}
 		// Deterministic: position 0 takes the first free number, position 1 the
-		// next, both past the live sibling's name.
+		// next, both past the live sibling's name and each other's.
 		if names[first.ID] != "Gốc trùng (2)" || names[second.ID] != "Gốc trùng (3)" {
 			t.Fatalf("names = %v, want (2) and (3)", names)
 		}
