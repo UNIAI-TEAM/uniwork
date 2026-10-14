@@ -205,7 +205,10 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
       expect(ancestorRow).toHaveAttribute("aria-expanded", "true");
     }
 
-    await waitFor(() => expect(scrollSpy).toHaveBeenCalled());
+    await waitFor(() => expect(scrollSpy).toHaveBeenCalledWith({ block: "nearest" }));
+    expect(document.activeElement).toBe(document.body);
+    expect(targetRow).toHaveAttribute("tabIndex", "0");
+    expect(screen.getByRole("treeitem", { name: /Cấp 1/ })).toHaveAttribute("tabIndex", "-1");
     // Tree fetch passes folders_only=true
     expect(
       requestMock.mock.calls.some(([path]) => String(path).startsWith(TREE_URL) && String(path).includes("folders_only=true")),

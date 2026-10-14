@@ -45,6 +45,19 @@ import { useTreeReveal } from "./use-tree-reveal";
 
 /* ---- rows --------------------------------------------------------------- */
 
+/**
+ * Caps visual indent so deep branches (up to TREE_MAX_LEVEL = 20) keep a
+ * readable label inside the 256px sidebar without horizontal scroll:
+ * 12px/level through depth 6, 4px/level through depth 14, and 2px/level past
+ * that (120px at depth 19).
+ */
+function treeRowPaddingLeft(depth: number): number {
+  const full = Math.min(depth, 6) * 12;
+  const medium = Math.min(Math.max(depth - 6, 0), 8) * 4;
+  const compact = Math.max(depth - 14, 0) * 2;
+  return 4 + full + medium + compact;
+}
+
 interface TreeRowItemProps {
   wsId: string;
   row: TreeRow;
@@ -88,6 +101,7 @@ function TreeRowItem({
   // The dnd-kit `attributes` are not spread: they force role="button", which
   // is the wrong role inside a tree. Keyboard navigation is the tree's own.
   const { listeners } = drag;
+  const label = row.node.title || t("documents.detail.untitled");
 
   return (
     <div
@@ -134,7 +148,7 @@ function TreeRowItem({
         isOver && "ring-2 ring-ring",
         (isDragging || moving) && "opacity-60",
       )}
-      style={{ paddingLeft: `${row.depth * 12 + 4}px` }}
+      style={{ paddingLeft: `${treeRowPaddingLeft(row.depth)}px` }}
     >
       {row.hasChildren ? (
         <button
@@ -167,7 +181,7 @@ function TreeRowItem({
           <DocumentTypeIcon format={documentIconFormat(row.node.kind, row.node.title)} className="size-4" />
         )}
       </span>
-      <span className="min-w-0 flex-1 truncate">{row.node.title || t("documents.detail.untitled")}</span>
+      <span title={label} className="min-w-0 flex-1 truncate">{label}</span>
       <DocumentTreeRowMenu
         wsId={wsId}
         node={row.node}
@@ -436,6 +450,12 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
     return <p className={cn("px-3 py-4 text-caption text-muted-foreground", className)}>{emptyLabel ?? t("documents.tree.empty")}</p>;
   }
 
+  const activeStopId =
+    (focusedId && rows.some((row) => row.node.id === focusedId) ? focusedId : null) ??
+    (currentId && rows.some((row) => row.node.id === currentId) ? currentId : null) ??
+    rows[0]?.node.id ??
+    null;
+
   return (
     <div className={cn("min-h-0 overflow-y-auto p-2", className)} aria-busy={movingId ? true : undefined}>
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -448,7 +468,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
               expanded={expanded.has(row.node.id)}
               focused={focusedId === row.node.id}
               current={currentId === row.node.id}
-              tabbable={focusedId ? focusedId === row.node.id : index === 0}
+              tabbable={row.node.id === activeStopId}
               moving={movingId === row.node.id}
               dragDisabled={movingId !== null}
               menuActions={rowMenu.actions}

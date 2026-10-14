@@ -87,11 +87,41 @@ export function useTreeReveal({
 
   useEffect(() => {
     if (!currentId || pendingScrollForRef.current !== currentId) return;
+    if (!detail.data || detail.data.id !== currentId) return;
+    const ancestorIds = (detail.data.breadcrumbs ?? [])
+      .map((crumb) => crumb.id)
+      .filter((id) => Boolean(id) && id !== currentId);
+    if (ancestorIds.length > 0 && revealedForRef.current !== currentId) return;
     const el = rowRefs.current?.get(currentId);
     if (!el) return;
-    pendingScrollForRef.current = null;
-    if (typeof el.scrollIntoView === "function") {
-      el.scrollIntoView({ block: "nearest" });
+
+    const revealScroll = () => {
+      const target = rowRefs.current?.get(currentId);
+      if (!target) return;
+      pendingScrollForRef.current = null;
+      if (typeof target.scrollIntoView !== "function") return;
+      const bodyWasActive =
+        typeof document !== "undefined" &&
+        (!document.activeElement || document.activeElement === document.body);
+      target.scrollIntoView({ block: "nearest" });
+      // `Element.scrollIntoView()` moves the browser's sequential focus
+      // navigation start point to the scrolled element; resetting via body
+      // keeps the first Tab at the top of document order (header -> nav -> tree).
+      if (bodyWasActive && typeof document !== "undefined" && document.body) {
+        const prevTabIndex = document.body.getAttribute("tabindex");
+        document.body.setAttribute("tabindex", "-1");
+        document.body.focus({ preventScroll: true });
+        document.body.blur();
+        if (prevTabIndex === null) document.body.removeAttribute("tabindex");
+        else document.body.setAttribute("tabindex", prevTabIndex);
+      }
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      const rafId = window.requestAnimationFrame(revealScroll);
+      return () => window.cancelAnimationFrame(rafId);
     }
+    revealScroll();
+    return undefined;
   }, [currentId, rows, rowRefs, detail.data]);
 }

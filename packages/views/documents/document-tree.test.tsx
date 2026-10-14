@@ -471,6 +471,35 @@ describe("DocumentTree", () => {
     expect(screen.getByRole("treeitem", { name: /Nhóm/ })).toHaveAttribute("aria-level", "1");
     expect(screen.getByRole("treeitem", { name: /Nhóm/ })).toHaveAttribute("aria-expanded", "false");
   });
+
+  it("caps visual indent at deep levels so a depth-20 row stays readable and gives every row label a title", async () => {
+    let deep: DocumentTreeNode[] = [node({ id: "L20", title: "Tầng 20" })];
+    for (let d = 19; d >= 1; d -= 1) {
+      deep = [node({ id: `L${d}`, title: `Tầng ${d}`, children: deep })];
+    }
+    requestMock.mockImplementation((path: string) =>
+      path.startsWith(TREE_URL) ? Promise.resolve({ documents: deep }) : Promise.resolve({}),
+    );
+    renderTree();
+
+    const rootRow = await screen.findByRole("treeitem", { name: /Tầng 1/ });
+    expect(rootRow).toHaveStyle({ paddingLeft: "4px" });
+    expect(screen.getByText("Tầng 1")).toHaveAttribute("title", "Tầng 1");
+
+    for (let d = 1; d < 20; d += 1) {
+      fireEvent.click(
+        await screen.findByRole("button", { name: t("documents.tree.expand", { title: `Tầng ${d}` }) }),
+      );
+    }
+
+    const row20 = await screen.findByRole("treeitem", { name: /Tầng 20/ });
+    expect(row20).toHaveAttribute("aria-level", "20");
+    // Uncapped 19 * 12 + 4 = 232px leaves 0px for the label in a 256px sidebar; must be capped <= 140px.
+    const padLeft = Number.parseFloat(row20.style.paddingLeft);
+    expect(padLeft).toBeGreaterThan(0);
+    expect(padLeft).toBeLessThanOrEqual(140);
+    expect(screen.getByText("Tầng 20")).toHaveAttribute("title", "Tầng 20");
+  });
 });
 
 describe("loadMoveRevision", () => {
