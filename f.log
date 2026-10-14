@@ -1,0 +1,6 @@
+$ pnpm install --frozen-lockfile >/dev/null 2>&1; pnpm --filter @uniwork/core exec vitest run documents 2>&1 | tail -4; echo "CORE_EXIT=${PIPESTATUS[0]}"
+      Tests  438 passed (438)
+   Start at  10:07:51
+   Duration  7.73s (transform 950ms, setup 2.93s, import 2.85s, tests 7.16s, environment 6.90s)
+
+CORE_EXIT=0

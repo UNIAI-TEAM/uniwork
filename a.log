@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+0d767e1640d2f46933dfaa45ee9e6046bf03f148
+0d767e164 chore: merge FD-02 PR1 folder names (UNI-1462) into the G5-G7 root
+8cf3fb18c test(views): commit the heir pick with a pointerdown so the password-refusal tests stop flaking
+5905ef049 chore: merge the G5-G7 root (48363fe21) into FD-02
