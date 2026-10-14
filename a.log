@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+61cfa116c4af021eb166d8eeea6a42807bcc08e9
+914db6fa2ee272dea551f3c720c020eaf403bfd4
+61cfa116c test(documents): guard the archive walk against ORDER BY before its LIMIT
+c49b4843e fix(documents): name the folders_only spellings the tree accepts
+bc57a6775 chore: merge the G5-G7 root (914db6fa2) into FD-03
+914db6fa2 test(governance): exempt the two AI_PROVIDER commits pushed to develop
+169ef6319 chore: merge the latest develop into the G5-G7 develop merge
+ef3b4f4cb chore: bring UNI-1624 from the G5-G7 root into the develop merge
