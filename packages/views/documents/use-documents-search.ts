@@ -64,14 +64,31 @@ export function useDocumentsSearch(wsId: string, enabled: boolean): UseDocuments
     { enabled: queryEnabled },
   );
 
-  const items: DocumentSummary[] = queryEnabled
-    ? ((listQuery.data?.pages.flatMap((page) => page.documents) ?? []) as DocumentSummary[])
-    : [];
+  const fetchedItems: DocumentSummary[] | null =
+    queryEnabled && listQuery.data
+      ? (listQuery.data.pages.flatMap((page) => page.documents) as DocumentSummary[])
+      : null;
+
+  const [previousItems, setPreviousItems] = useState<DocumentSummary[]>([]);
+  const [lastData, setLastData] = useState<typeof listQuery.data>(undefined);
+  if (!active || wsId !== queriedWsId) {
+    if (previousItems.length > 0) setPreviousItems([]);
+    if (lastData !== undefined) setLastData(undefined);
+  } else if (listQuery.data !== undefined && listQuery.data !== lastData) {
+    setLastData(listQuery.data);
+    setPreviousItems(fetchedItems ?? []);
+  }
+
+  const items: DocumentSummary[] = !active
+    ? []
+    : (fetchedItems ?? (listQuery.isError ? [] : previousItems));
 
   const clear = () => {
     setQuery("");
     setCommittedQuery("");
     setComposing(false);
+    setPreviousItems([]);
+    setLastData(undefined);
   };
 
   const onQueryChange = (value: string, nativeComposing?: boolean) => {
@@ -109,7 +126,10 @@ export function useDocumentsSearch(wsId: string, enabled: boolean): UseDocuments
     active,
     composing,
     items,
-    loading: active && (debouncedQuery !== trimmedCommitted || listQuery.isPending),
+    loading:
+      active &&
+      items.length === 0 &&
+      (debouncedQuery !== trimmedCommitted || listQuery.isPending),
     loadingMore: listQuery.isFetchingNextPage,
     hasMore: Boolean(listQuery.hasNextPage),
     error: listQuery.error,

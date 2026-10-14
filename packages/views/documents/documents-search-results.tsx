@@ -16,27 +16,44 @@ import {
 
 const MAX_VISIBLE_PATH_SEGMENTS = 2;
 const MAX_VISIBLE_PATH_CHARS = 36;
+const MAX_SEGMENT_CHARS = 24;
+
+function truncateSegmentFromLeft(segment: string): string {
+  if (segment.length <= MAX_SEGMENT_CHARS) return segment;
+  return `…${segment.slice(-(MAX_SEGMENT_CHARS - 1)).trimStart()}`;
+}
 
 /**
  * Formats a document's ancestor path (root -> direct parent) for search result
- * rows: truncates from the left ("… › Parent › ") when there are more than two
- * ancestors or the joined text is long, while returning the full path for the
- * `title` tooltip and screen-reader announcement.
+ * rows: truncates from the left ("… › Parent › " when `rootLabel` is provided,
+ * or "… › Parent" when omitted) when there are more than two ancestors, a
+ * segment is long, or the joined text exceeds the cap, while returning the
+ * full path for the `title` tooltip and screen-reader announcement.
  */
 export function formatSearchPath(
   path: { id: string; title: string }[] | undefined,
-  rootLabel: string,
+  rootLabel?: string,
 ): { display: string; full: string } {
+  const suffix = rootLabel !== undefined ? " › " : "";
   const segments = (path ?? []).map((item) => item.title.trim()).filter(Boolean);
   if (segments.length === 0) {
-    return { display: `${rootLabel} › `, full: rootLabel };
+    if (!rootLabel) return { display: "", full: "" };
+    return { display: `${rootLabel}${suffix}`, full: rootLabel };
   }
   const full = segments.join(" › ");
+  const capped = segments.map(truncateSegmentFromLeft);
   if (segments.length <= MAX_VISIBLE_PATH_SEGMENTS && full.length <= MAX_VISIBLE_PATH_CHARS) {
-    return { display: `${full} › `, full };
+    return { display: `${capped.join(" › ")}${suffix}`, full };
   }
-  const tail = segments.slice(-MAX_VISIBLE_PATH_SEGMENTS).join(" › ");
-  return { display: `… › ${tail} › `, full };
+  const tailSegments = capped.slice(-MAX_VISIBLE_PATH_SEGMENTS);
+  const tail = tailSegments.join(" › ");
+  if (segments.length === 1) {
+    return { display: `${tail}${suffix}`, full };
+  }
+  if (tail.length > MAX_VISIBLE_PATH_CHARS) {
+    return { display: `… › ${tailSegments.at(-1)!}${suffix}`, full };
+  }
+  return { display: `… › ${tail}${suffix}`, full };
 }
 
 export interface DocumentsSearchResultsProps {
@@ -60,7 +77,7 @@ export function DocumentsSearchResults({
   const chipLabel = (filter: DocumentSearchFilter): string => {
     switch (filter) {
       case "folder":
-        return t("folder");
+        return t("documents.search.filter_folder");
       case "document":
         return t("documents.search.filter_document");
       default:
@@ -181,15 +198,15 @@ export function DocumentsSearchResults({
                         decorative
                         className={cn("size-5 shrink-0", isFolder && "text-muted-foreground")}
                       />
-                      <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                      <span className="flex min-w-0 flex-1 items-baseline gap-x-1.5">
                         <span
                           aria-hidden
                           title={full}
-                          className="shrink-0 text-caption text-muted-foreground"
+                          className="min-w-0 shrink truncate text-caption text-muted-foreground"
                         >
                           {display}
                         </span>
-                        <span className="truncate text-body font-medium text-foreground">
+                        <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
                           {title}
                         </span>
                         <span className="sr-only">

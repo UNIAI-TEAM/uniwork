@@ -317,10 +317,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                     search.clear();
                     goHome({ kind: "home" }, id);
                   }}
-                  onSelectDocument={(id) => {
-                    push(wsPaths.document(id));
-                    onOpen(id);
-                  }}
+                  onSelectDocument={onOpen}
                 />
               </div>
             ) : folderInvalid ? (

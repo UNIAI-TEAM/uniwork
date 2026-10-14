@@ -171,7 +171,7 @@ describe("Documents unified search (FD-10)", () => {
     expect(await screen.findByText("Hợp đồng mẫu")).toBeInTheDocument();
 
     const group = screen.getByRole("radiogroup", { name: t("documents.search.filter_label") });
-    const folderRadio = within(group).getByRole("radio", { name: t("folder") });
+    const folderRadio = within(group).getByRole("radio", { name: t("documents.search.filter_folder") });
     fireEvent.click(folderRadio);
 
     await waitFor(() => {
@@ -198,7 +198,7 @@ describe("Documents unified search (FD-10)", () => {
 
     const group = await screen.findByRole("radiogroup", { name: t("documents.search.filter_label") });
     const allRadio = within(group).getByRole("radio", { name: t("documents.search.filter_all") });
-    const folderRadio = within(group).getByRole("radio", { name: t("folder") });
+    const folderRadio = within(group).getByRole("radio", { name: t("documents.search.filter_folder") });
     const docRadio = within(group).getByRole("radio", { name: t("documents.search.filter_document") });
 
     expect(allRadio).toHaveAttribute("aria-checked", "true");
@@ -325,20 +325,26 @@ describe("Documents unified search (FD-10)", () => {
       return Promise.resolve({ documents: [], next_cursor: null });
     });
 
-    const { nav } = renderSearchView();
+    const wsPaths = paths.workspace("acme", "doi");
+    const nav = createNav();
+    const onOpen = vi.fn((id: string) => nav.push(wsPaths.document(id)));
+    renderSearchView(nav, onOpen);
     const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
     fireEvent.change(searchInput, { target: { value: "dich" } });
 
     const docBtn = await screen.findByRole("button", { name: /Tài liệu đích/ });
     fireEvent.click(docBtn);
 
-    const wsPaths = paths.workspace("acme", "doi");
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith("doc-target");
+    expect(nav.push).toHaveBeenCalledTimes(1);
     expect(nav.push).toHaveBeenCalledWith(wsPaths.document("doc-target"));
 
     const folderBtn = screen.getByRole("button", { name: /Thư mục đích/ });
     fireEvent.keyDown(folderBtn, { key: "Enter" });
     fireEvent.click(folderBtn);
-    expect(nav.push).toHaveBeenCalledWith(wsPaths.documentsFolder("fo-target"));
+    expect(nav.push).toHaveBeenCalledTimes(2);
+    expect(nav.push).toHaveBeenLastCalledWith(wsPaths.documentsFolder("fo-target"));
   });
 
   it("renders CollectionPageState when search results are empty or when the query errors", async () => {
@@ -366,7 +372,8 @@ describe("Documents unified search (FD-10)", () => {
     expect(screen.getByText(t("documents.search.empty_description"))).toBeInTheDocument();
   });
 
-  it("truncates long paths from the left while preserving the full path in title and screen-reader text", async () => {
+  it("truncates long paths from the left (including long single ancestor titles) on a shrinkable span while preserving the full path in title and screen-reader text", async () => {
+    const longAncestor = "Thư mục Dự án Chuyển đổi Số Toàn diện Tập đoàn Quốc tế 2026";
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
@@ -383,6 +390,12 @@ describe("Documents unified search (FD-10)", () => {
                 { id: "p4", title: "Năm 2026" },
                 { id: "p5", title: "Quý 4" },
               ],
+            }),
+            summary({
+              id: "long-parent-doc",
+              kind: "page",
+              title: "Biên bản nghiệm thu",
+              path: [{ id: "p-long", title: longAncestor }],
             }),
           ],
           next_cursor: null,
@@ -401,7 +414,54 @@ describe("Documents unified search (FD-10)", () => {
     // Visual truncated path starts with ellipsis from the left and keeps the full path in `title`
     const pathEl = screen.getByTitle(fullPath);
     expect(pathEl.textContent).toBe("… › Năm 2026 › Quý 4 › ");
+    expect(pathEl.className).not.toContain("shrink-0");
     // Screen reader text has the full path
     expect(screen.getByText(t("documents.search.path", { path: fullPath }))).toBeInTheDocument();
+
+    const longAncestorEl = screen.getByTitle(longAncestor);
+    expect(longAncestorEl.textContent?.startsWith("…")).toBe(true);
+    expect(longAncestorEl.textContent!.length).toBeLessThan(longAncestor.length);
+    expect(screen.getByText(t("documents.search.path", { path: longAncestor }))).toBeInTheDocument();
+  });
+
+  it("keeps previous results visible without skeleton flicker while typing until the next query settles", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        const q = queryOf(path).get("q");
+        if (q === "hop") {
+          return Promise.resolve({
+            documents: [summary({ id: "doc-first", title: "Hợp đồng khung" })],
+            next_cursor: null,
+          });
+        }
+        return Promise.resolve({
+          documents: [summary({ id: "doc-second", title: "Hợp đồng phụ lục" })],
+          next_cursor: null,
+        });
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+
+    renderSearchView();
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.search.label") });
+    fireEvent.change(searchInput, { target: { value: "hop" } });
+
+    expect(await screen.findByText("Hợp đồng khung")).toBeInTheDocument();
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(searchInput, { target: { value: "hop dong" } });
+      // Previous result stays visible during debounce instead of flashing skeletons.
+      expect(screen.getByText("Hợp đồng khung")).toBeInTheDocument();
+      expect(screen.queryByLabelText(t("documents.search.loading"))).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(await screen.findByText("Hợp đồng phụ lục")).toBeInTheDocument();
   });
 });
