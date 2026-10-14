@@ -1,0 +1,84 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18380 FRONTEND_ORIGIN=http://localhost:13300 API_PUBLIC_URL=http://localhost:18380 PREVIEW_ORIGIN=http://localhost:13301 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18380 NEXT_PUBLIC_WS_URL=ws://localhost:18380 NEXT_PUBLIC_APP_URL=http://localhost:13300 E2E_BASE_URL=http://localhost:13300 E2E_API_URL=http://localhost:18380; pnpm --filter @uniwork/e2e exec playwright test landing-trust.spec.ts landing-realism.spec.ts:123 landing-motion.spec.ts:177 --reporter=line --retries=0 --repeat-each=3 2>&1 | grep -E "Error|expect\(|Expected|Received|Timeout|waiting for|passed|failed|flaky|skipped|spec\.ts:[0-9]+" | head -400; echo "E2E_REPEAT_EXIT=${PIPESTATUS[0]}"
+[1/24] landing-motion.spec.ts:177:1 › GPU unavailable leaves a usable fallback and the demo intact
+[2/24] landing-realism.spec.ts:123:1 › screen sharing needs source selection and confirmation; planned entries never autoplay
+[3/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light
+  1) landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light ────────────
+    Error: expect(locator).toBeVisible() failed
+    Expected: visible
+    Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+      - waiting for locator('.landing-trust-story')
+    > 30 |     await expect(chapter).toBeVisible();
+        at /workspace/e2e/landing-trust.spec.ts:30:27
+    Error Context: test-results/landing-trust-trust-chapte-48b2a-ct-and-usable-1536-en-light/error-context.md
+[4/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1280 vi dark
+[5/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 768 vi light
+[6/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 en dark
+[7/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 vi light
+[8/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 320 vi dark
+[9/24] landing-motion.spec.ts:177:1 › GPU unavailable leaves a usable fallback and the demo intact
+[10/24] landing-realism.spec.ts:123:1 › screen sharing needs source selection and confirmation; planned entries never autoplay
+  2) landing-realism.spec.ts:123:1 › screen sharing needs source selection and confirmation; planned entries never autoplay 
+    Error: expect(locator).toBeVisible() failed
+    Expected: visible
+    Error: strict mode violation: locator('.product-playback').locator('.action-stage') resolved to 2 elements:
+      - waiting for locator('.product-playback').locator('.action-stage')
+    > 127 |   await expect(film.locator(".action-stage")).toBeVisible();
+      129 |   await expect(film.locator('[data-demo-result="screen"]')).toHaveCount(0);
+        at /workspace/e2e/landing-realism.spec.ts:127:47
+    Error Context: test-results/landing-realism-screen-sha-4a8ff-nned-entries-never-autoplay-repeat1/error-context.md
+[11/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light
+  3) landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light ────────────
+    Error: expect(locator).toBeVisible() failed
+    Expected: visible
+    Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+      - waiting for locator('.landing-trust-story')
+    > 30 |     await expect(chapter).toBeVisible();
+        at /workspace/e2e/landing-trust.spec.ts:30:27
+    Error Context: test-results/landing-trust-trust-chapte-48b2a-ct-and-usable-1536-en-light-repeat1/error-context.md
+[12/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1280 vi dark
+[13/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 768 vi light
+  4) landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 768 vi light ─────────────
+    Error: expect(locator).toBeVisible() failed
+    Expected: visible
+    Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+      - waiting for locator('.landing-trust-story')
+    > 30 |     await expect(chapter).toBeVisible();
+        at /workspace/e2e/landing-trust.spec.ts:30:27
+    Error Context: test-results/landing-trust-trust-chapte-82c18-act-and-usable-768-vi-light-repeat1/error-context.md
+[14/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 en dark
+[15/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 vi light
+[16/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 320 vi dark
+[17/24] landing-motion.spec.ts:177:1 › GPU unavailable leaves a usable fallback and the demo intact
+[18/24] landing-realism.spec.ts:123:1 › screen sharing needs source selection and confirmation; planned entries never autoplay
+[19/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light
+  5) landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light ────────────
+    Error: expect(locator).toBeVisible() failed
+    Expected: visible
+    Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+      - waiting for locator('.landing-trust-story')
+    > 30 |     await expect(chapter).toBeVisible();
+        at /workspace/e2e/landing-trust.spec.ts:30:27
+    Error Context: test-results/landing-trust-trust-chapte-48b2a-ct-and-usable-1536-en-light-repeat2/error-context.md
+[20/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1280 vi dark
+[21/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 768 vi light
+[22/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 en dark
+[23/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 vi light
+[24/24] landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 320 vi dark
+  6) landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 320 vi dark ──────────────
+    Error: expect(locator).toBeVisible() failed
+    Expected: visible
+    Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+      - waiting for locator('.landing-trust-story')
+    > 30 |     await expect(chapter).toBeVisible();
+        at /workspace/e2e/landing-trust.spec.ts:30:27
+    Error Context: test-results/landing-trust-trust-chapte-84881-pact-and-usable-320-vi-dark-repeat2/error-context.md
+  6 failed
+    landing-realism.spec.ts:123:1 › screen sharing needs source selection and confirmation; planned entries never autoplay 
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light ─────────────
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light ─────────────
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 768 vi light ──────────────
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light ─────────────
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 320 vi dark ───────────────
+  18 passed (2.1m)
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test landing-trust.spec.ts landing-realism.spec.ts:123 landing-motion.spec.ts:177 --reporter=line --retries=0 --repeat-each=3
+E2E_REPEAT_EXIT=1
