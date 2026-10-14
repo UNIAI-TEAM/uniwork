@@ -1,6 +1,6 @@
 "use client";
 
-import { File, FileText, Folder, RotateCcwClock, Monitor, Moon, Sun } from "lucide-react";
+import { RotateCcwClock, Monitor, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDocumentList, useRecentDocuments } from "@uniwork/core/documents/hooks-collections";
@@ -21,10 +21,12 @@ import {
   CommandItem,
   CommandList,
 } from "@uniwork/ui/components/ui/command";
+import { cn } from "@uniwork/ui/lib/utils";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { usePreferenceSavedToast } from "../layout/preference-toast";
+import { DocumentTypeIcon, documentIconFormat } from "../documents/document-type-icon";
 import { formatSearchPath } from "../documents/documents-search-results";
 
 /** How many recent tasks the palette lists; the store keeps more. */
@@ -137,6 +139,8 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
           {showDocuments ? (
             <CommandGroup heading={t("search.groups.documents")}>
               {documentsGroup.map((doc) => {
+                const docTitle = doc.title || t("documents.detail.untitled");
+                const format = documentIconFormat(doc.kind, docTitle);
                 const { display: pathDisplay, full: pathFull } = formatSearchPath(doc.path);
                 return (
                   <CommandItem
@@ -150,8 +154,12 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
                       )
                     }
                   >
-                    {doc.kind === "folder" ? <Folder /> : doc.kind === "file" ? <File /> : <FileText />}
-                    <span className="truncate">{doc.title || t("documents.detail.untitled")}</span>
+                    <DocumentTypeIcon
+                      format={format}
+                      decorative
+                      className={cn("size-4 shrink-0", doc.kind === "folder" && "text-muted-foreground")}
+                    />
+                    <span className="min-w-0 max-w-[70%] shrink-0 truncate">{docTitle}</span>
                     {pathFull ? (
                       <>
                         <span
@@ -162,7 +170,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
                           {pathDisplay}
                         </span>
                         <span className="sr-only">
-                          {t("documents.search.path", { path: pathFull })}
+                          {t("documents.home.search.path", { path: pathFull })}
                         </span>
                       </>
                     ) : null}

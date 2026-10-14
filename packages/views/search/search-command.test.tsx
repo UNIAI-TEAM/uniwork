@@ -288,7 +288,7 @@ describe("SearchCommand documents group", () => {
     expect(documentCalls).toEqual([]);
   });
 
-  it("navigates a folder hit to the folder URL (never the detail page) and shows the hit's left-truncated path with full title and sr text while keeping full-content search", async () => {
+  it("navigates a folder hit to the folder URL (never the detail page), uses typed icons, and shows the hit's left-truncated path with full title and sr text while keeping full-content search", async () => {
     const urls: string[] = [];
     requestMock.mockImplementation((path: string) => {
       if (path.includes("/documents?")) {
@@ -305,6 +305,12 @@ describe("SearchCommand documents group", () => {
                 { id: "p-3", title: "Ban Hợp đồng" },
                 { id: "p-4", title: "2026" },
               ],
+            }),
+            docRow(workspace.id, {
+              id: "file-cmd",
+              kind: "file",
+              title: "Hợp đồng mẫu.docx",
+              path: [{ id: "p-1", title: "Khối Vận hành" }],
             }),
           ],
           next_cursor: null,
@@ -325,6 +331,13 @@ describe("SearchCommand documents group", () => {
     const pathEl = within(group).getByTitle(fullPath);
     expect(pathEl.textContent).toBe("… › Ban Hợp đồng › 2026");
     expect(within(group).getByText(`Đường dẫn: ${fullPath}`)).toBeInTheDocument();
+
+    // V-F6: .docx hit renders the typed Word mark (DocumentTypeIcon) and title precedes path
+    const fileTitleEl = within(group).getByText("Hợp đồng mẫu.docx");
+    const fileOption = fileTitleEl.closest("[role='option']")!;
+    expect(fileOption.querySelector("rect[fill='#3276CD']")).not.toBeNull();
+    const filePathEl = within(group).getByTitle("Khối Vận hành");
+    expect(fileTitleEl.compareDocumentPosition(filePathEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // ⌘K keeps full-content search (FD-D7: no match=title parameter).
     expect(urls).toHaveLength(1);
