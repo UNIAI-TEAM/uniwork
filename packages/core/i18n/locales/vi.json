@@ -1069,7 +1069,10 @@
         "agent_planning": "Agent lập kế hoạch",
         "agent_generation": "Agent thực hiện",
         "agent_evaluation": "Agent đánh giá",
-        "embedding": "Embedding"
+        "embedding": "Embedding",
+        "office_uniwork_ai": "UniWork AI trong Office",
+        "office_byok": "Office trên web (khóa riêng)",
+        "office_byok_desktop": "Ứng dụng Office (khóa riêng)"
       },
       "actor": {
         "human": "Người",
