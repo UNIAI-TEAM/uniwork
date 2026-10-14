@@ -132,7 +132,7 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to
     `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${rootFolder!.id}`,
   );
   await page.getByRole("button", { name: "Tạo mới", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Thư mục" }).click();
+  await page.getByRole("menuitem", { name: "Thư mục", exact: true }).click();
   const subDialog = page.getByRole("dialog", {
     name: "Thư mục con mới trong Hợp đồng 2026",
   });
@@ -145,7 +145,7 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to
   ).toBeVisible();
 
   await tree
-    .getByRole("button", { name: "Thao tác cho Hợp đồng 2026" })
+    .getByRole("button", { name: "Thao tác cho Hợp đồng 2026", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Thư mục con mới" }).click();
   await subDialog.getByLabel("Tên thư mục").fill("Biên bản");
@@ -249,7 +249,7 @@ test("FD-A02 sidebar folder tree expands/collapses independently, reveals active
   await expect(tree.getByRole("treeitem", { name: "Triển khai Beta" })).toBeHidden();
 
   // Expanding branch A does not expand sibling branch B.
-  await tree.getByRole("button", { name: "Mở rộng Dự án Alpha" }).click();
+  await tree.getByRole("button", { name: "Mở rộng Dự án Alpha", exact: true }).click();
   await expect(
     tree.getByRole("treeitem", { name: "Thiết kế Alpha" }),
   ).toBeVisible();
@@ -264,11 +264,11 @@ test("FD-A02 sidebar folder tree expands/collapses independently, reveals active
   ).toHaveCount(0);
 
   // Expanding branch B then collapsing branch A leaves branch B expanded.
-  await tree.getByRole("button", { name: "Mở rộng Dự án Beta" }).click();
+  await tree.getByRole("button", { name: "Mở rộng Dự án Beta", exact: true }).click();
   await expect(
     tree.getByRole("treeitem", { name: "Triển khai Beta" }),
   ).toBeVisible();
-  await tree.getByRole("button", { name: "Thu gọn Dự án Alpha" }).click();
+  await tree.getByRole("button", { name: "Thu gọn Dự án Alpha", exact: true }).click();
   await expect(
     tree.getByRole("treeitem", { name: "Thiết kế Alpha" }),
   ).toBeHidden();
@@ -297,7 +297,7 @@ test("FD-A02 sidebar folder tree expands/collapses independently, reveals active
   await expect(childAItem).toHaveAttribute("aria-current", "true");
 
   // If the user collapses the ancestor while viewing childA, a subsequent tree refetch does not force it back open.
-  await tree.getByRole("button", { name: "Thu gọn Dự án Alpha" }).click();
+  await tree.getByRole("button", { name: "Thu gọn Dự án Alpha", exact: true }).click();
   await expect(childAItem).toBeHidden();
   await createFolder(page, ws.owner.token, ws.wsId, "Dự án Delta", childB.id);
   const patchedB = await patchDocument(page, ws.owner.token, branchB.id, {
@@ -524,7 +524,7 @@ test("FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă aft
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${parent.id}`);
 
   // The viewer's default is the last update.
-  const sortTrigger = page.getByLabel("Sắp xếp");
+  const sortTrigger = page.getByRole("combobox", { name: "Sắp xếp", exact: true });
   await expect(sortTrigger).toContainText("Cập nhật (mới nhất)");
   await expectRowOrder(page, byUpdated);
 
@@ -535,10 +535,10 @@ test("FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă aft
 
   // Remembered per viewer across a reload.
   await page.reload();
-  await expect(page.getByLabel("Sắp xếp")).toContainText("Tên (A→Z)");
+  await expect(page.getByRole("combobox", { name: "Sắp xếp", exact: true })).toContainText("Tên (A→Z)");
   await expectRowOrder(page, byName);
 
-  await page.getByLabel("Sắp xếp").click();
+  await page.getByRole("combobox", { name: "Sắp xếp", exact: true }).click();
   await page.getByRole("option", { name: "Cập nhật (mới nhất)" }).click();
   await expectRowOrder(page, byUpdated);
 });
@@ -633,7 +633,7 @@ test("FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps 
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
 
   const tree = page.getByRole("tree", { name: "Cây tài liệu" });
-  await tree.getByRole("button", { name: "Thao tác cho Thư mục A" }).click();
+  await tree.getByRole("button", { name: "Thao tác cho Thư mục A", exact: true }).click();
   await page.getByRole("menuitem", { name: "Đổi tên" }).click();
   const renameDialog = page.getByRole("dialog", { name: "Đổi tên thư mục" });
   const input = renameDialog.getByLabel("Tên thư mục");
@@ -648,7 +648,7 @@ test("FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps 
   ).toBeVisible();
 
   const table = page.getByRole("table", { name: "Tài liệu" });
-  await table.getByRole("button", { name: "Thao tác cho Thư mục B" }).click();
+  await table.getByRole("button", { name: "Thao tác cho Thư mục B", exact: true }).click();
   await page.getByRole("menuitem", { name: "Đổi tên" }).click();
   await input.fill("  thư mục a1 ");
   await renameDialog.getByRole("button", { name: "Lưu" }).click();
@@ -804,7 +804,7 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
   // 2. Move via the Move dialog and collision auto-rename on folder move.
   await createFolder(page, ws.owner.token, ws.wsId, "Con Nguồn", dstFolder.id);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${srcFolder.id}`);
-  await table.getByRole("button", { name: "Thao tác cho Con Nguồn" }).click();
+  await table.getByRole("button", { name: "Thao tác cho Con Nguồn", exact: true }).click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
   const moveDialog = page.getByRole("dialog", { name: "Di chuyển tới" });
   await expect(moveDialog).toBeVisible();
@@ -889,7 +889,7 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
     await expect(
       resultsListA.getByText("Đường dẫn: Đích"),
     ).toBeVisible({ timeout: 15_000 });
-    const expandDst = tree.getByRole("button", { name: "Mở rộng Đích" });
+    const expandDst = tree.getByRole("button", { name: "Mở rộng Đích", exact: true });
     if (await expandDst.isVisible()) {
       await expandDst.click();
     }
@@ -978,7 +978,7 @@ test("FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disable
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
   await page
     .getByRole("table", { name: "Tài liệu" })
-    .getByRole("button", { name: "Thao tác cho Nhánh Hai Cấp" })
+    .getByRole("button", { name: "Thao tác cho Nhánh Hai Cấp", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
   const picker = page.getByRole("dialog", { name: "Di chuyển tới" });
@@ -1025,7 +1025,7 @@ test("FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disable
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${branch.id}`);
   await page
     .getByRole("table", { name: "Tài liệu" })
-    .getByRole("button", { name: "Thao tác cho Trang Chuyển" })
+    .getByRole("button", { name: "Thao tác cho Trang Chuyển", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
   await picker.getByRole("treeitem", { name: "Thư mục Đích", exact: true }).click();
@@ -1154,7 +1154,7 @@ test("FD-A06 (FD-09 UI) Move-to picker lists self and descendants as focusable a
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
   await page
     .getByRole("tree", { name: "Cây tài liệu" })
-    .getByRole("button", { name: "Thao tác cho Nhánh A" })
+    .getByRole("button", { name: "Thao tác cho Nhánh A", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
   const picker = page.getByRole("dialog", { name: "Di chuyển tới" });
@@ -1241,7 +1241,7 @@ test("FD-A07 moving a document between folders keeps ID, versions, and comments 
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderB.id}`);
   const table = page.getByRole("table", { name: "Tài liệu" });
-  await table.getByRole("button", { name: "Thao tác cho report.docx" }).click();
+  await table.getByRole("button", { name: "Thao tác cho report.docx", exact: true }).click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
   const moveDialog = page.getByRole("dialog", { name: "Di chuyển tới" });
   await moveDialog.getByRole("treeitem", { name: "Phòng A", exact: true }).click();
@@ -1325,7 +1325,7 @@ test("FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled 
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderB.id}`);
   await page
     .getByRole("table", { name: "Tài liệu" })
-    .getByRole("button", { name: "Thao tác cho Bản thảo" })
+    .getByRole("button", { name: "Thao tác cho Bản thảo", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
   const picker = page.getByRole("dialog", { name: "Di chuyển tới" });
@@ -1395,7 +1395,7 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
   });
   await expect(breadcrumb).toBeVisible();
   await expect(
-    breadcrumb.getByRole("button", { name: "Tài liệu" }),
+    breadcrumb.getByRole("button", { name: "Tài liệu", exact: true }),
   ).toBeVisible();
   await expect(
     breadcrumb.getByRole("button", { name: "Khối Kỹ thuật" }),
@@ -1417,7 +1417,7 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
   );
   await expect(contentRow(page, "Nền tảng")).toBeVisible();
 
-  await breadcrumb.getByRole("button", { name: "Tài liệu" }).click();
+  await breadcrumb.getByRole("button", { name: "Tài liệu", exact: true }).click();
   await expect(page).toHaveURL(
     new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents$`),
   );
@@ -1524,7 +1524,7 @@ test("FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and th
     name: "Đường dẫn thư mục",
   });
   // Visible segments: root, the "…" menu, the parent folder and the open folder (leaf).
-  await expect(breadcrumb.getByRole("button", { name: "Tài liệu" })).toBeVisible();
+  await expect(breadcrumb.getByRole("button", { name: "Tài liệu", exact: true })).toBeVisible();
   const more = breadcrumb.getByRole("button", { name: "Các cấp ẩn" });
   await expect(more).toBeVisible();
   await expect(
@@ -2101,7 +2101,7 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${parent.id}`);
 
   await page.getByRole("button", { name: "Tạo mới", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Thư mục" }).click();
+  await page.getByRole("menuitem", { name: "Thư mục", exact: true }).click();
   const createDlg = page.getByRole("dialog", {
     name: "Thư mục con mới trong Thư mục Cha",
   });
@@ -2114,7 +2114,7 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
   await expect(createDlg).toBeHidden();
 
   const table = page.getByRole("table", { name: "Tài liệu" });
-  await table.getByRole("button", { name: "Thao tác cho Ma" }).click();
+  await table.getByRole("button", { name: "Thao tác cho Ma", exact: true }).click();
   await page.getByRole("menuitem", { name: "Đổi tên" }).click();
   const renameDlg = page.getByRole("dialog", { name: "Đổi tên thư mục" });
   await renameDlg.getByLabel("Tên thư mục").fill("Hợp đồng");
@@ -2314,7 +2314,7 @@ test("FD-A12 another member archiving and restoring a folder subtree is seen liv
       treeB.getByRole("treeitem", { name: "Thư mục Của B" }),
     ).toBeVisible({ timeout: 15_000 });
     await treeB
-      .getByRole("button", { name: "Thao tác cho Thư mục Của B" })
+      .getByRole("button", { name: "Thao tác cho Thư mục Của B", exact: true })
       .click();
     await pageB.getByRole("menuitem", { name: "Xóa", exact: true }).click();
     const blockedDialog = pageB.getByRole("alertdialog", {
@@ -2386,7 +2386,7 @@ test("FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks ar
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
   await page
     .getByRole("tree", { name: "Cây tài liệu" })
-    .getByRole("button", { name: "Thao tác cho Thư mục Khổng lồ" })
+    .getByRole("button", { name: "Thao tác cho Thư mục Khổng lồ", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Xóa", exact: true }).click();
   const dialog = page.getByRole("alertdialog", { name: "Xóa thư mục" });
@@ -2422,7 +2422,7 @@ test("FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and docu
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
   await page
     .getByRole("tree", { name: "Cây tài liệu" })
-    .getByRole("button", { name: "Thao tác cho Xóa Thử" })
+    .getByRole("button", { name: "Thao tác cho Xóa Thử", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Xóa", exact: true }).click();
   const dlg = page.getByRole("alertdialog", { name: "Xóa thư mục" });
@@ -2441,7 +2441,7 @@ test("FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and docu
   await expect(contentRow(page, "Xóa Thử")).toBeVisible();
   await page
     .getByRole("table", { name: "Tài liệu" })
-    .getByRole("button", { name: "Thao tác cho Xóa Thử" })
+    .getByRole("button", { name: "Thao tác cho Xóa Thử", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Khôi phục", exact: true }).click();
   const restoreDialog = page.getByRole("alertdialog", {
