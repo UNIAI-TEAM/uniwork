@@ -1,6 +1,7 @@
 "use client";
 import { ArrowRight, BookOpen, BriefcaseBusiness, CircleQuestionMark, Layers, Play, Workflow } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { PRODUCT_FEATURES, PRODUCT_GROUPS } from "./showcase";
@@ -11,8 +12,8 @@ export type HeaderDirectoryKey = "products" | "solutions" | "office" | "learn";
 export function HeaderDirectory({ kind, onNavigate }: { kind: HeaderDirectoryKey; onNavigate: () => void }) {
   const { t } = useTranslation();
   if (kind === "office") return <div className="header-editorial-links header-office-links">
-    <Link href={`${paths.office()}#${OFFICE_BUSINESS_ANCHOR}`} onClick={onNavigate}><span><strong>{t("landing.office.editions.business")}</strong><small>{t("landing.office.editions.businessDescription")}</small></span><ArrowRight aria-hidden /></Link>
-    <div className="header-office-coming" data-office-personal><strong>{t("landing.office.editions.personal")}</strong><small>{t("landing.office.editions.development")}</small></div>
+    <Link href={`${paths.office()}#${OFFICE_BUSINESS_ANCHOR}`} onClick={onNavigate}><Image src="/brand/office-icon.png" alt="" width={32} height={32} unoptimized className="header-office-logo" /><span><strong>{t("landing.office.editions.business")}</strong><small>{t("landing.office.editions.businessDescription")}</small></span><ArrowRight aria-hidden /></Link>
+    <div className="header-office-coming" data-office-personal><Image src="/brand/office-icon.png" alt="" width={32} height={32} unoptimized className="header-office-logo" /><span><strong>{t("landing.office.editions.personal")}</strong><small>{t("landing.office.editions.development")}</small></span></div>
   </div>;
   if (kind === "products") return <>
     <div className="header-product-columns">{PRODUCT_GROUPS.map(group => <section key={group.key}><h2>{t(`landing.catalog.groups.${group.key}`)}</h2>{PRODUCT_FEATURES.filter(item => item.group === group.key).map(item => <Link key={item.key} href={paths.feature(item.key)} onClick={onNavigate}><item.icon aria-hidden /><span>{t(item.key === "agents" ? "landing.workforce.badge" : item.label)}</span></Link>)}</section>)}</div>
@@ -27,5 +28,5 @@ export function HeaderDirectory({ kind, onNavigate }: { kind: HeaderDirectoryKey
     { to: paths.whyUniwork(), title: "landing.nav.why", description: "landing.studio.platformTitle", icon: Layers },
     { to: `${paths.learn()}#questions`, title: "landing.productPages.faqTitle", description: "landing.productPages.menuFoot", icon: CircleQuestionMark },
   ];
-  return <><div className="header-editorial-links">{entries.map(item => <Link key={item.to} href={item.to} onClick={onNavigate}><item.icon aria-hidden /><span><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span><ArrowRight aria-hidden /></Link>)}</div><div className="header-directory-footer"><Link href={kind === "solutions" ? paths.solutions.root() : paths.learn()} onClick={onNavigate}>{t(kind === "solutions" ? "landing.productPages.allSolutions" : "landing.productPages.resourcesLabel")}<ArrowRight aria-hidden /></Link>{kind === "learn" && <Link href={paths.changelog()} onClick={onNavigate}>{t("changelog.title")}<ArrowRight aria-hidden /></Link>}<span>{t("landing.productPages.menuFoot")}</span></div></>;
+  return <><div className="header-editorial-links">{entries.map(item => <Link key={item.to} href={item.to} onClick={onNavigate}><item.icon aria-hidden /><span><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span><ArrowRight aria-hidden /></Link>)}</div><div className="header-directory-footer"><Link href={kind === "solutions" ? paths.solutions.root() : paths.learn()} onClick={onNavigate}>{t(kind === "solutions" ? "landing.productPages.allSolutions" : "landing.productPages.resourcesLabel")}<ArrowRight aria-hidden /></Link><span>{t("landing.productPages.menuFoot")}</span></div></>;
 }

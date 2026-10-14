@@ -257,24 +257,21 @@ func (s *AdminService) SetOrganizationStatus(ctx context.Context, adminID, orgID
 }
 
 // ChangePlan is the manual plan switch (pilots, partners). The subscription
-// change itself, its audit row and event come from BillingService with the
-// admin as actor; admin_actions adds the reason.
+// change, its audit row and admin_actions commit together; the hook inserts
+// the admin row before BillingService commits.
 func (s *AdminService) ChangePlan(ctx context.Context, adminID, orgID, planCode, reason string) (EntitlementSnapshot, error) {
 	if err := checkReason(reason); err != nil {
 		return EntitlementSnapshot{}, err
 	}
+	ctx, traceID := ensureTrace(ctx)
 	cur, err := s.ent.Snapshot(ctx, orgID)
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}
-	snap, err := s.billing.changePlan(ctx, adminID, orgID, planCode, cur.Subscription.RowVersion, true)
-	if err != nil {
-		return EntitlementSnapshot{}, err
-	}
-	_, traceID := ensureTrace(ctx)
-	err = s.recordAdmin(ctx, s.q, traceID, adminID, "organization.plan_changed", "organization", orgID,
-		map[string]any{"plan_code": cur.Plan.Code}, map[string]any{"plan_code": snap.Plan.Code}, reason)
-	return snap, err
+	return s.billing.changePlan(ctx, adminID, orgID, planCode, cur.Subscription.RowVersion, true, func(ctx context.Context, q *db.Queries, beforeCode, afterCode string) error {
+		return s.recordAdmin(ctx, q, traceID, adminID, "organization.plan_changed", "organization", orgID,
+			map[string]any{"plan_code": beforeCode}, map[string]any{"plan_code": afterCode}, reason)
+	})
 }
 
 // Trace is the support view of one trace id: audit rows, outbox rows and
