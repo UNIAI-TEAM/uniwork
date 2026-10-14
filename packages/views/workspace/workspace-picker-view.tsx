@@ -6,6 +6,7 @@ import { appHost } from "@uniwork/core/config";
 import type { Workspace } from "@uniwork/core/types";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { WorkspaceIcon } from "../layout/workspace-icon";
 
 /** Chọn workspace, nhóm theo tổ chức. 0 workspace → đẩy sang tạo mới. */
 export function WorkspacePickerView({ onPick, onCreate }: { onPick: (w: Workspace) => void; onCreate: () => void }) {
@@ -48,11 +49,15 @@ export function WorkspacePickerView({ onPick, onCreate }: { onPick: (w: Workspac
                 onClick={() => onPick(w)}
                 className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors hover:border-input hover:bg-muted/60"
               >
-                <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-body font-semibold text-primary-foreground">
-                  {w.name.slice(0, 1).toUpperCase()}
-                </span>
+                <WorkspaceIcon
+                  workspace={w}
+                  className="size-9 rounded-md bg-primary text-body font-semibold text-primary-foreground"
+                />
                 <span className="min-w-0">
                   <span className="block truncate text-body font-medium text-foreground">{w.name}</span>
+                  {w.description ? (
+                    <span className="block truncate text-caption text-muted-foreground">{w.description}</span>
+                  ) : null}
                   <span className="block truncate font-mono text-caption text-muted-foreground">
                     {host}/{g.slug}/{w.slug}
                   </span>

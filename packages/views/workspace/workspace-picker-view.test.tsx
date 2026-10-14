@@ -25,6 +25,17 @@ beforeEach(() => {
 });
 
 describe("WorkspacePickerView", () => {
+  it("shows a description under the workspace name, and no empty line without one", async () => {
+    requestMock.mockResolvedValueOnce({
+      workspaces: [
+        { id: "w1", slug: "a", name: "Alpha", organization_id: "o1", organization_slug: "unicom", organization_name: "Unicom", description: "Nhóm làm sản phẩm" },
+        { id: "w2", slug: "b", name: "Beta", organization_id: "o1", organization_slug: "unicom", organization_name: "Unicom", description: "" },
+      ],
+    });
+    render(wrap(<WorkspacePickerView onPick={vi.fn()} onCreate={() => {}} />));
+    expect(await screen.findByRole("button", { name: /Alpha/ })).toHaveTextContent("Nhóm làm sản phẩm");
+    expect(screen.getByRole("button", { name: /Beta/ }).querySelectorAll("span.block")).toHaveLength(2);
+  });
   it("groups workspaces by organization", async () => {
     requestMock.mockResolvedValueOnce({
       workspaces: [
