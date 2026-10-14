@@ -315,15 +315,13 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	title := strings.TrimSpace(in.Title)
-	if title == "" {
-		title = strings.TrimSpace(files.SanitizeFilename(in.Filename))
+	raw := in.Title
+	if strings.TrimSpace(raw) == "" {
+		raw = files.SanitizeFilename(in.Filename)
 	}
-	if title == "" {
-		return DocumentFileResult{}, Invalid("tên tài liệu không được để trống")
-	}
-	if len([]rune(title)) > 500 {
-		return DocumentFileResult{}, Invalid("tên tài liệu tối đa 500 ký tự")
+	title, err := normalizeDocumentTitle(DocumentKindFile, raw)
+	if err != nil {
+		return DocumentFileResult{}, err
 	}
 	orgID, err := s.workspaceOrganization(ctx, ws.WorkspaceID)
 	if err != nil {

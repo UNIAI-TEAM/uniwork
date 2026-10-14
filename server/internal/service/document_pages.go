@@ -106,17 +106,6 @@ func errDocumentTooDeep() error {
 	return coded(http.StatusUnprocessableEntity, "document_too_deep", "cây tài liệu sâu tối đa "+strconv.Itoa(maxDocumentDepth)+" cấp")
 }
 
-func cleanDocumentTitle(title string) (string, error) {
-	title = strings.TrimSpace(title)
-	if title == "" {
-		return "", Invalid("tên tài liệu không được để trống")
-	}
-	if len([]rune(title)) > maxDocumentTitle {
-		return "", Invalid("tên tài liệu tối đa 500 ký tự")
-	}
-	return title, nil
-}
-
 func cleanDocumentIcon(icon string) (pgtype.Text, error) {
 	icon = strings.TrimSpace(icon)
 	if len([]rune(icon)) > maxDocumentIconLen {
@@ -165,7 +154,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	default:
 		return DocumentView{}, Invalid("kind phải là page hoặc folder")
 	}
-	title, err := cleanDocumentTitle(in.Title)
+	title, err := normalizeDocumentTitle(kind, in.Title)
 	if err != nil {
 		return DocumentView{}, err
 	}
@@ -251,6 +240,17 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if err != nil {
 		return DocumentView{}, err
 	}
+	if kind == DocumentKindFolder {
+		// FD-D4/FD-D5: two live folders of one workspace never hold one name
+		// under one parent. Under the tree lock taken above this read is
+		// serialized with every other naming writer; the index of PR 2 is the
+		// safety net behind it.
+		if err := s.requireFreeFolderName(ctx, q, documentNameScope{
+			OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: in.ParentID, Kind: kind,
+		}, title); err != nil {
+			return DocumentView{}, err
+		}
+	}
 	docID := util.NewID()
 	if err := s.consumePageBytes(ctx, q, actor, db.Document{ID: docID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}, int64(len(page.content))); err != nil {
 		return DocumentView{}, err
@@ -277,7 +277,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		UpdatedByKind:  string(actor.Kind),
 	})
 	if err != nil {
-		return DocumentView{}, err
+		return DocumentView{}, documentTitleWriteError(kind, err)
 	}
 	created := map[string]any{"title": doc.Title, "kind": doc.Kind, "visibility": doc.Visibility}
 	if in.ParentID != "" {
@@ -557,9 +557,24 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 	var title string
 	var icon pgtype.Text
 	var err error
+	// A folder rename is a naming command: the kind decides the FD-D3 cap and
+	// the workspace is read unlocked here so the tree lock can be taken before
+	// any row lock (appendix §3.3). A page or file rename takes no tree lock -
+	// document titles may repeat (FD-D10).
+	treeLockWorkspace := ""
 	if in.Title != nil {
-		if title, err = cleanDocumentTitle(*in.Title); err != nil {
+		unlocked, err := s.q.GetDocumentByID(ctx, documentID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DocumentView{}, ErrNotFound
+		}
+		if err != nil {
 			return DocumentView{}, err
+		}
+		if title, err = normalizeDocumentTitle(unlocked.Kind, *in.Title); err != nil {
+			return DocumentView{}, err
+		}
+		if unlocked.Kind == DocumentKindFolder {
+			treeLockWorkspace = unlocked.WorkspaceID
 		}
 	}
 	if in.Icon != nil {
@@ -580,7 +595,7 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 	}
 
 	var out DocumentView
-	err = s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentMutationLocked(ctx, actor, documentID, treeLockWorkspace, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if in.Title != nil || in.Icon != nil || in.Content != nil {
 			if !access.Level.AtLeast(DocumentLevelEdit) {
 				return ErrForbidden
@@ -606,6 +621,17 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 		}
 		if in.Revision != doc.Revision {
 			return errRevisionConflict(doc.Revision)
+		}
+		if in.Title != nil && title != doc.Title && doc.Kind == DocumentKindFolder {
+			// A rename is refused, never renamed for (FD-D5). The parent comes
+			// off the locked row, so a move that committed before this
+			// transaction is the parent the check runs against.
+			if err := s.requireFreeFolderName(ctx, q, documentNameScope{
+				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+				ParentID: doc.ParentID.String, Kind: doc.Kind, ExcludeID: doc.ID,
+			}, title); err != nil {
+				return err
+			}
 		}
 
 		next := db.UpdateDocumentFieldsParams{
@@ -650,7 +676,7 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			return errRevisionConflict(doc.Revision)
 		}
 		if err != nil {
-			return err
+			return documentTitleWriteError(doc.Kind, err)
 		}
 		if contentChanged {
 			if err := syncDocumentAssetRefs(ctx, q, updated); err != nil {

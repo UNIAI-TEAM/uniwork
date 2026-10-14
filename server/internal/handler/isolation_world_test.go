@@ -657,6 +657,18 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		"content": map[string]any{"type": "doc", "content": []any{map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": m + " page body"}}}}},
 	})
 	tn.ids["document"] = isoID(t, out, "document")
+	// The folder kind (E6 FD-02): a live folder a create or a move can name as
+	// a parent, and one sitting in the trash for the restore route, whose name
+	// the restore has to place back among its live siblings.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Folder", "kind": "folder",
+	})
+	tn.ids["folder"] = isoID(t, out, "document")
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Trash folder", "kind": "folder",
+	})
+	tn.ids["archivedFolder"] = isoID(t, out, "document")
+	w.call(t, "POST", "/api/v1/documents/"+tn.ids["archivedFolder"]+"/archive", tn.token, nil)
 	dp := "/api/v1/documents/" + tn.ids["document"]
 	out = w.call(t, "POST", dp+"/comments", tn.token, map[string]any{"body": m + " doc comment", "type": "comment"})
 	tn.ids["docComment"] = isoID(t, out, "comment")

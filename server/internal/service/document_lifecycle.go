@@ -310,6 +310,39 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 		if err := s.requireManageOnArchived(ctx, q, actor, members); err != nil {
 			return DocumentArchiveResult{}, err
 		}
+		// The final parent of every member and the final name of every member
+		// that lands in a live parent are decided while the rows are still
+		// archived: the partial unique index of PR 2 only covers live rows, so
+		// the batch is named first and cleared second, and an error on the way
+		// leaves the whole batch in the trash (§3.3).
+		names, err := s.restoreNames(ctx, q, doc, members)
+		if err != nil {
+			return DocumentArchiveResult{}, err
+		}
+		for _, n := range names {
+			if n.title == n.member.Title && n.parentID == n.member.ParentID.String {
+				continue // comes back exactly as it left: nothing to write
+			}
+			if !n.member.ParentID.Valid || n.parentID != "" {
+				if _, err := q.RenameArchivedDocument(ctx, db.RenameArchivedDocumentParams{
+					ID: n.member.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+					Title: n.title, SearchText: documentSearchText(n.title, n.member.ContentText),
+					UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
+				}); err != nil {
+					return DocumentArchiveResult{}, err
+				}
+				continue
+			}
+			// A member whose parent did not come back with it re-roots itself:
+			// parent, position and name in one write, so it is reachable again.
+			if _, err := q.DetachDocumentToRoot(ctx, db.DetachDocumentToRootParams{
+				ID: n.member.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+				Position: n.position, Title: n.title, SearchText: documentSearchText(n.title, n.member.ContentText),
+				UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
+			}); err != nil {
+				return DocumentArchiveResult{}, err
+			}
+		}
 		var restored []string
 		if batch != "" {
 			rows, err := q.ClearDocumentArchiveBatch(ctx, db.ClearDocumentArchiveBatchParams{
@@ -330,42 +363,20 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 			}
 			restored = []string{doc.ID}
 		}
-		inBatch := make(map[string]bool, len(restored))
-		for _, id := range restored {
-			inBatch[id] = true
-		}
-		// A member whose parent is not in the batch comes back orphaned:
-		// detach it to the root so it is reachable again.
-		for _, m := range members {
-			if !inBatch[m.ID] || !m.ParentID.Valid || inBatch[m.ParentID.String] {
-				continue // a parent restored in the same batch is live again: nothing to look up
-			}
-			parent, err := q.GetDocument(ctx, db.GetDocumentParams{
-				ID: m.ParentID.String, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-			})
-			switch {
-			case errors.Is(err, pgx.ErrNoRows):
-				// Purged while the batch sat in the trash.
-			case err != nil:
-				return DocumentArchiveResult{}, err
-			case !parent.ArchivedAt.Valid:
-				continue // the parent came back earlier in this batch, or was never archived
-			}
-			pos, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
-				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, ParentID: pgtype.Text{},
-			})
-			if err != nil {
-				return DocumentArchiveResult{}, err
-			}
-			if _, err := q.DetachDocumentToRoot(ctx, db.DetachDocumentToRootParams{
-				ID: m.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-				Position: pos, UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
-			}); err != nil {
-				return DocumentArchiveResult{}, err
-			}
-		}
 		recs := make([]audit.Recorded, 0, len(restored))
+		named := make(map[string]restoreName, len(names))
+		for _, n := range names {
+			named[n.member.ID] = n
+		}
 		for _, id := range restored {
+			n := named[id]
+			before, after := map[string]any{}, map[string]any{}
+			if n.title != n.member.Title {
+				before["title"], after["title"] = n.member.Title, n.title
+			}
+			if n.parentID != n.member.ParentID.String {
+				before["parent_id"], after["parent_id"] = textOrNil(n.member.ParentID), textOrNil(nullText(n.parentID))
+			}
 			recs = append(recs, audit.Recorded{
 				Entry: audit.Entry{
 					OrganizationID: doc.OrganizationID,
@@ -374,6 +385,7 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 					Action:         audit.ActionDocumentRestored,
 					ResourceType:   "document",
 					ResourceID:     id,
+					Changes:        audit.Diff(before, after),
 					Metadata:       map[string]any{"archive_batch_id": batch},
 				},
 				Events: []audit.Event{{Topic: "document.restored", Payload: map[string]string{
@@ -396,6 +408,114 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 		}
 		return DocumentArchiveResult{View: view, BatchID: batch, Affected: restored}, nil
 	})
+}
+
+// restoreName is one batch member's final slot: the parent it comes back under
+// ("" is the root), the position it takes there, and the name it comes back
+// with. Both are decided while the row is still archived.
+type restoreName struct {
+	member   db.Document
+	parentID string
+	position float64
+	title    string
+}
+
+// restoreNames decides the final parent and the final name of every member of a
+// batch (§3.3).
+//
+// Parent: the batch root comes back under its old parent when that parent is
+// live and outside the batch, and re-roots otherwise; every other member keeps
+// its parent when the batch brings that parent back or when it is still live,
+// and re-roots when it was purged or is still in the trash. A member that
+// re-roots takes a fresh position at the end of the root list.
+//
+// Name: members are taken in the one stable order (final parent, position,
+// created_at, id) and each name is compared against the live documents of its
+// final parent and against the names this batch has already given out for that
+// parent and kind - an old batch may hold a duplicate pair, and its second half
+// moves aside rather than coming back as a duplicate.
+func (s *DocumentService) restoreNames(ctx context.Context, q *db.Queries, root db.Document, members []db.Document) ([]restoreName, error) {
+	inBatch := make(map[string]bool, len(members))
+	for _, m := range members {
+		inBatch[m.ID] = true
+	}
+	plan := make([]restoreName, 0, len(members))
+	for _, m := range members {
+		final := ""
+		position := m.Position
+		if m.ParentID.Valid && !inBatch[m.ParentID.String] {
+			parent, err := q.GetDocument(ctx, db.GetDocumentParams{
+				ID: m.ParentID.String, OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID,
+			})
+			switch {
+			case errors.Is(err, pgx.ErrNoRows):
+				// Purged while the batch sat in the trash: re-root it.
+			case err != nil:
+				return nil, err
+			case !parent.ArchivedAt.Valid:
+				final = m.ParentID.String
+			}
+			if final == "" {
+				pos, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
+					OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, ParentID: pgtype.Text{},
+				})
+				if err != nil {
+					return nil, err
+				}
+				position = pos
+			}
+		} else if m.ParentID.Valid {
+			final = m.ParentID.String
+		}
+		plan = append(plan, restoreName{member: m, parentID: final, position: position, title: m.Title})
+	}
+	sort.SliceStable(plan, func(i, j int) bool {
+		a, b := plan[i], plan[j]
+		if a.parentID != b.parentID {
+			return a.parentID < b.parentID
+		}
+		if a.position != b.position {
+			return a.position < b.position
+		}
+		if !a.member.CreatedAt.Time.Equal(b.member.CreatedAt.Time) {
+			return a.member.CreatedAt.Time.Before(b.member.CreatedAt.Time)
+		}
+		return a.member.ID < b.member.ID
+	})
+	// given holds, per (final parent, kind), the keys SQL computed for the
+	// names this batch has already handed out: a later member collides with
+	// them exactly as it collides with a live sibling, and the allocator skips
+	// them.
+	given := map[string]map[string]bool{}
+	for i := range plan {
+		group := plan[i].parentID + "\x00" + plan[i].member.Kind
+		keys := given[group]
+		if keys == nil {
+			keys = map[string]bool{}
+			given[group] = keys
+		}
+		scope := documentNameScope{
+			OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID,
+			ParentID: plan[i].parentID, Kind: plan[i].member.Kind,
+		}
+		rows, err := s.nameKeys(ctx, q, scope, []string{plan[i].title})
+		if err != nil {
+			return nil, err
+		}
+		if len(rows) != 1 {
+			return nil, errors.New("documents: restore name lookup returned no row")
+		}
+		if rows[0].Taken || keys[rows[0].Key] {
+			decision, err := s.allocateDocumentTitle(ctx, q, scope, plan[i].title, keys)
+			if err != nil {
+				return nil, err
+			}
+			plan[i].title = decision.Title
+			rows[0].Key = decision.Key
+		}
+		keys[rows[0].Key] = true
+	}
+	return plan, nil
 }
 
 // documentBatchLifecycle is the shared envelope of archive and restore: one
