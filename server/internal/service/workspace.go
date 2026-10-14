@@ -415,6 +415,22 @@ func workspaceChanges(before db.Workspace, in UpdateWorkspaceInput) (from, to ma
 // applyWorkspaceChanges writes the changed fields inside the caller's
 // transaction; to holds only fields whose value really changes.
 func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Queries, before db.Workspace, in UpdateWorkspaceInput, to map[string]any) error {
+	// The icon goes first: releasing an uploaded file locks files rows, and
+	// every path takes files rows before the workspace row (UploadIcon does
+	// too), so two writers cannot wait on each other.
+	if _, ok := to["icon_emoji"]; ok {
+		// An emoji replaces an uploaded icon; the file is released in this
+		// transaction (spec 2026-10-14 §5.1).
+		if _, err := s.releaseIconFileInTx(ctx, q, before.ID, before.OrganizationID); err != nil {
+			return err
+		}
+		emoji := pgtype.Text{String: *in.IconEmoji, Valid: *in.IconEmoji != ""}
+		if _, err := q.SetWorkspaceIcon(ctx, db.SetWorkspaceIconParams{
+			ID: before.ID, OrganizationID: before.OrganizationID, IconEmoji: emoji,
+		}); err != nil {
+			return err
+		}
+	}
 	profile := db.UpdateWorkspaceProfileParams{ID: before.ID, OrganizationID: before.OrganizationID}
 	if _, ok := to["name"]; ok {
 		profile.Name = pgtype.Text{String: *in.Name, Valid: true}
@@ -427,21 +443,6 @@ func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Quer
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
-			return err
-		}
-	}
-	if _, ok := to["icon_emoji"]; ok {
-		// An emoji replaces an uploaded icon; the file is released in this
-		// transaction (spec 2026-10-14 §5.1).
-		if before.IconFileID.Valid {
-			if err := releaseFilesInTx(ctx, s.files, q, []files.FileID{files.FileID(before.IconFileID.String)}); err != nil {
-				return err
-			}
-		}
-		emoji := pgtype.Text{String: *in.IconEmoji, Valid: *in.IconEmoji != ""}
-		if _, err := q.SetWorkspaceIcon(ctx, db.SetWorkspaceIconParams{
-			ID: before.ID, OrganizationID: before.OrganizationID, IconEmoji: emoji,
-		}); err != nil {
 			return err
 		}
 	}

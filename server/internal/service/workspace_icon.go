@@ -86,6 +86,9 @@ func (s *WorkspaceService) UploadIcon(ctx context.Context, userID, workspaceID, 
 	cur, err := q.GetWorkspaceIconFileIDForUpdate(ctx, db.GetWorkspaceIconFileIDForUpdateParams{ID: workspaceID, OrganizationID: prev.OrganizationID})
 	if err != nil {
 		cancel()
+		if errors.Is(err, pgx.ErrNoRows) {
+			return WorkspaceView{}, ErrNotFound
+		}
 		return WorkspaceView{}, err
 	}
 	if cur != prev.IconFileID {
@@ -128,16 +131,15 @@ func (s *WorkspaceService) RemoveIcon(ctx context.Context, userID, workspaceID s
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	if before.IconFileID.Valid {
-		if err := releaseFilesInTx(ctx, s.files, q, []files.FileID{files.FileID(before.IconFileID.String)}); err != nil {
-			return WorkspaceView{}, err
-		}
+	cur, err := s.releaseIconFileInTx(ctx, q, before.ID, before.OrganizationID)
+	if err != nil {
+		return WorkspaceView{}, err
 	}
 	if _, err := q.SetWorkspaceIcon(ctx, db.SetWorkspaceIconParams{ID: before.ID, OrganizationID: before.OrganizationID}); err != nil {
 		return WorkspaceView{}, err
 	}
-	if err := recordWorkspaceUpdated(ctx, q, userID, before,
-		map[string]any{"icon": workspaceIconLabel(before)}, map[string]any{"icon": ""},
+	if err := recordWorkspaceUpdated(ctx, q, userID, cur,
+		map[string]any{"icon": workspaceIconLabel(cur)}, map[string]any{"icon": ""},
 	); err != nil {
 		return WorkspaceView{}, err
 	}
@@ -145,6 +147,37 @@ func (s *WorkspaceService) RemoveIcon(ctx context.Context, userID, workspaceID s
 		return WorkspaceView{}, err
 	}
 	return s.GetView(ctx, userID, workspaceID)
+}
+
+// releaseIconFileInTx releases the uploaded icon that is current inside the
+// caller's transaction and returns the row it saw, so a swap that committed
+// after the caller's own read is not released twice and its new file is not
+// orphaned. Order matches UploadIcon: a plain read, the files rows, then the
+// workspace row FOR UPDATE; a row that changed in between is a conflict.
+func (s *WorkspaceService) releaseIconFileInTx(ctx context.Context, q *db.Queries, workspaceID, orgID string) (db.Workspace, error) {
+	prev, err := q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.Workspace{}, ErrNotFound
+		}
+		return db.Workspace{}, err
+	}
+	if prev.IconFileID.Valid && prev.IconFileID.String != "" {
+		if err := releaseFilesInTx(ctx, s.files, q, []files.FileID{files.FileID(prev.IconFileID.String)}); err != nil {
+			return db.Workspace{}, err
+		}
+	}
+	cur, err := q.GetWorkspaceIconFileIDForUpdate(ctx, db.GetWorkspaceIconFileIDForUpdateParams{ID: workspaceID, OrganizationID: orgID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.Workspace{}, ErrNotFound
+		}
+		return db.Workspace{}, err
+	}
+	if cur != prev.IconFileID {
+		return db.Workspace{}, ErrConflict
+	}
+	return prev, nil
 }
 
 // workspaceIconLabel names the icon in an audit diff: the emoji, the file id,
