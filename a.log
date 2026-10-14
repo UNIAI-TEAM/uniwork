@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+bee35d01cc4408599231a1a787d64451506c5308
+ab12238fa4fe9f38524a07928f849478243eeb8a
+bee35d01 merge(fix): R3-2 model popover under zoom and N1 readable model chip into the release fixes (UNI-923)
+14932541 fix(ui): keep composer model chip readable with 88px floor and full-name tooltip
+79b8fce3 fix(ui): scale model picker popover anchor and height cap under CSS zoom
