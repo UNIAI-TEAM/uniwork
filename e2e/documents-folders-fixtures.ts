@@ -64,36 +64,36 @@ interface DocumentDTO {
   id: string;
   organization_id: string;
   workspace_id: string;
-  parent_id: string | null;
+  parent_id?: string | null;
   kind: "page" | "file" | "folder";
   title: string;
-  icon: string | null;
+  icon?: string | null;
   visibility: "workspace" | "restricted";
   position: number;
   revision: string;
   current_version: number;
-  archived_at: string | null;
+  archived_at?: string | null;
   my_level: "view" | "edit" | "manage";
   breadcrumbs?: DocumentBreadcrumbDTO[];
 }
 
 interface DocumentSummaryDTO {
   id: string;
-  parent_id: string | null;
+  parent_id?: string | null;
   kind: "page" | "file" | "folder";
   title: string;
   visibility: "workspace" | "restricted";
   position: number;
   revision: string;
   current_version: number;
-  archived_at: string | null;
+  archived_at?: string | null;
   my_level?: "view" | "edit" | "manage";
   path?: Array<{ id: string; title: string }>;
 }
 
 interface DocumentTreeNodeDTO {
   id: string;
-  parent_id: string | null;
+  parent_id?: string | null;
   kind: "page" | "file" | "folder";
   title: string;
   position: number;
@@ -322,15 +322,16 @@ export async function uploadFixtureFile(
   options?: { parentId?: string | null; filename?: string; title?: string },
 ): Promise<DocumentDTO> {
   const meta = FIXTURE_FILES[fixtureId];
-  const multipart: Record<string, unknown> = {
-    file: {
-      name: options?.filename ?? meta.name,
-      mimeType: meta.mimeType,
-      buffer: readFileSync(meta.path),
-    },
-  };
+  // server/internal/handler/documents.go:71-73,86-120 (documentUploadForm) reads
+  // text fields only while they precede the "file" part; anything after "file" is dropped.
+  const multipart: Record<string, unknown> = {};
   if (options?.parentId) multipart.parent_id = options.parentId;
   if (options?.title) multipart.title = options.title;
+  multipart.file = {
+    name: options?.filename ?? meta.name,
+    mimeType: meta.mimeType,
+    buffer: readFileSync(meta.path),
+  };
   const res = await page.request.post(
     `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents/files`,
     {
@@ -670,17 +671,74 @@ export async function seedDocumentArtifacts(
   docId: string,
   shareUserId: string,
 ): Promise<void> {
-  const vRes = await page.request.post(
-    `${e2eApiUrl}/api/v1/documents/${docId}/versions`,
-    {
-      headers: {
-        ...authHeaders(token),
-        "content-type": "application/json",
+  const docRes = await getDocument(page, token, docId);
+  expect(
+    docRes.ok && docRes.data,
+    `seedDocumentArtifacts getDocument(${docId}): ${docRes.status}`,
+  ).toBeTruthy();
+  const doc = docRes.data!;
+  if (doc.kind === "page") {
+    // server/internal/service/document_versions.go:67-69: POST /documents/{id}/versions is for page documents only.
+    const vRes = await page.request.post(
+      `${e2eApiUrl}/api/v1/documents/${docId}/versions`,
+      {
+        headers: {
+          ...authHeaders(
+            token,
+            `ver-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          ),
+          "content-type": "application/json",
+        },
+        data: { label: "v-before-move" },
       },
-      data: { label: "v-before-move" },
-    },
-  );
-  expect(vRes.ok(), `seed version: ${vRes.status()}`).toBeTruthy();
+    );
+    expect(vRes.ok(), `seed version: ${vRes.status()}`).toBeTruthy();
+  } else if (doc.kind === "file") {
+    // server/internal/service/document_versions.go:67-69 & server/internal/handler/documents.go:259-320:
+    // file documents create version 1 on upload and subsequent versions via /uploads + /versions/commit.
+    const meta = FIXTURE_FILES["fx-docx-report-vi"];
+    const upRes = await page.request.post(
+      `${e2eApiUrl}/api/v1/documents/${docId}/uploads`,
+      {
+        headers: authHeaders(
+          token,
+          `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        ),
+        multipart: {
+          file: {
+            name: meta.name,
+            mimeType: meta.mimeType,
+            buffer: readFileSync(meta.path),
+          },
+        },
+      },
+    );
+    expect(
+      upRes.ok(),
+      `stage file upload: ${upRes.status()} ${await upRes.text()}`,
+    ).toBeTruthy();
+    const uploaded = (await upRes.json()) as { upload_id: string };
+    const commitRes = await page.request.post(
+      `${e2eApiUrl}/api/v1/documents/${docId}/versions/commit`,
+      {
+        headers: {
+          ...authHeaders(
+            token,
+            `commit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          ),
+          "content-type": "application/json",
+        },
+        data: {
+          upload_id: uploaded.upload_id,
+          base_revision: doc.revision,
+        },
+      },
+    );
+    expect(
+      commitRes.ok(),
+      `commit file version: ${commitRes.status()} ${await commitRes.text()}`,
+    ).toBeTruthy();
+  }
   const cRes = await page.request.post(
     `${e2eApiUrl}/api/v1/documents/${docId}/comments`,
     {
