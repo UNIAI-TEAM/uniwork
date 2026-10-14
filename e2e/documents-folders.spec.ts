@@ -1943,11 +1943,20 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
   await expect(page.getByText(sourceFileName).first()).toBeVisible();
 
   // The link still opens the real document. It is an uploaded file, so the detail
-  // screen is the file view, not the editor: its title is the BreadcrumbHeader leaf
-  // (document-workspace.tsx:475-477, doc.title for kind=file; no h1, no title
-  // field) and the file card carries the heading "Lịch sử phiên bản"
-  // (vi.json documents.file.history_title, document-file-view.tsx). The
-  // not-found, load-error and no-permission states (documents.detail.not_found,
+  // screen is the file view, not the title-field editor: its title is the
+  // BreadcrumbHeader leaf (document-workspace.tsx:475-477, doc.title for kind=file;
+  // no h1, no title field). What the file view mounts depends on the env:
+  //  - Office gate off: the file card, whose history card carries the heading
+  //    "Lịch sử phiên bản" (vi.json documents.file.history_title,
+  //    document-file-view.tsx:255-260, the non-editor branch).
+  //  - Office gate on (the cloud env sets OFFICE_FORK_SHA) and the file is an
+  //    Office format (this one is a .docx): usesOfficeEditor is true
+  //    (document-file-view.tsx:116-118, :136-145) and the Office editor mounts
+  //    INSTEAD of the card. It is an iframe titled
+  //    t("frame_label", {title}) = "Trình soạn thảo tài liệu: {{title}}"
+  //    (office.docsFrame.frame_label, office-module-frame.tsx:324-328), `invisible`
+  //    while booting, so it is asserted attached, not visible.
+  // The not-found, load-error and no-permission states (documents.detail.not_found,
   // load_error, revoked_title) must be absent. A bare URL check would also pass
   // on an error page.
   await page.goto(docUrl);
@@ -1956,8 +1965,14 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
     page.getByText("Báo cáo Giữ nguyên ID", { exact: true }).first(),
   ).toBeVisible({ timeout: 15_000 });
   await expect(
-    page.getByRole("heading", { name: "Lịch sử phiên bản" }),
-  ).toBeVisible();
+    page
+      .getByRole("heading", { name: "Lịch sử phiên bản" })
+      .or(
+        page.locator(
+          'iframe[title="Trình soạn thảo tài liệu: Báo cáo Giữ nguyên ID"]',
+        ),
+      ),
+  ).toBeAttached({ timeout: 30_000 });
   await expect(page.getByText("Không tìm thấy tài liệu này")).toHaveCount(0);
   await expect(page.getByText("Không tải được tài liệu")).toHaveCount(0);
   await expect(
