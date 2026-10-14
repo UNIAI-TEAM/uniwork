@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7 develop; git rev-parse HEAD; git log --oneline -3
+22f058257a37fa210dfc18675456f28fea3aeccb
+22f058257 test(office): found the second organization with a person who has none
+d4b7656da chore: merge develop into the G5-G7 root before the develop PR (UNI-923)
+daff9309c Merge pull request #276 from UNIAI-TEAM/fix/UNI-1259-billing-to-chuc-goi-starter-dung-het-quo

@@ -1,0 +1,6 @@
+$ git checkout -q origin/feature/UNI-923-office-g5-g6-g7 && cd server && unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1; AI_PROVIDER=fake go test -count=1 -v ./internal/service/ -run 'TestOfficeLeaseGrantRacingDeactivationLeavesNoLease|TestOfficeLeaseRevokedOnMemberDeactivatedWithOtherOrg' 2>&1 | grep -vE '^=== (RUN|PAUSE|CONT)' | tail -40; echo "LEASE_ROOT_EXIT=${PIPESTATUS[0]}"; git checkout -q -
+--- PASS: TestOfficeLeaseGrantRacingDeactivationLeavesNoLease (0.23s)
+--- PASS: TestOfficeLeaseRevokedOnMemberDeactivatedWithOtherOrg (0.22s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.482s
+LEASE_ROOT_EXIT=0
