@@ -1,0 +1,55 @@
+{
+  "fixtureId": "fx-html-page-vi",
+  "format": "html",
+  "fixtureSha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884",
+  "synthetic": true,
+  "htmlLang": "vi",
+  "title": "Bảng doanh thu quý 1 theo khu vực",
+  "headings": [
+    {
+      "level": 1,
+      "text": "Bảng doanh thu quý 1 theo khu vực"
+    },
+    {
+      "level": 2,
+      "text": "Ghi chú"
+    }
+  ],
+  "tables": [
+    {
+      "caption": "Doanh thu quý 1 (đồng)",
+      "header": [
+        "Khu vực",
+        "Doanh thu Q1 (đồng)",
+        "Tỷ trọng"
+      ],
+      "rows": [
+        [
+          "Bắc",
+          "9.060.000",
+          "41,1%"
+        ],
+        [
+          "Nam",
+          "7.200.000",
+          "32,6%"
+        ],
+        [
+          "Trung",
+          "5.800.000",
+          "26,3%"
+        ],
+        [
+          "Tổng cộng",
+          "22.060.000",
+          "100,0%"
+        ]
+      ]
+    }
+  ],
+  "paragraphs": [
+    "Dữ liệu mẫu để kiểm thử. Tổng đã gồm các đơn hàng bị ẩn trong bảng tính."
+  ],
+  "externalResources": 0,
+  "scripts": 0
+}

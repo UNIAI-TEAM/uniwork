@@ -116,6 +116,8 @@ export function BillingTab() {
     navigation.replace(q ? `${navigation.pathname}?${q}` : navigation.pathname);
   };
 
+  // clearCheckoutQuery is rebuilt every render; the effect must fire only when
+  // the poll settles, so it is deliberately left out of the dependencies.
   useEffect(() => {
     if (returnPoll.confirmed) {
       toast.success(t("checkout_success"));
@@ -126,6 +128,7 @@ export function BillingTab() {
       toast.message(t("checkout_cancelled"));
       clearCheckoutQuery();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [returnPoll.confirmed, returnPoll.timedOut, returnPoll.canceled, t]);
 
   if (permissionsLoading || (canView.allowed && subscription.isLoading)) {
@@ -196,7 +199,7 @@ export function BillingTab() {
         if (url) {
           saveCheckoutBaseline(orgId, sub);
           toast.message(t("checkout_redirecting"));
-          window.location.assign(url);
+          navigation.openExternal?.(url);
         }
         return;
       }

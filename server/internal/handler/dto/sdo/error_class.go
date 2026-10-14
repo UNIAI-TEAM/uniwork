@@ -38,6 +38,10 @@ var errorClassByCode = map[string]string{
 	"ai_context_forbidden":       "permission",
 	"ai_tool_not_allowed":        "permission",
 	"platform_role_insufficient": "permission",
+	// The offline lease is revoked, from an older policy epoch, gone or its
+	// signature no longer verifies (G5-D1 row 15): the app drops its
+	// committed copy and keeps the locked drafts.
+	"offline_lease_revoked": "permission",
 
 	// missing: unknown, or not visible to this actor.
 	"not_found": "missing",
@@ -55,6 +59,60 @@ var errorClassByCode = map[string]string{
 	"device_revoked": "session",
 	"refresh_reused": "session",
 }
+
+// Deliberately unclassified codes (contract-p0 section 4). Each is
+// registered here as a name with NO class, so no later writer adds one by
+// reflex; the HTTP status travels with the code at its emission site.
+//
+//   change_cursor_expired  (410) the feed cursor is older than retention.
+//     "gone" would teach the client to stop retrying and leave, which is
+//     the opposite of the full resync the feed parser (G5-04) runs on
+//     this code, so it must not read as gone.
+//   change_cursor_invalid  (400) a forged cursor or one from another
+//     scope; the refusal must not reveal the scope it failed against.
+//   run_limit_reached      (409) a UniWork AI run limit, unclassified the
+//     same way ai_rate_limited is: it is not a quota or permission denial.
+//   run_expired            (409) the run id the client sent is unknown, of
+//     another conversation or organization, or past its TTL (G6-03b §2.3;
+//     contract-p0 section 4). The client drops the id and asks again as a
+//     new run; the conversation is still live, so it must not run the
+//     conversation_expired recovery path.
+//   office_capability_off  (403, fields.capability) a flag hides the
+//     capability; it is not a permission denial, so the client must not
+//     run its lost-access recovery path (CLAUDE.md > Platform Admin).
+//   conversation_expired   (409) the UniWork AI transcript is gone, expired
+//     or bound to another scope: the client starts a new conversation
+//     instead of retrying this one (G6-03a, contract-p0 section 4).
+//   ai_tool_result_too_large (413) one tool result passed the 64 KiB cap, or
+//     a request's tool results the 256 KiB one (G6-D1 A6).
+//   ai_uniwork_busy        (429, Retry-After: 5) the pod, organization or
+//     whole-deployment concurrency bound is full (G6-D1 A11).
+//   ai_provider_timeout    (504) the 55 s deadline passed before the
+//     upstream answered (G6-D1 A14).
+//   offline_lease_device_required (403) an offline lease needs a desktop
+//     device session; a browser session asked. Not a lost permission: the
+//     same person reads the document online.
+//   offline_lease_limit_reached   (409, fields.limit) the device holds the
+//     most leases it may (G5-D1 row 11); the user unpins something.
+//   document_archived             (403) a renewal on a document in the
+//     trash (G5-D1 row 14): the app keeps its copy to the lease's expiry,
+//     so it must not read as permission (drop the copy) or gone.
+//   offline_lease_expired is an app-side reason only: the server never
+//     emits it (G5-D1 row 15), an online renewal re-checks live access.
+//   comment_deleted        (409) the target comment is a tombstone (G8-03).
+//     "conflict" would send the client down its reload-and-retry path; the
+//     composer shows "Bình luận này đã bị xóa." and keeps its draft instead.
+//   anchor_version_invalid (400) the anchor's version_id is not this
+//     document's (another document, purged or unknown) (G8-04). One body for
+//     every case, so the route never confirms a version exists elsewhere;
+//     the editor treats its anchor as stale and retries at the next save
+//     receipt.
+//   commit_intent_unknown  (410, fields.outcome="unknown", plan G5-07) the
+//     server holds no commit intent for the key any more (swept after the
+//     resume window) or never did. "gone" would teach the client to leave;
+//     it must keep reconciling and never read this as not_committed.
+//     Registered with the dev retention (G5-07); G5-D2 fixes the number,
+//     not the code.
 
 // ErrorClassFor returns the error_class a wire code carries, "" when the code
 // is unclassified - the field is then omitted from the envelope.

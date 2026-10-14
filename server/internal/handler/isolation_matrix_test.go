@@ -172,13 +172,18 @@ func TestIsolationMatrix(t *testing.T) {
 	// tenant's signature or bare path does.
 	t.Run("frame-linked", w.frameLinkedChecks)
 
+	// A change-feed cursor is bound to its account, organization and
+	// workspace: replayed by B's owner in B's own workspace it is invalid and
+	// names nothing of A's (G5-01a).
+	t.Run("change-cursor", w.changeCursorChecks)
+
 	// B's own routes with A's rows named in the body: an assignee, a parent,
 	// a project, a share principal. Each must be refused or ignored, and B's
 	// rows must not come to point at A's.
 	t.Run("references", func(t *testing.T) {
 		w.referenceControls(t)
 		for _, c := range isoReferences {
-			path, ok := isoPath(t, c.pattern, w.bravo)
+			path, ok := c.refPath(t, w.bravo)
 			if !ok {
 				continue
 			}
@@ -220,7 +225,7 @@ func TestIsolationMatrix(t *testing.T) {
 			w.attackAs(t, both, "member-of-both mixed "+r.method+" "+r.pattern, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), refused)
 		}
 		for _, c := range isoReferences {
-			path, ok := isoPath(t, c.pattern, w.bravo)
+			path, ok := c.refPath(t, w.bravo)
 			if !ok {
 				continue
 			}
@@ -338,6 +343,15 @@ func TestIsolationMatrix(t *testing.T) {
 			refusedToo := status == http.StatusForbidden || status == http.StatusNotFound || status == http.StatusUnauthorized
 			if refusedToo && !spec.controlOK(status, raw) {
 				t.Errorf("write control %s %s on C's own rows = %d, the refusal B got too: %s", r.method, r.pattern, status, isoClip(raw))
+				continue
+			}
+			// ISO hardening (G8-04): an owner 5xx is never a control. A
+			// refusal B got for the same reason could be a crash, so the
+			// route proves nothing about tenancy until its own people are
+			// served. A route that 5xx's its owner is exempted in isoRoutes
+			// with skipControl and the reason the hardening found it.
+			if status >= 500 {
+				t.Errorf("write control %s %s on C's own rows = %d (owner 5xx; fix the route or exempt it in isoRoutes with skipControl): %s", r.method, r.pattern, status, isoClip(raw))
 			}
 		}
 	})
@@ -565,6 +579,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		}
 		if under("/office-frame/") || under("/office/frame-token") {
 			return tn.get(t, "frameDocument")
+		}
+		// The UniWork AI document route serves an Office file, not a page:
+		// the module comes from the stored file (G6-03a design §2, D-3).
+		if under("/documents/{documentID}/ai/uniwork/") {
+			return tn.get(t, "fileDocument")
 		}
 		if under("/download") || under("/office/") || under("/uploads") || under("/versions/commit") || under("/copies") {
 			return tn.get(t, "fileDocument")

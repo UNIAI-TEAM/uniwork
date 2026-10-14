@@ -459,6 +459,10 @@
         "email_hub_new_mail": "New mail (Email Hub)",
         "document_commented": "Document comment",
         "document_mentioned": "Mentioned in a document",
+        "document_comment_replied": "Reply to your comment",
+        "document_discussion_mentioned": "Mentioned in a discussion",
+        "document_discussion_replied": "Reply in a discussion",
+        "document_comment_resolved": "Comment resolved",
         "chat_mentioned": "Mentioned in chat",
         "chat_dm": "Direct messages",
         "chat_thread_replied": "Replies in threads you follow"
@@ -4765,10 +4769,21 @@
       "chat_reminder": "Reminder: {{body}}",
       "email_hub_new_mail": "You have {{count}} unread message(s) · {{mailbox}}",
       "document_commented": "{{actor}} commented on “{{document}}”",
-      "document_mentioned": "{{actor}} mentioned you in “{{document}}”",
+      "document_mentioned": "{{actor}} mentioned you in a comment on “{{document}}”.",
+      "document_comment_replied": "{{actor}} replied to your comment in “{{document}}”.",
+      "document_discussion_mentioned": "{{actor}} mentioned you in a discussion on “{{document}}”.",
+      "document_discussion_replied": "{{actor}} replied to your discussion post in “{{document}}”.",
+      "document_comment_resolved": "{{actor}} marked your comment in “{{document}}” as resolved.",
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
       "chat_dm": "{{actor}} sent you a message",
       "chat_thread_replied": "{{actor}} replied to a thread in {{room}}"
+    },
+    "kindTitle": {
+      "document_mentioned": "You were mentioned in a comment",
+      "document_comment_replied": "New reply to your comment",
+      "document_discussion_mentioned": "You were mentioned in a discussion",
+      "document_discussion_replied": "New reply in a discussion",
+      "document_comment_resolved": "Comment resolved"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",
@@ -8166,7 +8181,15 @@
       "collapse": "Collapse {{title}}",
       "moving": "Moving document…",
       "move_failed": "Could not move the document",
-      "too_deep": "The document tree is limited to five levels."
+      "too_deep": "The document tree is limited to {{max}} levels.",
+      "cycle_blocked": "A folder can't move into itself or into one of its subfolders.",
+      "menu": {
+        "open": "Open",
+        "new_subfolder": "New subfolder",
+        "rename": "Rename",
+        "move_to": "Move to…",
+        "delete": "Delete"
+      }
     },
     "page_ui": {
       "title_label": "Document title",
@@ -8375,7 +8398,6 @@
       "versions": "Version history",
       "download_original": "Download original file",
       "upload_version": "Upload new version",
-      "comments": "Comments",
       "share": "Share",
       "access_log": "Access log",
       "copy": "Create a copy",
@@ -8526,7 +8548,19 @@
       "restore_failed": "Could not restore. Nothing changed.",
       "restore_not_archived": "This document is not in the trash.",
       "archive_folder_title": "Archive folder",
-      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later."
+      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later.",
+      "delete_title": "Delete folder",
+      "delete_subfolders_one": "{{count}} subfolder",
+      "delete_subfolders_other": "{{count}} subfolders",
+      "delete_documents_one": "{{count}} document",
+      "delete_documents_other": "{{count}} documents",
+      "delete_body": "{{subfolders}} and {{documents}} will move to the trash and can be restored within 30 days.",
+      "delete_loading": "Counting what's in the folder…",
+      "delete_impact_error": "Couldn't count what's in the folder. Try again before deleting.",
+      "delete_too_large": "The folder holds more than {{max}} items, so it can't go to the trash in one go. Delete what's inside in parts first.",
+      "delete_confirm": "Delete",
+      "delete_submitting": "Deleting…",
+      "delete_failed": "Couldn't delete. Nothing changed."
     },
     "public": {
       "loading": "Loading the document…",
@@ -8545,49 +8579,84 @@
     },
     "comments": {
       "title": "Comments",
-      "open": "Comments",
-      "close": "Close comments",
-      "count_one": "{{count}} comment",
-      "count_other": "{{count}} comments",
-      "empty": "No comments yet. Start the discussion below.",
-      "file_title": "File discussion",
-      "file_open": "File discussion",
-      "file_close": "Close file discussion",
-      "file_empty": "No discussion about this file yet. Comments written inside the document are in the editor's own Comments pane.",
-      "error_title": "Could not load the comments",
+      "close": "Close {{panel}}",
+      "error_title": "Could not load this",
       "error_description": "Nothing was lost. Try again in a moment.",
       "retry": "Try again",
-      "revoked_title": "You no longer have access to these comments",
-      "revoked_description": "Comments are hidden under your current access to this document.",
-      "action_failed": "The comment action did not go through",
+      "revoked_title": "You no longer have access to this",
+      "revoked_description": "This is hidden under your current access to this document.",
+      "action_failed": "The action did not go through",
       "favorite_add": "Add to favorites",
       "favorite_remove": "Remove from favorites",
       "favorite_failed": "Could not change the favorite",
-      "comment_placeholder": "Write a comment…",
       "comment_send": "Send",
       "comment_collapse": "Collapse comment",
       "comment_expand": "Expand comment",
       "comment_edited_time": "Edited · {{time}}",
-      "comment_reply_count_one": "{{count}} reply",
-      "comment_reply_count_other": "{{count}} replies",
+      "comment_deleted": "This content was deleted",
       "comment_resolved": "Resolved",
-      "comment_actions": "Comment actions",
+      "comment_actions": "More actions",
       "comment_copy": "Copy content",
       "comment_resolve": "Resolve",
-      "comment_unresolve": "Unresolve",
+      "comment_unresolve": "Reopen",
       "comment_edit": "Edit",
-      "comment_edit_placeholder": "Edit comment…",
-      "comment_delete_title": "Delete comment?",
-      "comment_delete_description": "The comment will be removed from the document's discussion.",
-      "comment_delete_confirm": "Delete comment",
-      "comment_resolved_fold_one": "{{count}} reply folded around the resolution",
-      "comment_resolved_fold_other": "{{count}} replies folded around the resolution",
-      "comment_resolved_fold_close": "Collapse resolved replies",
+      "comment_delete_title": "Delete this?",
+      "comment_delete_description": "The text and edit history will be permanently deleted. Any replies stay.",
+      "comment_delete_confirm": "Delete permanently",
       "comment_preview_empty": "This comment has no text",
-      "thread_resolved_one": "Resolved · {{count}} thread",
-      "thread_resolved_other": "Resolved · {{count}} threads",
       "favorite_unavailable": "Favorite state is unavailable - try again",
       "former_member": "Former member"
+    },
+    "collab": {
+      "collabDiscussion": "Discussion",
+      "collabLabelCount": "{{label}} · {{count}}",
+      "collabLoading": "Loading…",
+      "collabEmptyCommentsNoEditor": "No comments yet. Comments on a specific place are added while the document is open in the editor.",
+      "collabEmptyDiscussion": "No discussion yet. Write what you’d like to talk about in this document.",
+      "collabOffline": "Can’t reach UniWork. You can still read what’s already loaded, but you can’t send yet.",
+      "collabServerError": "UniWork is having trouble. You can still read what’s already loaded, but you can’t send yet.",
+      "collabSignedOut": "Your session has ended. Log in again to send.",
+      "collabViewOnlyBadge": "View only",
+      "collabViewOnly": "You have view access: you can read but not write.",
+      "collabUpdatedAnnounce": "The content was updated.",
+      "collabAnchorDocx": "Text: “{{quote}}”",
+      "collabAnchorCell": "Cell {{cell}}",
+      "collabAnchorSlide": "Slide {{slide}}",
+      "collabAnchorPage": "Page {{page}}",
+      "collabAnchorStale": "The location may have changed",
+      "collabAnchorLost": "The commented location can no longer be found",
+      "collabReply": "Reply",
+      "collabReplyCount": "Replies: {{count}}",
+      "collabSave": "Save",
+      "collabCancel": "Cancel",
+      "collabDelete": "Delete",
+      "collabHistory": "View edit history",
+      "collabHistoryTitle": "Edit history",
+      "collabHistoryCurrent": "Current version",
+      "collabHistoryEntry": "{{name}}, {{time}}",
+      "collabHistoryEmpty": "This hasn’t been edited.",
+      "collabHistoryError": "Couldn’t load the edit history.",
+      "collabComposerReply": "Write a reply…",
+      "collabComposerDiscussion": "Write in the discussion…",
+      "collabSendHint": "{{shortcut}} to send",
+      "collabSending": "Sending…",
+      "collabSendFailed": "Couldn’t send. Your text is still in the box.",
+      "collabCommentDeleted": "This comment was deleted.",
+      "collabDiscussionDeleted": "This discussion post was deleted.",
+      "collabDiscardTitle": "Discard the draft?",
+      "collabDiscardBody": "What you’ve written will be lost.",
+      "collabDiscard": "Discard",
+      "collabKeepWriting": "Keep writing",
+      "collabMentionLabel": "Mention someone",
+      "collabMentionSearching": "Searching…",
+      "collabMentionCount": "Results: {{count}}",
+      "collabMentionNoMatch": "No one with access to this document matches “{{query}}”.",
+      "collabMentionNoCandidates": "No one else has access to this document yet.",
+      "collabMentionError": "Couldn’t load people.",
+      "inboxDocGone": "This document no longer exists or was deleted.",
+      "inboxDocNoAccess": "You don’t have access to this document.",
+      "inboxSessionExpired": "Your session has ended. Log in again to open this comment.",
+      "inboxBack": "Back to $t(nav.inbox)"
     },
     "home": {
       "create_failed": "Could not create the document. Try again.",
@@ -8608,7 +8677,21 @@
         "empty": "No folders yet.",
         "rename": "Rename folder",
         "rename_label": "Folder name",
-        "rename_failed": "Could not rename the folder. Try again."
+        "rename_failed": "Could not rename the folder. Try again.",
+        "create_title_root": "New folder in Documents (root)",
+        "create_sub_title": "New subfolder in {{parent}}",
+        "create_title": "New folder",
+        "name_placeholder": "e.g. Contracts 2026",
+        "name_empty": "Enter a folder name.",
+        "name_too_long": "A folder name is at most {{max}} characters.",
+        "create_submit": "Create",
+        "rename_submit": "Save",
+        "toast": {
+          "created": "Created folder {{title}}",
+          "renamed": "Renamed to {{title}}",
+          "trashed": "Moved {{title}} to the trash",
+          "restored": "Restored {{title}}"
+        }
       },
       "greeting": {
         "morning": "Good morning. What would you like to create today?",
@@ -8678,6 +8761,9 @@
         "upload": {
           "card": "Upload file",
           "hint": "docx, xlsx, pptx, pdf, md, html, images"
+        },
+        "folder": {
+          "menu": "Folder"
         }
       },
       "sidebar": {
@@ -8756,7 +8842,8 @@
         "editor": "Edited by",
         "updated": "Updated",
         "size": "Size",
-        "actions": "Actions"
+        "actions": "Actions",
+        "type": "Type"
       },
       "row": {
         "open_folder": "Open folder",
@@ -8773,7 +8860,9 @@
         "move": "Move",
         "archive": "Archive",
         "open_chat": "Open Chat",
-        "open_email": "Open Email"
+        "open_email": "Open Email",
+        "new_subfolder": "New subfolder",
+        "rename": "Rename"
       },
       "empty": {
         "title": "No documents in this workspace yet",
@@ -8814,17 +8903,53 @@
         "description": "Pick a new folder for {{name}}.",
         "folder_description": "Pick a new folder for {{name}}. Everything inside it moves too.",
         "submit": "Move",
-        "moved": "Moved."
+        "moved": "Moved.",
+        "picker_title": "Move to",
+        "picker_label": "Choose a destination folder",
+        "root": "Documents (root)",
+        "reason_current": "Current location",
+        "reason_self": "Inside itself",
+        "reason_too_deep": "Too deep: at most {{max}} levels",
+        "moved_to": "Moved to {{folder}}",
+        "moved_renamed": "Moved and renamed to {{title}}"
       },
-      "open_office": "Open UniWork Office"
+      "open_office": "Open UniWork Office",
+      "sort": {
+        "label": "Sort by",
+        "name": "Name (A→Z)",
+        "updated": "Updated (newest)"
+      },
+      "folder_invalid": {
+        "title": "Can't open this folder",
+        "description": "The folder is no longer here, or you don't have access to it.",
+        "back": "Back to Documents (root)"
+      },
+      "breadcrumb_more": "Hidden levels",
+      "search": {
+        "placeholder": "Search folders and documents",
+        "label": "Search Documents",
+        "clear": "Clear search",
+        "filter_label": "Filter results",
+        "filter_all": "All",
+        "filter_folder": "Folders",
+        "filter_document": "Documents",
+        "path": "Path: {{path}}",
+        "path_root": "Documents (root)",
+        "loading": "Searching…",
+        "empty_title": "No results",
+        "empty_description": "Try another name or change the filter. Press Esc to go back to the folder.",
+        "error_title": "Couldn't search",
+        "error_description": "Check your connection and try again."
+      }
     },
     "errors": {
       "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; pages and files sit in a page or a folder.",
       "document_cycle": "An item can't move into itself or into something inside it.",
-      "document_too_deep": "The document tree is at most 5 levels deep.",
+      "document_too_deep": "The document tree is at most {{max}} levels deep.",
       "folder_not_supported": "A folder has no content to open or edit.",
       "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
-      "source_not_saveable": "This file can't be copied into Documents."
+      "source_not_saveable": "This file can't be copied into Documents.",
+      "folder_name_taken": "A folder with this name already exists here. Choose another name."
     }
   },
   "squads": {
@@ -8982,13 +9107,7 @@
         "title": "The editor is taking longer than usual",
         "description": "Your document is still opening. This can happen on a slow connection."
       },
-      "save_conflict": {
-        "title": "Someone saved a newer version",
-        "description": "Your changes were not saved. Reload to see the latest version, which replaces what you have open here, or keep your edits open so you can copy them out first.",
-        "keep": "Keep my edits",
-        "reload": "Reload latest",
-        "close": "Close"
-      },
+      "mine_file_name": "{{title}} (my version)",
       "failure": {
         "unavailable": {
           "title": "This document cannot open on the web yet",

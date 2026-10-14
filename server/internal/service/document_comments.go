@@ -14,18 +14,50 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 const idempotencyScopeDocumentCommentCreate = "documents.comment_create"
+
+// Document comment outcomes (contract-collab section 2.4): a comment with
+// replies is kept as a tombstone frame, one without is removed for real.
+const (
+	DocumentCommentOutcomeTombstoned = "tombstoned"
+	DocumentCommentOutcomeRemoved    = "removed"
+)
+
+// errCommentDeleted is the 409 a mutation on a tombstoned comment answers
+// (contract-collab section 9). Deliberately unclassified in the error-class
+// registry: the composer must tell "this comment is gone" apart from a
+// retryable conflict, not run the save-conflict recovery path.
+func errCommentDeleted() error {
+	return CodedError{Code: "comment_deleted", Status: http.StatusConflict, Msg: "bình luận này đã bị xóa"}
+}
+
+// documentCommentsAfterRead is a test seam: the list reads every row of the
+// document in one statement and then hashes those exact rows into the
+// list_token, so a write that commits in between must not be described by the
+// token the caller stores. DocumentCommentListToken sets this to interleave
+// such a write and prove the next poll still sees it. Never set in production.
+var documentCommentsAfterRead func()
+
+// documentCommentRevisionsAfterLoad is the same kind of seam for the edit
+// history: it runs between the comment load and the revisions read, where a
+// committed tombstone must not show through. Never set in production.
+var documentCommentRevisionsAfterLoad func()
 
 // documentCommentAdapter is the document_comments persistence adapter + the
 // resource authorizer. access is the fresh decision withDocumentMutation
@@ -46,18 +78,42 @@ func (documentCommentAdapter) tenantGet(ctx context.Context, q *db.Queries, ref 
 }
 
 func (documentCommentAdapter) identity(c db.DocumentComment) commentIdentity {
-	return commentIdentity{ID: c.ID, ResourceID: c.DocumentID, AuthorID: c.AuthorID, AuthorKind: c.AuthorKind}
+	return commentIdentity{
+		ID: c.ID, ResourceID: c.DocumentID, AuthorID: c.AuthorID,
+		AuthorKind: c.AuthorKind, CommentType: c.CommentType, Deleted: c.DeletedAt.Valid,
+	}
 }
 
-func (documentCommentAdapter) insert(ctx context.Context, q *db.Queries, ref CommentRef, _ AddCommentInput, p preparedComment) (db.DocumentComment, error) {
-	return q.CreateDocumentComment(ctx, db.CreateDocumentCommentParams{
+func (documentCommentAdapter) insert(ctx context.Context, q *db.Queries, ref CommentRef, in AddCommentInput, p preparedComment) (db.DocumentComment, error) {
+	params := db.CreateDocumentCommentParams{
 		ID: p.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
 		DocumentID: ref.ResourceID, AuthorID: p.AuthorID, AuthorKind: p.AuthorKind,
 		Body: p.Body, ParentCommentID: p.ParentID, CommentType: p.CommentType,
-	})
+	}
+	if in.anchor != nil {
+		params.Anchor = in.anchor.canonical
+		params.AnchorVersionID = pgtype.Text{String: in.anchor.versionID, Valid: true}
+		params.AnchorState = pgtype.Text{String: in.anchor.state, Valid: true}
+	}
+	return q.CreateDocumentComment(ctx, params)
 }
 
-func (documentCommentAdapter) updateBody(ctx context.Context, q *db.Queries, ref CommentRef, c db.DocumentComment, body string) (db.DocumentComment, error) {
+// updateBody writes one edit: the revision row holding the body being
+// replaced (OQ-C3) and then the new body on the comment, both in the caller's
+// transaction. A tombstone has nothing to edit - its history is gone for real
+// (Q8) - so it answers 409 instead.
+func (documentCommentAdapter) updateBody(ctx context.Context, q *db.Queries, ref CommentRef, actor Actor, c db.DocumentComment, body string) (db.DocumentComment, error) {
+	if c.DeletedAt.Valid {
+		return db.DocumentComment{}, errCommentDeleted()
+	}
+	if _, err := q.InsertDocumentCommentRevision(ctx, db.InsertDocumentCommentRevisionParams{
+		ID: util.NewID(), OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+		DocumentID: ref.ResourceID, CommentID: c.ID,
+		Body: c.Body, Revision: c.Revision,
+		CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
+	}); err != nil {
+		return db.DocumentComment{}, err
+	}
 	return q.UpdateDocumentCommentBody(ctx, db.UpdateDocumentCommentBodyParams{
 		ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID, Body: body,
 	})
@@ -70,6 +126,9 @@ func (documentCommentAdapter) remove(ctx context.Context, q *db.Queries, ref Com
 }
 
 func (documentCommentAdapter) resolve(ctx context.Context, q *db.Queries, ref CommentRef, c db.DocumentComment, resolvedByType, resolvedByID string) (db.DocumentComment, error) {
+	if c.DeletedAt.Valid {
+		return db.DocumentComment{}, errCommentDeleted()
+	}
 	return q.ResolveDocumentComment(ctx, db.ResolveDocumentCommentParams{
 		ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
 		ResolvedByType: pgtype.Text{String: resolvedByType, Valid: true},
@@ -78,14 +137,35 @@ func (documentCommentAdapter) resolve(ctx context.Context, q *db.Queries, ref Co
 }
 
 func (documentCommentAdapter) unresolve(ctx context.Context, q *db.Queries, ref CommentRef, c db.DocumentComment) (db.DocumentComment, error) {
+	if c.DeletedAt.Valid {
+		return db.DocumentComment{}, errCommentDeleted()
+	}
 	return q.UnresolveDocumentComment(ctx, db.UnresolveDocumentCommentParams{
 		ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
 	})
 }
 
-// commentTypes is the document allowlist: public clients write plain
-// comments only - a system row can never be minted through this path.
-func (documentCommentAdapter) commentTypes() []string { return []string{"comment"} }
+// resolveCommentType maps a document create onto its thread kind (G8-03):
+// an explicit kind picks the flow, an empty kind inherits the parent's for a
+// reply and starts a discussion for a root (OQ-C2). A reply may not change
+// the thread's kind, and the allowlist stays narrow - neither of the task
+// system types can be minted through this path.
+func (documentCommentAdapter) resolveCommentType(kind, parentType string) (string, error) {
+	kind = strings.TrimSpace(kind)
+	if kind == "" {
+		if parentType != "" {
+			return parentType, nil
+		}
+		return "discussion", nil
+	}
+	if kind != "comment" && kind != "discussion" {
+		return "", Invalid("kind không hợp lệ")
+	}
+	if parentType != "" && kind != parentType {
+		return "", Invalid("kind của trả lời phải khớp loại của bình luận cha")
+	}
+	return kind, nil
+}
 
 func (documentCommentAdapter) foreignParentError() error {
 	return Invalid("parent_id không thuộc tài liệu này")
@@ -137,14 +217,117 @@ func (s *DocumentService) documentCommentByID(ctx context.Context, commentID str
 	return c, err
 }
 
-// DocumentComments lists the thread for a reader (view).
-func (s *DocumentService) DocumentComments(ctx context.Context, actor Actor, documentID string) ([]db.ListDocumentCommentsRow, error) {
+// DocumentCommentListInput filters the thread read (contract-collab section
+// 2.1). An empty kind returns both thread kinds; SinceToken is the list_token
+// of the previous full list - equal to the current one, the answer is
+// Unchanged and carries no rows.
+type DocumentCommentListInput struct {
+	Kind       string
+	SinceToken string
+}
+
+// DocumentCommentList is one list answer: the rows (oldest first) plus the
+// document-wide list_token they were hashed from. Unchanged marks the probe
+// answer - rows and token describe the same document state the caller already
+// holds, and Rows is empty.
+type DocumentCommentList struct {
+	Rows      []db.ListDocumentCommentsRow
+	Token     string
+	Unchanged bool
+}
+
+// DocumentComments lists the thread for a reader (view). Kind filters the
+// answer in memory; the token is computed from every row of the document the
+// one SQL statement returned, so it can never run ahead of the rows the
+// caller received (contract-collab section 6).
+func (s *DocumentService) DocumentComments(ctx context.Context, actor Actor, documentID string, in DocumentCommentListInput) (DocumentCommentList, error) {
+	kind := strings.TrimSpace(in.Kind)
+	if kind != "" && kind != "comment" && kind != "discussion" {
+		return DocumentCommentList{}, Invalid("kind không hợp lệ")
+	}
+	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
+	if err != nil {
+		return DocumentCommentList{}, err
+	}
+	rows, err := s.q.ListDocumentComments(ctx, db.ListDocumentCommentsParams{
+		DocumentID: doc.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+	})
+	if err != nil {
+		return DocumentCommentList{}, err
+	}
+	if documentCommentsAfterRead != nil {
+		documentCommentsAfterRead()
+	}
+	token := documentCommentListToken(rows)
+	if in.SinceToken != "" && in.SinceToken == token {
+		return DocumentCommentList{Token: token, Unchanged: true}, nil
+	}
+	// The kind filter runs after the token: the token is one per document and
+	// must not change with the filter a client happens to send.
+	filtered := rows[:0:0]
+	for _, r := range rows {
+		if kind != "" && r.CommentType != kind {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	return DocumentCommentList{Rows: filtered, Token: token}, nil
+}
+
+// documentCommentListToken is the opaque "lt1:" token of contract-collab
+// section 6: a SHA-256 over (id, updated_at, anchor_state) of every remaining
+// row of the document, both kinds, tombstones included, sorted by id. It
+// changes when any row is created, edited, tombstoned, resolved or removed -
+// a hard delete changes the row set even though no row is newer - and never
+// from a reaction or a rename.
+func documentCommentListToken(rows []db.ListDocumentCommentsRow) string {
+	sorted := make([]db.ListDocumentCommentsRow, len(rows))
+	copy(sorted, rows)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].ID < sorted[j].ID })
+	h := sha256.New()
+	for _, r := range sorted {
+		state := ""
+		if r.AnchorState.Valid {
+			state = r.AnchorState.String
+		}
+		for _, part := range []string{r.ID, r.UpdatedAt.Time.UTC().Format("2006-01-02T15:04:05.000000Z"), state} {
+			_, _ = h.Write([]byte(part))
+			_, _ = h.Write([]byte{0})
+		}
+	}
+	return "lt1:" + hex.EncodeToString(h.Sum(nil))
+}
+
+// DocumentCommentRevisions lists one comment's edit history, newest first
+// (view). A comment of another document is 404; a tombstone answers 409 -
+// its history was deleted for real (Q8).
+func (s *DocumentService) DocumentCommentRevisions(ctx context.Context, actor Actor, documentID, commentID string) ([]db.DocumentCommentRevision, error) {
 	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
 	if err != nil {
 		return nil, err
 	}
-	return s.q.ListDocumentComments(ctx, db.ListDocumentCommentsParams{
-		DocumentID: doc.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+	// One REPEATABLE READ snapshot holds the comment load and the history
+	// read: a tombstone committing in between deletes the history, and the
+	// answer must not pair the live comment with the emptied history.
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	c, err := loadInResource(ctx, q, documentCommentAdapter{}, docCommentRef(doc), commentID)
+	if err != nil {
+		return nil, err
+	}
+	if c.DeletedAt.Valid {
+		return nil, errCommentDeleted()
+	}
+	if documentCommentRevisionsAfterLoad != nil {
+		documentCommentRevisionsAfterLoad()
+	}
+	return q.ListDocumentCommentRevisions(ctx, db.ListDocumentCommentRevisionsParams{
+		CommentID: c.ID, DocumentID: doc.ID,
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 	})
 }
 
@@ -172,33 +355,77 @@ func (s *DocumentService) GetDocumentComment(ctx context.Context, actor Actor, c
 	return c, nil
 }
 
+// validateDocumentCommentLegacyType keeps the pre-G8 wire field honest: the
+// old allowlist was "comment" (or empty) and it never picks the thread kind -
+// that is `kind`/comment_type now. Anything else answers the old 400.
+func validateDocumentCommentLegacyType(legacyType string) error {
+	legacyType = strings.TrimSpace(legacyType)
+	if legacyType == "" || legacyType == "comment" {
+		return nil
+	}
+	return Invalid("type không hợp lệ")
+}
+
 // AddDocumentComment creates a threaded comment: edit level inside the
 // document lock, idempotent under Idempotency-Key in the
 // documents.comment_create scope.
 func (s *DocumentService) AddDocumentComment(ctx context.Context, actor Actor, documentID string, in AddCommentInput, idempotencyKey string) (db.DocumentComment, error) {
+	if err := validateDocumentCommentLegacyType(in.LegacyType); err != nil {
+		return db.DocumentComment{}, err
+	}
 	var out db.DocumentComment
 	err := s.withDocumentMutation(ctx, actor, documentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		ref := docCommentRef(doc)
+		// The anchor half of the create (G8-04): validate anchor + base
+		// version inside the document transaction before anything is claimed.
+		anchor, err := prepareDocumentCommentAnchor(ctx, q, doc, in)
+		if err != nil {
+			return err
+		}
+		in.anchor = anchor
 		// The fingerprint binds the document, so a key reused on another
 		// document answers idempotency_payload_mismatch instead of replaying
-		// the first document's comment.
+		// the first document's comment. An anchored create also binds the
+		// canonical anchor hash and its base version, so the same key with a
+		// different anchor is a mismatch, never a replay (contract 2.2).
 		parent := ""
 		if in.ParentID != nil {
 			parent = *in.ParentID
 		}
+		anchorHash, baseVersionID := "", ""
+		if anchor != nil {
+			anchorHash, baseVersionID = anchor.hash, strings.TrimSpace(in.BaseVersionID)
+		}
 		replay, commit, err := BeginIdempotent(ctx, q, ref.OrganizationID, ref.WorkspaceID,
 			idempotencyScopeDocumentCommentCreate, idempotencyKey, actor.ID, IdempotencyOptions{
-				Fingerprint:        IdempotencyFingerprint("document_comment_create", doc.ID, parent, in.CommentType, in.Body),
+				Fingerprint:        IdempotencyFingerprint("document_comment_create", doc.ID, parent, in.CommentType, in.Body, anchorHash, baseVersionID),
 				RequireFingerprint: true,
 			})
 		if err != nil {
 			return NormalizeIdempotencyError(err)
 		}
 		if replay != nil {
-			return json.Unmarshal(replay.Body, &out)
+			// The ledger keeps the create answer forever; the comment may
+			// have been edited, tombstoned or removed since. Answer the row as
+			// it is now (a removed one is the 404 of any missing id), so a
+			// replay never contradicts the next list read.
+			var stored db.DocumentComment
+			if err := json.Unmarshal(replay.Body, &stored); err != nil {
+				return err
+			}
+			cur, err := loadInResource(ctx, q, documentCommentAdapter{svc: s, access: access}, ref, stored.ID)
+			if err != nil {
+				return err
+			}
+			out = cur
+			return nil
 		}
 		c, err := addCommentOn(ctx, q, documentCommentAdapter{svc: s, access: access}, ref, actor, in)
 		if err != nil {
+			return err
+		}
+		// The comment's durable mention rows commit with it (G8-05).
+		if err := s.syncDocumentCommentMentions(ctx, q, ref, actor, c.ID, c.Body); err != nil {
 			return err
 		}
 		body, err := json.Marshal(c)
@@ -224,20 +451,146 @@ func (s *DocumentService) UpdateDocumentComment(ctx context.Context, actor Actor
 	var out db.DocumentComment
 	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		out, err = updateCommentOn(ctx, q, documentCommentAdapter{svc: s, access: access}, docCommentRef(doc), actor, commentID, in)
-		return err
+		if err != nil {
+			return err
+		}
+		// The edit's mention rows follow the new body in the same tx (G8-05).
+		return s.syncDocumentCommentMentions(ctx, q, docCommentRef(doc), actor, out.ID, out.Body)
 	})
 	return out, err
 }
 
-// DeleteDocumentComment removes a comment; author or manage.
-func (s *DocumentService) DeleteDocumentComment(ctx context.Context, actor Actor, commentID string) error {
+// DeleteDocumentComment deletes a comment; author or manage. The outcome
+// names what happened: a comment with surviving replies is kept as a
+// tombstone frame, one without is removed for real (contract-collab 2.4).
+func (s *DocumentService) DeleteDocumentComment(ctx context.Context, actor Actor, commentID string) (string, error) {
 	before, err := s.documentCommentByID(ctx, commentID)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
-		return deleteCommentOn(ctx, q, documentCommentAdapter{svc: s, access: access}, docCommentRef(doc), actor, commentID)
+	var outcome string
+	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+		outcome, err = deleteDocumentCommentOn(ctx, q, documentCommentAdapter{svc: s, access: access}, docCommentRef(doc), actor, commentID)
+		return err
 	})
+	return outcome, err
+}
+
+// deleteDocumentCommentOn is the document delete policy. The structure stays:
+// a comment with at least one child (tombstoned or not) keeps its row as an
+// empty frame while its own revisions, reactions and mentions go; a comment
+// with no child is removed for real, and a tombstoned ancestor that loses its
+// last child is removed with it, up to the root (OQ-C4).
+func deleteDocumentCommentOn(ctx context.Context, q *db.Queries, ad documentCommentAdapter, ref CommentRef, actor Actor, commentID string) (string, error) {
+	c, err := loadInResource(ctx, q, ad, ref, commentID)
+	if err != nil {
+		return "", err
+	}
+	allowed, err := ad.canModerate(ctx, actor, ref, c)
+	if err != nil {
+		return "", err
+	}
+	if !allowed {
+		return "", ErrForbidden
+	}
+	if c.DeletedAt.Valid {
+		// Already a tombstone: nothing to delete, nothing to audit.
+		return DocumentCommentOutcomeTombstoned, nil
+	}
+	replies, err := q.CountDocumentCommentReplies(ctx, db.CountDocumentCommentRepliesParams{
+		ParentCommentID: pgtype.Text{String: c.ID, Valid: true},
+		OrganizationID:  ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+	})
+	if err != nil {
+		return "", err
+	}
+	v := ad.verbs()
+	if replies > 0 {
+		if err := ad.beforeDelete(ctx, q, ref, c); err != nil {
+			return "", err
+		}
+		if err := q.MarkDocumentCommentMentionsRemoved(ctx, db.MarkDocumentCommentMentionsRemovedParams{
+			CommentID: c.ID, DocumentID: ref.ResourceID,
+			OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+		}); err != nil {
+			return "", err
+		}
+		if err := q.DeleteDocumentCommentRevisions(ctx, db.DeleteDocumentCommentRevisionsParams{
+			CommentID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+		}); err != nil {
+			return "", err
+		}
+		if _, err := q.TombstoneDocumentComment(ctx, db.TombstoneDocumentCommentParams{
+			ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+			DeletedByID:   pgtype.Text{String: actor.ID, Valid: true},
+			DeletedByKind: pgtype.Text{String: string(actor.Kind), Valid: true},
+		}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				// A raced delete already tombstoned the row: same outcome.
+				return DocumentCommentOutcomeTombstoned, nil
+			}
+			return "", err
+		}
+		if err := recordCommentAudit(ctx, q, actor, ref, v, v.deleted, commentID, nil); err != nil {
+			return "", err
+		}
+		return DocumentCommentOutcomeTombstoned, nil
+	}
+	cur := c
+	// Every row this command removes is named in its one audit row: the
+	// requested comment first, then each childless tombstone the cascade
+	// takes with it, bottom-up.
+	removed := []string{}
+	for {
+		if err := ad.beforeDelete(ctx, q, ref, cur); err != nil {
+			return "", err
+		}
+		if err := q.DeleteDocumentCommentMentions(ctx, db.DeleteDocumentCommentMentionsParams{
+			CommentID: cur.ID, DocumentID: ref.ResourceID,
+			OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+		}); err != nil {
+			return "", err
+		}
+		if err := q.DeleteDocumentCommentRevisions(ctx, db.DeleteDocumentCommentRevisionsParams{
+			CommentID: cur.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+		}); err != nil {
+			return "", err
+		}
+		if err := ad.remove(ctx, q, ref, cur); err != nil {
+			return "", err
+		}
+		removed = append(removed, cur.ID)
+		// A tombstoned parent with no other child left has nothing to hold
+		// its frame open; it goes with the last child, and so on upward.
+		if !cur.ParentCommentID.Valid {
+			break
+		}
+		parent, err := ad.tenantGet(ctx, q, ref, cur.ParentCommentID.String)
+		if errors.Is(err, pgx.ErrNoRows) {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		if parent.DocumentID != ref.ResourceID || !parent.DeletedAt.Valid {
+			break
+		}
+		siblings, err := q.CountDocumentCommentReplies(ctx, db.CountDocumentCommentRepliesParams{
+			ParentCommentID: pgtype.Text{String: parent.ID, Valid: true},
+			OrganizationID:  ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+		})
+		if err != nil {
+			return "", err
+		}
+		if siblings > 0 {
+			break
+		}
+		cur = parent
+	}
+	if err := recordCommentAudit(ctx, q, actor, ref, v, v.deleted, commentID, map[string]any{"removed_comment_ids": removed}); err != nil {
+		return "", err
+	}
+	return DocumentCommentOutcomeRemoved, nil
 }
 
 // ResolveDocumentComment marks a comment resolved (edit level; idempotent).

@@ -20,6 +20,7 @@ import (
 //	POST /api/v1/orgs/{org}/leave
 //	POST /api/v1/orgs/{org}/close
 //	POST /api/v1/orgs/{org}/transfer-ownership
+//	GET  /api/v1/orgs/{orgID}/office/capabilities
 //	GET  /api/v1/orgs/{org}/invitations
 //	POST /api/v1/orgs/{org}/invitations
 //	DELETE /api/v1/orgs/{org}/invitations/{invitationId}
@@ -105,6 +106,18 @@ func registerOrganizations(r api, h Routes) {
 		tags:        []string{"organizations"},
 		sdi:         sdi.TransferOwnershipSDI{},
 		sdo:         sdo.OrgMemberSDO{},
+		auth:        true,
+	})
+	// The Office app capability route (X-03): the features enabled for one
+	// organization, evaluated with the same override resolution as
+	// GET /api/v1/config. It is not the per-document route of the same name
+	// (GET /documents/{documentID}/office/capabilities). A flag hides a
+	// capability and grants nothing; a read writes no audit row.
+	r.Get("/orgs/{orgID}/office/capabilities", h.OfficeAppCapabilities, apiOp{
+		summary:     "Office features enabled for this organization (app)",
+		description: "App desktop đọc: các tính năng Office đang bật cho tổ chức này, đánh giá theo override user > organization > global như GET /api/v1/config. Tắt flag chỉ ẩn năng lực, không phải từ chối quyền. ai_uniwork_formats rỗng khi office_ai_uniwork tắt.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.OfficeAppCapabilitiesSDO{},
 		auth:        true,
 	})
 	r.Get("/orgs/{org}/invitations", h.ListOrgInvitations, apiOp{

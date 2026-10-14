@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
@@ -39,6 +40,11 @@ type Deps struct {
 	// OfficeFrameAuth checks the Office Docs frame token on
 	// /api/v1/office-frame/*; nil refuses every frame route with 404.
 	OfficeFrameAuth func(http.Handler) http.Handler
+	// FrameIdentity names the person behind a frame token for the global rate
+	// limiter (G6-03b, design §5.3): the limiter runs before routing, so it
+	// verifies the token itself. Nil keeps today's behaviour (a frame request
+	// keys by address).
+	FrameIdentity mw.IdentityFunc
 }
 
 // New wires middleware and registers routes by OpenAPI tag (auth.go, me.go, …).
@@ -77,11 +83,11 @@ func New(d Deps, h Routes) http.Handler {
 		// LiveKit address, so a platform-wide join burst spent that address's
 		// budget and LiveKit dropped the refused events. The route checks the
 		// webhook signature and the network policy admits only LiveKit.
-		// /mcp skips it as well: this limiter names only session JWTs, so an
-		// MCP access token falls back to the client address, and every team
-		// behind one AI vendor's egress address would share 300 a minute.
-		// /mcp has its own per-token budget (registerMCP).
-		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, bearerUser(d.Minter))
+		// /mcp skips it as well: this limiter names only session JWTs and frame
+		// grants, so an MCP access token falls back to the client address, and
+		// every team behind one AI vendor's egress address would share 300 a
+		// minute. /mcp has its own per-token budget (registerMCP).
+		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
 		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
@@ -104,6 +110,11 @@ func New(d Deps, h Routes) http.Handler {
 			mw.CorrelationHeader,
 			telemetry.DebugTraceHeader,
 			meetings.GuestSessionHeader,
+			// UniWork AI (G6-03a A12): the frame sends the conversation id back
+			// on every turn; without it in the preflight the fetch never leaves
+			// the page.
+			ai.UniworkConversationHeader,
+			ai.UniworkRunHeader,
 			// Vendor headers the BYOK proxy forwards (provider/byok_client.go); a
 			// browser caller needs them in the preflight or the fetch never leaves.
 			"Anthropic-Beta",
@@ -112,12 +123,28 @@ func New(d Deps, h Routes) http.Handler {
 			"Http-Referer",
 			"X-Title",
 		},
-		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader, "Retry-After"},
+		ExposedHeaders: []string{
+			mw.CorrelationHeader, telemetry.TraceHeader, "Retry-After",
+			// G6-05 reads both off the response: the conversation to continue
+			// and, from G6-03b on, the run id.
+			ai.UniworkConversationHeader, ai.UniworkRunHeader,
+		},
 		AllowCredentials: true,
 	}))
 	// Inside CORS, so a shed request still carries the headers the browser
 	// needs to read its 503 and Retry-After, and preflights never count.
-	r.Use(mw.LoadShed(d.Cfg.HTTPMaxInFlight, "/healthz", "/readyz"))
+	//
+	// The three UniWork AI routes are exempt by pattern (G6-03a §7.4): a turn
+	// waits up to 55 s on a model, so counting it against the in-flight bound
+	// would let a handful of AI turns shed every other request in the pod.
+	// Patterns, not prefixes, on purpose: a prefix under /api/v1/orgs/{orgID}/ai/
+	// would exempt the BYOK proxy and the cloud tools too. Exempt routes still
+	// get their body deadline.
+	r.Use(mw.LoadShed(d.Cfg.HTTPMaxInFlight, "/healthz", "/readyz",
+		"/api/v1/orgs/{orgID}/ai/uniwork/chat/completions",
+		"/api/v1/documents/{documentID}/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
+	))
 	cat := &apiCatalog{}
 	root := newAPI(r, cat)
 	registerMeta(root, r, d.Storage, h)
@@ -168,6 +195,10 @@ func New(d Deps, h Routes) http.Handler {
 			credentials: mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, frameUser),
 			byok:        mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, frameUser),
 			cloud:       mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, frameUser),
+			// G6-03b: the UniWork AI turn draws on the ai-uniwork bucket, the
+			// same one the two session routes use, so a person's frame and
+			// host tab share the 60/min and the refusal carries its own code.
+			uniwork: mw.RateLimitByIdentityBucket(d.Redis, "ai-uniwork", 60, time.Minute, proxies, frameUser, "ai_rate_limited"),
 		})
 		v1.Group(func(authed api) {
 			if d.DeviceStatus != nil {
@@ -187,6 +218,11 @@ func New(d Deps, h Routes) http.Handler {
 			registerAI(authed, h)
 			registerAIBYOK(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, bearerUser(d.Minter)))
 			registerAICloud(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, bearerUser(d.Minter)))
+			// UniWork AI (G6-03b): one 60/min budget per person across the
+			// three UniWork AI routes, keyed by the bucket so the ids in their
+			// paths mint no fresh budget (ADR 0029 D6), and refused with
+			// ai_rate_limited so the client tells it from every other bucket.
+			registerAIUniwork(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-uniwork", 60, time.Minute, proxies, bearerUser(d.Minter), "ai_rate_limited"))
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
 			registerTasksSuite(authed, h)
@@ -257,6 +293,25 @@ func bearerUser(m auth.TokenMinter) mw.IdentityFunc {
 			return ""
 		}
 		return "user:" + uid
+	}
+}
+
+// globalIdentity names the caller of the global limiter: the bearer token
+// first (a signed-in person), the Office frame token second. The frame half is
+// G6-03b §5.3: the limiter runs before routing, so a frame request used to
+// fall back to its address and one office NAT shared 300/min across every
+// frame behind it. A request neither half can name keeps its address's budget
+// — a token that does not verify must not mint one.
+func globalIdentity(m auth.TokenMinter, frame mw.IdentityFunc) mw.IdentityFunc {
+	bearer := bearerUser(m)
+	if frame == nil {
+		return bearer
+	}
+	return func(r *http.Request) string {
+		if id := bearer(r); id != "" {
+			return id
+		}
+		return frame(r)
 	}
 }
 

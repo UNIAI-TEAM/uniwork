@@ -1,6 +1,6 @@
 # Runbooks theo alert
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-08 · **Nguồn alert:** `deploy/alerts.yml` · **Hướng dẫn chung:** [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md)
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-14 · **Nguồn alert:** `deploy/alerts.yml` · **Hướng dẫn chung:** [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md)
 
 Mỗi rule trong `deploy/alerts.yml` có `runbook_url` trỏ tới đúng một file ở
 đây; `scripts/alerts-runbooks.test.mjs` fail khi thiếu file, thiếu mục hoặc có
@@ -25,8 +25,26 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `RealtimeRedisXReadErrors` | 3 | > 30 lỗi XREAD Redis trong 5 phút, kéo dài 10 phút | [RealtimeRedisXReadErrors.md](RealtimeRedisXReadErrors.md) |
 | `GraphProjectorLagHigh` | 3 | Work Graph chiếu chậm hơn nguồn | [GraphProjectorLagHigh.md](GraphProjectorLagHigh.md) |
 | `WebVitalsLCPPoor` | 3 | p75 LCP > 2,5 s trong 30 phút | [WebVitalsLCPPoor.md](WebVitalsLCPPoor.md) |
+| `OfficeChangeFeedLagHigh` | 2 | change feed Office trễ > 300 s trong 10 phút (pending G7-D1) | [OfficeChangeFeedLagHigh.md](OfficeChangeFeedLagHigh.md) |
+| `OfficeLeaseRevokeFailed` | 2 | revoke lease offline fail-closed không ghi được (pending G7-D1) | [OfficeLeaseRevokeFailed.md](OfficeLeaseRevokeFailed.md) |
+| `UniworkAiModelErrors` | 2 | > 10 % lượt model `office_uniwork_ai` lỗi trong 10 phút (pending G7-D1) | [UniworkAiModelErrors.md](UniworkAiModelErrors.md) |
+| `OfficeCommitConflictSpike` | 3 | > 20 % lệnh Lưu file bị 409 trong 30 phút (pending G7-D1) | [OfficeCommitConflictSpike.md](OfficeCommitConflictSpike.md) |
+| `OfficeIntentLookupUnknown` | 3 | > 5 lượt tra intent `unknown` trong 1 giờ (pending G7-D1) | [OfficeIntentLookupUnknown.md](OfficeIntentLookupUnknown.md) |
+| `OfficeIdempotentReplaySpike` | 3 | > 50 replay Idempotency-Key trong 15 phút (pending G7-D1) | [OfficeIdempotentReplaySpike.md](OfficeIdempotentReplaySpike.md) |
+| `OfficeLeaseBlockedSpike` | 3 | > 50 lease offline bị chặn / lý do trong 15 phút (pending G7-D1) | [OfficeLeaseBlockedSpike.md](OfficeLeaseBlockedSpike.md) |
+| `UniworkAiLatencyP95High` | 3 | p95 lượt model `office_uniwork_ai` > 20 s (pending G7-D1) | [UniworkAiLatencyP95High.md](UniworkAiLatencyP95High.md) |
+| `UniworkAiUsageUnknownSpike` | 3 | > 10 % lượt không có usage từ upstream (pending G7-D1) | [UniworkAiUsageUnknownSpike.md](UniworkAiUsageUnknownSpike.md) |
+| `UniworkAiRunSecondsHigh` | 3 | p95 tuổi run UniWork AI > 64 s (pending G7-D1) | [UniworkAiRunSecondsHigh.md](UniworkAiRunSecondsHigh.md) |
+| `UniworkAiRunCreditsHigh` | 3 | p95 token mỗi run UniWork AI > 64.000 (pending G7-D1) | [UniworkAiRunCreditsHigh.md](UniworkAiRunCreditsHigh.md) |
+| `UniworkAiDroppedToolCalls` | 3 | > 20 tool call bị bỏ / lý do trong 15 phút (pending G7-D1) | [UniworkAiDroppedToolCalls.md](UniworkAiDroppedToolCalls.md) |
 
 Hướng dẫn chung (chạy stack, env, sampling, `/readyz`): [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md).
+
+Alert `Office*` và `UniworkAi*` (G7-07) chỉ đọc metric mà code server D đăng ký (`scripts/office/alert-metrics.test.mjs`).
+Ngưỡng của chúng là đề xuất theo load profile, **pending G7-D1** (người dùng chốt). Các mục vận hành không có alert
+(cursor hết hạn, reconciling kẹt, upload hết hạn, trần đồng thời UniWork AI, ...):
+[`docs/ops/RUNBOOK_OFFICE_SYNC.md`](../ops/RUNBOOK_OFFICE_SYNC.md). Metric chỉ có ở app không có alert ở v1:
+[`docs/office/g5g6g7/support-matrix.md`](../office/g5g6g7/support-matrix.md).
 
 Sev 1: gọi ngay, mọi giờ. Sev 2: xử lý trong giờ làm việc, tối đa 4 giờ.
 Sev 3: đưa vào sprint, không đánh thức ai.

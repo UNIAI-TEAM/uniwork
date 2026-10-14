@@ -77,7 +77,10 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 		b, _ := json.Marshal(MeetingSummary{Summary: "Bản tóm tắt thử nghiệm.", Decisions: []string{}, ActionItems: []ActionItem{}})
 		text = string(b)
 	}
-	return provider.CompletionResponse{Text: text, Model: req.Model, InputTokens: estimateTokens(req.System + last), OutputTokens: estimateTokens(text), StopReason: "end_turn"}
+	// UsagePresent mirrors the scripted path in provider/fake.go: the fake knows
+	// its own token counts, so a fake turn is known usage, not the unknown-usage
+	// reconciliation branch (spec §8.2; G6-03b is the first reader).
+	return provider.CompletionResponse{Text: text, Model: req.Model, UsagePresent: true, InputTokens: estimateTokens(req.System + last), OutputTokens: estimateTokens(text), StopReason: "end_turn"}
 }
 
 func itoa(n int) string {

@@ -39,6 +39,7 @@ export * as taskAttachments from "./endpoints/task-attachments";
 export * as meetings from "./endpoints/meetings";
 export * as documents from "./endpoints/documents";
 export * as documentVersions from "./endpoints/documents-versions";
+export * as documentChanges from "./endpoints/document-changes";
 export * as documentCollections from "./endpoints/documents-collections";
 export * as documentSharing from "./endpoints/documents-sharing";
 export * as documentPublic from "./endpoints/documents-public";

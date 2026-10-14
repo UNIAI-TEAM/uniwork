@@ -90,6 +90,47 @@ type AiProviderCredential struct {
 	ModelUpdatedAt   pgtype.Timestamptz `json:"model_updated_at"`
 }
 
+type AiUniworkConversation struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	UserID         string             `json:"user_id"`
+	DocumentID     pgtype.Text        `json:"document_id"`
+	Module         string             `json:"module"`
+	DeviceID       pgtype.Text        `json:"device_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt     pgtype.Timestamptz `json:"last_used_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type AiUniworkRun struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	ConversationID string             `json:"conversation_id"`
+	ModelCalls     int32              `json:"model_calls"`
+	ToolRounds     int32              `json:"tool_rounds"`
+	Credits        int64              `json:"credits"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt     pgtype.Timestamptz `json:"last_used_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type AiUniworkTurn struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	ConversationID string             `json:"conversation_id"`
+	RunID          string             `json:"run_id"`
+	Seq            int32              `json:"seq"`
+	Role           string             `json:"role"`
+	Ciphertext     []byte             `json:"ciphertext"`
+	UsageEventID   pgtype.Text        `json:"usage_event_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type AiUsageEvent struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -156,6 +197,7 @@ type AuditEvent struct {
 	IpAddress      pgtype.Text        `json:"ip_address"`
 	UserAgent      pgtype.Text        `json:"user_agent"`
 	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
+	XactID         pgtype.Uint64      `json:"xact_id"`
 }
 
 type AuditExport struct {
@@ -222,6 +264,12 @@ type CalendarConnection struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	DisconnectedAt       pgtype.Timestamptz `json:"disconnected_at"`
+}
+
+type ChangeFeedEpoch struct {
+	ID        string             `json:"id"`
+	XactID    pgtype.Uint64      `json:"xact_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type ChatBlock struct {
@@ -531,6 +579,7 @@ type Document struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	ArchiveBatchID       pgtype.Text        `json:"archive_batch_id"`
+	ContentRevision      int64              `json:"content_revision"`
 }
 
 type DocumentAccessLog struct {
@@ -564,6 +613,29 @@ type DocumentAsset struct {
 	OrphanedAt     pgtype.Timestamptz `json:"orphaned_at"`
 }
 
+type DocumentChangeSnapshot struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	HighWater      string             `json:"high_water"`
+	ItemCount      int32              `json:"item_count"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type DocumentChangeSnapshotItem struct {
+	SnapshotID     string      `json:"snapshot_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	DocumentID     string      `json:"document_id"`
+	Kind           string      `json:"kind"`
+	Revision       int64       `json:"revision"`
+	CurrentVersion int32       `json:"current_version"`
+	FileVersionID  pgtype.Text `json:"file_version_id"`
+}
+
 type DocumentComment struct {
 	ID              string             `json:"id"`
 	OrganizationID  string             `json:"organization_id"`
@@ -580,6 +652,61 @@ type DocumentComment struct {
 	ResolvedByID    pgtype.Text        `json:"resolved_by_id"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Anchor          []byte             `json:"anchor"`
+	AnchorVersionID pgtype.Text        `json:"anchor_version_id"`
+	AnchorState     pgtype.Text        `json:"anchor_state"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	DeletedByID     pgtype.Text        `json:"deleted_by_id"`
+	DeletedByKind   pgtype.Text        `json:"deleted_by_kind"`
+}
+
+type DocumentCommentMention struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	CommentID      string             `json:"comment_id"`
+	UserID         string             `json:"user_id"`
+	State          string             `json:"state"`
+	NotifiedAt     pgtype.Timestamptz `json:"notified_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DocumentCommentRevision struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	CommentID      string             `json:"comment_id"`
+	Body           string             `json:"body"`
+	Revision       int64              `json:"revision"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type DocumentCommitIntent struct {
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organization_id"`
+	WorkspaceID        string             `json:"workspace_id"`
+	DocumentID         string             `json:"document_id"`
+	IdempotencyKey     string             `json:"idempotency_key"`
+	PayloadFingerprint string             `json:"payload_fingerprint"`
+	CreatedBy          string             `json:"created_by"`
+	CreatedByKind      string             `json:"created_by_kind"`
+	State              string             `json:"state"`
+	Attempt            int32              `json:"attempt"`
+	ClaimExpiresAt     pgtype.Timestamptz `json:"claim_expires_at"`
+	VersionID          pgtype.Text        `json:"version_id"`
+	Version            pgtype.Int4        `json:"version"`
+	Revision           pgtype.Int8        `json:"revision"`
+	CommittedAt        pgtype.Timestamptz `json:"committed_at"`
+	RetainUntil        pgtype.Timestamptz `json:"retain_until"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 type DocumentFavorite struct {
@@ -1568,6 +1695,36 @@ type OfficeLaunchSession struct {
 	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
 	CreatedBy       string             `json:"created_by"`
 	CreatedByKind   string             `json:"created_by_kind"`
+}
+
+type OfficeOfflineLease struct {
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	DocumentID      string             `json:"document_id"`
+	UserID          string             `json:"user_id"`
+	DeviceSessionID string             `json:"device_session_id"`
+	DeploymentID    string             `json:"deployment_id"`
+	VersionID       string             `json:"version_id"`
+	Version         int32              `json:"version"`
+	Revision        int64              `json:"revision"`
+	Level           string             `json:"level"`
+	PolicyEpoch     int64              `json:"policy_epoch"`
+	Generation      int32              `json:"generation"`
+	IssuedAt        pgtype.Timestamptz `json:"issued_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	RevokeReason    pgtype.Text        `json:"revoke_reason"`
+	CreatedBy       string             `json:"created_by"`
+	CreatedByKind   string             `json:"created_by_kind"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OfficeOfflinePolicy struct {
+	OrganizationID string             `json:"organization_id"`
+	Epoch          int64              `json:"epoch"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Organization struct {

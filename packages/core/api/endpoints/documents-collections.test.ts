@@ -3,6 +3,7 @@ import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
   archiveDocument,
+  getDocumentArchiveImpact,
   getDocumentTree,
   listDocuments,
   listRecentDocuments,
@@ -262,5 +263,143 @@ describe("documents-collections endpoints", () => {
   it("an archive answer without the document is not verifiable", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ batch_id: "b1", affected: ["d1"] }));
     await expect(archiveDocument("d1")).resolves.toBeNull();
+  });
+
+  // ---- FD-06 (UNI-1466): folders contract v1.0 (addendum §4) -------------
+
+  it("listDocuments sends kind=document and match=title for a title search", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listDocuments("w1", { q: "hop dong", kind: "document", match: "title" });
+    const parsed = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(parsed.searchParams.get("kind")).toBe("document");
+    expect(parsed.searchParams.get("match")).toBe("title");
+    expect(parsed.searchParams.get("q")).toBe("hop dong");
+  });
+
+  it("listDocuments leaves match off when the caller does not ask for it", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listDocuments("w1", { q: "x" });
+    expect(new URL(String(vi.mocked(fetch).mock.calls[0]![0])).searchParams.has("match")).toBe(false);
+  });
+
+  it("list rows carry the path from the root, and a missing or drifted path reads as []", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "a", path: [{ id: "f1", title: "Hợp đồng" }, { id: "f2", title: "2026" }] }),
+            summary({ id: "b" }),
+            summary({ id: "c", path: "f1/f2" }),
+            summary({ id: "d", path: [{ id: 1 }] }),
+            summary({ id: "e", path: null }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocuments("w1", { q: "x", match: "title" });
+    expect(out.documents.map((d) => [d.id, d.path])).toEqual([
+      ["a", [{ id: "f1", title: "Hợp đồng" }, { id: "f2", title: "2026" }]],
+      ["b", []],
+      ["c", []],
+      ["d", []],
+      ["e", []],
+    ]);
+  });
+
+  it("a malformed ancestor cuts the path there and keeps the valid prefix", async () => {
+    const f1 = { id: "f1", title: "Hợp đồng" };
+    const f2 = { id: "f2", title: "2026" };
+    const f3 = { id: "f3", title: "Q4" };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "a", path: [f1, f2, f3] }),
+            summary({ id: "b", path: [f1, { id: 2 }, f3] }),
+            summary({ id: "c", path: [{ title: "no id" }, f2] }),
+            summary({ id: "d", path: [f1, f2, null] }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocuments("w1", { q: "x", match: "title" });
+    expect(out.documents.map((d) => [d.id, d.path])).toEqual([
+      ["a", [f1, f2, f3]],
+      ["b", [f1]],
+      ["c", []],
+      ["d", [f1, f2]],
+    ]);
+  });
+
+  it("getDocumentTree asks for folders only when told to", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [treeNode({ kind: "folder" })] }));
+    await getDocumentTree("w1", undefined, undefined, { foldersOnly: true });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/tree?folders_only=true",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [] }));
+    await getDocumentTree("w1", "r/1", undefined, { foldersOnly: true });
+    const parsed = new URL(String(vi.mocked(fetch).mock.calls[1]![0]));
+    expect(parsed.searchParams.get("root")).toBe("r/1");
+    expect(parsed.searchParams.get("folders_only")).toBe("true");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [] }));
+    await getDocumentTree("w1", undefined, undefined, { foldersOnly: false });
+    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/tree",
+    );
+  });
+
+  it.each(malformedBodies)("getDocumentTree with folders_only throws rather than fake-empty %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(getDocumentTree("w1", undefined, undefined, { foldersOnly: true })).rejects.toThrow(
+      "document_tree_invalid",
+    );
+  });
+
+  it("getDocumentArchiveImpact reads the counts of a subtree under the cap", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ folders: 3, documents: 12, total: 16, max_nodes: 1000, too_large: false }),
+    );
+    const out = await getDocumentArchiveImpact("d/1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d%2F1/archive-impact");
+    expect(init?.method ?? "GET").toBe("GET");
+    expect(out).toEqual({ folders: 3, documents: 12, total: 16, max_nodes: 1000, too_large: false });
+  });
+
+  it("getDocumentArchiveImpact reads a subtree past the cap without counts", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ too_large: true, max_nodes: 1000 }));
+    await expect(getDocumentArchiveImpact("d1")).resolves.toEqual({ too_large: true, max_nodes: 1000 });
+  });
+
+  it("getDocumentArchiveImpact reads an answer without too_large as under the cap", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ folders: 0, documents: 0, total: 1, max_nodes: 1000 }));
+    await expect(getDocumentArchiveImpact("d1")).resolves.toEqual({
+      folders: 0,
+      documents: 0,
+      total: 1,
+      max_nodes: 1000,
+      too_large: false,
+    });
+  });
+
+  // An impact that cannot be read never turns into counts: a missing count,
+  // a negative or fractional one, or no cap degrades to null (never a throw),
+  // and the hook turns null into "result not verifiable".
+  it.each([
+    ...malformedBodies,
+    {},
+    { folders: 1, documents: 2, max_nodes: 1000, too_large: false },
+    { folders: -1, documents: 2, total: 4, max_nodes: 1000, too_large: false },
+    { folders: 1.5, documents: 2, total: 4, max_nodes: 1000, too_large: false },
+    { folders: "1", documents: 2, total: 4, max_nodes: 1000, too_large: false },
+    { folders: 1, documents: 2, total: 4, too_large: false },
+    { too_large: true },
+    { too_large: "yes", max_nodes: 1000 },
+  ])("getDocumentArchiveImpact degrades to null %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(getDocumentArchiveImpact("d1")).resolves.toBeNull();
   });
 });

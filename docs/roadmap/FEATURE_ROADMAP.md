@@ -83,6 +83,13 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | C-17 | Họp chính thức: điểm danh (thành viên/dự thính, thư ký, tỉ lệ có mặt tối thiểu, chốt là khóa) và biểu quyết (công khai hoặc kín thật, quá bán hoặc 2/3 trên số có mặt hoặc tổng thành viên); kết quả trên trang chi tiết, dòng thời gian và tóm tắt AI `meeting_summary@2`; xuất biên bản để đợt sau | Meeting | MỘT PHẦN (UNI-891; đợt 1 Điểm danh đã merge 2026-09-30, UNI-892, PR #165; đợt 2 Biểu quyết UNI-893 trên nhánh `feature/UNI-893-…`) | `2026-09-30-meeting-attendance-voting-design.md` (đã duyệt 2026-09-30); plan [đợt 1](../superpowers/plans/2026-09-30-meeting-attendance.md), [đợt 2](../superpowers/plans/2026-10-01-meeting-motions.md) | P1 |
 | C-18 | Cỡ chữ (trợ năng): ba mức Mặc định / Lớn / Rất lớn trong Cài đặt → Tùy chọn, lưu theo thiết bị; chữ to theo thang token, bố cục và icon giữ nguyên | Cross-cutting | MỘT PHẦN (UNI-1429; nhánh `feature/UNI-1429-cai-dat-co-chu-tro-nang`, chờ PR) | `2026-10-13-text-size-design.md`; plan [2026-10-13-text-size](../superpowers/plans/2026-10-13-text-size.md) | P2 |
 
+**Đề xuất 2026-10-02, cập nhật 2026-10-12 — C-01/C-15/C-16, UNI-923:** [Spec phase Office G5/G6/G7](../superpowers/specs/2026-10-02-office-g5-g6-g7-design.md)
+gom thiết kế đồng bộ/offline (UNI-660), AI Office với nhà cung cấp "UniWork AI" sau ai.Gateway (UNI-635) và kiểm thử/phát hành (UNI-661),
+trên nền genoffice (UNI-1001, ADR 0028/0029). G6 bao gồm endpoint UniWork AI, upstream model bằng cấu hình của provider có sẵn,
+instruction pack quy trình Office có version và bộ đánh giá; spec v1.2 bỏ Dify và RAG (U-12, người dùng 2026-10-12).
+Ưu tiên XLSX chat/tính toán và AI sửa DOCX. Triển khai do đội khác; đây là spec bàn giao, chưa thay trạng thái các hàng trên.
+Knowledge/search toàn công ty vẫn thuộc A-04.
+
 **Tiêu chí thoát**: 5 tenant pilot ≥ 30 ngày, ≥ 3 tiếp tục; 1 hóa đơn thật; ≥ 20 cuộc họp
 có transcript + tóm tắt thật; pentest 0 High/Critical mở; availability ≥ 99,9% trong 60 ngày.
 

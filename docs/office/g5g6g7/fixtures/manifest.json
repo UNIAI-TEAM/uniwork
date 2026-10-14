@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-g5g6g7-fixtures",
+  "fixtures": [
+    {
+      "id": "fx-xlsx-revenue-xyz",
+      "path": "docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.xlsx",
+      "format": "xlsx",
+      "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "bytes": 18806,
+      "synthetic": true,
+      "description": "Revenue workbook (Vietnamese labels): X = quantity, Y = unit price, Z = discount, four sheets, revenue = X*Y*(1-Z).",
+      "features": [
+        "multi-sheet: Doanh thu Q1, Doanh thu Q2, Tổng hợp, Ghi chú",
+        "Vietnamese text with diacritics in headers, regions, products and notes",
+        "Z stored as the plain number 10 (Q1-003, Q2-003) and as 10% (percent format, value 0.1)",
+        "blank Z cell (Q1-004, Q2-004) meaning no discount",
+        "hidden rows: Q1-005 (row 6) and Q2-005 (row 6)",
+        "totals row with SUM formulas and a second totals row with SUBTOTAL(109) that skips hidden rows",
+        "cached formula values present and correct",
+        "error cells: #DIV/0! (Doanh thu Q2!H5), #N/A (Doanh thu Q2!I2), #REF! (Tổng hợp!B7)",
+        "cross-sheet SUMIF summary with a percent-format share column"
+      ],
+      "oracle": "docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.oracle.json",
+      "oracleSha256": "7ecbbe369a5395e87bcc5f501f6ef0f6e64fc40929d5cb7f19730029902b0e32"
+    },
+    {
+      "id": "fx-docx-report-vi",
+      "path": "docs/office/g5g6g7/fixtures/fx-docx-report-vi.docx",
+      "format": "docx",
+      "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "bytes": 11187,
+      "synthetic": true,
+      "description": "Vietnamese quarterly report: title, headings, a revenue table, a bullet list, no comments.",
+      "features": [
+        "Title + Heading1/Heading2 styles",
+        "table with header row and totals row",
+        "bullet list",
+        "no comments",
+        "A4 page"
+      ],
+      "oracle": "docs/office/g5g6g7/fixtures/fx-docx-report-vi.oracle.json",
+      "oracleSha256": "d3055d0577a3e47f0fd67d241f6ed6ac490c656f2016ab1cd7be187eb3865709"
+    },
+    {
+      "id": "fx-pptx-deck-vi",
+      "path": "docs/office/g5g6g7/fixtures/fx-pptx-deck-vi.pptx",
+      "format": "pptx",
+      "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20",
+      "bytes": 25849,
+      "synthetic": true,
+      "description": "Vietnamese three-slide deck: title slide, bullet slide, table slide.",
+      "features": [
+        "3 slides",
+        "title and subtitle placeholders",
+        "bullet list",
+        "table graphic frame",
+        "16:9"
+      ],
+      "oracle": "docs/office/g5g6g7/fixtures/fx-pptx-deck-vi.oracle.json",
+      "oracleSha256": "4ecc1fd7635074ce4fd763702c3aae6ccfe8050b14b00185ffc883fad3502697"
+    },
+    {
+      "id": "fx-pdf-invoice-vi",
+      "path": "docs/office/g5g6g7/fixtures/fx-pdf-invoice-vi.pdf",
+      "format": "pdf",
+      "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd",
+      "bytes": 99002,
+      "synthetic": true,
+      "description": "Vietnamese sales invoice, one A4 page with a text layer and embedded Noto Sans subsets.",
+      "features": [
+        "1 page",
+        "text layer with ToUnicode (extractable Vietnamese)",
+        "embedded TrueType subsets (OFL Noto Sans)",
+        "line-item table drawn with rules"
+      ],
+      "oracle": "docs/office/g5g6g7/fixtures/fx-pdf-invoice-vi.oracle.json",
+      "oracleSha256": "484f2c3fde649fea6fc244ed900f78adfb829513f1d4b9eb32b9bfc68f552cfb"
+    },
+    {
+      "id": "fx-md-notes-vi",
+      "path": "docs/office/g5g6g7/fixtures/fx-md-notes-vi.md",
+      "format": "md",
+      "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def",
+      "bytes": 723,
+      "synthetic": true,
+      "description": "Vietnamese meeting notes in Markdown: headings, a pipe table, a fenced code block, a task list.",
+      "features": [
+        "ATX headings",
+        "pipe table with alignment row",
+        "fenced code block (excel)",
+        "task list",
+        "UTF-8, LF line endings"
+      ],
+      "oracle": "docs/office/g5g6g7/fixtures/fx-md-notes-vi.oracle.json",
+      "oracleSha256": "878bd37758dafd3e2f7eb12da5c8c37bd15f8262ea346cbc15e0bd6091e326b2"
+    },
+    {
+      "id": "fx-html-page-vi",
+      "path": "docs/office/g5g6g7/fixtures/fx-html-page-vi.html",
+      "format": "html",
+      "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884",
+      "bytes": 955,
+      "synthetic": true,
+      "description": "Vietnamese HTML page: lang=\"vi\", a captioned table, no scripts or external resources.",
+      "features": [
+        "html lang=\"vi\"",
+        "table with caption, thead and tbody",
+        "no scripts",
+        "no external resources",
+        "UTF-8"
+      ],
+      "oracle": "docs/office/g5g6g7/fixtures/fx-html-page-vi.oracle.json",
+      "oracleSha256": "f5a56d708059ec979840d33be0caa9e6ee983deb98b0e91eade0f703315c3988"
+    }
+  ]
+}

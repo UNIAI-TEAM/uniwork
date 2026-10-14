@@ -32,7 +32,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertMatchesPin, assertModule, buildPin, OFFICE_MODULES } from "../platform/office-frame/frame-bundle.mjs";
-import { assertHeadersMatchPin, checkInstalled, install, loadBundle, locateModuleBundle, materialize, redactSourceUrl } from "../platform/office-frame/frame-install.mjs";
+import { assertHeadersMatchPin, assertProtocolMatchesPin, checkInstalled, install, loadBundle, locateModuleBundle, materialize, redactSourceUrl } from "../platform/office-frame/frame-install.mjs";
 import { assertFrameComplete, isProductionBuild } from "../platform/office-frame/frame-production.mjs";
 import { pinPath, readPin } from "../platform/office-frame/frame-headers.mjs";
 import { resolveSource } from "../platform/office-frame/frame-source.mjs";
@@ -65,6 +65,7 @@ async function sync({ source, sha256, modules, named, repin, allowDirty }) {
         throw new Error(`no ${module}.pin.json; run with --pin once to record the build you intend to serve`);
       } else {
         assertMatchesPin(pin, bundle.manifest, bundle.manifestSha256);
+        assertProtocolMatchesPin(pin, bundle.manifest);
         assertHeadersMatchPin(pin, bundle.headers, bundle.documents);
       }
       const target = install(dir, bundle, publicRoot(module));

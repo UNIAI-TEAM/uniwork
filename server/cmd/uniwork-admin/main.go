@@ -1,5 +1,6 @@
 // uniwork-admin grants and revokes users.platform_role (spec F-11 §5.3) and
-// revokes a user's desktop device on their behalf. It is the only way to
+// revokes a user's desktop device on their behalf, or every offline lease of
+// one organization (G5-D1 row 8: the offline policy epoch bump). It is the only way to
 // create the first platform admin: there is no UI for it.
 // Runs on the host with DATABASE_URL; every change lands in admin_actions
 // (actor "cli") and audit_events with the reason given.
@@ -8,6 +9,7 @@
 //	uniwork-admin revoke-platform-role --email a@b.c --reason "..."
 //	uniwork-admin list-platform-roles
 //	uniwork-admin revoke-desktop-device --user-id U --device-id D --reason "..."
+//	uniwork-admin revoke-offline-leases --org-id O --reason "..."
 package main
 
 import (
@@ -87,13 +89,29 @@ func main() {
 			return
 		}
 		fmt.Printf("%s revoked (session family %s, %d device session(s) and %d refresh token(s) closed)\n", res.DeviceID, res.SessionFamilyID, res.Revoked, res.TokensRevoked)
+	case "revoke-offline-leases":
+		fs := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
+		orgID := fs.String("org-id", "", "organization whose offline leases end")
+		reason := fs.String("reason", "", "why (≥ 10 characters), recorded in admin_actions")
+		_ = fs.Parse(os.Args[2:])
+		if *orgID == "" {
+			fail("--org-id is required")
+		}
+		res, err := admin.RevokeOrganizationOfflineLeases(ctx, service.CLIActor, *orgID, *reason)
+		if errors.Is(err, service.ErrNotFound) {
+			fail("no organization " + *orgID)
+		}
+		if err != nil {
+			fail(err.Error())
+		}
+		fmt.Printf("%s offline policy epoch now %d, %d live lease(s) revoked\n", res.OrganizationID, res.Epoch, res.Revoked)
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: uniwork-admin grant-platform-role|revoke-platform-role --email E [--role admin|support] --reason R\n       uniwork-admin list-platform-roles\n       uniwork-admin revoke-desktop-device --user-id U --device-id D --reason R")
+	fmt.Fprintln(os.Stderr, "usage: uniwork-admin grant-platform-role|revoke-platform-role --email E [--role admin|support] --reason R\n       uniwork-admin list-platform-roles\n       uniwork-admin revoke-desktop-device --user-id U --device-id D --reason R\n       uniwork-admin revoke-offline-leases --org-id O --reason R")
 	os.Exit(2)
 }
 

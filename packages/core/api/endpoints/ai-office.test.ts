@@ -121,6 +121,29 @@ describe("ai-office endpoints", () => {
     expect((await getAiCloudStatus("o1")).enabled).toBe(false);
   });
 
+  it("getAiCloudStatus reads tools.chat and credits_exhausted, a drifted chat as off", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        enabled: true,
+        reason: "credits_exhausted",
+        tools: { chat: true },
+        credits: { unit: "ai.tokens", used: 100, limit: 100, remaining: 0, period_end: null },
+      }),
+    );
+    const spent = await getAiCloudStatus("o1");
+    expect(spent.tools.chat).toBe(true);
+    expect(spent.reason).toBe("credits_exhausted");
+    expect(spent.credits.remaining).toBe(0);
+    // An older server has no chat key: off.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, tools: { web_search: true } }));
+    expect((await getAiCloudStatus("o1")).tools.chat).toBe(false);
+    // A malformed chat value fails the status as a whole: disabled, chat off.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, tools: { chat: "yes" } }));
+    const drifted = await getAiCloudStatus("o1");
+    expect(drifted.enabled).toBe(false);
+    expect(drifted.tools.chat).toBe(false);
+  });
+
   it("aiCloudSearch posts the query and degrades to no results", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ results: [{ title: "T", url: "https://x", snippet: "s", image_url: "https://i" }], answer: "A" }),

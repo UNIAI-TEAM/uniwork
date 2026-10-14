@@ -139,6 +139,9 @@ const (
 	ActionDocumentVersionCreated  = "document.version_created"
 	ActionDocumentVersionRestored = "document.version_restored"
 	ActionDocumentAssetUploaded   = "document.asset_uploaded"
+	// G5-07 (UNI-1345): a commit attempt took over a logical intent whose
+	// previous attempt's claim expired, fencing that attempt for good.
+	ActionDocumentCommitIntentRenewed = "document.commit_intent_renewed"
 
 	// Document access (UNI-676): shares and public links on one document,
 	// and the organization's public-link switch.
@@ -158,6 +161,7 @@ const (
 	ActionDocumentCommentUnresolved      = "document.comment_unresolved"
 	ActionDocumentCommentReactionAdded   = "document.comment_reaction_added"
 	ActionDocumentCommentReactionRemoved = "document.comment_reaction_removed"
+	ActionDocumentCommentAnchorsUpdated  = "document.comment_anchors_updated"
 	ActionDocumentFavorited              = "document.favorited"
 	ActionDocumentUnfavorited            = "document.unfavorited"
 
@@ -183,6 +187,16 @@ const (
 	ActionOfficeLaunchSessionRedeemed = "office.launch_session_redeemed"
 	ActionOfficeLaunchSessionRevoked  = "office.launch_session_revoked"
 	ActionOfficeDesktopDownloaded     = "office.desktop_downloaded"
+
+	// Office offline leases (G5-08s, decision G5-D1 row 16): grant, renew,
+	// release and revoke of one device's lease on one document, each with an
+	// office_lease.* outbox row; a revoke names its reason in metadata. The
+	// policy bump is the uniwork-admin org-wide revoke (admin_actions too).
+	ActionOfficeOfflineLeaseGranted  = "office.offline_lease_granted"
+	ActionOfficeOfflineLeaseRenewed  = "office.offline_lease_renewed"
+	ActionOfficeOfflineLeaseReleased = "office.offline_lease_released"
+	ActionOfficeOfflineLeaseRevoked  = "office.offline_lease_revoked"
+	ActionOfficeOfflinePolicyBumped  = "office.offline_policy_bumped"
 
 	// Saved signatures (UNI-925 B6): a person's reusable signature images,
 	// stored server-side. Rows are personal and only the owner's own editor
