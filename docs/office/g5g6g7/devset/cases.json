@@ -171,7 +171,18 @@
           { "label": "valid_unit_after_sum", "value": 5070, "tolerance": 0 },
           { "label": "valid_unit_after_avg", "value": 1014, "tolerance": 0 }
         ],
-        "mustContainTokens": ["BH-106", "#DIV/0!", "#N/A"]
+        "mustContainTokens": ["BH-106", "#DIV/0!", "#N/A"],
+        "mustNotContainTokens": [
+          "845",
+          "h7 = 0",
+          "i7 = 0",
+          "h7: 0",
+          "i7: 0",
+          "trung bình là 0",
+          "trung bình cộng là 0",
+          "kết quả: 0",
+          "kết quả là 0"
+        ]
       }
     },
     {
@@ -202,7 +213,18 @@
           { "label": "valid_unit_after_sum", "value": 5070, "tolerance": 0 },
           { "label": "valid_unit_after_avg", "value": 1014, "tolerance": 0 }
         ],
-        "mustContainTokens": ["BH-106", "#DIV/0!", "#N/A"]
+        "mustContainTokens": ["BH-106", "#DIV/0!", "#N/A"],
+        "mustNotContainTokens": [
+          "845",
+          "h7 = 0",
+          "i7 = 0",
+          "h7: 0",
+          "i7: 0",
+          "average is 0",
+          "average = 0",
+          "result: 0",
+          "result is 0"
+        ]
       }
     },
     {
@@ -236,6 +258,16 @@
         "mustContainTokens": ["LEGACYCACHE"],
         "mustContainAny": [
           ["cache", "bộ nhớ đệm", "chưa được tính lại", "not recalculated", "#name?"]
+        ],
+        "mustNotContainTokens": [
+          "99999",
+          "99.999",
+          "99,999",
+          "88888",
+          "88.888",
+          "88,888",
+          "d2 = 99999",
+          "d3 = 88888"
         ]
       }
     },
@@ -270,6 +302,16 @@
         "mustContainTokens": ["LEGACYCACHE"],
         "mustContainAny": [
           ["cached", "stale", "not recalculated", "#name?", "unverified"]
+        ],
+        "mustNotContainTokens": [
+          "99999",
+          "99,999",
+          "99.999",
+          "88888",
+          "88,888",
+          "88.888",
+          "d2 = 99999",
+          "d3 = 88888"
         ]
       }
     },

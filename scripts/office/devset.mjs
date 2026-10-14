@@ -652,6 +652,61 @@ function textHasNumber(text, target, tolerance = 0) {
 }
 
 /**
+ * Extracts the conclusion part of an assistant reply for negative-oracle checks
+ * (G6-A02 / BE68-6). Consistent with the instruction pack ("Result first, then
+ * its scope" in common rule 5 and sheets "Answer shape"), the conclusion part
+ * comprises:
+ *   1. Explicit result/conclusion lines or sentences (e.g. "Kết quả:", "Kết luận:",
+ *      "Result:", "Conclusion:", "Answer:"),
+ *   2. Any sentence/clause that positively equates a cell or metric to a final
+ *      answer (e.g. "D2 = 99999 là kết quả", "is the result", "H7 = 0", "845"),
+ *   3. The opening result sentence and closing conclusion sentence, excluding
+ *      sentences that solely explain why a stale cached value or error cell is
+ *      rejected/skipped (e.g. "không được dùng cache cũ 99999", "stale cached
+ *      value 99999 must not be used", "do not substitute 0 for #DIV/0!").
+ */
+export function extractConclusionPart(answer) {
+  const text = String(answer ?? '').trim();
+  if (!text) return '';
+  const segments = text
+    .split(/\n+|(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (segments.length === 0) return '';
+
+  const positiveResultClaimRe =
+    /(?:\b(?:kết quả|kết luận|đáp án|result|answer|conclusion)\s*(?:là|is|:|=)\s*(?:d[23]\s*=\s*)?(?:99[.,]?999|88[.,]?888|0\b|845\b))|(?:\bd[23]\s*=\s*(?:99[.,]?999|88[.,]?888)\b)|(?:\b[hi]7\s*[:=]\s*0\b)|(?:\b(?:trung bình(?: cộng)?|average)\b[^.\n]*?\b(?:845|là\s+0|is\s+0|=\s*0)\b)/i;
+
+  const cacheOrErrorCaveatRe =
+    /(?:cache|bộ nhớ đệm|not recalculated|chưa được tính lại|stale|unverified|không được dùng|không dùng|must not|do not|cannot be used|không thay|không được thay|bỏ qua|skipped|excluded|#div\/0!|#n\/a|#name\?)/i;
+
+  const explicitHeaderRe =
+    /^(?:[*#-]*\s*)?(?:kết quả|kết luận|đáp án|tóm lại|result|conclusion|final answer|answer)\b/i;
+
+  const selected = [];
+  segments.forEach((seg, idx) => {
+    if (positiveResultClaimRe.test(seg)) {
+      selected.push(seg);
+      return;
+    }
+    if (explicitHeaderRe.test(seg) && !cacheOrErrorCaveatRe.test(seg)) {
+      selected.push(seg);
+      return;
+    }
+    if ((idx === 0 || idx === segments.length - 1) && !cacheOrErrorCaveatRe.test(seg)) {
+      selected.push(seg);
+    }
+  });
+
+  if (selected.length === 0) {
+    return segments
+      .filter((seg) => !cacheOrErrorCaveatRe.test(seg) || positiveResultClaimRe.test(seg))
+      .join('\n');
+  }
+  return selected.join('\n');
+}
+
+/**
  * Deterministic scorer for a dev set case against a recorded run result:
  * { answerText, toolCalls: [{name, input, output}], mutatedBlocks?: [{index, text}], writes?: number }
  */
@@ -738,12 +793,15 @@ export function scoreDevCase(caseDoc, runResult) {
     });
   }
 
+  const conclusionText = extractConclusionPart(answer);
   for (const badToken of caseDoc.oracle.mustNotContainTokens ?? []) {
-    const present = answer.toLowerCase().includes(String(badToken).toLowerCase());
+    const present = conclusionText.toLowerCase().includes(String(badToken).toLowerCase());
     checks.push({
       id: `forbid_token:${badToken}`,
       passed: !present,
-      detail: !present ? ` cleanly omitted "${badToken}"` : `forbidden token "${badToken}" present`,
+      detail: !present
+        ? `conclusion cleanly omitted "${badToken}"`
+        : `forbidden token "${badToken}" present in conclusion ("${conclusionText.slice(0, 120)}")`,
     });
   }
 
@@ -803,7 +861,49 @@ function writeFixturesToDisk() {
   return generated;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const generated = writeFixturesToDisk();
-  process.stdout.write(`wrote ${generated.fixtures.length} devset fixtures and ${DEVSET_MANIFEST_PATH}\n`);
+export function verifyFixturesOnDisk(rootDir = repoRoot) {
+  const generated = buildDevFixtures();
+  const problems = [];
+  const manifestAbs = path.join(rootDir, DEVSET_MANIFEST_PATH);
+  if (!fs.existsSync(manifestAbs)) {
+    problems.push(`missing ${DEVSET_MANIFEST_PATH}`);
+  } else if (fs.readFileSync(manifestAbs, 'utf8') !== generated.manifestText) {
+    problems.push(`${DEVSET_MANIFEST_PATH} out of sync with devset.mjs`);
+  }
+  const attrAbs = path.join(rootDir, generated.attributesPath);
+  if (!fs.existsSync(attrAbs)) {
+    problems.push(`missing ${generated.attributesPath}`);
+  } else if (fs.readFileSync(attrAbs, 'utf8') !== generated.attributesText) {
+    problems.push(`${generated.attributesPath} out of sync with devset.mjs`);
+  }
+  for (const f of generated.fixtures) {
+    const fAbs = path.join(rootDir, f.path);
+    if (!fs.existsSync(fAbs)) {
+      problems.push(`missing ${f.path}`);
+    } else if (sha256(fs.readFileSync(fAbs)) !== f.sha256) {
+      problems.push(`${f.path} sha256 mismatch`);
+    }
+    const oAbs = path.join(rootDir, f.oraclePath);
+    if (!fs.existsSync(oAbs)) {
+      problems.push(`missing ${f.oraclePath}`);
+    } else if (fs.readFileSync(oAbs, 'utf8') !== f.oracleText) {
+      problems.push(`${f.oraclePath} oracle text mismatch`);
+    }
+  }
+  return { ok: problems.length === 0, problems, count: generated.fixtures.length };
 }
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  if (process.argv.slice(2).includes('--check')) {
+    const res = verifyFixturesOnDisk(repoRoot);
+    if (!res.ok) {
+      process.stderr.write(`devset fixture check failed:\n${res.problems.join('\n')}\n`);
+      process.exit(1);
+    }
+    process.stdout.write(`verified ${res.count} devset fixtures and ${DEVSET_MANIFEST_PATH}\n`);
+  } else {
+    const generated = writeFixturesToDisk();
+    process.stdout.write(`wrote ${generated.fixtures.length} devset fixtures and ${DEVSET_MANIFEST_PATH}\n`);
+  }
+}
+

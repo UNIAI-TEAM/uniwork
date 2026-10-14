@@ -1,6 +1,6 @@
 # Bộ dữ liệu phát triển G6-08 (`docs/office/g5g6g7/devset/`)
 
-> **Trạng thái:** đang thực hiện (`G6-08`, tách biệt hoàn toàn với `docs/office/g5g6g7/holdout/`)
+> **Trạng thái:** Hoàn thành (`G6-08`, UNI-1373 — tách biệt hoàn toàn với `docs/office/g5g6g7/holdout/`)
 
 Tài liệu này mô tả bộ dữ liệu phát triển (dev set) tổng hợp dùng để đo lường và tinh chỉnh gói chỉ dẫn `office_uniwork_ai` từ `@1` lên `@2` trong phạm vi `G6-08` (ADR 0037).
 

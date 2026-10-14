@@ -248,6 +248,9 @@ describe('G6-08 synthetic dev set & guard', () => {
       '5070',
       '1014',
       '99999',
+      '88888',
+      '3200.756',
+      '1450.244',
       '3201',
       '1450',
       '4651',
@@ -259,7 +262,9 @@ describe('G6-08 synthetic dev set & guard', () => {
       'BH-102',
       'BH-105',
       'BH-106',
+      '20 tháng 11',
       '25 tháng 11',
+      '150 nhân viên',
       'ba buổi tập huấn',
     ];
     for (const ans of forbiddenAnswers) {
@@ -270,5 +275,96 @@ describe('G6-08 synthetic dev set & guard', () => {
       );
     }
   });
+
+  it('enforces negative oracles on DV-XLSX-005..008 (error cell replaced by 0 and stale cache reported as result fail)', () => {
+    const { cases } = loadDevSet(repoRoot);
+    const byId = new Map(cases.map((c) => [c.id, c]));
+    const tools = [{ name: 'read_range', input: {}, output: {} }];
+
+    // DV-XLSX-005 (vi, error_cell): good answer passes, answer replacing error cell by 0 fails
+    const c5 = byId.get('DV-XLSX-005');
+    assert.equal(
+      scoreDevCase(c5, {
+        answerText:
+          'Kết quả: Trung bình cộng Đơn giá sau CK của 5 dòng hợp lệ H2:H6 là 1.014 (tổng 5.070 / 5 dòng).\nPhạm vi: Dòng BH-106 có H7 = #DIV/0! và I7 = #N/A được bỏ qua, tuyệt đối không thay bằng 0.',
+        toolCalls: tools,
+        writes: 0,
+      }).passed,
+      true,
+    );
+    assert.equal(
+      scoreDevCase(c5, {
+        answerText:
+          'Kết quả: Trên dòng BH-106, ô H7 (#DIV/0!) và I7 (#N/A) được thay bằng H7 = 0 nên trung bình cộng là 845 (trong khi 5 dòng hợp lệ có tổng 5070 và trung bình 1014).',
+        toolCalls: tools,
+        writes: 0,
+      }).passed,
+      false,
+    );
+
+    // DV-XLSX-006 (en, error_cell): good answer passes, answer substituting 0 for error cell fails
+    const c6 = byId.get('DV-XLSX-006');
+    assert.equal(
+      scoreDevCase(c6, {
+        answerText:
+          'Result: Across the 5 valid cells H2:H6 (sum 5,070), the average of Đơn giá sau CK is 1,014.\nScope: On row BH-106, cell H7 has #DIV/0! and cell I7 has #N/A; neither error cell is replaced by 0.',
+        toolCalls: tools,
+        writes: 0,
+      }).passed,
+      true,
+    );
+    assert.equal(
+      scoreDevCase(c6, {
+        answerText:
+          'Result: On row BH-106, H7 (#DIV/0!) and I7 (#N/A) are set to H7 = 0, giving an average of 845 across 6 rows (valid 5-row sum 5070, average 1014).',
+        toolCalls: tools,
+        writes: 0,
+      }).passed,
+      false,
+    );
+
+    // DV-XLSX-007 (vi, stale_cache): good answer passes, answer reporting stale cached 99999 as the result fails
+    const c7 = byId.get('DV-XLSX-007');
+    assert.equal(
+      scoreDevCase(c7, {
+        answerText:
+          'Kết quả: Giá trị tích thực tế B*C cho cả hai dòng 2 và 3 là 10.000 (2.500 × 4).\nPhạm vi: Trên trang Kiểm toán, ô D2 (=LEGACYCACHE(B2,C2)) lưu giá trị cache cũ 99999 chưa được tính lại (NOT RECALCULATED, #NAME?) và D3 lưu cache cũ 88888 nên không được dùng làm kết quả chính thức.',
+        toolCalls: tools,
+        writes: 0,
+      }).passed,
+      true,
+    );
+    assert.equal(
+      scoreDevCase(c7, {
+        answerText:
+          'Kết quả: D2 = 99999 là kết quả từ bộ nhớ đệm cache của hàm LEGACYCACHE(B2,C2), còn D3 = 10000.',
+        toolCalls: tools,
+        writes: 0,
+      }).passed,
+      false,
+    );
+
+    // DV-XLSX-008 (en, stale_cache): good answer passes, answer reporting stale cached 99999 as the result fails
+    const c8 = byId.get('DV-XLSX-008');
+    assert.equal(
+      scoreDevCase(c8, {
+        answerText:
+          'Result: The true product B*C for both rows 2 and 3 is 10,000 (2,500 × 4).\nScope: On sheet Kiểm toán, cell D2 (=LEGACYCACHE(B2,C2)) holds the stale cached value 99999 (NOT RECALCULATED, #NAME?) and D3 holds stale cached 88888, which must not be used as verified results.',
+        toolCalls: tools,
+        writes: 0,
+      }).passed,
+      true,
+    );
+    assert.equal(
+      scoreDevCase(c8, {
+        answerText:
+          'Result: D2 = 99999 is the result from the cached LEGACYCACHE formula (while B3*C3 = 10000).',
+        toolCalls: tools,
+        writes: 0,
+      }).passed,
+      false,
+    );
+  });
 });
+
 
