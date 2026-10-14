@@ -210,11 +210,9 @@ function ChatMessageRowImpl({
                   : cn("px-3 py-2", chatBubbleShape(isOwn, !compactTop), isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
               )}
             >
-              {replyToMessage && workspaceId && roomId ? (
+              {replyToMessage ? (
                 <ChatReplyQuote
                   message={replyToMessage}
-                  workspaceId={workspaceId}
-                  roomId={roomId}
                   isOwn={isOwn}
                   onJump={onJumpToMessage}
                 />

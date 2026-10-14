@@ -24,3 +24,12 @@ SELECT d.file_id FROM file_derivatives d
 JOIN files s ON s.id = d.source_file_id
 WHERE d.file_id = ANY(sqlc.arg('file_ids')::text[])
   AND s.status <> 'deleted';
+
+-- name: ListFileDerivatives :many
+-- The batch form of GetFileDerivative for ResolveMany: the derived files
+-- behind sources the module already authorized; the tenant comes from the
+-- caller's scope.
+SELECT source_file_id, file_id FROM file_derivatives
+WHERE source_file_id = ANY(sqlc.arg('source_file_ids')::text[])
+  AND variant = sqlc.arg('variant')
+  AND organization_id = sqlc.arg('organization_id');

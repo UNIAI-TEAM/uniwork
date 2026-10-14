@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useId, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert, Check, Info, RefreshCw } from "lucide-react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -265,10 +265,33 @@ export function SettingsLoadError({ children, onRetry }: { children?: ReactNode;
  * The inline reason a field was refused, tied to the field by id
  * (`aria-describedby` + `aria-invalid` on the input). Never colour alone: the
  * icon and the words carry it.
+ *
+ * A polite live region, not an alert like onboarding's server errors: most of
+ * these follow typing (a confirmation that does not match yet), and an
+ * assertive one would cut in on every keystroke. A live region is only
+ * announced reliably when it exists before its message, so a field whose
+ * error comes and goes as the reader types keeps it mounted and passes
+ * `null` while there is nothing to say; it then renders empty and takes no
+ * room. `live={false}` inside a container that already announces (a
+ * `role="alert"` refusal), so nothing is read twice.
  */
-export function SettingsFieldError({ id, children, className }: { id: string; children: ReactNode; className?: string }) {
+export function SettingsFieldError({
+  id,
+  children,
+  className,
+  live = true,
+}: {
+  id: string;
+  children: ReactNode;
+  className?: string;
+  live?: boolean;
+}) {
+  const politeness = live ? "polite" : undefined;
+  if (children === null || children === undefined || children === false) {
+    return <p id={id} aria-live={politeness} className="sr-only" />;
+  }
   return (
-    <p id={id} className={cn("flex items-start gap-1.5 text-caption text-destructive", className)}>
+    <p id={id} aria-live={politeness} className={cn("flex items-start gap-1.5 text-caption text-destructive", className)}>
       <CircleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
       <span className="text-pretty">{children}</span>
     </p>
@@ -326,20 +349,34 @@ export function SettingsBadge({
 export function SettingsDangerZone({
   title,
   description,
+  pending = false,
+  headingRef,
   children,
 }: {
   title: ReactNode;
   description?: ReactNode;
+  /** What the zone holds is not known yet (the role is loading): the description's line is held by a skeleton. */
+  pending?: boolean;
+  /**
+   * Lets the tab move focus here when the rows inside change under the
+   * reader (ownership handed over), so focus lands on the zone, not <body>.
+   */
+  headingRef?: Ref<HTMLHeadingElement>;
   children: ReactNode;
 }) {
   const headingId = useId();
   return (
-    <section className="space-y-3" aria-labelledby={headingId}>
+    <section className="space-y-3" aria-labelledby={headingId} aria-busy={pending || undefined}>
       <div className="min-w-0">
-        <h3 id={headingId} className="text-body font-semibold text-destructive">
+        {/* tabIndex -1: focusable by script only. No outline-none, so the
+            global :focus-visible outline shows a keyboard user where focus
+            landed; rounded-sm softens it. */}
+        <h3 ref={headingRef} id={headingId} tabIndex={-1} className="rounded-sm text-body font-semibold text-destructive">
           {title}
         </h3>
-        {description ? (
+        {pending ? (
+          <Skeleton aria-hidden className="mt-1.5 h-4 w-72 max-w-full" />
+        ) : description ? (
           <p className="mt-1 max-w-[68ch] text-caption leading-5 text-pretty text-muted-foreground">{description}</p>
         ) : null}
       </div>
@@ -361,6 +398,22 @@ export function SettingsRowReason({ children }: { children: ReactNode }) {
       <Info aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
       <span className="text-pretty">{children}</span>
     </span>
+  );
+}
+
+/**
+ * One SettingsRow's shape while what it will say is still being read: label,
+ * description and an action the width of the danger-row actions.
+ */
+export function SettingsRowSkeleton() {
+  return (
+    <div aria-hidden className="flex min-h-16 flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-3 w-64 max-w-full" />
+      </div>
+      <Skeleton className="h-8 w-full rounded-control sm:w-36 pointer-coarse:h-11" />
+    </div>
   );
 }
 

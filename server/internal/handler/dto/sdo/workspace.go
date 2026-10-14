@@ -86,14 +86,15 @@ type InvitationInvitedByDTO struct {
 }
 
 type PendingInvitationDTO struct {
-	ID           string                  `json:"id" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
-	Role         string                  `json:"role" example:"member"`
-	Token        string                  `json:"token" example:"inv_01J8X4TOKEN"`
-	ExpiresAt    string                  `json:"expires_at" example:"2026-09-01T09:00:00Z"`
-	OrgRole      string                  `json:"org_role" description:"Vai trò tổ chức khi chấp nhận" example:"member"`
-	Workspace    *InvitationWorkspaceDTO `json:"workspace,omitempty" description:"Vắng mặt với lời mời cấp tổ chức"`
-	Organization InvitationOrgDTO        `json:"organization"`
-	InvitedBy    InvitationInvitedByDTO  `json:"invited_by"`
+	ID           string                   `json:"id" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
+	Role         string                   `json:"role" example:"member"`
+	Token        string                   `json:"token" example:"inv_01J8X4TOKEN"`
+	ExpiresAt    string                   `json:"expires_at" example:"2026-09-01T09:00:00Z"`
+	OrgRole      string                   `json:"org_role" description:"Vai trò tổ chức khi chấp nhận" example:"member"`
+	Workspace    *InvitationWorkspaceDTO  `json:"workspace,omitempty" description:"Workspace gửi lời mời; vắng mặt với lời mời cấp tổ chức"`
+	Workspaces   []InvitationWorkspaceDTO `json:"workspaces" description:"Mọi workspace sẽ vào khi chấp nhận (UNI-1582); rỗng khi chưa cấp"`
+	Organization InvitationOrgDTO         `json:"organization"`
+	InvitedBy    InvitationInvitedByDTO   `json:"invited_by"`
 }
 
 // PendingInvitationListSDO is GET /api/v1/me/invitations.
@@ -102,7 +103,8 @@ type PendingInvitationListSDO struct {
 }
 
 // AcceptInviteSDO is POST /api/v1/invitations/{token}/accept. `workspace` is
-// absent for an invitation to the organization itself (F-03).
+// where the person lands; absent when the organization has none for them yet
+// (UNI-1472).
 type AcceptInviteSDO struct {
 	Organization OrganizationDTO `json:"organization"`
 	Workspace    *WorkspaceDTO   `json:"workspace,omitempty"`
@@ -110,13 +112,14 @@ type AcceptInviteSDO struct {
 
 // InvitationPreviewDTO is the invitation as its invitee sees it, in any state.
 type InvitationPreviewDTO struct {
-	ID           string                  `json:"id" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
-	Status       string                  `json:"status" enum:"pending,expired,revoked,accepted" description:"pending | expired | revoked | accepted" example:"pending"`
-	ExpiresAt    string                  `json:"expires_at" example:"2026-09-01T09:00:00Z"`
-	Organization InvitationOrgDTO        `json:"organization"`
-	Workspace    *InvitationWorkspaceDTO `json:"workspace,omitempty" description:"Vắng mặt với lời mời cấp tổ chức"`
-	OrgRole      string                  `json:"org_role" description:"Vai trò tổ chức khi chấp nhận" example:"member"`
-	InviterName  string                  `json:"inviter_name,omitempty" description:"Tên hiển thị của người mời" example:"Nguyễn Văn An"`
+	ID           string                   `json:"id" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
+	Status       string                   `json:"status" enum:"pending,expired,revoked,accepted" description:"pending | expired | revoked | accepted" example:"pending"`
+	ExpiresAt    string                   `json:"expires_at" example:"2026-09-01T09:00:00Z"`
+	Organization InvitationOrgDTO         `json:"organization"`
+	Workspace    *InvitationWorkspaceDTO  `json:"workspace,omitempty" description:"Workspace gửi lời mời; vắng mặt với lời mời cấp tổ chức"`
+	Workspaces   []InvitationWorkspaceDTO `json:"workspaces" description:"Mọi workspace sẽ vào khi chấp nhận (UNI-1582); rỗng khi chưa cấp"`
+	OrgRole      string                   `json:"org_role" description:"Vai trò tổ chức khi chấp nhận" example:"member"`
+	InviterName  string                   `json:"inviter_name,omitempty" description:"Tên hiển thị của người mời" example:"Nguyễn Văn An"`
 }
 
 // MembershipConflictDTO is one organization the caller belongs to that stands

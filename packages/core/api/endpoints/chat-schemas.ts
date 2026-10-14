@@ -82,11 +82,15 @@ export const ChatMessageSchema = z.object({
         .transform((value) => value ?? []),
     })
     .optional(),
+  // url* are signed storage URLs for this viewer (UNI-1633); empty when the
+  // server could not sign one, and dead after url_expires_at.
   voice: z
     .object({
       duration_ms: z.number().optional().default(0),
       content_type: z.string().optional().default(""),
       size_bytes: z.number().optional().default(0),
+      url: z.string().optional().default(""),
+      url_expires_at: z.string().optional().default(""),
     })
     .optional(),
   file: z
@@ -94,6 +98,10 @@ export const ChatMessageSchema = z.object({
       filename: z.string().optional().default(""),
       content_type: z.string().optional().default(""),
       size_bytes: z.number().optional().default(0),
+      url: z.string().optional().default(""),
+      download_url: z.string().optional().default(""),
+      thumb_url: z.string().optional().default(""),
+      url_expires_at: z.string().optional().default(""),
     })
     .optional(),
   poll: z

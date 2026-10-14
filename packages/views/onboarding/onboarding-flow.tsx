@@ -12,7 +12,7 @@ import {
   type QuestionnaireAnswers,
 } from "@uniwork/core/onboarding";
 import { useOrganizations } from "@uniwork/core/organizations";
-import type { Organization, Workspace } from "@uniwork/core/types";
+import { holdsOrganization, type Organization, type Workspace } from "@uniwork/core/types";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { toast } from "sonner";
 import { OnboardingLogoutButton } from "./components/onboarding-logout-button";
@@ -79,8 +79,20 @@ function AuthedOnboardingFlow({
   const [stepBusy, setStepBusy] = useState(false);
 
   const { data: workspaces = [], isFetched: wsFetched } = useWorkspaces();
-  const { data: organizations = [] } = useOrganizations();
+  const { data: organizations = [], isFetched: orgsFetched } = useOrganizations();
   const canSkipWelcome = wsFetched && workspaces.length > 0;
+  // UNI-1586: an account holds one organization (ADR 0032), so a new
+  // workspace goes into it without asking which. Taken once, from the list
+  // the flow already reads; Back from the workspace step then leaves the flow.
+  const [orgImplied, setOrgImplied] = useState(false);
+  const held = organizations.filter(holdsOrganization);
+  const onlyHeld = isNew && held.length === 1 ? held[0]! : null;
+  useEffect(() => {
+    if (!onlyHeld || orgImplied || organization || step !== "organization") return;
+    setOrgImplied(true);
+    setOrganization(onlyHeld);
+    setStep("workspace");
+  }, [onlyHeld, orgImplied, organization, step]);
   // Resume: workspace đã có trong org đang chọn (lần trước bỏ dở).
   const existingInOrg = organization ? workspaces.filter((w) => w.organization_id === organization.id) : [];
 
@@ -160,7 +172,7 @@ function AuthedOnboardingFlow({
   }, [workspaces, onBeginComplete, onCompleteFailed, onComplete, t]);
 
   const back = (from: PersistedStep) => {
-    if (isNew && from === "organization") {
+    if (isNew && (from === "organization" || (from === "workspace" && orgImplied))) {
       onCancel?.();
       return;
     }
@@ -188,7 +200,9 @@ function AuthedOnboardingFlow({
           ? undefined
           : () => back("organization")
         : step === "workspace"
-          ? () => back("workspace")
+          ? isNew && orgImplied && !onCancel
+            ? undefined
+            : () => back("workspace")
           : undefined;
   // Rail chỉ đi lùi; new_workspace không có rail nav.
   const onStepChange = isNew ? undefined : (s: OnboardingStep) => setStep(s);
@@ -209,7 +223,9 @@ function AuthedOnboardingFlow({
           }}
         />
       )}
-      {step === "organization" && (
+      {/* In new_workspace mode the organization step is decided by the list:
+          wait for it rather than flash a picker the account will skip. */}
+      {step === "organization" && (!isNew || orgsFetched) && !onlyHeld && (
         <StepOrganization
           organizations={organizations}
           selected={organization}

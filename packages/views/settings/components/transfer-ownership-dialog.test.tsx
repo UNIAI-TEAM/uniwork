@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User } from "@uniwork/core/types";
@@ -8,6 +9,9 @@ import { requestMock, wrap } from "../../test/api-mock";
 import { TransferOwnershipDialog } from "./transfer-ownership-dialog";
 
 initI18n();
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+import { toast } from "sonner";
 
 const user: User = {
   id: "u1",
@@ -41,11 +45,38 @@ function renderDialog(organizationName = "Acme", onOpenChange?: (next: boolean) 
 
 const submitButton = () => screen.getByRole("button", { name: "Chuyển quyền" });
 
+const SLOW = { timeout: 3000 };
+
+async function pickHeir() {
+  const combobox = await screen.findByRole("combobox", { name: "Chủ sở hữu mới" }, SLOW);
+  fireEvent.click(combobox);
+  const option = await screen.findByRole("option", { name: "Nguyễn Văn An an@acme.vn" }, SLOW);
+  // A pointer down first makes the click a real press (see the invite wizard tests).
+  fireEvent.pointerDown(option);
+  fireEvent.click(option);
+  await waitFor(() => expect(combobox).toHaveTextContent("Nguyễn Văn An"));
+}
+
+/** Everything the transfer needs, then the press; the server answers with `refusal`. */
+async function submitRefusedWith(refusal: ApiError) {
+  requestMock.mockImplementation((path: string) =>
+    path.endsWith("/transfer-ownership") ? Promise.reject(refusal) : Promise.resolve({}),
+  );
+  renderDialog();
+  await pickHeir();
+  fireEvent.change(screen.getByLabelText("Gõ tên tổ chức để xác nhận"), { target: { value: "Acme" } });
+  fireEvent.change(screen.getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "wrong" } });
+  await act(async () => {
+    fireEvent.click(submitButton());
+  });
+}
+
 describe("TransferOwnershipDialog", () => {
   beforeEach(() => {
     resetAuthStoreForTests();
     setSessionUser(user);
     requestMock.mockReset();
+    vi.mocked(toast.error).mockReset();
   });
 
   it("stays disabled until the new owner, the exact organization name and the password are all given", () => {
@@ -112,5 +143,64 @@ describe("TransferOwnershipDialog", () => {
     for (const [path] of requestMock.mock.calls) {
       expect(String(path)).not.toContain("secret");
     }
+  });
+
+  it("says what is still missing on the action it holds back", async () => {
+    renderDialog();
+    expect(submitButton()).toHaveAccessibleDescription("Chọn chủ sở hữu mới để tiếp tục.");
+    expect(screen.getByText("Chọn chủ sở hữu mới để tiếp tục.")).toBeVisible();
+    await pickHeir();
+    expect(submitButton()).toHaveAccessibleDescription("Gõ đúng tên tổ chức để tiếp tục.");
+    fireEvent.change(screen.getByLabelText("Gõ tên tổ chức để xác nhận"), { target: { value: "Acme" } });
+    expect(submitButton()).toHaveAccessibleDescription("Nhập mật khẩu hiện tại để tiếp tục.");
+    fireEvent.change(screen.getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "pw" } });
+    expect(submitButton()).not.toHaveAttribute("aria-disabled");
+    expect(screen.queryByText("Nhập mật khẩu hiện tại để tiếp tục.")).not.toBeInTheDocument();
+  });
+
+  it("sends the owner back to the password, emptied and focused, when the server refuses it", async () => {
+    await submitRefusedWith(new ApiError("mật khẩu không đúng", "password_incorrect", 403));
+    const password = await screen.findByLabelText("Mật khẩu hiện tại của bạn", {}, SLOW);
+    await waitFor(() => expect(password).toHaveAttribute("aria-invalid", "true"));
+    expect(password).toHaveValue("");
+    expect(password).toHaveAccessibleDescription("Mật khẩu chưa đúng. Nhập lại để chuyển quyền sở hữu.");
+    await waitFor(() => expect(password).toHaveFocus());
+    // Inline, not also a toast, and never the server's sentence.
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.queryByText("mật khẩu không đúng")).not.toBeInTheDocument();
+    // Typing again clears the refusal.
+    fireEvent.change(password, { target: { value: "p" } });
+    expect(password).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("reads an older server's 401 invalid_credentials the same way", async () => {
+    await submitRefusedWith(new ApiError("x", "invalid_credentials", 401));
+    const password = await screen.findByLabelText("Mật khẩu hiện tại của bạn", {}, SLOW);
+    await waitFor(() => expect(password).toHaveAttribute("aria-invalid", "true"));
+  });
+
+  it("says the account has no password when the server refuses the transfer for that", async () => {
+    await submitRefusedWith(new ApiError("x", "password_required", 403));
+    expect(await screen.findByText(/tài khoản của bạn chưa có mật khẩu/, {}, SLOW)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Mật khẩu hiện tại của bạn")).not.toBeInTheDocument();
+    expect(submitButton()).toHaveAttribute("aria-disabled", "true");
+    expect(submitButton()).toHaveAccessibleDescription("Chưa thể chuyển quyền khi tài khoản chưa có mật khẩu.");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("says so up front for an account known to have no password", () => {
+    setSessionUser({ ...user, has_password: false });
+    renderDialog();
+    expect(screen.getByText(/tài khoản của bạn chưa có mật khẩu/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Mật khẩu hiện tại của bạn")).not.toBeInTheDocument();
+  });
+
+  it("dims the page harder, as every irreversible dialog does, and keeps one marker per consequence", () => {
+    renderDialog();
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass("bg-black/45");
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      "Không có gì bị xóa, nhưng tổ chức không còn do bạn nắm.",
+    );
+    expect(screen.getByRole("note").querySelector("svg")).toBeNull();
   });
 });

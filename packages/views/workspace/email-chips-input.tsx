@@ -178,7 +178,9 @@ export function EmailChipsInput({
         // `focus-visible:` rather than `focus:`: the frame draws the ring via
         // `has-[>input:focus-visible]`, and the old `focus:` form also stripped
         // the global outline in focus states where that ring never turns on.
-        className="min-w-[10rem] flex-1 bg-transparent text-body text-foreground placeholder:text-muted-foreground focus-visible:outline-none"
+        // The 10rem floor is capped at the frame's width: at 200% text it was
+        // 320px and pushed the frame past a phone's column.
+        className="min-w-[min(10rem,100%)] flex-1 bg-transparent text-body text-foreground placeholder:text-muted-foreground focus-visible:outline-none"
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
         onPaste={onPaste}

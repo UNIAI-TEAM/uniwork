@@ -18,6 +18,6 @@ export default function GetStartedPage() {
     if (status === "anon") replace(paths.login());
     if (status === "authed" && step) replace(authStepPath(step));
   }, [status, step, replace]);
-  if (status !== "authed" || step) return null;
-  return <NoOrganizationView />;
+  // The view's own loading frame while the gates resolve: never a blank page.
+  return <NoOrganizationView pending={status !== "authed" || !!step} />;
 }

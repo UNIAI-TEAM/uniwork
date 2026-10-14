@@ -4,7 +4,6 @@ import { useState, type ReactNode } from "react";
 import { Download, ExternalLink, Eye, EyeOff, FileText } from "lucide-react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
-import { useChatFileBlobLoader } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { ChatAnimatedImage } from "./chat-animated-image";
@@ -12,7 +11,7 @@ import { isChatImageContentType, isChatPdfContentType, resolveChatFileContentTyp
 import { formatChatFileSize } from "./chat-file-size";
 import type { ChatMessage } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
-import { useChatFileObjectUrl } from "./use-chat-file-object-url";
+import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media-url";
 
 type ChatFile = NonNullable<ChatMessage["file"]>;
 
@@ -68,21 +67,29 @@ function FileCard({
   );
 }
 
-function useDownload(workspaceId: string, roomId: string, messageId: string, filename: string) {
+/**
+ * Downloads straight from storage: the signed download URL carries
+ * Content-Disposition: attachment with the file's name, so the browser saves
+ * it even though the anchor's own download attribute is ignored cross-origin.
+ */
+function useDownload(workspaceId: string, roomId: string, message: ChatMessage) {
   const { t } = useTranslation();
-  const loadBlob = useChatFileBlobLoader(workspaceId, roomId);
+  const freshUrl = useFreshChatMediaUrl(workspaceId, roomId);
   const [busy, setBusy] = useState(false);
   const download = async () => {
     if (busy) return;
     setBusy(true);
     try {
-      const blob = await loadBlob(messageId);
-      const url = URL.createObjectURL(blob);
+      const url = await freshUrl(
+        message.id,
+        { url: message.file?.download_url, expiresAt: message.file?.url_expires_at },
+        (fresh) => fresh.file?.download_url,
+      );
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = filename || "file";
+      anchor.download = message.file?.filename || "file";
+      anchor.rel = "noopener";
       anchor.click();
-      URL.revokeObjectURL(url);
     } catch (err) {
       toastChatError(err, t, t("chat.file_download_failed"));
     } finally {
@@ -107,8 +114,15 @@ function ImageAttachment({
   // A GIF keeps its animation, so it loads whole; any other photo shows its
   // thumbnail and loads the original only when opened.
   const isGif = file?.content_type === "image/gif";
-  const { url, status } = useChatFileObjectUrl(workspaceId, roomId, message.id, true, isGif ? undefined : "thumb");
-  const loadOriginal = useChatFileBlobLoader(workspaceId, roomId);
+  const preview = useChatMediaSrc(
+    workspaceId,
+    roomId,
+    message.id,
+    isGif ? file?.url : file?.thumb_url || file?.url,
+    file?.url_expires_at,
+  );
+  const { src: url, status } = preview;
+  const freshUrl = useFreshChatMediaUrl(workspaceId, roomId);
   const [aspect, setAspect] = useState(() => imageAspectByMessage.get(message.id) ?? null);
   const rememberAspect = (img: HTMLImageElement) => {
     if (!img.naturalWidth || !img.naturalHeight) return;
@@ -142,7 +156,7 @@ function ImageAttachment({
     // of its own rather than the whole picture.
     return (
       <div className="relative w-fit max-w-full" style={aspect ? undefined : boxStyle}>
-        <ChatAnimatedImage src={url} alt={name} imgClassName={imgClass} onLoad={rememberAspect} />
+        <ChatAnimatedImage src={url} alt={name} imgClassName={imgClass} onLoad={rememberAspect} onError={preview.onError} />
         <Button
           type="button"
           size="icon-sm"
@@ -157,17 +171,14 @@ function ImageAttachment({
     );
   }
   const openOriginal = () => {
-    // The tab opens inside the click, before the download, so no popup
-    // blocker refuses it; the original is put into it once it arrives.
+    // The tab opens inside the click, before any URL refresh, so no popup
+    // blocker refuses it; the original is put into it once it is signed.
     const tab = window.open("", "_blank");
     if (!tab) return;
     tab.opener = null;
-    loadOriginal(message.id).then(
-      (blob) => {
-        const href = URL.createObjectURL(blob);
+    freshUrl(message.id, { url: file?.url, expiresAt: file?.url_expires_at }, (fresh) => fresh.file?.url).then(
+      (href) => {
         tab.location.href = href;
-        // The tab has its own copy once loaded; the URL need not outlive that.
-        window.setTimeout(() => URL.revokeObjectURL(href), 60_000);
       },
       (err: unknown) => {
         tab.close();
@@ -183,8 +194,14 @@ function ImageAttachment({
       aria-label={openLabel}
       onClick={openOriginal}
     >
-      {/* Authenticated blob URL — not a public CDN asset. */}
-      <img src={url} alt={name} className={imgClass} onLoad={(e) => rememberAspect(e.currentTarget)} />
+      {/* Short-lived signed storage URL, not a public CDN asset. */}
+      <img
+        src={url}
+        alt={name}
+        className={imgClass}
+        onLoad={(e) => rememberAspect(e.currentTarget)}
+        onError={preview.onError}
+      />
     </button>
   );
 }
@@ -208,7 +225,14 @@ function PdfAttachment({
 }) {
   const { t } = useTranslation();
   const [previewOpen, setPreviewOpen] = useState(false);
-  const { url, status } = useChatFileObjectUrl(workspaceId, roomId, message.id, previewOpen);
+  const { src: url, status } = useChatMediaSrc(
+    workspaceId,
+    roomId,
+    message.id,
+    message.file?.url,
+    message.file?.url_expires_at,
+    previewOpen,
+  );
   return (
     <div className="space-y-2 p-2">
       <div className="px-1">
@@ -262,7 +286,7 @@ export function ChatFileAttachment({
   message: ChatMessage;
 }) {
   const file = message.file;
-  const { busy, download } = useDownload(workspaceId, roomId, message.id, file?.filename ?? "");
+  const { busy, download } = useDownload(workspaceId, roomId, message);
   const contentType = file ? resolveChatFileContentType(file) : undefined;
   if (isChatImageContentType(contentType, file?.filename)) {
     return <ImageAttachment workspaceId={workspaceId} roomId={roomId} message={message} />;

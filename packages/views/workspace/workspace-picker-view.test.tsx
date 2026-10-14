@@ -33,7 +33,7 @@ describe("WorkspacePickerView", () => {
       ],
     });
     const onPick = vi.fn();
-    render(wrap(<WorkspacePickerView onPick={onPick} onCreate={() => {}} />));
+    render(wrap(<WorkspacePickerView onPick={onPick} onCreate={() => {}} onEmpty={() => {}} />));
     expect(await screen.findByRole("heading", { name: /Unicom/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Acme/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Beta/ }));
@@ -51,15 +51,21 @@ describe("WorkspacePickerView", () => {
         { id: "w1", slug: "doi-san-pham", name: "Đội sản phẩm", organization_id: "o1", organization_slug: "audit-ux-eight", organization_name: "Audit UX Eight" },
       ],
     });
-    render(wrap(<WorkspacePickerView onPick={() => {}} onCreate={() => {}} />));
+    render(wrap(<WorkspacePickerView onPick={() => {}} onCreate={() => {}} onEmpty={() => {}} />));
     const row = await screen.findByRole("button", { name: /Đội sản phẩm/ });
     expect(row.className).toMatch(/\bmin-w-0\b/);
     expect(row.querySelector(".font-mono")?.className).toMatch(/\btruncate\b/);
   });
-  it("empty → onCreate", async () => {
+  /**
+   * Nothing to pick is not a request to create: the host decides where the
+   * person goes (UNI-1472 — a member is never sent to the create flow).
+   */
+  it("empty → onEmpty, never onCreate", async () => {
     requestMock.mockResolvedValueOnce({ workspaces: [] });
     const onCreate = vi.fn();
-    render(wrap(<WorkspacePickerView onPick={() => {}} onCreate={onCreate} />));
-    await vi.waitFor(() => expect(onCreate).toHaveBeenCalled());
+    const onEmpty = vi.fn();
+    render(wrap(<WorkspacePickerView onPick={() => {}} onCreate={onCreate} onEmpty={onEmpty} />));
+    await vi.waitFor(() => expect(onEmpty).toHaveBeenCalled());
+    expect(onCreate).not.toHaveBeenCalled();
   });
 });

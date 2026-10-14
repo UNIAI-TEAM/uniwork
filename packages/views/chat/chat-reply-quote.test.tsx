@@ -1,5 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import type { ChatMessage } from "./chat-messages";
@@ -7,13 +7,9 @@ import { ChatReplyQuote, replyPreviewLabel } from "./chat-reply-quote";
 
 initI18n();
 
-vi.mock("@uniwork/core/api/endpoints/chat", () => ({
-  loadChatFileBlob: vi.fn(),
-}));
+const inAnHour = () => new Date(Date.now() + 3_600_000).toISOString();
 
-import { loadChatFileBlob } from "@uniwork/core/api/endpoints/chat";
-
-const imageMessage = (): ChatMessage => ({
+const imageMessage = (urlExpiresAt: string = inAnHour()): ChatMessage => ({
   id: "img1",
   sender: "u1",
   body: "photo.png",
@@ -24,14 +20,13 @@ const imageMessage = (): ChatMessage => ({
     filename: "photo.png",
     content_type: "image/png",
     size_bytes: 1200,
+    url: "https://storage.test/photo.png",
+    thumb_url: "https://storage.test/photo-thumb.png",
+    url_expires_at: urlExpiresAt,
   },
 });
 
 describe("chat-reply-quote", () => {
-  beforeEach(() => {
-    vi.mocked(loadChatFileBlob).mockReset();
-  });
-
   it("labels voice and file replies", () => {
     expect(
       replyPreviewLabel(
@@ -64,48 +59,20 @@ describe("chat-reply-quote", () => {
     ).toBe("hi");
   });
 
-  it("shows a thumbnail for image replies", async () => {
-    vi.mocked(loadChatFileBlob).mockResolvedValue(new Blob(["png"], { type: "image/png" }));
-    vi.stubGlobal("URL", {
-      ...URL,
-      createObjectURL: vi.fn(() => "blob:thumb"),
-      revokeObjectURL: vi.fn(),
-    });
+  it("shows the signed thumbnail for image replies", () => {
+    render(wrap(<ChatReplyQuote message={imageMessage()} isOwn />));
 
-    render(
-      wrap(
-        <ChatReplyQuote
-          message={imageMessage()}
-          workspaceId="ws1"
-          roomId="room1"
-          isOwn
-        />,
-      ),
+    expect(screen.getByRole("img", { name: "photo.png" })).toHaveAttribute(
+      "src",
+      "https://storage.test/photo-thumb.png",
     );
-
-    await waitFor(() => {
-      expect(screen.getByRole("img", { name: "photo.png" })).toHaveAttribute(
-        "src",
-        "blob:thumb",
-      );
-    });
     expect(screen.getByText("photo.png")).toBeInTheDocument();
   });
 
-  it("renders compact image placeholder and peer file quote", async () => {
-    vi.mocked(loadChatFileBlob).mockRejectedValueOnce(new Error("fail"));
-    render(
-      wrap(
-        <ChatReplyQuote
-          message={imageMessage()}
-          workspaceId="ws1"
-          roomId="room1"
-          isOwn={false}
-          compact
-        />,
-      ),
-    );
+  it("renders compact image placeholder for an expired URL and peer file quote", () => {
+    render(wrap(<ChatReplyQuote message={imageMessage("2020-01-01T00:00:00Z")} isOwn={false} compact />));
     expect(screen.getByText(/Trả lời:/i)).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "photo.png" })).not.toBeInTheDocument();
 
     render(
       wrap(
@@ -119,8 +86,6 @@ describe("chat-reply-quote", () => {
             reactions: {},
             file: { filename: "a.pdf", content_type: "application/pdf", size_bytes: 1 },
           }}
-          workspaceId="ws1"
-          roomId="room1"
           isOwn={false}
         />,
       ),

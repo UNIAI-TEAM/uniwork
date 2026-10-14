@@ -149,7 +149,7 @@ func (s *FileAccessService) ResolveUploads(ctx context.Context, in FileAccessReq
 	for _, id := range in.FileIDs {
 		ids = append(ids, files.FileID(strings.TrimSpace(id)))
 	}
-	resolved, err := s.files.resolveRecords(ctx, scope, nil, disposition, ids, stagedBy(in.UserID))
+	resolved, err := s.files.resolveRecords(ctx, scope, nil, disposition, "", ids, stagedBy(in.UserID))
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +237,7 @@ func (s *FileAccessService) AuthorizeContent(ctx context.Context, fileID, ticket
 	}
 	id := files.FileID(fileID)
 	keep := stagedBy(t.UserID)
-	resolved, err := s.files.resolveRecords(ctx, scope, nil, t.Disposition, []files.FileID{id}, keep)
+	resolved, err := s.files.resolveRecords(ctx, scope, nil, t.Disposition, "", []files.FileID{id}, keep)
 	if err != nil {
 		return FileContent{}, err
 	}

@@ -1213,6 +1213,13 @@ type Invitation struct {
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 }
 
+type InvitationWorkspace struct {
+	InvitationID   string             `json:"invitation_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	OrganizationID string             `json:"organization_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Invoice struct {
 	ID                  string             `json:"id"`
 	OrganizationID      string             `json:"organization_id"`
