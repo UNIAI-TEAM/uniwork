@@ -1,6 +1,6 @@
 # Runbook — thu gom file rác và reconcile của FileService
 
-> **Trạng thái:** in-progress · **Cập nhật:** 2026-10-06 · **Thành phần:** `FileService.SweepFiles` / `FileGCWorker` trong tiến trình API · **Liên quan:** UNI-743 (T5), spec `docs/superpowers/specs/2026-09-22-shared-file-service-design.md` §9, FS-C1 §6
+> **Trạng thái:** in-progress · **Cập nhật:** 2026-10-14 · **Thành phần:** `FileService.SweepFiles` / `FileGCWorker` trong tiến trình API · **Liên quan:** UNI-743 (T5), spec `docs/superpowers/specs/2026-09-22-shared-file-service-design.md` §9, FS-C1 §6
 
 Collector chạy **một lần mỗi ngày** (mặc định 03:00 UTC+7) và làm ba việc
 trong cùng một lượt: đóng cửa sổ claim đã quá 24 giờ, tìm file không còn ai
@@ -11,14 +11,30 @@ giữ, và xử lý các job bền trong `file_jobs` (`cleanup`, `reconcile`,
 
 ## Chế độ
 
-| `FileGCConfig.Mode` | Làm gì |
+Server đọc chế độ từ biến môi trường `FILE_GC_MODE`
+(`server/internal/config/config.go`) và truyền vào `FileGCConfig.Mode`. Giá
+trị khác ba giá trị dưới đây làm server không khởi động.
+
+| `FILE_GC_MODE` | Làm gì |
 | --- | --- |
-| `dry_run` (mặc định, giá trị rỗng) | Đọc, kiểm, trả `FileGCReport` và log tóm tắt. Không lease job, không đổi trạng thái, không xóa object. |
-| `destructive` | Làm thật theo giao thức khóa. **Gate C cấm bật ở môi trường thật** cho tới khi người dùng quyết rollout (plan §3.3, Gate E). |
+| `destructive` (**mặc định của server**, khi không đặt biến) | Làm thật theo giao thức khóa: file không còn ai tham chiếu (ví dụ avatar cũ sau khi đổi, file đính kèm đã gỡ) bị xóa object rồi đánh dấu `deleted`. |
+| `dry_run` | Đọc, kiểm, trả `FileGCReport` và log tóm tắt. Không lease job, không đổi trạng thái, không xóa object. Đây cũng là chế độ khi gọi `NewFileService` không truyền `GC` (test, công cụ). |
 | `off` | Không quét. |
 
-Worker chưa được nối vào `cmd/server/main.go` (integration request của T5):
-khi nối, nó chạy trong shutdown sequence và dừng theo context.
+Người dùng quyết bật `destructive` ngày 2026-10-14, trước Gate E của plan
+FileService (§3.3). Phạm vi xóa vẫn chỉ là hàng `files` của chính môi trường;
+object legacy/G0 và object ngoài gốc `S3_KEY_PREFIX` bị cách ly, không bao giờ
+bị xóa (xem bảng báo cáo). Muốn dừng xóa: đặt `FILE_GC_MODE=dry_run` (hoặc
+`off`) rồi khởi động lại server; job đang chờ giữ nguyên và chạy tiếp khi bật lại.
+
+Worker (`FileService.NewFileGCWorker`) đã nối trong `cmd/server/main.go`: khởi động
+cùng server, lượt quét đầu ở mốc 03:00 kế tiếp (không quét lúc khởi động), dừng theo context trong
+shutdown sequence. Mỗi lượt chỉ một replica chạy (advisory lock).
+
+Object dưới `avatars/<user>/...` của luồng avatar cũ (cột `users.avatar_url`,
+trước FileService) không có hàng `files`, nên collector không thấy và không
+xóa; đổi avatar lần đầu chỉ xóa URL trong hàng user. Dọn chúng cần
+`files-backfill` (T9) đưa vào `files` trước.
 
 ## Giao thức xóa
 

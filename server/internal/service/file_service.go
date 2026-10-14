@@ -112,7 +112,8 @@ type FileServiceOptions struct {
 	// keeps the collector from deleting anything (T5).
 	ReferenceProviders []files.ReferenceProvider
 	// GC configures the daily collector. The zero value is dry-run: it
-	// reports and never deletes (Gate C).
+	// reports and never deletes. cmd/server passes FILE_GC_MODE, whose
+	// default is destructive.
 	GC FileGCConfig
 }
 
