@@ -222,6 +222,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       );
     },
     onSaveSource: rowDialogs.onSaveSource,
+    onNewSubfolder: rowCommands ? rowDialogs.onNewSubfolder : undefined,
+    onRename: rowCommands ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
     onToggleStar: orgId
@@ -272,6 +274,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     unavailable: creator.unavailable,
     onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
     onUpload: () => setUploadOpen(true),
+    onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
   };
 
   return (

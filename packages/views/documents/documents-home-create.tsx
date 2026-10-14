@@ -13,7 +13,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DocumentTypeIcon } from "./document-type-icon";
-import { CREATE_TYPES, type CreateType } from "./documents-create";
+import { CREATE_MENU_TYPES, CREATE_TYPES, type CreateMenuType, type CreateType } from "./documents-create";
 
 /** Which greeting the hour gets: morning until 11, afternoon until 18, evening after. */
 export function greetingPart(hour: number): "morning" | "afternoon" | "evening" {
@@ -63,6 +63,8 @@ export interface CreateChoicesProps {
   unavailable: ReadonlySet<CreateType>;
   onCreate: (type: CreateType) => void;
   onUpload: () => void;
+  /** Present when a folder is open: adds "Mới → Thư mục" to the New menu (FD-D9). */
+  onNewFolder?: () => void;
 }
 
 function cardTitle(type: CreateType, t: (key: string) => string): string {
@@ -124,9 +126,10 @@ export function CreateCards({ pending, unavailable, onCreate, onUpload }: Create
   );
 }
 
-/** The header "New ▾" button with the same list as the cards. */
-export function CreateMenu({ pending, unavailable, onCreate, onUpload }: CreateChoicesProps) {
+/** The header "New ▾" button with the same list as the cards, plus Folder inside an open folder. */
+export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFolder }: CreateChoicesProps) {
   const { t } = useTranslation();
+  const menuTypes: readonly CreateMenuType[] = onNewFolder ? CREATE_MENU_TYPES : CREATE_TYPES;
   return (
     <>
       <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" onClick={onUpload}>
@@ -142,22 +145,36 @@ export function CreateMenu({ pending, unavailable, onCreate, onUpload }: CreateC
           <ChevronDown aria-hidden className="size-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-60">
-          {CREATE_TYPES.map((type) => (
-            <div key={type}>
-              <DropdownMenuItem
-                className="gap-2 px-2 py-2"
-                disabled={pending || unavailable.has(type)}
-                onClick={() => onCreate(type)}
-              >
-                <DocumentTypeIcon format={type} className="size-4" decorative />
-                <span className="flex-1">{t(`documents.home.create.${type}.menu`)}</span>
-                <span className="font-mono text-caption text-muted-foreground">
-                  {t(`documents.home.create.${type}.ext`)}
-                </span>
-              </DropdownMenuItem>
-              {type === "page" ? <DropdownMenuSeparator /> : null}
-            </div>
-          ))}
+          {menuTypes.map((type) =>
+            type === "folder" ? (
+              <div key={type}>
+                <DropdownMenuItem
+                  className="gap-2 px-2 py-2"
+                  disabled={pending}
+                  onClick={() => onNewFolder?.()}
+                >
+                  <DocumentTypeIcon format="folder" className="size-4" decorative />
+                  <span className="flex-1">{t("documents.home.create.folder.menu")}</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </div>
+            ) : (
+              <div key={type}>
+                <DropdownMenuItem
+                  className="gap-2 px-2 py-2"
+                  disabled={pending || unavailable.has(type)}
+                  onClick={() => onCreate(type)}
+                >
+                  <DocumentTypeIcon format={type} className="size-4" decorative />
+                  <span className="flex-1">{t(`documents.home.create.${type}.menu`)}</span>
+                  <span className="font-mono text-caption text-muted-foreground">
+                    {t(`documents.home.create.${type}.ext`)}
+                  </span>
+                </DropdownMenuItem>
+                {type === "page" ? <DropdownMenuSeparator /> : null}
+              </div>
+            ),
+          )}
           <DropdownMenuSeparator className="sm:hidden" />
           <DropdownMenuItem className="gap-2 px-2 py-2 sm:hidden" onClick={onUpload}>
             <Upload aria-hidden className="size-4" />

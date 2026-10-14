@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, MonitorUp, Star, StarOff } from "lucide-react";
+import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -52,9 +52,11 @@ export interface LibraryRowHandlers {
   onToggleStar?: (documentId: string, starred: boolean) => void;
   isStarred: (documentId: string) => boolean;
   /**
-   * Move to another folder and archive, for people who may change the open
-   * folder; absent hides both. The server still decides per document.
+   * Create subfolder, rename, move to another folder, and archive, for people
+   * who may change the open folder; absent hides them. The server still decides per document.
    */
+  onNewSubfolder?: (doc: DocumentSummaryRow) => void;
+  onRename?: (doc: DocumentSummaryRow) => void;
   onMove?: (doc: DocumentSummaryRow) => void;
   onArchive?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
@@ -133,9 +135,15 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
       });
     }
   }
-  // Each command follows the level of THIS row (move: edit, archive: manage);
-  // the archive tab offers neither.
+  // Each command follows the level of THIS row (create subfolder / rename /
+  // move: edit, archive: manage); the archive tab offers none of them.
   if (doc && !archived) {
+    if (folder && handlers.onNewSubfolder && canMoveRow(level)) {
+      actions.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
+    }
+    if (handlers.onRename && canMoveRow(level)) {
+      actions.push({ id: "rename", label: t("documents.home.row.rename"), icon: Pencil, run: () => handlers.onRename?.(doc) });
+    }
     if (handlers.onMove && canMoveRow(level)) {
       actions.push({ id: "move", label: t("documents.home.row.move"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
     }
