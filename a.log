@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+5b95144216db99c9024969d615daa92fd6893ad5
+0f3f42bc22df209fb3b2fa1566da1000f960bf94
+5b951442 test(web): aim the one-shot AI error rule at the chat call
+54bb7b4e test(web): let the no-save UniWork AI test name the cloud status read
+c44151be fix(web-ai): drop the old key's list when the new key's listing fails
