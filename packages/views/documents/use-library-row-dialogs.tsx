@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ import { createSafeId } from "@uniwork/core/utils";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
-import { loadMoveRevision, moveRefused, moveTooDeep } from "./document-tree-model";
+import { findTreeNode, loadMoveRevision } from "./document-tree-model";
 import { FolderNameDialog } from "./folder-name-dialog";
 import { FolderPickerDialog } from "./folder-picker-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
@@ -29,13 +29,15 @@ export interface LibraryRowDialogs {
   onRename: (doc: DocumentSummaryRow) => void;
   onMove: (doc: DocumentSummaryRow) => void;
   onArchive: (doc: DocumentSummaryRow) => void;
+  onRestore: (doc: DocumentSummaryRow) => void;
   dialogs: ReactNode;
 }
 
 /**
  * The library row commands that need a dialog: save a file from another
  * module into a folder, create a folder / subfolder, rename a folder or
- * document, move a document to another folder, archive one.
+ * document, move a document to another folder, archive one, restore a
+ * trashed folder.
  * Each awaits the server; a refusal stays in the dialog (create, rename,
  * move, save) or the archive dialog's own message, and nothing on screen
  * moves before that.
@@ -60,19 +62,11 @@ export function useLibraryRowDialogs({
   const [saving, setSaving] = useState<SourceRow | null>(null);
   const [naming, setNaming] = useState<NameDialogState | null>(null);
   const [moving, setMoving] = useState<DocumentSummaryRow | null>(null);
-  const [archiving, setArchiving] = useState<DocumentSummaryRow | null>(null);
+  const [archiving, setArchiving] = useState<{ doc: DocumentSummaryRow; mode: "archive" | "restore" } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [moveLoading, setMoveLoading] = useState(false);
   // One key per source and target: a retry after a timeout replays the same save, a new target is a new one.
   const saveKey = useRef<{ sourceId: string; target: string | null; key: string } | null>(null);
-
-  // Targets the server would refuse are not offered: the moved item, its
-  // subtree, and a folder where it would end up past the depth limit.
-  const movingId = moving?.id ?? null;
-  const refuseTarget = useCallback(
-    (folderId: string) => (movingId ? moveRefused(tree, movingId, folderId) || moveTooDeep(tree, movingId, folderId) : false),
-    [tree, movingId],
-  );
 
   const submitMove = async (doc: DocumentSummaryRow, parentId: string | null) => {
     setError(null);
@@ -83,9 +77,17 @@ export function useLibraryRowDialogs({
         setError(t("documents.tree.move_failed"));
         return;
       }
-      await move.mutateAsync({ documentId: doc.id, parent_id: parentId, revision });
+      const movedDoc = await move.mutateAsync({ documentId: doc.id, parent_id: parentId, revision });
       setMoving(null);
-      toast.success(t("documents.home.move.moved"));
+      if (movedDoc.title && movedDoc.title !== doc.title) {
+        toast.success(t("documents.home.move.moved_renamed", { title: movedDoc.title }));
+      } else {
+        const folder =
+          parentId === null
+            ? t("documents.home.move.root")
+            : findTreeNode(tree, parentId)?.title || t("documents.detail.untitled");
+        toast.success(t("documents.home.move.moved_to", { folder }));
+      }
     } catch (failure) {
       setError(documentErrorMessage(failure, t, "documents.tree.move_failed"));
     } finally {
@@ -117,6 +119,8 @@ export function useLibraryRowDialogs({
         title={t("documents.home.save_source.title")}
         description={t("documents.home.save_source.description", { name: saving?.source.name ?? "" })}
         submitLabel={t("documents.home.save_source.submit")}
+        pickerLabel={t("documents.home.save_source.picker_label")}
+        rootLabel={t("documents.home.save_source.root")}
         tree={tree}
         initialFolderId={folderId}
         pending={saveSource.isPending}
@@ -143,7 +147,7 @@ export function useLibraryRowDialogs({
         onOpenChange={(next) => {
           if (!next) setMoving(null);
         }}
-        title={t("documents.home.move.title")}
+        title={t("documents.home.move.picker_title")}
         description={
           // Only a folder takes its contents along; a file or a page moves alone.
           t(moving?.kind === "folder" ? "documents.home.move.folder_description" : "documents.home.move.description", {
@@ -151,9 +155,12 @@ export function useLibraryRowDialogs({
           })
         }
         submitLabel={t("documents.home.move.submit")}
+        pickerLabel={t("documents.home.move.picker_label")}
+        rootLabel={t("documents.home.move.root")}
         tree={tree}
         initialFolderId={moving?.parent_id ?? null}
-        refuse={refuseTarget}
+        currentFolderId={moving ? (moving.parent_id ?? null) : undefined}
+        movingId={moving?.id ?? null}
         pending={moveLoading}
         error={moving ? error : null}
         onSubmit={(target) => {
@@ -167,8 +174,8 @@ export function useLibraryRowDialogs({
             if (!next) setArchiving(null);
           }}
           wsId={wsId}
-          doc={archiving}
-          mode="archive"
+          doc={archiving.doc}
+          mode={archiving.mode}
         />
       ) : null}
     </>
@@ -186,7 +193,8 @@ export function useLibraryRowDialogs({
       setError(null);
       setMoving(doc);
     },
-    onArchive: (doc) => setArchiving(doc),
+    onArchive: (doc) => setArchiving({ doc, mode: "archive" }),
+    onRestore: (doc) => setArchiving({ doc, mode: "restore" }),
     dialogs,
   };
 }

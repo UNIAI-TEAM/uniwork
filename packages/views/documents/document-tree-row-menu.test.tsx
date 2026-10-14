@@ -399,19 +399,25 @@ describe("DocumentTree row menu dialogs and toasts", () => {
     fireEvent.contextMenu(row);
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") }));
     const moveDialog = await screen.findByRole("dialog");
-    expect(within(moveDialog).getByRole("heading", { name: t("documents.home.move.title") })).toBeInTheDocument();
-    fireEvent.click(within(moveDialog).getByRole("button", { name: "Tài chính" }));
+    expect(within(moveDialog).getByRole("heading", { name: t("documents.home.move.picker_title") })).toBeInTheDocument();
+    fireEvent.click(within(moveDialog).getByRole("treeitem", { name: "Tài chính" }));
     fireEvent.click(within(moveDialog).getByRole("button", { name: t("documents.home.move.submit") }));
     await waitFor(() => expect(moves).toEqual([{ parent_id: "f2", revision: "4" }]));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
+    const prev = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) =>
+      path === "/api/v1/documents/f1/archive-impact"
+        ? Promise.resolve({ folders: 0, documents: 0, total: 1, max_nodes: 1000, too_large: false })
+        : prev(path, opts),
+    );
     fireEvent.contextMenu(row);
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.delete") }));
     const archiveDialog = await screen.findByRole("alertdialog");
     expect(
-      within(archiveDialog).getByRole("heading", { name: t("documents.archive.archive_folder_title") }),
+      within(archiveDialog).getByRole("heading", { name: t("documents.archive.delete_title") }),
     ).toBeInTheDocument();
-    const confirmBtn = within(archiveDialog).getByRole("button", { name: t("documents.archive.archive_confirm") });
+    const confirmBtn = within(archiveDialog).getByRole("button", { name: t("documents.archive.delete_confirm") });
     await waitFor(() => expect(confirmBtn).toBeEnabled());
     fireEvent.click(confirmBtn);
     await waitFor(() => expect(archives).toEqual(["/api/v1/documents/f1/archive"]));

@@ -230,6 +230,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     onRename: rowCommands ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
+    onRestore: view.kind === "archived" ? rowDialogs.onRestore : undefined,
     onToggleStar: orgId
       ? (documentId, starred) => {
           const op = starred ? unfavorite : favorite;
