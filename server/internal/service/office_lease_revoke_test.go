@@ -92,18 +92,21 @@ func TestOfficeLeaseRevokedOnMemberRemovedAcrossWorkspaces(t *testing.T) {
 func TestOfficeLeaseRevokedOnMemberDeactivatedWithOtherOrg(t *testing.T) {
 	w := newLeaseWorld(t, "lease-deact")
 	m := w.tn.member.ID
-	org2, err := w.f.svc.orgs.Create(w.ctx, w.tn.owner.ID, "Org lease-deact other", "lease-deact-other")
+	// An account owns one organization at most, so the other one is founded
+	// by a person who has none yet; the member joins it as a plain member.
+	owner2 := w.f.user(t, "lease-deact", "other-owner").ID
+	org2, err := w.f.svc.orgs.Create(w.ctx, owner2, "Org lease-deact other", "lease-deact-other")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ws2, err := w.f.svc.ws.CreateInOrg(w.ctx, w.tn.owner.ID, org2.ID, "Other", "lease-deact-other-a")
+	ws2, err := w.f.svc.ws.CreateInOrg(w.ctx, owner2, org2.ID, "Other", "lease-deact-other-a")
 	if err != nil {
 		t.Fatal(err)
 	}
 	w.f.orgMember(t, org2.ID, m, OrgRoleMember)
 	w.f.wsMember(t, ws2.ID, m, "member")
 	d1 := w.file(t, documentVisibilityWorkspace)
-	d2 := w.fileIn(t, org2.ID, ws2.ID, w.tn.owner.ID, documentVisibilityWorkspace)
+	d2 := w.fileIn(t, org2.ID, ws2.ID, owner2, documentVisibilityWorkspace)
 	dev := w.device(t, m)
 	l1, l2 := w.grant(t, m, dev, d1.ID), w.grant(t, m, dev, d2.ID)
 
