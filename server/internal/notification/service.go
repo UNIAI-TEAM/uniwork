@@ -104,12 +104,15 @@ func paramValue(raw, key string) string {
 }
 
 // dropParamKeys removes the named keys from a params JSON object, keeping the
-// rest; a malformed value is returned unchanged so a bad row never blanks.
+// rest and their value types; a malformed value is returned unchanged so a
+// bad row never blanks. Values are held as raw JSON, so one that is not a
+// string (e.g. {"count":3}) cannot fail the decode and leave the snippet
+// keys in place on the access_lost path that must drop them.
 func dropParamKeys(raw string, keys ...string) string {
 	if raw == "" {
 		return raw
 	}
-	var m map[string]string
+	var m map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(raw), &m); err != nil {
 		return raw
 	}
