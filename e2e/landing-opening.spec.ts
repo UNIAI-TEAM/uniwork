@@ -54,8 +54,9 @@ for (const width of [1440, 1280, 1100, 1099, 768, 390]) {
     await mkdir(dir, { recursive: true });
     await page.screenshot({ path: resolve(dir, `opening-${width}.png`), style: "nextjs-portal { visibility: hidden !important; }" });
     const header = page.getByRole("banner");
-    if (width >= 1100) {
-      await expect(page.locator(".header-navigation .header-nav-link")).toHaveText(["Sản phẩm", "Giải pháp", "Office", "Tìm hiểu", "Bảng giá"]);
+    if (width >= 1240) {
+      await expect(page.locator(".header-navigation .header-nav-link")).toHaveText(["Sản phẩm", "Giải pháp", "Office", "Tìm hiểu", "Bảng giá", "Nhật ký cập nhật"]);
+      await expect(page.locator('.header-navigation a.header-nav-link[href="/changelog"]')).toHaveText("Nhật ký cập nhật");
       const toggle = header.getByRole("button", { name: "Sản phẩm", exact: true });
       await toggle.click();
       await expect(page.locator("#header-directory-products")).toBeVisible();
@@ -73,7 +74,8 @@ for (const width of [1440, 1280, 1100, 1099, 768, 390]) {
       await expect(page.locator("#header-directory-office a")).toHaveCount(1);
       await page.keyboard.press("Escape");
       await header.getByRole("button", { name: "Tìm hiểu", exact: true }).click();
-      await expect(page.locator('#header-directory-learn a[href="/changelog"]')).toBeVisible();
+      await expect(page.locator('#header-directory-learn a[href="/why-uniwork"]')).toBeVisible();
+      await expect(page.locator('#header-directory-learn a[href="/changelog"]')).toHaveCount(0);
       await page.keyboard.press("Escape");
       await header.getByRole("button", { name: "Giải pháp", exact: true }).click();
       await expect(page.locator('#header-directory-solutions a[href="/enterprise"]')).toBeVisible();
