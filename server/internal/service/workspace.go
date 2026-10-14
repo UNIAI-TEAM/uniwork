@@ -325,14 +325,25 @@ func (s *WorkspaceService) Update(ctx context.Context, userID, workspaceID strin
 	if err != nil {
 		return WorkspaceView{}, err
 	}
-	in, err = normalizeWorkspaceInput(in)
+	return s.updateFrom(ctx, userID, before, in)
+}
+
+// updateFrom is Update after the admin gate; before is the unlocked row the
+// gate read.
+func (s *WorkspaceService) updateFrom(ctx context.Context, userID string, before db.Workspace, in UpdateWorkspaceInput) (WorkspaceView, error) {
+	in, err := normalizeWorkspaceInput(before, in)
 	if err != nil {
 		return WorkspaceView{}, err
 	}
-	from, to := workspaceChanges(before, in)
-	if len(to) == 0 {
+	workspaceID := before.ID
+	// before is unlocked, so this diff only says whether there is work and
+	// whether a file icon must be released first; the real diff is computed
+	// below from the locked row.
+	_, hint := workspaceChanges(before, in)
+	if len(hint) == 0 {
 		return s.GetView(ctx, userID, workspaceID)
 	}
+	_, releaseIcon := hint["icon_emoji"]
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -341,10 +352,27 @@ func (s *WorkspaceService) Update(ctx context.Context, userID, workspaceID strin
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	if err := s.applyWorkspaceChanges(ctx, q, before, in, to); err != nil {
+	// Files rows are locked before the workspace row (UploadIcon does the
+	// same), so a file icon is released first when the hint says it will go.
+	locked, err := s.lockWorkspace(ctx, q, before, releaseIcon)
+	if err != nil {
 		return WorkspaceView{}, err
 	}
-	if err := recordWorkspaceUpdated(ctx, q, userID, before, from, to); err != nil {
+	from, to := workspaceChanges(locked, in)
+	if len(to) == 0 {
+		return s.GetView(ctx, userID, workspaceID)
+	}
+	if _, ok := to["icon_emoji"]; ok && !releaseIcon && locked.IconFileID.Valid {
+		// An icon file appeared after the unlocked read and was not released.
+		return WorkspaceView{}, ErrConflict
+	}
+	if p, ok := to["task_prefix"]; ok && !taskPrefixPattern.MatchString(p.(string)) {
+		return WorkspaceView{}, Invalid(taskPrefixInvalid)
+	}
+	if err := s.applyWorkspaceChanges(ctx, q, locked, in, to); err != nil {
+		return WorkspaceView{}, err
+	}
+	if err := recordWorkspaceUpdated(ctx, q, userID, locked, from, to); err != nil {
 		return WorkspaceView{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -371,8 +399,28 @@ func (s *WorkspaceService) requireWorkspaceAdmin(ctx context.Context, userID, wo
 	return w, err
 }
 
+// lockWorkspace returns the workspace row locked FOR UPDATE: inside a
+// settings transaction it is the only source of `before`, so concurrent
+// changes cannot both diff against the same old value. With releaseIcon the
+// uploaded icon file is released first, keeping files rows ahead of the
+// workspace row.
+func (s *WorkspaceService) lockWorkspace(ctx context.Context, q *db.Queries, w db.Workspace, releaseIcon bool) (db.Workspace, error) {
+	if releaseIcon {
+		if _, err := s.releaseIconFileInTx(ctx, q, w.ID, w.OrganizationID); err != nil {
+			return db.Workspace{}, err
+		}
+	}
+	locked, err := q.GetWorkspaceForUpdate(ctx, db.GetWorkspaceForUpdateParams{ID: w.ID, OrganizationID: w.OrganizationID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Workspace{}, ErrNotFound
+	}
+	return locked, err
+}
+
+const taskPrefixInvalid = "tiền tố mã task gồm 2–10 ký tự A-Z, 0-9 và bắt đầu bằng chữ"
+
 // normalizeWorkspaceInput trims and validates every field that was sent.
-func normalizeWorkspaceInput(in UpdateWorkspaceInput) (UpdateWorkspaceInput, error) {
+func normalizeWorkspaceInput(before db.Workspace, in UpdateWorkspaceInput) (UpdateWorkspaceInput, error) {
 	if in.Name == nil && in.Description == nil && in.IconEmoji == nil && in.TaskPrefix == nil {
 		return in, Invalid("không có thông tin nào để đổi")
 	}
@@ -405,8 +453,10 @@ func normalizeWorkspaceInput(in UpdateWorkspaceInput) (UpdateWorkspaceInput, err
 	}
 	if in.TaskPrefix != nil {
 		p := strings.ToUpper(strings.TrimSpace(*in.TaskPrefix))
-		if !taskPrefixPattern.MatchString(p) {
-			return out, Invalid("tiền tố mã task gồm 2–10 ký tự A-Z, 0-9 và bắt đầu bằng chữ")
+		// The prefix a workspace already has passes unchecked: a derived one
+		// may not fit the pattern, and re-sending it is not a change.
+		if p != before.TaskPrefix && !taskPrefixPattern.MatchString(p) {
+			return out, Invalid(taskPrefixInvalid)
 		}
 		out.TaskPrefix = &p
 	}
@@ -440,15 +490,9 @@ func workspaceChanges(before db.Workspace, in UpdateWorkspaceInput) (from, to ma
 // applyWorkspaceChanges writes the changed fields inside the caller's
 // transaction; to holds only fields whose value really changes.
 func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Queries, before db.Workspace, in UpdateWorkspaceInput, to map[string]any) error {
-	// The icon goes first: releasing an uploaded file locks files rows, and
-	// every path takes files rows before the workspace row (UploadIcon does
-	// too), so two writers cannot wait on each other.
+	// before is the locked row. An emoji replaces an uploaded icon, which
+	// Update already released (spec 2026-10-14 §5.1).
 	if _, ok := to["icon_emoji"]; ok {
-		// An emoji replaces an uploaded icon; the file is released in this
-		// transaction (spec 2026-10-14 §5.1).
-		if _, err := s.releaseIconFileInTx(ctx, q, before.ID, before.OrganizationID); err != nil {
-			return err
-		}
 		emoji := pgtype.Text{String: *in.IconEmoji, Valid: *in.IconEmoji != ""}
 		if _, err := q.SetWorkspaceIcon(ctx, db.SetWorkspaceIconParams{
 			ID: before.ID, OrganizationID: before.OrganizationID, IconEmoji: emoji,

@@ -355,6 +355,39 @@ func (q *Queries) GetWorkspaceBySlugs(ctx context.Context, arg GetWorkspaceBySlu
 	return i, err
 }
 
+const getWorkspaceForUpdate = `-- name: GetWorkspaceForUpdate :one
+SELECT id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id FROM workspaces
+WHERE id = $1 AND organization_id = $2
+FOR UPDATE
+`
+
+type GetWorkspaceForUpdateParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// The locked row a settings change is computed from (spec 2026-10-14 §4.4).
+func (q *Queries) GetWorkspaceForUpdate(ctx context.Context, arg GetWorkspaceForUpdateParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceForUpdate, arg.ID, arg.OrganizationID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.MatrixRoomID,
+		&i.TaskPrefix,
+		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
+	)
+	return i, err
+}
+
 const getWorkspaceIconFileIDForUpdate = `-- name: GetWorkspaceIconFileIDForUpdate :one
 SELECT icon_file_id FROM workspaces
 WHERE id = $1 AND organization_id = $2

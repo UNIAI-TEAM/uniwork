@@ -31,6 +31,12 @@ SELECT icon_file_id FROM workspaces
 WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
 FOR UPDATE;
 
+-- name: GetWorkspaceForUpdate :one
+-- The locked row a settings change is computed from (spec 2026-10-14 §4.4).
+SELECT * FROM workspaces
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+FOR UPDATE;
+
 -- name: ListWorkspaceIconFileIDs :many
 -- tenant: system
 -- FileService asks which of these files a workspace still shows.

@@ -450,3 +450,70 @@ func TestWorkspaceTaskPrefixAliases(t *testing.T) {
 		}
 	}
 }
+
+// A second change computed from a row read before the first one committed
+// must still diff against the locked row: the first change's alias survives
+// and the audit row names the real old value.
+func TestWorkspaceUpdateDiffsAgainstTheLockedRow(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Beta", "doi-beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := w.TaskPrefix
+	stale, err := f.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, c := "BBB", "CCC"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &b}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.ws.updateFrom(ctx, f.ua.ID, stale, UpdateWorkspaceInput{TaskPrefix: &c}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := f.pool.Query(ctx, `SELECT value FROM workspace_aliases WHERE workspace_id = $1 AND kind = 'task_prefix' ORDER BY value`, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{a, "BBB"}
+	if want[0] > want[1] {
+		want[0], want[1] = want[1], want[0]
+	}
+	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("aliases = %v, want %v", got, want)
+	}
+	var changes string
+	if err := f.pool.QueryRow(ctx, `SELECT changes FROM audit_events WHERE resource_id = $1 AND action = 'workspace.updated' ORDER BY occurred_at DESC, id DESC LIMIT 1`, w.ID).Scan(&changes); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(changes, `"BBB"`) || !strings.Contains(changes, `"CCC"`) || strings.Contains(changes, `"`+a+`"`) {
+		t.Fatalf("audit changes = %s, want BBB -> CCC", changes)
+	}
+}
+
+func TestWorkspaceUnchangedLegacyPrefixIsNotRevalidated(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Gamma", "doi-gamma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A derived prefix can be one letter, which the pattern would refuse.
+	if _, err := f.pool.Exec(ctx, `UPDATE workspaces SET task_prefix = 'G' WHERE id = $1`, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	same, name := "g", "Đội Gamma 2"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &same, Name: &name}); err != nil {
+		t.Fatalf("re-sent prefix: %v", err)
+	}
+	var n int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM workspace_aliases WHERE workspace_id = $1`, w.ID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("aliases = %d, err %v; want none", n, err)
+	}
+}
