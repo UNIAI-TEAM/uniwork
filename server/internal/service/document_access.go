@@ -435,7 +435,10 @@ func (s *DocumentService) orgReadable(ctx context.Context, orgID, userID string,
 
 // documentReadLevel reads the document and resolves the recipient's level
 // through the same gate every document read uses; a document that vanished
-// between the existence read and here is gone, a refusal is not readable.
+// between the existence read and here is gone, a refusal is not readable. The
+// caller has already run the organization gate for this document's tenant
+// (FilterReadableDocuments memoizes it per organization), so only the level
+// is resolved here and one page pays for the tenant check once (R1-3).
 func (s *DocumentService) documentReadLevel(ctx context.Context, userID, documentID string) (bool, error) {
 	doc, err := s.q.GetDocumentByID(ctx, documentID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -444,7 +447,7 @@ func (s *DocumentService) documentReadLevel(ctx context.Context, userID, documen
 	if err != nil {
 		return false, err
 	}
-	access, err := s.resolveLevel(ctx, s.q, Human(userID), doc)
+	access, err := s.resolveLevelInTenant(ctx, s.q, Human(userID), doc)
 	if err != nil {
 		if isGateRefusal(err) {
 			return false, nil
