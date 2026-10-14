@@ -377,14 +377,16 @@ func TestDocumentMove(t *testing.T) {
 
 func TestDocumentMoveDepthRefusedAtCreate(t *testing.T) {
 	w := newDocsWorld(t)
+	// FD-D2: the signed bound is 20; the HTTP layer pins the value.
+	const depth = 20
 	parent := ""
-	for i := 1; i <= 6; i++ {
+	for i := 1; i <= depth+1; i++ {
 		body := map[string]any{"title": "level", "kind": "page"}
 		if parent != "" {
 			body["parent_id"] = parent
 		}
 		res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents", w.token, body)
-		if i <= 5 {
+		if i <= depth {
 			if res.StatusCode != 201 {
 				t.Fatalf("level %d create: %d %v", i, res.StatusCode, out)
 			}
@@ -392,12 +394,12 @@ func TestDocumentMoveDepthRefusedAtCreate(t *testing.T) {
 			continue
 		}
 		if code, _ := errCodeClass(out); res.StatusCode != 422 || code != "document_too_deep" {
-			t.Fatalf("level 6 create: %d code=%q %v", res.StatusCode, code, out)
+			t.Fatalf("level %d create: %d code=%q %v", i, res.StatusCode, code, out)
 		}
 	}
 
 	// The 05b move route enforces the same ceiling: a standalone document
-	// cannot move under the fifth-level parent.
+	// cannot move under the deepest-level parent.
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents", w.token,
 		map[string]any{"title": "standalone", "kind": "page"})
 	if res.StatusCode != 201 {

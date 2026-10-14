@@ -136,7 +136,7 @@ func TestDocumentTree(t *testing.T) {
 		if view.Document.ParentID.String != root.ID {
 			t.Fatalf("parent = %v, want %s", view.Document.ParentID, root.ID)
 		}
-		tree, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, "")
+		tree, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, "", false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,27 +172,29 @@ func TestDocumentTree(t *testing.T) {
 		wantCode(t, err, "document_cycle")
 	})
 
-	t.Run("the five-level bound counts the moved subtree", func(t *testing.T) {
-		// chain of five: r -> c2 -> c3 -> c4 -> c5 is at the bound already.
+	t.Run("the bound counts the moved subtree", func(t *testing.T) {
+		// A chain of maxDocumentDepth: r -> c2 -> ... -> c20 is at the bound
+		// already (FD-D2).
 		r := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		prev := r
 		chain := []db.Document{r}
-		for i := 0; i < 4; i++ {
+		for i := 1; i < maxDocumentDepth; i++ {
 			n := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: prev.ID})
 			chain = append(chain, n)
 			prev = n
 		}
 		other := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
-		// The whole chain (height 5) under a depth-1 root would reach 6.
+		// The whole chain (height maxDocumentDepth) under a depth-1 root
+		// would reach one past the bound.
 		_, err := f.svc.MoveDocument(f.ctx, owner, r.ID, MoveDocumentInput{ParentID: other.ID, Revision: 1})
 		wantCode(t, err, "document_too_deep")
-		// A leaf at depth 5 cannot take a child either.
+		// A leaf at the deepest level cannot take a child either.
 		newRoot := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
-		_, err = f.svc.MoveDocument(f.ctx, owner, newRoot.ID, MoveDocumentInput{ParentID: chain[4].ID, Revision: 1})
+		_, err = f.svc.MoveDocument(f.ctx, owner, newRoot.ID, MoveDocumentInput{ParentID: chain[maxDocumentDepth-1].ID, Revision: 1})
 		wantCode(t, err, "document_too_deep")
-		// The same leaf under a depth-4 page is legal.
-		if _, err := f.svc.MoveDocument(f.ctx, owner, newRoot.ID, MoveDocumentInput{ParentID: chain[3].ID, Revision: 1}); err != nil {
-			t.Fatalf("depth-5 move refused: %v", err)
+		// The same leaf under a one-shallower page is legal.
+		if _, err := f.svc.MoveDocument(f.ctx, owner, newRoot.ID, MoveDocumentInput{ParentID: chain[maxDocumentDepth-2].ID, Revision: 1}); err != nil {
+			t.Fatalf("move to the bound refused: %v", err)
 		}
 	})
 
@@ -354,7 +356,7 @@ func TestDocumentTree(t *testing.T) {
 		open := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: root.ID})
 		secret := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: root.ID})
 		grand := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: secret.ID})
-		tree, err := f.svc.DocumentTree(f.ctx, Human(tn.member.ID), tn.wsA, root.ID)
+		tree, err := f.svc.DocumentTree(f.ctx, Human(tn.member.ID), tn.wsA, root.ID, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -373,6 +375,75 @@ func TestDocumentTree(t *testing.T) {
 		}
 		if !sawOpen {
 			t.Fatalf("visible child missing from member tree: %v", ids)
+		}
+	})
+}
+
+// FD-03 (UNI-1463): the FOLDERS sidebar reads the same forest cut to folders
+// (kind=folder) through the same rules; pages and files leave the cut with
+// their subtrees, and a root that is not a folder is not part of it.
+func TestDocumentTreeFoldersOnly(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "foldersonly")
+	owner := Human(tn.owner.ID)
+	spec := func(parent, kind, title string) treeDocSpec {
+		return treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			parent: parent, kind: kind, title: title,
+		}
+	}
+	outer := f.treeDoc(t, tn, spec("", DocumentKindFolder, "Ngoài"))
+	inner := f.treeDoc(t, tn, spec(outer.ID, DocumentKindFolder, "Trong"))
+	leaf := f.treeDoc(t, tn, spec(inner.ID, DocumentKindPage, "Trang trong thư mục"))
+	pageRoot := f.treeDoc(t, tn, spec("", DocumentKindPage, "Trang gốc"))
+	pageChild := f.treeDoc(t, tn, spec(pageRoot.ID, DocumentKindPage, "Trang con"))
+
+	t.Run("the folder cut drops pages and files", func(t *testing.T) {
+		full, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, "", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var all []string
+		treeIDs(full, &all)
+		if len(all) != 5 {
+			t.Fatalf("uncut tree = %v, want all five nodes", all)
+		}
+		cut, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, "", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []string
+		treeIDs(cut, &ids)
+		for _, id := range ids {
+			if id == leaf.ID || id == pageRoot.ID || id == pageChild.ID {
+				t.Fatalf("a page leaked into the folder cut: %v", ids)
+			}
+		}
+		if len(ids) != 2 {
+			t.Fatalf("folder cut = %v, want the two folders", ids)
+		}
+	})
+
+	t.Run("a folder branch keeps its folders and loses its pages", func(t *testing.T) {
+		branch, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, outer.ID, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(branch) != 1 || branch[0].ID != inner.ID {
+			t.Fatalf("folder branch = %+v, want the inner folder", branch)
+		}
+		if len(branch[0].Children) != 0 {
+			t.Fatalf("inner folder still carries children: %+v", branch[0].Children)
+		}
+	})
+
+	t.Run("a root that is not a folder is not found in the cut", func(t *testing.T) {
+		if _, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, pageRoot.ID, true); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("page root in the folder cut = %v, want not found", err)
+		}
+		// The same root answers without the cut.
+		if _, err := f.svc.DocumentTree(f.ctx, owner, tn.wsA, pageRoot.ID, false); err != nil {
+			t.Fatalf("page root without the cut: %v", err)
 		}
 	})
 }

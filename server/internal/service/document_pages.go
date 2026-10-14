@@ -30,11 +30,19 @@ import (
 
 const (
 	documentVisibilityWorkspace = "workspace"
-	// maxDocumentDepth is the tree bound (C-01 §3.1): a root page is depth 1.
-	maxDocumentDepth   = 5
+	// maxDocumentDepth is the tree bound (C-01 §3.1, FD-D2): a root page is
+	// depth 1. The create and move checks, the ancestor walks, the tree cut
+	// and the subtree CTEs (through subtreeMaxLevel) all read it.
+	maxDocumentDepth   = 20
 	maxDocumentTitle   = 500
 	maxDocumentIconLen = 8
 )
+
+// subtreeMaxLevel bounds every recursive subtree walk: twice the tree bound,
+// so a corrupted parent chain is reported by the service (documentDepth has
+// the same guard) instead of walked forever. One function feeds every CTE
+// caller, so no statement keeps a bound of its own.
+func subtreeMaxLevel() int32 { return 2 * maxDocumentDepth }
 
 // DocumentCrumb is one ancestor on the way to a document, root first.
 type DocumentCrumb struct {
@@ -95,7 +103,7 @@ func errRevisionConflict(current int64) error {
 }
 
 func errDocumentTooDeep() error {
-	return coded(http.StatusUnprocessableEntity, "document_too_deep", "cây tài liệu sâu tối đa 5 cấp")
+	return coded(http.StatusUnprocessableEntity, "document_too_deep", "cây tài liệu sâu tối đa "+strconv.Itoa(maxDocumentDepth)+" cấp")
 }
 
 func cleanDocumentTitle(title string) (string, error) {
