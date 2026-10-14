@@ -1,6 +1,6 @@
 # UniWork — Sửa thông tin workspace: mô tả, icon, slug, tiền tố mã task
 
-> **Trạng thái:** in-progress — spec đã duyệt (brainstorming 2026-10-14); plan chưa viết.
+> **Trạng thái:** in-progress — spec đã duyệt (brainstorming 2026-10-14); plan `docs/superpowers/plans/2026-10-14-workspace-info-edit.md` chờ duyệt.
 
 **Ngày:** 2026-10-14
 **Issue:** chưa có. Tạo issue UniAI trước khi mở nhánh `feature/UNI-nnn-…` (luật "No issue, no code").
@@ -71,6 +71,13 @@ ALTER TABLE workspaces
   ADD COLUMN icon_file_id TEXT,
   ADD CONSTRAINT workspaces_one_icon CHECK (icon_emoji IS NULL OR icon_file_id IS NULL);
 ```
+
+`icon_file_id` nằm ở migration riêng, cùng đợt với purpose `workspace_icon`:
+`TestEveryFileIDColumnHasAReferenceSource` đòi mọi cột `*_file_id` có nguồn tham chiếu ngay khi
+migration thêm nó. Purpose mới cũng cần một migration thay hai CHECK của `file_upload_sessions`
+(`file_upload_sessions_purpose_check`, `file_upload_sessions_scope_matches_purpose`, bản hiện hành
+ở `9991791800000000_data_subject_requests.up.sql`): thêm `workspace_icon` vào danh sách purpose
+và vào nhánh org + workspace.
 
 **4.2 Bảng `workspace_aliases`**
 
@@ -165,7 +172,7 @@ nên `docs/events/CATALOGUE.md`, `catalogue.go` và `events.ts` không đổi.
 
 - Purpose mới `WorkspaceIcon` trong `server/internal/files/registry.go`: `ScopeOrgWorkspace`,
   `imageMIMETypes`, `MaxBytes: 2 << 20`, `ReadMode: ReadPresign`.
-- `PUT /api/v1/workspaces/{workspaceID}/icon`: multipart field `file`, `http.MaxBytesReader` như
+- `POST /api/v1/workspaces/{workspaceID}/icon` (POST như `POST /me/avatar`): multipart field `file`, `http.MaxBytesReader` như
   `server/internal/handler/avatar.go`. `WorkspaceService.UploadIcon`: cổng owner/admin →
   `files.Upload` → transaction {`ClaimInTx`, `SetWorkspaceIcon(emoji = NULL, file = mới)`,
   `ReleaseInTx` file cũ, audit} → lỗi thì `CancelUpload`.
@@ -209,7 +216,7 @@ switcher, trang chọn workspace và tab Cài đặt.
 
 **6.4 Tab Cài đặt › Workspace** (`workspace-tab.tsx`, tách file khi gần giới hạn 500 dòng)
 
-1. **Icon**: preview + menu "Chọn emoji" (`EmojiPicker` lazy như `ProjectIconField`), "Tải ảnh lên"
+1. **Icon**: preview + ba nút "Chọn emoji" (`EmojiPicker` lazy như `ProjectIconField`), "Tải ảnh lên"
    (input file ẩn), "Xoá icon".
 2. **Tên**: giữ nguyên.
 3. **Mô tả**: `Textarea`, autosave bằng `useAutoSave`, đếm ký tự trên 500.
@@ -275,7 +282,7 @@ Viết test thất bại trước rồi mới implement.
 
 **Go — test hợp đồng đã có**
 
-- `server/internal/service/audit_coverage_test.go`: thêm `UploadIcon`, `RemoveIcon`.
+- `server/internal/service/audit_coverage_test.go`: không thêm dòng. `UploadIcon` và `RemoveIcon` ghi lại action `workspace.updated` (diff `icon`), action này đã có ca kiểm tra.
 - `server/internal/service/file_references_test.go`: `workspaces.icon_file_id` được đăng ký.
 - `isolation_world_test.go`: seed một dòng `workspace_aliases` của org A bằng cách đổi slug qua API.
   Hai route icon mới tự được `TestIsolationMatrix` phủ vì path chứa `{workspaceID}`.
@@ -300,8 +307,9 @@ Viết test thất bại trước rồi mới implement.
 - Test của `workspace-switcher` và `workspace-picker-view`: có dòng mô tả; mô tả rỗng thì không
   render.
 
-**E2E — `e2e/workspace-settings.spec.ts`** (mới): admin đổi slug → mở URL cũ → về URL mới; đổi
-tiền tố → tìm mã cũ vẫn ra task.
+**E2E — `e2e/workspace-settings.spec.ts`** (mới): admin đổi slug → mở URL cũ → về URL mới.
+Tra mã task cũ sau khi đổi tiền tố do `TestGetTaskByIdentifierAfterPrefixChange` (Go) giữ: e2e chưa
+có đường UI rẻ nào tra mã task.
 
 Ngưỡng coverage chỉ tăng.
 
