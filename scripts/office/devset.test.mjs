@@ -18,6 +18,7 @@ import {
   scoreDevCase,
   validateDevCase,
 } from './devset.mjs';
+import { summarizeRunResults } from './devset-run.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const HOLDOUT_CASES_DIR = path.join(repoRoot, 'docs/office/g5g6g7/holdout/cases');
@@ -193,5 +194,27 @@ describe('G6-08 synthetic dev set & guard', () => {
       writes: 0,
     });
     assert.equal(failAllowlist.passed, false);
+
+    const summary = summarizeRunResults([
+      {
+        id: 'DV-XLSX-001',
+        lang: 'vi',
+        format: 'xlsx',
+        passed: true,
+        outsideAllowlist: [],
+        latenciesMs: { model: 120, tool: 5, endToEnd: 130 },
+      },
+      {
+        id: 'DV-DOCX-002',
+        lang: 'en',
+        format: 'docx',
+        passed: false,
+        outsideAllowlist: [],
+        latenciesMs: { model: 200, tool: 8, endToEnd: 215 },
+      },
+    ]);
+    assert.equal(summary.total, 2);
+    assert.equal(summary.passed, 1);
+    assert.equal(summary.outsideAllowlistTotal, 0);
   });
 });
