@@ -44,7 +44,7 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
       <Tabs value={scope ?? ""} onValueChange={(next) => onScope(next as ScopeTab)}>
         <TabsList className="max-w-full overflow-x-auto" aria-label={t("documents.home.scope_label")}>
           {SCOPE_TABS.map((tab) => (
-            <TabsTrigger key={tab} value={tab}>
+            <TabsTrigger key={tab} value={tab} className="pointer-coarse:min-h-11 pointer-coarse:min-w-11">
               {t(`documents.home.scope.${tab}`)}
               {scope === tab && count && count.value > 0 ? (
                 <span className="font-mono text-caption tabular-nums text-muted-foreground">
@@ -64,7 +64,7 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
             aria-pressed={chip === value}
             onClick={() => onChip(value)}
             className={cn(
-              "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11",
+              "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
               chip === value
                 ? "border-foreground bg-foreground text-background"
                 : "border-border bg-background text-foreground hover:bg-accent",
@@ -158,7 +158,7 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
     setEditing(false);
     if (title && title !== leaf.title) onRename(title);
   };
-  const crumb = "rounded px-1 text-body text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:min-h-11";
+  const crumb = "rounded px-1 text-body text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11";
   return (
     <nav aria-label={t("documents.home.breadcrumb_label")} className="flex min-w-0 flex-wrap items-center gap-1">
       <button type="button" className={crumb} onClick={onRoot}>

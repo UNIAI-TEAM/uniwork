@@ -1179,6 +1179,45 @@ describe("DocumentsPageView", () => {
       getSpy.mockRestore();
       setSpy.mockRestore();
     });
+
+    it("gives every toolbar chip and scope tab a 44x44 coarse-pointer floor while keeping fine-pointer chip sizing (V-F6 / N3)", async () => {
+      route({
+        tree: () => [
+          treeNode({
+            id: "fo1",
+            title: "An",
+            kind: "folder",
+            children: [treeNode({ id: "fo2", title: "Dự án CCB", kind: "folder", parent_id: "fo1" })],
+          }),
+        ],
+        detail: (id) =>
+          id === "fo2"
+            ? folderDetail({ id: "fo2", title: "Dự án CCB", parent_id: "fo1", breadcrumbs: [{ id: "fo1", title: "An" }] })
+            : null,
+        list: () => [summary({ id: "d1", parent_id: "fo2", title: "Kế hoạch Q4" })],
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo2` });
+      await screen.findByText("Kế hoạch Q4");
+
+      const chipGroup = screen.getByRole("group", { name: t("documents.home.chips_label") });
+      const chips = within(chipGroup).getAllByRole("button");
+      expect(chips.length).toBeGreaterThan(0);
+      for (const chip of chips) {
+        expect(chip).toHaveClass("h-7", "px-3", "pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
+      }
+
+      const tabList = screen.getByRole("tablist", { name: t("documents.home.scope_label") });
+      const tabs = within(tabList).getAllByRole("tab");
+      expect(tabs.length).toBeGreaterThan(0);
+      for (const tab of tabs) {
+        expect(tab).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
+      }
+
+      const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+      for (const btn of within(crumbs).getAllByRole("button")) {
+        expect(btn).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
+      }
+    });
   });
 });
 
