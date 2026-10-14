@@ -145,6 +145,33 @@ describe("OfficeModuleFrame", () => {
     }
   });
 
+  // G6-05: UniWork AI is its own grant (`uniwork_ai`), independent of BYOK `ai`; the cloud tools
+  // follow their grants under either one, so an organization with only UniWork AI still gets them.
+  it.each(ALL_MODULES)("grants the %s frame uniworkAi and the cloud tools from a uniwork_ai grant alone", async (module) => {
+    const frame = mountFrame(module, { mint: mintWithAI(module, { ai: false, web_search: true, image_search: false, image_generation: true, uniwork_ai: true }) });
+    await frame.ready({ module });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: false, uniworkAi: true, webSearch: true, imageSearch: false, imageGeneration: true } });
+  });
+
+  it("keeps uniworkAi off without the grant, with a drifted one, and keeps cloud tools off without either AI", async () => {
+    const cases: [OfficeModule, unknown][] = [
+      ["pdf", { ai: true, web_search: true, image_search: true, image_generation: true }],
+      ["markdown", { ai: true, web_search: false, image_search: false, image_generation: false, uniwork_ai: "yes" }],
+      ["html", { ai: false, web_search: true, image_search: true, image_generation: true, uniwork_ai: false }],
+      ["slides", undefined],
+    ];
+    for (const [module, ai] of cases) {
+      const frame = mountFrame(module, { mint: mintWithAI(module, ai) });
+      await frame.ready({ module });
+      await waitFor(() => expect(frame.inits()).toHaveLength(1));
+      const caps = (frame.inits()[0]?.payload as { capabilities: Record<string, boolean> }).capabilities;
+      expect(caps.uniworkAi).toBeFalsy();
+      if (module !== "pdf" && module !== "markdown") expect([caps.webSearch, caps.imageSearch, caps.imageGeneration]).toEqual([false, false, false]);
+      cleanup();
+    }
+  });
+
   it("keeps AI for a view-only user, who still cannot save", async () => {
     const frame = mountFrame("pdf", { mint: () => Promise.resolve({ ...minted, can_edit: false, ai: { ai: true, web_search: false, image_search: false, image_generation: false } }) });
     await frame.ready({ module: "pdf" });

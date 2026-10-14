@@ -178,7 +178,8 @@ export interface DocsFrameSession {
  * implements. A key the grant leaves out is off. AI (CONTRACT C16) is on only
  * for a module with AI panels (`officeModuleSpec(module).ai`) and only as far
  * as the minted token's `ai` grant says (the organization's entitlement, read
- * by the server at mint); each cloud tool needs `ai` too. The frame then calls
+ * by the server at mint); `uniworkAi` follows `ai.uniwork_ai` the same way, and
+ * each cloud tool needs `ai` or `uniworkAi` plus its own grant. The frame then calls
  * the frame-token AI routes itself; a viewer keeps AI (it never saves).
  */
 export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false, download = false): Capabilities {
@@ -186,13 +187,17 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
   const grant = spec.grant;
   const on = (key: keyof Capabilities) => grant[key] === true;
   const ai = spec.ai === true && aiGrant?.ai === true;
+  // UniWork AI (G6-05) is its own grant, independent of BYOK `ai`.
+  const uniworkAi = spec.ai === true && aiGrant?.uniwork_ai === true;
+  // The cloud tools serve either AI, so an organization with only UniWork AI still gets the ones it is granted.
+  const cloud = ai || uniworkAi;
   return {
     ...grant,
     save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents"), print: on("print"),
     exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
-    ai, webSearch: ai && aiGrant?.web_search === true, imageSearch: ai && aiGrant?.image_search === true,
-    imageGeneration: ai && aiGrant?.image_generation === true,
+    ai, uniworkAi, webSearch: cloud && aiGrant?.web_search === true, imageSearch: cloud && aiGrant?.image_search === true,
+    imageGeneration: cloud && aiGrant?.image_generation === true,
     // The host's own "Open in desktop app" is only for a user who may edit.
     desktopOpen: desktopOpen && !readonly,
     // The host delivers the frame's bytes itself (api.download), only to a user who may edit.
