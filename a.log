@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+96d1c8d098b139dc82ce6e2f459c05019d29ee4c
+96d1c8d09 refactor(documents): reuse FolderNameDialog in sidebar and align page-view tests with TREE_MAX_LEVEL (UNI-1467)
+13dde27a8 feat(documents): add tree row action menu, folder name dialog, and dnd toasts (UNI-1467)
+3834d5b33 feat(documents): drive folder from URL, reveal tree ancestors, and create root folders via dialog
+a71235945 test(documents): cover folder URL state, tree reveal, invalid folder, and root (+) dialog
+d2d95481f chore: merge FD-06 folder client (UNI-1466) into the G5-G7 root
+aff821536 chore: merge G7-07 ops runbook, alerts, support matrix (UNI-1381) into the G5-G7 root
+c8b78bcee fix(documents): keep the valid prefix of a search row's path
+483e6fd8d test(documents): a malformed ancestor keeps the path's valid prefix

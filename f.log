@@ -1,0 +1,10 @@
+$ pnpm --filter @uniwork/web typecheck; echo "WEB_TC_EXIT=$?"
+
+> @uniwork/web@0.0.0 typecheck /workspace/apps/web
+> tsc --noEmit
+
+../../packages/views/documents/document-tree-row-menu.tsx(117,31): error TS2339: Property 'orgMemberStatus' does not exist on type 'WorkspaceContextValue'.
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 typecheck: `tsc --noEmit`
+Exit status 2
+WEB_TC_EXIT=2
