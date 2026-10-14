@@ -83,6 +83,7 @@ export function useTreeReveal({
   const pendingScrollForRef = useRef<string | null>(null);
   const lastTargetRef = useRef<string | null>(null);
   const wasVisibleRef = useRef<boolean>(false);
+  const deferredWhileHiddenRef = useRef<boolean>(false);
 
   useEffect(() => {
     const target = currentId ?? null;
@@ -90,6 +91,7 @@ export function useTreeReveal({
       lastTargetRef.current = target;
       revealedForRef.current = null;
       pendingScrollForRef.current = target;
+      deferredWhileHiddenRef.current = false;
     }
   }, [currentId]);
 
@@ -124,6 +126,7 @@ export function useTreeReveal({
   useEffect(() => {
     if (!currentId) {
       wasVisibleRef.current = false;
+      deferredWhileHiddenRef.current = false;
       return undefined;
     }
     if (!detail.data || detail.data.id !== currentId) return undefined;
@@ -133,13 +136,17 @@ export function useTreeReveal({
     if (ancestorIds.length > 0 && revealedForRef.current !== currentId) return undefined;
     const el = rowRefs.current?.get(currentId);
     if (!el) {
-      if (!visible) wasVisibleRef.current = false;
+      if (!visible) {
+        wasVisibleRef.current = false;
+        deferredWhileHiddenRef.current = true;
+      }
       return undefined;
     }
 
     const currentlyVisible = isRowVisible(el, visible);
     if (!currentlyVisible) {
       wasVisibleRef.current = false;
+      deferredWhileHiddenRef.current = true;
       pendingScrollForRef.current = currentId;
     } else if (!wasVisibleRef.current) {
       wasVisibleRef.current = true;
@@ -168,13 +175,20 @@ export function useTreeReveal({
       const target = rowRefs.current?.get(currentId);
       if (!target || !isRowVisible(target, visible)) return;
       cleanup();
+      const inDialog = Boolean(target.closest('[role="dialog"]'));
+      const deferredWhileHidden = deferredWhileHiddenRef.current;
       wasVisibleRef.current = true;
+      deferredWhileHiddenRef.current = false;
       pendingScrollForRef.current = null;
       if (typeof target.scrollIntoView !== "function") return;
       const bodyWasActive =
         typeof document !== "undefined" &&
         (!document.activeElement || document.activeElement === document.body);
       target.scrollIntoView({ block: "nearest" });
+      if (inDialog || (deferredWhileHidden && !bodyWasActive)) {
+        target.focus({ preventScroll: true });
+        return;
+      }
       // `Element.scrollIntoView()` moves the browser's sequential focus
       // navigation start point to the scrolled element; resetting via body
       // keeps the first Tab at the top of document order (header -> nav -> tree).

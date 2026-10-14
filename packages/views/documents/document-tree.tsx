@@ -39,6 +39,7 @@ import {
   moveTooDeep,
   siblingMovePosition,
   siblingsOf,
+  subtreeIds,
   type TreeRow,
 } from "./document-tree-model";
 import { useTreeReveal } from "./use-tree-reveal";
@@ -267,6 +268,9 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
   };
 
   const toggle = (id: string) => {
+    if (expanded.has(id) && focusedId && focusedId !== id && subtreeIds(nodes, id).has(focusedId)) {
+      focusRow(id);
+    }
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);

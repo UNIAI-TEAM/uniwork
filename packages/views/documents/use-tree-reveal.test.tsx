@@ -503,7 +503,7 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     expect(detailCalls).toBe(1);
   });
 
-  it("scrolls the current row into view once when a tree rendered hidden becomes shown, without moving focus or re-opening collapsed ancestors", async () => {
+  it("scrolls the current row into view once and focuses it when a tree rendered hidden becomes shown, without re-opening collapsed ancestors", async () => {
     const scrollSpy = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
@@ -556,13 +556,15 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     // While hidden, scrollIntoView must not have fired and consumed the reveal.
     expect(scrollSpy).not.toHaveBeenCalled();
 
-    // Showing the tree triggers exactly one scrollIntoView on the current row without moving focus.
+    // Showing the tree triggers exactly one scrollIntoView and moves focus onto the current row.
     rerender(renderTreeHost(false));
 
     await waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1));
+    const targetRow = screen.getByRole("treeitem", { name: /Cấp 4/ });
     expect(scrollSpy).toHaveBeenCalledWith({ block: "nearest" });
-    expect(scrollSpy.mock.instances[0]).toBe(screen.getByRole("treeitem", { name: /Cấp 4/ }));
-    expect(document.activeElement).toBe(trigger);
+    expect(scrollSpy.mock.instances[0]).toBe(targetRow);
+    await waitFor(() => expect(document.activeElement).toBe(targetRow));
+    expect(host).toContainElement(document.activeElement as HTMLElement);
 
     // User collapses ancestor f3; hiding and re-showing the tree must not re-open f3.
     fireEvent.click(screen.getByRole("button", { name: t("documents.tree.collapse", { title: "Cấp 3" }) }));
@@ -575,10 +577,11 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     expect(screen.getByRole("treeitem", { name: /Cấp 3/ })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("treeitem", { name: /Cấp 4/ })).toBeNull();
     expect(scrollSpy).toHaveBeenCalledTimes(1);
-    expect(document.activeElement).toBe(trigger);
+    expect(host).toContainElement(document.activeElement as HTMLElement);
+    expect(document.activeElement).toBe(screen.getByRole("treeitem", { name: /Cấp 3/ }));
   });
 
-  it("scrolls the current row into view once when the phone sheet opens, without moving focus or re-opening collapsed ancestors", async () => {
+  it("moves focus into the phone sheet onto the current row, scrolls it into view once without re-opening collapsed ancestors, and returns focus to the trigger on Escape", async () => {
     const scrollSpy = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
@@ -606,6 +609,7 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } },
     });
+    const onOpenChange = vi.fn();
 
     const renderSheet = (open: boolean) => (
       <QueryClientProvider client={queryClient}>
@@ -615,7 +619,7 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
           </button>
           <DocumentsSidebarSheet
             open={open}
-            onOpenChange={vi.fn()}
+            onOpenChange={onOpenChange}
             wsId={WS}
             view={{ kind: "home" }}
             folderId="f4"
@@ -636,15 +640,17 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     expect(document.activeElement).toBe(trigger);
     expect(scrollSpy).not.toHaveBeenCalled();
 
-    // Opening the sheet reveals and scrolls the current row into view once without moving focus.
+    // Opening the sheet moves focus inside the sheet onto the current row and scrolls it into view once.
     rerender(renderSheet(true));
 
-    const targetRow = await screen.findByRole("treeitem", { name: /Cấp 4/ });
+    const dialog = await screen.findByRole("dialog");
+    const targetRow = await within(dialog).findByRole("treeitem", { name: /Cấp 4/ });
     expect(targetRow).toHaveAttribute("aria-current", "true");
     await waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1));
     expect(scrollSpy).toHaveBeenCalledWith({ block: "nearest" });
     expect(scrollSpy.mock.instances[0]).toBe(targetRow);
-    expect(document.activeElement).toBe(trigger);
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
+    expect(document.activeElement).toBe(targetRow);
 
     // Collapsing an ancestor inside the open sheet keeps it collapsed across refetches.
     fireEvent.click(screen.getByRole("button", { name: t("documents.tree.collapse", { title: "Cấp 3" }) }));
@@ -654,5 +660,12 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     });
     expect(screen.getByRole("treeitem", { name: /Cấp 3/ })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("treeitem", { name: /Cấp 4/ })).toBeNull();
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+
+    // Pressing Escape closes the sheet and returns focus to the trigger.
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
+    expect(onOpenChange).toHaveBeenCalledWith(false, expect.anything());
+    rerender(renderSheet(false));
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });

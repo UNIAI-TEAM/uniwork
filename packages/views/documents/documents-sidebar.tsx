@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Clock, FolderTree, House, Plus, Star, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -195,11 +195,20 @@ export function DocumentsSidebarSheet({
   ...sidebar
 }: DocumentsSidebarProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
+  const popupRef = useRef<HTMLDivElement | null>(null);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        ref={popupRef}
         side="left"
-        initialFocus={false}
+        initialFocus={() => {
+          const popup = popupRef.current;
+          if (!popup) return true;
+          if (sidebar.folderId) {
+            return popup.querySelector<HTMLElement>('[role="treeitem"][aria-current="true"]') ?? popup;
+          }
+          return popup.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]') ?? true;
+        }}
         className="flex w-full flex-col gap-0 p-0 sm:max-w-xs"
         closeLabel={t("common.close")}
       >
