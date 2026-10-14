@@ -94,7 +94,14 @@ const next = () => fireEvent.click(screen.getByRole("button", { name: "Tiếp t�
 const SLOW = { timeout: 5000 };
 async function pickHeir() {
   fireEvent.click(await screen.findByRole("combobox", { name: "Chủ sở hữu mới" }, SLOW));
-  fireEvent.click(await screen.findByRole("option", { name: "Nguyễn Văn An" }, SLOW));
+  const option = await screen.findByRole("option", { name: "Nguyễn Văn An" }, SLOW);
+  // A bare click on an option is only honoured once the popup has highlighted
+  // it (a later tick, longer under a loaded runner); a pointerdown first, as a
+  // real press sends, makes Base UI commit the click at once. Without it the
+  // pick was silently dropped and "Tiếp tục" stayed aria-disabled.
+  fireEvent.pointerDown(option);
+  fireEvent.click(option);
+  await waitFor(() => expect(screen.getByRole("combobox", { name: "Chủ sở hữu mới" })).toHaveTextContent("Nguyễn Văn An"));
 }
 
 describe("AcceptInviteView", () => {
