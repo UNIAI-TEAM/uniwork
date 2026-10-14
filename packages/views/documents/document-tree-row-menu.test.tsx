@@ -141,7 +141,7 @@ describe("DocumentTreeRowMenu permissions", () => {
     const cachedClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    cachedClient.setQueryData(documentKeys.list(WS, {}), {
+    cachedClient.setQueryData(documentKeys.list(WS), {
       pages: [
         {
           documents: [

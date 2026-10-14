@@ -661,6 +661,109 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     }
   });
 
+  it("resets sequential focus on document.body without moving focus to the row when a CSS-hidden tree is revealed with body active, and moves focus only when focus is already inside the tree (F3, V-F6)", async () => {
+    const scrollSpy = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: scrollSpy,
+    });
+
+    const resizeCallbacks: ResizeObserverCallback[] = [];
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          resizeCallbacks.push(cb);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+
+    const bodyFocusSpy = vi.spyOn(document.body, "focus");
+    const bodyBlurSpy = vi.spyOn(document.body, "blur");
+
+    try {
+      route({
+        tree: () => [folderNode("f1", "Cấp 1", [folderNode("f2", "Cấp 2")])],
+        detail: (id) =>
+          id === "f2"
+            ? folderDetail("f2", "Cấp 2", { breadcrumbs: [{ id: "f1", title: "Cấp 1" }] })
+            : id === "f1"
+              ? folderDetail("f1", "Cấp 1")
+              : null,
+      });
+
+      const renderNav = () => (
+        <QueryClientProvider
+          client={
+            new QueryClient({
+              defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } },
+            })
+          }
+        >
+          <LocaleAdapterProvider adapter={localeAdapter}>
+            <nav data-testid="tree-nav" style={{ display: "none" }}>
+              <DocumentTree wsId={WS} folders visible currentId="f2" />
+            </nav>
+          </LocaleAdapterProvider>
+        </QueryClientProvider>
+      );
+
+      const firstMount = render(renderNav());
+
+      const nav = screen.getByTestId("tree-nav");
+      const targetRow = await within(nav).findByRole("treeitem", { name: /Cấp 2/, hidden: true });
+      expect(targetRow).toHaveAttribute("aria-current", "true");
+      expect(document.activeElement).toBe(document.body);
+      expect(scrollSpy).not.toHaveBeenCalled();
+
+      bodyFocusSpy.mockClear();
+      bodyBlurSpy.mockClear();
+
+      // 1. Deferred reveal while focus is on document.body: must NOT focus the row, must run V-F6 body reset.
+      nav.style.display = "block";
+      act(() => {
+        for (const cb of resizeCallbacks) {
+          cb([], {} as ResizeObserver);
+        }
+      });
+
+      await waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1));
+      expect(scrollSpy).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scrollSpy.mock.instances[0]).toBe(targetRow);
+      expect(document.activeElement).toBe(document.body);
+      expect(bodyFocusSpy).toHaveBeenCalledWith({ preventScroll: true });
+      expect(bodyBlurSpy).toHaveBeenCalledTimes(1);
+      expect(document.body.getAttribute("tabindex")).toBeNull();
+      firstMount.unmount();
+
+      // 2. Deferred reveal while focus is already inside the tree: moves focus onto the revealed target row.
+      resizeCallbacks.length = 0;
+      render(renderNav());
+      const nav2 = screen.getByTestId("tree-nav");
+      const targetRow2 = await within(nav2).findByRole("treeitem", { name: /Cấp 2/, hidden: true });
+      const row1 = within(nav2).getByRole("treeitem", { name: /Cấp 1/, hidden: true });
+      row1.focus();
+      expect(document.activeElement).toBe(row1);
+
+      nav2.style.display = "block";
+      act(() => {
+        for (const cb of resizeCallbacks) {
+          cb([], {} as ResizeObserver);
+        }
+      });
+      await waitFor(() => expect(document.activeElement).toBe(targetRow2));
+    } finally {
+      bodyFocusSpy.mockRestore();
+      bodyBlurSpy.mockRestore();
+      vi.stubGlobal("ResizeObserver", OriginalResizeObserver);
+    }
+  });
+
   it("moves focus into the phone sheet onto the current row, scrolls it into view once without re-opening collapsed ancestors, and returns focus to the trigger on Escape", async () => {
     const scrollSpy = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
