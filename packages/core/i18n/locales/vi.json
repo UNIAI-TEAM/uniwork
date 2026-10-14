@@ -152,7 +152,6 @@
     "passwordMinHint": "Ít nhất {{min}} ký tự",
     "wordmark": "UniWork",
     "railTagline": "Con người và AI cùng sở hữu công việc.",
-    "railEyebrow": "Work OS cho người và AI",
     "railPoints": {
       "tasks": {
         "title": "Việc và dự án",
@@ -204,6 +203,7 @@
       "eyebrow": "Kết nối trợ lý AI",
       "title": "Cho phép {{client}} truy cập UniWork?",
       "description": "Ứng dụng này sẽ đọc dữ liệu công việc của bạn trong tổ chức bạn chọn. Nó không thể tạo, sửa hay xóa gì.",
+      "descriptionWrite": "Ứng dụng này sẽ đọc dữ liệu công việc của bạn trong tổ chức bạn chọn. Nếu bạn cho phép, nó còn tạo và sửa thay bạn, nhưng không bao giờ xóa.",
       "verified": "Đã xác minh",
       "unverified": "Chưa xác minh",
       "unverifiedWarning": "UniWork chưa xác minh ứng dụng này. Chỉ tiếp tục nếu bạn vừa tự thêm nó.",
@@ -215,6 +215,8 @@
       "shareTasks": "Công việc của bạn và công việc trong các workspace bạn tham gia, kèm bình luận",
       "shareMeetings": "Cuộc họp và bản tóm tắt AI, không có bản ghi lời thoại",
       "shareNot": "Không gồm tin nhắn chat và email",
+      "allowWrite": "Cho phép tạo và sửa",
+      "allowWriteHint": "Nhiều ứng dụng AI hỏi trước mỗi thay đổi, nhưng UniWork không kiểm được điều đó. Mỗi thay đổi ghi tên bạn kèm tên ứng dụng và hoàn tác được.",
       "approve": "Cho phép",
       "approving": "Đang cho phép…",
       "loading": "Đang tải yêu cầu kết nối…",
@@ -376,6 +378,7 @@
     "createTask": "Tạo việc",
     "theme": "Giao diện",
     "language": "Ngôn ngữ",
+    "preferences": "Giao diện và ngôn ngữ",
     "themeSaved": "Đã lưu tùy chọn giao diện",
     "languageSaved": "Đã lưu tùy chọn ngôn ngữ",
     "collapseSidebar": "Thu gọn thanh bên",
@@ -1268,6 +1271,11 @@
           "password": "Nhập mật khẩu để xác nhận.",
           "code": "Nhập mã xác thực hai lớp để xác nhận.",
           "email": "Gõ lại email của bạn để xác nhận."
+        },
+        "incorrect": {
+          "password": "Mật khẩu chưa đúng. Nhập lại để xóa tài khoản.",
+          "code": "Mã xác thực chưa đúng hoặc đã hết hạn. Nhập mã mới để xóa tài khoản.",
+          "email": "Email chưa khớp với tài khoản đang đăng nhập. Gõ lại để xóa tài khoản."
         }
       }
     },
@@ -1312,6 +1320,8 @@
       "meta": "{{org}} · kết nối {{created}}",
       "lastUsed": "dùng lần cuối {{when}}",
       "verified": "Đã xác minh",
+      "scopeRead": "Chỉ đọc",
+      "scopeWrite": "Đọc và ghi",
       "revoke": "Thu hồi",
       "revokeAria": "Thu hồi {{client}}",
       "revokeTitle": "Thu hồi {{client}}?",
@@ -1325,6 +1335,10 @@
       "adminOnly": "Chỉ owner và admin tổ chức xem được mục này.",
       "toggleLabel": "Cho phép trợ lý AI bên ngoài truy cập",
       "toggleDescription": "Dữ liệu chia sẻ: công việc, bình luận, cuộc họp và tóm tắt AI. Không gồm chat và email. Tắt sẽ chặn ngay mọi ứng dụng đã kết nối.",
+      "writeLabel": "Cho phép tạo và sửa",
+      "writeDescription": "Ứng dụng đã kết nối được tạo và sửa công việc thay thành viên, khi thành viên cho phép. Không bao giờ xóa. Tắt sẽ chặn ngay mọi thao tác ghi; quyền đọc giữ nguyên.",
+      "writeNeedsConnector": "Bật truy cập của trợ lý AI trước.",
+      "writeUnavailable": "Quyền ghi chưa mở cho tổ chức của bạn.",
       "addressBody": "Thành viên dán địa chỉ này vào phần thêm connector của Claude, ChatGPT hoặc Gemini CLI. Gửi cho họ nếu mục Ứng dụng AI chưa hiện trong cài đặt của họ.",
       "unavailable": "Tính năng chưa mở cho tổ chức của bạn.",
       "saveFailed": "Không lưu được thay đổi. Thử lại.",
@@ -1332,6 +1346,8 @@
       "empty": "Chưa ai kết nối ứng dụng AI. Mỗi thành viên tự kết nối trong Cài đặt › Ứng dụng AI của mình.",
       "error": "Không tải được danh sách. Thử lại.",
       "meta": "{{user}} · kết nối {{created}}",
+      "scopeRead": "Chỉ đọc",
+      "scopeWrite": "Đọc và ghi",
       "revoke": "Thu hồi",
       "revokeAria": "Thu hồi {{client}} của {{user}}",
       "revokeTitle": "Thu hồi {{client}}?",
@@ -2208,6 +2224,7 @@
       "identifier_missing": "—",
       "activity_group": "{{count}} hoạt động",
       "activity_more": "Xem thêm {{count}} hoạt động",
+      "activity_via": "qua {{client}}",
       "section_properties": "Thuộc tính",
       "section_parent": "Công việc cha",
       "parent_remove": "Bỏ công việc cha",
@@ -3797,7 +3814,7 @@
     "user_not_found": "Không tìm thấy người dùng với email này.",
     "start_dm": "Nhắn tin",
     "contacts_empty": "Chưa có cuộc trò chuyện. Bấm + để nhắn tin, hoặc đợi người khác nhắn cho bạn.",
-    "pending_invites": "Lời mời workspace",
+    "pending_invites": "Lời mời đang chờ",
     "workspace_room": "Chung",
     "workspace_section": "Workspace",
     "workspace_room_hint": "Phòng chung — mọi thành viên đều nhắn ở đây.",
@@ -4335,7 +4352,7 @@
     },
     "invitations": {
       "title": "Mời vào tổ chức",
-      "description": "Người được mời vào thẳng tổ chức, chọn workspace sau.",
+      "description": "Người được mời vào tổ chức, và vào các workspace bạn chọn khi chấp nhận.",
       "send": "Gửi lời mời",
       "revoke": "Thu hồi",
       "revoked": "Đã thu hồi lời mời",
@@ -4351,7 +4368,13 @@
       "sent_one": "Đã gửi {{count}} lời mời",
       "sent_other": "Đã gửi {{count}} lời mời",
       "none_sent": "Chưa gửi lời mời nào: các địa chỉ còn lại trong ô đã là thành viên hoặc không hợp lệ.",
-      "load_error": "Không tải được danh sách lời mời."
+      "load_error": "Không tải được danh sách lời mời.",
+      "workspaces_label": "Vào workspace",
+      "workspaces_hint": "Người được mời thành thành viên của các workspace đã chọn. Không chọn workspace nào thì họ vào tổ chức nhưng chưa mở được workspace.",
+      "workspaces_none": "Tổ chức chưa có workspace nào.",
+      "workspaces_load_error": "Không tải được danh sách workspace.",
+      "grants": "Vào {{list}}",
+      "grants_none": "Chưa cấp workspace"
     },
     "transfer": {
       "title": "Chuyển quyền sở hữu",
@@ -4372,7 +4395,15 @@
         "new_owner": "Người bạn chọn trở thành chủ sở hữu, toàn quyền với tổ chức.",
         "you_admin": "Bạn trở thành quản trị.",
         "no_undo": "Bạn không tự lấy lại quyền sở hữu được."
-      }
+      },
+      "wrong_password": "Mật khẩu chưa đúng. Nhập lại để chuyển quyền sở hữu.",
+      "no_password": "Chuyển quyền sở hữu {{name}} cần xác nhận bằng mật khẩu, nhưng tài khoản của bạn chưa có mật khẩu (bạn đăng nhập bằng Google). Liên hệ bộ phận hỗ trợ để được giúp.",
+      "confirm_lede": "Không có gì bị xóa, nhưng tổ chức không còn do bạn nắm.",
+      "action_pending": "Đang chuyển quyền…",
+      "reason_pick": "Chọn chủ sở hữu mới để tiếp tục.",
+      "reason_name": "Gõ đúng tên tổ chức để tiếp tục.",
+      "reason_password": "Nhập mật khẩu hiện tại để tiếp tục.",
+      "reason_no_password": "Chưa thể chuyển quyền khi tài khoản chưa có mật khẩu."
     },
     "deactivated": {
       "title": "Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này",
@@ -4404,7 +4435,7 @@
       "action": "Đóng tổ chức",
       "confirm_title": "Đóng {{name}}?",
       "confirm_body": "{{name}} sẽ được lưu trữ: mọi workspace và dữ liệu còn nguyên nhưng không ai truy cập được, kể cả bạn. Chỉ bộ phận hỗ trợ khôi phục được. Lời mời đang chờ bị thu hồi và gói trả phí bị hủy.",
-      "confirm_label": "Gõ đường dẫn tổ chức để xác nhận",
+      "confirm_label": "Gõ định danh tổ chức để xác nhận",
       "confirm_hint": "Gõ đúng \"{{slug}}\".",
       "confirm_mismatch": "Chưa khớp với \"{{slug}}\".",
       "done": "Đã đóng tổ chức",
@@ -4415,7 +4446,9 @@
         "no_access": "Không ai mở được nữa, kể cả bạn.",
         "restore": "Chỉ bộ phận hỗ trợ khôi phục được.",
         "billing": "Lời mời đang chờ bị thu hồi và gói trả phí bị hủy."
-      }
+      },
+      "action_pending": "Đang đóng…",
+      "reason_slug": "Gõ đúng định danh tổ chức để đóng."
     }
   },
   "invitations": {
@@ -4424,10 +4457,13 @@
     "subtitle": "Mở một lời mời để xem tổ chức, vai trò và tham gia.",
     "loading_description": "Đang mở lời mời của bạn.",
     "invitedBy": "{{name}} mời bạn vào",
+    "invited": "Bạn được mời vào",
+    "place": "{{workspace}} trong {{organization}}",
     "join": "Tham gia",
     "empty": "Không có lời mời nào",
     "view": "Xem",
     "viewLabel": "Xem lời mời vào {{name}}",
+    "viewWorkspaceLabel": "Xem lời mời vào {{workspace}} trong {{organization}}",
     "expires_on": "hết hạn <time>{{date}}</time>",
     "expires_soon": "Sắp hết hạn",
     "load_error": "Không tải được danh sách lời mời.",
@@ -4438,7 +4474,7 @@
       "description_inviter": "{{inviter}} mời bạn tham gia tổ chức này.",
       "organization": "Tổ chức",
       "workspace": "Workspace",
-      "no_workspace": "Chưa vào workspace nào. Bạn chọn workspace sau khi tham gia.",
+      "no_workspace": "Chưa được cấp workspace. Quản trị viên sẽ thêm bạn vào workspace sau.",
       "role": "Vai trò",
       "inviter": "Người mời",
       "expiry": "Thời hạn",
@@ -4482,17 +4518,17 @@
       "unknown": "Chưa xử lý được {{name}} ở trang này. Tải lại trang để thử lại.",
       "incomplete": "Hoàn tất từng mục ở trên để tiếp tục.",
       "blocked_reason": "Chưa thể tiếp tục khi còn tổ chức đang tạm ngưng.",
-      "wrong_password": "Mật khẩu chưa đúng. Nhập lại để chuyển quyền sở hữu.",
-      "no_password": "Chuyển quyền sở hữu {{name}} cần xác nhận bằng mật khẩu, nhưng tài khoản của bạn chưa có mật khẩu (bạn đăng nhập bằng Google). Liên hệ bộ phận hỗ trợ để được giúp.",
       "no_password_reason": "Chưa thể tiếp tục khi tài khoản chưa có mật khẩu.",
       "confirm_heading": "Xác nhận chuyển tổ chức",
       "confirm_leave": "Rời {{name}}",
       "confirm_transfer": "Chuyển quyền sở hữu {{name}} cho {{person}}, rồi rời tổ chức",
       "confirm_close": "Đóng {{name}}",
       "confirm_join": "Tham gia {{name}} với vai trò {{role}}",
+      "confirm_workspaces": "Vào workspace {{list}}",
       "confirm_note": "Mọi bước diễn ra cùng lúc. Nếu một bước không thành, bạn vẫn ở tổ chức hiện tại như cũ.",
       "action": "Chuyển sang {{name}}",
-      "busy": "Đang có một thay đổi khác với tài khoản của bạn. Thử lại sau giây lát."
+      "busy": "Đang có một thay đổi khác với tài khoản của bạn. Thử lại sau giây lát.",
+      "send_failed": "Chưa gửi được yêu cầu chuyển tổ chức. Bạn vẫn ở tổ chức hiện tại và các lựa chọn ở trên vẫn được giữ. Bấm nút bên dưới để gửi lại."
     }
   },
   "onboarding": {
@@ -4599,7 +4635,9 @@
       "already_member_title": "Bạn đã thuộc {{name}}",
       "already_member_title_unnamed": "Bạn đã thuộc một tổ chức",
       "already_member_body": "Mỗi tài khoản chỉ thuộc một tổ chức. Muốn tạo tổ chức mới, rời hoặc đóng tổ chức hiện tại trước.",
-      "already_member_hint": "Tổ chức của bạn đã có sẵn."
+      "already_member_hint": "Tổ chức của bạn đã có sẵn.",
+      "headline_refused": "Bạn đã có tổ chức.",
+      "lede_refused": "Tổ chức mới chưa được tạo. Workspace của bạn nằm trong tổ chức hiện tại."
     },
     "step_workspace": {
       "headline_first": "Đặt tên workspace.",
@@ -4634,7 +4672,25 @@
       "headline_resume_many": "Chọn workspace của bạn, hoặc tạo cái mới.",
       "slug_invalid_error": "Định danh không hợp lệ: chữ thường, số và dấu gạch ngang, 2–40 ký tự.",
       "create_failed_toast": "Không tạo được. Vui lòng thử lại.",
-      "picker_label": "Chọn workspace"
+      "picker_label": "Chọn workspace",
+      "random_names": {
+        "mercury": "Sao Thủy",
+        "venus": "Sao Kim",
+        "earth": "Trái Đất",
+        "mars": "Sao Hỏa",
+        "jupiter": "Sao Mộc",
+        "saturn": "Sao Thổ",
+        "uranus": "Thiên Vương",
+        "neptune": "Hải Vương",
+        "luna": "Mặt Trăng",
+        "polaris": "Sao Bắc Cực",
+        "sirius": "Thiên Lang",
+        "vega": "Chức Nữ",
+        "altair": "Ngưu Lang",
+        "andromeda": "Tiên Nữ",
+        "orion": "Lạp Hộ",
+        "galaxy": "Thiên Hà"
+      }
     },
     "step_invite": {
       "headline": "Mời đồng nghiệp vào {{workspace}}.",
@@ -4689,6 +4745,17 @@
       "join_body": "Mở một lời mời để xem và tham gia.",
       "join_empty_title": "Chưa có lời mời nào",
       "join_empty_body": "Nhờ quản trị viên của tổ chức mời địa chỉ <email>{{email}}</email>."
+    },
+    "noWorkspace": {
+      "title": "Bạn chưa được cấp workspace",
+      "description": "Bạn đã tham gia {{name}}, nhưng chưa được thêm vào workspace nào.",
+      "description_admin": "{{name}} chưa có workspace nào.",
+      "ask_body": "Nhờ quản trị viên của {{name}} thêm bạn vào một workspace, rồi bấm Kiểm tra lại.",
+      "create_body": "Tạo workspace đầu tiên để cả tổ chức bắt đầu làm việc.",
+      "account": "Bạn đang đăng nhập bằng <email>{{email}}</email>.",
+      "create_action": "Tạo workspace",
+      "check": "Kiểm tra lại",
+      "still_none": "Vẫn chưa có workspace nào cho bạn."
     }
   },
   "ui": {
@@ -5206,6 +5273,8 @@
     "suspended": {
       "title": "Tổ chức đang tạm ngưng",
       "description": "Tổ chức này tạm thời không truy cập được. Liên hệ chủ sở hữu tổ chức để biết thêm.",
+      "description_named": "{{name}} tạm thời không truy cập được. Liên hệ chủ sở hữu tổ chức để biết thêm.",
+      "owner_description": "{{name}} tạm thời không truy cập được. Bạn là chủ sở hữu: liên hệ bộ phận hỗ trợ để biết lý do và mở lại tổ chức.",
       "get_started_link": "Tham gia tổ chức khác"
     },
     "overview": {
@@ -8002,6 +8071,7 @@
         "trustOffline": "Sửa file trên máy không cần kết nối; AI cloud và tài liệu UniWork cần kết nối"
       },
       "editors": {
+        "example": "Ví dụ: {{title}}",
         "title": "Sáu trình soạn thảo. Một workspace.",
         "formats": "Hỗ trợ DOCX, XLSX, PPTX, PDF, HTML và Markdown",
         "tabs": "Trình soạn thảo",
@@ -8098,6 +8168,20 @@
           "description": "File lưu vào workspace nằm trong workspace UniWork của nhóm: mở từ Tài liệu, lưu thành phiên bản mới, chia sẻ và bình luận. File lưu trên máy thì ở lại trên máy và sửa được khi không có kết nối; AI cloud và tài liệu UniWork cần kết nối."
         },
         "link": "Xem cách UniWork phân quyền"
+      },
+      "connection": {
+        "title": "Cùng tài khoản. Liền mạch với workspace.",
+        "sub": "Làm việc trên máy, kết nối với dữ liệu và quyền truy cập của nhóm.",
+        "account": { "title": "Một tài khoản", "description": "Đăng nhập Office bằng tài khoản UniWork." },
+        "ai": { "title": "AI theo nhu cầu", "description": "Dùng gói của tổ chức hoặc khóa API riêng." },
+        "permissions": { "title": "Quyền truy cập nhất quán", "description": "File trong workspace theo phân quyền của tổ chức." },
+        "flow": {
+          "title": "File trên máy và workspace",
+          "local": "Trên máy", "localDescription": "Lưu file tại máy, chỉnh sửa không cần mạng.",
+          "workspace": "Workspace", "workspaceDescription": "Lưu phiên bản, chia sẻ và bình luận cùng nhóm.",
+          "action": "Mở / Lưu phiên bản", "note": "Mở và lưu phiên bản trong workspace cần kết nối."
+        },
+        "details": { "ai": "AI và dữ liệu của bạn", "files": "Lưu file và yêu cầu kết nối" }
       },
       "faq": {
         "title": "Câu hỏi thường gặp",

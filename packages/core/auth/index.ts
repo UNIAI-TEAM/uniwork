@@ -1,5 +1,6 @@
 export { useAuthStore, resetAuthStoreForTests } from "./store";
 export type { AuthState, SessionStatus } from "./store";
+export { deleteAccountProofRefused } from "./errors";
 export {
   authKeys,
   setSessionUser,

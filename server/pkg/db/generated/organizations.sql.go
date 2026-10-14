@@ -121,7 +121,7 @@ func (q *Queries) CountActiveOtherMembers(ctx context.Context, arg CountActiveOt
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organizations (id, slug, name, created_by)
 VALUES ($1, $2, $3, $4)
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by
 `
 
 type CreateOrganizationParams struct {
@@ -152,6 +152,8 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.McpEnabledAt,
 		&i.McpEnabledBy,
 		&i.DeletionScheduledAt,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
 	)
 	return i, err
 }
@@ -189,7 +191,7 @@ func (q *Queries) DeleteWorkspaceMembershipsInOrg(ctx context.Context, arg Delet
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at FROM organizations WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1
 `
 
 func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organization, error) {
@@ -208,12 +210,14 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organizat
 		&i.McpEnabledAt,
 		&i.McpEnabledBy,
 		&i.DeletionScheduledAt,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
 	)
 	return i, err
 }
 
 const getOrganizationBySlug = `-- name: GetOrganizationBySlug :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at FROM organizations WHERE slug = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE slug = $1
 `
 
 func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
@@ -232,6 +236,8 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 		&i.McpEnabledAt,
 		&i.McpEnabledBy,
 		&i.DeletionScheduledAt,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
 	)
 	return i, err
 }
@@ -532,7 +538,7 @@ func (q *Queries) ListOrganizationMembershipsForUser(ctx context.Context, userID
 }
 
 const listOrganizationsForUser = `-- name: ListOrganizationsForUser :many
-SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, m.role, m.deactivated_at
+SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, o.mcp_write_enabled_at, o.mcp_write_enabled_by, m.role, m.deactivated_at
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 WHERE m.user_id = $1 AND o.status <> 'archived'
@@ -552,6 +558,8 @@ type ListOrganizationsForUserRow struct {
 	McpEnabledAt        pgtype.Timestamptz `json:"mcp_enabled_at"`
 	McpEnabledBy        pgtype.Text        `json:"mcp_enabled_by"`
 	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	McpWriteEnabledAt   pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy   pgtype.Text        `json:"mcp_write_enabled_by"`
 	Role                string             `json:"role"`
 	DeactivatedAt       pgtype.Timestamptz `json:"deactivated_at"`
 }
@@ -583,6 +591,8 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 			&i.McpEnabledAt,
 			&i.McpEnabledBy,
 			&i.DeletionScheduledAt,
+			&i.McpWriteEnabledAt,
+			&i.McpWriteEnabledBy,
 			&i.Role,
 			&i.DeactivatedAt,
 		); err != nil {
@@ -652,7 +662,7 @@ func (q *Queries) ListWorkspacesInOrg(ctx context.Context, organizationID string
 }
 
 const lockOrganizationForShare = `-- name: LockOrganizationForShare :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at FROM organizations WHERE id = $1 FOR SHARE
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1 FOR SHARE
 `
 
 // An acceptance holds the organization row shared before it locks the
@@ -673,12 +683,14 @@ func (q *Queries) LockOrganizationForShare(ctx context.Context, id string) (Orga
 		&i.McpEnabledAt,
 		&i.McpEnabledBy,
 		&i.DeletionScheduledAt,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
 	)
 	return i, err
 }
 
 const lockOrganizationForUpdate = `-- name: LockOrganizationForUpdate :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at FROM organizations WHERE id = $1 FOR UPDATE
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1 FOR UPDATE
 `
 
 // Close holds the organization row while it counts the other members, so an
@@ -700,6 +712,8 @@ func (q *Queries) LockOrganizationForUpdate(ctx context.Context, id string) (Org
 		&i.McpEnabledAt,
 		&i.McpEnabledBy,
 		&i.DeletionScheduledAt,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
 	)
 	return i, err
 }

@@ -152,7 +152,6 @@
     "passwordMinHint": "At least {{min}} characters",
     "wordmark": "UniWork",
     "railTagline": "People and AI co‑own the work.",
-    "railEyebrow": "A Work OS for people and AI",
     "railPoints": {
       "tasks": {
         "title": "Tasks and projects",
@@ -204,6 +203,7 @@
       "eyebrow": "Connect an AI assistant",
       "title": "Allow {{client}} to access UniWork?",
       "description": "This app will read your work data in the organization you choose. It cannot create, change or delete anything.",
+      "descriptionWrite": "This app will read your work data in the organization you choose. If you allow it, it can also create and edit for you, but never delete.",
       "verified": "Verified",
       "unverified": "Unverified",
       "unverifiedWarning": "UniWork has not verified this app. Continue only if you just added it yourself.",
@@ -215,6 +215,8 @@
       "shareTasks": "Your tasks and tasks in your workspaces, with comments",
       "shareMeetings": "Meetings and their AI summaries, without transcripts",
       "shareNot": "Never chat messages or email",
+      "allowWrite": "Allow create and edit",
+      "allowWriteHint": "Many AI apps ask before each change, but UniWork cannot check that. Each change is recorded with your name and the app's, and can be undone.",
       "approve": "Allow",
       "approving": "Allowing…",
       "loading": "Loading the connection request…",
@@ -377,6 +379,7 @@
     "createTask": "New task",
     "theme": "Theme",
     "language": "Language",
+    "preferences": "Theme and language",
     "themeSaved": "Theme preference saved",
     "languageSaved": "Language preference saved",
     "collapseSidebar": "Collapse sidebar",
@@ -1269,6 +1272,11 @@
           "password": "Enter your password to confirm.",
           "code": "Enter your two-factor code to confirm.",
           "email": "Type your email address to confirm."
+        },
+        "incorrect": {
+          "password": "That password isn't right. Enter it again to delete the account.",
+          "code": "That code isn't right or has expired. Enter a new one to delete the account.",
+          "email": "That doesn't match the email you're signed in with. Type it again to delete the account."
         }
       }
     },
@@ -1313,6 +1321,8 @@
       "meta": "{{org}} · connected {{created}}",
       "lastUsed": "last used {{when}}",
       "verified": "Verified",
+      "scopeRead": "Read only",
+      "scopeWrite": "Read and write",
       "revoke": "Revoke",
       "revokeAria": "Revoke {{client}}",
       "revokeTitle": "Revoke {{client}}?",
@@ -1326,6 +1336,10 @@
       "adminOnly": "Only organization owners and admins can see this.",
       "toggleLabel": "Allow external AI assistants",
       "toggleDescription": "Shared: tasks, comments, meetings and AI summaries. Never chat or email. Turning this off blocks every connected app at once.",
+      "writeLabel": "Allow create and edit",
+      "writeDescription": "Connected apps may create and edit work for members who allow it. Never delete. Turning this off blocks every write at once; reading stays.",
+      "writeNeedsConnector": "Turn on AI assistant access first.",
+      "writeUnavailable": "Write access is not open for your organization yet.",
       "addressBody": "Members paste this address where Claude, ChatGPT or Gemini CLI adds a connector. Send it to them if AI apps does not show in their settings yet.",
       "unavailable": "This feature is not yet available to your organization.",
       "saveFailed": "Could not save the change. Try again.",
@@ -1333,6 +1347,8 @@
       "empty": "Nobody has connected an AI app. Members connect from Settings › AI apps.",
       "error": "Could not load the list. Try again.",
       "meta": "{{user}} · connected {{created}}",
+      "scopeRead": "Read only",
+      "scopeWrite": "Read and write",
       "revoke": "Revoke",
       "revokeAria": "Revoke {{user}}'s {{client}}",
       "revokeTitle": "Revoke {{client}}?",
@@ -2209,6 +2225,7 @@
       "identifier_missing": "—",
       "activity_group": "{{count}} activities",
       "activity_more": "Show {{count}} more activities",
+      "activity_via": "via {{client}}",
       "section_properties": "Properties",
       "section_parent": "Parent task",
       "parent_remove": "Remove parent task",
@@ -3798,7 +3815,7 @@
     "user_not_found": "No user found with this email.",
     "start_dm": "Message",
     "contacts_empty": "No conversations yet. Press + to message someone, or wait for someone to message you.",
-    "pending_invites": "Workspace invitations",
+    "pending_invites": "Pending invitations",
     "workspace_room": "General",
     "workspace_section": "Workspace",
     "workspace_room_hint": "Shared room — everyone in the workspace talks here.",
@@ -4336,7 +4353,7 @@
     },
     "invitations": {
       "title": "Invite people to the organization",
-      "description": "They join the company directly and pick a workspace afterwards.",
+      "description": "Invitees join the organization, and the workspaces you pick when they accept.",
       "send": "Send invitations",
       "revoke": "Revoke",
       "revoked": "Invitation revoked",
@@ -4352,7 +4369,13 @@
       "sent_one": "Sent {{count}} invitation",
       "sent_other": "Sent {{count}} invitations",
       "none_sent": "No invitations sent: the addresses left in the field are already members or not valid.",
-      "load_error": "Couldn't load the invitations."
+      "load_error": "Couldn't load the invitations.",
+      "workspaces_label": "Join workspaces",
+      "workspaces_hint": "Invitees become members of the workspaces you pick. With none picked, they join the organization but cannot open a workspace yet.",
+      "workspaces_none": "The organization has no workspace yet.",
+      "workspaces_load_error": "Couldn't load the workspaces.",
+      "grants": "Joins {{list}}",
+      "grants_none": "No workspace yet"
     },
     "transfer": {
       "title": "Transfer ownership",
@@ -4373,7 +4396,15 @@
         "new_owner": "The person you pick becomes the owner, with full control of the organization.",
         "you_admin": "You become an admin.",
         "no_undo": "You can't take ownership back on your own."
-      }
+      },
+      "wrong_password": "That password isn't right. Enter it again to transfer ownership.",
+      "no_password": "Transferring ownership of {{name}} is confirmed with your password, but your account doesn't have one (you sign in with Google). Contact support for help.",
+      "confirm_lede": "Nothing is deleted, but the organization is no longer yours to run.",
+      "action_pending": "Transferring…",
+      "reason_pick": "Choose the new owner to continue.",
+      "reason_name": "Type the organization name exactly to continue.",
+      "reason_password": "Enter your current password to continue.",
+      "reason_no_password": "You can't transfer ownership while your account has no password."
     },
     "deactivated": {
       "title": "Your account in this organization has been deactivated",
@@ -4405,7 +4436,7 @@
       "action": "Close organization",
       "confirm_title": "Close {{name}}?",
       "confirm_body": "{{name}} will be archived: every workspace and all its data stay, but nobody can open them, you included. Only support can restore it. Pending invitations are revoked and the paid plan is cancelled.",
-      "confirm_label": "Type the organization URL to confirm",
+      "confirm_label": "Type the organization slug to confirm",
       "confirm_hint": "Type \"{{slug}}\" exactly.",
       "confirm_mismatch": "Doesn't match \"{{slug}}\".",
       "done": "Organization closed",
@@ -4416,7 +4447,9 @@
         "no_access": "Nobody can open it any more, you included.",
         "restore": "Only support can restore it.",
         "billing": "Pending invitations are revoked and the paid plan is cancelled."
-      }
+      },
+      "action_pending": "Closing…",
+      "reason_slug": "Type the organization slug exactly to close it."
     }
   },
   "invitations": {
@@ -4425,10 +4458,13 @@
     "subtitle": "Open an invitation to see the organization and your role, then join.",
     "loading_description": "Opening your invitation.",
     "invitedBy": "{{name}} invited you to",
+    "invited": "You're invited to",
+    "place": "{{workspace}} in {{organization}}",
     "join": "Join",
     "empty": "No invitations",
     "view": "View",
     "viewLabel": "View the invitation to {{name}}",
+    "viewWorkspaceLabel": "View the invitation to {{workspace}} in {{organization}}",
     "expires_on": "expires <time>{{date}}</time>",
     "expires_soon": "Expires soon",
     "load_error": "Couldn't load your invitations.",
@@ -4439,7 +4475,7 @@
       "description_inviter": "{{inviter}} invited you to join this organization.",
       "organization": "Organization",
       "workspace": "Workspace",
-      "no_workspace": "No workspace yet. You'll pick one after joining.",
+      "no_workspace": "No workspace granted yet. An admin will add you to one later.",
       "role": "Role",
       "inviter": "Invited by",
       "expiry": "Expires",
@@ -4483,17 +4519,17 @@
       "unknown": "{{name}} can't be handled on this page. Reload to try again.",
       "incomplete": "Finish each item above to continue.",
       "blocked_reason": "You can't continue while an organization is suspended.",
-      "wrong_password": "That password isn't right. Enter it again to transfer ownership.",
-      "no_password": "Transferring ownership of {{name}} is confirmed with your password, but your account doesn't have one (you sign in with Google). Contact support for help.",
       "no_password_reason": "You can't continue while your account has no password.",
       "confirm_heading": "Confirm the switch",
       "confirm_leave": "Leave {{name}}",
       "confirm_transfer": "Transfer ownership of {{name}} to {{person}}, then leave",
       "confirm_close": "Close {{name}}",
       "confirm_join": "Join {{name}} as {{role}}",
+      "confirm_workspaces": "Join workspace {{list}}",
       "confirm_note": "Everything happens in one go. If any step fails, you stay where you are.",
       "action": "Switch to {{name}}",
-      "busy": "Another change to your account is in progress. Try again in a moment."
+      "busy": "Another change to your account is in progress. Try again in a moment.",
+      "send_failed": "The switch request did not go through. You are still in your current organization and your choices above are kept. Press the button below to send it again."
     }
   },
   "onboarding": {
@@ -4600,7 +4636,9 @@
       "already_member_title": "You already belong to {{name}}",
       "already_member_title_unnamed": "You already belong to an organization",
       "already_member_body": "Each account belongs to one organization. To create a new one, leave or close your current organization first.",
-      "already_member_hint": "Your organization already exists."
+      "already_member_hint": "Your organization already exists.",
+      "headline_refused": "You already have an organization.",
+      "lede_refused": "No new organization was created. Your workspaces live in the one you have."
     },
     "step_workspace": {
       "headline_first": "Name your workspace.",
@@ -4635,7 +4673,25 @@
       "headline_resume_many": "Pick one of your workspaces, or create a new one.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
       "create_failed_toast": "Couldn't create that. Please try again.",
-      "picker_label": "Choose a workspace"
+      "picker_label": "Choose a workspace",
+      "random_names": {
+        "mercury": "Mercury",
+        "venus": "Venus",
+        "earth": "Earth",
+        "mars": "Mars",
+        "jupiter": "Jupiter",
+        "saturn": "Saturn",
+        "uranus": "Uranus",
+        "neptune": "Neptune",
+        "luna": "Moon",
+        "polaris": "Polaris",
+        "sirius": "Sirius",
+        "vega": "Vega",
+        "altair": "Altair",
+        "andromeda": "Andromeda",
+        "orion": "Orion",
+        "galaxy": "Galaxy"
+      }
     },
     "step_invite": {
       "headline": "Invite teammates to {{workspace}}.",
@@ -4693,6 +4749,17 @@
       "join_body": "Open an invitation to review it and join.",
       "join_empty_title": "No invitations yet",
       "join_empty_body": "Ask an admin of the organization to invite <email>{{email}}</email>."
+    },
+    "noWorkspace": {
+      "title": "You don't have a workspace yet",
+      "description": "You've joined {{name}}, but you haven't been added to a workspace yet.",
+      "description_admin": "{{name}} has no workspace yet.",
+      "ask_body": "Ask an admin of {{name}} to add you to a workspace, then select Check again.",
+      "create_body": "Create the first workspace so the organization can start working.",
+      "account": "You're signed in as <email>{{email}}</email>.",
+      "create_action": "Create workspace",
+      "check": "Check again",
+      "still_none": "Still no workspace for you."
     }
   },
   "ui": {
@@ -5210,6 +5277,8 @@
     "suspended": {
       "title": "Organization suspended",
       "description": "This organization is temporarily unavailable. Contact the organization owner for details.",
+      "description_named": "{{name}} is temporarily unavailable. Contact the organization owner for details.",
+      "owner_description": "{{name}} is temporarily unavailable. As its owner, contact support to find out why and to reopen it.",
       "get_started_link": "Join another organization"
     },
     "overview": {
@@ -8007,6 +8076,7 @@
         "trustOffline": "Edit files on your computer without a connection; cloud AI and UniWork documents need one"
       },
       "editors": {
+        "example": "Example: {{title}}",
         "title": "Six editors. One workspace.",
         "formats": "Works with DOCX, XLSX, PPTX, PDF, HTML and Markdown",
         "tabs": "Editors",
@@ -8103,6 +8173,20 @@
           "description": "Files you save to the workspace live in your team's UniWork workspace: open from Documents, save as a new version, share and comment. Files stored on your computer stay on your computer and can be edited without a connection; cloud AI and UniWork documents need one."
         },
         "link": "See how UniWork handles permissions"
+      },
+      "connection": {
+        "title": "One account. Connected to your workspace.",
+        "sub": "Work on your computer, connected to your team's files and access rules.",
+        "account": { "title": "One account", "description": "Sign in to Office with your UniWork account." },
+        "ai": { "title": "AI on your terms", "description": "Use your organization's plan or your own API key." },
+        "permissions": { "title": "Consistent access", "description": "Workspace files follow your organization's permissions." },
+        "flow": {
+          "title": "Files on your computer and in your workspace",
+          "local": "On your computer", "localDescription": "Keep files locally and edit without a connection.",
+          "workspace": "Workspace", "workspaceDescription": "Save versions, share and comment with your team.",
+          "action": "Open / Save a version", "note": "Opening and saving workspace versions need a connection."
+        },
+        "details": { "ai": "AI and your data", "files": "File storage and connection requirements" }
       },
       "faq": {
         "title": "Frequently asked questions",

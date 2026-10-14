@@ -32,11 +32,6 @@ export const chatKeys = {
   roomMessageLinksRoot: (wsId: string) => ["chat", "room-message-links", wsId] as const,
   /** Prefix for all Follow-up list variants; invalidate with this key only. */
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
-  /** An attachment's bytes, cached so a remounted row does not fetch them again. */
-  fileBlob: (wsId: string, roomId: string, messageId: string, variant: "original" | "thumb" = "original") =>
-    ["chat", "file-blob", wsId, roomId, messageId, variant] as const,
-  voiceBlob: (wsId: string, roomId: string, messageId: string) =>
-    ["chat", "voice-blob", wsId, roomId, messageId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>
     ["chat", "room-message-search", wsId, roomId, query] as const,
   roomMembers: (wsId: string, roomId: string) => ["chat", "room-members", wsId, roomId] as const,

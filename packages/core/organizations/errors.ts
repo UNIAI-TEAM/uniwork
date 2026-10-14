@@ -29,3 +29,20 @@ export function organizationSwitchConflicts(err: unknown): MembershipConflict[] 
   const parsed = z.array(MembershipConflictSchema).safeParse(errorFields(err)?.conflicts);
   return parsed.success ? parsed.data : null;
 }
+
+/**
+ * Why the server refused the password an owner re-entered to hand an
+ * organization over (Settings › Organization, or the invitation switch):
+ * "incorrect" when it did not match, "missing" when the account has no
+ * password at all (Google-only), null for any other failure. 403
+ * password_incorrect is the code; 401 invalid_credentials is still read as
+ * "incorrect" so a client running against an older server says the same.
+ */
+export type PasswordRefusal = "incorrect" | "missing";
+
+export function passwordRefusal(err: unknown): PasswordRefusal | null {
+  const code = errorCode(err);
+  if (code === "password_incorrect" || code === "invalid_credentials") return "incorrect";
+  if (code === "password_required") return "missing";
+  return null;
+}

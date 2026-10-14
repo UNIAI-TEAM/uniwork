@@ -383,7 +383,7 @@ func TestMcpHandlerCountsACancelledCallWithoutAnErrorLine(t *testing.T) {
 	}}}
 	var logs lockedBuffer
 	counts := &mcpToolCounts{}
-	h := mcpServeAs(newMcpHandler(registry, counts, slog.New(slog.NewTextHandler(&logs, nil))), service.McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1"})
+	h := mcpServeAs(newMcpHandler(registry, counts, nil, slog.New(slog.NewTextHandler(&logs, nil))), service.McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1"})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"slow","arguments":{}}}`)).WithContext(ctx)
@@ -437,7 +437,7 @@ func TestMcpPanicLogCarriesTheTypeNotTheValue(t *testing.T) {
 				return nil, nil
 			}}}
 			var logs bytes.Buffer
-			h := mcpServeAs(newMcpHandler(registry, &mcpToolCounts{}, slog.New(slog.NewTextHandler(&logs, nil))), service.McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1"})
+			h := mcpServeAs(newMcpHandler(registry, &mcpToolCounts{}, nil, slog.New(slog.NewTextHandler(&logs, nil))), service.McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1"})
 			out := mcpDirectCall(t, h, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"panics","arguments":{}}}`)
 			if result, _ := out["result"].(map[string]any); result["isError"] != true {
 				t.Fatalf("result = %v", out)
@@ -473,7 +473,7 @@ func TestMcpClientDisconnectStopsTheTool(t *testing.T) {
 		return nil, ctx.Err()
 	}}}
 	counts := &mcpToolCounts{}
-	srv := httptest.NewServer(mcpServeAs(newMcpHandler(registry, counts, slog.New(slog.NewTextHandler(io.Discard, nil))), service.McpPrincipal{UserID: "u1", OrganizationID: "o1"}))
+	srv := httptest.NewServer(mcpServeAs(newMcpHandler(registry, counts, nil, slog.New(slog.NewTextHandler(io.Discard, nil))), service.McpPrincipal{UserID: "u1", OrganizationID: "o1"}))
 	t.Cleanup(srv.Close)
 
 	ctx, hangUp := context.WithCancel(context.Background())

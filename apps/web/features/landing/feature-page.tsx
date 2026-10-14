@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { Logo } from "@uniwork/ui/brand";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PRODUCT_FEATURES, PRODUCT_GROUPS } from "./showcase";
 import { type FeaturePageKey } from "./feature-page-catalog";
@@ -33,10 +34,7 @@ export function FeaturePage({ featureKey }: { featureKey: FeaturePageKey }) {
       </div>
       <div className="feature-page-art"><FeatureIllustration featureKey={featureKey} /><div className="feature-art-caption"><feature.icon aria-hidden /><strong>{t(feature.label)}</strong><span>{t("landing.featureVisuals.sample")}</span></div></div>
     </section>
-    <section className="feature-page-details feature-examples" aria-labelledby="feature-details-title">
-      <div className="feature-example-heading"><h2 id="feature-details-title">{t(`${prefix}.detailTitle`)}</h2><p>{t("landing.featureVisuals.examples")}</p></div>
-      <ul>{([1, 2, 3] as const).map(index => <li key={index}><div className="feature-example-copy"><h3>{t(`landing.chapters.featureExamples.${featureKey}.${index - 1}`)}</h3><p>{t(`${prefix}.points.${index - 1}`)}</p>{index === 3 && <p className="marketing-scope">{t(feature.availability)}</p>}</div><FeatureIllustration featureKey={featureKey} index={index} /></li>)}</ul>
-    </section>
+    <FeatureExamples key={featureKey} featureKey={featureKey} />
     <section id="feature-preview" className="feature-demo" aria-labelledby="feature-demo-title"><div className="feature-demo-heading"><h2 id="feature-demo-title">{t("landing.featureVisuals.preview", { feature: t(feature.label) })}</h2><p>{t(feature.availability)}</p></div><div className="feature-page-visual">{hasPlayback(featureKey) ? <ProductPlayback featureKey={featureKey} /> : <LovableReference feature={featureKey} />}</div></section>
     <section className="feature-page-related" aria-labelledby="feature-related-title">
       <div className="feature-related-heading"><h2 id="feature-related-title">{t("landing.productPages.connected")}</h2><p>{t("landing.featureVisuals.sample")}</p></div>
@@ -47,6 +45,24 @@ export function FeaturePage({ featureKey }: { featureKey: FeaturePageKey }) {
     </section>
     </div>
   </MarketingShell>;
+}
+
+/** Keep all three workflow explanations in view while sharing one example stage. */
+function FeatureExamples({ featureKey }: { featureKey: FeaturePageKey }) {
+  const { t } = useTranslation();
+  const prefix = `landing.productPages.features.${featureKey}`;
+  return <section className="feature-page-details feature-examples" aria-labelledby="feature-details-title">
+    <div className="feature-example-heading"><h2 id="feature-details-title">{t(`${prefix}.detailTitle`)}</h2><p>{t("landing.featureVisuals.examples")}</p></div>
+    <Tabs defaultValue={1} orientation="vertical" className="feature-example-browser">
+      <TabsList className="feature-example-list" aria-labelledby="feature-details-title">
+        {([1, 2, 3] as const).map(index => <TabsTrigger value={index} key={index} className="feature-example-choice">
+          <span className="feature-example-title">{t(`landing.chapters.featureExamples.${featureKey}.${index - 1}`)}</span><ChevronRight aria-hidden />
+          <span className="feature-example-description">{t(`${prefix}.points.${index - 1}`)}</span>
+        </TabsTrigger>)}
+      </TabsList>
+      {([1, 2, 3] as const).map(index => <TabsContent value={index} key={index} className="feature-example-panel"><FeatureIllustration featureKey={featureKey} index={index} /></TabsContent>)}
+    </Tabs>
+  </section>;
 }
 
 export function FeaturesPage() {
