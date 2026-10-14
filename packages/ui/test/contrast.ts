@@ -30,7 +30,7 @@ function isSlot(name: string): boolean {
 }
 
 /** sRGB alpha compositing of `fg` at `alpha` over `bg`. */
-export function over(fg: Rgb, alpha: number, bg: Rgb): Rgb {
+function over(fg: Rgb, alpha: number, bg: Rgb): Rgb {
   return fg.map((v, i) => v * alpha + bg[i]! * (1 - alpha)) as Rgb;
 }
 
@@ -39,7 +39,7 @@ function luminance(c: Rgb): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-export function contrast(a: Rgb, b: Rgb): number {
+function contrast(a: Rgb, b: Rgb): number {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
   return (hi + 0.05) / (lo + 0.05);
 }
