@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18380 13300; do pid=$(lsof -ti tcp:$p 2>/dev/null); [ -n "$pid" ] && kill $pid; done; true
+573dc2671de263ec9cb6d680b01f6a9f939602e1
+573dc2671 test(e2e): use structural contentRow locator and throttle FD-A12 >1000-node seed
+5d65c1e9a test(e2e): fix FD-12 content row selector, ⌘K option match, and post-commit move revision
+11b13c1d4 test(e2e): gate FD-A03 UI upload test on E2E_FD09
+8a7640892 test(e2e): add FD-A03 UI upload into open folder acceptance test
