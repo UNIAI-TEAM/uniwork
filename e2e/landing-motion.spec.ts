@@ -4,6 +4,7 @@ import { landingReady } from "./landing-ready";
 
 test("landing demo controls perform the actions they advertise without workspace writes", async ({ page }) => {
   await page.goto("/");
+  await landingReady(page);
   const demo = page.locator("#product-preview");
   await openManualPreview(page);
   const writes: string[] = [];
@@ -28,6 +29,7 @@ test("landing demo controls perform the actions they advertise without workspace
 test("product showcase, cinematic playback and reduced motion remain usable", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  await landingReady(page);
   const core = page.locator('.landing-hero');
   await expect(core).toBeVisible();
   await expect(core.locator('h1')).toBeVisible();
@@ -53,6 +55,7 @@ test("product showcase, cinematic playback and reduced motion remain usable", as
 test("hero offers registration and a demo request in a minimal opening", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  await landingReady(page);
   const hero = page.locator(".landing-hero");
   await expect(hero.locator(".landing-hero-actions a")).toHaveCount(2);
   await expect(hero.locator('img')).toHaveCount(0);
@@ -71,6 +74,7 @@ test("hero offers registration and a demo request in a minimal opening", async (
 test("Starter and FAQ signals animate only while visible and respect reduced motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
+  await landingReady(page);
   const pricing = page.locator("#bang-gia");
   const faq = page.locator(".landing-faq");
   await pricing.scrollIntoViewIfNeeded();
@@ -97,6 +101,7 @@ test("framed scenes arrive on scroll and remain readable after the entrance", as
   await page.setViewportSize({ width: 1294, height: 584 });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
+  await landingReady(page);
   await expect(page.locator(".landing-signal, .landing-chapter-junction")).toHaveCount(0);
   await expect(page.locator(".landing-product-story > section")).toHaveCount(4);
   await expect(page.locator(".landing-conversion-story > section")).toHaveCount(3);
@@ -145,6 +150,7 @@ test("framed scenes arrive on scroll and remain readable after the entrance", as
 test("nonessential motion stops offscreen", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
+  await landingReady(page);
   await selectWorkspaceFeature(page, "meetings");
   await openManualPreview(page);
   await expect(page.locator("#product-preview")).toHaveAttribute("data-presentation", "explore");
