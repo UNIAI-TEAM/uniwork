@@ -251,6 +251,11 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	uniworkStore := ai.NewConversationStore(pool, q, uniworkBox)
 	d.AIUniwork = service.NewAIUniworkService(d.Organizations, service.NewEntitlementService(pool, q), docs,
 		d.FeatureFlags, service.NewAIGateway(pool, q, uniworkProvider, ai.Options{}), uniworkStore, d.Redis)
+	// The run counters behind the façade, wired exactly as main.go wires them
+	// (G6-03b, A3/A12): without it the world answers every turn with no run
+	// header, so the wire contract and the foreign-run refusal are never
+	// exercised over the real router (BE3B-5).
+	d.AIUniwork.SetRunStore(ai.NewRunStore(q))
 
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
@@ -911,6 +916,16 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		VALUES ($1, $2, $3, 'iso-run', 1, 'user', $4)`,
 		util.NewID(), tn.orgID, tn.ids["aiUniworkConversation"], []byte("iso-sealed")); err != nil {
 		t.Fatalf("uniwork ai turn: %v", err)
+	}
+	// A run of the transcript (G6-03b, A3/A12): the counters one question may
+	// spend, written the way RunStorePG.TakeTurn opens one, so every tenant
+	// table that carries A's organization_id holds a row of A's.
+	tn.ids["aiUniworkRun"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ai_uniwork_runs
+		(id, organization_id, conversation_id, model_calls, created_by, created_by_kind, expires_at)
+		VALUES ($1, $2, $3, 1, $4, 'human', now() + interval '30 minutes')`,
+		tn.ids["aiUniworkRun"], tn.orgID, tn.ids["aiUniworkConversation"], tn.userID); err != nil {
+		t.Fatalf("uniwork ai run: %v", err)
 	}
 }
 

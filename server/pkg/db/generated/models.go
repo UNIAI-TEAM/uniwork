@@ -105,6 +105,20 @@ type AiUniworkConversation struct {
 	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
 }
 
+type AiUniworkRun struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	ConversationID string             `json:"conversation_id"`
+	ModelCalls     int32              `json:"model_calls"`
+	ToolRounds     int32              `json:"tool_rounds"`
+	Credits        int64              `json:"credits"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt     pgtype.Timestamptz `json:"last_used_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
 type AiUniworkTurn struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -183,6 +197,7 @@ type AuditEvent struct {
 	IpAddress      pgtype.Text        `json:"ip_address"`
 	UserAgent      pgtype.Text        `json:"user_agent"`
 	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
+	XactID         pgtype.Uint64      `json:"xact_id"`
 }
 
 type AuditExport struct {
@@ -248,6 +263,12 @@ type CalendarConnection struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	DisconnectedAt       pgtype.Timestamptz `json:"disconnected_at"`
+}
+
+type ChangeFeedEpoch struct {
+	ID        string             `json:"id"`
+	XactID    pgtype.Uint64      `json:"xact_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type ChatBlock struct {

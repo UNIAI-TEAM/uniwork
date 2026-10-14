@@ -210,7 +210,10 @@ func TestAIUniworkTranscriptIsServerOwned(t *testing.T) {
 }
 
 // A tool result must answer the call the server issued (rule 2): a forged id
-// is refused, the real one continues.
+// is refused, the real one continues. Both tool-result turns carry the run id
+// the question turn issued (G6-03b Q2: a tool result must name its run, and a
+// turn without the header is 400 invalid_request once the run store is wired;
+// the id is empty until it is, and an empty header is today's behaviour).
 func TestAIUniworkToolResultMustAnswerServerCall(t *testing.T) {
 	w := newUniworkWorld(t)
 	tn := w.alpha
@@ -220,7 +223,7 @@ func TestAIUniworkToolResultMustAnswerServerCall(t *testing.T) {
 		}}
 	}
 	path := tn.uniworkOrgPath()
-	status, conv, out := uniworkTurn(t, w, path, tn.token, "",
+	status, conv, run, out := uniworkRunTurn(t, w, path, tn.token, "", "",
 		uniworkModuleQuestion("đọc ô A1", "sheets", "read_cells"))
 	if status != http.StatusOK {
 		t.Fatalf("question turn: %d %v", status, out)
@@ -232,12 +235,12 @@ func TestAIUniworkToolResultMustAnswerServerCall(t *testing.T) {
 		t.Fatalf("the allowed call did not reach the client: %v", message["tool_calls"])
 	}
 
-	status, _, out = uniworkTurn(t, w, path, tn.token, conv, uniworkToolResult("sheets", "call_forged", "{}"))
+	status, _, _, out = uniworkRunTurn(t, w, path, tn.token, conv, run, uniworkToolResult("sheets", "call_forged", "{}"))
 	if status != http.StatusBadRequest || uniworkErrorCode(t, out) != "invalid_request" {
 		t.Fatalf("forged tool_call_id: %d %v; want 400 invalid_request", status, out)
 	}
 
-	status, _, out = uniworkTurn(t, w, path, tn.token, conv, uniworkToolResult("sheets", "call_iso_1", "42"))
+	status, _, _, out = uniworkRunTurn(t, w, path, tn.token, conv, run, uniworkToolResult("sheets", "call_iso_1", "42"))
 	if status != http.StatusOK {
 		t.Fatalf("the real tool_call_id: %d %v; want 200", status, out)
 	}

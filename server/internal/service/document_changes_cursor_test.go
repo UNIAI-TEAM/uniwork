@@ -40,6 +40,55 @@ func TestChangeCursorRoundTrip(t *testing.T) {
 	}
 }
 
+// A feed cursor (G5-01b) carries the snapshot's high-water mark and the
+// (xact_id, id) keyset it continues from; the keyset may be empty on the
+// first feed page, the mark may not.
+func TestChangeCursorFeedKeysetRoundTrip(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	c := newChangeCursorCodec("secret-0123456789")
+	s := testChangeScope()
+	claims := changeCursorClaims{
+		Protocol: DocumentChangeProtocol, Deployment: s.deployment, UserID: s.userID,
+		Organization: s.organization, Workspace: s.workspace,
+		Phase: changeCursorPhaseFeed, HighWater: "100:120:",
+		AfterXact: "101", AfterID: "01DOC00000000000000000001",
+		ExpiresAt: now.Add(time.Minute).Unix(),
+	}
+	token, err := c.sign(claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.verify(token, s, now)
+	if err != nil {
+		t.Fatalf("verify own cursor: %v", err)
+	}
+	if got.Phase != changeCursorPhaseFeed || got.HighWater != "100:120:" ||
+		got.AfterXact != "101" || got.AfterID != "01DOC00000000000000000001" {
+		t.Fatalf("claims = %+v", got)
+	}
+
+	// The first feed page has no keyset yet: that still verifies.
+	claims.AfterXact, claims.AfterID = "", ""
+	token, err = c.sign(claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := c.verify(token, s, now); err != nil || got.HighWater != "100:120:" {
+		t.Fatalf("first-page cursor = %+v, %v", got, err)
+	}
+
+	// A feed cursor without a high-water mark is refused: the feed could not
+	// honour its position.
+	claims.HighWater = ""
+	token, err = c.sign(claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.verify(token, s, now); !codedIs(err, "change_cursor_invalid") {
+		t.Fatalf("feed cursor without a high-water mark = %v, want change_cursor_invalid", err)
+	}
+}
+
 // Every refusal reads change_cursor_invalid, and the error carries no field
 // of the scope it failed against.
 func TestChangeCursorRefusesForgedTamperedAndForeignScope(t *testing.T) {

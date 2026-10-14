@@ -298,9 +298,51 @@ view_only|not_allowlisted}], step, limit }`; call bị bỏ **không bao giờ**
 Trạng thái: G6-03a (UNI-1367) — code ở `server/internal/ai/openai_facade.go` (dịch wire + allowlist),
 `server/internal/service/ai_uniwork.go` (cổng + hội thoại + trần đồng thời),
 `server/internal/handler/ai_uniwork.go` + `server/internal/handler/router/ai_uniwork.go` (route). Lượt
-chạy/usage (run id, trần lượt, nhóm rate limit `ai-uniwork`, 402 `credits_exhausted`) là **G6-03b**;
-grant/trạng thái theo định dạng ở `GET /orgs/{orgID}/ai/cloud` và
+chạy/usage (run id, trần lượt, nhóm rate limit `ai-uniwork`, 402 `credits_exhausted`) là **G6-03b**
+(§3.7); grant/trạng thái theo định dạng ở `GET /orgs/{orgID}/ai/cloud` và
 `GET /orgs/{orgID}/office/capabilities` là **G6-03c**/**X-03**; adapter fork là **G6-05**.
+
+### 3.7 Lượt chạy: run id, trần lượt, rate limit (G6-03b, UNI-1370)
+
+Một **run** là một chuỗi lượt liên tiếp của cùng một câu hỏi: lượt câu hỏi mở run, mỗi vòng
+tool-result tiếp nối nó. Run do **server** cấp và đếm; client chỉ chuyển tiếp id.
+
+| Chiều | Giá trị | Ai đọc |
+| --- | --- | --- |
+| Response | `X-UniWork-AI-Run: <ULID>` trên **mọi** câu trả lời của run, kể cả câu trả lời lỗi khi run đã tồn tại | Client (G6-05) |
+| Request | header `X-UniWork-AI-Run` trên mọi lượt tiếp theo của run (tool-result, retry sau 429, câu hỏi tiếp) | Service |
+
+- **Mở run**: client **không** gửi header run ⇒ server tạo run mới sau khi qua hết cổng cục bộ, ngay
+  trước lượt gọi model (run mở ra là đã tiêu 1 lượt). **Tiếp run**: client gửi header và run còn sống,
+  thuộc đúng hội thoại ⇒ run tiếp tục (câu hỏi hay tool-result đều được). "Hỏi tiếp" thành run mới là do
+  client **bỏ header** khi mở lượt agent mới — ranh giới run do client quyết, transcript vẫn của hội thoại
+  nên run sau thấy lượt trước.
+- **Không có lượt tool-result thiếu header run**: lượt đó là 400 `invalid_request` (nhận nó như run mới
+  sẽ mở đường lách trần 8 vòng). Run id không thuộc — lạ, đã hết hạn, của hội thoại khác, của tổ chức
+  khác — là 409 `run_expired`: client bỏ id và hỏi lại như run mới, hội thoại vẫn sống (khác
+  `conversation_expired`). Mã này đã có hàng ở contract-p0 §4 (G6-D1 lô #2 đã ký 2026-10-13).
+- **Trần 8 vòng / 10 lượt** (attempt-based: chỉ lượt đã tới Gateway mới đếm; lượt bị limiter, trần đồng
+  thời, 402 credits, 400/403/404/409 từ chối trước đó không đếm): vượt → **409 `run_limit_reached` +
+  `fields.limit = "model_calls" | "tool_rounds"`** (không `Retry-After`). Trần áp trước lượt gọi model
+  và sau limiter, nên lượt bị trần không giữ slot đồng thời và không ghi usage. `run_limit_reached` kết
+  thúc run về phía client; lượt kế của người dùng mở run mới (bỏ header) trong cùng hội thoại.
+- **Hết tín dụng**: `CheckQuota` (`ai.tokens`) chạy trước hội thoại và trước trần ⇒ **402
+  `credits_exhausted`** (`fields.meter = "ai.tokens"`), **không** gọi model, **không** có dòng usage,
+  **không** tiêu lượt (cùng hình dạng với route cloud §3.3).
+- **Rate limit**: ba route UniWork AI dùng **một** nhóm `ai-uniwork`, **60 lượt/phút mỗi người** (không
+  theo id tổ chức/tài liệu), trả 429 **`ai_rate_limited`** + `Retry-After: 60` — khác `rate_limited` của
+  mọi nhóm khác. Một run đủ trần là tối đa 11 request (1 câu hỏi + 8 vòng + retry) nên **không bao giờ**
+  chạm nhóm. Limiter toàn cục 300/phút nay khóa theo **danh tính frame token** `(người dùng, tài liệu)`
+  thay vì địa chỉ IP: một tòa nhà sau NAT không còn chia chung ngân sách của mọi frame.
+- **`x_uniwork.step/limit`** (BE3A-11): `step` = `tool_rounds` của run **sau** lượt này (0 ở lượt câu hỏi
+  đầu), `limit` = 8; hai trường **luôn có mặt** (giá trị 0 vẫn phát) trong cả `chat.completion` lẫn chunk
+  SSE. Lượt lỗi không có `x_uniwork`; client đọc `step` từ lượt thành công gần nhất.
+- **Header run trên lượt bị từ chối trước khi run tồn tại** (402/403/404, 409 `conversation_expired`, 429
+  của limiter — limiter chạy trước handler): **không** có header run; client giữ id đang có (Q6).
+- **TTL của run** bằng vòng sống của hội thoại (30 phút nhàn rỗi / 24 h tuyệt đối; `expires_at` của run
+  ≤ của hội thoại), dọn trong cùng vòng quét của hội thoại (run hết hạn, run mồ côi). Mỗi lượt gọi model
+  có khoá meter riêng theo `(run id, seq)` nên retry không bị tính hai lần; provider không trả usage ⇒
+  dòng usage `usage_unknown` + metric, được đối soát (ước lượng từ transcript) đúng một lần.
 
 ## 4. Bản cài (GO-A8, UNI-1009)
 

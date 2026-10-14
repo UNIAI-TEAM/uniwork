@@ -105,6 +105,16 @@ with the variables above exported (Node 22).
   `uniwork_office_idempotent_replays_total`, `uniwork_office_commit_intents_swept_total`. The 409 at commit is the
   shared `uniwork_document_conflicts_total{kind="file",code="document_version_conflict"}` (reuse decision, G5-07),
   not a separate office counter.
+- Change feed (G5-01b): lag gauge `uniwork_office_change_feed_lag_seconds` (age of the oldest committed document
+  change a served page had not delivered). Two known quiet modes; the alert is `OfficeChangeFeedLagHigh` (threshold pending G7-D1, runbook `docs/runbooks/OfficeChangeFeedLagHigh.md`). (1) **xmin
+  horizon**: one long-running transaction (a migration, a backup, a stuck reader) holds `pg_snapshot_xmin` back, so
+  every later commit is held and no page delivers while the lag stays non-zero; the page that can advance nothing
+  answers `has_more=false` with its cursor position unchanged - keyset intact, token re-signed (the client polls again later), so `has_more` is the wrong
+  signal for this stall - read the lag gauge. Find the holder in `pg_stat_activity` (`xact_start`) and let it end -
+  no commit is lost, the cursor keeps its place. (2) **Retention**:
+  the trash purge retention (30 days, `documentRetentionDays`) must stay >= the feed cursor TTL (7 days,
+  `DocumentChangeFeedTTL`); if a purge ever outlives the permission evidence a still-valid cursor needs, the feed
+  answers 410 `change_cursor_expired` (one resync) instead of guessing a removal.
 - Today the real FileService keeps the `document_file` purpose disabled until G1-03 opens it, so a real deployment
   refuses office jobs at `RegisterProviderOutput` (`file_purpose_disabled`) until then.
 
@@ -368,6 +378,9 @@ Rollback steps and the user-facing wording: [`docs/office/g3g4/runbook.md`](../o
 
 ## Follow-ups
 
+- Sync, offline lease and UniWork AI operations of the G5/G6/G7 phase (cursor resync, reconciling, upload expiry, lease,
+  revoke, upstream switch, usage reconciliation, installer rollback, TTL workers, concurrency cap):
+  [`RUNBOOK_OFFICE_SYNC.md`](RUNBOOK_OFFICE_SYNC.md).
 - Helm: the chart exists (above). Still open per environment: the checklist items in
   [`OFFICE_ENV_CHECKLIST.md`](OFFICE_ENV_CHECKLIST.md) and the first real production rollout with the engine on.
 - The engine's `/metrics` is not yet scraped by `deploy/prometheus.yml`; add it with the first alert rule

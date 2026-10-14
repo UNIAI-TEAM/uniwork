@@ -19,9 +19,22 @@ const rowBody = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+const feedRow = (over: Record<string, unknown> = {}) => ({
+  document_id: "d1",
+  change_kind: "upsert",
+  kind: "file",
+  revision: "42",
+  current_version: 3,
+  version_id: "v1",
+  archived: false,
+  removal: "",
+  ...over,
+});
+
 const pageBody = (over: Record<string, unknown> = {}) => ({
   phase: "snapshot",
   changes: [rowBody(), rowBody({ document_id: "d2", kind: "page", revision: "9007199254740993", version_id: null })],
+  feed: [],
   has_more: true,
   next_cursor: "dcc1.abc.sig",
   expires_at: "2026-10-13T10:15:00Z",
@@ -86,6 +99,70 @@ describe("listDocumentChanges", () => {
     expect(out.kind === "page" && out.page.changes[0]?.versionId).toBeNull();
   });
 
+  it("parses an incremental feed page: an upsert and an ids-only removal", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        pageBody({
+          phase: "feed",
+          changes: [],
+          feed: [
+            feedRow(),
+            feedRow({
+              document_id: "d3",
+              change_kind: "removal",
+              kind: "",
+              revision: "41",
+              current_version: 0,
+              version_id: null,
+              removal: "permission_revoked",
+            }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocumentChanges("w1", { cursor: "c" });
+    expect(out.kind).toBe("page");
+    if (out.kind !== "page") return;
+    expect(out.page.feed).toEqual([
+      {
+        documentId: "d1",
+        changeKind: "upsert",
+        kind: "file",
+        revision: "42",
+        currentVersion: 3,
+        versionId: "v1",
+        archived: false,
+        removal: "",
+      },
+      {
+        documentId: "d3",
+        changeKind: "removal",
+        kind: "",
+        revision: "41",
+        currentVersion: 0,
+        versionId: null,
+        archived: false,
+        removal: "permission_revoked",
+      },
+    ]);
+  });
+
+  it("keeps an unknown change_kind and removal (lenient enums)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(pageBody({ phase: "feed", changes: [], feed: [feedRow({ change_kind: "rebase", removal: "from-the-future" })] })),
+    );
+    const out = await listDocumentChanges("w1", { cursor: "c" });
+    expect(out.kind === "page" && out.page.feed[0]?.changeKind).toBe("rebase");
+    expect(out.kind === "page" && out.page.feed[0]?.removal).toBe("from-the-future");
+  });
+
+  it("treats a missing feed as an empty one (a server older than G5-01b)", async () => {
+    const { feed: _drop, ...page } = pageBody();
+    vi.mocked(fetch).mockResolvedValueOnce(json(page));
+    const out = await listDocumentChanges("w1");
+    expect(out.kind === "page" && out.page.feed).toEqual([]);
+  });
+
   const malformed: Array<[string, unknown]> = [
     ["an empty object", {}],
     ["null", null],
@@ -103,6 +180,10 @@ describe("listDocumentChanges", () => {
     ["a numeric version_id", pageBody({ changes: [rowBody({ version_id: 7 })] })],
     ["a missing phase", pageBody({ phase: undefined })],
     ["a missing expires_at", pageBody({ expires_at: undefined })],
+    ["a feed row without a change kind", pageBody({ feed: [feedRow({ change_kind: undefined })] })],
+    ["a feed row with a numeric revision", pageBody({ feed: [feedRow({ revision: 42 })] })],
+    ["a feed row without archived", pageBody({ feed: [feedRow({ archived: undefined })] })],
+    ["a feed that is not a list", pageBody({ feed: "x" })],
   ];
 
   it.each(malformed)("degrades to an unavailable result on %s, never a throw, never a short page", async (_name, body) => {

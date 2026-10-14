@@ -363,6 +363,15 @@ WHERE account_id = $1
   AND id = ANY($3::text[])
   AND body_object_key <> '';
 
+-- name: ListEmailHubBodyObjectKeysForAccount :many
+-- Read before a disconnected mailbox's threads are deleted: once the rows are
+-- gone nothing points at the cached body objects any more.
+SELECT body_object_key
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND body_object_key <> '';
+
 -- name: GetEmailHubBodyObjectKey :one
 SELECT body_object_key
 FROM email_hub_threads
@@ -868,6 +877,8 @@ RETURNING *;
 UPDATE email_hub_scheduled_sends
 SET status = 'sent',
     sent_at = now(),
+    -- the files went out with the mail; nothing reads a sent row's payload
+    payload = payload - 'attachments',
     last_error = NULL,
     lease_owner = NULL,
     lease_expires_at = NULL
@@ -901,7 +912,8 @@ ORDER BY (status = 'failed') DESC, send_at ASC;
 
 -- name: CancelEmailHubScheduledSend :execrows
 UPDATE email_hub_scheduled_sends
-SET status = 'cancelled'
+SET status = 'cancelled',
+    payload = payload - 'attachments'
 WHERE id = $1
   AND workspace_id = $2
   AND account_id = $3
@@ -911,7 +923,8 @@ WHERE id = $1
 -- name: CancelEmailHubScheduledSendsForAccount :exec
 -- A disconnected mailbox's queue: nobody can reach it again to send or retry.
 UPDATE email_hub_scheduled_sends
-SET status = 'cancelled'
+SET status = 'cancelled',
+    payload = payload - 'attachments'
 WHERE account_id = $1
   AND organization_id = $2
   AND status IN ('pending', 'failed');

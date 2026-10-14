@@ -70,8 +70,13 @@ var errorClassByCode = map[string]string{
 //     this code, so it must not read as gone.
 //   change_cursor_invalid  (400) a forged cursor or one from another
 //     scope; the refusal must not reveal the scope it failed against.
-//   run_limit_reached      (429) a UniWork AI run limit, unclassified the
+//   run_limit_reached      (409) a UniWork AI run limit, unclassified the
 //     same way ai_rate_limited is: it is not a quota or permission denial.
+//   run_expired            (409) the run id the client sent is unknown, of
+//     another conversation or organization, or past its TTL (G6-03b §2.3;
+//     contract-p0 section 4). The client drops the id and asks again as a
+//     new run; the conversation is still live, so it must not run the
+//     conversation_expired recovery path.
 //   office_capability_off  (403, fields.capability) a flag hides the
 //     capability; it is not a permission denial, so the client must not
 //     run its lost-access recovery path (CLAUDE.md > Platform Admin).

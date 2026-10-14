@@ -159,3 +159,146 @@ SELECT count(*) FROM ai_uniwork_conversations WHERE expires_at > $1;
 -- The organizations that hold at least one transcript: the TTL worker asks
 -- each of them whether office_ai_uniwork is still on (design §9.4).
 SELECT DISTINCT organization_id FROM ai_uniwork_conversations ORDER BY organization_id;
+
+-- Runs (G6-03b, G6-D1 A3/A12; design §3, §4). One run counts what a single
+-- question may spend across every pod; the store implementation is RunStorePG
+-- in server/internal/ai/run_store_pg.go.
+
+-- name: AiUniworkStartRun :one
+-- Opening a run is the question turn that reached the Gateway: the row is
+-- born with model_calls = 1 (design §2.2) and is bound to the conversation it
+-- was resumed for - the INSERT ... SELECT also takes the conversation's
+-- created_at for the absolute horizon, so the entity that scopes a run is the
+-- conversation, filtered by its organization (design §3.3). No rows means the
+-- conversation is gone; the store answers run_expired.
+INSERT INTO ai_uniwork_runs (
+  id, organization_id, conversation_id, model_calls, tool_rounds, credits,
+  created_by, created_by_kind, created_at, last_used_at, expires_at
+)
+SELECT
+  sqlc.arg('id')::text,
+  c.organization_id,
+  c.id,
+  1,
+  0,
+  0,
+  sqlc.arg('created_by')::text,
+  'human',
+  sqlc.arg('now')::timestamptz,
+  sqlc.arg('now')::timestamptz,
+  LEAST(
+    sqlc.arg('now')::timestamptz + make_interval(secs => sqlc.arg('idle_secs')::int),
+    c.created_at + make_interval(secs => sqlc.arg('absolute_secs')::int))
+FROM ai_uniwork_conversations c
+WHERE c.id = sqlc.arg('conversation_id') AND c.organization_id = sqlc.arg('organization_id')
+RETURNING *;
+
+-- name: AiUniworkTakeRunTurn :one
+-- The whole cap in one conditional UPDATE (design §4.2): the conditions are
+-- the live window and both caps, so two pods cannot overspend one run and no
+-- service-level read-then-write is needed. The window is refreshed here too -
+-- expires_at never passes the conversation's absolute horizon, and the join
+-- on the conversation makes an orphaned run unfindable (the store answers
+-- run_expired). Zero rows reserved nothing: the store reads AiUniworkGetRun
+-- to say which refusal it is.
+UPDATE ai_uniwork_runs AS r SET
+  model_calls = r.model_calls + 1,
+  tool_rounds = r.tool_rounds + (CASE WHEN sqlc.arg('tool_round')::boolean THEN 1 ELSE 0 END),
+  last_used_at = sqlc.arg('now')::timestamptz,
+  expires_at = LEAST(
+    sqlc.arg('now')::timestamptz + make_interval(secs => sqlc.arg('idle_secs')::int),
+    c.created_at + make_interval(secs => sqlc.arg('absolute_secs')::int))
+FROM ai_uniwork_conversations c
+WHERE r.conversation_id = c.id
+  AND r.id = sqlc.arg('run_id')
+  AND r.conversation_id = sqlc.arg('conversation_id')
+  AND r.organization_id = sqlc.arg('organization_id')
+  AND r.expires_at > sqlc.arg('now')::timestamptz
+  AND r.model_calls < sqlc.arg('model_call_max')::int
+  AND (NOT sqlc.arg('tool_round')::boolean OR r.tool_rounds < sqlc.arg('tool_round_max')::int)
+RETURNING r.*;
+
+-- name: AiUniworkGetRun :one
+-- Distinguishes run_expired from run_limit_reached after a turn reserved
+-- nothing, and filters all three columns (id, conversation, organization), so
+-- a run of another tenant or conversation is not found rather than refused
+-- with a reason (design §3.5).
+SELECT r.* FROM ai_uniwork_runs r
+WHERE r.id = sqlc.arg('id')
+  AND r.conversation_id = sqlc.arg('conversation_id')
+  AND r.organization_id = sqlc.arg('organization_id');
+
+-- name: AiUniworkAddRunCredits :exec
+-- tenant: by-id
+-- What one answered model call cost is added to the run after the call
+-- settled; the run was authorized by the turn that reserved the call, and a
+-- row already swept is a no-op (the usage row and the meter still carry it).
+UPDATE ai_uniwork_runs SET credits = credits + sqlc.arg('tokens')::bigint
+WHERE id = sqlc.arg('run_id') AND conversation_id = sqlc.arg('conversation_id');
+
+-- name: AiUniworkExpiredRunIDs :many
+-- tenant: system
+-- The TTL sweep's batch, oldest expiry first: runs whose window has passed
+-- (design §3.4). Same clock as the conversation sweep - idle and absolute
+-- both land in expires_at.
+SELECT id FROM ai_uniwork_runs
+WHERE expires_at <= sqlc.arg('now')::timestamptz
+ORDER BY expires_at
+LIMIT sqlc.arg('batch')::int;
+
+-- name: AiUniworkOrphanRunIDs :many
+-- tenant: system
+-- Runs whose conversation is gone: every path that deletes a conversation
+-- leaves its runs to this sweep (design §3.4), so a run outlives its owner by
+-- one pass at most - and is unreachable in the meantime, because a turn
+-- resumes the conversation first.
+SELECT r.id FROM ai_uniwork_runs r
+WHERE NOT EXISTS (SELECT 1 FROM ai_uniwork_conversations c WHERE c.id = r.conversation_id)
+ORDER BY r.created_at
+LIMIT sqlc.arg('batch')::int;
+
+-- name: AiUniworkDeleteRunsByIDs :execrows
+-- tenant: system
+-- The ids come from AiUniworkExpiredRunIDs / AiUniworkOrphanRunIDs in the same
+-- pass; deleting an already-deleted id is a no-op, so two pods sweeping at
+-- once is harmless and each reports what its own delete removed.
+DELETE FROM ai_uniwork_runs WHERE id = ANY(sqlc.arg('ids')::text[]);
+
+-- ---- Usage reconciliation (G6-03b, design §6.3) -----------------------------
+-- The pass prices the rows whose vendor sent no usage block, from the
+-- transcript stored for them. It is a maintenance job that answers no
+-- request, like the TTL sweep above.
+
+-- name: AiUniworkUnknownUsageEvents :many
+-- tenant: system
+-- The reconciliation queue: UniWork AI calls whose vendor reported no usage
+-- block, oldest first, so a row entered once is priced before the queue grows
+-- behind it (design §6.3).
+SELECT * FROM ai_usage_events
+WHERE capability = 'office_uniwork_ai' AND reason_code = 'usage_unknown'
+ORDER BY created_at, id
+LIMIT sqlc.arg('batch')::int;
+
+-- name: AiUniworkTurnByUsageEvent :one
+-- The assistant turn a usage row belongs to: it names the conversation and
+-- seq the estimate replays from. Scoped by the row's organization so a turn
+-- of a foreign tenant can never answer (the usage row carries one).
+SELECT * FROM ai_uniwork_turns
+WHERE organization_id = $1 AND usage_event_id = $2;
+
+-- name: AiUniworkTurnsToUsageEvent :many
+-- tenant: parent conversation_id
+-- Every turn up to and including the assistant turn, oldest first: the
+-- estimate reads what the model was sent plus what it answered.
+SELECT * FROM ai_uniwork_turns WHERE conversation_id = $1 AND seq <= $2 ORDER BY seq;
+
+-- name: AiUniworkClaimUnknownUsage :one
+-- tenant: by-id
+-- The claim of §6.3: one row flips usage_unknown -> usage_unknown_reconciled
+-- with the estimate. No row means another pass or pod priced it first, so the
+-- meter is never recorded twice.
+UPDATE ai_usage_events SET
+  reason_code = 'usage_unknown_reconciled', rate_id = $2, input_tokens = $3, output_tokens = $4,
+  cost_micros = $5, completed_at = now()
+WHERE id = $1 AND reason_code = 'usage_unknown'
+RETURNING *;

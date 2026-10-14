@@ -393,8 +393,11 @@ func askReq() Request {
 
 func TestGatewayMetersBeforeAndAfter(t *testing.T) {
 	ctx := context.Background()
+	// UsagePresent is set explicitly: the fake stands in for a vendor that
+	// answered with a usage block, and this test pins the priced path (BE3B-4).
+	// A reply without the flag is the no-usage shape, tested separately.
 	fp := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
-		return provider.CompletionResponse{Text: `{"answer":"ok","citations":[]}`, Model: "fake", InputTokens: 1_000_000, OutputTokens: 500_000}
+		return provider.CompletionResponse{Text: `{"answer":"ok","citations":[]}`, Model: "fake", UsagePresent: true, InputTokens: 1_000_000, OutputTokens: 500_000}
 	}}
 	quota := &fakeQuota{}
 	g, q := gatewayFixture(t, fp, quota)
@@ -443,6 +446,75 @@ func TestGatewayMetersBeforeAndAfter(t *testing.T) {
 	unpriced, _ := q.AiGetUsageEvent(ctx, resp3.UsageEventID)
 	if unpriced.Status != "succeeded" || unpriced.CostMicros != 0 || unpriced.RateID.Valid {
 		t.Fatalf("%+v", unpriced)
+	}
+}
+
+// The unknown-usage branch is UniWork AI's alone (BE3B-4, design §6.3): every
+// other capability keeps the pre-03b priced path, so a vendor that omitted the
+// usage block still settles succeeded with a cost and is still metered — not a
+// usage_unknown row nobody reconciles (AiUniworkUnknownUsageEvents filters
+// capability = 'office_uniwork_ai').
+//
+// One database fixture for both calls: testutil.DB serializes tests with a
+// session advisory lock, so a second call inside the same test would wait on
+// the first pool's lock forever.
+func TestGatewayUnknownUsageBranchScopedToUniwork(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.DB(t)
+	if _, err := pool.Exec(ctx, "DELETE FROM ai_model_rates WHERE provider = 'fake'"); err != nil {
+		t.Fatal(err)
+	}
+	q := db.New(pool)
+	// A reply that positively reports no usage block: UsagePresent false and
+	// no tokens (the shape the branch exists for).
+	noUsage := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: "{}", Model: "fake"}
+	}}
+	if _, err := q.AiInsertRate(ctx, db.AiInsertRateParams{ID: util.NewID(), Provider: "fake", Model: "fake", InputMicrosPerMtok: 2_000_000, OutputMicrosPerMtok: 4_000_000, EffectiveAt: pgtype.Timestamptz{Time: time.Now().Add(-time.Hour), Valid: true}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A non-UniWork capability: priced/metered as before, no unknown row.
+	quota := &fakeQuota{}
+	g := NewGateway(q, noUsage, quota, nil, Options{Timeout: time.Second})
+	resp, err := g.Complete(ctx, askReq())
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := q.AiGetUsageEvent(ctx, resp.UsageEventID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status != "succeeded" || row.ReasonCode.Valid || row.CostMicros != 0 || !row.CompletedAt.Valid {
+		t.Fatalf("non-UniWork no-usage row = %+v, want succeeded priced at 0 with no reason code", row)
+	}
+	if resp.UsagePresent {
+		t.Fatal("a vendor that sent no usage block must report UsagePresent false")
+	}
+	if len(quota.recorded) != 1 {
+		t.Fatalf("non-UniWork no-usage call metered %d times, want the priced path to still record", len(quota.recorded))
+	}
+
+	// UniWork AI on the same shape: the A16 branch, no meter call.
+	uQuota := &fakeQuota{}
+	ug := NewGateway(q, noUsage, uQuota, nil, Options{Timeout: time.Second})
+	uresp, err := ug.Complete(ctx, Request{
+		Actor: audit.User("u1"), OrganizationID: "org1", WorkspaceID: "ws1",
+		Capability: CapOfficeUniworkAI, PromptID: PromptOfficeUniworkAI, Module: "xlsx",
+		History: []provider.Message{{Role: "user", Content: "how many rows?"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	urow, err := q.AiGetUsageEvent(ctx, uresp.UsageEventID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if urow.Status != "succeeded" || urow.ReasonCode.String != UsageUnknownReason || urow.CostMicros != 0 {
+		t.Fatalf("UniWork no-usage row = %+v, want succeeded/%s at cost 0", urow, UsageUnknownReason)
+	}
+	if len(uQuota.recorded) != 0 {
+		t.Fatalf("UniWork unknown-usage call metered %d times, want the reconciler to own that charge", len(uQuota.recorded))
 	}
 }
 

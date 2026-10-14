@@ -112,16 +112,19 @@ func TestAIUniworkTurnSealRoundTrip(t *testing.T) {
 // fakeConversations records what the consumer and the TTL worker asked for; it
 // implements ConversationStore plus the worker's ConversationMaintenance.
 type fakeConversations struct {
-	sweptCount     int64
-	sweepErr       error
-	organizations  []string
-	orgsErr        error
-	live           int64
-	deleted        []string
-	deletedDocs    [][2]string
-	deletedUsers   [][2]string
-	deletedUsersIn []string
-	deletedOrgs    []string
+	sweptCount       int64
+	sweepErr         error
+	sweptRunsExpired int64
+	sweptRunsOrphan  int64
+	sweepRunsErr     error
+	organizations    []string
+	orgsErr          error
+	live             int64
+	deleted          []string
+	deletedDocs      [][2]string
+	deletedUsers     [][2]string
+	deletedUsersIn   []string
+	deletedOrgs      []string
 }
 
 func (*fakeConversations) Resume(context.Context, ConversationKey, string) (Conversation, error) {
@@ -167,6 +170,9 @@ func (f *fakeConversations) LiveConversations(context.Context, time.Time) (int64
 func (f *fakeConversations) DeleteOrganizationConversations(_ context.Context, organizationID string) (int64, error) {
 	f.deletedOrgs = append(f.deletedOrgs, organizationID)
 	return 1, nil
+}
+func (f *fakeConversations) SweepRuns(context.Context, time.Time) (int64, int64, error) {
+	return f.sweptRunsExpired, f.sweptRunsOrphan, f.sweepRunsErr
 }
 
 // The cleanup consumer wears the five topics of A9 and calls the store with

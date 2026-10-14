@@ -7871,7 +7871,15 @@
       "collapse": "Thu gọn {{title}}",
       "moving": "Đang chuyển tài liệu…",
       "move_failed": "Không chuyển được tài liệu",
-      "too_deep": "Cây tài liệu tối đa 5 cấp."
+      "too_deep": "Cây tài liệu tối đa {{max}} cấp.",
+      "cycle_blocked": "Không thể chuyển thư mục vào chính nó hoặc thư mục con của nó.",
+      "menu": {
+        "open": "Mở",
+        "new_subfolder": "Thư mục con mới",
+        "rename": "Đổi tên",
+        "move_to": "Di chuyển tới…",
+        "delete": "Xóa"
+      }
     },
     "page_ui": {
       "title_label": "Tiêu đề tài liệu",
@@ -8230,7 +8238,19 @@
       "restore_failed": "Không khôi phục được. Chưa có gì thay đổi.",
       "restore_not_archived": "Tài liệu này không nằm trong thùng rác.",
       "archive_folder_title": "Lưu trữ thư mục",
-      "archive_folder_description": "Thư mục và mọi thứ bên trong (thư mục con, trang, file) cùng vào thùng rác. Có thể khôi phục lại sau."
+      "archive_folder_description": "Thư mục và mọi thứ bên trong (thư mục con, trang, file) cùng vào thùng rác. Có thể khôi phục lại sau.",
+      "delete_title": "Xóa thư mục",
+      "delete_subfolders_one": "{{count}} thư mục con",
+      "delete_subfolders_other": "{{count}} thư mục con",
+      "delete_documents_one": "{{count}} tài liệu",
+      "delete_documents_other": "{{count}} tài liệu",
+      "delete_body": "{{subfolders}} và {{documents}} sẽ chuyển vào thùng rác, khôi phục được trong 30 ngày.",
+      "delete_loading": "Đang đếm nội dung thư mục…",
+      "delete_impact_error": "Không đếm được nội dung thư mục. Thử lại trước khi xóa.",
+      "delete_too_large": "Thư mục có hơn {{max}} mục nên chưa chuyển vào thùng rác được một lần. Hãy xóa từng phần bên trong trước.",
+      "delete_confirm": "Xóa",
+      "delete_submitting": "Đang xóa…",
+      "delete_failed": "Không xóa được. Chưa có gì thay đổi."
     },
     "public": {
       "loading": "Đang tải tài liệu…",
@@ -8347,7 +8367,21 @@
         "empty": "Chưa có thư mục.",
         "rename": "Đổi tên thư mục",
         "rename_label": "Tên thư mục",
-        "rename_failed": "Không thể đổi tên thư mục. Thử lại."
+        "rename_failed": "Không thể đổi tên thư mục. Thử lại.",
+        "create_title_root": "Thư mục mới ở Documents (gốc)",
+        "create_sub_title": "Thư mục con mới trong {{parent}}",
+        "create_title": "Thư mục mới",
+        "name_placeholder": "Ví dụ: Hợp đồng 2026",
+        "name_empty": "Nhập tên thư mục.",
+        "name_too_long": "Tên thư mục tối đa {{max}} ký tự.",
+        "create_submit": "Tạo",
+        "rename_submit": "Lưu",
+        "toast": {
+          "created": "Đã tạo thư mục {{title}}",
+          "renamed": "Đã đổi tên thành {{title}}",
+          "trashed": "Đã chuyển {{title}} vào thùng rác",
+          "restored": "Đã khôi phục {{title}}"
+        }
       },
       "greeting": {
         "morning": "Chào buổi sáng. Hôm nay bạn muốn tạo gì?",
@@ -8417,6 +8451,9 @@
         "upload": {
           "card": "Tải file lên",
           "hint": "docx, xlsx, pptx, pdf, md, html, ảnh"
+        },
+        "folder": {
+          "menu": "Thư mục"
         }
       },
       "sidebar": {
@@ -8495,7 +8532,8 @@
         "editor": "Người sửa",
         "updated": "Cập nhật",
         "size": "Dung lượng",
-        "actions": "Thao tác"
+        "actions": "Thao tác",
+        "type": "Loại"
       },
       "row": {
         "open_folder": "Mở thư mục",
@@ -8512,7 +8550,9 @@
         "move": "Di chuyển",
         "archive": "Lưu trữ",
         "open_chat": "Mở Trò chuyện",
-        "open_email": "Mở Email"
+        "open_email": "Mở Email",
+        "new_subfolder": "Thư mục con mới",
+        "rename": "Đổi tên"
       },
       "empty": {
         "title": "Workspace chưa có tài liệu",
@@ -8553,17 +8593,53 @@
         "description": "Chọn thư mục mới cho {{name}}.",
         "folder_description": "Chọn thư mục mới cho {{name}}. Mọi thứ bên trong đi cùng.",
         "submit": "Di chuyển",
-        "moved": "Đã di chuyển."
+        "moved": "Đã di chuyển.",
+        "picker_title": "Di chuyển tới",
+        "picker_label": "Chọn thư mục đích",
+        "root": "Documents (gốc)",
+        "reason_current": "Vị trí hiện tại",
+        "reason_self": "Nằm trong chính nó",
+        "reason_too_deep": "Quá sâu: tối đa {{max}} cấp",
+        "moved_to": "Đã chuyển tới {{folder}}",
+        "moved_renamed": "Đã chuyển và đổi tên thành {{title}}"
       },
-      "open_office": "Mở UniWork Office"
+      "open_office": "Mở UniWork Office",
+      "sort": {
+        "label": "Sắp xếp",
+        "name": "Tên (A→Z)",
+        "updated": "Cập nhật (mới nhất)"
+      },
+      "folder_invalid": {
+        "title": "Không mở được thư mục này",
+        "description": "Thư mục không còn ở đây hoặc bạn không có quyền xem.",
+        "back": "Về Documents (gốc)"
+      },
+      "breadcrumb_more": "Các cấp ẩn",
+      "search": {
+        "placeholder": "Tìm thư mục và tài liệu",
+        "label": "Tìm trong Documents",
+        "clear": "Xóa ô tìm",
+        "filter_label": "Lọc kết quả",
+        "filter_all": "Tất cả",
+        "filter_folder": "Thư mục",
+        "filter_document": "Tài liệu",
+        "path": "Đường dẫn: {{path}}",
+        "path_root": "Documents (gốc)",
+        "loading": "Đang tìm…",
+        "empty_title": "Không tìm thấy kết quả",
+        "empty_description": "Thử tên khác hoặc đổi bộ lọc. Nhấn Esc để quay lại thư mục.",
+        "error_title": "Không tìm được",
+        "error_description": "Kiểm tra kết nối rồi thử lại."
+      }
     },
     "errors": {
       "document_parent_kind": "Không đặt được ở đây: thư mục chỉ nằm ở gốc hoặc trong thư mục khác; trang và file nằm trong trang hoặc thư mục.",
       "document_cycle": "Không thể chuyển một mục vào chính nó hoặc vào mục con của nó.",
-      "document_too_deep": "Cây tài liệu tối đa 5 cấp.",
+      "document_too_deep": "Cây tài liệu tối đa {{max}} cấp.",
       "folder_not_supported": "Thư mục không có nội dung để mở hay chỉnh sửa.",
       "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa lưu trữ được một lần. Hãy lưu trữ từng phần bên trong trước.",
-      "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu."
+      "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
+      "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác."
     }
   },
   "squads": {

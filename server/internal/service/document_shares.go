@@ -196,6 +196,11 @@ func (s *DocumentService) RevokeDocumentShare(ctx context.Context, actor Actor, 
 				"share_id":       sh.ID,
 				"principal_type": sh.PrincipalType,
 				"principal_id":   sh.PrincipalID,
+				// The prior level is replicated into the metadata the change
+				// feed reads (BE-G1-2): a removal is decided from the audit
+				// row alone, so the revoked principal and the level it held
+				// must sit together in one durable row.
+				"level": sh.Level,
 			},
 		}, audit.Event{Topic: "document.share_revoked", Payload: map[string]string{
 			"document_id":  doc.ID,

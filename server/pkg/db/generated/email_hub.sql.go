@@ -61,7 +61,8 @@ func (q *Queries) AdoptEmailHubSentCopy(ctx context.Context, arg AdoptEmailHubSe
 
 const cancelEmailHubScheduledSend = `-- name: CancelEmailHubScheduledSend :execrows
 UPDATE email_hub_scheduled_sends
-SET status = 'cancelled'
+SET status = 'cancelled',
+    payload = payload - 'attachments'
 WHERE id = $1
   AND workspace_id = $2
   AND account_id = $3
@@ -91,7 +92,8 @@ func (q *Queries) CancelEmailHubScheduledSend(ctx context.Context, arg CancelEma
 
 const cancelEmailHubScheduledSendsForAccount = `-- name: CancelEmailHubScheduledSendsForAccount :exec
 UPDATE email_hub_scheduled_sends
-SET status = 'cancelled'
+SET status = 'cancelled',
+    payload = payload - 'attachments'
 WHERE account_id = $1
   AND organization_id = $2
   AND status IN ('pending', 'failed')
@@ -1492,6 +1494,41 @@ func (q *Queries) ListEmailHubAttachments(ctx context.Context, arg ListEmailHubA
 	return items, nil
 }
 
+const listEmailHubBodyObjectKeysForAccount = `-- name: ListEmailHubBodyObjectKeysForAccount :many
+SELECT body_object_key
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND body_object_key <> ''
+`
+
+type ListEmailHubBodyObjectKeysForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Read before a disconnected mailbox's threads are deleted: once the rows are
+// gone nothing points at the cached body objects any more.
+func (q *Queries) ListEmailHubBodyObjectKeysForAccount(ctx context.Context, arg ListEmailHubBodyObjectKeysForAccountParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listEmailHubBodyObjectKeysForAccount, arg.AccountID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var body_object_key string
+		if err := rows.Scan(&body_object_key); err != nil {
+			return nil, err
+		}
+		items = append(items, body_object_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEmailHubBodyObjectKeysForThreads = `-- name: ListEmailHubBodyObjectKeysForThreads :many
 SELECT body_object_key
 FROM email_hub_threads
@@ -2611,6 +2648,8 @@ const markEmailHubScheduledSendSent = `-- name: MarkEmailHubScheduledSendSent :e
 UPDATE email_hub_scheduled_sends
 SET status = 'sent',
     sent_at = now(),
+    -- the files went out with the mail; nothing reads a sent row's payload
+    payload = payload - 'attachments',
     last_error = NULL,
     lease_owner = NULL,
     lease_expires_at = NULL

@@ -7876,7 +7876,15 @@
       "collapse": "Collapse {{title}}",
       "moving": "Moving document…",
       "move_failed": "Could not move the document",
-      "too_deep": "The document tree is limited to five levels."
+      "too_deep": "The document tree is limited to {{max}} levels.",
+      "cycle_blocked": "A folder can't move into itself or into one of its subfolders.",
+      "menu": {
+        "open": "Open",
+        "new_subfolder": "New subfolder",
+        "rename": "Rename",
+        "move_to": "Move to…",
+        "delete": "Delete"
+      }
     },
     "page_ui": {
       "title_label": "Document title",
@@ -8235,7 +8243,19 @@
       "restore_failed": "Could not restore. Nothing changed.",
       "restore_not_archived": "This document is not in the trash.",
       "archive_folder_title": "Archive folder",
-      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later."
+      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later.",
+      "delete_title": "Delete folder",
+      "delete_subfolders_one": "{{count}} subfolder",
+      "delete_subfolders_other": "{{count}} subfolders",
+      "delete_documents_one": "{{count}} document",
+      "delete_documents_other": "{{count}} documents",
+      "delete_body": "{{subfolders}} and {{documents}} will move to the trash and can be restored within 30 days.",
+      "delete_loading": "Counting what's in the folder…",
+      "delete_impact_error": "Couldn't count what's in the folder. Try again before deleting.",
+      "delete_too_large": "The folder holds more than {{max}} items, so it can't go to the trash in one go. Delete what's inside in parts first.",
+      "delete_confirm": "Delete",
+      "delete_submitting": "Deleting…",
+      "delete_failed": "Couldn't delete. Nothing changed."
     },
     "public": {
       "loading": "Loading the document…",
@@ -8352,7 +8372,21 @@
         "empty": "No folders yet.",
         "rename": "Rename folder",
         "rename_label": "Folder name",
-        "rename_failed": "Could not rename the folder. Try again."
+        "rename_failed": "Could not rename the folder. Try again.",
+        "create_title_root": "New folder in Documents (root)",
+        "create_sub_title": "New subfolder in {{parent}}",
+        "create_title": "New folder",
+        "name_placeholder": "e.g. Contracts 2026",
+        "name_empty": "Enter a folder name.",
+        "name_too_long": "A folder name is at most {{max}} characters.",
+        "create_submit": "Create",
+        "rename_submit": "Save",
+        "toast": {
+          "created": "Created folder {{title}}",
+          "renamed": "Renamed to {{title}}",
+          "trashed": "Moved {{title}} to the trash",
+          "restored": "Restored {{title}}"
+        }
       },
       "greeting": {
         "morning": "Good morning. What would you like to create today?",
@@ -8422,6 +8456,9 @@
         "upload": {
           "card": "Upload file",
           "hint": "docx, xlsx, pptx, pdf, md, html, images"
+        },
+        "folder": {
+          "menu": "Folder"
         }
       },
       "sidebar": {
@@ -8500,7 +8537,8 @@
         "editor": "Edited by",
         "updated": "Updated",
         "size": "Size",
-        "actions": "Actions"
+        "actions": "Actions",
+        "type": "Type"
       },
       "row": {
         "open_folder": "Open folder",
@@ -8517,7 +8555,9 @@
         "move": "Move",
         "archive": "Archive",
         "open_chat": "Open Chat",
-        "open_email": "Open Email"
+        "open_email": "Open Email",
+        "new_subfolder": "New subfolder",
+        "rename": "Rename"
       },
       "empty": {
         "title": "No documents in this workspace yet",
@@ -8558,17 +8598,53 @@
         "description": "Pick a new folder for {{name}}.",
         "folder_description": "Pick a new folder for {{name}}. Everything inside it moves too.",
         "submit": "Move",
-        "moved": "Moved."
+        "moved": "Moved.",
+        "picker_title": "Move to",
+        "picker_label": "Choose a destination folder",
+        "root": "Documents (root)",
+        "reason_current": "Current location",
+        "reason_self": "Inside itself",
+        "reason_too_deep": "Too deep: at most {{max}} levels",
+        "moved_to": "Moved to {{folder}}",
+        "moved_renamed": "Moved and renamed to {{title}}"
       },
-      "open_office": "Open UniWork Office"
+      "open_office": "Open UniWork Office",
+      "sort": {
+        "label": "Sort by",
+        "name": "Name (A→Z)",
+        "updated": "Updated (newest)"
+      },
+      "folder_invalid": {
+        "title": "Can't open this folder",
+        "description": "The folder is no longer here, or you don't have access to it.",
+        "back": "Back to Documents (root)"
+      },
+      "breadcrumb_more": "Hidden levels",
+      "search": {
+        "placeholder": "Search folders and documents",
+        "label": "Search Documents",
+        "clear": "Clear search",
+        "filter_label": "Filter results",
+        "filter_all": "All",
+        "filter_folder": "Folders",
+        "filter_document": "Documents",
+        "path": "Path: {{path}}",
+        "path_root": "Documents (root)",
+        "loading": "Searching…",
+        "empty_title": "No results",
+        "empty_description": "Try another name or change the filter. Press Esc to go back to the folder.",
+        "error_title": "Couldn't search",
+        "error_description": "Check your connection and try again."
+      }
     },
     "errors": {
       "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; pages and files sit in a page or a folder.",
       "document_cycle": "An item can't move into itself or into something inside it.",
-      "document_too_deep": "The document tree is at most 5 levels deep.",
+      "document_too_deep": "The document tree is at most {{max}} levels deep.",
       "folder_not_supported": "A folder has no content to open or edit.",
       "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
-      "source_not_saveable": "This file can't be copied into Documents."
+      "source_not_saveable": "This file can't be copied into Documents.",
+      "folder_name_taken": "A folder with this name already exists here. Choose another name."
     }
   },
   "squads": {
