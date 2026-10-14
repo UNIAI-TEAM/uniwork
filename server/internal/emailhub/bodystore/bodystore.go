@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/unicomhub/uniwork/server/internal/storage"
 )
 
 const objectKeyVersion = "body.v1.json.gz"
@@ -17,9 +19,15 @@ type payload struct {
 	HTML string `json:"html,omitempty"`
 }
 
-// ObjectKey is the logical storage key (S3Storage adds S3_KEY_PREFIX).
-func ObjectKey(accountID, threadID string) string {
-	return fmt.Sprintf("email-hub/accounts/%s/threads/%s/%s", accountID, threadID, objectKeyVersion)
+// ObjectKey is the logical storage key (S3Storage adds S3_KEY_PREFIX). It sits
+// under the organization's tenant root, next to the FileService objects: a
+// mailbox belongs to one person in one organization (no workspace), and the
+// legacy /uploads/* route refuses everything under v1/. Rows written before
+// this layout keep their stored email-hub/accounts/... key until retention
+// drops them.
+func ObjectKey(organizationID, accountID, threadID string) string {
+	return fmt.Sprintf("%sorgs/%s/email-hub/accounts/%s/threads/%s/%s",
+		storage.FileServiceKeyPrefix, organizationID, accountID, threadID, objectKeyVersion)
 }
 
 // Mode returns inline or s3. Empty EMAIL_HUB_BODY_STORAGE defaults to s3 when STORAGE_BACKEND=s3.

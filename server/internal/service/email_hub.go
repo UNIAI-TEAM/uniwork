@@ -215,20 +215,37 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 	s.hubWatch.forceStop(accountID)
 	// old is the zero row on a repeated disconnect: no token is left to revoke.
 	s.revokeEmailHubToken(ctx, accountID, old.AuthKind, old.OauthRefreshTokenEnc)
-	return cleanUpDisconnectedEmailHubAccount(ctx, s.q, accountID, ws.OrganizationID)
+	return cleanUpDisconnectedEmailHubAccount(ctx, s.q, s.store, accountID, ws.OrganizationID)
 }
 
 // cleanUpDisconnectedEmailHubAccount cancels a disconnected mailbox's queued
-// sends and drops its cached mail. It is safe to run again, and runs after the
+// sends and drops its cached mail, the body objects in store included (nil:
+// bodies are inline only). It is safe to run again, and runs after the
 // disconnect commits: a large mailbox would hold that transaction's locks.
-func cleanUpDisconnectedEmailHubAccount(ctx context.Context, q *db.Queries, accountID, organizationID string) error {
+func cleanUpDisconnectedEmailHubAccount(
+	ctx context.Context, q *db.Queries, store storage.Storage, accountID, organizationID string,
+) error {
 	scope := db.DeleteEmailHubAttachmentsForAccountParams{AccountID: accountID, OrganizationID: organizationID}
-	return errors.Join(
+	// Only the thread rows know the body keys, so they are read before the rows
+	// go; the objects go only after the rows did, so a failed run is found again.
+	var keys []string
+	if store != nil {
+		var err error
+		keys, err = q.ListEmailHubBodyObjectKeysForAccount(ctx, db.ListEmailHubBodyObjectKeysForAccountParams(scope))
+		if err != nil {
+			return err
+		}
+	}
+	if err := errors.Join(
 		q.CancelEmailHubScheduledSendsForAccount(ctx, db.CancelEmailHubScheduledSendsForAccountParams(scope)),
 		q.DeleteEmailHubAttachmentsForAccount(ctx, scope),
 		q.DeleteEmailHubThreadAiSummariesForAccount(ctx, db.DeleteEmailHubThreadAiSummariesForAccountParams(scope)),
 		q.DeleteEmailHubThreadsForAccount(ctx, db.DeleteEmailHubThreadsForAccountParams(scope)),
-	)
+	); err != nil {
+		return err
+	}
+	deleteEmailHubBodyObjects(ctx, store, keys)
+	return nil
 }
 
 // cleanUpEmailHubAccountsAfterCommit cleans up the mailboxes a lifecycle
@@ -239,7 +256,7 @@ func cleanUpDisconnectedEmailHubAccount(ctx context.Context, q *db.Queries, acco
 func cleanUpEmailHubAccountsAfterCommit(ctx context.Context, q *db.Queries, hub *EmailHubService, rows []db.DisconnectEmailHubAccountsForUserRow) {
 	ctx = context.WithoutCancel(ctx)
 	for _, r := range rows {
-		if err := cleanUpDisconnectedEmailHubAccount(ctx, q, r.ID, r.OrganizationID); err != nil {
+		if err := cleanUpDisconnectedEmailHubAccount(ctx, q, hub.objectStore(), r.ID, r.OrganizationID); err != nil {
 			slog.Warn("email hub cleanup after disconnect failed", "account_id", r.ID, "err", err)
 		}
 		if hub != nil {
