@@ -1,0 +1,1929 @@
+$ for f in .g7-06-run/full/result.json .g7-06-run/full/brand.json .g7-06-run/full/golden/summary.json .g7-06-run/full/g6-01-diff.md .g7-06-run/full/extractor.json .g7-06-run/full/protocol-hash.json; do [ -f "$f" ] && { echo "=== $f"; cat "$f"; }; done; ls -R .g7-06-run | head -80; cat test-results/office-g5g6g7-evidence/evidence.jsonl; cat .g7-06-captures/*/meta.json; for t in .g7-06-captures/*/*.txt; do echo "=== $t"; head -c 1500 "$t"; echo; done; true
+=== .g7-06-run/full/result.json
+{
+  "forkSha": "06d77a2",
+  "pinVersion": "0.1.0-06d77a2",
+  "checks": {
+    "protocol": {
+      "status": "PASS",
+      "reasons": [],
+      "artifacts": [
+        "protocol-hash.json"
+      ]
+    },
+    "extractor": {
+      "status": "PASS",
+      "reasons": [],
+      "artifacts": [
+        "g6-01-diff.md",
+        "extractor.json"
+      ]
+    },
+    "golden": {
+      "status": "PASS",
+      "reasons": [],
+      "artifacts": [
+        "golden/summary.json",
+        "golden/desktop/fx-xlsx-revenue-xyz.actual.png",
+        "golden/desktop/fx-xlsx-revenue-xyz.expected.png",
+        "golden/desktop/fx-xlsx-revenue-xyz.diff.png",
+        "golden/desktop/fx-docx-report-vi.actual.png",
+        "golden/desktop/fx-docx-report-vi.expected.png",
+        "golden/desktop/fx-docx-report-vi.diff.png",
+        "golden/desktop/fx-pptx-deck-vi.actual.png",
+        "golden/desktop/fx-pptx-deck-vi.expected.png",
+        "golden/desktop/fx-pptx-deck-vi.diff.png",
+        "golden/desktop/fx-pdf-invoice-vi.actual.png",
+        "golden/desktop/fx-pdf-invoice-vi.expected.png",
+        "golden/desktop/fx-pdf-invoice-vi.diff.png",
+        "golden/desktop/fx-md-notes-vi.actual.png",
+        "golden/desktop/fx-md-notes-vi.expected.png",
+        "golden/desktop/fx-md-notes-vi.diff.png",
+        "golden/desktop/fx-html-page-vi.actual.png",
+        "golden/desktop/fx-html-page-vi.expected.png",
+        "golden/desktop/fx-html-page-vi.diff.png",
+        "golden/web/fx-xlsx-revenue-xyz.actual.png",
+        "golden/web/fx-xlsx-revenue-xyz.expected.png",
+        "golden/web/fx-xlsx-revenue-xyz.diff.png",
+        "golden/web/fx-docx-report-vi.actual.png",
+        "golden/web/fx-docx-report-vi.expected.png",
+        "golden/web/fx-docx-report-vi.diff.png",
+        "golden/web/fx-pptx-deck-vi.actual.png",
+        "golden/web/fx-pptx-deck-vi.expected.png",
+        "golden/web/fx-pptx-deck-vi.diff.png",
+        "golden/web/fx-pdf-invoice-vi.actual.png",
+        "golden/web/fx-pdf-invoice-vi.expected.png",
+        "golden/web/fx-pdf-invoice-vi.diff.png",
+        "golden/web/fx-md-notes-vi.actual.png",
+        "golden/web/fx-md-notes-vi.expected.png",
+        "golden/web/fx-md-notes-vi.diff.png",
+        "golden/web/fx-html-page-vi.actual.png",
+        "golden/web/fx-html-page-vi.expected.png",
+        "golden/web/fx-html-page-vi.diff.png"
+      ]
+    },
+    "brand": {
+      "status": "PASS",
+      "reasons": [],
+      "artifacts": [
+        "brand.json"
+      ]
+    }
+  }
+}
+=== .g7-06-run/full/brand.json
+{
+  "status": "PASS",
+  "pairs": [
+    {
+      "host": "desktop",
+      "fixture": "fx-xlsx-revenue-xyz",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 1440
+    },
+    {
+      "host": "desktop",
+      "fixture": "fx-docx-report-vi",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 1709
+    },
+    {
+      "host": "desktop",
+      "fixture": "fx-pptx-deck-vi",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 1067
+    },
+    {
+      "host": "desktop",
+      "fixture": "fx-pdf-invoice-vi",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 881
+    },
+    {
+      "host": "desktop",
+      "fixture": "fx-md-notes-vi",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 1122
+    },
+    {
+      "host": "desktop",
+      "fixture": "fx-html-page-vi",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 839
+    },
+    {
+      "host": "web",
+      "fixture": "fx-xlsx-revenue-xyz",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 1334
+    },
+    {
+      "host": "web",
+      "fixture": "fx-docx-report-vi",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 1708
+    },
+    {
+      "host": "web",
+      "fixture": "fx-pptx-deck-vi",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 1063
+    },
+    {
+      "host": "web",
+      "fixture": "fx-pdf-invoice-vi",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 886
+    },
+    {
+      "host": "web",
+      "fixture": "fx-md-notes-vi",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 1127
+    },
+    {
+      "host": "web",
+      "fixture": "fx-html-page-vi",
+      "status": "PASS",
+      "reasons": [],
+      "hits": [],
+      "visible": 851
+    }
+  ]
+}
+=== .g7-06-run/full/golden/summary.json
+{
+  "status": "PASS",
+  "tolerances": {
+    "channel": 16,
+    "ratio": 0.001
+  },
+  "pinVersion": "0.1.0-06d77a2",
+  "pairs": [
+    {
+      "host": "desktop",
+      "fixture": "fx-xlsx-revenue-xyz",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1238400,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "desktop",
+      "fixture": "fx-docx-report-vi",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1238400,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "desktop",
+      "fixture": "fx-pptx-deck-vi",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1238400,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "desktop",
+      "fixture": "fx-pdf-invoice-vi",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1238400,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "desktop",
+      "fixture": "fx-md-notes-vi",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1238400,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "desktop",
+      "fixture": "fx-html-page-vi",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1238400,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "web",
+      "fixture": "fx-xlsx-revenue-xyz",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1263808,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "web",
+      "fixture": "fx-docx-report-vi",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1263808,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "web",
+      "fixture": "fx-pptx-deck-vi",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1263808,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "web",
+      "fixture": "fx-pdf-invoice-vi",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1263808,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "web",
+      "fixture": "fx-md-notes-vi",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1263808,
+        "changed": 0,
+        "ratio": 0
+      }
+    },
+    {
+      "host": "web",
+      "fixture": "fx-html-page-vi",
+      "status": "PASS",
+      "reasons": [],
+      "pixels": {
+        "outside": 1263808,
+        "changed": 0,
+        "ratio": 0
+      }
+    }
+  ]
+}
+=== .g7-06-run/full/g6-01-diff.md
+# G7-06 extractor diff — fork 06d77a2
+
+extractor: /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-06d77a2/scripts/genoffice-tools-extract.mjs (git blob bcf1c54ad951bfca72bafcb79c09d72ba952e8b0)
+rev=: committed cb76dde5928f8ea9cf66af938d3f83bd1278f78c vs at pin 06d77a2fc3b0148a020fd0bec3b34a5a3d55a664 — rev_differs (comment line only; not a row difference)
+rows: committed 141, at pin 141
+
+## Rows
+
+no row differences.
+=== .g7-06-run/full/extractor.json
+{
+  "forkSha": "06d77a2",
+  "extractor": {
+    "path": "/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-06d77a2/scripts/genoffice-tools-extract.mjs",
+    "blobSha": "bcf1c54ad951bfca72bafcb79c09d72ba952e8b0"
+  },
+  "rev": {
+    "committed": "cb76dde5928f8ea9cf66af938d3f83bd1278f78c",
+    "atPin": "06d77a2fc3b0148a020fd0bec3b34a5a3d55a664",
+    "differs": true
+  },
+  "counts": {
+    "committed": 141,
+    "atPin": 141
+  },
+  "changed": [],
+  "argv": [
+    "/exec-daemon/node",
+    "/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-06d77a2/scripts/genoffice-tools-extract.mjs",
+    "--repo",
+    "/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-06d77a2",
+    "--rev",
+    "06d77a2"
+  ],
+  "exitCode": 0,
+  "stderrTail": "",
+  "duplicateKeys": {
+    "committed": 0,
+    "atPin": 0
+  },
+  "verdict": {
+    "status": "PASS",
+    "reasons": []
+  }
+}
+=== .g7-06-run/full/protocol-hash.json
+{
+  "forkSha": "06d77a2",
+  "recomputed": {
+    "protocol": "f9ba8810eb443ce1876a1ed5ab44856977fc9fda67c999854cd8ca431c0411e9",
+    "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
+    "host": "990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0"
+  },
+  "installed": {
+    "path": "apps/web/public/office-frame/docs/0.1.0-06d77a2/manifest.json",
+    "protocolSha256": {
+      "protocol": "f9ba8810eb443ce1876a1ed5ab44856977fc9fda67c999854cd8ca431c0411e9",
+      "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
+      "host": "990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0"
+    },
+    "version": "0.1.0-06d77a2"
+  },
+  "pins": {
+    "docs": {
+      "version": "0.1.0-06d77a2",
+      "gitSha": "06d77a2",
+      "protocolSha256": {
+        "protocol": "f9ba8810eb443ce1876a1ed5ab44856977fc9fda67c999854cd8ca431c0411e9",
+        "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
+        "host": "990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0"
+      },
+      "error": null
+    },
+    "pdf": {
+      "version": "0.1.0-06d77a2",
+      "gitSha": "06d77a2",
+      "protocolSha256": {
+        "protocol": "f9ba8810eb443ce1876a1ed5ab44856977fc9fda67c999854cd8ca431c0411e9",
+        "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
+        "host": "990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0"
+      },
+      "error": null
+    },
+    "markdown": {
+      "version": "0.1.0-06d77a2",
+      "gitSha": "06d77a2",
+      "protocolSha256": {
+        "protocol": "f9ba8810eb443ce1876a1ed5ab44856977fc9fda67c999854cd8ca431c0411e9",
+        "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
+        "host": "990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0"
+      },
+      "error": null
+    },
+    "html": {
+      "version": "0.1.0-06d77a2",
+      "gitSha": "06d77a2",
+      "protocolSha256": {
+        "protocol": "f9ba8810eb443ce1876a1ed5ab44856977fc9fda67c999854cd8ca431c0411e9",
+        "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
+        "host": "990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0"
+      },
+      "error": null
+    },
+    "slides": {
+      "version": "0.1.0-06d77a2",
+      "gitSha": "06d77a2",
+      "protocolSha256": {
+        "protocol": "f9ba8810eb443ce1876a1ed5ab44856977fc9fda67c999854cd8ca431c0411e9",
+        "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
+        "host": "990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0"
+      },
+      "error": null
+    },
+    "sheets": {
+      "version": "0.1.0-06d77a2",
+      "gitSha": "06d77a2",
+      "protocolSha256": {
+        "protocol": "f9ba8810eb443ce1876a1ed5ab44856977fc9fda67c999854cd8ca431c0411e9",
+        "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
+        "host": "990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0"
+      },
+      "error": null
+    }
+  },
+  "verdict": {
+    "status": "PASS",
+    "reasons": []
+  }
+}
+.g7-06-run:
+full
+update
+
+.g7-06-run/full:
+brand.json
+extractor.json
+g6-01-diff.md
+golden
+protocol-hash.json
+result.json
+
+.g7-06-run/full/golden:
+desktop
+summary.json
+web
+
+.g7-06-run/full/golden/desktop:
+fx-docx-report-vi.actual.png
+fx-docx-report-vi.diff.png
+fx-docx-report-vi.expected.png
+fx-html-page-vi.actual.png
+fx-html-page-vi.diff.png
+fx-html-page-vi.expected.png
+fx-md-notes-vi.actual.png
+fx-md-notes-vi.diff.png
+fx-md-notes-vi.expected.png
+fx-pdf-invoice-vi.actual.png
+fx-pdf-invoice-vi.diff.png
+fx-pdf-invoice-vi.expected.png
+fx-pptx-deck-vi.actual.png
+fx-pptx-deck-vi.diff.png
+fx-pptx-deck-vi.expected.png
+fx-xlsx-revenue-xyz.actual.png
+fx-xlsx-revenue-xyz.diff.png
+fx-xlsx-revenue-xyz.expected.png
+
+.g7-06-run/full/golden/web:
+fx-docx-report-vi.actual.png
+fx-docx-report-vi.diff.png
+fx-docx-report-vi.expected.png
+fx-html-page-vi.actual.png
+fx-html-page-vi.diff.png
+fx-html-page-vi.expected.png
+fx-md-notes-vi.actual.png
+fx-md-notes-vi.diff.png
+fx-md-notes-vi.expected.png
+fx-pdf-invoice-vi.actual.png
+fx-pdf-invoice-vi.diff.png
+fx-pdf-invoice-vi.expected.png
+fx-pptx-deck-vi.actual.png
+fx-pptx-deck-vi.diff.png
+fx-pptx-deck-vi.expected.png
+fx-xlsx-revenue-xyz.actual.png
+fx-xlsx-revenue-xyz.diff.png
+fx-xlsx-revenue-xyz.expected.png
+
+.g7-06-run/update:
+golden
+result.json
+
+.g7-06-run/update/golden:
+update.json
+{"evidenceId":"ev-g7-a04-0001","requirementId":"G7-A04","dSha":"350af0de2f7616f14ef836f45d4bb7822114527a","fSha":"06d77a2","pin":"0.1.0-06d77a2","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-06/job.mjs --out .g7-06-run/full","argv":["node","scripts/office/g5g6g7/g7-06/job.mjs","--out",".g7-06-run/full"],"exitCode":0,"result":"PASS","artifact":"test-results/office-g5g6g7-evidence/artifacts/ev-g7-a04-0001.log","checker":"tester-cloud","blocker":null,"startedAt":"2026-10-14T07:08:51.121Z","finishedAt":"2026-10-14T07:08:53.800Z"}
+{
+  "host": "desktop",
+  "forkSha": "06d77a2",
+  "pinVersion": "0.1.0-06d77a2",
+  "viewport": {
+    "w": 1440,
+    "h": 900
+  },
+  "deviceScaleFactor": 1,
+  "capturedAt": "2026-10-14T07:08:03.684Z",
+  "fixtures": {
+    "fx-xlsx-revenue-xyz": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": true
+    },
+    "fx-docx-report-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": false
+    },
+    "fx-pptx-deck-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": true
+    },
+    "fx-pdf-invoice-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": true
+    },
+    "fx-md-notes-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": false
+    },
+    "fx-html-page-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1440,
+        "h": 860
+      },
+      "canvasOnly": false
+    }
+  },
+  "settings": {
+    "locale": "vi-VN",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "colorScheme": "light",
+    "reducedMotion": "reduce"
+  }
+}
+{
+  "host": "web",
+  "forkSha": "06d77a2",
+  "pinVersion": "0.1.0-06d77a2",
+  "viewport": {
+    "w": 1720,
+    "h": 980
+  },
+  "deviceScaleFactor": 1,
+  "capturedAt": "2026-10-14T07:08:50.961Z",
+  "fixtures": {
+    "fx-xlsx-revenue-xyz": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": true
+    },
+    "fx-docx-report-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": false
+    },
+    "fx-pptx-deck-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": true
+    },
+    "fx-pdf-invoice-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": true
+    },
+    "fx-md-notes-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": false
+    },
+    "fx-html-page-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": false
+    }
+  },
+  "settings": {
+    "locale": "vi-VN",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "colorScheme": "light",
+    "reducedMotion": "reduce"
+  }
+}
+=== .g7-06-captures/desktop/fx-docx-report-vi.shell.txt
+UniWork Office
+
+UniWork Office
+UniWork Office
+fx-docx-report-vi.docx
+×
+Menu
+Đóng tab
+Tab mới
+Tất cả tab
+
+=== .g7-06-captures/desktop/fx-docx-report-vi.txt
+fx-docx-report-vi.docx
+Tệp
+Tự động lưu
+Trang đầu
+Chèn
+Vẽ
+Thiết kế
+Bố trí
+Tham khảo
+Xem lại
+Xem
+AI
+AI Tóm tắt
+AI Trau chuốt
+AI Định dạng
+Dán
+B
+I
+U
+ab
+1
+2
+3
+AaBb
+Tiêu đề 1
+AaBb
+Tiêu đề 2
+AaBb
+Đoạn danh sách
+AaBb
+Bình thường
+AaBb
+Tựa đề
+Ngăn kiểu
+Tìm
+Thay thế
+Chọn tất cả
+UniAI
+Để AI giúp bạn viết và chỉnh sửa
+Đưa ra yêu cầu hoặc chỉ cần đặt câu hỏi;
+khi có văn bản được chọn, các lệnh viết lại sẽ áp dụng cho phần đã chọn.
+Tóm tắt các ý chính của tài liệu này
+Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn
+Viết tiếp từ nội dung hiện tại của tài liệu
+Tìm và điền vào các vị trí giữ chỗ trong tài liệu này
+Chọn mô hình
+Theo dõi thay đổi
+Báo cáo kinh doanh quý 1 năm 2026
+1. Tóm tắt điều hành
+Tổng doanh thu quý 1 đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060.000 đồng (41,1%).
+2. Doanh thu theo khu vực
+Khu vực
+Doanh thu Q1 (đồng)
+Tỷ trọng
+Bắc
+9.060.000
+41,1%
+Nam
+7.200.000
+32,6%
+Trung
+5.800.000
+26,3%
+Tổng cộng
+22.060.000
+100,0%
+2.1. Ghi chú về dữ liệu
+Số liệu lấy từ workbook mẫu, đã gồm cả các đơn hàng bị ẩn trong bảng tính. Đây là dữ liệu tổng hợp để kiểm thử.
+3. Việc cần làm tiếp
+Rà soát các ô giảm giá nhập theo hai cách (10 và 10%).
+Xử
+=== .g7-06-captures/desktop/fx-html-page-vi.shell.txt
+UniWork Office
+
+UniWork Office
+UniWork Office
+fx-html-page-vi.html
+×
+Menu
+Đóng tab
+Tab mới
+Tất cả tab
+
+=== .g7-06-captures/desktop/fx-html-page-vi.txt
+UniWork HTML
+Lưu dưới dạng…
+Tự động lưu
+AI
+Tối ưu kiểu dáng
+Chủ đề
+AI Tóm tắt
+Chèn
+Tiêu đề
+Đoạn văn
+Hình ảnh
+Bảng
+Thêm
+Xem trước
+Chia đôi
+Mã nguồn
+Trình chiếu
+UniAI
+Để AI chỉnh sửa lại trang này
+Chỉnh sửa nội dung, đổi màu, thống nhất phong cách hoặc chọn một phần tử để yêu cầu thay đổi cụ thể; bạn cũng có thể đặt câu hỏi
+Trích xuất bản tóm tắt thiết kế của trang này
+Thử phối màu mới
+Thống nhất phong cách trang
+Chọn mô hình
+894 ký tự
+Máy tính
+−
++
+100%
+Lưu (Ctrl+S)
+Hoàn tác
+Làm lại
+Tìm kiếm và thay thế (Ctrl+F)
+Hình ảnh từ URL…
+Thu gọn dải băng (Ctrl+F1)
+Di chuyển bảng AI sang phải
+Thu gọn bảng điều khiển
+Yêu cầu AI viết hoặc chỉnh sửa tài liệu…
+Mô hình: Chọn mô hình
+Đính kèm tệp cục bộ (hoặc kéo thả vào bảng điều khiển)
+Gửi
+Thiết bị
+Thu nhỏ
+Thu phóng
+Phóng to
+
+Bảng doanh thu quý 1 theo khu vực
+Bảng doanh thu quý 1 theo khu vực
+Doanh thu quý 1 (đồng)
+Khu vực	Doanh thu Q1 (đồng)	Tỷ trọng
+Bắc	9.060.000	41,1%
+Nam	7.200.000	32,6%
+Trung	5.800.000	26,3%
+Tổng cộng	22.060.000	100,0%
+Ghi chú
+Dữ liệu mẫu để kiểm thử. Tổng đã gồm các đơn hàng bị ẩn trong bảng tính.
+
+=== .g7-06-captures/desktop/fx-md-notes-vi.shell.txt
+UniWork Office
+
+UniWork Office
+UniWork Office
+fx-md-notes-vi.md
+×
+Menu
+Đóng tab
+Tab mới
+Tất cả tab
+
+=== .g7-06-captures/desktop/fx-md-notes-vi.txt
+UniWork Markdown
+Lưu dưới dạng…
+Tự động lưu
+AI
+AI Tóm tắt
+AI Trau chuốt
+AI Định dạng
+Tiêu đề 1
+B
+I
+ab
+1
+2
+3
+abc
+UniAI
+Hỏi về tài liệu này
+Soạn thảo, viết lại, tóm tắt, dịch hoặc tạo tài liệu mới từ đầu
+Soạn thảo tài liệu cho tôi
+Trau chuốt tài liệu
+Chọn mô hình
+Ghi chú họp rà soát doanh thu quý 1
+Ngày họp: 05/10/2026. Dữ liệu mẫu, không phải dữ liệu khách hàng.
+Tóm tắt
+Tổng doanh thu quý 1 là 22.060.000 đồng, tính cả các dòng bị ẩn.
+Doanh thu theo khu vực
+Khu vực
+Doanh thu Q1 (đồng)
+Tỷ trọng
+Bắc
+9.060.000
+41,1%
+Nam
+7.200.000
+32,6%
+Trung
+5.800.000
+26,3%
+Tổng cộng
+22.060.000
+100,0%
+Công thức tham chiếu
+plaintext
+Sao chép
+=SUMIF('Doanh thu Q1'!$B$2:$B$7, $A2, 'Doanh thu Q1'!$G$2:$G$7)
+Việc cần làm
+Task item checkbox for Thống nhất cách nhập giảm giá: dùng 10% thay cho số 10.
+Thống nhất cách nhập giảm giá: dùng 10% thay cho số 10.
+Task item checkbox for Sửa các ô lỗi trong bảng doanh thu quý 2.
+Sửa các ô lỗi trong bảng doanh thu quý 2.
+fx-md-notes-vi.md
+−
++
+100%
+Lưu (Ctrl+S)
+Hoàn tác
+Làm lại
+Tìm kiếm và Thay thế (Ctrl+F)
+In đậm
+In nghiêng
+Gạch ngang
+Mã nội dòng
+Liên kết
+Danh sách dấu đầu dòng
+Danh sách đánh số
+Danh sách công việc
+Chèn bảng
+Chèn hình ảnh
+Cài đặt máy chủ ảnh
+Đường phân cách
+Mã nguồn
+Thuộc tính
+Mục lụ
+=== .g7-06-captures/desktop/fx-pdf-invoice-vi.shell.txt
+UniWork Office
+
+UniWork Office
+UniWork Office
+fx-pdf-invoice-vi.pdf
+×
+Menu
+Đóng tab
+Tab mới
+Tất cả tab
+
+=== .g7-06-captures/desktop/fx-pdf-invoice-vi.txt
+UniWork PDF
+Trang chủ
+Chú thích
+Chỉnh sửa
+Trang
+Xem
+Điền biểu mẫu
+AI
+Tóm tắt bằng AI
+Ý chính bằng AI
+Tô sáng
+Gạch chân
+Gạch ngang
+Chỉnh sửa văn bản
+Chèn văn bản
+Chuyển đổi PDF
+trên 1
+−
+145%
++
+Vừa chiều rộng
+Vừa trang
+Tìm kiếm
+In
+Xuất hình ảnh
+Thuộc tính
+UniAI
+Hỏi về tệp PDF này
+Tóm tắt, giải thích hoặc tìm kiếm thông tin trong tài liệu
+Tóm tắt
+Ý chính
+Chọn mô hình
+1
+HÓA ĐƠN BÁN HÀNG
+Số hóa đơn: HD-2026-0001
+Ngày lập: 01/10/2026
+Đơn vị bán: Công ty TNHH Mẫu An Bình
+Mã số thuế: 0000000000
+Người mua: Công ty Cổ phần Thử Nghiệm Hà Nội
+Địa chỉ: 12 Phố Mẫu, Quận Ba Đình, Hà Nội
+STT
+Tên hàng hóa
+Số lượng
+Đơn giá (đồng)
+Thành tiền (đồng)
+1
+Áo thun cổ tròn
+10
+50.000
+500.000
+2
+Quần jeans nam
+5
+120.000
+600.000
+3
+Mũ lưỡi trai
+20
+20.000
+400.000
+Cộng tiền hàng:
+1.500.000
+Thuế GTGT (10%):
+150.000
+Tổng thanh toán:
+1.650.000
+Bằng chữ: Một triệu sáu trăm năm mươi nghìn đồng.
+Dữ liệu tổng hợp để kiểm thử, không phải hóa đơn thật.
+Trang 1 trên 1
+−
++
+145%
+Lưu
+Hoàn tác (Ctrl+Z)
+Làm lại (Ctrl+Shift+Z)
+Màu sắc
+Thu nhỏ
+Phóng to
+Di chuyển bảng AI sang phải
+Thu gọn bảng điều khiển
+Hỏi về tệp PDF này…
+Mô hình: Chọn mô hình
+Gửi
+
+=== .g7-06-captures/desktop/fx-pptx-deck-vi.shell.txt
+UniWork Office
+
+UniWork Office
+UniWork Office
+fx-pptx-deck-vi.pptx
+×
+Menu
+Đóng tab
+Tab mới
+Tất cả tab
+
+=== .g7-06-captures/desktop/fx-pptx-deck-vi.txt
+UniWork Slides
+Tệp
+Tự động lưu
+Trang chủ
+Chèn
+Vẽ
+Thiết kế
+Chuyển tiếp
+Hoạt hình
+Trình chiếu
+Xem lại
+Chế độ xem
+AI
+Làm đẹp bằng AI
+Kiểm chứng thông tin AI
+Dán
+Từ trang chiếu hiện tại
+Trang chiếu
+B
+I
+U
+ab
+A
+Đoạn văn
+Ngăn định dạng
+Căn chỉnh
+Tìm/Thay thế
+UniAI
+Để AI giúp bạn hoàn thiện trang chiếu
+Đưa ra chỉ dẫn hoặc chỉ cần đặt câu hỏi;
+khi đã chọn các phần tử, lệnh viết lại sẽ áp dụng cho phần tử được chọn.
+Cải thiện tiêu đề và nội dung trang chiếu này
+Làm cho các gạch đầu dòng của trang chiếu này ngắn gọn hơn
+Kiểm tra lỗi chính tả trên toàn bộ bản trình bày và sửa lại
+Chọn mô hình
+1
+2
+3
+AI
+Làm đẹp bằng AI
+Kiểm chứng thông tin AI
+Trang chiếu 1 trên 3
+— Đã mở fx-pptx-deck-vi.pptx (3 trang chiếu)
+Ghi chú
+−
++
+70%
+Arial
+18
+Lưu (Ctrl+S)
+Hoàn tác
+Làm lại
+Cắt (Ctrl+X)
+Sao chép (Ctrl+C)
+Chổi sao chép định dạng (chọn một phần tử trước; Ctrl+Shift+C sao chép định dạng / Ctrl+Shift+V dán định dạng)
+Phông chữ (chọn hộp văn bản, hình dạng hoặc bảng trước)
+Cỡ chữ (pt)
+Tăng cỡ chữ
+Giảm cỡ chữ
+Xóa tất cả định dạng
+In đậm
+In nghiêng
+Gạch chân
+Chỉ số trên
+Chỉ số dưới
+Di chuyển bảng AI sang phải
+Thu gọn bảng điều khiển
+Mô tả yêu cầu chỉnh sửa, hoặc hỏi bấ
+=== .g7-06-captures/desktop/fx-xlsx-revenue-xyz.shell.txt
+UniWork Office
+
+UniWork Office
+UniWork Office
+fx-xlsx-revenue-xyz.xlsx
+×
+Menu
+Đóng tab
+Tab mới
+Tất cả tab
+
+=== .g7-06-captures/desktop/fx-xlsx-revenue-xyz.txt
+UniWork Sheets
+Tự động Lưu
+Trang đầu
+Chèn
+Bố trí Trang
+Công thức
+Dữ liệu
+Xem lại
+Xem
+Đã tải đầy đủ sổ làm việc — công thức tính toán trực tiếp, có thể chỉnh sửa hàng/cột.
+AI
+Kiểm tra bằng AI
+Phân tích bằng AI
+Dán
+Dán đặc biệt
+B
+I
+U
+D
+S
+x²
+x₂
+A
+Viền
+ab
+Hợp nhất
+Chung
+$
+%
+,
+.0+
+.0−
+Định dạng có điều kiện
+Định dạng dưới dạng bảng
+Kiểu ô
+Định dạng ô Ctrl+1
+⇳
+Định dạng
+Tính tổng tự động (AutoSum)
+Sắp xếp & Lọc
+Điền
+Xóa
+Tìm kiếm
+Thay thế
+Đi tới
+UniAI
+Hỏi AI về sổ làm việc này
+Mô tả thay đổi hoặc đặt câu hỏi về dữ liệu.
+Chọn mô hình
+▾
+Doanh thu Q1
+Doanh thu Q2
+Tổng hợp
+Ghi chú
+Đã tải đầy đủ sổ làm việc — công thức tính toán trực tiếp, có thể chỉnh sửa hàng/cột.
+▦
+┆
+−
++
+100%
+Xóa
+Sao chép
+Đổi tên
+Thay đổi màu
+Ẩn
+Bỏ ẩn
+Bảo vệ trang bảng
+Bỏ bảo vệ trang bảng
+Thay đổi quyền hạn trang bảng
+Xem tất cả khu vực được bảo vệ
+Calibri
+11
+A1
+Sổ làm việc
+Lưu (Ctrl+S)
+Lưu dưới dạng (Ctrl+Shift+S)
+Hoàn tác
+Làm lại
+Trợ lý AI
+Bảng nhớ tạm
+Cắt Ctrl+X
+Sao chép Ctrl+C
+Sao chép định dạng
+Phông chữ
+Font family
+Font size
+Tăng cỡ chữ
+Giảm cỡ chữ
+Chỉ số trên
+Chỉ số dưới
+Font color
+Font color options
+Fill color
+Fill color options
+Borders
+Border color
+Căn chỉnh
+Căn tr
+=== .g7-06-captures/web/fx-docx-report-vi.host.txt
+fx-docx-report-vi.docx · UniWork Office
+Tới nội dung chính
+G
+G7-06 capture
+G7-06 capture
+Trang chủ
+Hộp việc
+Làm việc
+Công việc
+Việc của tôi
+Dự án
+Lịch
+Trao đổi
+Email Hub
+Cuộc họp
+Tài liệu
+Trò chuyện
+Danh bạ
+G
+G7-06 capture
+g7-06-capture-1791961684271@example.com
+Tìm kiếm…
+Ctrl+K
+Tìm kiếm
+Điều hướng trang và chạy lệnh
+Tài liệu
+fx-docx-report-vi.docx
+Chưa có thay đổi
+Lưu
+Mở bằng UniWork Office
+Bình luận
+G7-06 capture, G7-06 capture: chuyển workspace
+Điều hướng workspace
+G7-06 capture, g7-06-capture-1791961684271@example.com: tài khoản
+Ẩn/hiện thanh bên
+Thông báo
+Tạo việc
+Giao diện
+Ngôn ngữ
+Về thư viện tài liệu
+Lưu vào UniWork
+Tùy chọn UniWork Office
+Thêm vào yêu thích
+Hành động khác
+Trình soạn thảo tài liệu: fx-docx-report-vi.docx
+
+=== .g7-06-captures/web/fx-docx-report-vi.txt
+fx-docx-report-vi.docx
+Tệp
+Trang đầu
+Chèn
+Vẽ
+Thiết kế
+Bố trí
+Tham khảo
+Xem lại
+Xem
+AI
+AI Tóm tắt
+AI Trau chuốt
+AI Định dạng
+Dán
+B
+I
+U
+ab
+1
+2
+3
+AaBb
+Tiêu đề 1
+AaBb
+Tiêu đề 2
+AaBb
+Đoạn danh sách
+AaBb
+Bình thường
+AaBb
+Tựa đề
+Ngăn kiểu
+Tìm
+Thay thế
+Chọn tất cả
+UniAI
+Để AI giúp bạn viết và chỉnh sửa
+Đưa ra yêu cầu hoặc chỉ cần đặt câu hỏi;
+khi có văn bản được chọn, các lệnh viết lại sẽ áp dụng cho phần đã chọn.
+Tóm tắt các ý chính của tài liệu này
+Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn
+Viết tiếp từ nội dung hiện tại của tài liệu
+Tìm và điền vào các vị trí giữ chỗ trong tài liệu này
+Chọn mô hình
+Theo dõi thay đổi
+Báo cáo kinh doanh quý 1 năm 2026
+1. Tóm tắt điều hành
+Tổng doanh thu quý 1 đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060.000 đồng (41,1%).
+2. Doanh thu theo khu vực
+Khu vực
+Doanh thu Q1 (đồng)
+Tỷ trọng
+Bắc
+9.060.000
+41,1%
+Nam
+7.200.000
+32,6%
+Trung
+5.800.000
+26,3%
+Tổng cộng
+22.060.000
+100,0%
+2.1. Ghi chú về dữ liệu
+Số liệu lấy từ workbook mẫu, đã gồm cả các đơn hàng bị ẩn trong bảng tính. Đây là dữ liệu tổng hợp để kiểm thử.
+3. Việc cần làm tiếp
+Rà soát các ô giảm giá nhập theo hai cách (10 và 10%).
+Xử lý các ô lỗi
+=== .g7-06-captures/web/fx-html-page-vi.host.txt
+fx-html-page-vi.html · UniWork Office
+Tới nội dung chính
+G
+G7-06 capture
+G7-06 capture
+Trang chủ
+Hộp việc
+Làm việc
+Công việc
+Việc của tôi
+Dự án
+Lịch
+Trao đổi
+Email Hub
+Cuộc họp
+Tài liệu
+Trò chuyện
+Danh bạ
+G
+G7-06 capture
+g7-06-capture-1791961684271@example.com
+Tìm kiếm…
+Ctrl+K
+Tìm kiếm
+Điều hướng trang và chạy lệnh
+Tài liệu
+fx-html-page-vi.html
+Chưa có thay đổi
+Lưu
+Mở bằng UniWork Office
+G7-06 capture, G7-06 capture: chuyển workspace
+Điều hướng workspace
+G7-06 capture, g7-06-capture-1791961684271@example.com: tài khoản
+Ẩn/hiện thanh bên
+Thông báo
+Tạo việc
+Giao diện
+Ngôn ngữ
+Về thư viện tài liệu
+Lưu vào UniWork
+Tùy chọn UniWork Office
+Hành động khác
+Trình soạn thảo tài liệu: fx-html-page-vi.html
+
+=== .g7-06-captures/web/fx-html-page-vi.txt
+UniWork HTML (web)
+Thảo luận
+Lưu dưới dạng…
+Xuất HTML
+AI
+Tối ưu kiểu dáng
+Chủ đề
+AI Tóm tắt
+Chèn
+Tiêu đề
+Đoạn văn
+Hình ảnh
+Bảng
+Thêm
+Xem trước
+Chia đôi
+Mã nguồn
+Trình chiếu
+UniAI
+Để AI chỉnh sửa lại trang này
+Chỉnh sửa nội dung, đổi màu, thống nhất phong cách hoặc chọn một phần tử để yêu cầu thay đổi cụ thể; bạn cũng có thể đặt câu hỏi
+Trích xuất bản tóm tắt thiết kế của trang này
+Thử phối màu mới
+Thống nhất phong cách trang
+Chọn mô hình
+894 ký tự
+Máy tính
+−
++
+100%
+Lưu (Ctrl+S)
+Hoàn tác
+Làm lại
+Tìm kiếm và thay thế (Ctrl+F)
+Hình ảnh từ URL…
+Thu gọn dải băng (Ctrl+F1)
+Di chuyển bảng AI sang phải
+Thu gọn bảng điều khiển
+Yêu cầu AI viết hoặc chỉnh sửa tài liệu…
+Mô hình: Chọn mô hình
+Đính kèm tệp cục bộ (hoặc kéo thả vào bảng điều khiển)
+Gửi
+Thiết bị
+Thu nhỏ
+Thu phóng
+Phóng to
+
+Bảng doanh thu quý 1 theo khu vực
+Bảng doanh thu quý 1 theo khu vực
+Doanh thu quý 1 (đồng)
+Khu vực	Doanh thu Q1 (đồng)	Tỷ trọng
+Bắc	9.060.000	41,1%
+Nam	7.200.000	32,6%
+Trung	5.800.000	26,3%
+Tổng cộng	22.060.000	100,0%
+Ghi chú
+Dữ liệu mẫu để kiểm thử. Tổng đã gồm các đơn hàng bị ẩn trong bảng tính.
+
+=== .g7-06-captures/web/fx-md-notes-vi.host.txt
+fx-md-notes-vi.md · UniWork Office
+Tới nội dung chính
+G
+G7-06 capture
+G7-06 capture
+Trang chủ
+Hộp việc
+Làm việc
+Công việc
+Việc của tôi
+Dự án
+Lịch
+Trao đổi
+Email Hub
+Cuộc họp
+Tài liệu
+Trò chuyện
+Danh bạ
+G
+G7-06 capture
+g7-06-capture-1791961684271@example.com
+Tìm kiếm…
+Ctrl+K
+Tìm kiếm
+Điều hướng trang và chạy lệnh
+Tài liệu
+fx-md-notes-vi.md
+Chưa có thay đổi
+Lưu
+Mở bằng UniWork Office
+G7-06 capture, G7-06 capture: chuyển workspace
+Điều hướng workspace
+G7-06 capture, g7-06-capture-1791961684271@example.com: tài khoản
+Ẩn/hiện thanh bên
+Thông báo
+Tạo việc
+Giao diện
+Ngôn ngữ
+Về thư viện tài liệu
+Lưu vào UniWork
+Tùy chọn UniWork Office
+Hành động khác
+Trình soạn thảo tài liệu: fx-md-notes-vi.md
+
+=== .g7-06-captures/web/fx-md-notes-vi.txt
+UniWork Markdown (web)
+Thảo luận
+Lưu dưới dạng…
+Xuất Word
+AI
+AI Tóm tắt
+AI Trau chuốt
+AI Định dạng
+Tiêu đề 1
+B
+I
+ab
+1
+2
+3
+abc
+UniAI
+Hỏi về tài liệu này
+Soạn thảo, viết lại, tóm tắt, dịch hoặc tạo tài liệu mới từ đầu
+Soạn thảo tài liệu cho tôi
+Trau chuốt tài liệu
+Chọn mô hình
+Ghi chú họp rà soát doanh thu quý 1
+Ngày họp: 05/10/2026. Dữ liệu mẫu, không phải dữ liệu khách hàng.
+Tóm tắt
+Tổng doanh thu quý 1 là 22.060.000 đồng, tính cả các dòng bị ẩn.
+Doanh thu theo khu vực
+Khu vực
+Doanh thu Q1 (đồng)
+Tỷ trọng
+Bắc
+9.060.000
+41,1%
+Nam
+7.200.000
+32,6%
+Trung
+5.800.000
+26,3%
+Tổng cộng
+22.060.000
+100,0%
+Công thức tham chiếu
+plaintext
+Sao chép
+=SUMIF('Doanh thu Q1'!$B$2:$B$7, $A2, 'Doanh thu Q1'!$G$2:$G$7)
+Việc cần làm
+Task item checkbox for Thống nhất cách nhập giảm giá: dùng 10% thay cho số 10.
+Thống nhất cách nhập giảm giá: dùng 10% thay cho số 10.
+Task item checkbox for Sửa các ô lỗi trong bảng doanh thu quý 2.
+Sửa các ô lỗi trong bảng doanh thu quý 2.
+fx-md-notes-vi.md
+−
++
+100%
+Lưu (Ctrl+S)
+Hoàn tác
+Làm lại
+Tìm kiếm và Thay thế (Ctrl+F)
+In đậm
+In nghiêng
+Gạch ngang
+Mã nội dòng
+Liên kết
+Danh sách dấu đầu dòng
+Danh sách đánh số
+Danh sách công việc
+Chèn bảng
+Chèn hình ảnh
+Đường phân cách
+Mã nguồn
+Thuộc tính
+Mục lục
+Chính tả
+T
+=== .g7-06-captures/web/fx-pdf-invoice-vi.host.txt
+fx-pdf-invoice-vi.pdf · UniWork Office
+Tới nội dung chính
+G
+G7-06 capture
+G7-06 capture
+Trang chủ
+Hộp việc
+Làm việc
+Công việc
+Việc của tôi
+Dự án
+Lịch
+Trao đổi
+Email Hub
+Cuộc họp
+Tài liệu
+Trò chuyện
+Danh bạ
+G
+G7-06 capture
+g7-06-capture-1791961684271@example.com
+Tìm kiếm…
+Ctrl+K
+Tìm kiếm
+Điều hướng trang và chạy lệnh
+Tài liệu
+fx-pdf-invoice-vi.pdf
+Chưa có thay đổi
+Lưu
+Mở bằng UniWork Office
+Bình luận
+G7-06 capture, G7-06 capture: chuyển workspace
+Điều hướng workspace
+G7-06 capture, g7-06-capture-1791961684271@example.com: tài khoản
+Ẩn/hiện thanh bên
+Thông báo
+Tạo việc
+Giao diện
+Ngôn ngữ
+Về thư viện tài liệu
+Lưu vào UniWork
+Tùy chọn UniWork Office
+Thêm vào yêu thích
+Hành động khác
+Trình soạn thảo tài liệu: fx-pdf-invoice-vi.pdf
+
+=== .g7-06-captures/web/fx-pdf-invoice-vi.txt
+UniWork PDF (web)
+Trang chủ
+Chú thích
+Chỉnh sửa
+Trang
+Xem
+Điền biểu mẫu
+AI
+Tóm tắt bằng AI
+Ý chính bằng AI
+Tô sáng
+Gạch chân
+Gạch ngang
+Chỉnh sửa văn bản
+Chèn văn bản
+Chuyển đổi PDF
+trên 1
+−
+150%
++
+Vừa chiều rộng
+Vừa trang
+Tìm kiếm
+In
+Xuất hình ảnh
+Thuộc tính
+UniAI
+Hỏi về tệp PDF này
+Tóm tắt, giải thích hoặc tìm kiếm thông tin trong tài liệu
+Tóm tắt
+Ý chính
+Chọn mô hình
+1
+HÓA ĐƠN BÁN HÀNG
+Số hóa đơn: HD-2026-0001
+Ngày lập: 01/10/2026
+Đơn vị bán: Công ty TNHH Mẫu An Bình
+Mã số thuế: 0000000000
+Người mua: Công ty Cổ phần Thử Nghiệm Hà Nội
+Địa chỉ: 12 Phố Mẫu, Quận Ba Đình, Hà Nội
+STT
+Tên hàng hóa
+Số lượng
+Đơn giá (đồng)
+Thành tiền (đồng)
+1
+Áo thun cổ tròn
+10
+50.000
+500.000
+2
+Quần jeans nam
+5
+120.000
+600.000
+3
+Mũ lưỡi trai
+20
+20.000
+400.000
+Cộng tiền hàng:
+1.500.000
+Thuế GTGT (10%):
+150.000
+Tổng thanh toán:
+1.650.000
+Bằng chữ: Một triệu sáu trăm năm mươi nghìn đồng.
+Dữ liệu tổng hợp để kiểm thử, không phải hóa đơn thật.
+Trang 1 trên 1
+−
++
+150%
+Lưu
+Hoàn tác (Ctrl+Z)
+Làm lại (Ctrl+Shift+Z)
+Màu sắc
+Thu nhỏ
+Phóng to
+Di chuyển bảng AI sang phải
+Thu gọn bảng điều khiển
+Hỏi về tệp PDF này…
+Mô hình: Chọn mô hình
+Gửi
+
+=== .g7-06-captures/web/fx-pptx-deck-vi.host.txt
+fx-pptx-deck-vi.pptx · UniWork Office
+Tới nội dung chính
+G
+G7-06 capture
+G7-06 capture
+Trang chủ
+Hộp việc
+Làm việc
+Công việc
+Việc của tôi
+Dự án
+Lịch
+Trao đổi
+Email Hub
+Cuộc họp
+Tài liệu
+Trò chuyện
+Danh bạ
+G
+G7-06 capture
+g7-06-capture-1791961684271@example.com
+Tìm kiếm…
+Ctrl+K
+Tìm kiếm
+Điều hướng trang và chạy lệnh
+Tài liệu
+fx-pptx-deck-vi.pptx
+Chưa có thay đổi
+Lưu
+Mở bằng UniWork Office
+Bình luận
+G7-06 capture, G7-06 capture: chuyển workspace
+Điều hướng workspace
+G7-06 capture, g7-06-capture-1791961684271@example.com: tài khoản
+Ẩn/hiện thanh bên
+Thông báo
+Tạo việc
+Giao diện
+Ngôn ngữ
+Về thư viện tài liệu
+Lưu vào UniWork
+Tùy chọn UniWork Office
+Thêm vào yêu thích
+Hành động khác
+Trình soạn thảo tài liệu: fx-pptx-deck-vi.pptx
+
+=== .g7-06-captures/web/fx-pptx-deck-vi.txt
+UniWork Slides (web)
+Tệp
+Trang chủ
+Chèn
+Vẽ
+Thiết kế
+Chuyển tiếp
+Hoạt hình
+Trình chiếu
+Xem lại
+Chế độ xem
+AI
+Làm đẹp bằng AI
+Kiểm chứng thông tin AI
+Dán
+Từ trang chiếu hiện tại
+Trang chiếu
+B
+I
+U
+ab
+A
+Đoạn văn
+Ngăn định dạng
+Căn chỉnh
+Tìm/Thay thế
+UniAI
+Để AI giúp bạn hoàn thiện trang chiếu
+Đưa ra chỉ dẫn hoặc chỉ cần đặt câu hỏi;
+khi đã chọn các phần tử, lệnh viết lại sẽ áp dụng cho phần tử được chọn.
+Cải thiện tiêu đề và nội dung trang chiếu này
+Làm cho các gạch đầu dòng của trang chiếu này ngắn gọn hơn
+Kiểm tra lỗi chính tả trên toàn bộ bản trình bày và sửa lại
+Chọn mô hình
+1
+2
+3
+AI
+Làm đẹp bằng AI
+Kiểm chứng thông tin AI
+Trang chiếu 1 trên 3
+— Đã mở fx-pptx-deck-vi.pptx (3 trang chiếu)
+Ghi chú
+−
++
+72%
+Arial
+18
+Lưu (Ctrl+S)
+Hoàn tác
+Làm lại
+Cắt (Ctrl+X)
+Sao chép (Ctrl+C)
+Chổi sao chép định dạng (chọn một phần tử trước; Ctrl+Shift+C sao chép định dạng / Ctrl+Shift+V dán định dạng)
+Phông chữ (chọn hộp văn bản, hình dạng hoặc bảng trước)
+Cỡ chữ (pt)
+Tăng cỡ chữ
+Giảm cỡ chữ
+Xóa tất cả định dạng
+In đậm
+In nghiêng
+Gạch chân
+Chỉ số trên
+Chỉ số dưới
+Di chuyển bảng AI sang phải
+Thu gọn bảng điều khiển
+Mô tả yêu cầu chỉnh sửa, hoặc hỏi bất kỳ đi�
+=== .g7-06-captures/web/fx-xlsx-revenue-xyz.host.txt
+fx-xlsx-revenue-xyz.xlsx · UniWork Office
+Tới nội dung chính
+G
+G7-06 capture
+G7-06 capture
+Trang chủ
+Hộp việc
+Làm việc
+Công việc
+Việc của tôi
+Dự án
+Lịch
+Trao đổi
+Email Hub
+Cuộc họp
+Tài liệu
+Trò chuyện
+Danh bạ
+G
+G7-06 capture
+g7-06-capture-1791961684271@example.com
+Tìm kiếm…
+Ctrl+K
+Tìm kiếm
+Điều hướng trang và chạy lệnh
+Tài liệu
+fx-xlsx-revenue-xyz.xlsx
+Chưa có thay đổi
+Lưu
+Mở bằng UniWork Office
+Bình luận
+G7-06 capture, G7-06 capture: chuyển workspace
+Điều hướng workspace
+G7-06 capture, g7-06-capture-1791961684271@example.com: tài khoản
+Ẩn/hiện thanh bên
+Thông báo
+Tạo việc
+Giao diện
+Ngôn ngữ
+Về thư viện tài liệu
+Lưu vào UniWork
+Tùy chọn UniWork Office
+Thêm vào yêu thích
+Hành động khác
+Trình soạn thảo tài liệu: fx-xlsx-revenue-xyz.xlsx
+
+=== .g7-06-captures/web/fx-xlsx-revenue-xyz.txt
+UniWork Sheets (web)
+Trang đầu
+Chèn
+Bố trí Trang
+Công thức
+Dữ liệu
+Xem lại
+Xem
+AI
+Kiểm tra bằng AI
+Phân tích bằng AI
+Dán
+Dán đặc biệt
+B
+I
+U
+D
+S
+x²
+x₂
+A
+Viền
+ab
+Hợp nhất
+Chung
+$
+%
+,
+.0+
+.0−
+Định dạng có điều kiện
+Định dạng dưới dạng bảng
+Kiểu ô
+Định dạng ô Ctrl+1
+⇳
+Định dạng
+Tính tổng tự động (AutoSum)
+Sắp xếp & Lọc
+Điền
+Xóa
+Tìm kiếm
+Thay thế
+Đi tới
+UniAI
+Hỏi AI về sổ làm việc này
+Mô tả thay đổi hoặc đặt câu hỏi về dữ liệu.
+Chọn mô hình
+▾
+Doanh thu Q1
+Doanh thu Q2
+Tổng hợp
+Ghi chú
+Đã tải đầy đủ sổ làm việc — công thức tính toán trực tiếp, có thể chỉnh sửa hàng/cột.
+▦
+┆
+−
++
+100%
+Xóa
+Sao chép
+Đổi tên
+Thay đổi màu
+Ẩn
+Bỏ ẩn
+Bảo vệ trang bảng
+Bỏ bảo vệ trang bảng
+Thay đổi quyền hạn trang bảng
+Xem tất cả khu vực được bảo vệ
+Calibri
+11
+A1
+Sổ làm việc
+Lưu (Ctrl+S)
+Lưu dưới dạng (Ctrl+Shift+S)
+Hoàn tác
+Làm lại
+Trợ lý AI
+Bảng nhớ tạm
+Cắt Ctrl+X
+Sao chép Ctrl+C
+Sao chép định dạng
+Phông chữ
+Font family
+Font size
+Tăng cỡ chữ
+Giảm cỡ chữ
+Chỉ số trên
+Chỉ số dưới
+Font color
+Font color options
+Fill color
+Fill color options
+Borders
+Border color
+Căn chỉnh
+Căn trên
+Căn giữa theo chiều dọc
+Căn dưới
+Tự động xuống dòng
+Orientation
+Căn trái
+Căn giữa
+Căn phải
+Giảm thụ
