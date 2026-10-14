@@ -167,7 +167,7 @@ export function useTreeReveal({
       const bodyWasActive = !activeEl || activeEl === document.body;
       const focusInTree = Boolean(tree && activeEl && tree.contains(activeEl));
       target.scrollIntoView({ block: "nearest" });
-      if (inDialog || (deferredWhileHidden && (bodyWasActive || focusInTree))) {
+      if (inDialog || (deferredWhileHidden && focusInTree)) {
         target.focus({ preventScroll: true });
         return;
       }
