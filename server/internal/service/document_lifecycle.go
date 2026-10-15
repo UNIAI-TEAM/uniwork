@@ -204,12 +204,9 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 	// pristine is decided once under the row lock: the root gate and the
 	// subtree check below must agree on it.
 	pristine := false
-	rootGate := func(doc db.Document, access DocumentAccess) error {
-		pristine = pristineCopyCleanup(actor, doc, access)
-		if pristine {
-			return nil
-		}
-		return decideArchiveRootAccess(doc, access)
+	rootGate := func(doc db.Document, access DocumentAccess) (err error) {
+		pristine, err = archiveRootGate(actor, doc, access)
+		return err
 	}
 	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentArchive, rootGate, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if doc.ArchivedAt.Valid {
@@ -342,7 +339,8 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 	if err != nil {
 		return DocumentArchiveImpact{}, err
 	}
-	if err := decideArchiveRootAccess(doc, access); err != nil {
+	pristine, err := archiveRootGate(actor, doc, access)
+	if err != nil {
 		return DocumentArchiveImpact{}, err
 	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
@@ -374,8 +372,11 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 	// (3) the archive command's own gate on exactly this id set: one node the
 	// caller cannot manage refuses the whole read, and the body never carries
 	// a number.
-	if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
-		return DocumentArchiveImpact{}, err
+	// The pristine-copy root holds nothing under it (the command's own skip).
+	if !pristine || len(live) != 1 || live[0] != doc.ID {
+		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
+			return DocumentArchiveImpact{}, err
+		}
 	}
 	// (4) count on exactly that id set. page and file are both "documents" to
 	// the dialog; the root is counted only in the total.
@@ -675,6 +676,18 @@ func pristineCopyCleanup(actor Actor, doc db.Document, access DocumentAccess) bo
 		doc.SourceDocumentID.Valid && !doc.ConversionReason.Valid &&
 		doc.CurrentVersion == 1 &&
 		decideDocumentAccess(doc, access, DocumentLevelEdit) == nil
+}
+
+// archiveRootGate is the archive root gate ArchiveDocument and ArchiveImpact
+// share, so the read can never refuse (or allow) a delete the command decides
+// the other way: the pristine-copy exception first, then the manage gate.
+// pristine tells the caller the exception applied, so it can skip the subtree
+// manage check when the root is the whole live subtree.
+func archiveRootGate(actor Actor, doc db.Document, access DocumentAccess) (pristine bool, err error) {
+	if pristineCopyCleanup(actor, doc, access) {
+		return true, nil
+	}
+	return false, decideArchiveRootAccess(doc, access)
 }
 
 // documentBatchLifecycle is the shared envelope of archive and restore: one
