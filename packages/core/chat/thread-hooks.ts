@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
 import { useAuthStore } from "../auth/store";
+import { notificationKeys } from "../notifications/hooks";
 import { chatKeys } from "./chat-keys";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { applyChatMessageResponse } from "./realtime-cache";
@@ -90,6 +91,9 @@ export function useMarkChatThreadRead(workspaceId: string) {
         queryKey: ["chat", "thread-messages", workspaceId],
         predicate: (q) => q.queryKey.includes(threadRootId),
       });
+      // The read also closed the thread's inbox row server-side (UNI-1665).
+      void qc.invalidateQueries({ queryKey: notificationKeys.unreadCount() });
+      void qc.invalidateQueries({ queryKey: notificationKeys.lists() });
     },
   });
 }

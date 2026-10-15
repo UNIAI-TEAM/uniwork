@@ -63,3 +63,10 @@ func emitChatMessageNotifications(
 	}
 	return auditRecorder.Emit(ctx, q, Human(senderID), events...)
 }
+
+// The notification group keys of a chat: the consumer merges a room's (or a
+// thread's) unread messages into one row under them, and reading the chat
+// closes that row by the same keys.
+func ChatDMNotifyGroup(roomID string) string      { return "chat_room:" + roomID + ":dm" }
+func ChatMentionNotifyGroup(roomID string) string { return "chat_room:" + roomID + ":mention" }
+func ChatThreadNotifyGroup(rootID string) string  { return "chat_thread:" + rootID + ":reply" }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -177,6 +178,13 @@ func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, us
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return // reading a public channel without joining: no pointer to move
+	}
+	// Before the pointer check: a notification that arrived after the last
+	// read still closes, so the next message pushes again (UNI-1665).
+	if err := s.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
+		UserID: userID, GroupKeys: []string{ChatDMNotifyGroup(room.ID), ChatMentionNotifyGroup(room.ID)},
+	}); err != nil {
+		slog.WarnContext(ctx, "chat: close room notifications", "room_id", room.ID, "user_id", userID, "error", err)
 	}
 	if err == nil && member.LastReadAt.Valid && !at.Time.After(member.LastReadAt.Time) {
 		return

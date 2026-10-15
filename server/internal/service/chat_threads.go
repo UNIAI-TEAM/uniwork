@@ -338,10 +338,16 @@ func (s *ChatService) MarkThreadRead(ctx context.Context, userID, workspaceID, t
 	if err := s.ensureThreadFollowerTx(ctx, s.q, orgID, anchorWS, room.ID, root.ID, userID, chatThreadFollowManual, &readAt); err != nil {
 		return err
 	}
-	return s.q.MarkChatThreadRead(ctx, db.MarkChatThreadReadParams{
+	if err := s.q.MarkChatThreadRead(ctx, db.MarkChatThreadReadParams{
 		ThreadRootID: root.ID,
 		UserID:       userID,
 		LastReadAt:   pgtype.Timestamptz{Time: readAt, Valid: true},
+	}); err != nil {
+		return err
+	}
+	// Close the thread's reply row so the next reply pushes again (UNI-1665).
+	return s.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
+		UserID: userID, GroupKeys: []string{ChatThreadNotifyGroup(root.ID)},
 	})
 }
 

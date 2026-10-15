@@ -180,3 +180,84 @@ func TestChatReachesRecipientsInOtherWorkspaces(t *testing.T) {
 		t.Fatalf("reminder workspace for a Sales member = %s, want %s", ws, f.wsID)
 	}
 }
+
+// Reading a chat in the chat itself closes its open inbox row, so the next
+// message opens a new row and pushes again (UNI-1665). It closes only the
+// reader's row of the room or thread read.
+func TestReadingAChatClosesItsNotification(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+		Name: "doc-roi", Visibility: "public", MemberUserIDs: []string{f.member.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{
+		Body: "[@Thành Viên](mention://member/" + f.member.ID + ") xem giúp",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.message.mentioned")
+	sendDM := func(body string) {
+		t.Helper()
+		if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: body}); err != nil {
+			t.Fatal(err)
+		}
+		f.handleLast(t, "chat.dm.received")
+	}
+	byKind := func(userID, kind string) []db.Notification {
+		t.Helper()
+		var out []db.Notification
+		for _, n := range f.inbox(t, userID) {
+			if n.Kind == kind {
+				out = append(out, n)
+			}
+		}
+		return out
+	}
+
+	sendDM("chào")
+	if err := chat.MarkRoomRead(f.ctx, f.member.ID, f.wsID, dm.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := byKind(f.member.ID, KindChatDM); len(got) != 1 || !got[0].ReadAt.Valid {
+		t.Fatalf("dm row after reading the room = %+v", got)
+	}
+	if got := byKind(f.member.ID, KindChatMentioned); len(got) != 1 || got[0].ReadAt.Valid {
+		t.Fatalf("reading the dm closed the mention of another room: %+v", got)
+	}
+
+	pushBefore := len(f.events(t, TopicPush))
+	sendDM("gấp, gọi lại chị")
+	got := byKind(f.member.ID, KindChatDM)
+	if len(got) != 2 || got[0].ReadAt.Valid || got[0].Count != 1 {
+		t.Fatalf("dm rows after a new message = %+v", got)
+	}
+	if n := len(f.events(t, TopicPush)) - pushBefore; n != 1 {
+		t.Fatalf("the dm after a read pushed %d times, want 1", n)
+	}
+	// The sender reading the same room leaves the recipient's row open.
+	if err := chat.MarkRoomRead(f.ctx, f.owner.ID, f.wsID, dm.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := byKind(f.member.ID, KindChatDM); got[0].ReadAt.Valid {
+		t.Fatal("the sender's read closed the recipient's row")
+	}
+
+	if _, err := chat.SendThreadReply(f.ctx, f.member.ID, f.wsID, ch.ID, root.ID, service.SendChatMessageInput{Body: "ok"}); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.thread.reply_received")
+	if err := chat.MarkThreadRead(f.ctx, f.owner.ID, f.wsID, root.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := byKind(f.owner.ID, KindChatThreadReplied); len(got) != 1 || !got[0].ReadAt.Valid {
+		t.Fatalf("thread row after reading the thread = %+v", got)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -55,11 +56,11 @@ func chatMessageRule(kind string) rule {
 		var groupKey string
 		switch kind {
 		case KindChatDM:
-			groupKey = "chat_room:" + room.ID + ":dm"
+			groupKey = service.ChatDMNotifyGroup(room.ID)
 		case KindChatThreadReplied:
-			groupKey = "chat_thread:" + p["thread_root_id"] + ":reply"
+			groupKey = service.ChatThreadNotifyGroup(p["thread_root_id"])
 		default:
-			groupKey = "chat_room:" + room.ID + ":mention"
+			groupKey = service.ChatMentionNotifyGroup(room.ID)
 		}
 		r := newRecipients(ctx, e, ev, wsID)
 		r.add(userID)
