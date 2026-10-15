@@ -1,10 +1,13 @@
 // G8-19 (UNI-1414) row module G8-A02 "anchors survive Save", plus the anchor
 // and desktop helpers comments.mjs shares:
 //   node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture <fx> --run-dir <dir>
-// First, on its own document (check:closed-panel-save): the same comment made with
-// the panel closed, a structural edit before it and a Save must move the server
-// anchor to the new head (AC G8-A02, contract-collab G8-D2: a map after every Save
-// receipt); left on the old version it is a product FAIL, never hidden or BLOCKED.
+// First, on its own document (check:closed-panel-save): the document is open on the
+// desktop with the panel closed, the server log shows the editor's first comment
+// list, and only then A comments over REST (the cross-host case); a structural edit
+// before it and a Save must move the server anchor to the new head (AC G8-A02,
+// contract-collab G8-D2: a map after every Save receipt); left on the old version it
+// is a product FAIL, never hidden or BLOCKED, and a run whose comment does not
+// postdate that first list FAILs as "scenario not established" (harness).
 // Then desktop user A comments on an anchor of the fixture, opens the editor's own
 // comments panel and waits until it lists that comment (the post-Save anchor
 // round only covers roots the editor has listed), makes a structural edit
@@ -17,7 +20,7 @@
 // while the pin is older.
 // Contract: scripts/office/g5g6g7/harness/g8-contract.md; plan card G8-19.
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -25,7 +28,7 @@ import { API_PREFIX } from "../harness/api-contract.mjs";
 import { connectApp as realConnectApp, editorKindOfFormat, editorKindOfUrl } from "../harness/app.mjs";
 import { loadPlaywrightChromium, sleep as realSleep } from "../harness/app-steps.mjs";
 import { loadVerifiedFixture } from "../harness/fixture-files.mjs";
-import { DEV_CLIENT_ID, forkCacheDir, isMainModule } from "../harness/lib.mjs";
+import { DEV_CLIENT_ID, forkCacheDir, harnessPaths, isMainModule } from "../harness/lib.mjs";
 import * as realWeb from "../harness/web.mjs";
 import { readZipParts } from "./file-scan.mjs";
 import { B7_ANCHOR, B7_SHEET_NAME, WEB_FRAME_PIN_OWNER, decideFromSteps, rowMain } from "./run-row.mjs";
@@ -435,6 +438,49 @@ export async function readServer(session, documentId) {
   return { comments: list.body?.comments ?? [], listToken: list.body?.list_token ?? null, head: file.version_id ?? null, headVersion: file.version ?? null };
 }
 
+/** The head version of a document (getDocument only: no comment list, so it never reads as an editor's list in server.log). */
+async function readHead(session, documentId) {
+  const doc = await session.call("getDocument", { documentID: documentId });
+  if (!doc.ok) throw new Error(`getDocument answered ${doc.status}`);
+  return doc.body?.document?.file?.version_id ?? null;
+}
+
+const ANSI = /\x1b\[[0-9;]*m/g;
+
+/** Byte size of the harness server log (0 when it does not exist): the offset a later read starts from. */
+export function logSize(path) {
+  return path && existsSync(path) ? statSync(path).size : 0;
+}
+
+/**
+ * The comment-list requests of `documentId` the server logged after `offset` bytes
+ * (server/internal/middleware/request_logger.go: method, path, status; tint text or LOG_FORMAT=json);
+ * `[{status, time}]`, or null when there is no log.
+ */
+export function documentListRequests(serverLogPath, offset, documentId) {
+  if (!serverLogPath || !existsSync(serverLogPath)) return null;
+  const want = `${API_PREFIX}/documents/${documentId}/comments`;
+  const out = [];
+  for (const raw of readFileSync(serverLogPath).subarray(offset).toString("utf8").split("\n")) {
+    const line = raw.replace(ANSI, "").trim();
+    if (!line.includes(want)) continue;
+    let f;
+    if (line.startsWith("{")) {
+      try {
+        f = JSON.parse(line);
+      } catch {
+        continue;
+      }
+    } else {
+      f = { method: /\bmethod=(\S+)/.exec(line)?.[1], path: /\bpath=(\S+)/.exec(line)?.[1], status: /\bstatus=(\d+)/.exec(line)?.[1], time: /^(\S+)\s/.exec(line)?.[1] };
+    }
+    if (f.method === "GET" && f.path === want) out.push({ status: Number(f.status), time: f.time ?? null });
+  }
+  return out;
+}
+
+const listed2xx = (reqs) => (reqs ?? []).filter((r) => r.status >= 200 && r.status < 300);
+
 /** The server comments panel in the editor page: how many, and the comment ids it lists (fork CollabPanel.tsx:526-528, CollabThread.tsx:712). */
 export function panelListing() {
   const panels = document.querySelectorAll("aside.collab-panel");
@@ -536,6 +582,23 @@ export function lostOnSaveReason(format, part) {
   return `${why}; the server keeps the last anchor and version of a lost row (${LOST_KEEPS_CITE})${markTrail(part?.marks)}`;
 }
 
+/**
+ * The closed-panel scenario must show the cross-host order: the desktop opened the document, its
+ * editor's first list reached the server, and only then was the comment made. A comment that does
+ * not postdate that list may have been listed at mount, so the run proves nothing either way.
+ */
+function scenarioFault(sc) {
+  if (!sc) return "no scenario was recorded (open, the editor's first list, the comment)";
+  if (typeof sc.listedAt !== "number") return "no list request of the editor was seen after the open (want: open, the editor's first list, then the comment)";
+  if (typeof sc.openedAt === "number" && sc.listedAt < sc.openedAt) return `the first list ${sc.listedAt} is before the open ${sc.openedAt}`;
+  if (typeof sc.createdAt !== "number" || sc.createdAt <= sc.listedAt) {
+    return `the comment created ${sc.createdAt ?? "never"} is not after the editor's first list ${sc.listedAt}, so the editor may have listed it at mount`;
+  }
+  return null;
+}
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
 const rowWhere = (row, part) => `row on ${row.anchor_version_id}, ${row.anchor_state}, at ${describeAnchor(row.anchor)}; head ${part.headVersionId}; owner candidate ${CLOSED_PANEL_OWNER}`;
 
 /**
@@ -547,6 +610,11 @@ const rowWhere = (row, part) => `row on ${row.anchor_version_id}, ${row.anchor_s
 export function decideClosedPanel(part, format) {
   if (!part) return { status: "FAIL", reason: "the closed-panel Save did not run" };
   if (!part.ran) return { status: "FAIL", reason: part.reason ?? "the closed-panel Save did not run" };
+  const unset = scenarioFault(part.scenario);
+  if (unset) return { status: "FAIL", reason: `scenario not established: ${unset}` };
+  const sc = part.scenario;
+  const round = ANCHOR_ROUND_CITES[format] ?? "the editor's anchor round";
+  const relists = sc.listsBeforeSave ?? 0;
   if (part.edited?.status !== "ok") return { status: "FAIL", reason: `edit driver: ${part.edited?.reason ?? "did not run"}` };
   if (!part.saved) return { status: "FAIL", reason: "Save failed" };
   const row = part.row;
@@ -558,20 +626,27 @@ export function decideClosedPanel(part, format) {
     return { status: "FAIL", reason: `desktop reported the anchor lost on Save${lostOnSaveReason(format, part)} (${rowWhere(row, part)})`, owner: CLOSED_PANEL_OWNER };
   }
   if (row.anchor_version_id !== part.headVersionId) {
-    const late = part.createdAfterSave ? ", and this comment was made after the prepare Save, after that one list" : "";
+    const order = `it was made after the editor's first list (opened ${sc.openedAt}, listed ${sc.listedAt} by ${sc.listedVia}, created ${sc.createdAt})`;
+    const why =
+      relists > 0
+        ? `, although ${plural(relists, "list request")} for the document reached the server between the comment and the Save; the round (${round}) covers only the listed roots`
+        : `, and the editor's round covers only the roots its comments controller has listed (${round}), which lists once when the editor mounts (${LIST_ONCE_CITE}) ` +
+          `and with the panel closed never reloads (${POLL_GATE_CITE}): no list request between the comment and the Save`;
     return {
       status: "FAIL",
-      reason:
-        `desktop did not re-anchor this comment on Save: the editor's round covers only the roots its comments controller has listed (${ANCHOR_ROUND_CITES[format] ?? "the editor's anchor round"}), ` +
-        `which lists once when the editor mounts (${LIST_ONCE_CITE}) and with the panel closed never reloads (${POLL_GATE_CITE})${late}; ` +
-        `the server anchor stays on the old version (${rowWhere(row, part)})`,
+      reason: `desktop did not re-anchor this comment on Save: ${order}${why}; the server anchor stays on the old version (${rowWhere(row, part)})`,
       owner: CLOSED_PANEL_OWNER,
     };
   }
   const reasons = [];
   if (row.anchor_state !== "exact") reasons.push(`anchor_state ${row.anchor_state}, want exact`);
   if (!anchorMatches(part.expected, row.anchor)) reasons.push(`anchor at ${describeAnchor(row.anchor)}, want ${describeAnchor(part.expected)}`);
-  return check(reasons);
+  if (reasons.length > 0) return check(reasons);
+  const note =
+    relists > 0
+      ? `the editor listed the document again (${plural(relists, "list request")} between the comment and the Save), so its round (${round}) covered it`
+      : `no list request reached the server between the comment and the Save, yet the round (${round}), built from the listed roots, re-anchored it; the order is in details.closedPanel.scenario`;
+  return { status: "PASS", note };
 }
 
 function check(reasons) {
@@ -778,30 +853,46 @@ function countEditorPages(ctrl, kind) {
 }
 
 /**
- * check:closed-panel-save flow (panel never opened): pdf prepares + saves its pages, A creates the
- * fixture anchor over the editor bridge exactly as r1 did, the shift plan edits before it, Save,
- * and the server is polled (bounded) for the row to reach the new head. Fills `part`.
+ * check:closed-panel-save flow (panel never opened), the cross-host case: the document is open on the
+ * desktop with the panel closed when someone comments on it elsewhere. pdf prepares + saves its pages;
+ * the harness waits (bounded) until the server log shows the editor's first comment list after the
+ * open, and only then A creates the fixture anchor over REST (another host). The shift plan edits
+ * before it, Save, and the server is polled (bounded) for the row to reach the new head. The harness
+ * never lists this document itself before the Save (that would read as an editor list). Fills `part`.
  */
-async function runClosedPanelSave({ ctx, A, desk, driver, documentId, poll, part, trace }) {
-  part.createdAfterSave = Boolean(driver.prepare);
+async function runClosedPanelSave({ ctx, A, desk, driver, documentId, poll, part, trace, serverLog, logOffset, sleep, now }) {
+  const scenario = part.scenario;
   if (driver.prepare) {
     const prepared = await runEditPlan(desk.ctrl, desk.page, driver.prepare);
     if (prepared.status !== "ok") throw new Error(`prepare edit: ${prepared.reason}`);
     await saveOnDesktop(desk.ctrl, desk.path);
   }
+  const seen = await pollUntil(() => listed2xx(documentListRequests(serverLog, logOffset, documentId)), (v) => v.length > 0, { boundMs: EDITOR_LIST_BOUND_MS, intervalMs: 500, sleep, now });
+  if (!seen.ok) {
+    const why = existsSync(serverLog) ? `server.log, ${seen.elapsedMs} ms` : `no server log at ${serverLog}`;
+    return { status: "FAIL", reason: `scenario not established: no list request of the editor was seen after the open (${why}); the comment was not made` };
+  }
+  const first = seen.value[0];
+  Object.assign(scenario, { listedAt: now(), listedVia: "server.log", listLine: `GET ${API_PREFIX}/documents/${documentId}/comments ${first.status} at ${first.time ?? "?"}` });
   const context = unwrap(await desk.comments.context({ path: desk.path }), "comments.context");
   const anchor = anchorForFixture(ctx.fixture, { repoRoot: ctx.repoRoot });
-  const root = unwrap(
-    await desk.comments.create({ path: desk.path, kind: "comment", body: `G8-A02 closed panel ${ctx.fixture}`, anchor, baseVersionId: context.versionId }),
-    "comments.create",
-  ).comment;
-  const versionBefore = (await readServer(A, documentId)).head;
+  const createOffset = logSize(serverLog);
+  // the POST goes out on a later clock tick than the list was seen, so the recorded order is strict
+  while (now() <= scenario.listedAt) await sleep(1);
+  scenario.createdAt = now();
+  scenario.createdVia = "REST as A (another host, the desktop panel closed)";
+  const res = await A.call("createDocumentComment", { documentID: documentId }, { body: `G8-A02 closed panel ${ctx.fixture}`, kind: "comment", anchor, base_version_id: context.versionId });
+  const root = res.body?.comment;
+  if (!res.ok || !root?.id) throw new Error(`POST comments as A answered ${res.status}${res.error ? ` (${res.error})` : ""}`);
+  if (root.created_at) scenario.serverCreatedAt = root.created_at;
+  const versionBefore = await readHead(A, documentId);
   Object.assign(part, { commentId: root.id, anchor, versionBefore, expected: expectedAfterShift(anchor) });
   await trace.mark(part, "beforeEdit", desk, root.id);
   part.edited = await runEditPlan(desk.ctrl, desk.page, driver.shift);
   if (part.edited.status !== "ok") return { status: "FAIL", reason: `edit driver: ${part.edited.reason}` };
   await trace.mark(part, "afterEdit", desk, root.id);
   part.saved = false;
+  scenario.listsBeforeSave = listed2xx(documentListRequests(serverLog, createOffset, documentId)).length;
   await saveOnDesktop(desk.ctrl, desk.path);
   part.saved = true;
   const rowOf = (srv) => srv.comments.find((r) => r.id === root.id) ?? null;
@@ -855,7 +946,8 @@ export async function saveOnDesktop(ctrl, path) {
 /**
  * Runs G8-A02 on one fixture (ctx from runRowModule). `deps`: `connectApp`,
  * `sleep`, `now`, `framePin` (else read now), `isAncestor` (else the fork clone),
- * `web` (harness/web.mjs), `launchBrowser`, `download` (`(documentId, version)` -> bytes, docx head check).
+ * `web` (harness/web.mjs), `launchBrowser`, `download` (`(documentId, version)` -> bytes, docx head check),
+ * `serverLog` (else the run's logs/server.log: the editor's first list of the closed-panel document).
  */
 export async function runG8A02(ctx, deps = {}) {
   const { connectApp = realConnectApp, sleep = realSleep, now = Date.now, web = realWeb } = deps;
@@ -885,12 +977,15 @@ export async function runG8A02(ctx, deps = {}) {
     if (s.status !== "PASS") return failed("upload", s);
 
     // first, on its own document: the normal case of a user who edits with the comments panel closed
-    rec.closedPanel = { ran: true, documentId: closedDoc.documentId };
+    const serverLog = deps.serverLog ?? join(harnessPaths(ctx.runDir).logDir, "server.log");
+    rec.closedPanel = { ran: true, documentId: closedDoc.documentId, scenario: { openedAt: null, listedAt: null, listedVia: null, createdAt: null, createdVia: null, listsBeforeSave: null } };
     s = await ctx.step("closed-panel-save", async () => {
+      const logOffset = logSize(serverLog);
+      rec.closedPanel.scenario.openedAt = now();
       desk = await openOnDesktop({ ctx, world, connectApp, documentId: closedDoc.documentId, format });
-      return runClosedPanelSave({ ctx, A, desk, driver, documentId: closedDoc.documentId, poll, part: rec.closedPanel, trace });
+      return runClosedPanelSave({ ctx, A, desk, driver, documentId: closedDoc.documentId, poll, part: rec.closedPanel, trace, serverLog, logOffset, sleep, now });
     });
-    if (s.status === "FAIL" && !rec.closedPanel.saved && rec.closedPanel.edited?.status === undefined) rec.closedPanel = { ran: false, reason: s.reason };
+    if (s.status === "FAIL" && !rec.closedPanel.saved && rec.closedPanel.edited?.status === undefined) rec.closedPanel = { ran: false, reason: s.reason, scenario: rec.closedPanel.scenario };
 
     s = await ctx.step("open-desktop", async () => {
       desk = desk?.ctrl

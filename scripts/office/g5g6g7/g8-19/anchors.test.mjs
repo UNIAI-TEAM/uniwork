@@ -1,7 +1,7 @@
 // G8-19 (UNI-1414) G8-A02 "anchors survive Save": the decision table, the
 // web frame pin rule (R1) and the xlsx flow against the fake world.
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -46,9 +46,13 @@ function closedMoved(over = {}) {
     headVersionId: "vc-2",
     expected: B8,
     row: { id: "cc", anchor: B8, anchor_state: "exact", anchor_version_id: "vc-2", deleted_at: null },
+    scenario: ESTABLISHED,
     ...over,
   };
 }
+
+/** The cross-host order a closed-panel run must show: opened, the editor's first list seen, then the comment. */
+const ESTABLISHED = Object.freeze({ openedAt: 1_000, listedAt: 2_000, listedVia: "server.log", listLine: "GET /api/v1/documents/doc-c/comments 200", createdAt: 3_000, createdVia: "REST as A", listsBeforeSave: 0 });
 
 /** The docx anchor of the fixture's block 2 quote, at `path`. */
 function docxAnchor(path = [2]) {
@@ -268,10 +272,15 @@ test("pageAction click unlessActive: an active ribbon tab is not pressed again (
 
 function fakeCtx(fake, fixture) {
   const steps = {};
+  const runDir = mkdtempSync(join(tmpdir(), "g819-a02-"));
+  mkdirSync(join(runDir, "logs"));
+  // the harness server log (harness/start.sh): the fake app appends the editor's mount-time list to it
+  fake.serverLog = join(runDir, "logs", "server.log");
+  writeFileSync(fake.serverLog, "");
   return {
     row: "G8-A02",
     fixture,
-    runDir: mkdtempSync(join(tmpdir(), "g819-a02-")),
+    runDir,
     repoRoot: REPO_ROOT,
     portsEnv: { HARNESS_DEPLOYMENT_ID: "dep-1" },
     apiOrigin: "http://127.0.0.1:1",
@@ -295,6 +304,11 @@ function fakeCtx(fake, fixture) {
 const CLOSED_DOC = "doc-3";
 const CLOSED_PATH = `/wc/${CLOSED_DOC}.xlsx`;
 
+/** What the server logs when an editor lists a document's comments (server/internal/middleware/request_logger.go, tint text). */
+function logEditorList(fake, documentId, status = 200) {
+  if (fake.serverLog) appendFileSync(fake.serverLog, `07:50:04.332 INF http request method=GET path=/api/v1/documents/${documentId}/comments status=${status} duration=2.1ms request_id=r-1\n`);
+}
+
 /**
  * Scripts a server that moves the anchor on the first Save after the shift and loses it after the remove.
  * The closed-panel document (doc-3, uploaded third) has its own row "cc": its Save moves it to B8 on the
@@ -308,17 +322,22 @@ function scriptXlsxServer(fake) {
   fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
   fake.script.respond("app.openByTicket", (call) => {
     const id = call.args[1]?.documentId ?? "doc-1";
+    // the editor mounts and its controller lists once (use-collab-threads.ts:455-475), unless scripted not to
+    if (!state.noMountList) logEditorList(fake, id);
     return { path: id === CLOSED_DOC ? CLOSED_PATH : "/wc/doc.xlsx", documentId: id, kind: "sheets" };
   });
   fake.script.respond("app.comments.context", (call) =>
     call.args[0].path === CLOSED_PATH ? { ok: true, value: { documentId: CLOSED_DOC, versionId: closed.head } } : { ok: true, value: { documentId: "doc-1", versionId: state.head } },
   );
+  // the closed-panel comment arrives from another host (REST) while the desktop shows the document
+  state.createAnswer = (call) => {
+    const b = call.args.body;
+    closed.row = { id: "cc", body: b.body, anchor: b.anchor, anchor_state: "exact", anchor_version_id: b.base_version_id, deleted_at: null, parent_id: null };
+    return { status: 201, body: { comment: closed.row } };
+  };
+  fake.script.respond("api.createDocumentComment", (call) => state.createAnswer(call));
   fake.script.respond("app.comments.create", (call) => {
     const input = call.args[0];
-    if (input.path === CLOSED_PATH) {
-      closed.row = { id: "cc", anchor: input.anchor, anchor_state: "exact", anchor_version_id: input.baseVersionId, deleted_at: null, parent_id: null };
-      return { ok: true, value: { comment: closed.row } };
-    }
     if (input.parentId) return { ok: true, value: { comment: { id: "r1", parent_id: input.parentId } } };
     state.anchor = input.anchor;
     state.anchorState = "exact";
@@ -387,6 +406,7 @@ function scriptWebDoc(fake, xlsx, { webSave = null } = {}) {
     isWeb(call) ? { status: 200, body: { comments: web.row ? [web.row] : [], list_token: `w-${web.saves}` } } : xlsx.listAnswer(call),
   );
   fake.script.respond("api.createDocumentComment", (call) => {
+    if (!isWeb(call)) return xlsx.createAnswer(call);
     const b = call.args.body;
     web.row = { id: "cw", body: b.body, anchor: b.anchor, anchor_state: "exact", anchor_version_id: b.base_version_id, deleted_at: null, parent_id: null };
     return { status: 201, body: { comment: web.row } };
@@ -407,6 +427,7 @@ function scriptWebDoc(fake, xlsx, { webSave = null } = {}) {
   );
   fake.script.respond("app.openByTicket", (call) => {
     const id = call.args[1]?.documentId ?? "doc-1";
+    logEditorList(fake, id);
     return { path: id === "doc-1" ? "/wc/doc.xlsx" : `/wc/${id}.xlsx`, documentId: id, kind: "sheets" };
   });
   return web;
@@ -425,7 +446,7 @@ test("runG8A02 after a re-pin: the web frame's Save moves A's B7 comment to B8 a
   assert.equal(w.documentId, "doc-4");
   assert.equal(w.saved.versionId, "ver-web-1");
   assert.equal(w.desktopRow.anchor.range, "B8");
-  const created = fake.calls.api.find((c) => c.key === "createDocumentComment");
+  const created = fake.calls.api.find((c) => c.key === "createDocumentComment" && c.args.pathParams.documentID === "doc-4");
   assert.equal(created.user, "A");
   assert.deepEqual(created.args.body.anchor, B7_ANCHOR);
   assert.equal(created.args.body.base_version_id, "ver-3");
@@ -581,7 +602,7 @@ test("decideG8A02 closed-panel Save: an anchor the round never covered (exact on
     const d = decideG8A02(rec);
     const c = d.steps["check:closed-panel-save"];
     assert.equal(c.status, "FAIL", format);
-    assert.match(c.reason, /^desktop did not re-anchor this comment on Save: the editor's round covers only the roots its comments controller has listed \(apps\/[a-z]+\/src\/renderer\/[^)]*\.tsx?:\d+-\d+\)/, format);
+    assert.match(c.reason, /^desktop did not re-anchor this comment on Save: it was made after the editor's first list \([^)]*\), and the editor's round covers only the roots its comments controller has listed \(apps\/[a-z]+\/src\/renderer\/[^)]*\.tsx?:\d+-\d+\)/, format);
     assert.match(c.reason, /packages\/ui\/src\/collab\/use-collab-threads\.ts:455-475/, `${format}: one list at mount`);
     assert.match(c.reason, /packages\/electron-utils\/src\/comments-poll\.ts:128-131/, `${format}: no reload with the panel closed`);
     assert.match(c.reason, /vc-1.*vc-2/, `${format}: the observed versions are in the reason`);
@@ -589,9 +610,43 @@ test("decideG8A02 closed-panel Save: an anchor the round never covered (exact on
     assert.equal(CLOSED_PANEL_OWNER, "g8-fork_editors / Lead F");
     assert.equal(d.status, "FAIL", `${format}: not BLOCKED, not hidden`);
   }
-  const pdf = decideG8A02(passingRecord({ format: "pdf", closedPanel: closedMoved({ createdAfterSave: true, row: { id: "cc", anchor: { format: "pdf", v: 1, page: 2, rect: [72, 700, 96, 724] }, anchor_state: "exact", anchor_version_id: "vc-1" } }) }));
+  const pdf = decideG8A02(passingRecord({ format: "pdf", closedPanel: closedMoved({ row: { id: "cc", anchor: { format: "pdf", v: 1, page: 2, rect: [72, 700, 96, 724] }, anchor_state: "exact", anchor_version_id: "vc-1" } }) }));
   assert.match(pdf.steps["check:closed-panel-save"].reason, /PdfServerComments\.tsx:178-202/);
-  assert.match(pdf.steps["check:closed-panel-save"].reason, /made after the prepare Save/, "pdf: the comment came after the controller's one list");
+  assert.match(pdf.steps["check:closed-panel-save"].reason, /made after the editor's first list \(opened 1000, listed 2000 by server\.log, created 3000\)/, "the observed order is the proof");
+  assert.match(pdf.steps["check:closed-panel-save"].reason, /no list request between the comment and the Save/);
+  assert.doesNotMatch(pdf.steps["check:closed-panel-save"].reason, /prepare Save/, "the order comes from the record, not from the plan");
+  // the editor listed again before the Save and still left it: the one-list/poll-gate cites do not explain that
+  const relisted = decideG8A02(passingRecord({ format: "pptx", closedPanel: closedMoved({ scenario: { ...ESTABLISHED, listsBeforeSave: 2 }, row: { id: "cc", anchor: B7_ANCHOR, anchor_state: "exact", anchor_version_id: "vc-1" } }) })).steps["check:closed-panel-save"];
+  assert.equal(relisted.status, "FAIL");
+  assert.match(relisted.reason, /although 2 list requests for the document reached the server between the comment and the Save/);
+  assert.doesNotMatch(relisted.reason, /comments-poll|use-collab-threads/, "only code that explains the result is cited");
+});
+
+test("decideG8A02 closed-panel Save: a comment that does not postdate the editor's first list proves nothing -> FAIL scenario not established (harness, no owner)", () => {
+  const cases = [
+    ["made before the first list", { ...ESTABLISHED, createdAt: 1_500 }, /comment created 1500 is not after the editor's first list 2000/],
+    ["made at the same instant", { ...ESTABLISHED, createdAt: 2_000 }, /comment created 2000 is not after the editor's first list 2000/],
+    ["no first list seen", { ...ESTABLISHED, listedAt: null, listedVia: null }, /no list request of the editor was seen after the open/],
+    ["listed before the open", { ...ESTABLISHED, listedAt: 500 }, /first list 500 is before the open 1000/],
+    ["nothing recorded", undefined, /no scenario was recorded/],
+  ];
+  for (const [label, scenario, re] of cases) {
+    // even a row that moved exactly as wanted is no proof when the order is not established
+    const c = decideG8A02(passingRecord({ closedPanel: closedMoved({ scenario }) })).steps["check:closed-panel-save"];
+    assert.equal(c.status, "FAIL", label);
+    assert.match(c.reason, /^scenario not established: /, label);
+    assert.match(c.reason, re, label);
+    assert.equal(c.owner, undefined, `${label}: a harness fault has no product owner`);
+  }
+});
+
+test("decideG8A02 closed-panel Save PASS says why the round covered a comment made after the first list", () => {
+  const relisted = decideG8A02(passingRecord({ closedPanel: closedMoved({ scenario: { ...ESTABLISHED, listsBeforeSave: 1 } }) })).steps["check:closed-panel-save"];
+  assert.equal(relisted.status, "PASS");
+  assert.match(relisted.note, /the editor listed the document again \(1 list request between the comment and the Save\), so its round \(apps\/sheets\/src\/renderer\/server-comments\/SheetsServerComments\.tsx:207-213\) covered it/);
+  const quiet = decideG8A02(passingRecord({ closedPanel: closedMoved() })).steps["check:closed-panel-save"];
+  assert.equal(quiet.status, "PASS");
+  assert.match(quiet.note, /no list request reached the server between the comment and the Save, yet the round \(apps\/sheets\/src\/renderer\/server-comments\/SheetsServerComments\.tsx:207-213\), built from the listed roots, re-anchored it/);
 });
 
 test("decideG8A02 closed-panel Save: a row the desktop reported lost is the round's own answer, never the panel gate; docx names the post-Save reload", () => {
@@ -680,9 +735,11 @@ test("runG8A02 runs the closed-panel Save first on its own document: no opener b
   assert.match(c.reason, /^desktop did not re-anchor this comment on Save: .*the server anchor stays on the old version/);
   assert.equal(record.status, "FAIL");
   assert.equal(record.steps["check:shift"].status, "PASS", "the panel-open path is still its own check");
-  const closedCreate = fake.calls.app.find((c2) => c2.key === "comments.create" && c2.args[0].path === CLOSED_PATH);
-  assert.deepEqual(closedCreate.args[0].anchor, B7_ANCHOR);
-  assert.equal(closedCreate.args[0].baseVersionId, "vc-1");
+  assert.equal(fake.calls.app.find((c2) => c2.key === "comments.create" && c2.args[0].path === CLOSED_PATH), undefined, "the closed-panel comment comes from another host");
+  const closedCreate = fake.calls.api.find((c2) => c2.key === "createDocumentComment" && c2.args.pathParams.documentID === CLOSED_DOC);
+  assert.equal(closedCreate.user, "A");
+  assert.deepEqual(closedCreate.args.body.anchor, B7_ANCHOR);
+  assert.equal(closedCreate.args.body.base_version_id, "vc-1");
   const order = fake.calls.app.filter((c2) => ["comments.create", "save", "evalBounded"].includes(c2.key)).map((c2) => (c2.key === "evalBounded" ? c2.args[2] : `${c2.key}:${c2.args[0]?.path ?? c2.args[0]}`));
   const closedSave = order.indexOf(`save:${CLOSED_PATH}`);
   assert.ok(closedSave > 0, order.join(","));
@@ -723,7 +780,14 @@ function scriptDocxServer(fake) {
   fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
   fake.script.respond("app.openByTicket", (call) => {
     const id = call.args[1]?.documentId ?? "doc-1";
+    logEditorList(fake, id);
     return { path: `/wc/${id}.docx`, documentId: id, kind: "docs" };
+  });
+  fake.script.respond("api.createDocumentComment", (call) => {
+    const b = call.args.body;
+    const id = docOf(call);
+    docs[id].row = { id: id === "doc-3" ? "cc" : "c1", body: b.body, anchor: b.anchor, anchor_state: "exact", anchor_version_id: b.base_version_id, deleted_at: null, parent_id: null };
+    return { status: 201, body: { comment: docs[id].row } };
   });
   fake.script.respond("app.comments.context", (call) => ({ ok: true, value: { documentId: idOfPath(call.args[0].path), versionId: `${idOfPath(call.args[0].path)}-v${docs[idOfPath(call.args[0].path)].head}` } }));
   fake.script.respond("app.comments.create", (call) => {
@@ -731,6 +795,7 @@ function scriptDocxServer(fake) {
     const d = docs[idOfPath(input.path)];
     if (input.parentId) return { ok: true, value: { comment: { id: "r1", parent_id: input.parentId } } };
     d.row = { id: idOfPath(input.path) === "doc-3" ? "cc" : "c1", anchor: input.anchor, anchor_state: "exact", anchor_version_id: input.baseVersionId, deleted_at: null, parent_id: null };
+    d.tracked = true;
     state.marks = 1;
     return { ok: true, value: { comment: d.row } };
   });
@@ -744,7 +809,8 @@ function scriptDocxServer(fake) {
   fake.script.respond("app.save", (call) => {
     const d = docs[idOfPath(call.args[0])];
     d.head += 1;
-    if (d.row) d.row = { ...d.row, anchor_state: "lost" };
+    // only a root the editor tracks is in its round (a REST comment made after the first list is not)
+    if (d.row && d.tracked) d.row = { ...d.row, anchor_state: "lost" };
     state.marks = 0;
     return { state: "saved" };
   });
@@ -780,11 +846,12 @@ test("runG8A02 (docx, fake): records the highlight around each Save and the save
     },
   });
   const closed = record.details.closedPanel;
-  assert.deepEqual(closed.marks, { beforeEdit: 1, afterEdit: 1, afterSave: 0 });
+  // made after the first list, the comment is not in the docs round (it has no highlight either)
+  assert.deepEqual(closed.marks, { beforeEdit: 0, afterEdit: 0, afterSave: 0 });
   assert.deepEqual(closed.headQuote, { block: 3, version: 2 });
-  assert.ok(closed.elapsedMs < 5_000, `a lost row is the round's answer: no 60 s wait (${closed.elapsedMs})`);
-  assert.match(record.steps["check:closed-panel-save"].reason, /^desktop reported the anchor lost on Save: the saved head holds the quote at block 3/);
-  assert.match(record.steps["check:closed-panel-save"].reason, /highlight before edit 1, after edit 1, after Save 0/);
+  assert.match(record.steps["check:closed-panel-save"].reason, /^desktop did not re-anchor this comment on Save: it was made after the editor's first list/);
+  assert.match(record.steps["check:closed-panel-save"].reason, /ServerCommentsHost\.tsx:194-203/);
+  assert.doesNotMatch(record.steps["check:closed-panel-save"].reason, /file-actions/, "the reload does not explain a root the round never had");
   assert.deepEqual(record.details.shift.marks, { beforeEdit: 1, afterEdit: 1, afterSave: 0 });
   assert.match(record.steps["check:shift"].reason, /^desktop reported the anchor lost on Save, want exact at path \[3\]/);
   assert.equal(record.steps["check:remove-lost"].status, "FAIL");
@@ -792,11 +859,39 @@ test("runG8A02 (docx, fake): records the highlight around each Save and the save
   assert.equal(record.status, "FAIL");
 });
 
-test("runG8A02 closed panel records whether the comment was made after a prepare Save (xlsx: no prepare plan, no docx highlight probe)", async () => {
+test("runG8A02 closed panel: the comment is made over REST only after the server log shows the editor's first list, and the order is recorded", async () => {
   const fake = createFakeWorld();
   const state = scriptXlsxServer(fake);
   state.closedStays = true;
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
-  assert.equal(record.details.closedPanel.createdAfterSave, false, "xlsx has no prepare plan");
+  let t = 0;
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
+  const sc = record.details.closedPanel.scenario;
+  assert.ok(sc.openedAt <= sc.listedAt && sc.listedAt < sc.createdAt, JSON.stringify(sc));
+  assert.equal(sc.listedVia, "server.log");
+  assert.match(sc.listLine, /GET \/api\/v1\/documents\/doc-3\/comments 200 at 07:50:04\.332/);
+  assert.equal(sc.createdVia, "REST as A (another host, the desktop panel closed)");
+  assert.equal(sc.listsBeforeSave, 0);
+  assert.equal(record.details.closedPanel.createdAfterSave, undefined, "the order is observed, never inferred from the plan");
   assert.equal(record.details.closedPanel.marks, undefined, "highlights are a docx probe only");
+  // the harness itself never lists the closed-panel document before its Save (that would read as an editor list)
+  const closedSave = fake.calls.all.findIndex((c) => c.area === "app" && c.key === "save" && c.args[0] === CLOSED_PATH);
+  assert.ok(closedSave > 0);
+  const firstList = fake.calls.all.findIndex((c) => c.area === "api" && c.key === "listDocumentComments" && c.args.pathParams.documentID === CLOSED_DOC);
+  assert.ok(firstList > closedSave, "no harness list of doc-3 before its Save");
+  assert.match(record.steps["check:closed-panel-save"].reason, /^desktop did not re-anchor this comment on Save: it was made after the editor's first list/);
+});
+
+test("runG8A02 closed panel: no editor list in the server log -> the comment is not made and the check FAILs scenario not established", async () => {
+  const fake = createFakeWorld();
+  const state = scriptXlsxServer(fake);
+  state.noMountList = true;
+  let t = 0;
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
+  const c = record.steps["check:closed-panel-save"];
+  assert.equal(c.status, "FAIL");
+  assert.match(c.reason, /^scenario not established: no list request of the editor was seen after the open/);
+  assert.equal(c.owner, undefined);
+  assert.equal(fake.calls.api.filter((x) => x.key === "createDocumentComment" && x.args.pathParams.documentID === CLOSED_DOC).length, 0);
+  assert.equal(fake.calls.app.filter((x) => x.key === "save" && x.args[0] === CLOSED_PATH).length, 0, "no edit or Save without the scenario");
+  assert.equal(record.details.closedPanel.scenario.listedAt, null);
 });
