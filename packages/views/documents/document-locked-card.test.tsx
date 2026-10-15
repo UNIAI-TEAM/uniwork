@@ -1,12 +1,13 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import {
   DocumentBreakGlassBanner,
   DocumentLockedCard,
 } from "./document-locked-card";
 
-initI18n();
+const { t } = initI18n();
 
 afterEach(() => {
   cleanup();
@@ -135,5 +136,66 @@ describe("DocumentLockedCard", () => {
     expect(screen.getByTestId("break-glass-expired-banner")).toHaveTextContent(
       "Truy cập khẩn cấp đã hết hạn. Mở lại truy cập khẩn cấp nếu bạn vẫn cần kiểm tra tài liệu này.",
     );
+  });
+
+  it("counts the reason in code points like the server's runes (R21 L6)", () => {
+    render(
+      <DocumentLockedCard variant="admin" canBreakGlass onGrantBreakGlass={vi.fn()} />,
+    );
+    // Ten emoji are 20 UTF-16 units but 10 runes: exactly the minimum.
+    fireEvent.change(screen.getByLabelText(t("documents.breakGlass.reasonLabel")), {
+      target: { value: "😀".repeat(10) },
+    });
+    expect(screen.getByTestId("break-glass-reason-counter")).toHaveTextContent("10/500");
+    expect(screen.queryByTestId("break-glass-reason-error")).toBeNull();
+  });
+
+  it.each([
+    ["too long", { min: 10, max: 500, length: 501 }, "documents.breakGlass.reasonTooLong"],
+    ["too short", { min: 10, max: 500, length: 3 }, "documents.breakGlass.reasonTooShort"],
+  ])("maps a 422 reason that is %s to its own message", async (_name, fields, key) => {
+    const onGrant = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("invalid", "break_glass_reason_invalid", 422, undefined, fields, "validation"),
+      );
+    render(<DocumentLockedCard variant="admin" canBreakGlass onGrantBreakGlass={onGrant} />);
+    fireEvent.change(screen.getByLabelText(t("documents.breakGlass.reasonLabel")), {
+      target: { value: "Kiểm tra sự cố bảo mật khẩn cấp" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.breakGlass.confirmButton") }));
+    expect(await screen.findByText(t(key))).toBeInTheDocument();
+  });
+
+  it("uses the role type scale and the shared focus ring, with one id per mounted card (R21 M4)", () => {
+    const { container } = render(
+      <>
+        <DocumentLockedCard variant="admin" canBreakGlass onGrantBreakGlass={vi.fn()} />
+        <DocumentLockedCard variant="admin" canBreakGlass onGrantBreakGlass={vi.fn()} />
+      </>,
+    );
+    const html = container.innerHTML;
+    expect(html).not.toMatch(/\btext-(xs|sm|base)\b/);
+    const areas = screen.getAllByLabelText(t("documents.breakGlass.reasonLabel"));
+    expect(areas).toHaveLength(2);
+    expect(areas[0]!.id).not.toBe(areas[1]!.id);
+    expect(areas[0]).toHaveAttribute("data-slot", "textarea");
+  });
+
+  it("shows the pending banner with a retry while the grant has not opened the document yet", () => {
+    const onRetry = vi.fn();
+    render(
+      <DocumentLockedCard variant="admin" grantPending onRetryOpen={onRetry} onGrantBreakGlass={vi.fn()} />,
+    );
+    expect(screen.getByTestId("break-glass-pending-banner")).toHaveTextContent(
+      t("documents.breakGlass.grantedPending"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: t("documents.detail.retry") }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps End access disabled until the grant id is known", () => {
+    render(<DocumentBreakGlassBanner expiresAt="2026-10-15T12:00:00Z" endDisabled onEndAccess={vi.fn()} />);
+    expect(screen.getByRole("button", { name: t("documents.breakGlass.endAccessButton") })).toBeDisabled();
   });
 });

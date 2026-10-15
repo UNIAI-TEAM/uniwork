@@ -62,6 +62,7 @@
     "./documents/office-enabled": "./documents/office-enabled.ts",
     "./documents/hooks-collections": "./documents/hooks-collections.ts",
     "./documents/hooks-sharing": "./documents/hooks-sharing.ts",
+    "./documents/break-glass-queries": "./documents/break-glass-queries.ts",
     "./documents/hooks-public": "./documents/hooks-public.ts",
     "./documents/keys": "./documents/keys.ts",
     "./documents/folder-limits": "./documents/folder-limits.ts",

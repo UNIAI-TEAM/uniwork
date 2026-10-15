@@ -271,21 +271,15 @@ const BreakGlassGrantResponseSchema = z.union([
 
 const BreakGlassStatusResponseSchema = z.object({ status: z.string() });
 
-function resolveSignal(opts?: { signal?: AbortSignal } | AbortSignal): AbortSignal | undefined {
-  if (!opts) return undefined;
-  return "aborted" in opts ? opts : opts.signal;
-}
-
 /** POST /api/v1/documents/{documentID}/break-glass — open a 24h read-only grant (DOC-05). */
 export async function createDocumentBreakGlass(
   documentId: string,
-  body: BreakGlassDocumentBody | string,
+  body: BreakGlassDocumentBody,
   opts?: DocumentRequestOpts,
 ): Promise<DocumentBreakGlassGrant | null> {
-  const payload: BreakGlassDocumentBody = typeof body === "string" ? { reason: body } : body;
   const raw = await request(`/api/v1/documents/${enc(documentId)}/break-glass`, {
     method: "POST",
-    body: payload,
+    body,
     headers: idempotencyHeaders(opts),
     signal: opts?.signal,
   });
@@ -301,11 +295,11 @@ export async function createDocumentBreakGlass(
 export async function revokeDocumentBreakGlass(
   documentId: string,
   grantId: string,
-  opts?: DocumentRequestOpts | AbortSignal,
+  opts?: DocumentRequestOpts,
 ): Promise<boolean> {
   const raw = await request(`/api/v1/documents/${enc(documentId)}/break-glass/${enc(grantId)}`, {
     method: "DELETE",
-    signal: resolveSignal(opts),
+    signal: opts?.signal,
   });
   return (
     parseWithFallback<{ status: string }>(
@@ -320,10 +314,10 @@ export async function revokeDocumentBreakGlass(
 /** GET /api/v1/documents/{documentID}/admin-summary — metadata-only summary (DOC-05). */
 export async function getDocumentAdminSummary(
   documentId: string,
-  opts?: { signal?: AbortSignal } | AbortSignal,
+  opts?: { signal?: AbortSignal },
 ): Promise<DocumentAdminSummary | null> {
   const raw = await request(`/api/v1/documents/${enc(documentId)}/admin-summary`, {
-    signal: resolveSignal(opts),
+    signal: opts?.signal,
   });
   return parseWithFallback<DocumentAdminSummary | null>(raw, DocumentAdminSummarySchema, null, {
     endpoint: "GET /api/v1/documents/{id}/admin-summary",
@@ -370,7 +364,6 @@ export function parseDocumentAccessError(err: unknown): DocumentAccessError | nu
         kind: "document_restricted",
         code: "document_restricted",
         canBreakGlass,
-        can_break_glass: canBreakGlass,
         status: extracted.status || 403,
         message: extracted.message,
       };
@@ -411,7 +404,7 @@ export function isDocumentRestrictedError(err: unknown): boolean {
 
 export function canBreakGlassFromError(err: unknown): boolean {
   const parsed = parseDocumentAccessError(err);
-  return parsed?.code === "document_restricted" && parsed.can_break_glass;
+  return parsed?.code === "document_restricted" && parsed.canBreakGlass;
 }
 
 export function isBreakGlassRequiredError(err: unknown): boolean {

@@ -182,18 +182,10 @@ export const MentionCandidateSchema = z.object({
 });
 export type MentionCandidate = z.infer<typeof MentionCandidateSchema>;
 
-export const DOCUMENT_ACCESS_ERROR_CODES = [
-  "document_restricted",
-  "break_glass_required",
-  "break_glass_reason_invalid",
-] as const;
-export type DocumentAccessErrorCode = (typeof DOCUMENT_ACCESS_ERROR_CODES)[number];
-
 export interface DocumentRestrictedError {
   kind: "document_restricted";
   code: "document_restricted";
   canBreakGlass: boolean;
-  can_break_glass: boolean;
   status: number;
   message: string;
 }

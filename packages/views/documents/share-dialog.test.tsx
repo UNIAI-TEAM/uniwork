@@ -454,7 +454,7 @@ describe("ShareDialog", () => {
     await screen.findByText(t("documents.share.access_title"));
 
     await pickOption(t("documents.share.principal_placeholder"), /Bình/);
-    await pickOption(t("documents.share.level_label"), t("documents.levels.comment"));
+    await pickOption(t("documents.share.level_label"), t("documents.share.level_comment"));
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
 
     await waitFor(() => expect(posts.length).toBe(1));

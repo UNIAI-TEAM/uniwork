@@ -1,20 +1,15 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { Lock, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   canBreakGlassFromError,
-  createDocumentBreakGlass,
-  getDocumentAdminSummary,
   isBreakGlassReasonInvalidError,
   isBreakGlassRequiredError,
   isDocumentRestrictedError,
   parseDocumentAccessError,
-  revokeDocumentBreakGlass,
 } from "@uniwork/core/api/endpoints/documents";
-import { documentKeys } from "@uniwork/core/documents/keys";
 import type {
   BreakGlassReasonInvalidError,
   BreakGlassRequiredError,
@@ -26,6 +21,7 @@ import type {
 } from "@uniwork/core/types/document-access";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Textarea } from "@uniwork/ui/components/ui/textarea";
 
 export {
   canBreakGlassFromError,
@@ -54,39 +50,6 @@ export function getBreakGlassExpiresAt(value: unknown): string | undefined {
   if (typeof value !== "object" || value === null) return undefined;
   const raw = (value as { break_glass_expires_at?: unknown }).break_glass_expires_at;
   return typeof raw === "string" && raw.length > 0 ? raw : undefined;
-}
-
-export function useDocumentAdminSummary(wsId: string, documentId: string, enabled = true) {
-  return useQuery({
-    queryKey: [...documentKeys.detail(wsId, documentId), "admin-summary"] as const,
-    queryFn: ({ signal }) => getDocumentAdminSummary(documentId, signal),
-    enabled: Boolean(wsId) && Boolean(documentId) && enabled,
-    retry: false,
-  });
-}
-
-export function useGrantDocumentBreakGlass(wsId: string, documentId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (reason: string) => createDocumentBreakGlass(documentId, { reason }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) });
-      void qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) });
-      void qc.invalidateQueries({ queryKey: documentKeys.accessLog(wsId, documentId) });
-    },
-  });
-}
-
-export function useRevokeDocumentBreakGlass(wsId: string, documentId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (grantId: string) => revokeDocumentBreakGlass(documentId, grantId),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) });
-      void qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) });
-      void qc.invalidateQueries({ queryKey: documentKeys.accessLog(wsId, documentId) });
-    },
-  });
 }
 
 function formatByteSize(bytes: number | undefined): string | null {
@@ -121,6 +84,9 @@ export interface DocumentLockedCardProps {
   expired?: boolean;
   isSubmitting?: boolean;
   submitError?: string | null;
+  /** A grant was just made but the document still answers "restricted"; offers a retry. */
+  grantPending?: boolean;
+  onRetryOpen?: () => void;
   onGrantBreakGlass?: (reason: string) => void | Promise<unknown>;
   onShare?: () => void;
   onOpenAccessLog?: () => void;
@@ -134,6 +100,8 @@ export function DocumentLockedCard({
   expired = false,
   isSubmitting = false,
   submitError = null,
+  grantPending = false,
+  onRetryOpen,
   onGrantBreakGlass,
   onShare,
   onOpenAccessLog,
@@ -145,9 +113,12 @@ export function DocumentLockedCard({
   const [localSubmitting, setLocalSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const reasonId = useId();
 
   const trimmed = reason.trim();
-  const trimmedCount = trimmed.length;
+  // Count code points like the server counts runes, so an emoji is one
+  // character on both sides of the 10 / 500 limits (R21 L6).
+  const trimmedCount = Array.from(trimmed).length;
   const tooShort = trimmedCount < BREAK_GLASS_REASON_MIN;
   const tooLong = trimmedCount > BREAK_GLASS_REASON_MAX;
   const showTooShort = (reason.length > 0 || submitAttempted) && tooShort;
@@ -176,8 +147,16 @@ export function DocumentLockedCard({
       setLocalSubmitting(true);
       await onGrantBreakGlass(trimmed);
     } catch (err) {
-      if (isBreakGlassReasonInvalidError(err)) {
-        setLocalError(t("documents.breakGlass.reasonTooShort"));
+      const invalid = parseDocumentAccessError(err);
+      if (invalid?.kind === "break_glass_reason_invalid") {
+        // The server names the bound it enforced: pick the message by which
+        // side of it the reason fell on, not always "too short".
+        const length = invalid.length ?? trimmedCount;
+        setLocalError(
+          length > invalid.max
+            ? t("documents.breakGlass.reasonTooLong")
+            : t("documents.breakGlass.reasonTooShort"),
+        );
       } else {
         setLocalError(t("documents.breakGlass.submitFailed"));
       }
@@ -196,10 +175,10 @@ export function DocumentLockedCard({
         <div className="flex items-start gap-3">
           <Lock className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0 flex-1 space-y-2">
-            <h2 className="text-base font-semibold text-foreground">
+            <h2 className="text-title font-semibold text-foreground">
               {t("documents.breakGlass.memberTitle")}
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-body text-muted-foreground">
               {t("documents.breakGlass.memberBody")}
             </p>
           </div>
@@ -218,19 +197,34 @@ export function DocumentLockedCard({
         <div
           role="status"
           data-testid="break-glass-expired-banner"
-          className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground"
+          className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-caption text-foreground"
         >
           {t("documents.breakGlass.expiredBanner")}
+        </div>
+      ) : null}
+
+      {grantPending ? (
+        <div
+          role="status"
+          data-testid="break-glass-pending-banner"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-caption text-foreground"
+        >
+          <span>{t("documents.breakGlass.grantedPending")}</span>
+          {onRetryOpen ? (
+            <Button type="button" size="sm" variant="outline" onClick={onRetryOpen}>
+              {t("documents.detail.retry")}
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
       <div className="flex items-start gap-3">
         <ShieldAlert className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
         <div className="min-w-0 flex-1 space-y-2">
-          <h2 className="text-base font-semibold text-foreground">
+          <h2 className="text-title font-semibold text-foreground">
             {t("documents.breakGlass.lockedTitle")}
           </h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-body text-muted-foreground">
             {t("documents.breakGlass.lockedBody")}
           </p>
         </div>
@@ -238,7 +232,7 @@ export function DocumentLockedCard({
 
       <div
         data-testid="document-locked-metadata"
-        className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+        className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-caption text-muted-foreground"
       >
         <span className="font-medium text-foreground">
           {metadata?.title?.trim() || t("documents.detail.untitled")}
@@ -280,14 +274,14 @@ export function DocumentLockedCard({
               type="button"
               size="sm"
               variant="ghost"
-              className="h-auto px-0 py-0 text-xs font-semibold text-foreground hover:bg-transparent"
+              className="h-auto px-0 py-0 text-caption font-semibold text-foreground hover:bg-transparent"
               onClick={() => textareaRef.current?.focus()}
             >
               {t("documents.breakGlass.openButton")}
             </Button>
             <span
               data-testid="break-glass-reason-counter"
-              className="text-xs text-muted-foreground tabular-nums"
+              className="text-caption text-muted-foreground tabular-nums"
             >
               {t("documents.breakGlass.reasonCounter", { count: trimmedCount })}
             </span>
@@ -295,17 +289,17 @@ export function DocumentLockedCard({
 
           <div className="space-y-1.5">
             <label
-              htmlFor="break-glass-reason-input"
-              className="block text-xs font-medium text-foreground"
+              htmlFor={reasonId}
+              className="block text-caption font-medium text-foreground"
             >
               {t("documents.breakGlass.reasonLabel")}
             </label>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-caption text-muted-foreground">
               {t("documents.breakGlass.reasonHint")}
             </p>
-            <textarea
+            <Textarea
               ref={textareaRef}
-              id="break-glass-reason-input"
+              id={reasonId}
               rows={3}
               value={reason}
               onChange={(event) => {
@@ -313,18 +307,17 @@ export function DocumentLockedCard({
                 if (localError) setLocalError(null);
               }}
               aria-invalid={Boolean(validationMessage)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
 
           {validationMessage ? (
-            <p role="alert" data-testid="break-glass-reason-error" className="text-xs text-destructive">
+            <p role="alert" data-testid="break-glass-reason-error" className="text-caption text-destructive">
               {validationMessage}
             </p>
           ) : null}
 
           {errorBanner ? (
-            <p role="alert" className="text-xs text-destructive">
+            <p role="alert" className="text-caption text-destructive">
               {errorBanner}
             </p>
           ) : null}
@@ -349,6 +342,8 @@ export interface DocumentBreakGlassBannerProps {
   expiresAt?: string | null;
   expired?: boolean;
   isEnding?: boolean;
+  /** True while the grant id is still unknown (summary loading): End access waits for it. */
+  endDisabled?: boolean;
   error?: string | null;
   onEndAccess?: () => void | Promise<unknown>;
 }
@@ -357,6 +352,7 @@ export function DocumentBreakGlassBanner({
   expiresAt,
   expired = false,
   isEnding = false,
+  endDisabled = false,
   error = null,
   onEndAccess,
 }: DocumentBreakGlassBannerProps) {
@@ -367,7 +363,7 @@ export function DocumentBreakGlassBanner({
       <div
         role="status"
         data-testid="break-glass-expired-banner"
-        className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-xs text-foreground"
+        className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-caption text-foreground"
       >
         {t("documents.breakGlass.expiredBanner")}
       </div>
@@ -380,7 +376,7 @@ export function DocumentBreakGlassBanner({
     <div
       role="status"
       data-testid="break-glass-active-banner"
-      className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning/10 px-4 py-2.5 text-xs text-foreground"
+      className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning/10 px-4 py-2.5 text-caption text-foreground"
     >
       <div className="flex items-center gap-2">
         <ShieldAlert className="size-4 shrink-0 text-warning" aria-hidden />
@@ -388,7 +384,7 @@ export function DocumentBreakGlassBanner({
       </div>
       <div className="flex items-center gap-2">
         {error ? (
-          <span role="alert" className="text-xs text-destructive">
+          <span role="alert" className="text-caption text-destructive">
             {error}
           </span>
         ) : null}
@@ -397,7 +393,7 @@ export function DocumentBreakGlassBanner({
             type="button"
             size="sm"
             variant="outline"
-            disabled={isEnding}
+            disabled={isEnding || endDisabled}
             onClick={() => {
               void onEndAccess();
             }}
