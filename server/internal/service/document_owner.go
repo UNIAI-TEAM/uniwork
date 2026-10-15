@@ -123,8 +123,12 @@ func (s *DocumentService) CreateOwnedDocumentInTx(
 		WorkspaceID:    in.WorkspaceID,
 		Kind:           in.Kind,
 		Title:          in.Title,
-		Visibility:     "workspace",
-		WorkspaceLevel: "edit", // SH-S1 T3: create default
+		Visibility:     documentVisibilityWorkspace,
+		// A Work Product document keeps the pre-SH-S1 home row: it is
+		// workspace-visible at edit, and its rights come from the product's
+		// resolver (§13.4), never from a create request (U-SH2 leaves this
+		// seam alone).
+		WorkspaceLevel: string(DocumentLevelEdit),
 		Content:        content,
 		ContentText:    contentText,
 		SearchText:     documentSearchText(in.Title, contentText),

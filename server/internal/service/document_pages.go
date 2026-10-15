@@ -124,6 +124,38 @@ func validDocumentVisibility(v string) error {
 	return nil
 }
 
+// createHomeRow resolves the visibility and the workspace level a document is
+// created with (SH-S1, U-SH2). The default is private: an empty request at the
+// root stores restricted, and a document that is not workspace-visible has no
+// home row (BR-10) even though the level column keeps a value.
+//
+// An empty request under a parent inherits the parent's pair - visibility and
+// level together, read off the parent row locked in the transaction (C-01 §4;
+// the inheritance is fixed at create, a later move leaves both columns alone).
+//
+// A request that names a visibility is stored as sent. The level is the one
+// the document would grant if that visibility were workspace: the parent's
+// level when the parent is workspace-visible (under a restricted parent there
+// is no home row to read, so view), and view at the root - Q-S3: turning
+// "share with workspace" on at create grants view, the owner raises it from
+// the share dialog.
+func createHomeRow(requested string, parent *db.Document) (visibility, level string) {
+	visibility = requested
+	if parent != nil && visibility == "" {
+		visibility, level = parent.Visibility, parent.WorkspaceLevel
+	}
+	if visibility == "" {
+		visibility = documentVisibilityRestricted
+	}
+	if level == "" {
+		level = string(DocumentLevelView)
+		if parent != nil && parent.Visibility == documentVisibilityWorkspace {
+			level = parent.WorkspaceLevel
+		}
+	}
+	return visibility, level
+}
+
 // sanitizedPage is page JSON after the closed schema ran over it.
 type sanitizedPage struct {
 	content []byte
@@ -223,20 +255,17 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return DocumentView{}, err
 	}
-	visibility := in.Visibility
+	var parent *db.Document
 	if in.ParentID != "" {
-		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, w.OrganizationID, workspaceID, kind)
+		p, err := s.lockPageParent(ctx, q, actor, in.ParentID, w.OrganizationID, workspaceID, kind)
 		if err != nil {
 			return DocumentView{}, err
 		}
-		if visibility == "" {
-			// Inherited at create only; a later move leaves visibility alone.
-			visibility = parent.Visibility
-		}
+		parent = &p
 	}
-	if visibility == "" {
-		visibility = documentVisibilityWorkspace
-	}
+	// U-SH2: private at the root unless the request opens the home row; a
+	// child inherits its parent's pair.
+	visibility, workspaceLevel := createHomeRow(in.Visibility, parent)
 	position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
 		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: nullText(in.ParentID),
 	})
@@ -267,7 +296,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		Title:          title,
 		Icon:           icon,
 		Visibility:     visibility,
-		WorkspaceLevel: "edit", // SH-S1 T3: create default
+		WorkspaceLevel: workspaceLevel,
 		Content:        page.content,
 		ContentText:    page.text,
 		SearchText:     documentSearchText(title, page.text),

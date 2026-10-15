@@ -206,8 +206,11 @@ func sha(b []byte) string {
 
 func (e *docStorageEnv) createFile(t *testing.T, actor Actor, name string, body []byte) DocumentFileResult {
 	t.Helper()
+	// Explicitly workspace-visible: these fixtures are read and written by
+	// members who are not the ACL owner, and U-SH2's private default is not
+	// what they test.
 	res, err := e.svc.CreateFileDocument(context.Background(), actor, e.tn.wsA, CreateFileDocumentInput{
-		Title: "Báo cáo " + name, Filename: name, Body: bytes.NewReader(body),
+		Title: "Báo cáo " + name, Filename: name, Body: bytes.NewReader(body), Visibility: documentVisibilityWorkspace,
 	})
 	if err != nil {
 		t.Fatalf("create file document %s: %v", name, err)
