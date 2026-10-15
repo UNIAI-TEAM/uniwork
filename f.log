@@ -1,0 +1,5 @@
+$ grep -c "genoffice-tool-schemas.test.mjs" scripts/check.sh .github/workflows/ci.yml; rc=$?; echo; echo "GATE_WIRED_EXIT=$rc"; [ $rc -eq 0 ]
+scripts/check.sh:1
+.github/workflows/ci.yml:1
+
+GATE_WIRED_EXIT=0

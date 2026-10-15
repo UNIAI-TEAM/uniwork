@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+82e7527cbc16e0d3bce11ca259207edfdd34477b
+72f7dcdda890d4d6e6f34cf17b9d8de59148ae00
+82e7527cb docs(office): name the fork branch that carries --emit-schemas
+3e2fe9b3c ci: run the genoffice schema match test in make check and CI
+d6fa6c76a docs(office): W11 — §6 and the §6.5 matrix say what G6-09 shows and how it is undone
+32992078e test(office): tie each embedded schema to its block hash cell (G6-09 W11)
+19857dd15 chore: merge the D root f4329d09f into the G6-09 lane branch
+f4329d09f chore: merge root e2e documents fix (2e76d5ca1) into the G5-G7 root
+
+SYNCED_EXIT=1
