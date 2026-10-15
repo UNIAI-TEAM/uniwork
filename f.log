@@ -1,0 +1,179 @@
+$ for f in /tmp/g7-10-run-r4/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 80 "$f"; }; done; true
+=== /tmp/g7-10-run-r4/logs/app.log
+[46408:1014/234850.166216:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[46408:1014/234850.957838:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[46408:1014/234850.957861:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+
+DevTools listening on ws://127.0.0.1:34135/devtools/browser/a9342107-959f-46f5-8658-c8e796706e2a
+Opening in existing browser session.
+=== /tmp/g7-10-run-r4/logs/app-proxy.log
+=== /tmp/g7-10-run-r4/logs/G5-A05-step.log
+$ node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 3 --run-dir /tmp/g7-10-run-r4
+
+FAILED: start.sh never finished (the run is still marked starting); the stack is not up
+=== /tmp/g7-10-run-r4/logs/lib.log
+=== /tmp/g7-10-run-r4/logs/migrate.log
+23:48:38.969 INF migrate done component=server dir=up
+=== /tmp/g7-10-run-r4/logs/server-build.log
+=== /tmp/g7-10-run-r4/logs/server.log
+23:50:09.706 INF http request method=GET path=/api/v1/documents/01M4YD5DQA96GZ5W8ESM249161/versions status=200 duration=1.134ms request_id=cursor/oXh87oidCS-000203 correlation_id=e28814c0657619794ac4e96aaf7f7b0c trace_id=e28814c0657619794ac4e96aaf7f7b0c span_id=27b2ee723dfd3381 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:50:09.710 ERR http request method=POST path=/api/v1/documents/01M4YD5DQA96GZ5W8ESM249161/ai/uniwork/chat/completions status=503 duration=1.971ms request_id=cursor/oXh87oidCS-000204 correlation_id=4eea14271ba127dd3192d2413d618f14 trace_id=4eea14271ba127dd3192d2413d618f14 span_id=1e47ca73b1c5072b organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:50:09.713 INF http request method=GET path=/api/v1/documents/01M4YD5DQA96GZ5W8ESM249161/versions status=200 duration=1.453ms request_id=cursor/oXh87oidCS-000205 correlation_id=c799c8ce5cd56e95fde9e1e95191ea62 trace_id=c799c8ce5cd56e95fde9e1e95191ea62 span_id=f902f814dfa481a2 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:50:09.717 INF http request method=GET path=/api/v1/documents/01M4YD5DQA96GZ5W8ESM249161 status=200 duration=980µs request_id=cursor/oXh87oidCS-000206 correlation_id=cb78684b317f8792f921c78f6394d05d trace_id=cb78684b317f8792f921c78f6394d05d span_id=ec1fa05e1d1d8f1b organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:50:09.719 WRN http request method=GET path=/api/v1/documents/01M4YD5DQA96GZ5W8ESM249161/versions/commit status=410 duration=1.008ms request_id=cursor/oXh87oidCS-000207 correlation_id=144a89807f3f565cd690dffd55e8f0bc trace_id=144a89807f3f565cd690dffd55e8f0bc span_id=13d7607583060af9 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:50:10.156 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/ai/cloud status=200 duration=4.322ms request_id=cursor/oXh87oidCS-000208 correlation_id=f1bf423a09644539604e38d7ffb3d012 trace_id=f1bf423a09644539604e38d7ffb3d012 span_id=2252441fc39715cd actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:50:10.427 INF http request method=GET path=/api/v1/documents/01M4YD5DQA96GZ5W8ESM249161/comments status=200 duration=3.11ms request_id=cursor/oXh87oidCS-000209 correlation_id=9f3dce260041f1f55addc1ca69964551 trace_id=9f3dce260041f1f55addc1ca69964551 span_id=9a2f87341752a06a organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:50:34.361 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=2.598ms request_id=cursor/oXh87oidCS-000210 correlation_id=571adf84046fbbd4d863dcfce3977cb4 trace_id=571adf84046fbbd4d863dcfce3977cb4 span_id=0d8c8b803e644aa4 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:50:34.369 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=5.308ms request_id=cursor/oXh87oidCS-000211 correlation_id=060747d30cfaa6ba922e943b340be0f4 trace_id=060747d30cfaa6ba922e943b340be0f4 span_id=0baeda530254830b organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:50:34.376 INF http request method=GET path=/api/v1/documents/01M4YD5DQA96GZ5W8ESM249161 status=200 duration=2.826ms request_id=cursor/oXh87oidCS-000212 correlation_id=56171d1779a1c3042ae636af1503169e trace_id=56171d1779a1c3042ae636af1503169e span_id=93e904c9ac628b97 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:51:34.363 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=3.317ms request_id=cursor/oXh87oidCS-000213 correlation_id=df9ca43b9883f72019d1449bfa1c255d trace_id=df9ca43b9883f72019d1449bfa1c255d span_id=ab8349399339d661 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:51:34.370 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=4.546ms request_id=cursor/oXh87oidCS-000214 correlation_id=1b2e5ff8a647355292755928ca5d6019 trace_id=1b2e5ff8a647355292755928ca5d6019 span_id=581b434ed74cae56 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:52:34.363 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=2.343ms request_id=cursor/oXh87oidCS-000215 correlation_id=0d310d9f585d5bd37075e3afa81e83ed trace_id=0d310d9f585d5bd37075e3afa81e83ed span_id=d820c7bcfb54d822 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:52:34.367 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=3.307ms request_id=cursor/oXh87oidCS-000216 correlation_id=80bc21baaee65326b6cfe3fd7a536a39 trace_id=80bc21baaee65326b6cfe3fd7a536a39 span_id=7f0ee11f5823399a organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:53:34.364 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=3.32ms request_id=cursor/oXh87oidCS-000217 correlation_id=d55b6a1430b8cf763f403a92979914ca trace_id=d55b6a1430b8cf763f403a92979914ca span_id=5be7e22f9d10a8fd actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:53:34.371 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=5.176ms request_id=cursor/oXh87oidCS-000218 correlation_id=a2b12a21cb535fb52ef89399c2bc0b22 trace_id=a2b12a21cb535fb52ef89399c2bc0b22 span_id=355cac36039e1a7f organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:54:34.364 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/office/capabilities status=200 duration=2.837ms request_id=cursor/oXh87oidCS-000219 correlation_id=ebbb8b78e20c471641c40ea1a9abd0a4 trace_id=ebbb8b78e20c471641c40ea1a9abd0a4 span_id=82e2021922d7fb63 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:54:34.367 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.601ms request_id=cursor/oXh87oidCS-000220 correlation_id=bc025f034a7c73509cffe63969c96c40 trace_id=bc025f034a7c73509cffe63969c96c40 span_id=8efe931a0a65fae7 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:54:34.372 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=3.679ms request_id=cursor/oXh87oidCS-000221 correlation_id=4f49031f125ce4521a51b1679fc26d6b trace_id=4f49031f125ce4521a51b1679fc26d6b span_id=3b8ad3abe3222eb0 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:55:34.363 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.998ms request_id=cursor/oXh87oidCS-000222 correlation_id=524fc100ca6295711fa8ebc5a1b56911 trace_id=524fc100ca6295711fa8ebc5a1b56911 span_id=c2754b02ab14ee25 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:55:34.366 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.942ms request_id=cursor/oXh87oidCS-000223 correlation_id=210c43889f8fce7a5353bc95d27aa903 trace_id=210c43889f8fce7a5353bc95d27aa903 span_id=f7772ab286fb26ee organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:56:34.365 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=2.374ms request_id=cursor/oXh87oidCS-000224 correlation_id=0bb536ddde84219aea2f332e979fcf6c trace_id=0bb536ddde84219aea2f332e979fcf6c span_id=8f724f736cbdd1c3 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:56:34.370 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=3.729ms request_id=cursor/oXh87oidCS-000225 correlation_id=3873be429f1d5a3ba4e5eb957aa65cff trace_id=3873be429f1d5a3ba4e5eb957aa65cff span_id=2483e482fecdf526 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:57:34.366 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=2.191ms request_id=cursor/oXh87oidCS-000226 correlation_id=9061f32c6a7c9e599a8033e7db99397d trace_id=9061f32c6a7c9e599a8033e7db99397d span_id=0ba31578b8a48a18 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:57:34.370 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=3.527ms request_id=cursor/oXh87oidCS-000227 correlation_id=dca6a33571f43c2414d3def8b1d29eba trace_id=dca6a33571f43c2414d3def8b1d29eba span_id=b7150f170a80a8af organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:58:34.366 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.538ms request_id=cursor/oXh87oidCS-000228 correlation_id=3c4eaca375461a9963fce2f4cf1c7ed7 trace_id=3c4eaca375461a9963fce2f4cf1c7ed7 span_id=e0d4fd7567de0d15 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:58:34.370 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=2.447ms request_id=cursor/oXh87oidCS-000229 correlation_id=f58d38da89d1053e21ec369e935aa6dd trace_id=f58d38da89d1053e21ec369e935aa6dd span_id=be51fe4b6ecb6051 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:59:34.367 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/office/capabilities status=200 duration=1.85ms request_id=cursor/oXh87oidCS-000230 correlation_id=7e729ae0e33abb6ab4df74ad10a35d22 trace_id=7e729ae0e33abb6ab4df74ad10a35d22 span_id=7251c46e84ce5d36 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:59:34.370 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.464ms request_id=cursor/oXh87oidCS-000231 correlation_id=d27cd8b04da1973f64949e8b5ac34305 trace_id=d27cd8b04da1973f64949e8b5ac34305 span_id=67b4330c97402529 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+23:59:34.374 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=2.129ms request_id=cursor/oXh87oidCS-000232 correlation_id=037b3cc305b766092fdaacc2bfc85051 trace_id=037b3cc305b766092fdaacc2bfc85051 span_id=6945ec5255a58fe8 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:00:10.165 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/ai/cloud status=200 duration=4.333ms request_id=cursor/oXh87oidCS-000233 correlation_id=403369d21fe05b6ac83d6c017af2b8cf trace_id=403369d21fe05b6ac83d6c017af2b8cf span_id=68bf9c3dfdceaf63 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:00:34.367 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.393ms request_id=cursor/oXh87oidCS-000234 correlation_id=4982283ed232e8a1d47dd534e4900271 trace_id=4982283ed232e8a1d47dd534e4900271 span_id=fc0b864029fa2878 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:00:34.370 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.908ms request_id=cursor/oXh87oidCS-000235 correlation_id=e78ea87a0799f50a16cb7241bed654cb trace_id=e78ea87a0799f50a16cb7241bed654cb span_id=c6c313794c9c39e6 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:00:55.045 INF http request method=POST path=/api/v1/auth/desktop/refresh status=200 duration=4.018ms request_id=cursor/oXh87oidCS-000236 correlation_id=928e2ecdef6fe070697cb43c7de6481b trace_id=928e2ecdef6fe070697cb43c7de6481b span_id=b8427910923cd74c
+00:00:55.050 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=2.024ms request_id=cursor/oXh87oidCS-000237 correlation_id=f59c8ba10d5363b0bd00f103a582ff18 trace_id=f59c8ba10d5363b0bd00f103a582ff18 span_id=7dd2d0b5b0321760 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:00:55.054 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=2.544ms request_id=cursor/oXh87oidCS-000238 correlation_id=fdfbbc729b37bfa144a6f72a95702661 trace_id=fdfbbc729b37bfa144a6f72a95702661 span_id=87e017106b60c43f organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:01:55.051 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.942ms request_id=cursor/oXh87oidCS-000239 correlation_id=d9289522ccf2d3ee8b52c1ff91e03bae trace_id=d9289522ccf2d3ee8b52c1ff91e03bae span_id=2a3f0bdb602c2529 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:01:55.056 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=3.343ms request_id=cursor/oXh87oidCS-000240 correlation_id=513e485ed33fbbe52334c9e3941c7eec trace_id=513e485ed33fbbe52334c9e3941c7eec span_id=3ad4c92bcb99132b organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:02:55.051 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.729ms request_id=cursor/oXh87oidCS-000241 correlation_id=46c5698b1bfbceca5afa655b218c6ad6 trace_id=46c5698b1bfbceca5afa655b218c6ad6 span_id=5a65ffcfd96a0371 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:02:55.055 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=2.597ms request_id=cursor/oXh87oidCS-000242 correlation_id=0e8b1364d18ec0a537f1a060cc377cb8 trace_id=0e8b1364d18ec0a537f1a060cc377cb8 span_id=3485bd9007ff61c1 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:03:55.051 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.616ms request_id=cursor/oXh87oidCS-000243 correlation_id=5b186c039fde99cc23a466ae4f9403ac trace_id=5b186c039fde99cc23a466ae4f9403ac span_id=237845922f55817e actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:03:55.056 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=3.232ms request_id=cursor/oXh87oidCS-000244 correlation_id=33c8efb0f8ba8df16b7c82a181d1a477 trace_id=33c8efb0f8ba8df16b7c82a181d1a477 span_id=178dd36d3a0bdb02 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:04:39.190 INF document change snapshot sweep component=server snapshots=2 items=2
+00:04:55.053 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/office/capabilities status=200 duration=1.416ms request_id=cursor/oXh87oidCS-000245 correlation_id=ccec83309c80a1dc1e3637f38842382d trace_id=ccec83309c80a1dc1e3637f38842382d span_id=b275ba54457ee15f actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:04:55.055 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.049ms request_id=cursor/oXh87oidCS-000246 correlation_id=44362098040a9ba3e4437e460c99866c trace_id=44362098040a9ba3e4437e460c99866c span_id=47a87ecfc094abed actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:04:55.058 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.805ms request_id=cursor/oXh87oidCS-000247 correlation_id=a0bf0055e11ac8cb78c2736d695a449e trace_id=a0bf0055e11ac8cb78c2736d695a449e span_id=46f3c29af60627cc organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:05:55.054 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=2.196ms request_id=cursor/oXh87oidCS-000248 correlation_id=636a9c1a8f056e0b79a58a1c6da4dccf trace_id=636a9c1a8f056e0b79a58a1c6da4dccf span_id=b5fc1a83c5a2dc37 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:05:55.059 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=2.935ms request_id=cursor/oXh87oidCS-000249 correlation_id=4db079c4f16652cf3f59c4a474ce02f4 trace_id=4db079c4f16652cf3f59c4a474ce02f4 span_id=edad795a3e753b1d organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:06:55.054 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.878ms request_id=cursor/oXh87oidCS-000250 correlation_id=52439d7f37327fd465899188f08cd94b trace_id=52439d7f37327fd465899188f08cd94b span_id=1ac119e7b54f3ec7 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:06:55.058 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.835ms request_id=cursor/oXh87oidCS-000251 correlation_id=e86f6b92bcb254199fd9c692e1856075 trace_id=e86f6b92bcb254199fd9c692e1856075 span_id=f7bdc8dac9fa35de organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:07:55.055 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.382ms request_id=cursor/oXh87oidCS-000252 correlation_id=5144719b2b28ff9031a9861d8952f1ef trace_id=5144719b2b28ff9031a9861d8952f1ef span_id=3c53cb0bc5e81e2b actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:07:55.058 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.75ms request_id=cursor/oXh87oidCS-000253 correlation_id=5d514fa5474e7a9ef4d0b137d14ce269 trace_id=5d514fa5474e7a9ef4d0b137d14ce269 span_id=a9568e3720507840 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:08:55.057 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.535ms request_id=cursor/oXh87oidCS-000254 correlation_id=34cce3c97c4dee16dfc1fcc8ee6396e4 trace_id=34cce3c97c4dee16dfc1fcc8ee6396e4 span_id=5ac9cf5c31d6c845 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:08:55.060 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.99ms request_id=cursor/oXh87oidCS-000255 correlation_id=c1ff121ffa6cae3a2e92b768f44ea6ec trace_id=c1ff121ffa6cae3a2e92b768f44ea6ec span_id=cb2cb8ab1be9d18f organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:09:55.058 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/office/capabilities status=200 duration=2.482ms request_id=cursor/oXh87oidCS-000256 correlation_id=0f5291ac194a9bbf147668ac258e792c trace_id=0f5291ac194a9bbf147668ac258e792c span_id=5af67c10133131d3 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:09:55.060 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=802µs request_id=cursor/oXh87oidCS-000257 correlation_id=ceea7be71bcabb5879127a9dfd13da98 trace_id=ceea7be71bcabb5879127a9dfd13da98 span_id=b05b1ad55e859846 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:09:55.064 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.892ms request_id=cursor/oXh87oidCS-000258 correlation_id=d770ae69ba2aa441c9edd27cf84042cc trace_id=d770ae69ba2aa441c9edd27cf84042cc span_id=dd7a5a2a6b138b2a organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:10:10.173 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/ai/cloud status=200 duration=4.379ms request_id=cursor/oXh87oidCS-000259 correlation_id=8861aafe982a6b06ec3ad03695647eac trace_id=8861aafe982a6b06ec3ad03695647eac span_id=c9dbda39e31fadb5 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:10:55.057 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.626ms request_id=cursor/oXh87oidCS-000260 correlation_id=f87ae24f7d2f68a1042c3cbcd37b751c trace_id=f87ae24f7d2f68a1042c3cbcd37b751c span_id=b1d614333d8de1bd actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:10:55.061 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.693ms request_id=cursor/oXh87oidCS-000261 correlation_id=89a37734bfb468c64abc0b63bfa55d8d trace_id=89a37734bfb468c64abc0b63bfa55d8d span_id=02aa1e2f2371e969 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:11:55.058 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=2.208ms request_id=cursor/oXh87oidCS-000262 correlation_id=1487ef51f1b99220b8088c7e1191634a trace_id=1487ef51f1b99220b8088c7e1191634a span_id=4fff79108f723ba6 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:11:55.064 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=4.029ms request_id=cursor/oXh87oidCS-000263 correlation_id=dc3d53663c7bd00a65aea38f83397553 trace_id=dc3d53663c7bd00a65aea38f83397553 span_id=9eab5b430af6c608 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:12:55.052 INF http request method=POST path=/api/v1/auth/desktop/refresh status=200 duration=2.188ms request_id=cursor/oXh87oidCS-000264 correlation_id=e361115545a9cf0aef5191a022218852 trace_id=e361115545a9cf0aef5191a022218852 span_id=07657349aac92ad9
+00:12:55.058 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=2.136ms request_id=cursor/oXh87oidCS-000265 correlation_id=86638256d97aadc748320e4f611c4a35 trace_id=86638256d97aadc748320e4f611c4a35 span_id=6fe9ffca265b9097 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:12:55.063 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=3.5ms request_id=cursor/oXh87oidCS-000266 correlation_id=9ae462914f3c2db1f6d86b6c5ca962ea trace_id=9ae462914f3c2db1f6d86b6c5ca962ea span_id=d99cd6b9608f52d9 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:13:55.059 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.428ms request_id=cursor/oXh87oidCS-000267 correlation_id=07df0d8b65793963b5e2adf299abd67f trace_id=07df0d8b65793963b5e2adf299abd67f span_id=f866ad755694a985 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:13:55.062 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.615ms request_id=cursor/oXh87oidCS-000268 correlation_id=511b2d571daab7e0ad7419f04a6a0382 trace_id=511b2d571daab7e0ad7419f04a6a0382 span_id=2b31ea86ca0a9fde organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:14:55.058 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.705ms request_id=cursor/oXh87oidCS-000269 correlation_id=c6f4c75b8c5d2f00eb58efe5ecfebad2 trace_id=c6f4c75b8c5d2f00eb58efe5ecfebad2 span_id=b7f2ac2ce419685c actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:14:55.062 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=2.394ms request_id=cursor/oXh87oidCS-000270 correlation_id=4aa24e5dfabced61e78a4aec9d906674 trace_id=4aa24e5dfabced61e78a4aec9d906674 span_id=ab96c884dd37faff organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:15:55.059 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/office/capabilities status=200 duration=1.496ms request_id=cursor/oXh87oidCS-000271 correlation_id=45880cc1de4fa088c927998b7c96114d trace_id=45880cc1de4fa088c927998b7c96114d span_id=d64151652b3e4b16 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:15:55.062 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.898ms request_id=cursor/oXh87oidCS-000272 correlation_id=dde0c583b3b96b8c96a9cfd6cb9c822c trace_id=dde0c583b3b96b8c96a9cfd6cb9c822c span_id=752375cbb85cf274 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:15:55.066 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=2.16ms request_id=cursor/oXh87oidCS-000273 correlation_id=9d0b70d310c533abcf05c2de48e0f1c8 trace_id=9d0b70d310c533abcf05c2de48e0f1c8 span_id=78c6bfccd36ffa91 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:16:55.059 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.466ms request_id=cursor/oXh87oidCS-000274 correlation_id=9114b18388774c05c129965e246f79e1 trace_id=9114b18388774c05c129965e246f79e1 span_id=863b6c6f124a19b0 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:16:55.062 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.71ms request_id=cursor/oXh87oidCS-000275 correlation_id=ea3cc146f2629fefe2e68a8281e48b4e trace_id=ea3cc146f2629fefe2e68a8281e48b4e span_id=206b92515e1d5afd organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:17:55.060 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.231ms request_id=cursor/oXh87oidCS-000276 correlation_id=65aa988b2da28a462033ad67d31940bf trace_id=65aa988b2da28a462033ad67d31940bf span_id=bbd06c22d8fdd9bc actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:17:55.063 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=1.732ms request_id=cursor/oXh87oidCS-000277 correlation_id=3bf3d217665df4084249643554cb0bcd trace_id=3bf3d217665df4084249643554cb0bcd span_id=28dd71ccd3e53564 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:18:55.061 INF http request method=GET path=/api/v1/orgs/01M4YD38JZJ6Q0Q4QQN6JNH99Q/workspaces status=200 duration=1.293ms request_id=cursor/oXh87oidCS-000278 correlation_id=84fcc5d2f30bca2d0f5a8dd1202b056c trace_id=84fcc5d2f30bca2d0f5a8dd1202b056c span_id=2047f2fe565ff6a6 actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:18:55.065 INF http request method=GET path=/api/v1/workspaces/01M4YD38KRF770536RF00T96NW/documents/changes status=200 duration=2.075ms request_id=cursor/oXh87oidCS-000279 correlation_id=67ae17ff51ea8aed482c09e93117485f trace_id=67ae17ff51ea8aed482c09e93117485f span_id=3082e3dc16ccf014 organization_id=01M4YD38JZJ6Q0Q4QQN6JNH99Q workspace_id=01M4YD38KRF770536RF00T96NW actor_id=01M4YD38JE7SQGJJKXD42ZX7XH actor_kind=human
+00:19:49.307 INF shutting down component=server signal=terminated
+00:19:49.309 INF stopped component=server
+=== /tmp/g7-10-run-r4/logs/web.log
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 99426: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 100634: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 98872: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 99753: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 100080: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 99199: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 100407: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 98645: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 99526: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 35473: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 100603: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+Failed to restore data for task TaskId 100601: Batch data restore failed: Failed to restore Data for batch of 2267 tasks
+
+Caused by:
+    0: Looking up typed data for 2267 tasks from database failed
+    1: Unable to open static sorted file referenced from 00000071.meta
+    2: failed to open file `/workspace/apps/web/.next/dev/cache/turbopack/v16.3.8-b0fad0d4/00000065.sst`: No such file or directory (os error 2)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+turbo-tasks: an internal panic occurred outside the per-task panic boundary. This is a bug in turbo-tasks/Turbopack — please report it at https://github.com/vercel/next.js/discussions and include the panic message and stack trace above.
+
+Aborting.

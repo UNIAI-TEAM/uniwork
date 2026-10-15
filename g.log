@@ -1,0 +1,11 @@
+$ echo "=== markers"; cat /tmp/g710-r4-markers.txt; awk '/_EXIT/{v=$NF; if (v!=0 && v!=77) bad=1; if (($1=="G710_START_EXIT" || $1=="G710_LOOP3_EXIT" || $1=="G710_UNIT_EXIT") && v!=0) bad=1} END{exit bad}' /tmp/g710-r4-markers.txt; rc=$?; echo "G710_ROUND_EXIT $rc"; exit $rc
+=== markers
+G710_UNIT_EXIT 0
+G710_APT_EXIT 0
+G710_FRAMES_EXIT 0
+G710_LOOP2_EXIT 1
+G710_LOOP3_EXIT 1
+G710_VERIFY_EXIT 0
+G710_STOP_EXIT 0
+G710_KEYRING_EXEC_EXIT 0
+G710_ROUND_EXIT 1
