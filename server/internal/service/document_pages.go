@@ -551,9 +551,11 @@ func (s *DocumentService) documentBreadcrumbs(ctx context.Context, q *db.Queries
 //
 // Audit is metadata only - the changed metadata fields, the new revision and
 // whether (not what) the content changed - never the page JSON. The
-// document.updated frame goes out only when title, icon or visibility moved
+// document.updated frame goes out only when title or icon moved
 // (C-01 §5.1/§6.1): an autosave does not fan out to the workspace, and no
-// frame carries a revision (ADR 0015 opens that to task.updated only).
+// frame carries a revision (ADR 0015 opens that to task.updated only). A
+// visibility move is the home row's own event instead
+// (document.workspace_access_changed, SH-S1).
 func (s *DocumentService) UpdateDocument(ctx context.Context, actor Actor, documentID string, in UpdateDocumentInput) (DocumentView, error) {
 	started := time.Now()
 	view, err := s.updateDocument(ctx, actor, documentID, in)
@@ -674,16 +676,22 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			before["icon"], after["icon"] = textOrNil(doc.Icon), textOrNil(icon)
 			next.Icon = icon
 		}
+		// The home row (SH-S1): its visibility and its level. A PATCH moves
+		// only visibility and keeps the stored level, so both fields are named
+		// here and only the visibility one can differ.
+		homeBefore := map[string]any{"visibility": doc.Visibility, "workspace_level": doc.WorkspaceLevel}
+		homeAfter := map[string]any{"visibility": doc.Visibility, "workspace_level": doc.WorkspaceLevel}
 		if in.Visibility != nil && *in.Visibility != doc.Visibility {
-			before["visibility"], after["visibility"] = doc.Visibility, *in.Visibility
+			homeAfter["visibility"] = *in.Visibility
 			next.Visibility = *in.Visibility
 		}
+		homeChanged := in.Visibility != nil && *in.Visibility != doc.Visibility
 		contentChanged := in.Content != nil && !sameJSON(page.content, doc.Content)
 		if contentChanged {
 			next.Content, next.ContentText, next.ContentBytes = page.content, page.text, int32(len(page.content))
 		}
 		metaChanged := len(after) > 0
-		if !metaChanged && !contentChanged {
+		if !metaChanged && !contentChanged && !homeChanged {
 			view, err := s.documentView(ctx, q, actor, doc)
 			out = view
 			return err
@@ -716,21 +724,42 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 				"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
 			}})
 		}
-		if err := auditRecorder.Record(ctx, q, audit.Entry{
-			OrganizationID: updated.OrganizationID,
-			WorkspaceID:    updated.WorkspaceID,
-			Actor:          actor,
-			Action:         audit.ActionDocumentUpdated,
-			ResourceType:   "document",
-			ResourceID:     updated.ID,
-			Changes:        audit.Diff(before, after),
-			Metadata: map[string]any{
-				"revision":        strconv.FormatInt(updated.Revision, 10),
-				"content_changed": contentChanged,
-				"content_bytes":   updated.ContentBytes,
-			},
-		}, emit...); err != nil {
-			return err
+		// Two rows at most: the metadata row (title/icon and the content
+		// autosave) and, when the home row moved, the workspace-access row.
+		// The visibility change lives on the second one (SH-S1); a plain
+		// metadata PATCH keeps writing document.updated alone.
+		if metaChanged || contentChanged {
+			if err := auditRecorder.Record(ctx, q, audit.Entry{
+				OrganizationID: updated.OrganizationID,
+				WorkspaceID:    updated.WorkspaceID,
+				Actor:          actor,
+				Action:         audit.ActionDocumentUpdated,
+				ResourceType:   "document",
+				ResourceID:     updated.ID,
+				Changes:        audit.Diff(before, after),
+				Metadata: map[string]any{
+					"revision":        strconv.FormatInt(updated.Revision, 10),
+					"content_changed": contentChanged,
+					"content_bytes":   updated.ContentBytes,
+				},
+			}, emit...); err != nil {
+				return err
+			}
+		}
+		if homeChanged {
+			if err := auditRecorder.Record(ctx, q, audit.Entry{
+				OrganizationID: updated.OrganizationID,
+				WorkspaceID:    updated.WorkspaceID,
+				Actor:          actor,
+				Action:         audit.ActionDocumentWorkspaceAccessChanged,
+				ResourceType:   "document",
+				ResourceID:     updated.ID,
+				Changes:        audit.Diff(homeBefore, homeAfter),
+			}, audit.Event{Topic: "document.workspace_access_changed", Payload: map[string]string{
+				"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
+			}}); err != nil {
+				return err
+			}
 		}
 		view, err := s.documentView(ctx, q, actor, updated)
 		out = view

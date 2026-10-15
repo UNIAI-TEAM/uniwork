@@ -45,6 +45,9 @@ export function documentFrameKeys(
     case "document.version_created":
     case "document.shared":
     case "document.share_revoked":
+    // SH-S1: the workspace home row turned on, off or changed level - the
+    // same refetch a document.updated visibility change always took.
+    case "document.workspace_access_changed":
     case "document.link_created":
     case "document.link_revoked":
     case "document.moved":

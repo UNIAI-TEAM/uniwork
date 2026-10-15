@@ -151,9 +151,14 @@ const (
 	// (DOC-05; UNI-1628).
 	ActionDocumentBreakGlassGranted = "document.break_glass_granted"
 	ActionDocumentBreakGlassRevoked = "document.break_glass_revoked"
-	ActionDocumentLinkCreated       = "document.link_created"
-	ActionDocumentLinkRevoked       = "document.link_revoked"
-	ActionDocumentSettingsChanged   = "document.settings_changed"
+	// SH-S1 (UNI-1780): the workspace home row turned on, off or changed
+	// level - the (visibility, workspace_level) pair of one document. One row
+	// per home-row change, the plain visibility PATCH included; the level of
+	// a home row never exceeds edit (Q-S1).
+	ActionDocumentWorkspaceAccessChanged = "document.workspace_access_changed"
+	ActionDocumentLinkCreated            = "document.link_created"
+	ActionDocumentLinkRevoked            = "document.link_revoked"
+	ActionDocumentSettingsChanged        = "document.settings_changed"
 	// ActionDocumentsAccessReportExported is one access report export
 	// (UNI-1643): ids, the filter and counts, never a name.
 	ActionDocumentsAccessReportExported = "documents.access_report_exported"
@@ -172,8 +177,9 @@ const (
 	ActionDocumentFavorited              = "document.favorited"
 	ActionDocumentUnfavorited            = "document.unfavorited"
 
-	// Pages (UNI-678, G1-04a): a PATCH of title, icon, visibility or the
-	// working copy. Metadata only - the page JSON never reaches audit.
+	// Pages (UNI-678, G1-04a): a PATCH of title, icon or the working copy.
+	// Metadata only - the page JSON never reaches audit. The visibility half
+	// of a PATCH moved to document.workspace_access_changed with SH-S1.
 	ActionDocumentUpdated = "document.updated"
 
 	// Document tree and lifecycle (UNI-678, G1-04b): a move, the archive

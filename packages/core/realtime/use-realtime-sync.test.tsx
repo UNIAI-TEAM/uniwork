@@ -809,8 +809,8 @@ describe("useRealtimeSync", () => {
   });
 
   // Documents frames are ids-only: the workspace root is the prefix of every
-  // document key (detail, versions, downloadMeta), so each of the nine wired
-  // topics pushes exactly that root.
+  // document key (detail, versions, downloadMeta), so each of the ten wired
+  // topics below pushes exactly that root.
   describe("documents", () => {
     const docRoot = JSON.stringify(["documents", "ws1"]);
 
@@ -820,6 +820,7 @@ describe("useRealtimeSync", () => {
       "document.version_created",
       "document.shared",
       "document.share_revoked",
+      "document.workspace_access_changed",
       "document.link_created",
       "document.link_revoked",
       "document.favorited",
