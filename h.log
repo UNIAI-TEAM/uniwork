@@ -1,0 +1,43 @@
+$ pnpm lint 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "LINT_EXIT=$rc"
+@uniwork/views:lint: cache miss, executing cc10b1612863a60b
+@uniwork/web:lint: cache miss, executing b41cd4e989a56220
+@uniwork/office-contracts:lint: cache miss, executing e5f2fb8d8f1ea75b
+@uniwork/office-engine-app:lint: cache miss, executing 74a4171ea531d508
+@uniwork/ui:lint: cache miss, executing 40c6d18f987e7f80
+@uniwork/core:lint: cache miss, executing 5da2f007b8ca3e31
+@uniwork/office-engine:lint: cache miss, executing 156def72536fb565
+@uniwork/office-contracts:lint: 
+@uniwork/office-contracts:lint: > @uniwork/office-contracts@0.0.0 lint /workspace/packages/office-contracts
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/office-contracts:lint: 
+@uniwork/office-engine:lint: 
+@uniwork/office-engine:lint: > @uniwork/office-engine@0.0.0 lint /workspace/packages/office-engine
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: 
+@uniwork/ui:lint: 
+@uniwork/ui:lint: > @uniwork/ui@0.0.0 lint /workspace/packages/ui
+@uniwork/ui:lint: > eslint . --max-warnings 0
+@uniwork/ui:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: > @uniwork/views@0.0.0 lint /workspace/packages/views
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: 
+@uniwork/web:lint: 
+@uniwork/web:lint: > @uniwork/web@0.0.0 lint /workspace/apps/web
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: 
+@uniwork/office-engine-app:lint: 
+@uniwork/office-engine-app:lint: > @uniwork/office-engine-app@0.0.0 lint /workspace/apps/office-engine
+@uniwork/office-engine-app:lint: > eslint . --max-warnings 0
+@uniwork/office-engine-app:lint: 
+@uniwork/core:lint: 
+@uniwork/core:lint: > @uniwork/core@0.0.0 lint /workspace/packages/core
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: 
+
+ Tasks:    7 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    1m6.289s 
+
+
+LINT_EXIT=0

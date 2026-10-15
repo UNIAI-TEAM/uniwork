@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+d3fa29ec534aa038248dd17a253f5e36ce8715e9
+f4329d09ffa6af1bfa4a8355f485e8fe9a4392f8
+d3fa29ec5 chore: merge the G5-G7 root (f4329d09f) into card (a)
+f4329d09f chore: merge root e2e documents fix (2e76d5ca1) into the G5-G7 root
+7a23171eb chore: merge G5-12 save-as-copy server (0a79bfe06) into the G5-G7 root
+f9fc7d546 test(documents): scan the save routes' constant error codes (BE-G818-17)
+1e80173fc fix(documents): read the export path walk's break-glass grants inside its snapshot
+2b6b1cc39 test(documents): pin the save routes' HTTP answer to an AdminScope caller (DOC-05 §4)
+41f79103d fix(documents): answer document_restricted on upload/commit/restore to AdminScope (DOC-05 §4)
+2e76d5ca1 test(e2e): move through the FD-09 tree picker in the documents home spec
