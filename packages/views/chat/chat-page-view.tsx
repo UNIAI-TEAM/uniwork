@@ -24,7 +24,6 @@ import {
   useSendChatThreadMessage,
   useSendChatVoiceMessage,
   useSendChatFileMessage,
-  useChatSendOutboxFlush,
   useChatSendOutboxCount,
   useSyncChatRoomsOnAuth,
 } from "@uniwork/core/chat";
@@ -57,6 +56,7 @@ import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
 import { useChatBlockActions } from "./use-chat-block-actions";
 import { useChatMediaSend } from "./use-chat-media-send";
+import { useChatSendOutboxToast } from "./use-chat-send-outbox-toast";
 import { useChatPageSignals } from "./use-chat-page-signals";
 import { useChatVoiceCall } from "./chat-voice-call-host";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
@@ -132,11 +132,7 @@ export function ChatPageView({
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const onOutboxDropped = useCallback(
-    (count: number) => setConnectError(t("chat.send_outbox_dropped", { count })),
-    [t],
-  );
-  useChatSendOutboxFlush(workspaceId, currentUserId, onOutboxDropped);
+  useChatSendOutboxToast(workspaceId, currentUserId);
 
   const currentMember = useCurrentMember(workspaceId);
 
