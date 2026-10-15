@@ -230,8 +230,11 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                 </div>
                 <ul className="divide-y divide-border">
                   {access.data.acl_owner ? (
-                    <li className="flex items-center justify-between gap-2 px-3 py-2">
-                      <span className="flex min-w-0 items-center gap-2 text-body text-foreground">
+                    // Wraps below sm: the name and label keep their line and the level
+                    // and the transfer button drop under them, instead of the button
+                    // squeezing the name to nothing at 390px.
+                    <li className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2">
+                      <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
                         <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
                         <NameOrSkeleton name={memberName(access.data.acl_owner.user_id)} />
                         <span className="shrink-0 text-caption text-muted-foreground">
@@ -449,7 +452,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
 }
 
 function NameOrSkeleton({ name }: { name: string | null }) {
-  return name === null ? <Skeleton aria-hidden className="h-4 w-24" /> : <span className="truncate">{name}</span>;
+  return name === null ? (
+    <Skeleton aria-hidden className="h-4 w-24" />
+  ) : (
+    <span className="truncate" title={name}>
+      {name}
+    </span>
+  );
 }
 
 function VisibilitySection({

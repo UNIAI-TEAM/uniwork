@@ -4353,7 +4353,9 @@
         "failed_active": "Couldn't transfer the documents. You can try again.",
         "retry": "Try again",
         "action": "Transfer documents",
-        "confirm": "Transfer"
+        "confirm": "Transfer",
+        "result_title": "{{name}} is deactivated",
+        "result_body": "They can no longer get into the organization. Documents that weren't moved can still be moved with “Transfer documents” on their row."
       }
     },
     "leave": {
@@ -8496,7 +8498,8 @@
         "title_untitled": "Transfer document ownership",
         "search_placeholder": "Search workspace members",
         "no_candidates": "No other member can take this document.",
-        "failed": "Couldn't transfer ownership. Try again."
+        "failed": "Couldn't transfer ownership. Try again.",
+        "owned_by_work_product": "This document belongs to a work product, so its owner can't be changed."
       },
       "via_member": "workspace member",
       "via_share": "direct share",

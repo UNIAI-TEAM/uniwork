@@ -4352,7 +4352,9 @@
         "failed_active": "Chưa chuyển được tài liệu. Bạn có thể thử lại.",
         "retry": "Thử lại",
         "action": "Chuyển tài liệu",
-        "confirm": "Chuyển"
+        "confirm": "Chuyển",
+        "result_title": "{{name}} đã bị vô hiệu hóa",
+        "result_body": "Họ không còn vào được tổ chức. Tài liệu chưa chuyển được vẫn chuyển tiếp được bằng “Chuyển tài liệu” ở dòng của họ."
       }
     },
     "leave": {
@@ -8491,7 +8493,8 @@
         "title_untitled": "Chuyển quyền sở hữu tài liệu",
         "search_placeholder": "Tìm thành viên của workspace",
         "no_candidates": "Không có thành viên nào khác nhận được tài liệu này.",
-        "failed": "Chưa chuyển được quyền sở hữu. Hãy thử lại."
+        "failed": "Chưa chuyển được quyền sở hữu. Hãy thử lại.",
+        "owned_by_work_product": "Tài liệu này thuộc về một sản phẩm công việc nên không đổi được chủ sở hữu."
       },
       "via_member": "thành viên workspace",
       "via_share": "chia sẻ trực tiếp",

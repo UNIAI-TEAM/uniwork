@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage, errorCode } from "@uniwork/core/api";
+import { errorCode } from "@uniwork/core/api";
 import { readAdminScopeFake } from "@uniwork/core/documents/doc05-fake";
 import { useTransferDocumentOwner } from "@uniwork/core/documents/hooks-owner";
 import type { OrgMember } from "@uniwork/core/types/people";
@@ -62,7 +62,7 @@ export function OwnerTransferAction(props: OwnerTransferActionProps) {
       <Button
         ref={opener}
         type="button"
-        variant="ghost"
+        variant="outline"
         size="sm"
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
@@ -128,12 +128,16 @@ function OwnerTransferForm({
       onClose();
     } catch (err) {
       const code = errorCode(err);
+      // Every refusal has a sentence of ours: the server's own text is English
+      // (or an internal message on a 500) inside a Vietnamese dialog.
       setError(
         code === "owner_target_not_member"
           ? t("documents.share.owner.target_not_member", { name: picked.name })
           : code === "break_glass_required"
             ? t("documents.share.owner.self_transfer_error")
-            : apiErrorMessage(err) ?? t("documents.share.owner.failed"),
+            : code === "document_owned_by_work_product"
+              ? t("documents.share.owner.owned_by_work_product")
+              : t("documents.share.owner.failed"),
       );
     }
   };

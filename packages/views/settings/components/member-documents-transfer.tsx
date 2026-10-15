@@ -74,6 +74,7 @@ export function DocumentCountStep({
   onValueChange,
   disabled = false,
   showNone = false,
+  showTitle = true,
 }: {
   orgSlug: string;
   userId: string;
@@ -84,6 +85,8 @@ export function DocumentCountStep({
   onValueChange: (value: string, label: string) => void;
   disabled?: boolean;
   showNone?: boolean;
+  /** False when the dialog's own title already says "Chuyển tài liệu". */
+  showTitle?: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "org.members.transfer_docs" });
   const total = ownership.data?.total ?? 0;
@@ -128,6 +131,7 @@ export function DocumentCountStep({
       value={value}
       onValueChange={onValueChange}
       disabled={disabled}
+      showTitle={showTitle}
     />
   );
 }
@@ -146,6 +150,7 @@ function RecipientPicker({
   value,
   onValueChange,
   disabled,
+  showTitle,
 }: {
   orgSlug: string;
   userId: string;
@@ -155,6 +160,7 @@ function RecipientPicker({
   value: string;
   onValueChange: (value: string, label: string) => void;
   disabled: boolean;
+  showTitle: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "org.members.transfer_docs" });
   const { recipients, loading, isError, retry } = useRecipients(orgSlug, userId);
@@ -162,11 +168,17 @@ function RecipientPicker({
   const later = useMemo<PersonOption>(() => ({ id: LATER, name: t("later"), email: "" }), [t]);
   const picked = value === LATER ? later : (recipients.find((m) => m.id === value) ?? null);
   return (
-    <section aria-labelledby={`${pickerId}-title`} className="space-y-3 rounded-lg border border-border p-3">
+    <section
+      aria-labelledby={showTitle ? `${pickerId}-title` : undefined}
+      aria-label={showTitle ? undefined : t("title")}
+      className="space-y-3 rounded-lg border border-border p-3"
+    >
       <div className="space-y-1">
-        <h3 id={`${pickerId}-title`} className="text-body font-medium">
-          {t("title")}
-        </h3>
+        {showTitle ? (
+          <h3 id={`${pickerId}-title`} className="text-body font-medium">
+            {t("title")}
+          </h3>
+        ) : null}
         <p className="text-body text-muted-foreground text-pretty">{t("body", { name, count: total })}</p>
         {workspaces.length > 0 ? (
           <ul className="text-caption text-muted-foreground">

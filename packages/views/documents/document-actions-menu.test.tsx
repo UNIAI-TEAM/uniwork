@@ -145,6 +145,14 @@ describe("DocumentActionsMenu", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.restore") })).toBeNull();
   });
 
+  it("keeps every item it renders at 44px on coarse pointers", async () => {
+    renderMenu();
+    await openMenu();
+    for (const name of ["share", "access_log", "copy", "archive"]) {
+      expect(screen.getByRole("menuitem", { name: t(`documents.actions.${name}`) })).toHaveClass("pointer-coarse:min-h-11");
+    }
+  });
+
   it("hides share, links, archive and copy on an owned document", async () => {
     renderMenu(documentFixture({ owner_kind: "work_product", owner_id: "wp1" }));
     await openMenu();

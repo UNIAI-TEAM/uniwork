@@ -123,7 +123,7 @@ export function DocumentActionsMenu({
               and the file commands its canvas replaced (download, upload). */}
           <HeaderActionsMenuItems />
           {folded && comments && commentsEnabled ? (
-            <DropdownMenuItem className="gap-2 px-2 py-2 sm:hidden" onClick={() => comments.setOpen(!comments.open)}>
+            <DropdownMenuItem className="gap-2 px-2 py-2 pointer-coarse:min-h-11 sm:hidden" onClick={() => comments.setOpen(!comments.open)}>
               <MessageSquare aria-hidden className="size-3.5" />
               {t(documentCommentsTitleKey(doc))}
             </DropdownMenuItem>
@@ -132,7 +132,7 @@ export function DocumentActionsMenu({
             <DropdownMenuItem
               key={item.id}
               variant={item.destructive ? "destructive" : "default"}
-              className="gap-2 px-2 py-2"
+              className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
               onClick={() => setPanel(item.id)}
             >
               <item.icon aria-hidden className="size-3.5" />

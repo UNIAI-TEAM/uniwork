@@ -257,6 +257,91 @@ describe("deactivating a member with documents (DOC6-W02)", () => {
   });
 });
 
+describe("the deactivation dialog after the account is locked (visual r1 F-02, F-03)", () => {
+  beforeEach(() => {
+    resetAuthStoreForTests();
+    setSessionUser(user);
+    requestMock.mockReset();
+  });
+
+  it("retitles itself and keeps focus inside, on the heading, once the lock is done", async () => {
+    mockApi();
+    const { ui, dialog } = await openDeactivate();
+    await within(dialog).findByText("Nguyễn Văn An đang là chủ sở hữu của 3 tài liệu.");
+    await pickRecipient(ui, dialog, "Lê Chi");
+    await ui.click(within(dialog).getByRole("button", { name: "Vô hiệu hóa" }));
+    await within(dialog).findByText("Đã chuyển 3 tài liệu cho Lê Chi.");
+    const heading = within(dialog).getByRole("heading", { name: "Nguyễn Văn An đã bị vô hiệu hóa" });
+    // The confirmation question and its pre-confirm body are gone.
+    expect(within(dialog).queryByText("Vô hiệu hóa Nguyễn Văn An?")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/sẽ không vào được tổ chức/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/Chuyển tài liệu/)).toBeInTheDocument();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it("keeps focus in the dialog when the first batch fails", async () => {
+    mockApi({ transfer: () => Promise.reject(new Error("boom")) });
+    const { ui, dialog } = await openDeactivate();
+    await within(dialog).findByText("Nguyễn Văn An đang là chủ sở hữu của 3 tài liệu.");
+    await pickRecipient(ui, dialog, "Lê Chi");
+    await ui.click(within(dialog).getByRole("button", { name: "Vô hiệu hóa" }));
+    await within(dialog).findByText(/Chưa chuyển được tài liệu\. Tài khoản đã được vô hiệu hóa/);
+    expect(within(dialog).getByRole("heading", { name: "Nguyễn Văn An đã bị vô hiệu hóa" })).toBeInTheDocument();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+  });
+});
+
+describe("the row dialog's anatomy (visual r1 F-04, F-05, F-06)", () => {
+  beforeEach(() => {
+    resetAuthStoreForTests();
+    setSessionUser(user);
+    requestMock.mockReset();
+  });
+
+  async function openRow() {
+    const ui = userEvent.setup();
+    render(wrap(<OrgMembersSection orgSlug="acme" />));
+    const row = (await screen.findByText("Trần Bình")).closest("li")!;
+    await ui.click(within(row).getByRole("button", { name: "Chuyển tài liệu" }));
+    return { ui, dialog: await screen.findByRole("dialog") };
+  }
+
+  it("offers only Đóng when there is nothing to move (no dead confirm)", async () => {
+    mockApi({ count: () => Promise.resolve({ user_id: "u3", total: 0, workspaces: [] }) });
+    const { dialog } = await openRow();
+    await within(dialog).findByText("Trần Bình không còn sở hữu tài liệu nào.");
+    expect(within(dialog).queryByRole("button", { name: "Chuyển" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Hủy" })).not.toBeInTheDocument();
+    expect(within(dialog).getAllByRole("button", { name: "Đóng" })).toHaveLength(1);
+  });
+
+  it("says Chuyển tài liệu once, and offers one Đóng when the result is in", async () => {
+    mockApi({ count: () => Promise.resolve({ ...counted, user_id: "u3" }) });
+    const { ui, dialog } = await openRow();
+    await within(dialog).findByText("Trần Bình đang là chủ sở hữu của 3 tài liệu.");
+    expect(within(dialog).getAllByText("Chuyển tài liệu")).toHaveLength(1);
+    await pickRecipient(ui, dialog, "Nguyễn Văn An");
+    await ui.click(within(dialog).getByRole("button", { name: "Chuyển" }));
+    await within(dialog).findByText("Đã chuyển 3 tài liệu cho Nguyễn Văn An.");
+    expect(within(dialog).getAllByRole("button", { name: "Đóng" })).toHaveLength(1);
+  });
+
+  it("keeps the confirm on screen, busy and aria-disabled, while the batches run", async () => {
+    mockApi({
+      count: () => Promise.resolve({ ...counted, user_id: "u3" }),
+      transfer: () => new Promise(() => {}),
+    });
+    const { ui, dialog } = await openRow();
+    await within(dialog).findByText("Trần Bình đang là chủ sở hữu của 3 tài liệu.");
+    await pickRecipient(ui, dialog, "Nguyễn Văn An");
+    await ui.click(within(dialog).getByRole("button", { name: "Chuyển" }));
+    const confirm = await within(dialog).findByRole("button", { name: "Chuyển" });
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
+    expect(confirm).toHaveAttribute("aria-busy", "true");
+  });
+});
+
 describe("Chuyển tài liệu on a deactivated row", () => {
   beforeEach(() => {
     resetAuthStoreForTests();

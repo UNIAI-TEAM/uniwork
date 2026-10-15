@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ApiError } from "@uniwork/core/api";
 import { useTranslation } from "react-i18next";
 import { useDeactivateOrgMember } from "@uniwork/core/organizations";
 import { useMemberDocumentOwnership } from "@uniwork/core/organizations/document-ownership";
@@ -91,6 +92,14 @@ function DeactivateContent({
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
   const to = recipientOf(pick.value);
 
+  // The control that had focus (the picker, then the confirm) leaves the page
+  // when the lock lands: put focus on the result heading, inside the dialog,
+  // so a keyboard or screen-reader user keeps their place for the progress.
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (deactivated) heading.current?.focus();
+  }, [deactivated]);
+
   const confirm = () => {
     if (busy || deactivated) return;
     deactivate.mutate(member.user_id, {
@@ -110,8 +119,17 @@ function DeactivateContent({
   return (
     <>
       <AlertDialogHeader>
-        <AlertDialogTitle>{t("org.members.deactivate_title", { name })}</AlertDialogTitle>
-        <AlertDialogDescription>{t("org.members.deactivate_body", { name })}</AlertDialogDescription>
+        {/* After the lock the question is answered: the dialog says what is done. */}
+        <AlertDialogTitle ref={heading} tabIndex={-1} className="outline-none">
+          {deactivated
+            ? t("org.members.transfer_docs.result_title", { name })
+            : t("org.members.deactivate_title", { name })}
+        </AlertDialogTitle>
+        <AlertDialogDescription>
+          {deactivated
+            ? t("org.members.transfer_docs.result_body")
+            : t("org.members.deactivate_body", { name })}
+        </AlertDialogDescription>
       </AlertDialogHeader>
       {deactivated ? null : (
         <DocumentCountStep
@@ -162,20 +180,22 @@ export function TransferMemberDocumentsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<TransferPhase>("idle");
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (next || !busy) onOpenChange(next);
+        if (next || phase !== "busy") onOpenChange(next);
       }}
     >
-      <FormDialogContent showCloseButton={!busy}>
+      {/* The X only while there is something to cancel: the footer already
+          closes a finished or empty dialog. */}
+      <FormDialogContent showCloseButton={phase === "idle"}>
         {member ? (
           <TransferContent
             orgSlug={orgSlug}
             member={member}
-            onBusyChange={setBusy}
+            onPhaseChange={setPhase}
             onClose={() => onOpenChange(false)}
           />
         ) : null}
@@ -184,15 +204,18 @@ export function TransferMemberDocumentsDialog({
   );
 }
 
+/** What the row dialog is doing: choosing, running, or only waiting to be closed. */
+type TransferPhase = "idle" | "busy" | "finished";
+
 function TransferContent({
   orgSlug,
   member,
-  onBusyChange,
+  onPhaseChange,
   onClose,
 }: {
   orgSlug: string;
   member: OrgMember;
-  onBusyChange: (busy: boolean) => void;
+  onPhaseChange: (phase: TransferPhase) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -201,9 +224,16 @@ function TransferContent({
   const { run, start, retry } = useTransferRun(orgSlug);
   const [pick, setPick] = useState<Pick>(NO_PICK);
   const busy = run.status === "running";
-  useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
+  const total = ownership.data?.total ?? 0;
+  // Nothing to move (no documents, or the server says the caller may not act):
+  // a confirm could never be pressed, so only the close action is offered.
+  const nothingToDo =
+    (ownership.data !== undefined && total === 0) ||
+    (ownership.error instanceof ApiError && ownership.error.status === 403);
+  const phase: TransferPhase = busy ? "busy" : run.status !== "idle" || nothingToDo ? "finished" : "idle";
+  useEffect(() => onPhaseChange(phase), [phase, onPhaseChange]);
   const to = recipientOf(pick.value);
-  const ready = to !== "" && (ownership.data?.total ?? 0) > 0 && run.status === "idle";
+  const ready = to !== "" && total > 0 && run.status === "idle";
   return (
     <>
       <FormDialogHeader title={t("org.members.transfer_docs.action")} description={name} />
@@ -217,16 +247,18 @@ function TransferContent({
             value={pick.value}
             onValueChange={(value, label) => setPick({ value, label })}
             showNone
+            showTitle={false}
           />
         ) : null}
         <TransferRunStatus run={run} recipientName={pick.label} deactivated onRetry={() => void retry()} />
       </FormDialogBody>
       <DialogFooter className="items-center px-5 py-3">
         <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
-          {run.status === "idle" ? t("common.cancel") : t("common.close")}
+          {phase === "idle" || busy ? t("common.cancel") : t("common.close")}
         </Button>
-        {run.status === "idle" ? (
-          // aria-disabled keeps the button focusable until a recipient is picked.
+        {phase === "idle" || busy ? (
+          // aria-disabled keeps the button focusable until a recipient is picked
+          // and while the batches run.
           <Button
             type="button"
             aria-disabled={!ready || undefined}
@@ -235,6 +267,7 @@ function TransferContent({
               if (ready) void start(member.user_id, to);
             }}
           >
+            {busy ? <Spinner data-icon="inline-start" /> : null}
             {t("org.members.transfer_docs.confirm")}
           </Button>
         ) : null}

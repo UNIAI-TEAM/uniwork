@@ -229,6 +229,40 @@ describe("ShareDialog owner transfer (DOC6-W01)", () => {
     );
   });
 
+  it("keeps the owner row from collapsing at 390: it wraps, and the name truncates with a title", async () => {
+    renderDialog();
+    const name = await screen.findByTitle("Bình");
+    expect(name).toHaveClass("truncate");
+    const row = name.closest("li")!;
+    expect(row).toHaveClass("flex-wrap");
+    // The name block may shrink to nothing only after the button and level wrapped below it.
+    expect(name.closest("span.flex")).toHaveClass("min-w-0", "flex-1");
+    // A ghost button reads as muted text next to the level (F-11): the affordance is an outline.
+    expect(within(row).getByRole("button", { name: t("documents.share.owner.transfer_button") })).toHaveClass(
+      "border-input",
+    );
+  });
+
+  it("answers a work-product 409 with a sentence of ours, never the server's text", async () => {
+    serve({
+      transfer: () => Promise.reject(new ApiError("Owned by a work product", "document_owned_by_work_product", 409)),
+    });
+    renderDialog();
+    const dialog = await openTransfer();
+    await pickCandidate(dialog, "Chi");
+    fireEvent.click(confirmButton(dialog));
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(t("documents.share.owner.owned_by_work_product"));
+  });
+
+  it("answers a 500 with the generic sentence, never the raw server text", async () => {
+    serve({ transfer: () => Promise.reject(new ApiError("boom", "internal", 500)) });
+    renderDialog();
+    const dialog = await openTransfer();
+    await pickCandidate(dialog, "Chi");
+    fireEvent.click(confirmButton(dialog));
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(t("documents.share.owner.failed"));
+  });
+
   it("explains break_glass_required with the admin self-transfer sentence", async () => {
     serve({ transfer: () => Promise.reject(new ApiError("break glass", "break_glass_required", 403)) });
     renderDialog();
