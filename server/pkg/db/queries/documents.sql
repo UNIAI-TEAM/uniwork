@@ -119,6 +119,24 @@ WHERE id = sqlc.arg(id)
   AND revision = sqlc.arg(expected_revision)
 RETURNING *;
 
+-- The home-row move (SH-S1, UNI-1780): visibility and, while it is
+-- 'workspace', the level the row grants every effective member of the
+-- document's workspace. Every caller runs it inside the transaction that
+-- already holds the row lock, so no revision is expected here; the write
+-- bumps the revision like any other access-relevant change.
+-- name: UpdateDocumentHomeRow :one
+UPDATE documents
+SET visibility = sqlc.arg(visibility),
+    workspace_level = sqlc.arg(workspace_level),
+    revision = revision + 1,
+    updated_by = sqlc.arg(updated_by),
+    updated_by_kind = sqlc.arg(updated_by_kind),
+    updated_at = now()
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+RETURNING *;
+
 -- A new page goes after its live siblings in the workspace tree; the first
 -- child of a parent (or of the root) sits at 0.
 -- name: NextDocumentPosition :one

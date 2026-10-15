@@ -222,36 +222,46 @@ func (s *DocumentService) RevokeDocumentShare(ctx context.Context, actor Actor, 
 		if err != nil {
 			return err
 		}
-		if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
-			ID: sh.ID, OrganizationID: sh.OrganizationID, WorkspaceID: sh.WorkspaceID,
-			DocumentID: sh.DocumentID, RevokedBy: nullText(actor.ID),
-		}); err != nil {
-			return err
-		}
-		return auditRecorder.Record(ctx, q, audit.Entry{
-			OrganizationID: doc.OrganizationID,
-			WorkspaceID:    doc.WorkspaceID,
-			Actor:          actor,
-			Action:         audit.ActionDocumentShareRevoked,
-			ResourceType:   "document",
-			ResourceID:     doc.ID,
-			Changes:        audit.Diff(map[string]any{"level": sh.Level}, nil),
-			Metadata: map[string]any{
-				"share_id":       sh.ID,
-				"principal_type": sh.PrincipalType,
-				"principal_id":   sh.PrincipalID,
-				// The prior level is replicated into the metadata the change
-				// feed reads (BE-G1-2): a removal is decided from the audit
-				// row alone, so the revoked principal and the level it held
-				// must sit together in one durable row.
-				"level": sh.Level,
-			},
-		}, audit.Event{Topic: "document.share_revoked", Payload: map[string]string{
-			"document_id":  doc.ID,
-			"workspace_id": doc.WorkspaceID,
-			"share_id":     sh.ID,
-		}})
+		return revokeDocumentShareRow(ctx, q, actor, doc, sh)
 	})
+}
+
+// revokeDocumentShareRow ends one live share inside the caller's transaction:
+// the row is stamped revoked (the table keeps the history) and the
+// document.share_revoked audit row, carrying the principal and its prior
+// level, goes out with its ids-only event. RevokeDocumentShare and the
+// home-row writer (document_home_row.go) both end shares through it, so a
+// merged legacy grant is retracted exactly like one revoked by hand.
+func revokeDocumentShareRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sh db.DocumentShare) error {
+	if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
+		ID: sh.ID, OrganizationID: sh.OrganizationID, WorkspaceID: sh.WorkspaceID,
+		DocumentID: sh.DocumentID, RevokedBy: nullText(actor.ID),
+	}); err != nil {
+		return err
+	}
+	return auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Actor:          actor,
+		Action:         audit.ActionDocumentShareRevoked,
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		Changes:        audit.Diff(map[string]any{"level": sh.Level}, nil),
+		Metadata: map[string]any{
+			"share_id":       sh.ID,
+			"principal_type": sh.PrincipalType,
+			"principal_id":   sh.PrincipalID,
+			// The prior level is replicated into the metadata the change
+			// feed reads (BE-G1-2): a removal is decided from the audit
+			// row alone, so the revoked principal and the level it held
+			// must sit together in one durable row.
+			"level": sh.Level,
+		},
+	}, audit.Event{Topic: "document.share_revoked", Payload: map[string]string{
+		"document_id":  doc.ID,
+		"workspace_id": doc.WorkspaceID,
+		"share_id":     sh.ID,
+	}})
 }
 
 // DocumentShareAccess is one share row with what it grants right now.

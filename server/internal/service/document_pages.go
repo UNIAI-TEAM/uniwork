@@ -691,8 +691,11 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 
 		next := db.UpdateDocumentFieldsParams{
 			Title: doc.Title, Icon: doc.Icon, Visibility: doc.Visibility,
-			// PATCH never re-levels the home row: toggling visibility keeps
-			// the stored workspace_level (the row is whole-written).
+			// The home row is not part of this fields write (SH-S1): a PATCH
+			// that moves visibility leaves the row at its stored value here
+			// and moves it through writeDocumentHomeRow below, the one
+			// writer, so the audit row, the frame and the legacy-share merge
+			// are a share command's too.
 			WorkspaceLevel: doc.WorkspaceLevel,
 			Content:        doc.Content, ContentText: doc.ContentText, ContentBytes: doc.ContentBytes,
 		}
@@ -705,15 +708,8 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			before["icon"], after["icon"] = textOrNil(doc.Icon), textOrNil(icon)
 			next.Icon = icon
 		}
-		// The home row (SH-S1): its visibility and its level. A PATCH moves
-		// only visibility and keeps the stored level, so both fields are named
-		// here and only the visibility one can differ.
-		homeBefore := map[string]any{"visibility": doc.Visibility, "workspace_level": doc.WorkspaceLevel}
-		homeAfter := map[string]any{"visibility": doc.Visibility, "workspace_level": doc.WorkspaceLevel}
-		if in.Visibility != nil && *in.Visibility != doc.Visibility {
-			homeAfter["visibility"] = *in.Visibility
-			next.Visibility = *in.Visibility
-		}
+		// The home row (SH-S1) moves only visibility; the stored level
+		// survives the toggle.
 		homeChanged := in.Visibility != nil && *in.Visibility != doc.Visibility
 		contentChanged := in.Content != nil && !sameJSON(page.content, doc.Content)
 		if contentChanged {
@@ -725,68 +721,59 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			out = view
 			return err
 		}
-		next.SearchText = documentSearchText(next.Title, next.ContentText)
-		next.UpdatedBy, next.UpdatedByKind = actor.ID, string(actor.Kind)
-		next.ContentChanged = contentChanged
-		next.ID, next.OrganizationID, next.WorkspaceID = doc.ID, doc.OrganizationID, doc.WorkspaceID
-		next.ExpectedRevision = doc.Revision
-		if contentChanged {
-			if err := s.consumePageBytes(ctx, q, actor, doc, int64(next.ContentBytes)-int64(doc.ContentBytes)); err != nil {
-				return err
-			}
-		}
-		updated, err := q.UpdateDocumentFields(ctx, next)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return errRevisionConflict(doc.Revision)
-		}
-		if err != nil {
-			return documentTitleWriteError(doc.Kind, err)
-		}
-		if contentChanged {
-			if err := syncDocumentAssetRefs(ctx, q, updated); err != nil {
-				return err
-			}
-		}
-		var emit []audit.Event
-		if metaChanged {
-			emit = append(emit, audit.Event{Topic: "document.updated", Payload: map[string]string{
-				"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
-			}})
-		}
-		// Two rows at most: the metadata row (title/icon and the content
-		// autosave) and, when the home row moved, the workspace-access row.
-		// The visibility change lives on the second one (SH-S1); a plain
-		// metadata PATCH keeps writing document.updated alone.
+		updated := doc
 		if metaChanged || contentChanged {
-			if err := auditRecorder.Record(ctx, q, audit.Entry{
-				OrganizationID: updated.OrganizationID,
-				WorkspaceID:    updated.WorkspaceID,
-				Actor:          actor,
-				Action:         audit.ActionDocumentUpdated,
-				ResourceType:   "document",
-				ResourceID:     updated.ID,
-				Changes:        audit.Diff(before, after),
-				Metadata: map[string]any{
-					"revision":        strconv.FormatInt(updated.Revision, 10),
-					"content_changed": contentChanged,
-					"content_bytes":   updated.ContentBytes,
-				},
-			}, emit...); err != nil {
-				return err
+			next.SearchText = documentSearchText(next.Title, next.ContentText)
+			next.UpdatedBy, next.UpdatedByKind = actor.ID, string(actor.Kind)
+			next.ContentChanged = contentChanged
+			next.ID, next.OrganizationID, next.WorkspaceID = doc.ID, doc.OrganizationID, doc.WorkspaceID
+			next.ExpectedRevision = doc.Revision
+			if contentChanged {
+				if err := s.consumePageBytes(ctx, q, actor, doc, int64(next.ContentBytes)-int64(doc.ContentBytes)); err != nil {
+					return err
+				}
+			}
+			row, err := q.UpdateDocumentFields(ctx, next)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return errRevisionConflict(doc.Revision)
+			}
+			if err != nil {
+				return documentTitleWriteError(doc.Kind, err)
+			}
+			updated = row
+			if contentChanged {
+				if err := syncDocumentAssetRefs(ctx, q, updated); err != nil {
+					return err
+				}
+			}
+			// One row for the metadata half (title/icon and the content
+			// autosave); the home-row move below writes its own, so one
+			// command writes at most one row per fact.
+			if metaChanged {
+				if err := auditRecorder.Record(ctx, q, audit.Entry{
+					OrganizationID: updated.OrganizationID,
+					WorkspaceID:    updated.WorkspaceID,
+					Actor:          actor,
+					Action:         audit.ActionDocumentUpdated,
+					ResourceType:   "document",
+					ResourceID:     updated.ID,
+					Changes:        audit.Diff(before, after),
+					Metadata: map[string]any{
+						"revision":        strconv.FormatInt(updated.Revision, 10),
+						"content_changed": contentChanged,
+						"content_bytes":   updated.ContentBytes,
+					},
+				}, audit.Event{Topic: "document.updated", Payload: map[string]string{
+					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
+				}}); err != nil {
+					return err
+				}
 			}
 		}
 		if homeChanged {
-			if err := auditRecorder.Record(ctx, q, audit.Entry{
-				OrganizationID: updated.OrganizationID,
-				WorkspaceID:    updated.WorkspaceID,
-				Actor:          actor,
-				Action:         audit.ActionDocumentWorkspaceAccessChanged,
-				ResourceType:   "document",
-				ResourceID:     updated.ID,
-				Changes:        audit.Diff(homeBefore, homeAfter),
-			}, audit.Event{Topic: "document.workspace_access_changed", Payload: map[string]string{
-				"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
-			}}); err != nil {
+			if updated, err = writeDocumentHomeRow(ctx, q, actor, updated, documentHomeRowMove{
+				Visibility: *in.Visibility, WorkspaceLevel: doc.WorkspaceLevel,
+			}); err != nil {
 				return err
 			}
 		}

@@ -685,3 +685,89 @@ func (q *Queries) UpdateDocumentFields(ctx context.Context, arg UpdateDocumentFi
 	)
 	return i, err
 }
+
+const updateDocumentHomeRow = `-- name: UpdateDocumentHomeRow :one
+UPDATE documents
+SET visibility = $1,
+    workspace_level = $2,
+    revision = revision + 1,
+    updated_by = $3,
+    updated_by_kind = $4,
+    updated_at = now()
+WHERE id = $5
+  AND organization_id = $6
+  AND workspace_id = $7
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
+`
+
+type UpdateDocumentHomeRowParams struct {
+	Visibility     string `json:"visibility"`
+	WorkspaceLevel string `json:"workspace_level"`
+	UpdatedBy      string `json:"updated_by"`
+	UpdatedByKind  string `json:"updated_by_kind"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// The home-row move (SH-S1, UNI-1780): visibility and, while it is
+// 'workspace', the level the row grants every effective member of the
+// document's workspace. Every caller runs it inside the transaction that
+// already holds the row lock, so no revision is expected here; the write
+// bumps the revision like any other access-relevant change.
+func (q *Queries) UpdateDocumentHomeRow(ctx context.Context, arg UpdateDocumentHomeRowParams) (Document, error) {
+	row := q.db.QueryRow(ctx, updateDocumentHomeRow,
+		arg.Visibility,
+		arg.WorkspaceLevel,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArchiveBatchID,
+		&i.ContentRevision,
+		&i.WorkspaceLevel,
+	)
+	return i, err
+}
