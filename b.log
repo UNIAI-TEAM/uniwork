@@ -1,0 +1,453 @@
+$ AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-docs-conflict-dialog.test.ts tests/uniwork-conflict-model.test.ts tests/uniwork-conflict-dialog-ui.test.ts tests/uniwork-docs-remote-newer.test.ts tests/uniwork-docs-remote-newer-service.test.ts tests/uniwork-docs-save.test.ts tests/uniwork-docs-save-coordinator.test.ts tests/uniwork-docs-save-queue-wiring.test.ts tests/uniwork-docs-lock-guard.test.ts tests/uniwork-comments-preload.test.ts tests/tab-manager.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/tab-manager.test.ts > initial state > starts with only the non-closable, active Home tab 2ms
+ ✓ tests/tab-manager.test.ts > opening tabs > opens a docs tab, activates it, and attaches its view to the window 2ms
+ ✓ tests/tab-manager.test.ts > opening tabs > titles file-backed tabs with the file basename 1ms
+ ✓ tests/tab-manager.test.ts > opening tabs > uses module default titles for pathless tabs 1ms
+ ✓ tests/tab-manager.test.ts > opening tabs > assigns unique, monotonic tab ids 1ms
+ ✓ tests/tab-manager.test.ts > opening tabs > forwards the new-blank flag to the module 0ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > does not warm Sheets during Home or Docs sessions 1ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > warms a spare while Sheets is active and hands it to the next open 2ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > creates a fresh view when no spare is ready and does not nudge it 1ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > starts a new blank view without the opening state 0ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > drops a spare whose renderer died instead of handing it out 1ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > cancels a pending spare and closes an existing spare on leaving Sheets 1ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > stays off under GENOFFICE_NO_SPARE_VIEW 1ms
+ ✓ tests/tab-manager.test.ts > activation > shows only the activated tab view and lays it out below the tab strip 1ms
+ ✓ tests/tab-manager.test.ts > activation > hands keyboard focus to the activated view so typing works right after open/switch 2ms
+ ✓ tests/tab-manager.test.ts > activation > does not steal OS focus for a background open (window unfocused) 1ms
+ ✓ tests/tab-manager.test.ts > activation > ignores activation of unknown tab ids 0ms
+ ✓ tests/tab-manager.test.ts > activation > routes the active webContents to the matching module 0ms
+ ✓ tests/tab-manager.test.ts > activation > lets the active view cover the tab strip during HTML fullscreen 1ms
+ ✓ tests/tab-manager.test.ts > window resize layout > re-lays out after resize bounds settle (Linux/X11 stale getContentBounds) 1ms
+ ✓ tests/tab-manager.test.ts > window resize layout > skips deferred layout after the shell window is destroyed 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > never closes the Home tab 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > closes the active sheets tab without the menu accelerator 51ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > also takes Cmd+W, and Ctrl+W under a non-Latin layout 102ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > crash at each step, timeout after commit, cancel race 41ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel race: uploading / committing refuse it, a won cancel stops the pass 26ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > one receipt/version: a replayed intent commits exactly one version 11ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a migrated intent replays exactly once, with its own key 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > 409 -> conflict with the same intent id, durable across a restart 14ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > downloads into the working copy with a binding and opens it through the module router 24ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > names the working copy and the tab after the Vietnamese title, byte for byte 18ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > a stored upload name with U+FFFD never reaches the tab: the title names the copy 6ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > a renamed document names the copy after its title, not the original upload name 4ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > a copy named from a corrupt upload name is renamed when it is downloaded again 8ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > view level opens read-only and a pending save reopens the local copy without downloading 18ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > recents hide copies of another account and enrich our own 4ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > opens with the descriptor's workspace and operation; a historical version is its own view-only copy 8ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > a version ticket naming the current version is read-only even for an editor 6ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > ignores other chords, key repeat and key-up 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > closes the active tab when the shell chrome holds keyboard focus 51ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > expired upload -> reconciling, exactly one lookup, no byte re-upload 12ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup unknown -> reconciling-stuck, no new attempt, "check again" only looks up 14ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup 401 / 403 by code / 410 -> the right reason 33ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > N+1 stays dirty behind the pending intent 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two windows on one Document -> the second is read-only 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a window without the lock never writes the record: it publishes other_window, the holder commits 15ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > mint ages the generation over a stored record; cleanup is compare-then-delete 19ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > a current-version view ticket focuses the open tab of the document instead of a duplicate 6ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > a current-version view ticket opens a read-only copy when no tab shows the document 7ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > a ticket without version keeps the live access; operation view is read-only 4ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > a current-version view ticket of a view-only document is read-only 3ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > uploads then commits with one key and moves the base only on a matching receipt 12ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > persists the intent in the store before the first network call 9ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > two rapid saves make one intent (no queue) 9ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > a lost commit answer keeps the intent; the next save replays the SAME key and lands once 13ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > 409 conflict keeps the working copy and the base, then refuses every save without network 12ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > also treats 422 revision_conflict as a conflict 15ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > closes the active tab of any kind, whichever view of the window has focus 51ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > leaves the chord alone on Home 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > does nothing from a view that moved to a detached window 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > closes a workbook opened by a launch link while the window was in the background 52ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > takes focus back from a spare that grabs it on its first load 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > never leaves keyboard focus on a hidden tab view 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > removes a clean tab and falls back to the previous tab 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > keeps the current tab active when closing a background tab 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > detaches and destroys non-docs views on close 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > detaches docs views without destroying the webContents (freeze workaround) 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > closes a clean docs tab after the async dirty query says clean 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > keeps a dirty docs tab open when the user cancels the close guard 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > confirmCloseTabsShowing runs the prompts and removes nothing; closeTabsShowingNow then closes without asking (GOA9-r4-02) 3ms
+ ✓ tests/tab-manager.test.ts > closing tabs > confirmCloseTabsShowing is false when the user cancels, and the tab stays 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > activates a dirty background tab before showing its close guard 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > closes a dirty sheets tab when the guard resolves true 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > does not stack close guards while one prompt is pending 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > updates the tab title when a module opens a file in an existing tab 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > ignores setTabFileFor for unknown webContents 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > renames matching tabs and reports the affected views 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > returns no affected views when nothing matches a rename 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > re-titles an open tab by path without moving its file 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > re-titles the same path only once, and reports nothing when it matches none 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'docs' view 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'sheets' view 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'slides' view 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'pdf' view 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'markdown' view 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'html' view 2ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'docs' tab 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'sheets' tab 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'slides' tab 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'pdf' tab 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'markdown' tab 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'html' tab 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > never claims the home tab, which has no file on disk 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > covers every kind the manager can open 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > finds tabs by kind and path 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > finds every document family by a canonicalized path alias 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reloads an existing pdf tab so a re-export rereads the file from disk 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reloading a docs tab queues its document again (the reloaded renderer opens it) 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reloading an untitled docs tab queues nothing 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reloading a sheets tab queues its workbook again (the reloaded renderer opens it) 3ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reloading an untitled sheets tab queues nothing 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reloading a slides tab queues its deck again (the reloaded renderer opens it) 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reloading an untitled slides tab queues nothing 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reports the active pdf tab with its id (so callers can re-activate it) 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > lists only tabs whose module reports unsaved changes 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > lists dirty pdf and slides tabs 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > reports the editor state of the tabs showing wanted files (the UniWork chip) 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > reports aiRunning for every editor kind from the AI run registry 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > a crashed renderer (render-process-gone) reads aiRunning false 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > a tab closed mid-run (even while its dirty query yields) reads aiRunning false 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > a closed docs tab (blanked, not destroyed) reads aiRunning false 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > a Present tab adds no entry; its owner tab reports the run 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > a present view's AI turn is attributed to its owner's document 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > lists every live docs tab for the async dirtiness sweep 1ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > lifts a tab out without closing its renderer and hands the live view back 1ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two consecutive inline saves age the generation; the first cleanup leaves the second 15ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > in-flight records at rest: validating/uploading requeue and re-send, committing settles by lookup (AC-4) 40ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > G506-be-d1-1: an in-flight record at rest runs under the lock and canCommit (no write, no lookup) 11ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lock holder crash -> the other window acquires after goneMs 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > stalled holder resumes after hand-off -> read-only, no write 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > sync_write off / office_capability_off -> paused_admin, no new request, queue kept 16ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > flag off during uploading -> stop before commit, same intent paused_admin, no request after 11ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > every document kind can be detached; Home and Present tabs cannot 2ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > attaches a view back as a new, active tab at the requested slot 1ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > keeps Home pinned: slot 0 and negative slots land right after it, out-of-range appends 2ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > appends when no slot is given 1ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > installs the HTML-fullscreen listeners once per view across detach and re-attach 1ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > a re-attached docs tab closes through the docs teardown path like any docs tab 1ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > takes the clamped panel width off the right edge and restores it on close 2ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > frees the reported window-pixel width at interface scale 1.5 1ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > re-applies on tab switch and on window resize 1ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > a full-bleed view (slideshow, HTML fullscreen) ignores the panel 1ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > bounds are computed for the tab being shown, not the one being left (W11A-3) 1ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > a malformed width closes nothing open by accident and narrows nothing 1ms
+ ✓ tests/tab-manager.test.ts > the S6 bar inset moves the active editor view down (G5-03a) > insets the active view under the tab strip and restores it at 0 1ms
+ ✓ tests/tab-manager.test.ts > the S6 bar inset moves the active editor view down (G5-03a) > clamps the inset to 0..200 and rounds to an integer 1ms
+ ✓ tests/tab-manager.test.ts > the S6 bar inset moves the active editor view down (G5-03a) > re-applies on tab switch and on window resize 1ms
+ ✓ tests/tab-manager.test.ts > the S6 bar inset moves the active editor view down (G5-03a) > combines with the Discussion panel and is ignored by a full-bleed view 1ms
+ ✓ tests/tab-manager.test.ts > the S6 bar inset moves the active editor view down (G5-03a) > scales the CSS-px inset at interface scale 1.5 and re-layouts on a scale change without a new report (R4-2, R4-5) 1ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > overwrite saves my version on the server revision; the other stays in history 22ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > open-latest replaces the working copy after confirmation and reloads the tab 20ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > save-local-copy reports save_copy_failed until G5-10 and the document stays in conflict 66ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > canCommit false between upload and commit -> no commit, the record is not damaged 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a 429 with Retry-After schedules the retry at now + the 300 s clamp 10ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two orgs with different sync_write -> each intent follows its org 19ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > concurrency caps documents across ALL org lanes of one pass 32ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > offline 2 h (past capability TTL) -> Ctrl/Cmd+S -> paused_offline, not paused_admin 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > keystore_locked / store_full -> refused with a reason, no intent 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel when the document is closed -> the snapshot becomes a kept draft 8ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > a payload mismatch drops the intent; the next save mints a new key 24ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > idempotency_in_flight retries with a bounded backoff, then goes offline keeping the intent 14ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > 403 forbidden blocks the save, keeps the file and downgrades access 16ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > a reopen after a 403 follows the server: still view stays view, edit again unblocks 24ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > a view-only document never reaches the network 15ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > bytes identical to the base save without any network 12ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > signed out: no network, state signed-out 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel or discard at 3 drafts or a full store -> refused, intent kept 35ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > user pause + offline -> online -> paused_user, no dispatch 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > the store locks while reconciling -> unlock -> still reconciling 16ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > "Luu lai" on failed -> the old intent is superseded before the new one 15ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a tombstone stops replay 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > queue/budget limit -> refused with a code 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > startup does not read the drafts folder 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > writes a record and reads it back without plaintext at rest 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a sign-out locks every handle and wipes the scope 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > an account switch locks only the switched-out scope 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record that requires a newer store level and keeps it 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record older than the store minimum 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > counts the budget in encrypted bytes and refuses past it 10ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 3ms
+ ✓ tests/uniwork-docs-save.test.ts > secrets and egress > the token is only ever an Authorization header: never in files or pushed payloads 24ms
+ ✓ tests/uniwork-docs-save.test.ts > local saves never depend on a live session (review r1 BE-1) > signed out: the last account's copy stays editable, saves locally and lands in signed-out 13ms
+ ✓ tests/uniwork-docs-save.test.ts > local saves never depend on a live session (review r1 BE-1) > reopening a copy left in signed-out by an earlier session reads ready/dirty, not "Sign in again" 18ms
+ ✓ tests/uniwork-docs-save.test.ts > local saves never depend on a live session (review r1 BE-1) > a fresh start with no session yet (restoring) keeps the last account editable; another live account is read-only 10ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > a document blocked as deleted can be saved again after a successful reopen (BE-2) 23ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > an expired staged upload drops the intent, stays dirty, and the next save mints a new key on the same base (A1.2) 18ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > a 404 on commit is checked against the document: still there -> dirty, gone -> not_found (A1.2) 19ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > a replay whose upload is gone settles when an earlier attempt already committed the bytes 15ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > an account switch during the upload never commits under the other account (BE-3) 11ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > a receipt without a checksum is confirmed against the document instead of failing forever (BE-4) 12ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > the production wiring registers the 3 queue stores and dispatches on the poll 135ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > startup replays a stored intent exactly once and never lists the drafts folder 53ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > save-local-copy reports a copy that could not be written (BE-6) 61ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > a file changed while saving settles as dirty, not saved (BE-7) 18ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > bytes written outside the save hook mark a clean copy dirty on status read and activation (A1.3) 10ms
+ ✓ tests/uniwork-docs-save.test.ts > closing a document with changes not in UniWork (A1.4) > no prompt for a saved/ready or view-only document 9ms
+ ✓ tests/uniwork-docs-save.test.ts > closing a document with changes not in UniWork (A1.4) > cancel keeps it open, close anyway closes and keeps the local copy 18ms
+ ✓ tests/uniwork-docs-save.test.ts > closing a document with changes not in UniWork (A1.4) > save to UniWork closes once saved, and keeps the tab open when the save fails 15ms
+ ✓ tests/uniwork-docs-save.test.ts > closing a document with changes not in UniWork (A1.4) > save to UniWork goes through the module Save when a tab shows the document 10ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > sign-out stops dispatch (no request after) and releases the lock 40ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > two windows of the same document -> the second is read-only through the service 44ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-1: a clean copy does not need a close prompt; edited, unsent or saving ones do 26ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-3: a conflict prompt defaults to the conflict dialog; the close follows only a saved result 17ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-3: an overwrite that goes through the module Save closes once the hook has saved 21ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-3: deciding later keeps the prompt; Cancel or Close anyway then ends it 13ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-3: a blocked document has no Save: the prompt carries the reason and a stray save keeps it open 10ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-4: a module that reports "did not write" ends the close wait at once and shows the chip state 9ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-4: a module that never reaches the hook is waited for 30 s at most 8ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-5: the owner is recorded when the session identity changes, without any document call 3ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC1: conflict on two devices opens the S5 view (no native box) and cancel closes it 124ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > a user pause survives a service restart (durable per account) 105ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > cancel on a closed tab -> the snapshot becomes a kept draft 37ms
+ ✓ tests/uniwork-docs-save.test.ts > Retry replays a pending intent, it does not rewrite the file (F8) > chip Retry with a pending intent replays it without a module Save and ends saved 15ms
+ ✓ tests/uniwork-docs-save.test.ts > Retry replays a pending intent, it does not rewrite the file (F8) > a Retry with a pending intent still reports dirty when the user really changed the file since 13ms
+ ✓ tests/uniwork-docs-save.test.ts > Retry replays a pending intent, it does not rewrite the file (F8) > a Retry without an intent still runs the module Save 59ms
+ ✓ tests/uniwork-docs-save.test.ts > Retry replays a pending intent, it does not rewrite the file (F8) > close prompt "Save to UniWork" with a pending intent replays it without a module Save 20ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC3: overwrite supersedes the old intent and mints a new one on the new base 103ms
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > keeps the plaintext, refuses every binding rewrite, then migrates once when the budget frees
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > keeps the plaintext, refuses every binding rewrite, then migrates once when the budget frees
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > keeps the plaintext, refuses every binding rewrite, then migrates once when the budget frees
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > Overwrite supersedes the pending intent before the new one 100ms
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R2-be-5: a status or close check in the deferred window rewrites nothing (docStatus, refreshPath, confirmClose)
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R2-be-5: a status or close check in the deferred window rewrites nothing (docStatus, refreshPath, confirmClose)
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R3-be-1: the open of a held folder renames nothing and deletes nothing (fresh download)
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R3-be-1: the open of a held folder renames nothing and deletes nothing (fresh download)
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R3-be-1: the open of a held folder renames nothing and deletes nothing (fresh download)
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-save.test.ts > Retry replays a pending intent, it does not rewrite the file (F8) > close prompt "Save to UniWork" without an intent still goes through the module Save 13ms
+ ✓ tests/uniwork-docs-save.test.ts > the durable store guards the save (W3b) > a locked store refuses the save with keystore_locked: no intent, no module save, no request 16ms
+ ✓ tests/uniwork-docs-save.test.ts > the durable store guards the save (W3b) > a store at its budget refuses the save with store_full and leaves no intent 10ms
+ ✓ tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > keeps the plaintext, refuses every binding rewrite, then migrates once when the budget frees 33ms
+ ✓ tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R2-be-5: a status or close check in the deferred window rewrites nothing (docStatus, refreshPath, confirmClose) 26ms
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: a held folder with no copy to open reports the lock, not store_full
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: a held folder with no copy to open reports the lock, not store_full
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: the same corner with a budget deferral reports store_full
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: the same corner with a budget deferral reports store_full
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC4: reload keep=draft keeps a draft of the latest local bytes (visible in drafts.list) and replaces the copy 101ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > reopen with edit again clears a permission_revoked copy 43ms
+ ✓ tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R3-be-1: the open of a held folder renames nothing and deletes nothing (fresh download) 24ms
+ ✓ tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: a held folder with no copy to open reports the lock, not store_full 14ms
+ ✓ tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: the same corner with a budget deferral reports store_full 26ms
+ ✓ tests/uniwork-docs-save.test.ts > editor state on the chip (one state source) > an unsaved edit in the editor reads dirty; the explicit Save then shows saving and saved 56ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > a connectivity change wakes a parked intent (setOnline) on the next poll 154ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > sync_write off -> paused_admin through the service 37ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC5: lost edit (!canEdit) refuses overwrite and save-copy; save-copy when canEdit replies save_copy_failed (pending G5-12) 143ms
+ ✓ tests/uniwork-docs-save.test.ts > editor state on the chip (one state source) > a poll answer from a pass that began before the Save does not flash dirty again 54ms
+ ✓ tests/uniwork-docs-save.test.ts > editor state on the chip (one state source) > reports only changes, and never hides a conflict, offline or signed-out state 15ms
+ ✓ tests/uniwork-docs-save.test.ts > editor state on the chip (one state source) > a view-only copy and a plain local file ignore editor reports 3ms
+ ✓ tests/uniwork-docs-save.test.ts > editor state on the chip (one state source) > offline Retry that lands is pushed as saved 14ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-1: an inline 409 conflict leaves the record non-dispatchable (poll sends nothing) 43ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G5-06 fix-C item 4 / AC-4: uploading at rest re-sends the same key, no lookup 45ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC6: drafts_full / store_full / keystore_locked -> keepDraft reflects it without mutating drafts, and reload keep=draft is refused while keep=discard succeeds 156ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > a conflict on the non-focused xlsx names the xlsx and targets the xlsx 66ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G5-06 fix-C item 4 / AC-4: committing at rest is settled by lookup 39ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-4: teardownSaveQueue awaits the in-flight poll and nothing lands after it resolves 74ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC6 (store_full): keepDraft probes store_full without mutating the store 90ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > a docx dialog still open closes as "Decide later" before the xlsx dialog opens 115ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-7: binding writes for one document serialize, so the later state wins 57ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > leaving the tab closes its chip dialog; the close prompt dialog stays 117ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > a second Resolve of the same document does not open a second dialog 63ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC7: offline overwrite queues paused_offline on the known head; offline reload without headOffline is refused 99ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC8: intent committing/reconciling refuses every action except cancel 93ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-1: a poll during an in-flight inline save does not upload the same key twice 92ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-1: a settle left in flight is not sent after teardown resolves 69ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > a choice made after the document left conflict is not applied 65ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > closing the conflict prompt aborts the open session without modifying the working copy 61ms
+ ✓ tests/uniwork-docs-save.test.ts > min_app_version is the core semver (R1-be-12) > a prerelease build stamps the core version into every new binding 4ms
+ ✓ tests/uniwork-docs-save.test.ts > min_app_version is the core semver (R1-be-12) > a 1.0.0-beta.2 build stamps the core 1.0.0 (beta.2 upgrade path) 3ms
+ ✓ tests/uniwork-docs-save.test.ts > min_app_version is the core semver (R1-be-12) > strips the prerelease and build metadata, and keeps anything else verbatim 0ms
+ ✓ tests/uniwork-docs-save.test.ts > the comments context of a bound copy (G8-12 §3.1) > a fresh open records the open version id, the level and the signed-in id 3ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > 409 on overwrite replies view with notice head_moved and refreshed server version 113ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-2: a read-only window status does not rewrite the holder's binding.json 39ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-3: an inline Save during the poll's tick is excluded (one writer) 95ms
+ ✓ tests/uniwork-docs-save.test.ts > the comments context of a bound copy (G8-12 §3.1) > an unbound path, or another account copy, has no context 3ms
+ ✓ tests/uniwork-docs-save.test.ts > the comments context of a bound copy (G8-12 §3.1) > a settled Save moves the version id to the receipt and pushes it once 11ms
+ ✓ tests/uniwork-docs-save.test.ts > the comments context of a bound copy (G8-12 §3.1) > a receipt settled through the document read takes the document version id 10ms
+ ✓ tests/uniwork-docs-save.test.ts > the comments context of a bound copy (G8-12 §3.1) > a 403 save downgrades the level to view, also for a binding written before levels existed 10ms
+ ✓ tests/uniwork-docs-save.test.ts > the comments context of a bound copy (G8-12 §3.1) > a view-ticket copy caps the comments level at view 5ms
+ ✓ tests/uniwork-docs-save.test.ts > the comments context of a bound copy (G8-12 §3.1) > a view launch without a version caps the comments level at view 3ms
+ ✓ tests/uniwork-docs-save.test.ts > the comments context of a bound copy (G8-12 §3.1) > a conflicted or failed Save pushes nothing and keeps the open version 15ms
+ ✓ tests/uniwork-docs-save.test.ts > the comments context of a bound copy (G8-12 §3.1) > a Save that needs no upload (bytes equal the base) pushes nothing 9ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > in-place lock while open: revoked or deleted pushes locked view and refuses every action except cancel 142ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-1: the account-boundary wipe awaits teardownSaveQueue before the wipe 26ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > FE-02: tab switch while open pushes conflictClosed once with the session id; an action answered after that returns {kind: "closed"} 140ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G8-12 comments seam on queue-settled saves > a parked Save that a later poll commits moves baseVersionId and pushes saved once 156ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a dirty working copy keeps its bytes and base; bar newer-dirty, pill remote-newer 57ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-01a: cancelSave(path, true) (tab closed -> kept draft) ends the open session and pushes conflictClosed once with the session id 103ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G8-12 comments seam on queue-settled saves > a record left committing at rest that a lookup finds committed pushes saved once 97ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a clean copy reloads to the noticed head: bytes sha256 = detail checksum, base revision/version = head, reloadPath once, bar updated 54ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a clean reload whose read reports a lower level moves the comments level with the head 52ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G8-12 comments seam on queue-settled saves > a dispatched Save refused with 403 pushes nothing and caps the level at view 149ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-01b: confirmClose choosing "close" ends the open session and pushes conflictClosed once with the session id 92ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-04: does not push conflictClosed when the session is ended before conflictOpen is delivered 42ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > no download while aiRunning (bar newer-ai, the copy stays) 51ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > an AI turn starting during the fetch (aiEpoch moves) drops the result: no write, no reloadPath, bar newer-ai 54ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > an AI turn starting after the write restores the previous bytes and binding 12ms
+stderr | tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a fetched head that is not newer than the open base is dropped silently
+uniwork docs: a fetched version of 01J8X4DOC0N1P2Q3R4S5T6U7 is not newer than the open base; dropped
+
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-02/BE-302: reload keep=draft awaits the dirty module flush before keeping the draft or replacing the copy, without uploading 116ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a transient fetch failure shows reload-failed, and Retry reloads once it works 56ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a fetched head that is not newer than the open base is dropped silently 42ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-02/BE-302: reload keep=draft refuses with reload_failed when a dirty module does not write; keep=discard stays as-is without flushing 98ms
+stderr | tests/uniwork-docs-lock-guard.test.ts > a locked keychain holds a pre-store intent (W3b) > the sync funnel refuses the path while locked, then opens it once unlocked
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+stderr | tests/uniwork-docs-lock-guard.test.ts > a locked keychain holds a pre-store intent (W3b) > a cold locked restore (no live session) still tells keystore_locked and locks the copy (R1-be-4)
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 2, min_app_version lower: lock pushed, nothing opened, folder untouched, no request 5ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 2, min_app_version higher: lock pushed, nothing opened, folder untouched, no request 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 2, no min_app_version: lock pushed, nothing opened, folder untouched, no request 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 2, malformed min_app_version: lock pushed, nothing opened, folder untouched, no request 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 2, min_store_level above this build: lock pushed, nothing opened, folder untouched, no request 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 3: lock pushed, nothing opened, folder untouched, no request 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > the funnel decision is the guard, exercised at runtime over a seeded store (R1-be-7) 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > the open route calls no module and pushes the lock again only on a new refusal 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > dismissLock forgets the lock (Close on the S11 panel); nothing else changes 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > keys a lock by pathKey: a drive-letter path spelled another way dismisses it (R1-be-2) 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 1 stays a plain bound document, and garbage stays unbound (regression) 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a schema-2 store level inside the window opens (OQ-P4) > schema 2, min_store_level 2, min_app_version 0.11.0-beta.9: bound, editable, opens with no lock 20ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a schema-2 store level inside the window opens (OQ-P4) > schema 2, min_store_level 2, min_app_version 0.11.0-dev.3: bound, editable, opens with no lock 3ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a schema-2 store level inside the window opens (OQ-P4) > schema 2, min_store_level 2, min_app_version 0.11.0 (0.11.0-beta.1 store in 1.0.0): bound, editable, opens with no lock 3ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a schema-2 store level inside the window opens (OQ-P4) > schema 2, min_store_level 2, min_app_version 1.0.0 (1.0.0 store in an older build): bound, editable, opens with no lock 4ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a schema-2 store level inside the window opens (OQ-P4) > schema 2, min_store_level 1: bound, editable, opens with no lock 3ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > the module policy reads binding.json once per call (R1-be-5) > isBound / isReadOnly cost one binding read each, even for a newer store 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > the module policy reads binding.json once per call (R1-be-5) > a schema-1 copy is also classified in one read, and still bound and editable 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > the module policy reads binding.json once per call (R1-be-5) > a plain local file costs no binding read at all 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > save, the chip Retry and a user Save write nothing and send nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > status, close, conflict and refresh answer without a dialog, a write or a request 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_app_version lower: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_app_version higher: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, no min_app_version: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, malformed min_app_version: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_store_level above this build: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 3: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_app_version lower: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_app_version higher: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, no min_app_version: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, malformed min_app_version: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_store_level above this build: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 3: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a locked keychain holds a pre-store intent (W3b) > the open is refused with S11 keystore_locked and the plaintext stays untouched 4ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a locked keychain holds a pre-store intent (W3b) > the sync funnel refuses the path while locked, then opens it once unlocked 14ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a locked keychain holds a pre-store intent (W3b) > a cold locked restore (no live session) still tells keystore_locked and locks the copy (R1-be-4) 7ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 403 on reload -> locked revoked: isReadOnly true, module save refused, bytes kept, bar revoked 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 403 on the metadata read locks the copy too 3ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 410 on reload -> deleted 51ms
+ ✓ tests/uniwork-conflict-model.test.ts > uniwork-conflict-model (G5-09 S5 desktop) > AC2 / FE-06: returns step 1 actions in exact DOM/visual/Tab order with Cancel as default focus, rendering View differences only for docs when canViewDiff is true 2ms
+ ✓ tests/uniwork-conflict-model.test.ts > uniwork-conflict-model (G5-09 S5 desktop) > AC5 / FE-06: hides Overwrite and Save-copy when !canEdit and exposes uwConflictNoEdit (with and without canViewDiff) 0ms
+ ✓ tests/uniwork-conflict-model.test.ts > uniwork-conflict-model (G5-09 S5 desktop) > AC7: offline disables Reload (unless headOffline) and Save-copy, but keeps Overwrite enabled 0ms
+ ✓ tests/uniwork-conflict-model.test.ts > uniwork-conflict-model (G5-09 S5 desktop) > AC8: committing/reconciling disables Reload, Save-copy, Overwrite with uwRemoteWaitCommit; reconciling-stuck adds Open sync center 1ms
+ ✓ tests/uniwork-conflict-model.test.ts > uniwork-conflict-model (G5-09 S5 desktop) > V-04: the kept-draft helper (showKeepHint) is only offered when Keep is available 0ms
+ ✓ tests/uniwork-conflict-model.test.ts > uniwork-conflict-model (G5-09 S5 desktop) > AC6 / FE-05: Reload step 2 preselects Keep draft when ok, and disables Keep without preselecting Discard when store_full / keystore_locked / drafts_full while exposing submitReasonKey 1ms
+ ✓ tests/uniwork-conflict-model.test.ts > uniwork-conflict-model (G5-09 S5 desktop) > routes through stop-ai step when aiRunning is true and preserves stopAi=true into step 2 payload, while Back returns to step 1 and focuses opener 0ms
+ ✓ tests/uniwork-conflict-model.test.ts > uniwork-conflict-model (G5-09 S5 desktop) > handles view updates for head_moved, save_copy_done, save_copy_failed, reload_failed, overwrite_failed, and locked revoked/deleted 0ms
+ ✓ tests/uniwork-conflict-model.test.ts > uniwork-conflict-model (G5-09 S5 desktop) > FE-03: maps rejected conflict actions to their failure notice (or null for cancel) 0ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a bare (envelope-less) 403 is transient: reload-failed, never a lock 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > feed-gone: a dropped open bound document is classified 404 -> revoked, 410 -> deleted, 200 -> nothing 12ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a successful resync that drops an open bound document locks it (runtime onFeedGone) 24ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores a malformed revision before anything else 3ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores a notice for another document 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores every notice while the feed is off (capability sync_feed) 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores a notice for a locked document (revoked or deleted) 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > '10' is newer than '9' (BigInt), '9223372036854775807' newer than '9223372036854775806' 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores a notice that is not newer than the base (equal or lower) 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores the echo of this app’s own commit (receipt revision / selfRenamed) 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > holds while an intent is validating, uploading or committing 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > reconciling → bar newer-dirty wait commit; reconciling-stuck → wait stuck 1ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > any other live queue state → bar newer-dirty without a wait reason 1ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > a terminal record (committed/cancelled) counts as no intent 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > a dirty working copy → bar newer-dirty, never reload 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > dirty wins over a running AI turn (the bar says dirty) 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > aiRunning → bar newer-ai, never reload 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > a clean, idle, intent-free copy reloads 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > carries the notice version into every bar 0ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a re-granted copy is editable again after the reopen: lock, bar and binding agree 60ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > the account boundary forgets the lock with its bar, so no verdict answers for the next session 16ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the bar through the real runtime (wiring onFeedChange) > a newer snapshot reaches the bar of a dirty copy through onFeedChange alone 32ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the bar through the real runtime (wiring onFeedChange) > a newer snapshot reloads a clean copy through onFeedChange alone: updated bar 65ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice during committing is held and dropped when the receipt matches 90ms
+ ✓ tests/uniwork-comments-preload.test.ts > every editor preload exposes window.uniworkComments > the same twelve-method surface per app 398ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > later keeps remote (pill stays), close clears it 101ms
+ ✓ tests/uniwork-comments-preload.test.ts > every editor preload exposes window.uniworkComments > forwards each call to its uniwork:comments:* channel 5ms
+ ✓ tests/uniwork-comments-preload.test.ts > every editor preload exposes window.uniworkComments > onReveal delivers a well-formed push and drops a malformed one 5ms
+ ✓ tests/uniwork-comments-preload.test.ts > the protocol error survives the contextBridge as an envelope (R1-1) > a create 409 comment_deleted reaches the renderer as data, and unwrap throws in its realm 22ms
+ ✓ tests/uniwork-comments-preload.test.ts > the protocol error survives the contextBridge as an envelope (R1-1) > a list 401 reaches the renderer as unauthorized (retryable false) 5ms
+ ✓ tests/uniwork-comments-preload.test.ts > the protocol error survives the contextBridge as an envelope (R1-1) > a list 404 reaches the renderer as not_found (retryable false) 6ms
+ ✓ tests/uniwork-comments-preload.test.ts > the protocol error survives the contextBridge as an envelope (R1-1) > a list 500 reaches the renderer as internal (retryable true) 3ms
+ ✓ tests/uniwork-comments-preload.test.ts > the protocol error survives the contextBridge as an envelope (R1-1) > a success resolves to { ok: true, value } through the bridge 3ms
+ ✓ tests/uniwork-comments-preload.test.ts > onReveal pulls a reveal held before the editor subscribed (R1-2) > delivers the held reveal once, then keeps listening for pushes 3ms
+ ✓ tests/uniwork-comments-preload.test.ts > onReveal pulls a reveal held before the editor subscribed (R1-2) > asks for the pending reveal on the pending channel and drops a malformed answer 5ms
+ ✓ tests/uniwork-comments-preload.test.ts > onReveal pulls a reveal held before the editor subscribed (R1-2) > a push that lands while the pull is in flight is not replayed twice 2ms
+ ✓ tests/uniwork-comments-preload.test.ts > the held reveal pull races with a push (D1-2/D1-3, VG-2) > a push that supersedes the pending pull drops its older answer (D1-2) 2ms
+ ✓ tests/uniwork-comments-preload.test.ts > the held reveal pull races with a push (D1-2/D1-3, VG-2) > a pull that resolves after the unsubscribe delivers nothing (D1-3) 2ms
+ ✓ tests/uniwork-comments-preload.test.ts > context + onSaved (G8-12 §3.1) > context forwards { path } to its channel and resolves the envelope unchanged 3ms
+ ✓ tests/uniwork-comments-preload.test.ts > context + onSaved (G8-12 §3.1) > onSaved hands well-formed pushes to the handler and drops malformed ones 4ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a second notice replaces the version: one bar, no stacking 101ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a restart rebuilds the newer-* bar from serverRevision/serverVersion 3ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > close hides the info bar for this session 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice for a document that is not open is ignored 41ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > the feed off ignores the notice 42ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice for another document never touches this copy 42ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > newer-ai: the poll sees the turn end, the rule runs again and a clean copy reloads 103ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > newer-dirty: the copy is clean again → now-clean (no auto reload) 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > reload opens the conflict dialog and “open the latest” replaces the copy 110ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > reload cancel (decide later) keeps the bar and the copy 103ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > AC2 / FE-01 / FE-06: renders role="alertdialog" with aria-labelledby/aria-describedby, hides View differences when Host has no onViewDiff handler, focuses Cancel by default, and restores focus to opener on Esc/Cancel 61ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-06: renders View differences first after the table when Host has an onViewDiff handler (docs only) 8ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > AC5: when !canEdit, hides Overwrite and Save-copy and renders uwConflictNoEdit 5ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > AC6 / FE-05: step 2 Reload confirm keeps Keep aria-disabled with reason when store_full/keystore_locked, links disabled reload-go via aria-describedby to the reason line, and only submits after explicit Discard 17ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > AC7: offline disables Reload (unless headOffline) with uwConflictOfflineDesktop, disables Save-copy with uwConflictSaveCopyOffline, keeps Overwrite enabled, and Back focuses opener in DOM 11ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > AC8: intent committing/reconciling marks Reload/Save-copy/Overwrite aria-disabled with uwRemoteWaitCommit; reconciling-stuck shows uwRemoteWaitStuck + Open sync center 9ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-08: updates the single fixed role=alert region on reply view notices and renders locked state with body + Close only (no X) and focus on h2[tabindex="-1"] 15ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-03: rejected uniworkConflictAct shows failure line in role=alert, re-enables buttons without unhandled rejection, and closes on rejected cancel 23ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-04: same notice twice in a row empties the role=alert node and re-fills it on the next frame 26ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-07: Reload radio group is a single Tab stop (Tab enters on checked/first radio, arrows move between radios) 19ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > shows stop-AI confirmation when aiRunning is true, sends stopAi: true on confirm, and traps Tab focus across aria-disabled controls 13ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-02: onUniworkConflictClosed ignores other sessionIds, clears view + removes inert + restores focus on matching sessionId, and unsubscribes on unmount 9ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-201: restores focus to the real active tab (.tab-item.active) when the opener was detached from the DOM before close 6ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-202: arrow keys in the Reload radio group skip an aria-disabled radio and Home/End move to the first/last enabled radio 17ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-203: re-announces a notice only when it comes from this reply (repeated failure), not on a pushed view that still carries the same notice 25ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-204: busy ref guard ensures two synchronous clicks in the same frame send only one uniworkConflictAct call 6ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > V-01: the initially focused control carries a data-conflict-initial-focus marker (cleared on blur and pointer interaction) 7ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > V-04: Reload step 2 hides the kept-draft helper when Keep is unavailable (store_full / keystore_locked / drafts_full) and keeps it when Keep is available 22ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-303: the detached-opener fallback does not leave a persistent tabindex on TabBar markup (removed on blur) 6ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog UI (G5-09 S5 desktop) > FE-303: an already focusable active tab is focused without any attribute mutation 6ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog CSS (G5-09 S5 visual-1 fixes) > V-01: marked initial-focus controls get the same ring as :focus-visible, from tokens 0ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog CSS (G5-09 S5 visual-1 fixes) > V-02: the head no longer reserves the close-button gutter for the whole column (only the title does) 0ms
+ ✓ tests/uniwork-conflict-dialog-ui.test.ts > UniworkConflictDialog CSS (G5-09 S5 visual-1 fixes) > V-06: Overwrite (danger) hover keeps white-on-red at >= 4.5:1 in light and dark (no opacity fade) 0ms
+
+ Test Files  11 passed (11)
+      Tests  398 passed (398)
+   Start at  02:05:11
+   Duration  4.98s (transform 2.08s, setup 0ms, import 2.50s, tests 8.69s, environment 369ms)
+
