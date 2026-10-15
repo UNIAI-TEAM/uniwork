@@ -388,6 +388,13 @@ func (s *WorkspaceService) updateFrom(ctx context.Context, userID string, before
 	if err := s.applyWorkspaceChanges(ctx, q, locked, in, to); err != nil {
 		return WorkspaceView{}, err
 	}
+	if emoji, ok := to["icon_emoji"]; ok {
+		// The trail names this "icon", as UploadIcon and RemoveIcon do, and
+		// keeps the id of a file icon the emoji replaced.
+		delete(from, "icon_emoji")
+		delete(to, "icon_emoji")
+		from["icon"], to["icon"] = workspaceIconLabel(locked), emoji
+	}
 	if err := recordWorkspaceUpdated(ctx, q, userID, locked, from, to); err != nil {
 		return WorkspaceView{}, err
 	}

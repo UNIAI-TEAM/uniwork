@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"slices"
 	"testing"
@@ -119,6 +120,23 @@ func TestWorkspaceEmojiReplacesUploadedIcon(t *testing.T) {
 	held, err := WorkspaceIconProvider{}.HeldBy(ctx, f.q, []files.FileID{files.FileID(up.IconFileID.String)})
 	if err != nil || len(held) != 0 {
 		t.Fatalf("released file still held: %v %v", held, err)
+	}
+	// The trail names the change "icon" like UploadIcon and RemoveIcon do,
+	// and keeps the id of the file the emoji replaced.
+	var raw string
+	if err := f.pool.QueryRow(ctx, `SELECT changes FROM audit_events WHERE resource_id = $1 AND action = 'workspace.updated' ORDER BY occurred_at DESC, id DESC LIMIT 1`, w.ID).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var changes map[string]struct {
+		From any `json:"from"`
+		To   any `json:"to"`
+	}
+	if err := json.Unmarshal([]byte(raw), &changes); err != nil {
+		t.Fatal(err)
+	}
+	icon, ok := changes["icon"]
+	if _, stray := changes["icon_emoji"]; !ok || stray || icon.From != "file:"+up.IconFileID.String || icon.To != "🎯" {
+		t.Fatalf("audit changes = %+v, want icon file:%s -> 🎯", changes, up.IconFileID.String)
 	}
 }
 
