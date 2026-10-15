@@ -41,7 +41,9 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if callerName == "" {
 		callerName = u.Email
 	}
-	s.trackVoiceCallInvite(room, callID, userID, callerName)
+	if err := s.trackVoiceCallInvite(room, callID, userID, callerName); err != nil {
+		return err
+	}
 	ev := Event{
 		Type: "chat.voice.invite",
 		Payload: map[string]string{

@@ -74,6 +74,9 @@ const (
 var (
 	voiceCallSessions  sync.Map // key: roomID|callID
 	lastVoiceCallSweep atomic.Int64
+	// voiceCallSessionsMu serialises read-modify-write on voiceCallSessions; a
+	// session holds a slice, so sync.Map.CompareAndSwap cannot compare it.
+	voiceCallSessionsMu sync.Mutex
 )
 
 func voiceCallSessionKey(roomID, callID string) string {
@@ -149,6 +152,8 @@ func appendVoiceCallParticipantID(ids []string, userID string) []string {
 
 func (s *ChatService) trackVoiceCallParticipant(roomID, callID, userID string) {
 	key := voiceCallSessionKey(roomID, callID)
+	voiceCallSessionsMu.Lock()
+	defer voiceCallSessionsMu.Unlock()
 	sess, ok := loadVoiceCallSession(key)
 	if !ok {
 		return
@@ -157,7 +162,15 @@ func (s *ChatService) trackVoiceCallParticipant(roomID, callID, userID string) {
 	voiceCallSessions.Store(key, sess)
 }
 
-func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, callerName string) {
+// trackVoiceCallInvite refuses a call_id that is still live: every room member
+// receives it in chat.voice.invite, so overwriting would hand them the call.
+func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, callerName string) error {
+	key := voiceCallSessionKey(room.ID, callID)
+	voiceCallSessionsMu.Lock()
+	defer voiceCallSessionsMu.Unlock()
+	if _, live := loadVoiceCallSession(key); live {
+		return ErrConflict
+	}
 	now := time.Now()
 	sess := voiceCallSession{
 		roomID:         room.ID,
@@ -169,8 +182,9 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 		invitedAt:      now,
 		participantIDs: []string{callerID},
 	}
-	voiceCallSessions.Store(voiceCallSessionKey(room.ID, callID), sess)
+	voiceCallSessions.Store(key, sess)
 	sweepVoiceCallSessions(now)
+	return nil
 }
 
 // trackVoiceCallAccept starts the call clock when someone other than the
@@ -178,6 +192,8 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 // a later joiner does not restart it.
 func (s *ChatService) trackVoiceCallAccept(roomID, callID, userID string) {
 	key := voiceCallSessionKey(roomID, callID)
+	voiceCallSessionsMu.Lock()
+	defer voiceCallSessionsMu.Unlock()
 	sess, ok := loadVoiceCallSession(key)
 	if !ok || userID == sess.callerID || sess.acceptedAt != nil {
 		return
@@ -524,7 +540,9 @@ func (s *ChatService) finalizeVoiceCall(
 	ctx context.Context, room db.ChatRoom, userID, callID string,
 ) error {
 	key := voiceCallSessionKey(room.ID, callID)
+	voiceCallSessionsMu.Lock()
 	raw, ok := voiceCallSessions.LoadAndDelete(key)
+	voiceCallSessionsMu.Unlock()
 	if !ok {
 		return nil
 	}
