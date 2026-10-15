@@ -1,9 +1,9 @@
 # G6-05k — Desktop uses the keys saved on UniWork (API contract)
 
 > **Trạng thái:** in-progress (server D1 + d-f1 and fork F1–F3 + fixes are built and reviewed; the E2E spec is in
-> progress; the decision record is still open on Q-K1). Decision record:
-> [ADR 0034 draft](../../../adr/drafts/0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md), `proposed`, kept in
-> `docs/adr/drafts/` until the user answers Q-K1.
+> progress). Decision record:
+> [ADR 0034](../../../adr/0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md), `accepted` 2026-10-15 (user
+> answered Q-K1 = (a) at 15:10 UTC+7: the person's own keys saved on UniWork).
 
 Card G6-05k (UNI-1637), lane g6-ai_server. User decision 2026-10-14 16:15 UTC+7, Q-M3 = (b). Base: D root
 9d987d353; fork read at `feature/UNI-1632-g6-05m-model-chip` 668f8a28 (G6-05m), built on
@@ -25,8 +25,8 @@ file and name, not by line, because lines move.
   `EntitlementService.Can(orgID, FeatureOfficeAIBYOK)` (`office.ai_byok`, D `server/internal/service/entitlement.go`),
   both in `AIBYOKService.Proxy` (D `server/internal/service/ai_byok.go`); key from
   `AICredentialService.Resolve` (D `server/internal/service/ai_credentials.go`).
-- An organization-wide admin key is **not** in scope: it is open question Q-K1 and the extension path in the ADR
-  ("Hướng mở rộng (b)"). `Resolve` could later try the personal row and then an organization row without changing
+- An organization-wide admin key is **not** in scope: the user's Q-K1 answer was (a) (2026-10-15), so it stays the
+  extension path in the ADR ("Hướng mở rộng (b)"). `Resolve` could later try the personal row and then an organization row without changing
   this contract. Q-K2..Q-K5 are decided (a) by the Advisor and built as described here.
 
 ## 2. Routes
@@ -353,7 +353,7 @@ against today's servers with the `byok` field faked in tests; the source only li
 | --- | --- | --- | --- | --- |
 | D1 server | D | BE | `server/internal/handler/dto/sdo/ai_credentials.go` (`AIBYOKStatusDTO`), `handler/ai_credentials.go`, `handler/ai_byok.go` (surface), `service/ai_byok.go` (`Status`, surface), `ai/proxy.go` (`CapOfficeBYOKDesktop`, `ProxySurface`), tests 1–4, API doc §3.1/§3.2 | **done** (acaf3d4b7, ee235dfcd, 6e0f450e4); cloud d-r1 + d-r2 pass on 8f702c37b |
 | d-f1 server fixes | D | BE | `service/ai_byok.go` (503 kept, closed reason list, `Configured()`), `handler/ai_credentials.go` (degrade to 200), frame/device/inactive tests, usage-table labels | **done** (663cfeb9a, 9b1451020, cb3d0397d, bb4f9d79c); BE review r2 clear |
-| D2 docs | D | docs | ADR 0034 aligned with the build, this contract, README draft note | **done, ADR stays `proposed` in `drafts/`** until Q-K1; moving it out, the README table row and the `CLAUDE.md` Audit and Events line (naming tests 1–2) are the one-line follow-up when the user answers (a) |
+| D2 docs | D | docs | ADR 0034 aligned with the build, this contract, README draft note | **done**; Q-K1 = (a) answered 2026-10-15, ADR 0034 accepted: moved to `docs/adr/`, README table row and the `CLAUDE.md` Audit and Events line (naming tests 1–2) added |
 | F1 shared | F | BE/FE shared | `packages/ai-provider/src/types.ts` (`origin`), `providers.ts` (`providerNeed`), `proxy-url.ts`, `web/modules/shared/ai/transport.ts`, tests 8 | **done** (2ef439e2, 7ad5c5f2) |
 | F2 shell main | F | BE (Electron main) | `apps/shell/src/main/uniwork-auth/keys*.ts`, `index.ts`, `keys-wiring.ts`, `apps/docs/src/main/docs-main.ts`, `ai-org-route.ts`, test 9 | **done** (c599a708; fixes 7e5b7fb0…0d9cc4a2 fx-main, a8a431a0…4ab390ef fx2); shell reviews r1/r2 clear |
 | F3 renderer | F | FE | `packages/ui/src/strings-ai-model-picker.ts`, `AiModelPicker.tsx`, `ai-model-picker.css`, `apps/shell/src/renderer/src/SettingsModal.tsx`, `settings.css`, tests 10–11 | **done** (489844bc, 5cc2f429; fixes a19796c5…812296e5 fx-ui, 285a42298…cab138215 fx3, beaa03cce, d37f2df33 fx4); FE reviews clear; tester_visual r2 pass |
@@ -374,5 +374,5 @@ Fork final: `d37f2df3`, fork cloud r3 (CI replica: `office-ci-test` 0 failed, `o
 - An org-served row's "use a key on this computer" mode resets on every Settings reload (by design of the transient
   form). The Settings pane keeps one pending pick per provider and sends them all in one Save; a pick equal to the stored
   slot model cannot be told from an echo and is not recorded.
-- Q-K1 (org-wide admin keys) remains the user's decision; a later card would add it in `Resolve` without changing the
-  desktop contract (ADR 0034, "Hướng mở rộng (b)").
+- Org-wide admin keys (Q-K1 option (b)) were not chosen (user answered (a), 2026-10-15); a later card would add them in
+  `Resolve` without changing the desktop contract (ADR 0034, "Hướng mở rộng (b)").
