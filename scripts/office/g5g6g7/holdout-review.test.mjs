@@ -239,6 +239,17 @@ describe('model-graded reviews file', () => {
     assert.match(validateReviewsFile(base.session, { ...graded(), reviews: graded().reviews.slice(1) }).problems.join('\n'), /waits for a reviewer and has no entry/);
   });
 
+  it('accepts the run-less human entry the report applies to every run (G712-31)', () => {
+    const pairs = [...new Map(skeleton.reviews.map((r) => [`${r.id}/${r.lang}`, { id: r.id, lang: r.lang }])).values()];
+    const human = { schemaVersion: 1, kind: REVIEWS_KIND, sessionId: packet.sessionId, manifestSha256: base.session.manifestSha256, reviews: pairs.map((p) => ({ ...p, verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' })) };
+    const check = validateReviewsFile(base.session, human);
+    assert.equal(check.ok, true, check.problems.join('\n'));
+    assert.equal(applyReviews(base.session.runs, parseReviews(human)).applied, pairs.length * RUNS, 'one run-less entry covers the pair in every run');
+    const missing = validateReviewsFile(base.session, { ...human, reviews: human.reviews.slice(1) });
+    assert.equal(missing.ok, false, 'a pair with no entry is still reported');
+    for (let run = 1; run <= RUNS; run += 1) assert.match(missing.problems.join('\n'), new RegExp(`${human.reviews[0].id}/${human.reviews[0].lang}/${run} waits for a reviewer and has no entry`));
+  });
+
   it('keeps a borderline "chưa kết luận" until the user spot-check resolves it', () => {
     const border = skeleton.reviews.find((r) => !r.injection);
     const doc = (spotBorder) => graded({ verdictOf: (r) => (key(r) === key(border) ? 'borderline' : 'pass'), spot: (r) => (key(r) === key(border) ? spotBorder : { verdict: 'pass' }) });

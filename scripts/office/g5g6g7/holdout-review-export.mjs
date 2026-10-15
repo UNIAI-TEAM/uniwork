@@ -121,10 +121,12 @@ export function validateReviewsFile(session, doc) {
   if (applied) {
     for (const r of applied.rejected) problems.push(`${r.key}: ${r.reason}`);
     for (const u of applied.unused) problems.push(`${u} matches no ask waiting for a reviewer`);
-    const waiting = new Set();
-    for (const run of session.runs) for (const ask of run.asks) if (ask.status === 'needs_reviewer') waiting.add(`${ask.id}/${ask.lang}/${run.runIndex}`);
-    const covered = new Set(reviews.reviews.map((r) => `${r.id}/${r.lang}/${r.run}`));
-    for (const key of waiting) if (!covered.has(key)) problems.push(`${key} waits for a reviewer and has no entry`);
+    // The coverage rule is the one applyReviews matches with (G712-31): an entry with `run` covers that run, an entry
+    // without it (the documented human form) covers the pair in every run.
+    const waiting = [];
+    for (const run of session.runs) for (const ask of run.asks) if (ask.status === 'needs_reviewer') waiting.push({ id: ask.id, lang: ask.lang, run: run.runIndex });
+    const covered = (w) => reviews.reviews.some((r) => r.id === w.id && r.lang === w.lang && (r.run === w.run || r.run === undefined));
+    for (const w of waiting) if (!covered(w)) problems.push(`${w.id}/${w.lang}/${w.run} waits for a reviewer and has no entry`);
   }
   return { ok: problems.length === 0, problems, items: reviews.reviews.length };
 }
