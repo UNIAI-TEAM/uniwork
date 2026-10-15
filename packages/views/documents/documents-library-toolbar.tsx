@@ -48,7 +48,7 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Tabs value={scope ?? ""} onValueChange={(next) => onScope(next as ScopeTab)}>
-        <TabsList className="max-w-full overflow-x-auto" aria-label={t("documents.home.scope_label")}>
+        <TabsList className="no-scrollbar max-w-full overflow-x-auto overflow-y-hidden" aria-label={t("documents.home.scope_label")}>
           {SCOPE_TABS.map((tab) => (
             <TabsTrigger key={tab} value={tab} className="pointer-coarse:min-h-11 pointer-coarse:min-w-11">
               {t(`documents.home.scope.${tab}`)}
@@ -62,7 +62,7 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
           ))}
         </TabsList>
       </Tabs>
-      <div role="group" aria-label={t("documents.home.chips_label")} className="-mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 py-0.5">
+      <div role="group" aria-label={t("documents.home.chips_label")} className="no-scrollbar -mx-1 flex max-w-full gap-1.5 overflow-x-auto overflow-y-hidden px-1 py-1">
         {TYPE_CHIPS.map((value) => (
           <button
             key={value}
