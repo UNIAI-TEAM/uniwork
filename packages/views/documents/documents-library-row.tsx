@@ -22,6 +22,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
+import { EditLockHolderChip } from "./edit-lock-holder-chip";
 import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkLabelKey } from "./source-links";
 import {
@@ -221,6 +222,7 @@ export function LibraryRowView({
           {archived || doc?.archived_at ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}
+          {doc?.edit_lock ? <EditLockHolderChip name={doc.edit_lock.holder_name} avatarUrl={doc.edit_lock.holder_avatar_url} /> : null}
         </span>
         {/* Below `xl` the My access / Visibility columns are hidden, so the level and the restricted mark ride on this line; below `md` it also carries editor, date and size. */}
         {metaLine || accessKey || restricted ? (
