@@ -1,0 +1,2 @@
+$ if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0; fi; sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gnome-keyring dbus-x11 libsecret-tools >/dev/null && echo keyring-pkgs-ok
+keyring-pkgs-ok
