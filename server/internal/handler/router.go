@@ -212,13 +212,14 @@ func New(d Deps) http.Handler {
 	aiMount := h.aiMountable(sessionAIActor)
 	frameAI := h.aiMountable(h.frameAIActor)
 	return rt.New(rt.Deps{
-		Cfg:           d.Cfg,
-		Minter:        d.Minter,
-		Redis:         d.Redis,
-		Storage:       d.Storage,
-		HTTPMetrics:   d.HTTPMetrics,
-		PlatformRoles: platformRoles(d.Admin),
-		FeatureFlags:  d.FeatureFlags,
+		Cfg:                  d.Cfg,
+		Minter:               d.Minter,
+		Redis:                d.Redis,
+		Storage:              d.Storage,
+		HTTPMetrics:          d.HTTPMetrics,
+		PlatformRoles:        platformRoles(d.Admin),
+		FeatureFlags:         d.FeatureFlags,
+		DocumentOrganization: h.documentFlagOrganization,
 		DeviceStatus: func(ctx context.Context, userID, sessionID string) error {
 			if d.DesktopAuth == nil {
 				return nil

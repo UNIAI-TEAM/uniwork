@@ -413,6 +413,38 @@ func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID st
 	return out, nil
 }
 
+// FlagOrganization names the organization an authenticated document route acts
+// in, so the `documents` flag is evaluated at that tenant and an organization
+// override closes the route like it closes public links and MCP tools
+// (UNI-1800). The path names it by orgID, workspaceID or documentID (first
+// non-empty wins). "" when it names none, the id is unknown, the caller is not
+// a member there, or a lookup fails: the flag then evaluates per user and the
+// service behind the gate refuses as it always did, so a non-member never
+// learns another tenant's flag state.
+func (s *DocumentService) FlagOrganization(ctx context.Context, userID, orgID, workspaceID, documentID string) string {
+	switch {
+	case orgID != "":
+	case workspaceID != "":
+		w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+		if err != nil {
+			return ""
+		}
+		orgID = w.OrganizationID
+	case documentID != "":
+		d, err := s.q.GetDocumentByID(ctx, documentID)
+		if err != nil {
+			return ""
+		}
+		orgID = d.OrganizationID
+	default:
+		return ""
+	}
+	if _, err := s.orgs.RequireMember(ctx, orgID, userID); err != nil {
+		return ""
+	}
+	return orgID
+}
+
 // orgReadable runs OrganizationService.RequireMember once per organization
 // and memoizes the answer; a closed tenant is "not readable", not an error,
 // because the inbox row still renders (with its snippet dropped).

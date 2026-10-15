@@ -36,7 +36,11 @@ type Deps struct {
 	// FeatureFlags feeds GET /api/v1/config and other flag readers; nil
 	// evaluates every catalogue key at its declared default.
 	FeatureFlags *featureflag.Service
-	DeviceStatus func(context.Context, string, string) error
+	// DocumentOrganization names the organization an authenticated document
+	// route acts in (one the caller is a member of), so the `documents` flag
+	// honours organization overrides; nil evaluates it per user.
+	DocumentOrganization func(*http.Request) string
+	DeviceStatus         func(context.Context, string, string) error
 	// OfficeFrameAuth checks the Office Docs frame token on
 	// /api/v1/office-frame/*; nil refuses every frame route with 404.
 	OfficeFrameAuth func(http.Handler) http.Handler
@@ -255,13 +259,17 @@ func New(d Deps, h Routes) http.Handler {
 			registerChatLinks(authed, h, chatWriteLimit)
 			registerChatFollowUps(authed, h, chatWriteLimit)
 			registerFiles(authed, h)
-			registerDocuments(authed, h, d.FeatureFlags)
-			registerDocumentSources(authed, h, d.FeatureFlags)
+			// The `documents` gate evaluates at the organization the path acts
+			// in, so an organization override closes these routes like it
+			// closes public links and MCP tools (UNI-1800).
+			docs := authed.With(mw.FlagOrganization(d.DocumentOrganization))
+			registerDocuments(docs, h, d.FeatureFlags)
+			registerDocumentSources(docs, h, d.FeatureFlags)
 			registerSignatures(authed, h)
 			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).
 			registerAICredentials(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOfficeLaunch(authed, h)
-			registerOfficeFrameToken(authed, h, d.FeatureFlags)
+			registerOfficeFrameToken(docs, h, d.FeatureFlags)
 			registerOfficeDesktopDownload(authed, h, mw.RateLimit(d.Redis, 10, time.Minute, proxies))
 			if d.PlatformRoles != nil {
 				adminLimit := mw.RateLimit(d.Redis, d.Cfg.AdminRateLimitPerMin, time.Minute, proxies)
