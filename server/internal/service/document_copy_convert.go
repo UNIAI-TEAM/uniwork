@@ -112,7 +112,7 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 		}
 		// Same create seat as the same-format copy (document_copy.go),
 		// checked in the transaction.
-		if _, err := s.ws.RequireMemberQ(ctx, q, locked.WorkspaceID, actor.ID); err != nil {
+		if err := s.requireCopySeat(ctx, q, locked.WorkspaceID, actor.ID); err != nil {
 			return err
 		}
 		if locked.FileVersionID.String != job.BaseVersionID {

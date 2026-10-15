@@ -190,8 +190,55 @@ func TestDocumentCopy(t *testing.T) {
 			}
 			before := copyDocCount(t, env)
 			_, err := env.svc.CopyDocument(ctx, outsider, src.Document.ID, CopyDocumentInput{Consent: "copy", IdempotencyKey: util.NewID()})
-			if !errors.Is(err, ErrForbidden) {
-				t.Fatalf("share editor copy into a workspace they are not in = %v, want ErrForbidden", err)
+			if !errors.Is(err, ErrWorkspaceSeatRequired) {
+				t.Fatalf("share editor copy into a workspace they are not in = %v, want ErrWorkspaceSeatRequired", err)
+			}
+			if ce := wantCode(t, err, "workspace_seat_required"); ce.Status != 403 {
+				t.Fatalf("seat refusal = %+v", ce)
+			}
+			if after := copyDocCount(t, env); after != before {
+				t.Fatal("a refused copy still wrote a document")
+			}
+		})
+
+		// BE-12-201: only the missing seat carries its own code. A member who may
+		// edit the source but not the parent folder is refused by the parent
+		// gate with the plain forbidden, so the client does not tell them they
+		// are not a member.
+		t.Run("a member without edit on the parent folder still gets forbidden", func(t *testing.T) {
+			src := env.createFile(t, member, "parent-gate.md", []byte("# Cong cha\n"))
+			folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Thu muc han che"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// The folder is restricted to its ACL owner; the copier may view it
+			// through a share (so it is visible, not a 404) but not edit it.
+			copier := human(env.tn.creator)
+			for _, row := range []struct {
+				id    string
+				level DocumentLevel
+			}{{src.Document.ID, DocumentLevelEdit}, {folder.Document.ID, DocumentLevelView}} {
+				if _, err := env.f.pool.Exec(ctx,
+					`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`,
+					row.id, env.tn.member.ID); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := env.svc.ShareDocument(ctx, member, row.id, DocumentShareInput{
+					PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.creator.ID, Level: row.level,
+				}); err != nil {
+					t.Fatalf("share: %v", err)
+				}
+			}
+			before := copyDocCount(t, env)
+			_, err = env.svc.CopyDocument(ctx, copier, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", ParentID: folder.Document.ID, IdempotencyKey: util.NewID(),
+			})
+			if !errors.Is(err, ErrForbidden) || errors.Is(err, ErrWorkspaceSeatRequired) {
+				t.Fatalf("copy into a folder the member cannot edit = %v, want plain ErrForbidden", err)
+			}
+			var ce CodedError
+			if errors.As(err, &ce) {
+				t.Fatalf("the parent gate answered a coded error %+v, want the plain forbidden", ce)
 			}
 			if after := copyDocCount(t, env); after != before {
 				t.Fatal("a refused copy still wrote a document")
@@ -238,8 +285,11 @@ func TestDocumentCopy(t *testing.T) {
 			if !hook.fired {
 				t.Fatal("the seam never ran: the pre-flight no longer precedes ResolveMany")
 			}
-			if !errors.Is(err, ErrForbidden) {
-				t.Fatalf("copy after the seat was removed = %v, want ErrForbidden", err)
+			if !errors.Is(err, ErrWorkspaceSeatRequired) {
+				t.Fatalf("copy after the seat was removed = %v, want ErrWorkspaceSeatRequired", err)
+			}
+			if ce := wantCode(t, err, "workspace_seat_required"); ce.Status != 403 {
+				t.Fatalf("seat refusal = %+v", ce)
 			}
 			if after := copyDocCount(t, env); after != before {
 				t.Fatal("a refused copy still wrote a document")

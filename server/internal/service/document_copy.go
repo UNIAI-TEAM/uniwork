@@ -57,6 +57,18 @@ func errOwnerRequiresCopy() error {
 		"tài liệu thuộc sở hữu (C-14); tạo bản sao qua owner service hoặc dùng chức năng sao chép khác")
 }
 
+// requireCopySeat is the workspace seat the copy and the Q7 accept need, read
+// through q. Only the missing seat (RequireMemberQ's plain ErrForbidden)
+// becomes workspace_seat_required; a suspended organization, a deactivated
+// member and a database error pass through as they are.
+func (s *DocumentService) requireCopySeat(ctx context.Context, q *db.Queries, workspaceID, userID string) error {
+	_, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID)
+	if errors.Is(err, ErrForbidden) {
+		return errWorkspaceSeatRequired()
+	}
+	return err
+}
+
 // CopyDocument creates the standalone copy. The caller needs edit on the
 // source: the copy carries the source's ACL, so copy is a write on content,
 // not a re-publication of it.
@@ -96,7 +108,7 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 	// The copy is a create in the source's workspace, so it needs the seat
 	// every create needs (CreateFileDocument, CreatePage): edit through a
 	// share is not one (G5-12).
-	if _, err := s.ws.RequireMember(ctx, src.WorkspaceID, actor.ID); err != nil {
+	if err := s.requireCopySeat(ctx, s.q, src.WorkspaceID, actor.ID); err != nil {
 		return DocumentFileResult{}, err
 	}
 	if strings.TrimSpace(in.JobID) != "" {
@@ -155,7 +167,7 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 		}
 		// Membership again, through the transaction: a removal that
 		// committed since the pre-flight wins.
-		if _, err := s.ws.RequireMemberQ(ctx, q, locked.WorkspaceID, actor.ID); err != nil {
+		if err := s.requireCopySeat(ctx, q, locked.WorkspaceID, actor.ID); err != nil {
 			return err
 		}
 		if locked.FileVersionID.String != current.ID {
