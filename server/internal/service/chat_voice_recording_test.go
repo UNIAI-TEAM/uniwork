@@ -87,6 +87,44 @@ func TestChatVoiceRecordingLifecycle(t *testing.T) {
 	}
 }
 
+// A DM's recordings are stored under the room's anchor workspace; the peer
+// opening the DM from another workspace of the organization still sees and
+// plays them (UNI-1660).
+func TestVoiceRecordingsListedFromPeerWorkspace(t *testing.T) {
+	s, _, q, ua, ub, w := chatVoiceRecordingFixture(t)
+	ctx := context.Background()
+	w2View, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Rec WS 2", "rec-ws-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addWorkspaceMember(t, q, w2View.Workspace.ID, ub.ID)
+	w2 := w2View.Workspace.ID
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	callID := "rec-call-peer-ws"
+	acceptDMVoiceCall(t, s, ua, ub, w, dm.ID, callID)
+	rec, err := s.StartVoiceRecording(ctx, ua.ID, w.ID, dm.ID, callID)
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	s.FinishVoiceRecordingByEgress(ctx, ProviderNeutralEvent{
+		Type:         "conference.recording_ended",
+		RecordingID:  rec.EgressID,
+		RecordingURL: "https://bucket/chat-voice-peer.mp4",
+	})
+
+	list, err := s.ListVoiceRecordings(ctx, ub.ID, w2, dm.ID, 10)
+	if err != nil || len(list) != 1 || list[0].ID != rec.ID {
+		t.Fatalf("list from ws2: %+v err=%v", list, err)
+	}
+	if _, err := s.GetVoiceRecordingForPlayback(ctx, ub.ID, w2, dm.ID, rec.ID); err != nil {
+		t.Fatalf("playback from ws2: %v", err)
+	}
+}
+
 func TestChatVoiceRecordingHangupStopsEgress(t *testing.T) {
 	s, fp, _, ua, ub, w := chatVoiceRecordingFixture(t)
 	ctx := context.Background()

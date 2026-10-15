@@ -817,12 +817,22 @@ func (s *ChatService) MintVoiceTokenRoom(ctx context.Context, userID, chatRoomID
 	if err != nil {
 		return "", err
 	}
-	if !room.WorkspaceID.Valid {
+	if room.ArchivedAt.Valid || !room.WorkspaceID.Valid {
 		return "", ErrNotFound
 	}
 	wsID := room.WorkspaceID.String
-	if _, err := s.ws.RequireMember(ctx, wsID, userID); err != nil {
-		return "", err
+	// DMs and groups belong to the organization: a member who is only in
+	// another of its workspaces answers the call too; room membership is
+	// checked by requireVoiceTokenAccess below.
+	switch room.Kind {
+	case chatRoomKindDM, chatRoomKindGroup:
+		if _, err := s.ws.orgs.RequireMember(ctx, room.OrganizationID, userID); err != nil {
+			return "", err
+		}
+	default:
+		if _, err := s.ws.RequireMember(ctx, wsID, userID); err != nil {
+			return "", err
+		}
 	}
 	if err := s.requireDMVoiceAllowed(ctx, room, userID); err != nil {
 		return "", err

@@ -1099,6 +1099,83 @@ func TestVoiceCallStrangerCannotJoin(t *testing.T) {
 	}
 }
 
+// DMs and groups are organization-level: a peer who is only in another
+// workspace of the organization answers the call too (UNI-1660).
+func TestVoiceTokenCrossWorkspaceDM(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	w2View, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Voice WS 2", "voice-ws-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w2View.Workspace.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "xws-call-1"); err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w2View.Workspace.ID, dm.ID, "xws-call-1"); err != nil {
+		t.Fatalf("accept from ws2: %v", err)
+	}
+	if _, err := s.MintVoiceTokenRoom(ctx, ub.ID, dm.ID, "xws-call-1"); err != nil {
+		t.Fatalf("token from ws2: %v", err)
+	}
+}
+
+func TestVoiceTokenCrossWorkspaceGroupAndArchivedChannel(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	w2View, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Voice WS 3", "voice-ws-3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w2View.Workspace.ID, ub.ID)
+	uc := registerVerified(t, q, as, "chat-xws-outsider@example.com", "C")
+	addOrgMember(t, q, w.OrganizationID, uc.ID)
+	addWorkspaceMember(t, q, w.ID, uc.ID)
+	ud := registerVerified(t, q, as, "chat-xws-member@example.com", "D")
+	addOrgMember(t, q, w.OrganizationID, ud.ID)
+	addWorkspaceMember(t, q, w.ID, ud.ID)
+
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
+		Name: "Cross ws voice", MemberUserIDs: []string{ub.ID, ud.ID},
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "xws-group-1"); err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+	if _, err := s.MintVoiceTokenRoom(ctx, ub.ID, group.ID, "xws-group-1"); err != nil {
+		t.Fatalf("group member from ws2 token: %v", err)
+	}
+	if _, err := s.MintVoiceTokenRoom(ctx, uc.ID, group.ID, "xws-group-1"); err != ErrForbidden {
+		t.Fatalf("org member outside the group token: %v", err)
+	}
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "voice-archived", Visibility: chatVisibilityPrivate,
+	})
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, ch.ID, "xws-channel-1"); err != nil {
+		t.Fatalf("channel invite: %v", err)
+	}
+	if err := s.ArchiveChannel(ctx, ua.ID, w.ID, ch.ID); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	if _, err := s.MintVoiceTokenRoom(ctx, ua.ID, ch.ID, "xws-channel-1"); err != ErrNotFound {
+		t.Fatalf("archived channel token: %v", err)
+	}
+}
+
 func TestLookupUserDifferentOrg(t *testing.T) {
 	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()

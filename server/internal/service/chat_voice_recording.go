@@ -376,14 +376,17 @@ func (s *ChatService) ActiveVoiceRecording(
 func (s *ChatService) ListVoiceRecordings(
 	ctx context.Context, userID, workspaceID, roomID string, limit int32,
 ) ([]db.ChatVoiceRecording, error) {
-	if _, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, false); err != nil {
+	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, false)
+	if err != nil {
 		return nil, err
 	}
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
+	// Recordings are stored under the room's anchor workspace, which for a
+	// DM or group need not be the workspace the caller opened it from.
 	return s.q.ListChatVoiceRecordingsForRoom(ctx, db.ListChatVoiceRecordingsForRoomParams{
-		WorkspaceID: workspaceID,
+		WorkspaceID: roomAnchorWorkspaceID(room),
 		RoomID:      roomID,
 		Limit:       limit,
 	})
@@ -397,11 +400,12 @@ func (s *ChatService) GetVoiceRecordingForPlayback(
 	if recordingID == "" {
 		return db.ChatVoiceRecording{}, Invalid("recording_id is required")
 	}
-	if _, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, false); err != nil {
+	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, false)
+	if err != nil {
 		return db.ChatVoiceRecording{}, err
 	}
 	rec, err := s.q.GetChatVoiceRecordingByID(ctx, db.GetChatVoiceRecordingByIDParams{
-		ID: recordingID, WorkspaceID: workspaceID, RoomID: roomID,
+		ID: recordingID, WorkspaceID: roomAnchorWorkspaceID(room), RoomID: roomID,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
