@@ -1,0 +1,340 @@
+$ (cd packages/electron-utils && NODE_ENV=test npx vitest run --reporter=verbose); rc=$?; echo; echo "ELECTRON_UTILS_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/electron-utils
+
+ ✓ tests/comments-ipc.test.ts > the comments IPC channel contract > names one channel per frame request kind plus the reveal push and its pending pull 1ms
+ ✓ tests/comments-ipc.test.ts > the comments IPC channel contract > every request needs the working-copy path 0ms
+ ✓ tests/comments-ipc.test.ts > the comments IPC channel contract > comments.list: optional kind + sinceToken, both validated 0ms
+ ✓ tests/comments-ipc.test.ts > the comments IPC channel contract > comments.create: kind + non-empty body, optional parent/anchor/baseVersionId 1ms
+ ✓ tests/comments-ipc.test.ts > the comments IPC channel contract > id-based requests and mentions.search 0ms
+ ✓ tests/comments-ipc.test.ts > the comments IPC channel contract > comments.anchors: 0..500 items, state exact|lost only 0ms
+ ✓ tests/comments-ipc.test.ts > the comments IPC channel contract > the reveal push needs a path and a comment id 0ms
+ ✓ tests/comments-ipc.test.ts > the comments reload scheduler (contract §4.7) > does nothing while the panel is closed or the tab is hidden 1ms
+ ✓ tests/comments-ipc.test.ts > the comments reload scheduler (contract §4.7) > polls on open, sends since_token and replaces the whole list on change 1ms
+ ✓ tests/comments-ipc.test.ts > the comments reload scheduler (contract §4.7) > an unchanged answer draws nothing 0ms
+ ✓ tests/comments-ipc.test.ts > the comments reload scheduler (contract §4.7) > uses the received list_token as the next since_token 0ms
+ ✓ tests/comments-ipc.test.ts > the comments reload scheduler (contract §4.7) > a failure keeps the list (no redraw) and reports the error 0ms
+ ✓ tests/comments-ipc.test.ts > the comments reload scheduler (contract §4.7) > closing the panel stops the 30 s poll; the interval is 30 s 0ms
+ ✓ tests/comments-ipc.test.ts > the comments reload scheduler (contract §4.7) > reload() while active lists at once with since_token = the last list_token (focus / comments.changed) 0ms
+ ✓ tests/comments-ipc.test.ts > the comments reload scheduler (contract §4.7) > reload() restarts the 30 s timer so a focus reload is not doubled by a near tick 0ms
+ ✓ tests/comments-ipc.test.ts > the comments reload scheduler (contract §4.7) > reload() does nothing while the panel is closed 1ms
+ ✓ tests/comments-ipc.test.ts > the comments reload scheduler (contract §4.7) > reload() does nothing while the tab is hidden 0ms
+ ✓ tests/comments-ipc.test.ts > the discussion bridge contract (G8-11) > names its own channels and global, apart from the comments ones 0ms
+ ✓ tests/comments-ipc.test.ts > the discussion bridge contract (G8-11) > list forces kind discussion and refuses any other kind 0ms
+ ✓ tests/comments-ipc.test.ts > the discussion bridge contract (G8-11) > create forces kind discussion and refuses an anchor or base version 0ms
+ ✓ tests/comments-ipc.test.ts > the discussion bridge contract (G8-11) > panel input needs a boolean open and a finite width 0ms
+ ✓ tests/comments-ipc.test.ts > the discussion bridge contract (G8-11) > clamps the panel width to [min, max] and leaves the editor its minimum 0ms
+ ✓ tests/comments-ipc.test.ts > the comments context + saved seam (G8-12 §3.1) > names the two new channels next to the others 0ms
+ ✓ tests/comments-ipc.test.ts > the comments context + saved seam (G8-12 §3.1) > context takes only the path; anything the renderer adds is dropped 0ms
+ ✓ tests/comments-ipc.test.ts > the comments context + saved seam (G8-12 §3.1) > a saved push needs a path and a bounded version id 0ms
+ ✓ tests/font-store.test.ts > the catalog > ships regular+bold files with pinned hashes 3ms
+ ✓ tests/font-store.test.ts > the catalog > names a licence inside the allowlist on every family 2ms
+ ✓ tests/font-store.test.ts > the catalog > covers the CJK families, not only the Latin rows 1ms
+ ✓ tests/font-store.test.ts > what listing tells the caller > reports the download size, so a pick never hides a 28 MiB fetch 1ms
+ ✓ tests/font-store.test.ts > what listing tells the caller > carries the licence through to the row 0ms
+ ✓ tests/font-store.test.ts > what listing tells the caller > reports installed state from the host 0ms
+ ✓ tests/font-store.test.ts > what listing tells the caller > offers nothing when the build ships no mirror 1ms
+ ✓ tests/font-store.test.ts > what listing tells the caller > offers only families whose files are published 1ms
+ ✓ tests/font-store.test.ts > downloadCatalogEntry > verifies the checksum and writes files into the store 2ms
+ ✓ tests/font-store.test.ts > downloadCatalogEntry > leaves an already-fetched file alone 1ms
+ ✓ tests/font-store.test.ts > downloadCatalogEntry > rejects a non-2xx response even when the bytes hash correctly 1ms
+ ✓ tests/font-store.test.ts > downloadCatalogEntry > rejects a checksum mismatch and writes nothing 1ms
+ ✓ tests/font-store.test.ts > downloadCatalogEntry > rejects downloads when no CDN URL is configured 1ms
+ ✓ tests/font-store.test.ts > downloadCatalogEntry > a second caller joins the first rather than fetching again 1ms
+ ✓ tests/font-store.test.ts > downloadFontFamily > rejects an unknown family 0ms
+ ✓ tests/font-store.test.ts > downloadFontFamily > refuses a family whose files are not published yet 0ms
+ ✓ tests/font-store.test.ts > downloadFontFamily > refuses to download without a mirror, before touching the network 0ms
+ ✓ tests/font-store.test.ts > the shipped catalog > is not edited by these tests 1ms
+ ✓ tests/font-store.test.ts > installLocalFontFiles > accepts sfnt files, copies them in, and skips non-fonts 1ms
+ ✓ tests/font-store.test.ts > installLocalFontFiles > installs nothing for a host that offers no local install 0ms
+ ✓ tests/font-store.test.ts > normalizeCdnBaseUrl > accepts an https URL and drops a trailing slash 0ms
+ ✓ tests/font-store.test.ts > normalizeCdnBaseUrl > refuses anything that is not a plain https origin 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv4 127.0.0.1 1ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv4 169.254.169.254 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv4 10.1.2.3 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv4 172.20.0.5 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv4 192.168.1.1 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv4 0.0.0.0 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv4 100.64.0.1 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv4 198.18.1.66 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv4 255.255.255.255 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv6 ::1 3ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv6 :: 1ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv6 fe80::1 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv6 fd00::1 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks non-public IPv6 ff02::1 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks IPv4-mapped/compatible form ::ffff:7f00:1 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks IPv4-mapped/compatible form ::ffff:a9fe:a9fe 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks IPv4-mapped/compatible form ::ffff:a00:1 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks IPv4-mapped/compatible form ::7f00:1 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > blocks IPv4-mapped/compatible form ::a9fe:a9fe 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > allows public address 8.8.8.8 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > allows public address 1.1.1.1 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > allows public address 93.184.216.34 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > allows public address 2001:4860:4860::8888 0ms
+ ✓ tests/safe-remote-url.test.ts > isBlockedAddress > treats non-addresses as unsafe 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects non-http scheme file:///etc/passwd 1ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects non-http scheme javascript:alert(1) 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects non-http scheme data:image/png;base64,AAAA 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects non-http scheme ftp://example.com/x.png 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects literal internal target http://127.0.0.1/x.png 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects literal internal target http://169.254.169.254/latest/meta-data/ 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects literal internal target http://[::1]/x.png 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects literal internal target http://[::ffff:127.0.0.1]/x.png 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects literal internal target http://10.0.0.1/x.png 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects literal internal target http://198.18.9.9/x.png 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects internal hostname http://localhost:8080/x.png 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects internal hostname http://foo.localhost/x.png 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects internal hostname http://printer.local/x.png 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects internal hostname http://metadata.internal/x.png 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects trailing-dot internal hostname http://localhost./x.png without DNS 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects trailing-dot internal hostname http://LOCALHOST./x.png without DNS 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects trailing-dot internal hostname http://printer.local./x.png without DNS 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects trailing-dot internal hostname http://metadata.internal./x.png without DNS 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects malformed input and non-strings 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > allows a public literal address 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > classifies the fake-ip range as a DNS artifact, not a public address 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > allows a hostname whose VPN resolver answered with fake-ip placeholders 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > still rejects a hostname resolving into 169.254.169.254 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > still rejects a hostname resolving into 10.0.0.7 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > still rejects a hostname resolving into 192.168.1.50 0ms
+ ✓ tests/safe-remote-url.test.ts > isSafeRemoteUrl > rejects a name whose answers mix fake-ip with a real internal address 0ms
+ ✓ tests/safe-remote-url.test.ts > resolveSafeRemoteTarget > hands back the validated addresses so a connection can bind to them 1ms
+ ✓ tests/safe-remote-url.test.ts > resolveSafeRemoteTarget > marks literal targets and carries the literal itself as the address 0ms
+ ✓ tests/safe-remote-url.test.ts > resolveSafeRemoteTarget > carries fake-ip answers as valid targets (the connection rides the tunnel) 0ms
+ ✓ tests/safe-remote-url.test.ts > pinnedLookup > answers the single-address shape net.connect expects without all:true 1ms
+ ✓ tests/safe-remote-url.test.ts > pinnedLookup > honors the connect-time family hint on the single-address path 0ms
+ ✓ tests/safe-remote-url.test.ts > pinnedLookup > answers the happy-eyeballs array shape under all:true 0ms
+ ✓ tests/safe-remote-url.test.ts > pinnedLookup > normalizes case, brackets and trailing dots before comparing the host 0ms
+ ✓ tests/safe-remote-url.test.ts > pinnedLookup > fails closed on a hostname that was not validated 0ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > rejects a redirect from a public host to an internal address 7ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > follows a redirect between public hosts and returns the final response 1ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > resolves relative Location headers against the current URL 0ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > gives up on a redirect loop instead of following forever 0ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > normalizes a non-finite redirect budget instead of looping forever 0ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > returns null when a redirect has no Location header 0ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > passes headers through and disables automatic redirects 0ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > never requests a target that fails the initial check 0ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > pins hostname hops with a dispatcher bound to the validated addresses 1ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > sends literal-IP hops without a dispatcher (nothing to pin) 0ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > skips pinning when a forward proxy owns the global dispatcher 1ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > still pins when the global slot holds a foreign plain dispatcher 0ms
+ ✓ tests/safe-remote-url.test.ts > fetchWithSsrfGuard > refuses a redirect onto a literal fake-ip address 0ms
+ ✓ tests/drop-open.test.ts > droppableFilePaths > returns null when there is no dataTransfer or no Files kind 1ms
+ ✓ tests/drop-open.test.ts > droppableFilePaths > maps every dropped file through the resolver in order 1ms
+ ✓ tests/drop-open.test.ts > droppableFilePaths > drops empty resolutions from virtual entries instead of failing 0ms
+ ✓ tests/drop-open.test.ts > droppableFilePaths > skips files whose path resolution throws instead of aborting the drop 0ms
+ ✓ tests/drop-open.test.ts > droppableFilePaths > caps resolved paths and skips overlong ones 1ms
+ ✓ tests/drop-open.test.ts > partitionDropPayload > rejects non-array payloads outright 0ms
+ ✓ tests/drop-open.test.ts > partitionDropPayload > ignores non-string entries, whitespace-only strings, and duplicates 0ms
+ ✓ tests/drop-open.test.ts > partitionDropPayload > classifies openable extensions case-insensitively 0ms
+ ✓ tests/drop-open.test.ts > partitionDropPayload > treats a dropped .tsv as openable, not as unsupported 0ms
+ ✓ tests/drop-open.test.ts > partitionDropPayload > collects known-unsupported extensions uniquely, first-seen order 0ms
+ ✓ tests/drop-open.test.ts > partitionDropPayload > caps the number of openable files at 20 0ms
+ ✓ tests/drop-open.test.ts > partitionDropPayload > keeps the original order so the last file wins activation 0ms
+ ✓ tests/drop-open.test.ts > installDropOpenBridge > registers exactly one dragover and one drop listener 0ms
+ ✓ tests/drop-open.test.ts > installDropOpenBridge > is idempotent within the same process 0ms
+ ✓ tests/drop-open.test.ts > installDropOpenBridge > cancels dragover for file drags so Chromium fires drop 0ms
+ ✓ tests/drop-open.test.ts > installDropOpenBridge > leaves dragover alone for non-file drags and page-handled events 0ms
+ ✓ tests/drop-open.test.ts > installDropOpenBridge > sends resolved document paths over the channel and cancels the native drop 1ms
+ ✓ tests/drop-open.test.ts > installDropOpenBridge > stays silent when the page already handled the drop 0ms
+ ✓ tests/drop-open.test.ts > installDropOpenBridge > swallows unresolvable/non-document drops without sending anything 0ms
+ ✓ tests/drop-open.test.ts > installDropOpenBridge > forwards known-unsupported docs too so the shell can explain why 0ms
+ ✓ tests/atomic-write.test.ts > atomicWriteFile > fsyncs the temp file before the rename publishes it 12ms
+ ✓ tests/atomic-write.test.ts > atomicWriteFile > tolerates a refused flush and still renames atomically 2ms
+ ✓ tests/atomic-write.test.ts > atomicWriteFile > surfaces a non-tolerated flush failure and leaves the target intact 2ms
+ ✓ tests/headless-export.test.ts > parseHeadlessExportArgv > reports no headless request when the flag is absent 1ms
+ ✓ tests/headless-export.test.ts > parseHeadlessExportArgv > parses the space-separated form 0ms
+ ✓ tests/headless-export.test.ts > parseHeadlessExportArgv > parses the --flag=value form and the --json switch 0ms
+ ✓ tests/headless-export.test.ts > parseHeadlessExportArgv > rejects a missing input, target or output 1ms
+ ✓ tests/headless-export.test.ts > parseHeadlessExportArgv > rejects a target format no module renders 0ms
+ ✓ tests/headless-export.test.ts > parseHeadlessExportArgv > accepts the non-pdf targets; input/target pairing is the host's job 0ms
+ ✓ tests/headless-export.test.ts > parseHeadlessExportArgv > keeps the --json switch on the error branch so failures stay machine-readable 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.docx to docs 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.xlsx to sheets 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.XLSM to sheets 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.xls to sheets 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.csv to sheets 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.tsv to sheets 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.pptx to slides 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.md to markdown 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.markdown to markdown 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.html to html 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > routes /x/a.htm to html 0ms
+ ✓ tests/headless-export.test.ts > headlessModuleFor > returns null for an unsupported extension 0ms
+ ✓ tests/headless-export.test.ts > formatHeadlessEnvelope > prints one human sentence without --json 0ms
+ ✓ tests/headless-export.test.ts > formatHeadlessEnvelope > prints exactly one JSON line with --json 1ms
+ ✓ tests/headless-export.test.ts > formatHeadlessEnvelope > folds newlines out of a multi-line failure so the envelope stays one line 0ms
+ ✓ tests/headless-export.test.ts > headlessExitCode > maps outcomes to the genoffice exit-code convention 0ms
+ ✓ tests/headless-export.test.ts > pollUntilReady > returns as soon as the predicate is satisfied 3ms
+ ✓ tests/headless-export.test.ts > pollUntilReady > gives up with the stall message rather than hanging forever 22ms
+ ✓ tests/headless-export.test.ts > pollUntilReady > evaluates a lazy stall message at give-up time 31ms
+ ✓ tests/headless-export.test.ts > runHeadlessRendererExport > reports ok when the export wrote a file 1ms
+ ✓ tests/headless-export.test.ts > runHeadlessRendererExport > reports an error when the export produced nothing 0ms
+ ✓ tests/headless-export.test.ts > runHeadlessRendererExport > never throws: a failed wait becomes a report 0ms
+ ✓ tests/headless-export.test.ts > runHeadlessRendererExport > never throws: a failed export becomes a report 0ms
+ ✓ tests/app-menu.test.ts > appMenuLabels > covers all 21 languages with every key non-empty 7ms
+ ✓ tests/app-menu.test.ts > appMenuLabels > falls back to English for unknown languages 1ms
+ ✓ tests/app-menu.test.ts > appMenuLabels > merges the context-menu clipboard labels 0ms
+ ✓ tests/app-menu.test.ts > windowMenuTemplate > keeps the native role on macOS 0ms
+ ✓ tests/app-menu.test.ts > windowMenuTemplate > builds Minimize/Close only on win32 0ms
+ ✓ tests/app-menu.test.ts > windowMenuTemplate > builds Minimize/Close only on linux 0ms
+ ✓ tests/app-menu.test.ts > windowMenuTemplate > localizes the Windows submenu 0ms
+ ✓ tests/app-menu.test.ts > editMenuTemplate > keeps the native role on macOS 0ms
+ ✓ tests/app-menu.test.ts > editMenuTemplate > mirrors the non-mac role expansion with labeled roles on Windows 0ms
+ ✓ tests/app-menu.test.ts > viewMenuTemplate > mirrors the viewMenu role expansion with labeled roles 1ms
+ ✓ tests/app-menu.test.ts > viewMenuTemplate > opens DevTools via an explicit click item, not the docking role 0ms
+ ✓ tests/app-menu.test.ts > viewMenuTemplate > drops the dev and page-zoom groups on request, keeping fullscreen 0ms
+ ✓ tests/app-menu.test.ts > viewMenuTemplate > closes detached DevTools when they have focus 1ms
+ ✓ tests/app-menu.test.ts > checkUpdatesMenuItem / manual update check wiring > sits directly above About in the help menu 0ms
+ ✓ tests/app-menu.test.ts > checkUpdatesMenuItem / manual update check wiring > invokes the shell-registered check on click, and no-ops unregistered 1ms
+ ✓ tests/app-menu.test.ts > checkUpdatesMenuItem / manual update check wiring > About dialog offers the check button only when a check is registered 0ms
+ ✓ tests/app-menu.test.ts > checkUpdatesMenuItem / manual update check wiring > About dialog third button triggers the registered check 0ms
+ ✓ tests/app-menu.test.ts > checkUpdatesMenuItem / manual update check wiring > About dialog copy button still copies name + version 0ms
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status bridge > registers the pull channel in standalone mode and answers null (before first server read) 1ms
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status bridge > parses valid cloud status snapshots and distinguishes cloud_unavailable from failed first reads 1ms
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status bridge > wires get, onChange, openAccountSettings and signIn through the preload bridge and warns on get IPC error 2ms
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status bridge > every editor preload and the shell preload install the cloud status bridge 1ms
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status bridge > every standalone editor main answers the cloud-status pull; the shell registers the real handler instead (RB1-5) 4ms
+ ✓ tests/dialog-memory.test.ts > showOpenDialogWithMemory > passes options through unchanged before any pick was made 2ms
+ ✓ tests/dialog-memory.test.ts > showOpenDialogWithMemory > remembers the picked directory and injects it as defaultPath next time 0ms
+ ✓ tests/dialog-memory.test.ts > showOpenDialogWithMemory > forwards the parent window when given 0ms
+ ✓ tests/dialog-memory.test.ts > showOpenDialogWithMemory > remembers the selected directory itself for openDirectory pickers 0ms
+ ✓ tests/dialog-memory.test.ts > showOpenDialogWithMemory > keeps an explicit absolute defaultPath untouched 0ms
+ ✓ tests/dialog-memory.test.ts > showOpenDialogWithMemory > does not remember canceled picks 0ms
+ ✓ tests/dialog-memory.test.ts > showSaveDialogWithMemory > anchors a bare file-name suggestion in the remembered directory 0ms
+ ✓ tests/dialog-memory.test.ts > showSaveDialogWithMemory > shares the remembered directory between save and open dialogs 0ms
+ ✓ tests/dialog-memory.test.ts > showSaveDialogWithMemory > keeps an explicit absolute defaultPath untouched 0ms
+ ✓ tests/dialog-memory.test.ts > showSaveDialogWithMemory > isolates memory between different dialog instances 0ms
+ ✓ tests/dialog-memory.test.ts > showSaveDialogWithMemory > anchors a bare file-name suggestion in the fallback dir when nothing is remembered 0ms
+ ✓ tests/dialog-memory.test.ts > showSaveDialogWithMemory > prefers the remembered directory over the fallback dir 0ms
+ ✓ tests/dialog-memory.test.ts > showSaveDialogWithMemory > keeps an explicit absolute defaultPath untouched even with a fallback dir 0ms
+ ✓ tests/dialog-memory.test.ts > saveAsSuggestion > suggests the source document folder with the new name (Word parity) 0ms
+ ✓ tests/dialog-memory.test.ts > saveAsSuggestion > falls back to the bare name for a document that was never on disk 0ms
+ ✓ tests/dialog-memory.test.ts > saveAsSuggestion > beats the remembered directory when threaded through the save dialog 0ms
+stderr | tests/print-window.test.ts > HTML print window > still prints when the readiness probe cannot run
+[print] readiness probe failed: Error: scripting disabled
+    at Object.executeJavaScript (/home/ubuntu/work/uniwork-office/packages/electron-utils/tests/print-window.test.ts:35:52)
+    at printHtmlDocument (/home/ubuntu/work/uniwork-office/packages/electron-utils/src/print-window.ts:66:23)
+    at /home/ubuntu/work/uniwork-office/packages/electron-utils/tests/print-window.test.ts:142:12
+    at file:///home/ubuntu/work/uniwork-office/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20
+
+ ✓ tests/print-window.test.ts > HTML print window > waits for fonts and images to be ready before printing 4ms
+ ✓ tests/print-window.test.ts > HTML print window > shows and focuses the window on win32 so the native dialog can appear 1ms
+ ✓ tests/print-window.test.ts > HTML print window > keeps the window hidden on the platforms that show a sheet 1ms
+ ✓ tests/print-window.test.ts > HTML print window > surfaces the failure reason rather than swallowing it 1ms
+ ✓ tests/print-window.test.ts > HTML print window > distinguishes a cancelled job from a failure 1ms
+ ✓ tests/print-window.test.ts > HTML print window > reports a load failure instead of resolving as a success 1ms
+ ✓ tests/print-window.test.ts > HTML print window > still prints when the readiness probe cannot run 4ms
+ ✓ tests/context-menu.test.ts > buildContextMenuItems > builds the full edit set for editable targets 1ms
+ ✓ tests/context-menu.test.ts > buildContextMenuItems > disables items per editFlags 0ms
+ ✓ tests/context-menu.test.ts > buildContextMenuItems > prepends spelling suggestions when a word is misspelled 0ms
+ ✓ tests/context-menu.test.ts > buildContextMenuItems > skips the suggestion block when there are no suggestions 0ms
+ ✓ tests/context-menu.test.ts > buildContextMenuItems > offers copy/select-all for non-editable selections 0ms
+ ✓ tests/context-menu.test.ts > buildContextMenuItems > returns nothing for non-editable targets without selection 0ms
+ ✓ tests/context-menu.test.ts > contextMenuLabels > covers every language and falls back to English 0ms
+ ✓ tests/context-menu.test.ts > contextMenuLabels > falls back to the base language for regional variants 0ms
+ ✓ tests/context-menu.test.ts > image targets > offers view / copy / save on a non-editable image 0ms
+ ✓ tests/context-menu.test.ts > image targets > puts the image block ahead of the edit set inside an editor 1ms
+ ✓ tests/context-menu.test.ts > image targets > ignores images without a source 0ms
+ ✓ tests/context-menu.test.ts > installContextMenu interceptor failures > falls back to the native menu when the interceptor rejects 11ms
+ ✓ tests/default-save-dir.test.ts > readDefaultSaveDirSetting > returns the configured absolute path 2ms
+ ✓ tests/default-save-dir.test.ts > readDefaultSaveDirSetting > returns null when the file is missing, corrupt, or the key is absent 1ms
+ ✓ tests/default-save-dir.test.ts > readDefaultSaveDirSetting > rejects non-string and relative values 1ms
+ ✓ tests/default-save-dir.test.ts > resolveDefaultSaveDir > uses the configured folder when it is usable (creating it on demand) 1ms
+ ✓ tests/default-save-dir.test.ts > resolveDefaultSaveDir > creates and returns the fallback when nothing is configured 0ms
+ ✓ tests/default-save-dir.test.ts > resolveDefaultSaveDir > degrades to the fallback when the configured folder is not writable 0ms
+ ✓ tests/default-save-dir.test.ts > resolveDefaultSaveDir > throws a descriptive error when the fallback itself is unusable 1ms
+ ✓ tests/default-save-dir.test.ts > configuredDefaultSaveDir > reads the setting from userData/app-settings.json and honors it 1ms
+ ✓ tests/default-save-dir.test.ts > configuredDefaultSaveDir > falls back to <Documents>/UniWork Office without a setting 1ms
+ ✓ tests/default-save-dir.test.ts > peekDefaultSaveDir > names the fallback without creating it 0ms
+ ✓ tests/default-save-dir.test.ts > peekDefaultSaveDir > returns a configured folder, also one that does not exist yet, without creating it 0ms
+ ✓ tests/default-save-dir.test.ts > peekDefaultSaveDir > degrades to the fallback when the configured path is a file 0ms
+ ✓ tests/remote-image.test.ts > remoteImageHeaders > sends no Referer to any host 1ms
+ ✓ tests/remote-image.test.ts > remoteImageHeaders > always sends a browser-like User-Agent and image Accept 0ms
+ ✓ tests/remote-image.test.ts > remoteImageHeaders > does not advertise formats the insert pipelines mislabel (avif/webp) 0ms
+ ✓ tests/remote-image.test.ts > fetchRemoteImage > returns the response on first success 11ms
+ ✓ tests/remote-image.test.ts > fetchRemoteImage > retries transient statuses until success 4ms
+ ✓ tests/remote-image.test.ts > fetchRemoteImage > retries network errors and returns null when the budget is exhausted 2ms
+ ✓ tests/remote-image.test.ts > fetchRemoteImage > does not retry permanent statuses like 404 0ms
+ ✓ tests/remote-image.test.ts > fetchRemoteImage > does not retry SSRF-blocked URLs 0ms
+ ✓ tests/remote-image.test.ts > readBodyCapped > concatenates a chunked body within the cap 2ms
+ ✓ tests/remote-image.test.ts > readBodyCapped > rejects a Content-Length above the cap without reading the body 1ms
+ ✓ tests/remote-image.test.ts > readBodyCapped > stops a chunked body (no Content-Length) as soon as it passes the cap 0ms
+ ✓ tests/remote-image.test.ts > readBodyCapped > does not trust a Content-Length that undercounts the body 0ms
+ ✓ tests/remote-image.test.ts > readBodyCapped > treats a missing Content-Length as unknown rather than zero 0ms
+ ✓ tests/print-html-pdf.test.ts > buildPrintableHtml > escapes the title, sanitizes the body, and installs a restrictive CSP 3ms
+ ✓ tests/print-html-pdf.test.ts > buildPrintableHtml > removes resource-loading tags, active content, URLs, and attributes 2ms
+ ✓ tests/print-html-pdf.test.ts > sanitizePrintableBody > keeps the restricted document structure and unwraps unknown containers 1ms
+ ✓ tests/print-html-pdf.test.ts > printHtmlToPdf > loads the HTML from a temp file, prints, and cleans up 3ms
+ ✓ tests/print-html-pdf.test.ts > printHtmlToPdf > destroys the window and removes the temp dir when printing fails 3ms
+ ✓ tests/print-html-pdf.test.ts > printHtmlToPdf > removes the temp dir when the window cannot be created 1ms
+ ✓ tests/save-image.test.ts > isSavableImageUrl > accepts data, http(s) and app asset schemes 1ms
+ ✓ tests/save-image.test.ts > isSavableImageUrl > refuses local files, renderer blobs and non-URLs 0ms
+ ✓ tests/save-image.test.ts > suggestImageFileName > keeps the URL file name when it has an image extension 0ms
+ ✓ tests/save-image.test.ts > suggestImageFileName > falls back to the MIME type, then png 0ms
+ ✓ tests/save-image.test.ts > decodeDataUrl > decodes base64 and percent-encoded payloads 0ms
+ ✓ tests/save-image.test.ts > decodeDataUrl > rejects malformed input 0ms
+ ✓ tests/save-image.test.ts > decodeDataUrl > parses every parameter run a real data URL can carry 0ms
+ ✓ tests/save-image.test.ts > decodeDataUrl > is not exponential on a comma-less data URL 1ms
+ ✓ tests/save-image.test.ts > decodeDataUrl > refuses payloads past the remote image budget before decoding 46ms
+ ✓ tests/save-image.test.ts > decodeDataUrl > requires an exact ;base64 parameter, not a substring match 0ms
+ ✓ tests/renderer-scheme.test.ts > rendererUrl > builds the scheme URL with the query when no dev server is configured 1ms
+ ✓ tests/renderer-scheme.test.ts > rendererUrl > appends the query to a dev URL that already carries params 1ms
+ ✓ tests/renderer-scheme.test.ts > rendererUrl > throws a descriptive error for a malformed dev URL 1ms
+ ✓ tests/renderer-scheme.test.ts > rendererUrl > rejects oversized query params 0ms
+ ✓ tests/renderer-scheme.test.ts > resolveRendererFile > maps the path under the host root 0ms
+ ✓ tests/renderer-scheme.test.ts > resolveRendererFile > keeps dot segments inside the root and rejects unknown hosts and unparsable URLs 0ms
+ ✓ tests/renderer-scheme.test.ts > resolveRendererFile > blocks encoded traversal sequences 0ms
+ ✓ tests/renderer-scheme.test.ts > resolveRendererFile > ignores query and fragment suffixes when mapping files 0ms
+ ✓ tests/renderer-scheme.test.ts > resolveRendererFile > rejects the root directory itself, which is not a file to serve 0ms
+ ✓ tests/renderer-scheme.test.ts > resolveRendererFile > rejects overlong and NUL paths 0ms
+ ✓ tests/save-image-flow.test.ts > saveImageFromUrl > decodes a data URL and writes the bytes to the picked path 7ms
+ ✓ tests/save-image-flow.test.ts > saveImageFromUrl > fetches non-data URLs through net.fetch and names the file from the URL 9ms
+ ✓ tests/save-image-flow.test.ts > saveImageFromUrl > refuses file URLs without touching the dialog 0ms
+ ✓ tests/generated-images.test.ts > generated image store > round-trips bytes through a file URL inside the store directory 11ms
+ ✓ tests/generated-images.test.ts > generated image store > refuses file URLs outside the store, foreign names inside it, and traversal 1ms
+ ✓ tests/generated-images.test.ts > generated image store > rejects oversized or empty bytes and falls back on overlong mime labels 1ms
+ ✓ tests/recovery-epochs.test.ts > RecoveryClearEpochs (G5-11f d3-2, d3-3) > a clear invalidates a write in flight 1ms
+ ✓ tests/recovery-epochs.test.ts > RecoveryClearEpochs (G5-11f d3-2, d3-3) > a clear of another path leaves the write alone 0ms
+ ✓ tests/recovery-epochs.test.ts > RecoveryClearEpochs (G5-11f d3-2, d3-3) > keys a path by its normalized spelling (separators, drive-letter case, dot segments) 1ms
+ ✓ tests/recovery-epochs.test.ts > RecoveryClearEpochs (G5-11f d3-2, d3-3) > holds an entry only while a write is in flight 0ms
+ ✓ tests/atomic-write.test.ts > atomicWriteFile > retries a locked rename, then falls back to an in-place write 754ms
+ ✓ tests/atomic-write.test.ts > atomicWriteFile > falls back to an in-place write when the mount refuses the rename 3ms
+ ✓ tests/atomic-write.test.ts > atomicWriteFile > surfaces the fallback write failure and keeps the completed temp 2ms
+ ✓ tests/atomic-write.test.ts > atomicCopyFile > fsyncs the copied temp file before the rename publishes it 3ms
+ ✓ tests/atomic-write.test.ts > atomicCopyFile > tolerates a refused flush and still publishes the copy 1ms
+ ✓ tests/atomic-write.test.ts > atomicCopyFile > leaves the target intact and drops no temp when the source is missing 1ms
+ ✓ tests/atomic-write.test.ts > atomicCopyFile > falls back to an in-place copy when the mount refuses the rename 2ms
+ ✓ tests/atomic-write.test.ts > writeJsonAtomic > replaces the file and leaves no temp behind 2ms
+ ✓ tests/atomic-write.test.ts > writeJsonAtomic > keeps the previous state when the write dies half-way 1ms
+ ✓ tests/atomic-write.test.ts > writeJsonAtomic > keeps the previous state when the rename fails 1ms
+ ✓ tests/atomic-write.test.ts > writeJsonAtomic > retries a locked rename, then falls back to an in-place write 904ms
+ ✓ tests/atomic-write.test.ts > writeJsonAtomic > tolerates a refused fsync on the temp file 1ms
+ ✓ tests/safe-external-url.test.ts > safeExternalUrl > accepts http and https URLs 1ms
+ ✓ tests/safe-external-url.test.ts > safeExternalUrl > rejects non-string input 0ms
+ ✓ tests/safe-external-url.test.ts > safeExternalUrl > rejects malformed URLs 0ms
+ ✓ tests/safe-external-url.test.ts > safeExternalUrl > rejects dangerous protocols by default 0ms
+ ✓ tests/safe-external-url.test.ts > safeExternalUrl > supports a custom protocol allowlist 0ms
+ ✓ tests/safe-external-url.test.ts > safeExternalUrl > trims surrounding whitespace instead of returning it verbatim 0ms
+ ✓ tests/uniwork-ai-flag.test.ts > answerUniworkAiFlagOff > registers the pull channel and answers false, which the renderer parses as hidden 1ms
+ ✓ tests/uniwork-ai-flag.test.ts > answerUniworkAiFlagOff > every standalone editor main answers the pull; the shell registers the real flag instead 4ms
+ ✓ tests/abort-on-destroyed.test.ts > abortOnDestroyed > aborts the controller when the sender is destroyed mid-stream 1ms
+ ✓ tests/abort-on-destroyed.test.ts > abortOnDestroyed > removes the listener when the stream settles first 0ms
+ ✓ tests/abort-on-destroyed.test.ts > abortOnDestroyed > aborts immediately for an already-destroyed sender 0ms
+ ✓ tests/recovery-copy.test.ts > newerCopyMtime > returns the copy mtime when the copy is newer 1ms
+ ✓ tests/recovery-copy.test.ts > newerCopyMtime > returns null when the copy is older or as old 0ms
+ ✓ tests/recovery-copy.test.ts > newerCopyMtime > returns null when either file is missing 0ms
+ ✓ tests/draft-preview.test.ts > isDraftPreviewPath > is true for a file inside the preview root, at any depth 1ms
+ ✓ tests/draft-preview.test.ts > isDraftPreviewPath > is false for the root itself, siblings that share the prefix, and normal documents 0ms
+ ✓ tests/print-window.test.ts > HTML print window > prints anyway when the readiness probe never settles 5002ms
+ ✓ tests/print-window.test.ts > HTML print window > destroys the window and removes the temp dir on success and on failure 2ms
+ ✓ tests/print-window.test.ts > HTML print window > destroys a window that died under it without throwing 2ms
+
+ Test Files  24 passed (24)
+      Tests  321 passed (321)
+   Start at  19:07:39
+   Duration  5.76s (transform 492ms, setup 0ms, import 1.33s, tests 7.05s, environment 2ms)
+
+
+ELECTRON_UTILS_EXIT=0

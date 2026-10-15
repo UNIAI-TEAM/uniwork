@@ -1,0 +1,479 @@
+$ NODE_ENV=test AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-auth-manager.test.ts tests/account-ui.test.ts tests/uniwork-cloud-status.test.ts tests/strings-account.test.ts tests/uniwork-sign-out-prompt.test.ts tests/uniwork-module-clear-recovery.test.ts tests/uniwork-sync-session-store.test.ts tests/uniwork-docs-sign-out-lock.test.ts tests/uniwork-docs-module-open-guard.test.ts tests/uniwork-docs-account-boundary.test.ts tests/uniwork-sync-offline-library-download.test.ts tests/uniwork-sync-offline-library-manager.test.ts tests/uniwork-sync-offline-library-runtime.test.ts --reporter=verbose; rc=$?; echo; echo "G511F_FILES_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: network loss mid-download -> interrupted, old copy kept > a first download that loses the network is interrupted with no staging left 9ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: network loss mid-download -> interrupted, old copy kept > a re-download that loses the network keeps the old ready copy, which still opens 7ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: disk full on re-download keeps old ready > store_full while staging the update -> the old copy stays ready (update-kept) 3ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: disk full on re-download keeps old ready > the layer budget reached by the update -> update-kept, nothing of it left 3ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: disk full on re-download keeps old ready > a full disk on the first download -> disk-full, never ready 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: corrupt cache never ready > main checksum mismatch on a first download -> corrupt, never ready 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: corrupt cache never ready > truncated bytes (fewer than the declared size) -> corrupt, never ready 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: corrupt cache never ready > a corrupt update keeps the old ready copy (update-kept) 5ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: corrupt cache never ready > a tampered stored blob is never served: the row turns corrupt and the bytes go 7ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: corrupt cache never ready > a stored blob that verifies against the wrong bytes (swapped record) is never served 3ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: declared assets (G5-A04) > declared asset missing -> not ready 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: declared assets (G5-A04) > declared asset missing because no asset route exists (no fetchAsset port) -> not ready 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: declared assets (G5-A04) > declared asset checksum mismatch -> not ready 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: declared assets (G5-A04) > every declared asset verified -> ready, and openCached returns them read-only 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: declared assets (G5-A04) > a stored asset tampered after commit -> the copy is not served 5ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: progress events and cancel > reports progress up to the total, then ready only after verification 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: progress events and cancel > cancel ("Hủy tải") -> interrupted, staging wiped, nothing ready 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: progress events and cancel > cancel of a re-download keeps the old copy 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: sign-out during download > sign-out mid-stream -> interrupted, no partial ready, no plaintext under the store root 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: sign-out during download > d6-5: an unwinding download never re-creates the wiped scope folder 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: sign-out during download > sign-out while the verified bytes are being staged -> never committed 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: sign-out during download > a pinned copy never leaves plaintext on disk 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > uniwork-docs downloadStream (additive, same route and 256 MiB cap) > streams the same route with progress and returns every byte 14ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > uniwork-docs downloadStream (additive, same route and 256 MiB cap) > refuses a Content-Length over 256 MiB before reading the body 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > uniwork-docs downloadStream (additive, same route and 256 MiB cap) > refuses a body that streams past 256 MiB with no Content-Length 4ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > uniwork-docs downloadStream (additive, same route and 256 MiB cap) > a broken body is network; a cancel mid-body is network and stops the stream 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > uniwork-docs downloadStream (additive, same route and 256 MiB cap) > leaves download() unchanged 4ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-8 / R5BE-14 downloadStream: a 200 with no readable body never buffers unbounded > null body + a declared size over the cap -> too_large, the body is never read 0ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-8 / R5BE-14 downloadStream: a 200 with no readable body never buffers unbounded > null body + no Content-Length -> refused (malformed_response), the body is never buffered 0ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-8 / R5BE-14 downloadStream: a 200 with no readable body never buffers unbounded > null body + a declared size under the cap -> refused too, never buffered 0ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > G5-05 offline library inside the sync runtime (production wiring) > builds the library on its own layer: library bytes are not in the sync store 38ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > G5-05 offline library inside the sync runtime (production wiring) > an online pass downloads a pin that waited for the network 20ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > G5-05 offline library inside the sync runtime (production wiring) > a renew that lost permission deletes the committed copy from disk, row revoked 73ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > G5-05 offline library inside the sync runtime (production wiring) > capability offline_library off refuses a new pin through the runtime capability read 0ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > T5-3 a feed delete/revoke of a CLOSED pinned document reaches the library > closed pinned doc + feed delete -> row deleted and its file gone from the store root listing 70ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > T5-3 a feed delete/revoke of a CLOSED pinned document reaches the library > closed pinned doc + feed revoke -> row revoked and its bytes gone 52ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > T5-3 a feed delete/revoke of a CLOSED pinned document reaches the library > a dropped id that is neither pinned nor open bound is still not reported 37ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-15 delete / revoke / archive of a pinned, never opened doc through the real SyncRuntime feed path > feed drop -> 410 document_deleted -> row UniworkDocError: uniwork document request failed: document_deleted, its blobs gone from the store root listing, drafts kept 45ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-15 delete / revoke / archive of a pinned, never opened doc through the real SyncRuntime feed path > feed drop -> 403 permission_revoked -> row UniworkDocError: uniwork document request failed: permission_revoked, its blobs gone from the store root listing, drafts kept 37ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-15 delete / revoke / archive of a pinned, never opened doc through the real SyncRuntime feed path > feed drop -> 404 not_found -> row UniworkDocError: uniwork document request failed: not_found, its blobs gone from the store root listing, drafts kept 41ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-9 downloadStream: an idle deadline that resets on every chunk (overall ceiling kept) > a 256 MiB body delivered over longer than the old deadline completes 506ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-15 delete / revoke / archive of a pinned, never opened doc through the real SyncRuntime feed path > feed upsert archived=true -> row archived, its blobs kept, still opens read-only, drafts kept 50ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > the feed parser keeps a feed upsert archived flag (G5-01b DocumentChangeFeedSDO.archived) 1ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > a feed archived=true for a pinned doc marks it with no metadata read; archived=false re-checks and clears it 51ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > a feed archived flag for a doc that is not pinned touches nothing 35ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-9 downloadStream: an idle deadline that resets on every chunk (overall ceiling kept) > a stalled stream still times out (no chunk for the idle deadline) 83ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-9 downloadStream: an idle deadline that resets on every chunk (overall ceiling kept) > a stalled stream ends the library download interrupted, nothing ready, no staging left 67ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > R6BE-1 the feed archived flag reaches the library only for pinned documents > a committed feed page of 5 rows (archived:false, none pinned) calls noteArchived 0 times 34ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > R6BE-1 the feed archived flag reaches the library only for pinned documents > an archived:true row of a pinned doc is handed over once; unpinned rows of the same page (true or false) are not 29ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > the feed-gone re-check (refresh) of a closed pinned doc whose head is archived -> archived, opens until lease end, then locked 38ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > the reconnect pass: a pin that waited for the network and is archived on the server downloads and reads archived 31ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-9 downloadStream: an idle deadline that resets on every chunk (overall ceiling kept) > the overall ceiling still ends a stream that keeps trickling 151ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-9 downloadStream: an idle deadline that resets on every chunk (overall ceiling kept) > download() keeps the whole-exchange deadline 60ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 1. clean sign-out: plan has count=0, locks store (open handle reads interrupted), deletes working copies 17ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 2. dirty sign-out with stored intent and N+1 bytes: plan has count=1, intent ciphertext stays byte-identical, N+1 parked, working copy deleted 15ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 3. dirty sign-out with N+1 in editor/disk: captures via requestModuleSave(..., "capture"), parks N+1, deletes working and recovery copies 12ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 4. park failure (store_full) aborts lockSession: working copy stays on disk and returns { ok: false } 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 5. in-flight upload/commit during sign-out: emits waiting/done, bounds wait to 30s, transitions to reconciling (or settles committed if within 30s), ignores late response 16ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 5b. in-flight commit that answers within the 30s bound settles committed before lock 77ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 6. keystore-locked sign-out: plan reports keystoreLocked=true and ramOnly=1, skips capture, deletes working copies, writes no parked record and keeps the ciphertext byte-identical 9ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 7. cancel on sign-out prompt (or unconfirmed logout when count > 0): closes no tab, locks no store, deletes no working copy 3ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 8. same-account sign-in (restoreParked): B restores nothing of A; A restores working copy + binding, verifies sha256, deletes parked record, and next pollSaveQueue dispatches 87ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 9. RAM cache audit + signed_out lock reason: lockSession clears all 15 caches and refuses residual working copy while signed out 7ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 10. d1-1: a capture that never writes parks a newer recovery copy (or deletes base-only), leaves no plaintext under userData, and account B cannot open it 27ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 11. be-6/be-8: recovery copies go under the module naming, including a path whose folder is already gone 5ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 12. be-7: a refused binding write leaves no orphan plaintext; the next poll restores 27ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 13. be-10: another account's S11 lock survives the sign-out 9ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 14. rows 7/9/10: the sign-out shows no prompt, sends no request and mints no intent 32ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 15. row 8: a marker from the N+1 bytes is found in no file under userData after sign-out 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 16. be-2 / d1-3: sign-out hands the deleted working copies and their baseChecksum to the module originals clearer 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 17. d1-6: a dirty binding whose working copy is missing (crash between binding and file write) is not counted as unsaved by planSignOut 3ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 18. d1-5: refusedParkedKeys drops the refusal when newerStoreIn(dir) turns false 14ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 19. d2-1: a pre-existing slides autosave copy of the owner's deck is gone after sign-out 26ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 20. d2-2: park refused (store_full) for A keeps the folder locked so signed-in B cannot open it; A signing back in reopens 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 22. Q2 = a: B is already live, a cancelled switch prompt cannot keep A open: A is locked, parked and closed, with no new intent 13ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 23. d5-1: a switch whose park is refused (store full) still closes A, keeps no plaintext of A and counts the loss in one notice 24ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 24. d5-1: an explicit sign-out with the same refused park still aborts: the tab stays, nothing is deleted 5ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 25. d6-1: B signs in and C signs in while an earlier lock runs: B, live in between with a dirty copy, is parked into its own store, its folder goes and its copies stay locked under C 64ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 26. d6-2: a switch where A's own store cannot open still removes A's dirty copy and counts it in the one notice 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 27. d7-2: a document the plan counted as RAM-only is not counted again as lost in the one notice 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 21. d2-3: findNewestRecoveryBytes picks the newest candidate by mtime when the disk file is missing 7ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > count 0 signs out at once, no prompt 50ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > count > 0 shows role=alertdialog labelled by the title, body with the count, Quay lại focused 25ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > signed-out shows its own label and sub-line 30ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > signed-in shows its own label and sub-line 6ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > refreshing shows its own label and sub-line 4ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > session-expired shows its own label and sub-line 5ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > session-revoked shows its own label and sub-line 3ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > server-unreachable shows its own label and sub-line 3ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > wrong-deployment shows its own label and sub-line 3ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > not-configured shows its own label and sub-line 2ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > keyring-unavailable shows its own label and sub-line 3ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > keystore-locked shows its own label and sub-line 2ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > signing-in shows a spinner and the browser hint 3ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > signed in: the plan fits the sub-line; the tooltip names account, organization and plan 2ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > signed in without a plan: the organization is the sub-line 3ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > shows initials for the signed-in profile 3ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > signed out: a click starts the browser sign-in 6ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > session expired: a click signs in again 4ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin leaves drafts/intents/queue untouched > asks first when the document has drafts or intents, then deletes only the pin 11ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin leaves drafts/intents/queue untouched > needs no confirmation without local work 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > unpin: no row, blob, asset or staging record of the pin is left 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > eviction: the copy and its asset go, the pin stays to download again 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > revoke: the copy and its asset go, the row shows revoked 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > delete: the copy and its asset go, the row shows deleted 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > a revoke during a download stops it and leaves no staging record 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > unpin with an open tab: the bytes go when the last tab closes 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > a deferred cleanup left by a crash is finished by recover() 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > a download a crash left behind: recover() deletes its staging and marks it interrupted 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 archived stays and opens until lease end > a pinned document archived on the server stays in the library and opens read-only 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 archived stays and opens until lease end > handleArchived marks the row and keeps the copy 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 deleted -> cache + assets gone, drafts kept > a server delete found on refresh deletes the copy; drafts and intents stay 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 deleted -> cache + assets gone, drafts kept > handleDeleted (feed) keeps the row as deleted until unpinned 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 revoke -> cache + assets gone, drafts kept > a lease revoke notice (renew lost permission) deletes the copy; drafts stay 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 revoke -> cache + assets gone, drafts kept > permission_revoked / 403 on refresh deletes the copy the same way 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 over limit (2 GiB, 200 pins, 256 MiB) -> refused with a code > the 201st pin is refused offline_cap_reached and nothing is downloaded 82ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > Quay lại: no logout call, focus back on the sign-out button 27ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > Đăng xuất calls accountLogout({confirmed:true}) 19ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > keystore variant: uwSignOutKeystore body, Đăng xuất danger, Quay lại focused 18ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > waiting: uwSignOutWaiting in a polite live node, Đăng xuất aria-disabled 30ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > vi + en render the copy 32ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > signed in: a click opens Settings → Account instead of signing in 20ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > follows status pushes from main 3ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > a login error event shows human copy, never the code 3ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > a login error from main wins over the generic launch failure 4ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > sign-in that could not reach UniWork offers sign in again, not a session outage 5ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > a rejected sign-in start never says the session is no longer valid 2ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > a failed launch is reported 4ms
+ ✓ tests/account-ui.test.ts > sidebar account entry > renders natural Vietnamese copy 2ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > signed out: explains and signs in 14ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > signing in: cancel, open again and copy link 23ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > signed in: profile, organization, plan; sign out in one click 15ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > switches organization when there is more than one 20ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 over limit (2 GiB, 200 pins, 256 MiB) -> refused with a code > a pin crossing 2 GiB is refused offline_cap_reached; one that fits is taken 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 over limit (2 GiB, 200 pins, 256 MiB) -> refused with a code > a single file over 256 MiB is refused too_large before any download 0ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 over limit (2 GiB, 200 pins, 256 MiB) -> refused with a code > a folder (not a file) is never pinned 0ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 capability off -> OQ-UX11 (a) > keeps the copies, opens them while the lease is valid, refuses new pins, never renews 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 capability off -> OQ-UX11 (a) > the lease grant answering office_capability_off refuses the pin 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 pin offline -> waiting-network then downloads > pins without a network as waiting-network and downloads on reconnect 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 pin offline -> waiting-network then downloads > a network error while reading the head also waits for the network 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 refresh: update-available > a newer head marks update-available; "Tải ngay" replaces the copy and deletes the old one 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 refresh: update-available > a view lease shows view-only and still opens read-only 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 refresh: update-available > without a session nothing is read or written 0ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-1 caps hold under concurrent pins (check + reserve + index-add are one step) > 199 pins + two concurrent pins -> exactly one refused offline_cap_reached, nothing downloaded for it 69ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-1 caps hold under concurrent pins (check + reserve + index-add are one step) > two concurrent pins that fit alone but cross 2 GiB together -> one refused 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-1 caps hold under concurrent pins (check + reserve + index-add are one step) > a pin whose lease is refused after the reservation releases it 63ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > main-initiated request shows the same prompt and answers requestId confirmed/false 29ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > a second request answers the first false 21ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > two hook instances mounted, unmounting the non-owner with a live request makes no answerSignOutPrompt call 34ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > shows no switcher for a single organization 19ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > refreshing keeps the profile and adds a subtle note 9ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > session-expired: message and sign in again 14ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > session-revoked: message and sign in again 15ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > server unreachable: cached profile and plan, one message and retry 25ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > failed sign-in (unreachable, no session): error copy and Sign in, no sign out 18ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > not-configured: the notice does not repeat itself as an error line 9ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-1 caps hold under concurrent pins (check + reserve + index-add are one step) > a cancelled first download releases its bytes from the quota 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-2 an in-flight re-download never blocks the old copy > a slow re-download of a ready pin: openCached serves the old bytes at once, the new ones after commit 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-2 an in-flight re-download never blocks the old copy > a revoke arriving mid-download still wins: cache gone, staging wiped, nothing ready 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-2 an in-flight re-download never blocks the old copy > a server delete found by refresh mid-download still wins 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-4 the lease revoke notice honours its reason > a delete found at lease renewal (document_deleted) -> row deleted 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-4 the lease revoke notice honours its reason > a permission loss at lease renewal -> row revoked 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-5 restore and a quota refusal at reconnect > a deleted row that is readable again is restored: waiting-network, then downloads 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-5 restore and a quota refusal at reconnect > a revoked row whose access is back downloads again ("Tải ngay"), with a fresh lease 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-5 restore and a quota refusal at reconnect > a waiting-network pin over the quota at reconnect is refused offline_cap_reached and not retried every pass 4ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > main-initiated confirm with a waiting progress keeps the prompt: uwSignOutWaiting polite, Đăng xuất aria-disabled, until done 22ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > count 0 + keystoreLocked + ramOnly 0 signs out at once, no prompt 14ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > Escape = Quay lại: no logout call, focus back on the sign-out button 27ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > closing Settings with a live main-initiated prompt answers it false 11ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > d1-2: shows polite uwSignOutCaptureFailed notice in Account pane only when done has captureFailed > 0 39ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keyring-unavailable: the notice does not repeat itself as an error line 7ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > wrong-deployment: the notice does not repeat itself as an error line 10ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > wrong deployment: names the server, offers sign in again and sign out 13ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > not-configured: the connect screen with an address field 14ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > first run: one click on the sidebar chip opens the connect screen 7ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > not-configured, Vietnamese: the copy the product asks for 6ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > the connect button sends the typed address to main 14ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > a refused address (invalid_address) says why and keeps the field 12ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > a refused address (unreachable) says why and keeps the field 20ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > FE d1-n1: clears waiting and busy and refreshes if no done arrives within SIGN_OUT_RECEIPT_WAIT_MS + 10 s after confirm 16ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > FE d1-n2: done arriving while renderer-initiated accountLogout() is still in flight keeps busy/signingOut until accountLogout settles 14ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > FE d2-1: safety timer firing while renderer-initiated accountLogout is pending only clears waiting UI; button stays aria-disabled and click does not call accountLogout twice 34ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > FE d2-4: done before 40 s cancels the safety timer (no late refresh or prompt clobber); cancel and unmount clear it; captureFailed notice clears on sign-in 36ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > a refused address (refused) says why and keeps the field 12ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > server unreachable: names the saved server and offers the field 9ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > signed in: the address stays behind Change server 9ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keyring unavailable: retry reads the stored sign-in again 18ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keyring unavailable: sign in again, and a refused attempt says why 12ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked: Retry (never Online / sign-out / sign-in) re-reads the stored sign-in 17ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked: the sidebar entry is a warning and never shows the sign-in / online label 7ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked: a refused sign-in attempt says the keychain is locked 8ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > SignOutPrompt standalone: Quay lại and Escape return focus to returnFocusRef, confirm does not, no answer/logout sent twice 11ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > Q2 = a: a switch notice shows what was lost with one acknowledge button, no cancel (vi + en), answers once and returns focus 31ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > Q2 = a: Escape acknowledges the notice once; a notice leaves an open sign-out prompt alone 14ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > FE d4-1: a switch notice waits for an open aria-modal dialog: Settings stays closed, then opens and focuses OK 8ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > FE d4-1: with Settings already open, a prompt keeps focus off its button until the aria-modal dialog closes 9ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > FE d4-2: closing Settings with a confirm open cancels only the confirm; the queued notice shows next 18ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > FE d4-3: a second switch notice adds to the open one and one acknowledge answers both 11ms
+ ✓ tests/uniwork-sign-out-prompt.test.ts > Settings → Account sign-out prompt (S3) > FE d4-4: the focus-return microtask leaves focus alone when something else already holds it 2ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked: Retry is aria-disabled (never disabled) and aria-busy while pending; a double click makes one accountRetry call 16ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked: focus stays on Retry after a rejected retry 12ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked: Enter and Space are not swallowed on Retry and activate it 11ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked: only after a failed Retry is "Sign in again" offered, second to Retry 16ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked: "Sign in again" asks first; Cancel and Escape change nothing, confirm replaces once 22ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked: the replace prompt closes when main withdraws the offer 13ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked in Vietnamese: the replace prompt reads in Vietnamese 10ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keystore locked in Vietnamese reads from the sync shard, offers Thử lại and never reads as signed in 5ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > keyring unavailable still shows Sign in again together with Retry, and the notice (not keystore copy) 6ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > a rejected sign-in link shows a passing notice and the attempt goes on 9ms
+ ✓ tests/account-ui.test.ts > Settings → Account pane > renders the pane in Vietnamese 4ms
+ ✓ tests/account-ui.test.ts > error copy > maps every AccountErrorCode to a distinct en + vi string 1ms
+ ✓ tests/account-ui.test.ts > error text contrast > :root: the account card "refreshing" label meets WCAG AA on the card 2ms
+ ✓ tests/account-ui.test.ts > error text contrast > [data-theme='dark']: the account card "refreshing" label meets WCAG AA on the card 1ms
+ ✓ tests/account-ui.test.ts > error text contrast > @media (prefers-color-scheme: dark): the account card "refreshing" label meets WCAG AA on the card 0ms
+ ✓ tests/account-ui.test.ts > error text contrast > :root: account error text meets WCAG AA on its backgrounds 1ms
+ ✓ tests/account-ui.test.ts > error text contrast > [data-theme='dark']: account error text meets WCAG AA on its backgrounds 0ms
+ ✓ tests/account-ui.test.ts > error text contrast > @media (prefers-color-scheme: dark): account error text meets WCAG AA on its backgrounds 0ms
+ ✓ tests/account-ui.test.ts > error text contrast > reads each theme block, not the first match in the file 0ms
+ ✓ tests/account-ui.test.ts > error text contrast > :root: avatar initials and the empty avatar glyph meet WCAG AA 0ms
+ ✓ tests/account-ui.test.ts > error text contrast > [data-theme='dark']: avatar initials and the empty avatar glyph meet WCAG AA 0ms
+ ✓ tests/account-ui.test.ts > error text contrast > @media (prefers-color-scheme: dark): avatar initials and the empty avatar glyph meet WCAG AA 0ms
+ ✓ tests/account-ui.test.ts > error text contrast > the account error rules use the legible token 1ms
+ ✓ tests/account-ui.test.ts > organization step after sign-in > opens Settings › Account with the step when the account must choose an organization 7ms
+ ✓ tests/account-ui.test.ts > organization step after sign-in > leaves Settings closed for an account with a chosen organization 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > starts PKCE, opens the browser, exchanges the code and loads the account 9ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > a callback for another scheme is discarded and the attempt stays live 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > a forged or malformed callback never cancels the live sign-in 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > a callback for an expired attempt ends it with login_timeout 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > times out after 10 minutes 3ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > cancel returns to signed-out and ignores a late callback 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > exchange failure auth_code_invalid -> signed-out 4ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > exchange failure rate_limited -> signed-out 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > exchange failure network -> server-unreachable 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > exchange failure desktop_auth_unavailable -> server-unreachable 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > exchange failure wrong_deployment -> wrong-deployment 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > start failure maps to state and keeps no attempt 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > retry after a failed sign-in start signs in again 4ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > refuses to store when the keyring is unavailable 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > a no-keyring host still reports keyring-unavailable, not keystore-locked 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > keyring-unavailable: a fresh sign-in replaces the unreadable credential 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > keyring-unavailable: sign-in opens no browser while nothing could be stored 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > a secure-store failure during the account reload leaves no session to recover 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > not-configured without a deployment profile 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > restore while the keystore is locked shows keystore-locked, not keyring-unavailable 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > keystore-locked preserves the saved credential (nothing cleared, no network session) 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > unlock then restore signs in 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > a sign-in while the keystore is locked never overwrites the stored credential 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > a sign-in while the keystore is locked opens no browser when nothing can be stored 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > retry from keystore-locked re-reads the store and signs in once unlocked 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > a keychain that locks between load and save is keystore_locked, never io (real store) 6ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > a sign-in whose credential cannot be wrapped never overwrites the stored one (real store) 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked: replacing the saved sign-in > a plain sign-in never replaces a saved sign-in this computer cannot open 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked: replacing the saved sign-in > is refused until a Retry has failed, and outside keystore-locked 3ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked: replacing the saved sign-in > after a failed Retry it is offered; the new sign-in replaces only the saved sign-in 4ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked: replacing the saved sign-in > a cancelled replacing sign-in leaves the saved sign-in byte-identical 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked: replacing the saved sign-in > an expired replacing sign-in goes back to keystore-locked with the offer kept 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked: replacing the saved sign-in > a replacing sign-in that fails never clears the saved sign-in (even a revoked device) 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked: replacing the saved sign-in > a keychain that cannot store a new sign-in opens no browser, even after a failed Retry 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked: replacing the saved sign-in > a Retry that opens the keychain signs in and withdraws the offer 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > restores by refreshing; the rotated refresh token is persisted 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > a credential bound to another deployment is never used 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > an expired refresh token is session-expired without a network call 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure refresh_reused -> session-revoked 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure device_revoked -> session-revoked 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure unauthorized -> session-expired 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure auth_code_invalid -> session-expired 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure network -> server-unreachable 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure timeout -> server-unreachable 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure server_error -> server-unreachable 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure malformed_response -> server-unreachable 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure wrong_deployment -> wrong-deployment 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > server-unreachable with a credential recovers on its own with a bounded backoff 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > the recovery backoff is capped at five minutes 3ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > getAccessToken() recovers from server-unreachable instead of returning null 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > getAccessToken() while offline is refresh-only and does not wait for the account reload 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > getAccessToken() while offline does not refresh when the access token is still valid 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > getAccessToken() bursts while offline share one attempt and are throttled 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > startup restore waits for the gate (proxy install) before the first refresh 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > startup restore shows the stored account as refreshing while it waits for the gate 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > startup restore stands down when the user signed out while it waited 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > startup restore stops waiting for a gate that never settles 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > server-unreachable after a restart shows the cached organization and plan 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > restore stays refreshing until the account reload has finished 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > an access token lifetime past the timer range does not loop refresh 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > a bare 401 on refresh keeps the credential (server-unreachable) 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > a /me answer for another account ends the session 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > sign-in from server-unreachable recovers the live session instead of a new attempt 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > retry after server-unreachable recovers 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > runs a single refresh for concurrent callers 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refreshes proactively at 80% of the access token lifetime 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > 401 -> refresh -> retry once 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > a second 401 after refresh ends the session 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > organizations and entitlements > keeps the persisted org while still a member 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > organizations and entitlements > selectOrg persists the choice and reloads entitlements 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > organizations and entitlements > a billing failure after a restart shows the cached plan but never publishes it as live 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > organizations and entitlements > a billing failure leaves entitlements unknown but stays signed in 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a two-org account asks, and makes no org-scoped call before the choice 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a remembered organization is used with no question 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a single usable organization is picked automatically and remembered 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a remembered organization that is gone asks again with rememberedGone 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a suspended organization is not selectable and its row says so 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a deactivated membership is refused and the row is marked 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a re-login deactivated in the single org locks it (F-2) 3ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a re-login deactivated in the remembered org brings the picker back with the row locked (F-2) 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a remembered org of another account is ignored (F-3) 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a legacy bare-string remembered org is ignored (F-3) 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a failed org list keeps the session and reports orgsError (F-5) 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a transient membership read inside selectOrg keeps the picker and the session (RBE1-02) 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > every organization blocked leaves no picker (the lock panel handles it) 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > logout > revokes the device, then clears local credentials 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > logout > clears and reports signed-out before the server round trip 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > logout > still clears when the server is unreachable 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > logout > drops a refresh response that lands after logout 0ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > opens the session scope once and hands back its registered stores 17ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > shares one open between concurrent calls 5ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > reports a locked keychain without remembering it, and opens after the unlock 4ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > without a session there is no store to open 0ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > follows an account switch and forgets a wiped scope 8ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > a keychain that relocks after the handle was cached refuses, and revokes it (G504-be-3) 5ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > a pending open is never shared with another scope, and a stale result is discarded (G504-be-6) 4ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > a completion that lands after forget is discarded and not cached (G504-be-6) 5ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > B's session never opens A's scope 11ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > lock() drops the cached handle and locks the left scope 6ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > locking the scope being left never discards the incoming scope's open (G5-11 F6) 8ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > a bare lock() with nothing cached leaves the live scope untouched (G5-11f d4-r1) 5ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > openScope opens the leaving account's own store while another account is live, and never caches it (G5-11 F7) 8ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > openScope discards a one-off open that a lock of its scope overtook 4ms
+ ✓ tests/uniwork-auth-manager.test.ts > signing in again after the device was revoked > a callback delivered by a second instance (Windows argv) completes the new sign-in 52ms
+ ✓ tests/uniwork-auth-manager.test.ts > signing in again after the device was revoked > a second Sign in click keeps the attempt the open browser tab belongs to 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > signing in again after the device was revoked > a click after the attempt expired starts a fresh one 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > adoptProfile (a web link or the typed address chose a server) > first run: from not-configured to signed-out on the chosen server 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > adoptProfile (a web link or the typed address chose a server) > the same deployment on a new origin follows the move but never carries the sign-in there 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > adoptProfile (a web link or the typed address chose a server) > another deployment never reuses the old credential 1ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > docs: refuses only the path the policy names 1ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > sheets: refuses only the path the policy names 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > slides: refuses only the path the policy names 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > docs: a policy without refuseOpen or a throwing one never refuses 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > sheets: a policy without refuseOpen or a throwing one never refuses 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > slides: a policy without refuseOpen or a throwing one never refuses 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > installUniworkModuleSeams forwards refuseLockedPath (R1-be-3) > every module policy asks the service through refuseOpen 2ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > installUniworkModuleSeams forwards refuseLockedPath (R1-be-3) > the seam is the service itself, installed once by index.ts 2ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > each open chokepoint refuses before its first file read > docs: loadDocx guards after the type check and before the first read 2ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > each open chokepoint refuses before its first file read > slides: openAndBuild guards before readFile and answers null 1ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > each open chokepoint refuses before its first file read > sheets: openWorkbookSession guards before the snapshot copy 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > workingCopyOwner > reads the account from the working-copy path; null outside the root 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > closes every UniWork document tab and deletes their AI history; local tabs stay 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > forgets the S11 locks of every working copy, and never a local file (R1-be-6) 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > a cancelled prompt closes nothing and keeps the locks: the account did not go away (R1-be-6) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > a cancelled unsaved-changes prompt closes nothing, not even the clean tabs (GOA9-r4-02) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > asks every prompt before it closes the first tab 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > signOutUniwork logs out only after every document closed, then clears 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > the durable store at the account boundary (W3b / G5-11) > sign-out locks the outgoing scope, after the locks and with a live owner 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > the durable store at the account boundary (W3b / G5-11) > a cancelled sign-out keeps the store open: the account did not go away 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > the durable store at the account boundary (W3b / G5-11) > a sign-in as another account locks only the switched-out scope 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > the durable store at the account boundary (W3b / G5-11) > a deployment switch for the same account locks the outgoing deployment scope 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > closes the previous account's tabs and deletes their AI history; own and local stay 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > forgets the S11 locks of the account that went away, keeping its own (R1-be-6) 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > forgets the locks before it closes anything: panel state must not wait on a save prompt (F4 residual) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > runs once per account, and again after a switch 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > a cancelled prompt leaves the boundary open, so the next status push asks again 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > a status push while prompts are open does not start a second pass 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > locks the account it leaves even when a prompt would be cancelled, and closes its tabs 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > sends no prompt and no notice when nothing RAM-only was lost 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > sends exactly one notice when RAM-only content was lost, after the lock 2ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > a notice that throws does not undo the lock or stop the tabs closing 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > d5-1: a switch lock that could not keep N+1 is told it is a switch, and the one notice counts the lost documents with the RAM-only ones 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > d5-1: a lost N+1 alone (nothing RAM-only) still sends the notice 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > A -> B -> C while the lock of A runs: C runs right after it without another status push, never two runs at once 51ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > d6-1: B and C both push while the lock of the account before A runs: B, live in between, is still locked (by C), in order, one run at a time 53ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > d6-4: a push resolves when its own run ended, not when a later owner's lock did 51ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > d6-4: a failed run rejects only its own push; a later owner still runs and resolves 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > d7-1: a non-adjacent repeat of an owner locks each account exactly once (every run locks the owner before it) 50ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > an account switch that is already effective (Q2 = a) > an explicit Sign out still asks, and a cancel there changes nothing 0ms
+ ✓ tests/strings-account.test.ts > account string shards > covers every UI language 1ms
+ ✓ tests/strings-account.test.ts > account string shards > locale zh has exactly the zh key set, no empty values 1ms
+ ✓ tests/strings-account.test.ts > account string shards > locale en has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ja has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ko has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale fr has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale de has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale es has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale th has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale id has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ru has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ar has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale pt has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale it has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale pl has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale cs has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale nl has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ms has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale he has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale hi has exactly the zh key set, no empty values 6ms
+ ✓ tests/strings-account.test.ts > account string shards > locale zh-TW has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale vi has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale zh keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale en keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ja keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ko keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale fr keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale de keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale es keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale th keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale id keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ru keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ar keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale pt keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale it keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale pl keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale cs keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale nl keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ms keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale he keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale hi keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale zh-TW keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale vi keeps the zh placeholders 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale zh has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale en has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ja has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ko has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale fr has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale de has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale es has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale th has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale id has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ru has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ar has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale pt has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale it has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale pl has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale cs has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale nl has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ms has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale he has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale hi has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale zh-TW has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale vi has no upstream brand, repository words or internal codes 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale zh: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale en: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ja: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ko: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale fr: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale de: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale es: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale th: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale id: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ru: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ar: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale pt: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale it: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale pl: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale cs: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale nl: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale ms: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale he: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale hi: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale zh-TW: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > locale vi: the keyring notice points to the Retry button, not a restart 0ms
+ ✓ tests/strings-account.test.ts > account string shards > does not collide with the home table keys 0ms
+ ✓ tests/strings-account.test.ts > account string shards > uses natural Vietnamese and English product copy 0ms
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status main IPC (RB1-7, RB1-8) > answers get, openAccountSettings, and signIn for main-frame callers and rejects forged subframes (RB1-7) 2ms
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status main IPC (RB1-7, RB1-8) > broadcast skips destroyed webContents and sends to live ones (RB1-8) 0ms
+ ✓ tests/uniwork-cloud-status.test.ts > shell account + cloud status integration (RB1-1, RB1-4, RB1-8, RB1-9) > returns null before the first cloud read and a PII-free snapshot after refresh (RB1-4, RB1-8) 2ms
+ ✓ tests/uniwork-cloud-status.test.ts > shell account + cloud status integration (RB1-1, RB1-4, RB1-8, RB1-9) > calls the injected openHomeTab hook BEFORE sending openSettings on "Chi tiết" and unconfigured "Đăng nhập" (RB1-1) 1ms
+ ✓ tests/uniwork-cloud-status.test.ts > shell account + cloud status integration (RB1-1, RB1-4, RB1-8, RB1-9) > the replace-locked-sign-in channel answers only the shell page and the manager refuses outside keystore-locked 1ms
+ ✓ tests/uniwork-cloud-status.test.ts > shell account + cloud status integration (RB1-1, RB1-4, RB1-8, RB1-9) > logs console.warn when webContents broadcast throws during status notification (RB1-9) 1ms
+ ✓ tests/uniwork-module-clear-recovery.test.ts > installUniworkModuleSeams clear-recovery seam > the registered clearer reaches docs, sheets and slides 1ms
+
+ Test Files  13 passed (13)
+      Tests  467 passed (467)
+   Start at  19:07:35
+   Duration  3.77s (transform 3.26s, setup 0ms, import 5.15s, tests 4.22s, environment 695ms)
+
+
+G511F_FILES_EXIT=0
