@@ -1,0 +1,916 @@
+$ for d in .harness-run-r9/fault/FQ-*/; do echo "=== $d"; ls "$d"; head -n 15 "$d/intent-log.jsonl" 2>/dev/null; head -n 15 "$d/proxy-log.jsonl" 2>/dev/null; head -c 800 "$d/server-versions.json" 2>/dev/null; echo; done; cat test-results/office-g5g6g7-evidence/evidence.jsonl 2>/dev/null; true
+=== .harness-run-r9/fault/FQ-01/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:55.116Z","case":"FQ-01","source":"driver","step":"upload","intent":"intent-1","keyTag":"a592a0002d58","attempt":1,"from":null,"to":null,"event":"upload","status":201,"outcome":"staged","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.125Z","case":"FQ-01","source":"driver","step":"commit_1","intent":"intent-1","keyTag":"34aeafd48c93","attempt":1,"from":null,"to":null,"event":"commit_1","status":"dropped","outcome":"dropped","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.128Z","case":"FQ-01","source":"driver","step":"lookup","intent":"intent-1","keyTag":"34aeafd48c93","attempt":1,"from":null,"to":null,"event":"lookup","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.131Z","case":"FQ-01","source":"driver","step":"commit_replay","intent":"intent-1","keyTag":"34aeafd48c93","attempt":2,"from":null,"to":null,"event":"commit_replay","status":200,"outcome":"replayed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.115Z","method":"POST","path":"/api/v1/documents/01M4ZV1MEN93VVKVZ8MCCQPR5A/uploads","status":201,"ms":8,"idempotencyKey":true,"keyTag":"0df478080dc1","ruleId":null}
+{"ts":"2026-10-15T13:11:55.124Z","method":"POST","path":"/api/v1/documents/01M4ZV1MEN93VVKVZ8MCCQPR5A/versions/commit","status":"dropped","ms":7,"idempotencyKey":true,"keyTag":"fc88eb90980c","ruleId":"lose-commit-answer"}
+{"ts":"2026-10-15T13:11:55.127Z","method":"GET","path":"/api/v1/documents/01M4ZV1MEN93VVKVZ8MCCQPR5A/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"fc88eb90980c","ruleId":null}
+{"ts":"2026-10-15T13:11:55.130Z","method":"POST","path":"/api/v1/documents/01M4ZV1MEN93VVKVZ8MCCQPR5A/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"fc88eb90980c","ruleId":null}
+{
+  "document_id": "01M4ZV1MEN93VVKVZ8MCCQPR5A",
+  "documentId": "01M4ZV1MEN93VVKVZ8MCCQPR5A",
+  "readAt": "2026-10-15T13:11:55.133Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1MFJGR3RSZ0SRXB8HXME",
+      "document_id": "01M4ZV1MEN93VVKVZ8MCCQPR5A",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1MF6J9WQ9ATEXHX31JJB",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "b1af985844dabad51c9bce700aa101522ccb5baba9597368e304e838df2b46f0",
+      "download_url": "/api/v1/documents/01M4ZV1MEN93VVKVZ8MCCQPR5A/download?version=2",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-02/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:55.215Z","case":"FQ-02","source":"driver","step":"commit_1_dropped","intent":"intent-1","keyTag":"4f566d2c2450","attempt":1,"from":null,"to":null,"event":"commit_1_dropped","status":"dropped","outcome":"dropped","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.217Z","case":"FQ-02","source":"driver","step":"lookup_unknown","intent":"intent-1","keyTag":"4f566d2c2450","attempt":1,"from":null,"to":null,"event":"lookup_unknown","status":410,"outcome":"unknown","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.223Z","case":"FQ-02","source":"driver","step":"commit_retry","intent":"intent-1","keyTag":"4f566d2c2450","attempt":2,"from":null,"to":null,"event":"commit_retry","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.212Z","method":"POST","path":"/api/v1/documents/01M4ZV1MHYQW9MPX28K0HGTJ0A/uploads","status":201,"ms":6,"idempotencyKey":true,"keyTag":"24e55d9173a7","ruleId":null}
+{"ts":"2026-10-15T13:11:55.213Z","method":"POST","path":"/api/v1/documents/01M4ZV1MHYQW9MPX28K0HGTJ0A/versions/commit","status":"dropped","ms":0,"idempotencyKey":true,"keyTag":"ee2e22053d02","ruleId":"drop-commit"}
+{"ts":"2026-10-15T13:11:55.217Z","method":"GET","path":"/api/v1/documents/01M4ZV1MHYQW9MPX28K0HGTJ0A/versions/commit","status":410,"ms":1,"idempotencyKey":true,"keyTag":"ee2e22053d02","ruleId":null}
+{"ts":"2026-10-15T13:11:55.223Z","method":"POST","path":"/api/v1/documents/01M4ZV1MHYQW9MPX28K0HGTJ0A/versions/commit","status":200,"ms":5,"idempotencyKey":true,"keyTag":"ee2e22053d02","ruleId":null}
+{
+  "document_id": "01M4ZV1MHYQW9MPX28K0HGTJ0A",
+  "documentId": "01M4ZV1MHYQW9MPX28K0HGTJ0A",
+  "readAt": "2026-10-15T13:11:55.226Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1MJNXDWNEDNVZCFH3N2K",
+      "document_id": "01M4ZV1MHYQW9MPX28K0HGTJ0A",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1MJ7Z2MG8J46HFRRTDFE",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "704ee2c79a11fabdd022e28ee183173bb5ca453dd725318831f1e9164cf3b610",
+      "download_url": "/api/v1/documents/01M4ZV1MHYQW9MPX28K0HGTJ0A/download?version=2",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-03/
+case-result.json
+evidence-g5-a06.log
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:55.710Z","case":"FQ-03","source":"driver","step":"commit_concurrent_1","intent":"intent-1","keyTag":"c58980c1219f","attempt":1,"from":null,"to":null,"event":"commit_concurrent_1","status":200,"outcome":"ok","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.711Z","case":"FQ-03","source":"driver","step":"commit_concurrent_2","intent":"intent-1","keyTag":"c58980c1219f","attempt":2,"from":null,"to":null,"event":"commit_concurrent_2","status":200,"outcome":"ok","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.715Z","case":"FQ-03","source":"driver","step":"lookup","intent":"intent-1","keyTag":"c58980c1219f","attempt":1,"from":null,"to":null,"event":"lookup","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.300Z","method":"POST","path":"/api/v1/documents/01M4ZV1MMQ4AP6CWACMD7GN3W2/uploads","status":201,"ms":5,"idempotencyKey":true,"keyTag":"f01aad6a41b4","ruleId":null}
+{"ts":"2026-10-15T13:11:55.335Z","method":"POST","path":"/api/v1/documents/01M4ZV1MMQ4AP6CWACMD7GN3W2/versions/commit","status":200,"ms":9,"idempotencyKey":true,"keyTag":"dd5cb2f5066b","ruleId":null}
+{"ts":"2026-10-15T13:11:55.710Z","method":"POST","path":"/api/v1/documents/01M4ZV1MMQ4AP6CWACMD7GN3W2/versions/commit","status":200,"ms":409,"idempotencyKey":true,"keyTag":"dd5cb2f5066b","ruleId":"slow-first"}
+{"ts":"2026-10-15T13:11:55.714Z","method":"GET","path":"/api/v1/documents/01M4ZV1MMQ4AP6CWACMD7GN3W2/versions/commit","status":200,"ms":3,"idempotencyKey":true,"keyTag":"dd5cb2f5066b","ruleId":null}
+{
+  "document_id": "01M4ZV1MMQ4AP6CWACMD7GN3W2",
+  "documentId": "01M4ZV1MMQ4AP6CWACMD7GN3W2",
+  "readAt": "2026-10-15T13:11:55.719Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1MP57X5MQ83VVPGGJR6D",
+      "document_id": "01M4ZV1MMQ4AP6CWACMD7GN3W2",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1MN0ZT3EYHYYH2N0E43W",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "932453ea0bbd273b422e5c046c27a13155d4f6e0516fe154e9a2317d14752a7e",
+      "download_url": "/api/v1/documents/01M4ZV1MMQ4AP6CWACMD7GN3W2/download?version=2",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-04/
+case-result.json
+evidence-g5-a06.log
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:55.862Z","case":"FQ-04","source":"driver","step":"commit_1_503","intent":"intent-1","keyTag":"9c06af8cb34e","attempt":1,"from":null,"to":null,"event":"commit_1_503","status":503,"outcome":"synthetic_503","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.871Z","case":"FQ-04","source":"driver","step":"commit_2_retry","intent":"intent-1","keyTag":"9c06af8cb34e","attempt":2,"from":null,"to":null,"event":"commit_2_retry","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.873Z","case":"FQ-04","source":"driver","step":"lookup","intent":"intent-1","keyTag":"9c06af8cb34e","attempt":1,"from":null,"to":null,"event":"lookup","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:55.861Z","method":"POST","path":"/api/v1/documents/01M4ZV1N65Y3HFSX0HTNK4JDKW/uploads","status":201,"ms":5,"idempotencyKey":true,"keyTag":"56e401a2d11b","ruleId":null}
+{"ts":"2026-10-15T13:11:55.862Z","method":"POST","path":"/api/v1/documents/01M4ZV1N65Y3HFSX0HTNK4JDKW/versions/commit","status":"synthetic","ms":0,"idempotencyKey":true,"keyTag":"de1597af4328","ruleId":"fake-503"}
+{"ts":"2026-10-15T13:11:55.870Z","method":"POST","path":"/api/v1/documents/01M4ZV1N65Y3HFSX0HTNK4JDKW/versions/commit","status":200,"ms":7,"idempotencyKey":true,"keyTag":"de1597af4328","ruleId":null}
+{"ts":"2026-10-15T13:11:55.872Z","method":"GET","path":"/api/v1/documents/01M4ZV1N65Y3HFSX0HTNK4JDKW/versions/commit","status":200,"ms":1,"idempotencyKey":true,"keyTag":"de1597af4328","ruleId":null}
+{
+  "document_id": "01M4ZV1N65Y3HFSX0HTNK4JDKW",
+  "documentId": "01M4ZV1N65Y3HFSX0HTNK4JDKW",
+  "readAt": "2026-10-15T13:11:55.876Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1N6WHKD8AN6REQTPF0GM",
+      "document_id": "01M4ZV1N65Y3HFSX0HTNK4JDKW",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1N6HETSA2GT3SYQVPFW6",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "dfa922e2b97dd0366cb462f45585f0921788c50d4dfc762742164b890d13b172",
+      "download_url": "/api/v1/documents/01M4ZV1N65Y3HFSX0HTNK4JDKW/download?version=2",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-05/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:56.019Z","case":"FQ-05","source":"driver","step":"upload_1_dropped","intent":"intent-1","keyTag":"1c4617296c50","attempt":1,"from":null,"to":null,"event":"upload_1_dropped","status":"dropped","outcome":"dropped","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.022Z","case":"FQ-05","source":"driver","step":"upload_2_retry","intent":"intent-1","keyTag":"1c4617296c50","attempt":2,"from":null,"to":null,"event":"upload_2_retry","status":201,"outcome":"staged","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.028Z","case":"FQ-05","source":"driver","step":"commit","intent":"intent-1","keyTag":"c88d9aa92ac8","attempt":1,"from":null,"to":null,"event":"commit","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.018Z","method":"POST","path":"/api/v1/documents/01M4ZV1NB4Q3MS04FKBEDBQV4V/uploads","status":"dropped","ms":5,"idempotencyKey":true,"keyTag":"9773483a61f6","ruleId":"lose-upload-answer"}
+{"ts":"2026-10-15T13:11:56.021Z","method":"POST","path":"/api/v1/documents/01M4ZV1NB4Q3MS04FKBEDBQV4V/uploads","status":201,"ms":2,"idempotencyKey":true,"keyTag":"9773483a61f6","ruleId":null}
+{"ts":"2026-10-15T13:11:56.028Z","method":"POST","path":"/api/v1/documents/01M4ZV1NB4Q3MS04FKBEDBQV4V/versions/commit","status":200,"ms":5,"idempotencyKey":true,"keyTag":"2f22df248209","ruleId":null}
+{
+  "document_id": "01M4ZV1NB4Q3MS04FKBEDBQV4V",
+  "documentId": "01M4ZV1NB4Q3MS04FKBEDBQV4V",
+  "readAt": "2026-10-15T13:11:56.030Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1NBT505T13B313BTZ6DM",
+      "document_id": "01M4ZV1NB4Q3MS04FKBEDBQV4V",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1NBFANBNH3RT1B3D7HK1",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "add6ecd424bbc0260774f92da49a4a21cc09a9a077572208af629785663eeb1b",
+      "download_url": "/api/v1/documents/01M4ZV1NB4Q3MS04FKBEDBQV4V/download?version=2",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-06/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:56.133Z","case":"FQ-06","source":"driver","step":"commit_aborted_while_held","intent":"intent-1","keyTag":"523e045ff35e","attempt":1,"from":null,"to":null,"event":"commit_aborted_while_held","status":"aborted","outcome":"aborted","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.160Z","case":"FQ-06","source":"driver","step":"lookup_after_release","intent":"intent-1","keyTag":"523e045ff35e","attempt":1,"from":null,"to":null,"event":"lookup_after_release","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.105Z","method":"POST","path":"/api/v1/documents/01M4ZV1NDV4QZYFG5W78D5HQDY/uploads","status":201,"ms":6,"idempotencyKey":true,"keyTag":"2b9d33f31ea8","ruleId":null}
+{"ts":"2026-10-15T13:11:56.143Z","method":"POST","path":"/api/v1/documents/01M4ZV1NDV4QZYFG5W78D5HQDY/versions/commit","status":200,"ms":37,"idempotencyKey":true,"keyTag":"962665d49ed3","ruleId":"hold-commit"}
+{"ts":"2026-10-15T13:11:56.160Z","method":"GET","path":"/api/v1/documents/01M4ZV1NDV4QZYFG5W78D5HQDY/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"962665d49ed3","ruleId":null}
+{
+  "document_id": "01M4ZV1NDV4QZYFG5W78D5HQDY",
+  "documentId": "01M4ZV1NDV4QZYFG5W78D5HQDY",
+  "readAt": "2026-10-15T13:11:56.163Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1NFCQJEGEVNG22VCA5YE",
+      "document_id": "01M4ZV1NDV4QZYFG5W78D5HQDY",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1NE3PN4HY00E63XQFVXN",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "c2a76f66253247a59e4f5145d0a74a2bdeb73f2b50c1009d7e4e66cb41a0dd5b",
+      "download_url": "/api/v1/documents/01M4ZV1NDV4QZYFG5W78D5HQDY/download?version=2",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-07/
+case-result.json
+evidence-g5-a06.log
+evidence-g5-a08.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:56.306Z","case":"FQ-07","source":"driver","step":"commit_a_after_b","intent":"intent-1","keyTag":"cd26b1522041","attempt":1,"from":null,"to":null,"event":"commit_a_after_b","status":409,"outcome":"document_version_conflict","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.308Z","case":"FQ-07","source":"driver","step":"lookup_a","intent":"intent-1","keyTag":"cd26b1522041","attempt":1,"from":null,"to":null,"event":"lookup_a","status":200,"outcome":"not_committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.243Z","method":"POST","path":"/api/v1/documents/01M4ZV1NJ3F9PH70X4S9GK2FTP/uploads","status":201,"ms":8,"idempotencyKey":true,"keyTag":"4596d8efd61b","ruleId":null}
+{"ts":"2026-10-15T13:11:56.305Z","method":"POST","path":"/api/v1/documents/01M4ZV1NJ3F9PH70X4S9GK2FTP/versions/commit","status":409,"ms":61,"idempotencyKey":true,"keyTag":"9702b92d023c","ruleId":"hold-a"}
+{"ts":"2026-10-15T13:11:56.308Z","method":"GET","path":"/api/v1/documents/01M4ZV1NJ3F9PH70X4S9GK2FTP/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"9702b92d023c","ruleId":null}
+{
+  "document_id": "01M4ZV1NJ3F9PH70X4S9GK2FTP",
+  "documentId": "01M4ZV1NJ3F9PH70X4S9GK2FTP",
+  "readAt": "2026-10-15T13:11:56.311Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1NMBXR3AAV7NQNWE18X8",
+      "document_id": "01M4ZV1NJ3F9PH70X4S9GK2FTP",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1NM02WEC1J32K1XJPES5",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18826,
+      "checksum_sha256": "d4485f4dd8ba3b0a312941ea04ee16e23f515720ea42b79f3ce63ce0c458d0c1",
+      "download_url": "/api/v1/documents/01M4ZV1NJ3F9PH70X4S9GK2FTP/download?version=2",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-08/
+case-result.json
+evidence-g5-a08.log
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:56.456Z","case":"FQ-08","source":"driver","step":"commit_a_conflict","intent":"intent-1","keyTag":"bf8f551fe266","attempt":1,"from":null,"to":null,"event":"commit_a_conflict","status":409,"outcome":"document_version_conflict","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.465Z","case":"FQ-08","source":"driver","step":"commit_a_overwrite_reuse_upload","intent":"intent-1","keyTag":"8a54934d248f","attempt":2,"from":null,"to":null,"event":"commit_a_overwrite_reuse_upload","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.441Z","method":"POST","path":"/api/v1/documents/01M4ZV1NRC0MTQMN7Z73XZHVZF/uploads","status":201,"ms":5,"idempotencyKey":true,"keyTag":"45d6e480ea8c","ruleId":null}
+{"ts":"2026-10-15T13:11:56.452Z","method":"POST","path":"/api/v1/documents/01M4ZV1NRC0MTQMN7Z73XZHVZF/versions/commit","status":200,"ms":6,"idempotencyKey":true,"keyTag":"9ad8440d1b6a","ruleId":null}
+{"ts":"2026-10-15T13:11:56.456Z","method":"POST","path":"/api/v1/documents/01M4ZV1NRC0MTQMN7Z73XZHVZF/versions/commit","status":409,"ms":3,"idempotencyKey":true,"keyTag":"856289ed7df7","ruleId":null}
+{"ts":"2026-10-15T13:11:56.458Z","method":"GET","path":"/api/v1/documents/01M4ZV1NRC0MTQMN7Z73XZHVZF","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:11:56.464Z","method":"POST","path":"/api/v1/documents/01M4ZV1NRC0MTQMN7Z73XZHVZF/versions/commit","status":200,"ms":5,"idempotencyKey":true,"keyTag":"e304770cefac","ruleId":null}
+{
+  "document_id": "01M4ZV1NRC0MTQMN7Z73XZHVZF",
+  "documentId": "01M4ZV1NRC0MTQMN7Z73XZHVZF",
+  "readAt": "2026-10-15T13:11:56.469Z",
+  "head": {
+    "revision": "3"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1NSEF7MGXA435SWMH873",
+      "document_id": "01M4ZV1NRC0MTQMN7Z73XZHVZF",
+      "version": 3,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1NRNP26BZGFAQYZXMT0K",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18828,
+      "checksum_sha256": "cfd16b88ba82cd4b54e4f7b4cfd96036848f6b0d518a973969cd43c8ea2aa8e3",
+      "download_url": "/api/v1/documents/01M4ZV1NRC0MTQMN7Z73XZHVZF/download?version=3",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-09/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:56.639Z","case":"FQ-09","source":"driver","step":"commit_409","intent":"intent-1","keyTag":"3a51fc041fc5","attempt":1,"from":null,"to":null,"event":"commit_409","status":409,"outcome":"document_version_conflict","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.642Z","case":"FQ-09","source":"driver","step":"lookup_not_committed","intent":"intent-1","keyTag":"3a51fc041fc5","attempt":1,"from":null,"to":null,"event":"lookup_not_committed","status":200,"outcome":"not_committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.635Z","method":"POST","path":"/api/v1/documents/01M4ZV1NXME2NWXAS1F1NJ65Q2/uploads","status":201,"ms":13,"idempotencyKey":true,"keyTag":"f9e7ed4c3193","ruleId":null}
+{"ts":"2026-10-15T13:11:56.639Z","method":"POST","path":"/api/v1/documents/01M4ZV1NXME2NWXAS1F1NJ65Q2/versions/commit","status":409,"ms":3,"idempotencyKey":true,"keyTag":"a34057ec0358","ruleId":null}
+{"ts":"2026-10-15T13:11:56.641Z","method":"GET","path":"/api/v1/documents/01M4ZV1NXME2NWXAS1F1NJ65Q2/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"a34057ec0358","ruleId":null}
+{
+  "document_id": "01M4ZV1NXME2NWXAS1F1NJ65Q2",
+  "documentId": "01M4ZV1NXME2NWXAS1F1NJ65Q2",
+  "readAt": "2026-10-15T13:11:56.645Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1NYAFRJYPVPXBQBE2X2M",
+      "document_id": "01M4ZV1NXME2NWXAS1F1NJ65Q2",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1NXZ7G7B14GH1G8GTP43",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18826,
+      "checksum_sha256": "c42b0f160e409d575742ac3844e0456b00b0307196e16ed3ee00da5684c63205",
+      "download_url": "/api/v1/documents/01M4ZV1NXME2NWXAS1F1NJ65Q2/download?version=2",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-10/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:56.730Z","case":"FQ-10","source":"driver","step":"lookup_foreign_member","intent":"intent-1","keyTag":"262908cd37f3","attempt":1,"from":null,"to":null,"event":"lookup_foreign_member","status":410,"outcome":"commit_intent_unknown","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.732Z","case":"FQ-10","source":"driver","step":"lookup_never_sent","intent":"intent-1","keyTag":"698e7ef42149","attempt":1,"from":null,"to":null,"event":"lookup_never_sent","status":410,"outcome":"commit_intent_unknown","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.730Z","method":"GET","path":"/api/v1/documents/01M4ZV1P16CJEBF9ZVAECYNVV0/versions/commit","status":410,"ms":2,"idempotencyKey":true,"keyTag":"15a7036805f6","ruleId":null}
+{"ts":"2026-10-15T13:11:56.731Z","method":"GET","path":"/api/v1/documents/01M4ZV1P16CJEBF9ZVAECYNVV0/versions/commit","status":410,"ms":1,"idempotencyKey":true,"keyTag":"549a4efb579f","ruleId":null}
+{
+  "document_id": "01M4ZV1P16CJEBF9ZVAECYNVV0",
+  "documentId": "01M4ZV1P16CJEBF9ZVAECYNVV0",
+  "readAt": "2026-10-15T13:11:56.735Z",
+  "head": {
+    "revision": "1"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1P16CJEBF9ZVAJ1YMRXC",
+      "document_id": "01M4ZV1P16CJEBF9ZVAECYNVV0",
+      "version": 1,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1P0WMHQXACMHVG63CWKV",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18806,
+      "checksum_sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "download_url": "/api/v1/documents/01M4ZV1P16CJEBF9ZVAECYNVV0/download?version=1",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-11/
+case-result.json
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:56.824Z","case":"FQ-11","source":"driver","step":"ai_turn_1","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_1","status":200,"outcome":"answered","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.831Z","case":"FQ-11","source":"driver","step":"ai_turn_2","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_2","status":200,"outcome":"answered","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.848Z","case":"FQ-11","source":"driver","step":"save_after_ai","intent":"intent-1","keyTag":"a822d6ea3770","attempt":1,"from":null,"to":null,"event":"save_after_ai","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.823Z","method":"POST","path":"/api/v1/documents/01M4ZV1P46WMY0WRB30B8C72SE/ai/uniwork/chat/completions","status":200,"ms":10,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:11:56.831Z","method":"POST","path":"/api/v1/documents/01M4ZV1P46WMY0WRB30B8C72SE/ai/uniwork/chat/completions","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:11:56.839Z","method":"POST","path":"/api/v1/documents/01M4ZV1P46WMY0WRB30B8C72SE/uploads","status":201,"ms":5,"idempotencyKey":true,"keyTag":"c33d5632df56","ruleId":null}
+{"ts":"2026-10-15T13:11:56.847Z","method":"POST","path":"/api/v1/documents/01M4ZV1P46WMY0WRB30B8C72SE/versions/commit","status":200,"ms":7,"idempotencyKey":true,"keyTag":"cdd5ad7900e6","ruleId":null}
+{
+  "document_id": "01M4ZV1P46WMY0WRB30B8C72SE",
+  "documentId": "01M4ZV1P46WMY0WRB30B8C72SE",
+  "readAt": "2026-10-15T13:11:56.850Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1P5DGWG0R63YXMM3VMK7",
+      "document_id": "01M4ZV1P46WMY0WRB30B8C72SE",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1P53VBC43KC1DPF030DM",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 11211,
+      "checksum_sha256": "84fccfa7b5c1db9dd79ab6be2ad2734bcd11615ec7be6dc867d393baf39d8d14",
+      "download_url": "/api/v1/documents/01M4ZV1P46WMY0WRB30B8C72SE/download?version=2",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "crea
+=== .harness-run-r9/fault/FQ-12/
+case-result.json
+evidence-g7-a02.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:56.930Z","case":"FQ-12","source":"driver","step":"ai_turn_1","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_1","status":200,"outcome":"answered","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.937Z","case":"FQ-12","source":"driver","step":"ai_turn_2_after_revoke","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_2_after_revoke","status":404,"outcome":"not_found","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.939Z","case":"FQ-12","source":"driver","step":"commit_after_revoke","intent":"intent-1","keyTag":"468e10a5d375","attempt":1,"from":null,"to":null,"event":"commit_after_revoke","status":404,"outcome":"not_found","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:56.930Z","method":"POST","path":"/api/v1/documents/01M4ZV1P7G164PFKY07DT8FQ93/ai/uniwork/chat/completions","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:11:56.936Z","method":"POST","path":"/api/v1/documents/01M4ZV1P7G164PFKY07DT8FQ93/ai/uniwork/chat/completions","status":404,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:11:56.938Z","method":"POST","path":"/api/v1/documents/01M4ZV1P7G164PFKY07DT8FQ93/versions/commit","status":404,"ms":1,"idempotencyKey":true,"keyTag":"15e0f125732e","ruleId":null}
+{
+  "document_id": "01M4ZV1P7G164PFKY07DT8FQ93",
+  "documentId": "01M4ZV1P7G164PFKY07DT8FQ93",
+  "readAt": "2026-10-15T13:11:56.941Z",
+  "head": {
+    "revision": "1"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1P7G164PFKY07DXD2KBF",
+      "document_id": "01M4ZV1P7G164PFKY07DT8FQ93",
+      "version": 1,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1P7AR8WA46QT2GX48MYS",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 11187,
+      "checksum_sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "download_url": "/api/v1/documents/01M4ZV1P7G164PFKY07DT8FQ93/download?version=1",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "crea
+=== .harness-run-r9/fault/FQ-13/
+case-result.json
+evidence-g5-a08.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:11:57.025Z","case":"FQ-13","source":"driver","step":"commit_while_archived","intent":"intent-1","keyTag":"33c569fed049","attempt":1,"from":null,"to":null,"event":"commit_while_archived","status":410,"outcome":"document_deleted","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:57.046Z","case":"FQ-13","source":"driver","step":"commit_after_restore_and_move","intent":"intent-1","keyTag":"33c569fed049","attempt":2,"from":null,"to":null,"event":"commit_after_restore_and_move","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:11:57.020Z","method":"POST","path":"/api/v1/documents/01M4ZV1PAGVK0WXMHTEDG7391T/uploads","status":201,"ms":6,"idempotencyKey":true,"keyTag":"454710cabc98","ruleId":null}
+{"ts":"2026-10-15T13:11:57.025Z","method":"POST","path":"/api/v1/documents/01M4ZV1PAGVK0WXMHTEDG7391T/versions/commit","status":410,"ms":1,"idempotencyKey":true,"keyTag":"63f22d7904f0","ruleId":null}
+{"ts":"2026-10-15T13:11:57.046Z","method":"POST","path":"/api/v1/documents/01M4ZV1PAGVK0WXMHTEDG7391T/versions/commit","status":200,"ms":7,"idempotencyKey":true,"keyTag":"63f22d7904f0","ruleId":null}
+{
+  "document_id": "01M4ZV1PAGVK0WXMHTEDG7391T",
+  "documentId": "01M4ZV1PAGVK0WXMHTEDG7391T",
+  "readAt": "2026-10-15T13:11:57.049Z",
+  "head": {
+    "revision": "4"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV1PBM3KZD5XTZW93XKZ5W",
+      "document_id": "01M4ZV1PAGVK0WXMHTEDG7391T",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV1PAQS4J8YDA5DYAHN1JP",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "cba14219447d7333991b513836a18904ced16fae991efa5595957b513d594e27",
+      "download_url": "/api/v1/documents/01M4ZV1PAGVK0WXMHTEDG7391T/download?version=2",
+      "created_by": "01M4ZV1M95X6BNH7XYC9TT5GBJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-20/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:12:36.587Z","case":"FQ-20","source":"app-trace","intent":"office-intent-56098eb1-0163-4c01-b3a9-dae0eea3b2e8","keyTag":"504b43c910c5","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T13:12:36.603Z","case":"FQ-20","source":"app-trace","intent":"office-intent-56098eb1-0163-4c01-b3a9-dae0eea3b2e8","keyTag":"504b43c910c5","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T13:12:53.250Z","case":"FQ-20","source":"app-trace","intent":"office-intent-56098eb1-0163-4c01-b3a9-dae0eea3b2e8","keyTag":"504b43c910c5","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T13:12:53.250Z","case":"FQ-20","source":"app-trace","intent":"office-intent-56098eb1-0163-4c01-b3a9-dae0eea3b2e8","keyTag":"504b43c910c5","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T13:12:53.250Z","case":"FQ-20","source":"app-trace","intent":"office-intent-56098eb1-0163-4c01-b3a9-dae0eea3b2e8","keyTag":"504b43c910c5","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T13:12:53.250Z","case":"FQ-20","source":"app-trace","intent":"office-intent-56098eb1-0163-4c01-b3a9-dae0eea3b2e8","keyTag":"504b43c910c5","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T13:12:30.799Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.397Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.414Z","method":"GET","path":"/api/v1/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.418Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.424Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9k5rsw-ede8/members/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.433Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/billing","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.451Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.455Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.464Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/workspaces","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.474Z","method":"GET","path":"/api/v1/workspaces/01M4ZV1S06BM2DE20CP8R56JY6/documents/changes","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.485Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/credentials","status":503,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:31.493Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":10,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:35.429Z","method":"GET","path":"/api/v1/documents/01M4ZV1S1B895TH5Q2F4723P0G","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:35.434Z","method":"GET","path":"/api/v1/documents/01M4ZV1S1B895TH5Q2F4723P0G/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:12:35.461Z","method":"GET","path":"/api/v1/documents/01M4ZV1S1B895TH5Q2F4723P0G","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4ZV1S1B895TH5Q2F4723P0G",
+  "documentId": "01M4ZV1S1B895TH5Q2F4723P0G",
+  "readAt": "2026-10-15T13:12:53.410Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV3D93WBBAX4DCSZH23HH9",
+      "document_id": "01M4ZV1S1B895TH5Q2F4723P0G",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV3D8FAD6YV5ES9JVZHGAE",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 4403,
+      "checksum_sha256": "aa70b2c1f328607b219a82f3d898fe93aae4d5fb47849b5dbfd345e0c4cd9114",
+      "download_url": "/api/v1/documents/01M4ZV1S1B895TH5Q2F4723P0G/download?version=2",
+      "created_by": "01M4ZV1RXQQVK9ZRZQH632JN7F",
+      "created_by_kind": "human",
+      "creat
+=== .harness-run-r9/fault/FQ-21/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:13:30.355Z","case":"FQ-21","source":"app-trace","intent":"office-intent-a9f93276-89c3-4bec-9243-9bcb21955352","keyTag":"ad9c272a8ecc","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T13:13:30.371Z","case":"FQ-21","source":"app-trace","intent":"office-intent-a9f93276-89c3-4bec-9243-9bcb21955352","keyTag":"ad9c272a8ecc","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T13:14:25.226Z","case":"FQ-21","source":"app-trace","intent":"office-intent-a9f93276-89c3-4bec-9243-9bcb21955352","keyTag":"ad9c272a8ecc","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T13:14:25.226Z","case":"FQ-21","source":"app-trace","intent":"office-intent-a9f93276-89c3-4bec-9243-9bcb21955352","keyTag":"ad9c272a8ecc","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T13:14:25.226Z","case":"FQ-21","source":"app-trace","intent":"office-intent-a9f93276-89c3-4bec-9243-9bcb21955352","keyTag":"ad9c272a8ecc","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T13:14:25.226Z","case":"FQ-21","source":"app-trace","intent":"office-intent-a9f93276-89c3-4bec-9243-9bcb21955352","keyTag":"ad9c272a8ecc","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T13:13:24.449Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.165Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.175Z","method":"GET","path":"/api/v1/me","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.178Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.186Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9k5rsw-ede8/members/me","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.192Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/billing","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.202Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.206Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/office/capabilities","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.213Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/workspaces","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.224Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/credentials","status":503,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.232Z","method":"GET","path":"/api/v1/workspaces/01M4ZV1S06BM2DE20CP8R56JY6/documents/changes","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:25.232Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":10,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:29.194Z","method":"GET","path":"/api/v1/documents/01M4ZV3DFFDFGB5QF393WX03ZF","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:29.199Z","method":"GET","path":"/api/v1/documents/01M4ZV3DFFDFGB5QF393WX03ZF/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:13:29.235Z","method":"GET","path":"/api/v1/documents/01M4ZV3DFFDFGB5QF393WX03ZF","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4ZV3DFFDFGB5QF393WX03ZF",
+  "documentId": "01M4ZV3DFFDFGB5QF393WX03ZF",
+  "readAt": "2026-10-15T13:14:25.523Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV673DYD10D58FNB3DW52Q",
+      "document_id": "01M4ZV3DFFDFGB5QF393WX03ZF",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV672Q4WSH43K94WF6FM0J",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 4401,
+      "checksum_sha256": "8ba232d050bfc045477a8b7aa90c605ac6ee316fe291a9e0c7a89b63d06ad7c7",
+      "download_url": "/api/v1/documents/01M4ZV3DFFDFGB5QF393WX03ZF/download?version=2",
+      "created_by": "01M4ZV1RXQQVK9ZRZQH632JN7F",
+      "created_by_kind": "human",
+      "creat
+=== .harness-run-r9/fault/FQ-22/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:15:05.461Z","case":"FQ-22","source":"app-trace","intent":"office-intent-1729ecd4-b25d-42aa-a8e9-57ac137c134d","keyTag":"c3e72f38488a","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T13:15:05.504Z","case":"FQ-22","source":"app-trace","intent":"office-intent-1729ecd4-b25d-42aa-a8e9-57ac137c134d","keyTag":"c3e72f38488a","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T13:15:57.525Z","case":"FQ-22","source":"app-trace","intent":"office-intent-1729ecd4-b25d-42aa-a8e9-57ac137c134d","keyTag":"c3e72f38488a","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T13:15:57.525Z","case":"FQ-22","source":"app-trace","intent":"office-intent-1729ecd4-b25d-42aa-a8e9-57ac137c134d","keyTag":"c3e72f38488a","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T13:15:57.525Z","case":"FQ-22","source":"app-trace","intent":"office-intent-1729ecd4-b25d-42aa-a8e9-57ac137c134d","keyTag":"c3e72f38488a","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T13:15:57.525Z","case":"FQ-22","source":"app-trace","intent":"office-intent-1729ecd4-b25d-42aa-a8e9-57ac137c134d","keyTag":"c3e72f38488a","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T13:14:56.682Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.453Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.474Z","method":"GET","path":"/api/v1/me","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.480Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.483Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9k5rsw-ede8/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.491Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/billing","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.503Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.509Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/office/capabilities","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.526Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/workspaces","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.539Z","method":"GET","path":"/api/v1/workspaces/01M4ZV1S06BM2DE20CP8R56JY6/documents/changes","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.548Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/credentials","status":503,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:14:57.563Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":21,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:15:01.480Z","method":"GET","path":"/api/v1/documents/01M4ZV67E6TEZ76NB9QRQ7Y248","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:15:01.486Z","method":"GET","path":"/api/v1/documents/01M4ZV67E6TEZ76NB9QRQ7Y248/download","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:15:01.547Z","method":"GET","path":"/api/v1/documents/01M4ZV67E6TEZ76NB9QRQ7Y248","status":200,"ms":11,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4ZV67E6TEZ76NB9QRQ7Y248",
+  "documentId": "01M4ZV67E6TEZ76NB9QRQ7Y248",
+  "readAt": "2026-10-15T13:15:58.125Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV7ECPKG8QJAWRXQAEHGDJ",
+      "document_id": "01M4ZV67E6TEZ76NB9QRQ7Y248",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV7EC1Q7AA4650ZGBTKNXE",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 16584,
+      "checksum_sha256": "82e65532fe279ad574a870747ad58c9a332ba910f5db053de30c47b4f8c7156e",
+      "download_url": "/api/v1/documents/01M4ZV67E6TEZ76NB9QRQ7Y248/download?version=2",
+      "created_by": "01M4ZV1RXQQVK9ZRZQH632JN7F",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-23/
+case-result.json
+evidence-g5-a06.log
+evidence-g5-a08.log
+result.json
+
+=== .harness-run-r9/fault/FQ-24/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:16:37.686Z","case":"FQ-24","source":"app-trace","intent":"office-intent-1cd466e1-4a58-4c12-8a60-d409a3dd50c3","keyTag":"48b2ed19a281","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T13:16:29.167Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.833Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.842Z","method":"GET","path":"/api/v1/me","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.845Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.849Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9k5rsw-ede8/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.854Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/billing","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.865Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.871Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.877Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/workspaces","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.890Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/credentials","status":503,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.891Z","method":"GET","path":"/api/v1/workspaces/01M4ZV1S06BM2DE20CP8R56JY6/documents/changes","status":200,"ms":10,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:29.894Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":9,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:33.867Z","method":"GET","path":"/api/v1/documents/01M4ZV91W79695245Y3D7DHM0Z","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:33.872Z","method":"GET","path":"/api/v1/documents/01M4ZV91W79695245Y3D7DHM0Z/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:16:33.936Z","method":"GET","path":"/api/v1/documents/01M4ZV91W79695245Y3D7DHM0Z","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4ZV91W79695245Y3D7DHM0Z",
+  "documentId": "01M4ZV91W79695245Y3D7DHM0Z",
+  "readAt": "2026-10-15T13:19:38.651Z",
+  "head": {
+    "revision": "1"
+  },
+  "versions": [
+    {
+      "id": "01M4ZV91W79695245Y3DRTZRD8",
+      "document_id": "01M4ZV91W79695245Y3D7DHM0Z",
+      "version": 1,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZV91VYV6JZMND4VC2AJSYB",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18806,
+      "checksum_sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "download_url": "/api/v1/documents/01M4ZV91W79695245Y3D7DHM0Z/download?version=1",
+      "created_by": "01M4ZV1RVMJM0YW4VHH24RT0EX",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-25/
+app-trace.jsonl
+case-result.json
+evidence-g5-a08.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:20:17.895Z","case":"FQ-25","source":"app-trace","intent":"office-intent-d544fc91-71d9-45e9-af78-5e44c1167863","keyTag":"f1d656d04fae","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T13:20:17.906Z","case":"FQ-25","source":"app-trace","intent":"office-intent-d544fc91-71d9-45e9-af78-5e44c1167863","keyTag":"f1d656d04fae","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T13:21:10.271Z","case":"FQ-25","source":"app-trace","intent":"office-intent-d544fc91-71d9-45e9-af78-5e44c1167863","keyTag":"f1d656d04fae","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T13:21:10.271Z","case":"FQ-25","source":"app-trace","intent":"office-intent-d544fc91-71d9-45e9-af78-5e44c1167863","keyTag":"f1d656d04fae","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T13:21:10.271Z","case":"FQ-25","source":"app-trace","intent":"office-intent-d544fc91-71d9-45e9-af78-5e44c1167863","keyTag":"f1d656d04fae","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T13:21:10.271Z","case":"FQ-25","source":"app-trace","intent":"office-intent-d544fc91-71d9-45e9-af78-5e44c1167863","keyTag":"f1d656d04fae","attempt":1,"event":"committing -> conflict","from":"committing","to":"conflict","http":{"status":409,"code":"conflict"}}
+{"ts":"2026-10-15T13:20:09.600Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.208Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.218Z","method":"GET","path":"/api/v1/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.222Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.225Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9k5rsw-ede8/members/me","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.230Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/billing","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.242Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.249Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.255Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/workspaces","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.260Z","method":"GET","path":"/api/v1/workspaces/01M4ZV1S06BM2DE20CP8R56JY6/documents/changes","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.266Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/credentials","status":503,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:10.275Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":11,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:14.233Z","method":"GET","path":"/api/v1/documents/01M4ZVFS70SQYJVV59S7SQ5SMH","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:14.237Z","method":"GET","path":"/api/v1/documents/01M4ZVFS70SQYJVV59S7SQ5SMH/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:20:14.274Z","method":"GET","path":"/api/v1/documents/01M4ZVFS70SQYJVV59S7SQ5SMH","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4ZVFS70SQYJVV59S7SQ5SMH",
+  "documentId": "01M4ZVFS70SQYJVV59S7SQ5SMH",
+  "readAt": "2026-10-15T13:21:30.531Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZVGZXTHZW0R26Q6WVCJA7F",
+      "document_id": "01M4ZVFS70SQYJVV59S7SQ5SMH",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZVGZXE82VN4EKWZ9RMTS75",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18806,
+      "checksum_sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "download_url": "/api/v1/documents/01M4ZVFS70SQYJVV59S7SQ5SMH/download?version=2",
+      "created_by": "01M4ZV1RVMJM0YW4VHH24RT0EX",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-26/
+case-result.json
+evidence-g5-a08.log
+result.json
+
+=== .harness-run-r9/fault/FQ-27/
+case-result.json
+evidence-g6-a04.log
+result.json
+
+=== .harness-run-r9/fault/FQ-28/
+case-result.json
+evidence-g7-a02.log
+result.json
+
+=== .harness-run-r9/fault/FQ-29/
+case-result.json
+evidence-g7-a02.log
+result.json
+
+=== .harness-run-r9/fault/FQ-30/
+case-result.json
+evidence-g5-a05.log
+evidence-g7-a02.log
+result.json
+
+=== .harness-run-r9/fault/FQ-31/
+case-result.json
+evidence-g6-a04.log
+result.json
+
+=== .harness-run-r9/fault/FQ-32/
+case-result.json
+evidence-g7-a02.log
+result.json
+
+=== .harness-run-r9/fault/FQ-40/
+1
+case-result.json
+evidence-g5-a06.log
+result.json
+
+=== .harness-run-r9/fault/FQ-41/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:23:41.987Z","case":"FQ-41","source":"app-trace","intent":"office-intent-cd321f6b-6bdb-421b-b971-50b61aab9c13","keyTag":"ac7bb2d4846a","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T13:23:42.008Z","case":"FQ-41","source":"app-trace","intent":"office-intent-cd321f6b-6bdb-421b-b971-50b61aab9c13","keyTag":"ac7bb2d4846a","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T13:24:34.319Z","case":"FQ-41","source":"app-trace","intent":"office-intent-cd321f6b-6bdb-421b-b971-50b61aab9c13","keyTag":"ac7bb2d4846a","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T13:24:34.319Z","case":"FQ-41","source":"app-trace","intent":"office-intent-cd321f6b-6bdb-421b-b971-50b61aab9c13","keyTag":"ac7bb2d4846a","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T13:24:34.319Z","case":"FQ-41","source":"app-trace","intent":"office-intent-cd321f6b-6bdb-421b-b971-50b61aab9c13","keyTag":"ac7bb2d4846a","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T13:24:34.319Z","case":"FQ-41","source":"app-trace","intent":"office-intent-cd321f6b-6bdb-421b-b971-50b61aab9c13","keyTag":"ac7bb2d4846a","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T13:23:33.638Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.266Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.272Z","method":"GET","path":"/api/v1/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.275Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.279Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9k5rsw-ede8/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.287Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/billing","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.300Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.306Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.313Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/workspaces","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.322Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/credentials","status":503,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.326Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:34.330Z","method":"GET","path":"/api/v1/workspaces/01M4ZV1S06BM2DE20CP8R56JY6/documents/changes","status":200,"ms":14,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:38.296Z","method":"GET","path":"/api/v1/documents/01M4ZVP0DMEDC0KHG63D2VDX3E","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:38.300Z","method":"GET","path":"/api/v1/documents/01M4ZVP0DMEDC0KHG63D2VDX3E/download","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:23:38.340Z","method":"GET","path":"/api/v1/documents/01M4ZVP0DMEDC0KHG63D2VDX3E","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4ZVP0DMEDC0KHG63D2VDX3E",
+  "documentId": "01M4ZVP0DMEDC0KHG63D2VDX3E",
+  "readAt": "2026-10-15T13:27:02.824Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZVRSXBJ5ETEDYZ0AGE9555",
+      "document_id": "01M4ZVP0DMEDC0KHG63D2VDX3E",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZVQ6SC1JEBKV227QQRY10Y",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 16584,
+      "checksum_sha256": "057e9392c918a9834c124255cbb9e458077160177f52192744759f4417e5e481",
+      "download_url": "/api/v1/documents/01M4ZVP0DMEDC0KHG63D2VDX3E/download?version=2",
+      "created_by": "01M4ZV1RXQQVK9ZRZQH632JN7F",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-42/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:27:42.427Z","case":"FQ-42","source":"app-trace","intent":"office-intent-e07f9e2c-e0b3-400e-b94e-b0e1a161700d","keyTag":"2e35ff11ed79","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T13:27:42.456Z","case":"FQ-42","source":"app-trace","intent":"office-intent-e07f9e2c-e0b3-400e-b94e-b0e1a161700d","keyTag":"2e35ff11ed79","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T13:28:34.615Z","case":"FQ-42","source":"app-trace","intent":"office-intent-e07f9e2c-e0b3-400e-b94e-b0e1a161700d","keyTag":"2e35ff11ed79","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T13:28:34.615Z","case":"FQ-42","source":"app-trace","intent":"office-intent-e07f9e2c-e0b3-400e-b94e-b0e1a161700d","keyTag":"2e35ff11ed79","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T13:28:34.615Z","case":"FQ-42","source":"app-trace","intent":"office-intent-e07f9e2c-e0b3-400e-b94e-b0e1a161700d","keyTag":"2e35ff11ed79","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T13:28:34.615Z","case":"FQ-42","source":"app-trace","intent":"office-intent-e07f9e2c-e0b3-400e-b94e-b0e1a161700d","keyTag":"2e35ff11ed79","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T13:27:33.832Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.555Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.570Z","method":"GET","path":"/api/v1/me","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.574Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.577Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9k5rsw-ede8/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.584Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/billing","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.596Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.607Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/office/capabilities","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.616Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/workspaces","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.623Z","method":"GET","path":"/api/v1/workspaces/01M4ZV1S06BM2DE20CP8R56JY6/documents/changes","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.629Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/credentials","status":503,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:34.633Z","method":"GET","path":"/api/v1/orgs/01M4ZV1S01R0NB6EW1TK652Q39/ai/cloud","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:38.584Z","method":"GET","path":"/api/v1/documents/01M4ZVXAZKP487CJK1KK2GFKXZ","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:38.590Z","method":"GET","path":"/api/v1/documents/01M4ZVXAZKP487CJK1KK2GFKXZ/download","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:27:38.630Z","method":"GET","path":"/api/v1/documents/01M4ZVXAZKP487CJK1KK2GFKXZ","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4ZVXAZKP487CJK1KK2GFKXZ",
+  "documentId": "01M4ZVXAZKP487CJK1KK2GFKXZ",
+  "readAt": "2026-10-15T13:31:43.352Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZW04JNXRJ698T7HHQHYBMK",
+      "document_id": "01M4ZVXAZKP487CJK1KK2GFKXZ",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZVYHK9TV3BQHVYDJ2J0A55",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 16584,
+      "checksum_sha256": "019cddd5645efe37dbee475a1f816ecc0d325ee7c27dca7a9ac837172eeee878",
+      "download_url": "/api/v1/documents/01M4ZVXAZKP487CJK1KK2GFKXZ/download?version=2",
+      "created_by": "01M4ZV1RXQQVK9ZRZQH632JN7F",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r9/fault/FQ-43/
+1
+case-result.json
+evidence-g5-a06.log
+result.json
+
+=== .harness-run-r9/fault/FQ-44/
+1
+
+=== .harness-run-r9/fault/FQ-45/
+case-result.json
+evidence-g5-a06.log
+evidence-g5-a08.log
+result.json
+
+=== .harness-run-r9/fault/FQ-46/
+case-result.json
+evidence-g5-a06.log
+result.json
+
+=== .harness-run-r9/fault/FQ-52/
+case-result.json
+evidence-g5-a08.log
+result.json
+
+=== .harness-run-r9/fault/FQ-54/
+case-result.json
+evidence-g5-a05.log
+result.json
+
+=== .harness-run-r9/fault/FQ-55/
+case-result.json
+evidence-g5-a08.log
+result.json
+
