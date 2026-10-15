@@ -8479,6 +8479,8 @@
       "people_selected_other": "Đã chọn {{count}} người",
       "people_limit": "Tối đa {{max}} người mỗi lần chia sẻ. Bỏ bớt để thêm người khác.",
       "people_remove": "Bỏ chọn {{name}}",
+      "people_removed": "Đã bỏ chọn {{name}}",
+      "people_toggle": "Mở danh sách thành viên",
       "people_not_in_org_one": "Không chia sẻ được: {{names}} không thuộc tổ chức này. Bỏ chọn rồi thử lại.",
       "people_not_in_org_other": "Không chia sẻ được: {{names}} không thuộc tổ chức này. Bỏ chọn rồi thử lại.",
       "level_label": "Mức quyền",

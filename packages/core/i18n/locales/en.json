@@ -8484,6 +8484,8 @@
       "people_selected_other": "{{count}} people selected",
       "people_limit": "Up to {{max}} people per share. Remove someone to add another.",
       "people_remove": "Remove {{name}}",
+      "people_removed": "Removed {{name}}",
+      "people_toggle": "Show members",
       "people_not_in_org_one": "Not shared: {{names}} is not in this organization. Remove them and try again.",
       "people_not_in_org_other": "Not shared: {{names}} are not in this organization. Remove them and try again.",
       "level_label": "Level",
