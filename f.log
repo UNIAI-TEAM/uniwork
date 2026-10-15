@@ -1,0 +1,151 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/pdf -- vitest run tests/g6-09a-uniwork-tool-gating.test.ts tests/g6-09a-aipanel-gating.test.ts tests/g6-12-pdf-ask.test.ts tests/g6-12-pdf-bound.test.ts tests/uniwork-view-only-ai.test.ts --reporter=verbose; rc=$?; echo; echo "PDF_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/pdf
+
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf text / image edit tools by capability under UniWork AI > hides the text-edit tools when pdfTextEdit is off 2ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf text / image edit tools by capability under UniWork AI > hides the image-edit tools when pdfImageEdit is off 1ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf text / image edit tools by capability under UniWork AI > keeps them when the capability is on 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf text / image edit tools by capability under UniWork AI > a BYOK turn keeps them even with the capability off (unchanged behaviour) 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf text / image edit tools by capability under UniWork AI > reads the provider and the capability live 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf file-level tools on a UniWork-bound document > hides the eight file-level tools next to create_document 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf file-level tools on a UniWork-bound document > keeps them on a plain local file 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf file-level tools on a UniWork-bound document > reads bound live 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf file-level tools on a UniWork-bound document > the system prompt says the file-level tools are unavailable, live with bound 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > refuses the eight file-level tools and create_document on a bound document 1ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > refuses text edits under UniWork AI with pdfTextEdit off 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > refuses image edits under UniWork AI with pdfImageEdit off 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > refuses generate_image when the image model is off 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > does not refuse for BYOK on a plain file (capability off, not bound) 1ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > follows bound live 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf system prompt notes capability-hidden edit tools > names the text-edit tools when pdfTextEdit is off under UniWork AI 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf system prompt notes capability-hidden edit tools > names the image-edit tools when pdfImageEdit is off under UniWork AI 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf system prompt notes capability-hidden edit tools > stays silent for BYOK or when the capabilities are on, live 0ms
+stderr | tests/g6-12-pdf-ask.test.ts > ClarifyCard > submits the picked option and the free-text "other" as "question: answer"
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > ClarifyCard > submits the picked option and the free-text "other" as "question: answer"
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > ClarifyCard > has a skip button and offers "decide for me" after the options
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > ClarifyCard > has a skip button and offers "decide for me" after the options
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > shows the card until the user answers, then resolves with the answers and a receipt
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > shows the card until the user answers, then resolves with the answers and a receipt
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > skip, dismiss (stop / new chat) and an aborted run all resolve as cancelled
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > skip, dismiss (stop / new chat) and an aborted run all resolve as cancelled
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > skip, dismiss (stop / new chat) and an aborted run all resolve as cancelled
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > skip, dismiss (stop / new chat) and an aborted run all resolve as cancelled
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > answers an already-aborted run immediately without opening a card
+The current testing environment is not configured to support act(...)
+
+stderr | tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > answers an already-aborted run immediately without opening a card
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/g6-12-pdf-ask.test.ts > ask_clarification tool definition > exists with the same input schema as html, byte for byte 1ms
+ ✓ tests/g6-12-pdf-ask.test.ts > ask_clarification tool definition > has its own description aimed at meaning/scope, not at creating pages 1ms
+ ✓ tests/g6-12-pdf-ask.test.ts > ask_clarification execution > hands the answers back to the model and declares mutated: false 2ms
+ ✓ tests/g6-12-pdf-ask.test.ts > ask_clarification execution > reports a skip exactly like html and still declares mutated: false 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > ask_clarification execution > errors when the card is unavailable or no question has options 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > ask_clarification execution > passes the run signal to the card so a stop can dismiss it 1ms
+ ✓ tests/g6-12-pdf-ask.test.ts > ask_clarification in the skill > is offered on an editable document, also when bound 1ms
+ ✓ tests/g6-12-pdf-ask.test.ts > ask_clarification in the skill > is dropped on a view-only document (same as html) and refused if called 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > ClarifyCard > submits the picked option and the free-text "other" as "question: answer" 37ms
+ ✓ tests/g6-12-pdf-ask.test.ts > ClarifyCard > has a skip button and offers "decide for me" after the options 5ms
+ ✓ tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > shows the card until the user answers, then resolves with the answers and a receipt 3ms
+ ✓ tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > skip, dismiss (stop / new chat) and an aborted run all resolve as cancelled 6ms
+ ✓ tests/g6-12-pdf-ask.test.ts > useClarify (panel side of the blocking card) > answers an already-aborted run immediately without opening a card 1ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale zh defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale en defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale vi defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale ja defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale ko defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale fr defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale de defines every questionnaire key 1ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale es defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale th defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale id defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale ru defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale ar defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale pt defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale it defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale pl defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale cs defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale nl defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale ms defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale he defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale hi defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale zh-TW defines every questionnaire key 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > is translated, not English, in the other locales 0ms
+ ✓ tests/g6-12-pdf-ask.test.ts > questionnaire strings > keeps the {n} placeholder of the selected counter in every locale 0ms
+stderr | tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only for BYOK, and sub-line under composer for UniWork AI
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only for BYOK, and sub-line under composer for UniWork AI
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only for BYOK, and sub-line under composer for UniWork AI
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only for BYOK, and sub-line under composer for UniWork AI
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only for BYOK, and sub-line under composer for UniWork AI
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only for BYOK, and sub-line under composer for UniWork AI
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > keeps only read-only tools and says the document is view-only 2ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > refuses an edit tool call before it reaches the document 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > keeps the full tool set on an editable document 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > only allowlists tools that exist 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only for BYOK, and sub-line under composer for UniWork AI 73ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is English in en and Vietnamese in vi 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is translated in every shipped locale 1ms
+ ✓ tests/g6-12-pdf-bound.test.ts > create_document on a UniWork-bound PDF > is not offered to the model while bound, other tools stay 2ms
+ ✓ tests/g6-12-pdf-bound.test.ts > create_document on a UniWork-bound PDF > tells the model why the tool is missing, only while bound 0ms
+ ✓ tests/g6-12-pdf-bound.test.ts > create_document on a UniWork-bound PDF > refuses a stale call without writing anything (skill and executor) 1ms
+ ✓ tests/g6-12-pdf-bound.test.ts > create_document on a UniWork-bound PDF > keeps create_document for a plain local PDF 1ms
+ ✓ tests/g6-12-pdf-bound.test.ts > create_document on a UniWork-bound PDF > reads a host without the bound query as a plain local PDF 0ms
+ ✓ tests/g6-09a-aipanel-gating.test.ts > AiPanel feeds the skill gates (pdf) > text edit tools follow the panel provider and the capability reader 62ms
+
+ Test Files  5 passed (5)
+      Tests  67 passed (67)
+   Start at  20:19:00
+   Duration  2.69s (transform 3.17s, setup 295ms, import 4.34s, tests 223ms, environment 1.93s)
+
+
+PDF_TARGETED_EXIT=0
