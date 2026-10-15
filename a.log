@@ -1,0 +1,17 @@
+$ export PATH="$HOME/.cargo/bin:$PATH"; [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"; command -v rustup >/dev/null || (curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal); export PATH="$HOME/.cargo/bin:$PATH"; rustup toolchain install stable --profile minimal && rustup toolchain install 1.90.0 --profile minimal --target wasm32-wasip1; rc=$?; echo; echo "RUST_EXIT=$rc"
+info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+info: latest update on 2026-10-15 for version 1.99.1 (58cf8f9c3 2026-10-13)
+info: downloading 3 components
+
+  stable-x86_64-unknown-linux-gnu installed - rustc 1.99.1 (58cf8f9c3 2026-10-13)
+
+info: checking for self-update (current version: 1.29.1)
+info: syncing channel updates for 1.90.0-x86_64-unknown-linux-gnu
+info: latest update on 2025-09-18 for version 1.90.0 (1159e78c4 2025-09-14)
+info: component rust-std for target wasm32-wasip1 is up to date
+
+  1.90.0-x86_64-unknown-linux-gnu unchanged - rustc 1.90.0 (1159e78c4 2025-09-14)
+
+info: checking for self-update (current version: 1.29.1)
+
+RUST_EXIT=0
