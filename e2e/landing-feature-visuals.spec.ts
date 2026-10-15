@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { landingReady } from "./landing-ready";
 
 const features = ["dashboard", "tasks", "projects", "today", "calendar", "workflows", "meetings", "chat", "email", "outputs", "documents", "approvals", "knowledge", "ask", "agents", "automation", "organization", "audit"];
 
@@ -11,6 +12,7 @@ test("every product chapter retains visual examples on a narrow English screen",
   page.on("pageerror", error => errors.push(error.message));
   for (const key of features) {
     await page.goto(`/features/${key}`);
+    await landingReady(page);
     const illustrations = page.locator('.feature-world .feature-art[role="img"]');
     await expect(illustrations).toHaveCount(2);
     for (const illustration of await illustrations.all()) {
@@ -29,6 +31,7 @@ test("every product chapter retains visual examples on a narrow English screen",
 test("visual directory navigates to chapters and the full preview still expands", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/features");
+  await landingReady(page);
   const cards = page.locator('.feature-directory-visual a[href^="/features/"]');
   await expect(cards).toHaveCount(18);
   await expect(cards.locator('.feature-art[aria-hidden="true"]')).toHaveCount(18);

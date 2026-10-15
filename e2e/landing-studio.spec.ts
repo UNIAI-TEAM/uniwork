@@ -3,9 +3,11 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady } from "./landing-ready";
 
 test("studio demo switches views and tabs locally, with keyboard support", async ({ page }) => {
   await page.goto("/");
+  await landingReady(page);
   await page.waitForLoadState("networkidle");
   const preview = page.locator("#product-preview");
   await openManualPreview(page);
@@ -37,6 +39,7 @@ test("studio demo switches views and tabs locally, with keyboard support", async
 test("mobile menu closes with Escape and returns focus", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await landingReady(page);
   await page.waitForLoadState("networkidle");
   const trigger = page.getByRole("banner").getByRole("button", { name: "Mở menu", exact: true });
   await trigger.click();
@@ -58,6 +61,7 @@ for (const scenario of [
     await page.setViewportSize({ width: scenario.width, height: scenario.height });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: scenario.theme as "light" | "dark" });
     await page.goto("/");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
     await expect(page.locator("html")).toHaveAttribute("lang", scenario.locale);
     await page.evaluate((mode) => document.documentElement.classList.toggle("dark", mode === "dark"), scenario.theme);

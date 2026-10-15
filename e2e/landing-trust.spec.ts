@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { landingReady } from "./landing-ready";
 import { auditText } from "./contrast";
 
 const samples = [
@@ -26,6 +27,7 @@ for (const { width, locale, theme } of samples) {
     } else {
       await page.goto("/");
     }
+    await landingReady(page);
     const chapter = page.locator(".landing-trust-story");
     await expect(chapter).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
