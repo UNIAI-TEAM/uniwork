@@ -71,10 +71,14 @@ test("create card, folder, move and the other-modules section on the owner's hom
   // module's own text, so the check is the frame element, not what it renders.
   await expect(page.locator('iframe[src*="/office-frame/"]').first()).toBeAttached({ timeout: 60_000 });
 
-  // 2. A folder: created with its default name, opened, and named in the breadcrumb.
+  // 2. A folder: named in the FD-07/08 name dialog (as documents-folders.spec.ts does), opened, and named in the breadcrumb.
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await sidebar(page).getByRole("button", { name: "Tạo thư mục" }).click();
+  const nameDialog = page.getByRole("dialog", { name: "Thư mục mới ở Tài liệu (gốc)" });
+  await nameDialog.getByLabel("Tên thư mục").fill(FOLDER_TITLE);
+  await nameDialog.getByRole("button", { name: "Tạo" }).click();
+  await expect(nameDialog).toBeHidden({ timeout: 30_000 });
   const crumbs = page.getByRole("navigation", { name: "Đường dẫn thư mục" });
   await expect(crumbs).toBeVisible({ timeout: 30_000 });
   await expect(crumbs.getByText(FOLDER_TITLE, { exact: true })).toHaveAttribute("aria-current", "page");
