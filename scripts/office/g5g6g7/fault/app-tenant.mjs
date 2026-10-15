@@ -348,11 +348,22 @@ export const archiveDocument = (tenant, documentId) =>
 export const restoreDocument = (tenant, documentId) =>
   must("restore document", tenant.apiOrigin, `/api/v1/documents/${documentId}/restore`,
     { method: "POST", as: tenant.owner }, undefined, "/api/v1/documents/{documentID}/restore");
+/**
+ * Deactivates / reactivates the app's account in the run's organization as the
+ * owner (the owner deactivates any member; an admin only members:
+ * handler/router/organizations.go:89-102). The `{org}` segment is the
+ * organization SLUG, never its id: both handlers resolve it through
+ * `Organizations.GetBySlug` (handler/organization_members.go:31-38, used by
+ * `deactivateOrgMember` :95-106 and `reactivateOrgMember` :108-119), so the id
+ * the runner holds answered `404 not_found` in r13 (13d3 FQ-43 exit 8, 13f2
+ * FQ-50 exit 5). `seedOrgWorkspace` keeps the slug on the tenant for exactly
+ * these routes.
+ */
 export const deactivateApp = (tenant) =>
-  must("deactivate member", tenant.apiOrigin, `/api/v1/orgs/${tenant.orgId}/members/${tenant.app.userId}/deactivate`,
+  must("deactivate member", tenant.apiOrigin, `/api/v1/orgs/${tenant.orgSlug}/members/${tenant.app.userId}/deactivate`,
     { method: "POST", as: tenant.owner }, undefined, "/api/v1/orgs/{org}/members/{userID}/deactivate");
 export const reactivateApp = (tenant) =>
-  must("reactivate member", tenant.apiOrigin, `/api/v1/orgs/${tenant.orgId}/members/${tenant.app.userId}/reactivate`,
+  must("reactivate member", tenant.apiOrigin, `/api/v1/orgs/${tenant.orgSlug}/members/${tenant.app.userId}/reactivate`,
     { method: "POST", as: tenant.owner }, undefined, "/api/v1/orgs/{org}/members/{userID}/reactivate");
 
 const ADMIN_REASON = "G7-03a fault runner (UNI-1380) test condition";
