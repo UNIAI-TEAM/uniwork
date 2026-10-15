@@ -98,6 +98,9 @@ func TestErrorClassTable(t *testing.T) {
 		// Count limits with no class on purpose: neither a usage meter nor a
 		// conflict to reload (UNI-1641 batch share cap, document link cap).
 		"share_batch_too_large", "document_link_limit",
+		// The access report export's row cap (UNI-1643, 422 fields.max_rows):
+		// the same kind of count limit, the web asks to narrow the filter.
+		"access_report_too_large",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {
@@ -107,8 +110,9 @@ func TestErrorClassTable(t *testing.T) {
 
 	// Every code the document permission / share / break-glass files emit is
 	// decided here, classified or unclassified on purpose (addendum G8-18 /
-	// DOC-05 section 4). Only these files are scanned: the rest of the
-	// service package predates the rule.
+	// DOC-05 section 4), and so is every code of the access report files
+	// (UNI-1643), which read through the same gates. Only these files are
+	// scanned: the rest of the service package predates the rule.
 	decided := map[string]bool{}
 	for code := range want {
 		decided[code] = true
@@ -117,7 +121,10 @@ func TestErrorClassTable(t *testing.T) {
 		decided[code] = true
 	}
 	found := map[string]bool{}
-	for _, name := range []string{"document_permissions.go", "document_shares.go", "document_break_glass.go"} {
+	for _, name := range []string{
+		"document_permissions.go", "document_shares.go", "document_break_glass.go",
+		"document_access_report.go", "document_access_report_export.go",
+	} {
 		src, err := os.ReadFile("../../../service/" + name)
 		if errors.Is(err, fs.ErrNotExist) && name == "document_break_glass.go" {
 			continue // lands with the break-glass routes
@@ -132,7 +139,7 @@ func TestErrorClassTable(t *testing.T) {
 			}
 		}
 	}
-	for _, code := range []string{"document_restricted", "break_glass_required", "document_owned_by_work_product"} {
+	for _, code := range []string{"document_restricted", "break_glass_required", "document_owned_by_work_product", "access_report_too_large"} {
 		if !found[code] {
 			t.Errorf("scan did not find %q: the emission pattern changed, update permissionFileCodes", code)
 		}
