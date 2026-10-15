@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -196,7 +197,71 @@ func TestDocumentCopy(t *testing.T) {
 				t.Fatal("a refused copy still wrote a document")
 			}
 		})
+
+		// The pre-flight seat check passes, then the membership goes before the
+		// transaction opens: only the in-transaction RequireMemberQ catches it.
+		// The hook rides on ResolveMany, the one FileService call the command
+		// makes between the two checks.
+		t.Run("a seat removed after the pre-flight refuses the copy in the transaction", func(t *testing.T) {
+			src := env.createFile(t, member, "seat-removed.md", []byte("# Mat cho giua chung\n"))
+			// Edit comes from a user share, so it outlives the seat: the in-tx
+			// document gate still passes and only the seat check can refuse.
+			if _, err := env.f.pool.Exec(ctx,
+				`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`,
+				src.Document.ID, env.tn.member.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.svc.ShareDocument(ctx, member, src.Document.ID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID, Level: DocumentLevelEdit,
+			}); err != nil {
+				t.Fatalf("share: %v", err)
+			}
+			// The share editor holds a seat for the pre-flight (raw SQL: no API
+			// seats the outsider fixture user).
+			copier := human(env.tn.outsider)
+			if _, err := env.f.pool.Exec(ctx,
+				`INSERT INTO workspace_members (workspace_id, user_id, role, organization_id)
+				 SELECT id, $2, 'member', organization_id FROM workspaces WHERE id = $1`,
+				env.tn.wsA, env.tn.outsider.ID); err != nil {
+				t.Fatal(err)
+			}
+			hook := &seatRemovingFiles{Service: env.fs, remove: func() {
+				if _, err := env.f.pool.Exec(ctx,
+					`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, env.tn.wsA, env.tn.outsider.ID); err != nil {
+					t.Fatal(err)
+				}
+			}}
+			env.svc.SetFiles(hook)
+			t.Cleanup(func() { env.svc.SetFiles(env.fs) })
+			before := copyDocCount(t, env)
+			_, err := env.svc.CopyDocument(ctx, copier, src.Document.ID, CopyDocumentInput{Consent: "copy", IdempotencyKey: util.NewID()})
+			if !hook.fired {
+				t.Fatal("the seam never ran: the pre-flight no longer precedes ResolveMany")
+			}
+			if !errors.Is(err, ErrForbidden) {
+				t.Fatalf("copy after the seat was removed = %v, want ErrForbidden", err)
+			}
+			if after := copyDocCount(t, env); after != before {
+				t.Fatal("a refused copy still wrote a document")
+			}
+		})
 	})
+}
+
+// seatRemovingFiles runs remove once, on the first ResolveMany, then answers
+// as the wrapped service.
+type seatRemovingFiles struct {
+	files.Service
+	remove func()
+	fired  bool
+}
+
+func (h *seatRemovingFiles) ResolveMany(ctx context.Context, in files.ResolveInput) ([]files.Resolved, error) {
+	if !h.fired {
+		h.fired = true
+		h.remove()
+	}
+	return h.Service.ResolveMany(ctx, in)
 }
 
 // The half-copy cleanup of Save as a copy (G5-12): the desktop creates the
@@ -239,6 +304,23 @@ func TestDocumentCopyPristineArchive(t *testing.T) {
 			}
 			if n := env.countAudit(t, "document.archived", copied.Document.ID); n != 1 {
 				t.Fatalf("document.archived audit rows = %d, want 1", n)
+			}
+		})
+
+		// ArchiveImpact runs the command's own root gate: the read that previews
+		// a delete never refuses one the command accepts (BE-12-01).
+		t.Run("archive impact answers the creator of a pristine copy", func(t *testing.T) {
+			copied := copyOf(t, "impact.md")
+			got, err := env.svc.ArchiveImpact(ctx, member, copied.Document.ID)
+			if err != nil {
+				t.Fatalf("archive impact of a pristine copy = %v", err)
+			}
+			wantImpact(t, env.svc, got, 0, 0, 1)
+			up := env.upload(t, member, copied.Document.ID, "impact.md", []byte("# Ban cua toi\n"))
+			_, err = env.commit(member, copied.Document.ID, up.UploadID, copied.Document.Revision, util.NewID())
+			mustf(t, err, "commit v2")
+			if _, err := env.svc.ArchiveImpact(ctx, member, copied.Document.ID); !errors.Is(err, ErrForbidden) {
+				t.Fatalf("archive impact after v2 = %v, want ErrForbidden", err)
 			}
 		})
 
