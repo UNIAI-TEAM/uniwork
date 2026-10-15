@@ -87,10 +87,11 @@ export function editLockBannerView(input: EditLockViewInput): EditLockBannerView
   if (lock.held_by_me) return withLost({ kind: "selfElsewhere" as const });
 
   const mine = lockState.my_request;
+  // Declined, expired, or pending past its expiry: "not released". A cancelled request says nothing.
   const pending = mine && mine.status === "pending" && !(Date.parse(mine.expires_at) <= Date.now());
   const request: EditLockRequestView | null = pending
     ? { state: "pending", requestId: mine.request_id, expiresAt: mine.expires_at }
-    : input.notReleased || mine ? { state: "notReleased" } : null;
+    : input.notReleased || (mine && (mine.status === "declined" || mine.status === "expired" || mine.status === "pending")) ? { state: "notReleased" } : null;
   return withLost({
     kind: "other" as const,
     holderName: lock.holder_name,

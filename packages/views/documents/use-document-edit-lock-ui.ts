@@ -14,6 +14,7 @@ import { useNavigation } from "../navigation";
 import type { FrameEditLock } from "../office/frame/frame-edit-lock";
 import type { DocumentEditorHandle } from "./document-editor";
 import { downloadPageCopy } from "./edit-lock-copy";
+import { useExpiryTick } from "./use-expiry-tick";
 import { onWriteRefused } from "./edit-lock-refusal";
 import { editLockBannerView } from "./edit-lock-view-model";
 
@@ -268,8 +269,12 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
   useEffect(() => {
     if (linked) setDismissed((now) => (now.has(linked) ? new Set([...now].filter((id) => id !== linked)) : now));
   }, [linked]);
-  const incoming = phase === "mine" ? (r1?.pending_requests ?? []).filter((req) => req.status === "pending" && !dismissed.has(req.request_id)) : [];
+  const incoming = phase === "mine"
+    ? (r1?.pending_requests ?? []).filter((req) => req.status === "pending" && !(Date.parse(req.expires_at) <= Date.now()) && !dismissed.has(req.request_id))
+    : [];
   const request = incoming.find((req) => req.request_id === linked) ?? incoming[0] ?? null;
+  // A request that ran out (the one I sent, one sent to me) stops being answerable on time.
+  useExpiryTick([r1?.my_request?.status === "pending" ? r1.my_request.expires_at : null, ...(r1?.pending_requests ?? []).map((req) => req.expires_at)]);
   const [accepting, setAccepting] = useState<string | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
   const answer = useCallback(
