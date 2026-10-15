@@ -1,0 +1,7 @@
+$ pnpm typecheck 2>&1 | tail -5; echo "TYPECHECK_EXIT=${PIPESTATUS[0]}"
+
+ Tasks:    7 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    1m0.959s 
+
+TYPECHECK_EXIT=0

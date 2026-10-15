@@ -1,0 +1,7 @@
+$ pnpm --filter @uniwork/core exec vitest run 2>&1 | tail -5; echo "CORE_EXIT=${PIPESTATUS[0]}"
+ Test Files  239 passed (239)
+      Tests  2302 passed (2302)
+   Start at  10:31:28
+   Duration  49.01s (transform 3.32s, setup 25.54s, import 17.59s, tests 18.60s, environment 61.83s)
+
+CORE_EXIT=0
