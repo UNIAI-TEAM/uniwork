@@ -1025,10 +1025,11 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 		}
 	}
 
-	// The exact name sets of the other five modules are pinned here: the
-	// mechanical block of docs/office/g5g6g7/genoffice-tools.md §3 plus the
-	// group-B rows decide them, so a name that disappears without the document
-	// changing — or that moves between read and write — fails here.
+	// The exact name sets of all six modules are pinned here: the mechanical
+	// block of docs/office/g5g6g7/genoffice-tools.md §3 plus the group-B rows
+	// decide them — minus the five slides rows G6-09a removes above — so a name
+	// that disappears without the document changing, or that moves between read
+	// and write, fails here.
 	pinned := map[string]uniworkModuleTools{
 		"docs": {
 			Read: []string{
@@ -1073,6 +1074,13 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 				"trace_precedents", "web_search",
 			},
 			Write: []string{"create_document", "merge_attached_workbooks", "propose_operations"},
+		},
+		"slides": {
+			Read: []string{
+				"analyze_media", "ask_clarification", "generate_image", "image_search", "list_style_templates",
+				"load_guide", "plan_deck", "read_attachment", "read_slide", "web_search",
+			},
+			Write: []string{"apply_ops", "edit_chart", "execute_slide_script"},
 		},
 	}
 	for module, want := range pinned {
