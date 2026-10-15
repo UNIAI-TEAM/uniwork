@@ -63,7 +63,7 @@ func TestMentionCandidatesIncludeNoAccessOrdinary(t *testing.T) {
 	}
 
 	// A live break-glass grant flips the admin to a reader.
-	f.breakGlass(t, tn, doc.ID, doc.WorkspaceID, tn.wsAdmin.ID, time.Hour)
+	f.mentionBreakGlass(t, tn, doc.ID, doc.WorkspaceID, tn.wsAdmin.ID, time.Hour)
 	rows, _ = f.svc.MentionCandidates(f.ctx, acl, doc.ID, MentionCandidateQuery{IncludeNoAccess: true})
 	for _, r := range rows {
 		if r.UserID == tn.wsAdmin.ID && !*r.CanView {

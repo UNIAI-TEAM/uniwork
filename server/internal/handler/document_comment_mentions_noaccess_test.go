@@ -48,6 +48,11 @@ func TestDocumentCommentAnswersMentionsWithoutAccess(t *testing.T) {
 	if _, ok := byID[strangerID]["display_name"]; ok {
 		t.Errorf("an id outside the organization carries a display_name: %v", byID[strangerID])
 	}
+	// The owner holds manage: an active organization member can be shared
+	// with, an id outside the organization cannot.
+	if byID[w.memberID]["can_share"] != true || byID[strangerID]["can_share"] != false {
+		t.Errorf("can_share: member=%v stranger=%v, want true/false", byID[w.memberID]["can_share"], byID[strangerID]["can_share"])
+	}
 	if byID[w.viewerID] != nil {
 		t.Errorf("a reader is reported without access: %v", byID[w.viewerID])
 	}

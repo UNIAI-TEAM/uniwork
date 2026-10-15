@@ -11,9 +11,9 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
-// breakGlass inserts a live emergency view grant for the person, the row the
+// mentionBreakGlass inserts a live emergency view grant for the person, the row the
 // DOC-05 break-glass route will write.
-func (f *docPermFixture) breakGlass(t *testing.T, tn docTenant, docID, ws, userID string, expiresIn time.Duration) {
+func (f *docPermFixture) mentionBreakGlass(t *testing.T, tn docTenant, docID, ws, userID string, expiresIn time.Duration) {
 	t.Helper()
 	if _, err := f.pool.Exec(f.ctx,
 		`INSERT INTO document_break_glass_grants
@@ -45,8 +45,8 @@ func TestMentionCandidatesRestrictedAdminsAreNotReaders(t *testing.T) {
 		}
 	}
 
-	f.breakGlass(t, tn, doc.ID, doc.WorkspaceID, tn.wsAdmin.ID, time.Hour)
-	f.breakGlass(t, tn, doc.ID, doc.WorkspaceID, tn.orgAdmin.ID, -time.Minute) // expired
+	f.mentionBreakGlass(t, tn, doc.ID, doc.WorkspaceID, tn.wsAdmin.ID, time.Hour)
+	f.mentionBreakGlass(t, tn, doc.ID, doc.WorkspaceID, tn.orgAdmin.ID, -time.Minute) // expired
 	got = mentionCandidatesOf(t, f, acl, doc.ID, MentionCandidateQuery{})
 	if _, ok := got[tn.wsAdmin.ID]; !ok {
 		t.Error("a live break-glass grant does not make the admin a reader")

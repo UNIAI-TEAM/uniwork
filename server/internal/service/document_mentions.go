@@ -430,10 +430,16 @@ type MentionWithoutAccess struct {
 // CommentMentionsWithoutAccess lists the no_access mentions the create/edit
 // transaction of one comment stored, for the answer of POST/PATCH comments.
 // It reads the durable rows, so a replayed create answers what is stored now.
-// Phase A: CanShare is false until the administer gate (DOC-05) lands; see
-// the G8-18 report.
+//
+// can_share (G8-18, matching "Administer" of DOC-05) is true only when ALL
+// hold: the caller can administer the document (manage, or AdminScope), the
+// document is not owned by a Work Product (shares are refused there), the
+// mentioned person is an active organization member, and either the caller
+// holds manage or the mentioned person is not the caller (an admin who only
+// has AdminScope never shares the document with themselves through the plain
+// route; break-glass is the way in).
 func (s *DocumentService) CommentMentionsWithoutAccess(ctx context.Context, actor Actor, documentID, commentID string) ([]MentionWithoutAccess, error) {
-	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelComment)
+	doc, access, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelComment)
 	if err != nil {
 		return nil, err
 	}
@@ -444,9 +450,15 @@ func (s *DocumentService) CommentMentionsWithoutAccess(ctx context.Context, acto
 	if err != nil {
 		return nil, err
 	}
+	callerMayShare := access.canAdminister() && !doc.OwnerKind.Valid
 	out := make([]MentionWithoutAccess, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, MentionWithoutAccess{UserID: r.UserID, DisplayName: r.DisplayName})
+		out = append(out, MentionWithoutAccess{
+			UserID:      r.UserID,
+			DisplayName: r.DisplayName,
+			CanShare: callerMayShare && r.ActiveMember &&
+				(access.Level.AtLeast(DocumentLevelManage) || r.UserID != actor.ID),
+		})
 	}
 	return out, nil
 }
