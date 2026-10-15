@@ -270,6 +270,17 @@ test("pageAction click unlessActive: an active ribbon tab is not pressed again (
 
 // ---- the flow against the fake -------------------------------------------------
 
+/**
+ * runG8A02 with a fake clock that advances 1 s per read, unless the test passes its own `now`.
+ * The harness waits for the clock to move past the editor's first list before it makes the comment
+ * (strict `createdAt > listedAt`); with the real Date.now and a no-op fake sleep that wait spins
+ * without any real time passing, so on a fast machine both reads land in the same millisecond.
+ */
+function runG8A02Clocked(ctx, deps = {}) {
+  let t = 1_000_000;
+  return runG8A02(ctx, { now: () => (t += 1_000), ...deps });
+}
+
 function fakeCtx(fake, fixture) {
   const steps = {};
   const runDir = mkdtempSync(join(tmpdir(), "g819-a02-"));
@@ -439,7 +450,7 @@ test("runG8A02 after a re-pin: the web frame's Save moves A's B7 comment to B8 a
   const fake = createFakeWorld();
   const xlsx = scriptXlsxServer(fake);
   scriptWebDoc(fake, xlsx);
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, web: fake.web, launchBrowser: async () => fake.browser, ...REPINNED });
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, web: fake.web, launchBrowser: async () => fake.browser, ...REPINNED });
   assert.equal(record.status, "PASS", JSON.stringify(record.steps, null, 1));
   assert.equal(record.steps["check:web-to-desktop"].status, "PASS");
   const w = record.details.webToDesktop;
@@ -461,7 +472,7 @@ test("runG8A02 after a re-pin: a web Save that makes no version is FAIL on check
   const fake = createFakeWorld();
   const xlsx = scriptXlsxServer(fake);
   scriptWebDoc(fake, xlsx, { webSave: { status: "timeout", reason: "no frame commit within the bound (the frame was not dirty)" } });
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, web: fake.web, launchBrowser: async () => fake.browser, ...REPINNED });
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, web: fake.web, launchBrowser: async () => fake.browser, ...REPINNED });
   assert.equal(record.status, "FAIL");
   assert.equal(record.steps["check:web-to-desktop"].status, "FAIL");
   assert.match(record.steps["check:web-to-desktop"].reason, /web Save: timeout/);
@@ -471,7 +482,7 @@ test("runG8A02 on the old pin: the web direction is BLOCKED(R1) without opening 
   const fake = createFakeWorld();
   scriptXlsxServer(fake);
   let launched = 0;
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), {
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), {
     connectApp: fake.app.connectApp,
     sleep: async () => {},
     web: fake.web,
@@ -486,7 +497,7 @@ test("runG8A02 on the old pin: the web direction is BLOCKED(R1) without opening 
 test("runG8A02 artifact says why the purged-version case is the empty id", async () => {
   const fake = createFakeWorld();
   scriptXlsxServer(fake);
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
   assert.equal(record.details.invalidVersionsNote, PURGED_CASE_NOTE);
   assert.equal(
     PURGED_CASE_NOTE,
@@ -515,7 +526,7 @@ test("runG8A02 (xlsx, fake): upload, desktop comment on B7, insert row + Save ->
   const fake = createFakeWorld();
   scriptXlsxServer(fake);
   const ctx = fakeCtx(fake, "fx-xlsx-revenue-xyz");
-  const record = await runG8A02(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209", file: "sheets.pin.json" } });
+  const record = await runG8A02Clocked(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209", file: "sheets.pin.json" } });
   assert.equal(record.status, "BLOCKED", JSON.stringify(record, null, 1));
   assert.equal(record.blocker, WEB_FRAME_PIN_BLOCKER);
   for (const [name, step] of Object.entries(record.steps)) {
@@ -543,7 +554,7 @@ test("runG8A02: an app that cannot be driven is FAIL (never BLOCKED)", async () 
   const err = new Error("could not connect");
   err.appUnavailable = { status: "BLOCKED", reason: "no CDP" };
   fake.script.respond("app.connectApp", err);
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
   assert.equal(record.status, "FAIL");
   assert.match(record.reason, /could not connect|no CDP/);
 });
@@ -552,7 +563,7 @@ test("runG8A02 opens the editor's comments panel and waits until the editor list
   const fake = createFakeWorld();
   scriptXlsxServer(fake);
   const ctx = fakeCtx(fake, "fx-xlsx-revenue-xyz");
-  const record = await runG8A02(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  const record = await runG8A02Clocked(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
   assert.equal(ctx.steps["editor-lists"]?.status, "PASS", JSON.stringify(ctx.steps));
   assert.equal(record.details.editorLists.listed, true);
   // the panel-open path starts after the closed-panel document's Save
@@ -571,7 +582,7 @@ test("runG8A02: an editor that never lists the comment is FAIL at editor-lists a
   const state = scriptXlsxServer(fake);
   state.unlisted = true;
   let t = 0;
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 5_000), framePin: { gitSha: "05fd209" } });
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 5_000), framePin: { gitSha: "05fd209" } });
   assert.equal(record.status, "FAIL");
   assert.match(record.reason, /^editor-lists: .*did not list comment c1/);
   assert.equal(fake.calls.app.filter((c) => c.key === "save" && c.args[0] !== CLOSED_PATH).length, 0, "no Save without a tracked anchor");
@@ -734,7 +745,7 @@ test("runG8A02 runs the closed-panel Save first on its own document: no opener b
   state.closedStays = true;
   let t = 0;
   const ctx = fakeCtx(fake, "fx-xlsx-revenue-xyz");
-  const record = await runG8A02(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
+  const record = await runG8A02Clocked(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
   assert.deepEqual(Object.keys(ctx.steps).slice(0, 3), ["upload", "closed-panel-save", "open-desktop"], JSON.stringify(Object.keys(ctx.steps)));
   const c = record.steps["check:closed-panel-save"];
   assert.equal(c.status, "FAIL");
@@ -756,7 +767,7 @@ test("runG8A02 runs the closed-panel Save first on its own document: no opener b
 test("runG8A02 closed-panel Save that moves the anchor: that check PASS, the rest unchanged", async () => {
   const fake = createFakeWorld();
   scriptXlsxServer(fake);
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
   assert.equal(record.steps["check:closed-panel-save"].status, "PASS", JSON.stringify(record.details.closedPanel));
   assert.equal(record.status, "BLOCKED", "only R1 is left");
 });
@@ -764,7 +775,7 @@ test("runG8A02 closed-panel Save that moves the anchor: that check PASS, the res
 test("runG8A02 asks for the editor page that shows each document by path (two documents of one kind are open)", async () => {
   const fake = createFakeWorld();
   scriptXlsxServer(fake);
-  await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
   const asked = fake.calls.app.filter((c) => c.key === "editorPage").map((c) => c.args);
   assert.deepEqual(asked, [
     ["sheets", { path: CLOSED_PATH, documentId: CLOSED_DOC }],
@@ -841,7 +852,7 @@ test("runG8A02 (docx, fake): records the highlight around each Save and the save
   const head = zipStore([{ name: "word/document.xml", data: `<w:document><w:body>${p("")}${p("")}${p("1. Tóm tắt")}${p("Tổng doanh thu quý 1 đạt")}</w:body></w:document>` }]);
   const downloads = [];
   let t = 0;
-  const record = await runG8A02(fakeCtx(fake, "fx-docx-report-vi"), {
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-docx-report-vi"), {
     connectApp: fake.app.connectApp,
     sleep: async () => {},
     now: () => (t += 1_000),
@@ -872,7 +883,7 @@ test("runG8A02 closed panel: the comment is made over REST only after the server
   const state = scriptXlsxServer(fake);
   state.closedStays = true;
   let t = 0;
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
   const sc = record.details.closedPanel.scenario;
   assert.ok(sc.openedAt <= sc.listedAt && sc.listedAt < sc.createdAt, JSON.stringify(sc));
   assert.equal(sc.listedVia, "server.log");
@@ -894,7 +905,7 @@ test("runG8A02 closed panel: no editor list in the server log -> the comment is 
   const state = scriptXlsxServer(fake);
   state.noMountList = true;
   let t = 0;
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
   const c = record.steps["check:closed-panel-save"];
   assert.equal(c.status, "FAIL");
   assert.match(c.reason, /^scenario not established: no list request of the editor was seen after the open/);
@@ -909,7 +920,7 @@ test("G819-BE-8b: the first-list signal is recorded as path-only (the server log
   const state = scriptXlsxServer(fake);
   state.closedStays = true;
   let t = 0;
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
   const note = record.details.closedPanel.scenario.listSignal;
   assert.match(note, /path only/);
   assert.match(note, /no query/);
@@ -922,7 +933,7 @@ test("G819-BE-8c: the ordering wait has its own bound - a clock that never advan
   const state = scriptXlsxServer(fake);
   state.closedStays = true;
   let sleeps = 0;
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), {
+  const record = await runG8A02Clocked(fakeCtx(fake, "fx-xlsx-revenue-xyz"), {
     connectApp: fake.app.connectApp,
     sleep: async () => {
       sleeps += 1;
