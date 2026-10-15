@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+57d14fe4c6e9a77fea3dd3297c50ca6c35545ab7
+e6cd8172661633119401781cae9d05347d81b55e
+57d14fe4c chore: merge w2 (break-glass wire, audit, notification, admin_scope) into the card branch
+4fa1e9529 test(documents): cover the break-glass routes in the isolation matrix
+c803e812f feat(documents): add break-glass routes and map admin_scope on the document shapes
+5ea538ceb feat(documents): grant, revoke and summarise break-glass access in the service
+fcaa4f52c chore: merge w3 (G8-18 mentions without access) into the card branch
+8b1a61fd0 feat(documents): compute can_share for mentions without access
+e146326a0 fix(documents): re-check read access when a removed mention returns
+e747f0050 chore: merge the card branch (w1b items 4-7 + root e6cd81726) into w2

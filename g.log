@@ -1,0 +1,42 @@
+$ pnpm typecheck 2>&1 | tail -40; echo "TYPECHECK_EXIT=${PIPESTATUS[0]}"
+@uniwork/ui:typecheck: > tsc --noEmit
+@uniwork/ui:typecheck: 
+@uniwork/core:typecheck: 
+@uniwork/core:typecheck: > @uniwork/core@0.0.0 typecheck /workspace/packages/core
+@uniwork/core:typecheck: > tsc --noEmit
+@uniwork/core:typecheck: 
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-contracts:typecheck: > @uniwork/office-contracts@0.0.0 typecheck /workspace/packages/office-contracts
+@uniwork/office-contracts:typecheck: > tsc --noEmit
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-engine:typecheck: cache miss, executing d374e837a0d9f2e0
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine:typecheck: > @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+@uniwork/office-engine:typecheck: > tsc --noEmit
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine-app:typecheck: cache miss, executing 2344a9d98dd7954b
+@uniwork/office-engine-app:typecheck: 
+@uniwork/office-engine-app:typecheck: > @uniwork/office-engine-app@0.0.0 typecheck /workspace/apps/office-engine
+@uniwork/office-engine-app:typecheck: > tsc --noEmit
+@uniwork/office-engine-app:typecheck: 
+@uniwork/views:typecheck: cache miss, executing 1990660e9bdb9941
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: > @uniwork/views@0.0.0 typecheck /workspace/packages/views
+@uniwork/views:typecheck: > tsc --noEmit
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: notifications/kind-icon.tsx(19,7): error TS2741: Property 'document_break_glass' is missing in type '{ task_assigned: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; ... 20 more ...; chat_thread_replied: ForwardRefExoticComponent<...>; }' but required in type 'Record<"task_assigned" | "task_status_changed" | "task_commented" | "mentioned" | "meeting_invited" | "meeting_starting" | "meeting_summary_reminder" | "member_added" | "role_changed" | ... 13 more ... | "chat_thread_replied", LucideIcon>'.
+@uniwork/views:typecheck: notifications/kind-tone.ts(12,7): error TS2741: Property 'document_break_glass' is missing in type '{ task_assigned: "violet" | "blue" | "pink" | "orange" | "green" | "yellow" | "teal" | "gray" | "red"; task_status_changed: "violet" | "blue" | "pink" | "orange" | "green" | "yellow" | "teal" | "gray" | "red"; ... 19 more ...; chat_thread_replied: "violet" | ... 7 more ... | "red"; }' but required in type 'Record<"task_assigned" | "task_status_changed" | "task_commented" | "mentioned" | "meeting_invited" | "meeting_starting" | "meeting_summary_reminder" | "member_added" | "role_changed" | ... 13 more ... | "chat_thread_replied", "violet" | ... 7 more ... | "red">'.
+@uniwork/views:typecheck: notifications/notification-category.ts(14,7): error TS2741: Property 'document_break_glass' is missing in type '{ mentioned: "mentions"; task_commented: "mentions"; chat_follow_up: "mentions"; chat_reminder: "mentions"; document_commented: "mentions"; document_mentioned: "mentions"; document_comment_replied: "mentions"; ... 14 more ...; email_hub_new_mail: "updates"; }' but required in type 'Record<"task_assigned" | "task_status_changed" | "task_commented" | "mentioned" | "meeting_invited" | "meeting_starting" | "meeting_summary_reminder" | "member_added" | "role_changed" | ... 13 more ... | "chat_thread_replied", "workspace" | ... 3 more ... | "updates">'.
+@uniwork/views:typecheck: office/frame/use-frame-comments.ts(172,15): error TS2322: Type '"comment" | "view" | "edit" | "manage"' is not assignable to type 'CommentsLevel'.
+@uniwork/views:typecheck:   Type '"comment"' is not assignable to type 'CommentsLevel'.
+@uniwork/views:typecheck:  ELIFECYCLE  Command failed with exit code 2.
+@uniwork/views#typecheck:  ERROR  command (/workspace/packages/views) /home/ubuntu/.nvm/versions/node/v22.23.3/bin/pnpm run typecheck exited (2)
+
+ Tasks:    5 successful, 6 total
+Cached:    0 cached, 6 total
+  Time:    38.442s 
+Failed:    @uniwork/views#typecheck
+
+ ERROR  run failed: command  exited (2)
+ ELIFECYCLE  Command failed with exit code 2.
+TYPECHECK_EXIT=2
