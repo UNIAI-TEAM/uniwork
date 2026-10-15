@@ -704,6 +704,21 @@ type uniworkModuleTools struct {
 // as writing files or creating versions (create_document in docs, sheets and
 // pdf, save_style_template in slides). G6-01/G6-12 replace the contents when
 // the mechanical table lands; the mechanism and its tests stay.
+//
+// G6-09a (N1) takes the five slides tools the client never offers under
+// UniWork AI out of the table again — generate_deck, regenerate_slide,
+// insert_web_image, replace_image, save_style_template (the slides skill hides
+// them whenever the provider is UniWork AI) — so a modified client cannot
+// offer them and a call for one is dropped as not_allowlisted. What stays on
+// purpose: create_document (docs, sheets, pdf) and the pdf file-level page
+// tools (insert_blank_page, set_page_size, crop_pages, replace_pages,
+// extract_pages, split_pdf, split_pages, merge_pages). The clients hide those
+// only for a UniWork-bound document (policy Q3, Q4); a local file the user
+// opens under UniWork AI keeps them, and this table is keyed by module alone,
+// so removing them would also cut that legitimate path. The pdf text / image
+// edit tools stay too: the client hides them by the host capability, which the
+// server cannot read. Enforcing the bound-only hides here needs the turn's
+// document scope handed to UniworkModuleAllowlist (a follow-up).
 var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 	"docs": {
 		Read: []string{
@@ -754,10 +769,7 @@ var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 			"analyze_media", "ask_clarification", "generate_image", "image_search", "list_style_templates",
 			"load_guide", "plan_deck", "read_attachment", "read_slide", "web_search",
 		},
-		Write: []string{
-			"apply_ops", "edit_chart", "execute_slide_script", "generate_deck", "insert_web_image",
-			"regenerate_slide", "replace_image", "save_style_template",
-		},
+		Write: []string{"apply_ops", "edit_chart", "execute_slide_script"},
 	},
 }
 
