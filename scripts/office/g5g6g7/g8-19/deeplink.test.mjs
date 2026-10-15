@@ -414,3 +414,18 @@ test("runDeeplink: an app that cannot be driven is FAIL, never BLOCKED", async (
   assert.equal(exit, 1);
   assert.equal(artifact().status, "FAIL");
 });
+
+test("decideG8A07: a cross-workspace row filed under the document's workspace is a product FAIL naming the Inbox workspace filter and an owner", () => {
+  const cw = { ...a07().crossWorkspace, inboxListed: false, href: null, notificationWorkspaceId: "ws-id-w1", openWorkspaceId: "ws-id-w2" };
+  const r = decideG8A07(a07({ crossWorkspace: cw }));
+  assert.equal(r.status, "FAIL");
+  const reason = r.checks["cross-workspace"].reason;
+  assert.match(reason, /product/);
+  assert.match(reason, /ws-id-w1/);
+  assert.match(reason, /inbox-view\.tsx:71/);
+  assert.match(reason, /notifications\.sql:37/);
+  assert.match(reason, /owner candidate/);
+  // a row already in B's workspace that is still not listed is not blamed on the filter
+  const same = decideG8A07(a07({ crossWorkspace: { ...cw, notificationWorkspaceId: "ws-id-w2" } }));
+  assert.doesNotMatch(same.checks["cross-workspace"].reason, /inbox-view\.tsx/);
+});
