@@ -52,7 +52,8 @@ func (h *aiHandlers) aiCloudStatus(w http.ResponseWriter, r *http.Request) {
 			WebSearch: st.Tools.WebSearch, ImageSearch: st.Tools.ImageSearch, ImageGenerate: st.Tools.ImageGenerate,
 			MediaAnalyze: st.Tools.MediaAnalyze, Transcribe: st.Tools.Transcribe, Chat: st.Chat,
 		},
-		Credits: sdo.AiCloudCreditsDTO{Unit: service.FeatureAITokens, Used: st.Credits.Used, Limit: st.Credits.Limit, Remaining: st.Credits.Remaining},
+		Credits:      sdo.AiCloudCreditsDTO{Unit: service.FeatureAITokens, Used: st.Credits.Used, Limit: st.Credits.Limit, Remaining: st.Credits.Remaining},
+		UniworkModel: st.UniworkModel,
 	}
 	if st.Credits.PeriodEnd != nil {
 		end := st.Credits.PeriodEnd.Format(time.RFC3339)

@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/middleware"
 )
 
 // maxBYOKBody caps a proxied vendor body: chat turns carry inline images
@@ -33,7 +34,11 @@ func (h *aiHandlers) byokProxy(op ai.ProxyOp) http.HandlerFunc {
 		if op != ai.ProxyModels && !decode(w, r, &body, maxBYOKBody) {
 			return
 		}
-		s, err := h.AIBYOK.Proxy(r.Context(), userID, orgID, chi.URLParam(r, "aiProvider"), op, body, r.Header)
+		surface := ai.ProxySurfaceWeb
+		if middleware.DeviceSession(r.Context()) {
+			surface = ai.ProxySurfaceDesktop
+		}
+		s, err := h.AIBYOK.Proxy(r.Context(), userID, orgID, chi.URLParam(r, "aiProvider"), op, surface, body, r.Header)
 		if err != nil {
 			h.mapServiceError(w, err)
 			return

@@ -89,6 +89,14 @@ export const AiCloudStatusSchema = z.object({
     remaining: null,
     period_end: null,
   }),
+  /**
+   * The model the Gateway serves for UniWork AI in the Office editors (G6-05m);
+   * "" while UniWork AI is off for the caller or when an older server omits it,
+   * and the UniWork AI row then shows the bare label. A cosmetic label, so a
+   * drifted value (null, a number) degrades alone into "" instead of failing
+   * the whole status.
+   */
+  uniwork_model: z.string().optional().default("").catch(""),
 });
 export type AiCloudStatus = z.infer<typeof AiCloudStatusSchema>;
 

@@ -326,15 +326,15 @@ light/dark vi/en cho task UI.
 | --- | --- | --- | --- |
 | G5-A01 | G5-01a, G5-01b, G5-02, G5-04 (X-03) | `cd server && go test ./internal/service ./internal/handler -run 'DocumentChanges\|IsolationMatrix'` · `pnpm vitest run packages/core/api/endpoints/document-changes.test.ts` · F vitest store/feed của G5-04 | `reports/<T2>/cloud-test-*.md`, `reports/g5-fork_main/…`, hàng G5-A01 |
 | G5-A02 | G5-01b | `go test ./internal/service -run 'DocumentChanges.*(Revoke\|Tombstone\|Move\|WorkProduct)'` · `node --test scripts/events-catalogue.test.mjs` | `reports/<T2>/…`; Work Product BLOCKED tới C-14 |
-| G5-A03 | G5-03w, G5-03a, G7-10, G7-04 (X-02) | vitest `docs-frame-host.test.ts` + test host G5-03w; F test G5-03a; harness G7-10/G7-04 | `reports/<T1>/…`, `reports/g7-qa/…` + ghi hình harness |
+| G5-A03 | G5-03w, G5-03a, G7-10, G7-04 (X-02) | vitest `docs-frame-host.test.ts` + test host G5-03w; F test G5-03a; harness G7-10 (`node --test scripts/office/g5g6g7/g7-10/tracer.test.mjs`, `evidence.mjs run --req G5-A03 --fixture fx-xlsx-revenue-xyz … -- node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir <runDir>`; exit 0 PASS, 1 FAIL, 77 BLOCKED)/G7-04 | `reports/<T1>/…`, `reports/g7-qa/…` + ghi hình harness |
 | G5-A04 | G5-05, G5-05u, G7-03b | F vitest engine offline; fault spec G7-03b | `reports/g5-fork_main/…`, `reports/g7-qa/…`; BLOCKED(G5-D1) tới khi đóng |
-| G5-A05 | G5-06, G5-06u, G5-10, G7-10, G7-03a | F vitest queue/crash-restart; harness G7-10; fault G7-03a | `reports/g5-fork_main/…`, `reports/g7-qa/…` |
+| G5-A05 | G5-06, G5-06u, G5-10, G7-10, G7-03a | F vitest queue/crash-restart; harness G7-10 (`evidence.mjs run --req G5-A05 --fixture fx-docx-report-vi … -- node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 3 --run-dir <runDir>`); fault G7-03a | `reports/g5-fork_main/…`, `reports/g7-qa/…` |
 | G5-A06 | G5-06, G5-07, G7-03a | `go test ./internal/service -run 'CommitIntent\|Idempotency'` · F queue · fault G7-03a | `reports/<T2>/…`, `reports/g7-qa/…` |
 | G5-A07 | G5-04, G5-08s, G5-08c, G5-11, G7-03b (G5-04g) | F vitest guard/store; `go test ./internal/service -run OfficeLease`; fault G7-03b | `reports/g5-fork_main/…`, `reports/<T2>/…`; phần lease: G5-D1 đã ký 2026-10-13, G5-08s mở |
 | G5-A08 | G5-09w, G5-09, G5-10, G5-12, G7-03a | F vitest `frame-dialog.test.ts`, `webapi.test.ts`; D vitest `office-module-frame.test.tsx`; `go test -run DocumentCopy` | `reports/<T1>/…`, `reports/<T5>/…` + ảnh S5 |
 | G6-A01 | G6-08, G7-12 (G7-02, G6-12, G6-14) | dev set G6-08; holdout G7-12 qua runner G7-01 (≥3 lần) | `reports/g6-ai_server/…`, `reports/g7-qa/eval-*` |
 | G6-A02 | G6-08, G7-12 | như trên | như trên |
-| G6-A03 | G6-05, G7-08, G7-10 | F test đếm request G6-05; tích hợp G7-08 đếm version; harness G7-10 | `reports/<T6>/…`, `reports/g7-qa/…` |
+| G6-A03 | G6-05, G7-08, G7-10 | F test đếm request G6-05; tích hợp G7-08 đếm version; harness G7-10 (`evidence.mjs run --req G6-A03 --fixture fx-docx-report-vi … -- node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 2 --run-dir <runDir>`) | `reports/<T6>/…`, `reports/g7-qa/…` |
 | G6-A04 | G6-09, G7-03a, G7-08 | F test hiển thị + hoàn tác; fault Lưu sau AI | `reports/<T6>/…`, `reports/g7-qa/…` |
 | G6-A05 | G7-08 | tích hợp DOCX → Lưu → tải → mở Word | `reports/g7-qa/…` |
 | G6-A06 | G6-12, G7-08 (G6-01) | F test công cụ G6-12; ma trận G7-08 | `reports/g6-fork_tools/…`, `reports/g7-qa/…`; BLOCKED(G6-D4) |

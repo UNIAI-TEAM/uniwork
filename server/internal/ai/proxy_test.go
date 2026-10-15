@@ -282,22 +282,41 @@ func TestProxyForwardsAllowlistedRequestHeaders(t *testing.T) {
 	}
 }
 
+func TestProxySurfaceCapability(t *testing.T) {
+	if got := proxyCapability(""); got != CapOfficeBYOK {
+		t.Fatalf("empty surface = %q, want %q", got, CapOfficeBYOK)
+	}
+	if got := proxyCapability(ProxySurfaceWeb); got != CapOfficeBYOK {
+		t.Fatalf("web surface = %q, want %q", got, CapOfficeBYOK)
+	}
+	if got := proxyCapability(ProxySurfaceDesktop); got != CapOfficeBYOKDesktop {
+		t.Fatalf("desktop surface = %q, want %q", got, CapOfficeBYOKDesktop)
+	}
+}
+
 // DB-backed (runs where TEST_DATABASE_URL is set): a streamed chat call
 // reaches the client chunk by chunk, carries the key only to the vendor,
-// and settles one office.byok usage row with the parsed tokens, credits 0.
+// and settles one office.byok usage row for web and one office.byok_desktop
+// row for a desktop device session, with the parsed tokens, credits 0.
 func TestGatewayProxyStreamsAndMetersBYOK(t *testing.T) {
 	g, q := gatewayFixture(t, nil, nil)
 	release := make(chan struct{})
+	call := 0
 	base := vendor(t, g, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer "+testKey {
 			w.WriteHeader(http.StatusTeapot)
 			return
 		}
+		call++
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}\n\n")
 		w.(http.Flusher).Flush()
 		<-release
-		_, _ = io.WriteString(w, "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":13,\"completion_tokens\":4}}\n\ndata: [DONE]\n\n")
+		if call == 1 {
+			_, _ = io.WriteString(w, "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":13,\"completion_tokens\":4}}\n\ndata: [DONE]\n\n")
+		} else {
+			_, _ = io.WriteString(w, "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":2}}\n\ndata: [DONE]\n\n")
+		}
 	}))
 	s, err := g.Proxy(context.Background(), byokReq("openai", base+"/v1", ProxyChatCompletions, `{"model":"gpt-5.6-terra","stream":true,"messages":[]}`))
 	if err != nil {
@@ -317,12 +336,24 @@ func TestGatewayProxyStreamsAndMetersBYOK(t *testing.T) {
 	}
 	_ = s.Body.Close()
 
+	desktopReq := byokReq("openai", base+"/v1", ProxyChatCompletions, `{"model":"gpt-5.6-terra","stream":true,"messages":[]}`)
+	desktopReq.Surface = ProxySurfaceDesktop
+	ds, err := g.Proxy(context.Background(), desktopReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.ReadAll(ds.Body)
+	_ = ds.Body.Close()
+
 	rows, err := q.AiUsageByDay(context.Background(), db.AiUsageByDayParams{OrganizationID: "org1", FromAt: pgTime(time.Now().Add(-time.Hour))})
-	if err != nil || len(rows) != 1 {
+	if err != nil || len(rows) != 2 {
 		t.Fatalf("rows %v %v", rows, err)
 	}
 	if r := rows[0]; r.Capability != string(CapOfficeBYOK) || r.InputTokens != 13 || r.OutputTokens != 4 || r.CostMicros != 0 {
-		t.Fatalf("usage %+v", r)
+		t.Fatalf("web usage %+v", r)
+	}
+	if r := rows[1]; r.Capability != string(CapOfficeBYOKDesktop) || r.InputTokens != 7 || r.OutputTokens != 2 || r.CostMicros != 0 {
+		t.Fatalf("desktop usage %+v", r)
 	}
 }
 
