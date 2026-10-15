@@ -266,6 +266,12 @@ type DocumentShareDTO struct {
 	CreatedAt      string  `json:"created_at" example:"2026-09-27T09:00:00Z"`
 }
 
+// DocumentShareBatchSDO is 201 of POST /documents/{id}/shares/batch:
+// one entry per distinct principal, in request order.
+type DocumentShareBatchSDO struct {
+	Shares []DocumentShareDTO `json:"shares" description:"Grant sống tương ứng từng người dùng sau khi gộp trùng, theo thứ tự yêu cầu"`
+}
+
 // DocumentPersonAccessDTO is one person's effective level (acl_owner block).
 type DocumentPersonAccessDTO struct {
 	UserID string `json:"user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`

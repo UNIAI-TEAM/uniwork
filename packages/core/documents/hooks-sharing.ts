@@ -9,7 +9,9 @@ import {
   revokeDocumentShare,
   setDocumentPublicLinks,
   shareDocument,
+  shareDocumentBatch,
   type ListDocumentAccessLogsOpts,
+  type ShareDocumentBatchBody,
   type ShareDocumentBody,
 } from "../api/endpoints/documents-sharing";
 import { documentKeys } from "./keys";
@@ -17,6 +19,7 @@ import {
   requireVerifiableLink,
   requireVerifiableSettings,
   requireVerifiableShare,
+  requireVerifiableShareBatch,
 } from "./verify";
 
 // Documents sharing hooks (C-01 §5.3/§5.4; UNI-679, G1-05b): the access
@@ -55,6 +58,22 @@ export function useShareDocument(wsId: string, documentId: string) {
   return useMutation({
     mutationFn: async (body: ShareDocumentBody) =>
       requireVerifiableShare(await shareDocument(documentId, body)),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
+        qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
+      ]),
+  });
+}
+
+/** Grant one level to several people at once (UNI-1641); all or nothing. A
+ *  422 principal_not_in_organization names the refused ids — read them with
+ *  sharePrincipalsNotInOrganization. */
+export function useShareDocumentBatch(wsId: string, documentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: ShareDocumentBatchBody) =>
+      requireVerifiableShareBatch(await shareDocumentBatch(documentId, body)),
     onSuccess: () =>
       Promise.all([
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
