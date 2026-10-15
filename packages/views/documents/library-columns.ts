@@ -1,0 +1,123 @@
+/**
+ * The width ladder of the Documents library table.
+ *
+ * The table is `table-fixed` inside a `max-w-6xl` list (<= 1104px), beside the
+ * docs aside and the app sidebar, so the viewport says nothing about the room
+ * it has. Every optional column therefore joins by the width of the list's own
+ * container (`@container/library`), in a ladder where Name keeps >= 280px:
+ * a rung opens at `280 + 2px border + the fixed columns up to and including
+ * it`, rounded up to the next rem. Header, colgroup, cells and the group
+ * spanner all read the one class below, so none can drift out of step.
+ *
+ * Below the first rung only Name and the actions column exist (Name = the
+ * container - 58px). Tailwind finds the classes as literals, so each rung is
+ * written out in full; `documents-library-ladder.test.tsx` re-derives every
+ * threshold from the column widths.
+ *
+ * Fixed columns (px): actions 56 -> 96 from the first rung, Editor 144,
+ * Updated 96, Size 96, Source 112, Type 144, My access 112, Visibility 144.
+ *
+ * | container | plain library              | open folder (Type)        |
+ * | --------- | -------------------------- | ------------------------- |
+ * | < 45rem   | Name, actions              | Name, actions             |
+ * | 45rem     | + Editor, Updated, Size    | + Editor, Updated, Size   |
+ * | 52rem     | + Source                   |                           |
+ * | 54rem     |                            | + Type                    |
+ * | 61rem     |                            | + Source                  |
+ * | 68rem     | + My access, Visibility    | (never: 1130px needed)    |
+ */
+
+export type LibraryColumnId = "name" | "type" | "source" | "editor" | "updated" | "size" | "access" | "visibility" | "actions";
+
+interface LibraryColumn {
+  id: LibraryColumnId;
+  /** Classes of the `<col>`. */
+  col: string;
+  /** Visibility classes shared by the `<th>` and every `<td>` of the column. */
+  cell: string;
+}
+
+export interface LibraryLadder {
+  /** DOM order, Name first and actions last. */
+  columns: LibraryColumn[];
+  /** The header row: hidden while only Name and actions exist. */
+  head: string;
+  /** The app command in the actions cell: shown once the actions column has room for it. */
+  quick: string;
+  /** The editor · date · size part of the secondary line: hidden once those columns exist. */
+  metaHides: string;
+  /** The whole secondary line (level + Restricted mark): hidden once My access / Visibility exist. Empty when they never do. */
+  accessLineHides: string;
+}
+
+const NAME: LibraryColumn = { id: "name", col: "", cell: "" };
+const ACTIONS: LibraryColumn = { id: "actions", col: "w-14 @min-[45rem]/library:w-24", cell: "" };
+
+const EDITOR: LibraryColumn = { id: "editor", col: "hidden w-36 @min-[45rem]/library:table-column", cell: "hidden @min-[45rem]/library:table-cell" };
+const UPDATED: LibraryColumn = { id: "updated", col: "hidden w-24 @min-[45rem]/library:table-column", cell: "hidden @min-[45rem]/library:table-cell" };
+const SIZE: LibraryColumn = { id: "size", col: "hidden w-24 @min-[45rem]/library:table-column", cell: "hidden @min-[45rem]/library:table-cell" };
+
+const HEAD = "hidden bg-muted/50 @min-[45rem]/library:table-header-group";
+const QUICK = "hidden @min-[45rem]/library:block";
+const META_HIDES = "@min-[45rem]/library:hidden";
+
+const PLAIN: LibraryLadder = {
+  columns: [
+    NAME,
+    { id: "source", col: "hidden w-28 @min-[52rem]/library:table-column", cell: "hidden @min-[52rem]/library:table-cell" },
+    EDITOR,
+    UPDATED,
+    SIZE,
+    { id: "access", col: "hidden w-28 @min-[68rem]/library:table-column", cell: "hidden @min-[68rem]/library:table-cell" },
+    { id: "visibility", col: "hidden w-36 @min-[68rem]/library:table-column", cell: "hidden @min-[68rem]/library:table-cell" },
+    ACTIONS,
+  ],
+  head: HEAD,
+  quick: QUICK,
+  metaHides: META_HIDES,
+  accessLineHides: "@min-[68rem]/library:hidden",
+};
+
+// With Type the pair would leave Name 254px at the list's widest (1104px), so
+// My access / Visibility stay on the secondary line in an open folder.
+const WITH_TYPE: LibraryLadder = {
+  columns: [
+    NAME,
+    { id: "type", col: "hidden w-36 @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell" },
+    { id: "source", col: "hidden w-28 @min-[61rem]/library:table-column", cell: "hidden @min-[61rem]/library:table-cell" },
+    EDITOR,
+    UPDATED,
+    SIZE,
+    ACTIONS,
+  ],
+  head: HEAD,
+  quick: QUICK,
+  metaHides: META_HIDES,
+  accessLineHides: "",
+};
+
+export function libraryLadder(showType: boolean): LibraryLadder {
+  return showType ? WITH_TYPE : PLAIN;
+}
+
+/** The visibility class of one column's cells, or null when this ladder has no such column. */
+export function libraryCell(ladder: LibraryLadder, id: LibraryColumnId): string | null {
+  return ladder.columns.find((column) => column.id === id)?.cell ?? null;
+}
+
+/**
+ * Group-header spanners after the first (Name + one more column, always on
+ * screen): one per distinct rung, each as wide as the columns that join at it,
+ * so the spanner covers exactly the visible columns at every width (a wider
+ * colSpan would add implicit columns that squeeze Name).
+ */
+export function libraryGroupSpans(ladder: LibraryLadder): { cell: string; span: number }[] {
+  const spans: { cell: string; span: number }[] = [];
+  for (const column of ladder.columns) {
+    if (!column.cell) continue;
+    const last = spans.find((entry) => entry.cell === column.cell);
+    if (last) last.span += 1;
+    else spans.push({ cell: column.cell, span: 1 });
+  }
+  return spans;
+}
