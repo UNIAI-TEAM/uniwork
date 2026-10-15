@@ -1,0 +1,2 @@
+$ cd server && test -z "$(gofmt -l ./internal/service ./internal/handler)" && go vet ./internal/service/... ./internal/handler/... ./internal/middleware/... && go tool staticcheck ./internal/service/... ./internal/handler/...; echo "VET_STATICCHECK_EXIT=$?"
+VET_STATICCHECK_EXIT=0

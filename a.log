@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -5; git diff --stat 24af6910d HEAD | tail -3
+befebd0bd5272989f26b2075e953a10cd5cca442
+e6cd8172661633119401781cae9d05347d81b55e
+befebd0bd test(server): pin the edit+ rule, the refusal order and the archive race (UNI-1345)
+a22171305 docs(office): name the version-save routes and the edit+ rule for document_archived (UNI-1345)
+c23e0ca96 fix(server): limit document_archived on version saves to actors who could save (UNI-1345)
+ceaf52ca2 chore: merge G5-G7 root e6cd81726 into F6 (UNI-1345)
+e6cd81726 chore: merge G6-05m model chip D part (UNI-1632) into the G5-G7 root
+ server/internal/service/office_frame.go            |   20 +
+ server/internal/service/office_lease.go            |    7 +-
+ 60 files changed, 10776 insertions(+), 166 deletions(-)

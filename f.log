@@ -1,0 +1,6 @@
+$ cd server && go test -count=1 ./internal/handler/... ./internal/middleware/... 2>&1 | grep -E '^(--- FAIL|FAIL|ok|panic)' | tail -40; echo "HANDLER_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/handler	417.151s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.018s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	2.144s
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	1.915s
+HANDLER_EXIT=0

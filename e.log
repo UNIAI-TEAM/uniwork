@@ -1,0 +1,5 @@
+$ cd server && go test -count=1 -v ./internal/handler/ -run 'TestOfficeFrameSaveRoutesOnArchivedDocument|TestOfficeFrame' 2>&1 | grep -E '^(--- (FAIL|SKIP)|--- PASS: TestOfficeFrameSaveRoutesOnArchivedDocument|PASS|FAIL|ok|panic)'; echo "FRAME_TARGET_EXIT=${PIPESTATUS[0]}"
+--- PASS: TestOfficeFrameSaveRoutesOnArchivedDocument (0.27s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	9.644s
+FRAME_TARGET_EXIT=0

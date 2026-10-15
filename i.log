@@ -1,0 +1,5 @@
+$ mkdir -p .gl && curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz -C .gl gitleaks && ./.gl/gitleaks detect --no-banner --redact --log-opts="24af6910d..HEAD"; echo "GITLEAKS_EXIT=$?"
+[90m5:39AM[0m [32mINF[0m 48 commits scanned.
+[90m5:39AM[0m [32mINF[0m scan completed in 71ms
+[90m5:39AM[0m [32mINF[0m no leaks found
+GITLEAKS_EXIT=0
