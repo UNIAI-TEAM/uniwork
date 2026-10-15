@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
@@ -204,5 +205,67 @@ func TestAdminSelfShareRequiresBreakGlass(t *testing.T) {
 		PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: DocumentLevelView,
 	}); err != nil {
 		t.Fatalf("admin with manage share to organization: %v", err)
+	}
+}
+
+// DOC5-A04 on the batch route (UNI-1641 path, g818 fx2): ShareDocumentBatch
+// answers every caller exactly as ShareDocument does - an admin-only caller
+// shares with others, a batch reaching themselves is one break_glass_required
+// that writes nothing, and manage shares freely.
+func TestAdminSelfShareRequiresBreakGlassBatch(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "doc5selfb")
+	docR := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+	counts := func(t *testing.T) (shares, audits, outbox int) {
+		t.Helper()
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM document_shares WHERE document_id = $1`, docR.ID).Scan(&shares); err != nil {
+			t.Fatal(err)
+		}
+		return shares, countAudit(t, f, audit.ActionDocumentShared, docR.ID), countOutbox(t, f, "document.shared", docR.ID)
+	}
+
+	for _, c := range []struct {
+		name  string
+		actor Actor
+		ids   []string
+		level DocumentLevel
+	}{
+		{"ws admin includes self", Human(tn.wsAdmin.ID), []string{tn.member.ID, tn.wsAdmin.ID}, DocumentLevelView},
+		{"ws admin only self at comment", Human(tn.wsAdmin.ID), []string{tn.wsAdmin.ID}, DocumentLevelComment},
+		{"org admin includes self at manage", Human(tn.orgAdmin.ID), []string{tn.orgAdmin.ID, tn.outsider.ID}, DocumentLevelManage},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := f.svc.ShareDocumentBatch(f.ctx, c.actor, docR.ID, c.ids, c.level)
+			var ce CodedError
+			if !errors.As(err, &ce) || ce.Code != "break_glass_required" || ce.Status != 403 {
+				t.Fatalf("ShareDocumentBatch = %v, want 403 break_glass_required", err)
+			}
+			if sh, au, ob := counts(t); sh != 0 || au != 0 || ob != 0 {
+				t.Fatalf("refused batch wrote shares=%d audit=%d outbox=%d, want 0/0/0", sh, au, ob)
+			}
+		})
+	}
+
+	// An admin-only caller (Level none on a restricted document) shares with
+	// others, as the single route lets them, at every level the batch takes.
+	for _, level := range []DocumentLevel{DocumentLevelView, DocumentLevelComment} {
+		shares, err := f.svc.ShareDocumentBatch(f.ctx, Human(tn.wsAdmin.ID), docR.ID, []string{tn.member.ID, tn.outsider.ID}, level)
+		if err != nil || len(shares) != 2 {
+			t.Fatalf("ws admin batch to others at %s = %v, %v", level, shares, err)
+		}
+		if shares[0].Level != string(level) || shares[1].Level != string(level) {
+			t.Fatalf("batch at %s gave %+v", level, shares)
+		}
+	}
+
+	// Holding manage through a share, the admin's batch may include themself.
+	if _, err := f.svc.ShareDocument(f.ctx, Human(tn.aclOwner.ID), docR.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: tn.wsAdmin.ID, Level: DocumentLevelManage,
+	}); err != nil {
+		t.Fatalf("ACL owner to admin: %v", err)
+	}
+	shares, err := f.svc.ShareDocumentBatch(f.ctx, Human(tn.wsAdmin.ID), docR.ID, []string{tn.wsAdmin.ID, tn.bMember.ID}, DocumentLevelEdit)
+	if err != nil || len(shares) != 2 {
+		t.Fatalf("manage admin batch including self = %v, %v", shares, err)
 	}
 }

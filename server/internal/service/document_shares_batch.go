@@ -18,6 +18,12 @@ const maxDocumentShareBatch = 50
 // event behind. Each user then gets exactly what ShareDocument would give:
 // the same live level is a no-op, another level is revoked and replaced.
 // The result follows the request order.
+//
+// The gate is ShareDocument's (UNI-1628, DOC-05): a reader or an AdminScope
+// caller gets in and only a caller who may administer changes access. A batch
+// that would reach an admin-only caller themself is refused as a whole with
+// break_glass_required, after every principal is validated and before any
+// write, so it leaves no row, audit entry or event.
 func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, documentID string, principalIDs []string, level DocumentLevel) ([]db.DocumentShare, error) {
 	ids, err := distinctShareBatchIDs(principalIDs)
 	if err != nil {
@@ -27,7 +33,7 @@ func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, d
 		return nil, err
 	}
 	var out []db.DocumentShare
-	err = s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
@@ -48,6 +54,11 @@ func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, d
 				Status: http.StatusUnprocessableEntity,
 				Msg:    "người hoặc nhóm được chia sẻ không thuộc tổ chức của tài liệu",
 				Fields: map[string]any{"principal_ids": refused},
+			}
+		}
+		for _, id := range ids {
+			if err := s.refuseAdminSelfShare(ctx, q, doc, access, actor, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: id, Level: level}); err != nil {
+				return err
 			}
 		}
 		shares := make([]db.DocumentShare, 0, len(ids))
