@@ -3,7 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -130,4 +134,92 @@ func mustJSON(m map[string]string) string {
 		panic(err)
 	}
 	return string(b)
+}
+
+// A task comment lands in the thread under its author's name, so it may only
+// land where that author could post the reply themselves.
+func TestTaskCommentsDoNotReachARoomTheAuthorCannotWriteIn(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	tasks := NewTaskService(pool, q, s.ws, newMemStorage())
+	s.SetTasks(tasks)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	consumer := NewChatTaskSyncConsumer(pool, q, s, tasks)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{Name: "sync-guard", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "linked"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SyncThreadTask(ctx, ua.ID, w.ID, root.ID, SyncThreadTaskInput{
+		TaskID: task.ID, Direction: "both",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// mirrored has author comment on the task on the task and reports whether the reply reached the thread.
+	mirrored := func(author string, body string) bool {
+		t.Helper()
+		comment, err := tasks.AddCommentSuite(ctx, Human(author), task.ID, AddCommentInput{Body: body}, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := consumer.Handle(ctx, outbox.Row{
+			Topic: "task.comment_added",
+			Payload: mustJSON(map[string]string{
+				"task_id": task.ID, "comment_id": comment.ID, "workspace_id": w.ID,
+			}),
+		}); err != nil {
+			t.Fatalf("%s: %v", body, err)
+		}
+		_, err = q.GetChatMessageByMirroredComment(ctx, pgtype.Text{String: comment.ID, Valid: true})
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatal(err)
+		}
+		return err == nil
+	}
+
+	if mirrored(ub.ID, "not a member") {
+		t.Fatal("a non-member's comment reached the channel")
+	}
+	if _, err := s.JoinChannel(ctx, ub.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !mirrored(ub.ID, "member") {
+		t.Fatal("a member's comment should reach the channel")
+	}
+	if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+		RoomID: ch.ID, UserID: ub.ID, SendRestricted: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if mirrored(ub.ID, "muted") {
+		t.Fatal("a muted member's comment reached the channel")
+	}
+
+	private := chatVisibilityPrivate
+	if _, err := s.UpdateChannel(ctx, ua.ID, w.ID, ch.ID, UpdateChannelInput{Visibility: &private}); err != nil {
+		t.Fatal(err)
+	}
+	if mirrored(ua.ID, "private") {
+		t.Fatal("a comment reached a channel made private")
+	}
+	public := chatVisibilityPublic
+	if _, err := s.UpdateChannel(ctx, ua.ID, w.ID, ch.ID, UpdateChannelInput{Visibility: &public}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ArchiveChannel(ctx, ua.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	if mirrored(ua.ID, "archived") {
+		t.Fatal("a comment reached an archived channel")
+	}
 }

@@ -131,6 +131,27 @@ func (c *ChatTaskSyncConsumer) syncTaskToChat(ctx context.Context, payload map[s
 	if link.Direction != chatThreadSyncBoth {
 		return nil
 	}
+	// The reply goes out under the commenter's name, so it lands only where
+	// they could post it themselves.
+	room, err := c.q.GetChatRoomByID(ctx, link.RoomID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if room.ArchivedAt.Valid || chatRoomIsPrivate(room) {
+		return nil
+	}
+	if err := c.chat.requireCanSendInRoom(ctx, comment.AuthorID, room.ID, room); err != nil {
+		var invalid ValidationError
+		var refused CodedError
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, ErrForbidden) ||
+			errors.As(err, &invalid) || errors.As(err, &refused) {
+			return nil // not a member, muted, or the room forbids sending
+		}
+		return err // a DB error: let the outbox retry
+	}
 	if existing, err := c.q.GetChatMessageByMirroredComment(ctx, pgtype.Text{
 		String: comment.ID, Valid: true,
 	}); err == nil {
