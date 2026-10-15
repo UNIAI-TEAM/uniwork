@@ -20,7 +20,7 @@ import { formatWhen } from "./document-format";
 
 export interface ShareLinksSectionProps {
   wsId: string;
-  doc: Document;
+  doc: Pick<Document, "id">;
   /** Where an admin turns the organization switch on. */
   onOpenSettings: () => void;
   /** Active locale, for the created/expiry times. */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Building2, Link2, ShieldCheck, UserRound, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -12,9 +12,9 @@ import {
   useShareDocument,
 } from "@uniwork/core/documents/hooks-sharing";
 import { useOrgWorkspaces } from "@uniwork/core/organizations";
+import { canAdministerDocument } from "@uniwork/core/permissions";
 import { paths } from "@uniwork/core/paths";
 import type {
-  Document,
   DocumentAccess,
   DocumentAccessLevel,
   DocumentAccessVia,
@@ -40,6 +40,8 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
+import { OwnerTransferAction } from "./owner-transfer-dialog";
+import type { ShareDialogTarget } from "./share-dialog-target";
 import { ShareLinksSection } from "./share-links-section";
 import { ShareMembersErrorLine } from "./share-members-error";
 import { SharePeoplePicker, useSharePeople } from "./share-people-picker";
@@ -49,7 +51,7 @@ export interface ShareDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wsId: string;
-  doc: Document;
+  doc: ShareDialogTarget;
 }
 
 const LEVELS: readonly DocumentAccessLevel[] = ["view", "edit", "manage"];
@@ -73,12 +75,18 @@ type AccessShare = NonNullable<DocumentAccess["shares"]>[number];
  */
 export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps) {
   const { t, i18n } = useTranslation();
-  const { workspace } = useWorkspace();
+  const { workspace, user } = useWorkspace();
   const { push } = useNavigation();
   const canManage = doc.my_level === "manage";
+  // Manage level or DOC-05 admin_scope (access addendum §2.5): mounts the
+  // access list and the owner transfer; the other controls stay at manage.
+  const canAdminister = canAdministerDocument(doc, { userId: user.id, orgRole: null, wsRole: null }).allowed;
+  const adminOnly = canAdminister && !canManage;
+  const descriptionId = useId();
+  const adminNoteId = useId();
   const owned = !!doc.owner_kind;
 
-  const access = useDocumentShares(wsId, doc.id, { enabled: open && canManage && !owned });
+  const access = useDocumentShares(wsId, doc.id, { enabled: open && canAdminister && !owned });
   const share = useShareDocument(wsId, doc.id);
   const revokeShare = useRevokeDocumentShare(wsId, doc.id);
   const update = useUpdateDocument(wsId, doc.id);
@@ -176,14 +184,23 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
         onOpenChange(next);
       }}
     >
-      <DialogContent className="max-h-[85dvh] overflow-hidden sm:max-w-xl" closeLabel={t("common.close")}>
+      <DialogContent
+        className="max-h-[85dvh] overflow-hidden sm:max-w-xl"
+        closeLabel={t("common.close")}
+        aria-describedby={adminOnly ? `${descriptionId} ${adminNoteId}` : descriptionId}
+      >
         <DialogHeader>
           <DialogTitle>{t("documents.share.title")}</DialogTitle>
-          <DialogDescription>{t("documents.share.description")}</DialogDescription>
+          <DialogDescription id={descriptionId}>{t("documents.share.description")}</DialogDescription>
+          {adminOnly ? (
+            <p id={adminNoteId} className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground">
+              {t("documents.share.admin_scope_note")}
+            </p>
+          ) : null}
         </DialogHeader>
 
         <div className="-mx-4 max-h-[65dvh] overflow-y-auto px-4">
-          {!canManage ? (
+          {!canAdminister ? (
             <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground">
               {t("documents.share.manage_only")}
             </p>
@@ -217,16 +234,26 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                 </div>
                 <ul className="divide-y divide-border">
                   {access.data.acl_owner ? (
-                    <li className="flex items-center justify-between gap-2 px-3 py-2">
-                      <span className="flex min-w-0 items-center gap-2 text-body text-foreground">
+                    // Wraps below sm: the name and label keep their line and the level
+                    // and the transfer button drop under them, instead of the button
+                    // squeezing the name to nothing at 390px.
+                    <li className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2">
+                      <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
                         <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
                         <NameOrSkeleton name={memberName(access.data.acl_owner.user_id)} />
                         <span className="shrink-0 text-caption text-muted-foreground">
                           {t("documents.share.acl_owner")}
                         </span>
                       </span>
-                      <span className="shrink-0 text-caption text-muted-foreground">
+                      <span className="flex shrink-0 items-center gap-2 text-caption text-muted-foreground">
                         {levelLabel(access.data.acl_owner.level)}
+                        <OwnerTransferAction
+                          wsId={wsId}
+                          doc={doc}
+                          ownerId={access.data.acl_owner.user_id}
+                          ownerName={memberName(access.data.acl_owner.user_id) ?? t("documents.share.person_unknown")}
+                          orgMembers={members.rows}
+                        />
                       </span>
                     </li>
                   ) : null}
@@ -257,25 +284,28 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                           {row.effective_via ? ` · ${viaLabel(row.effective_via)}` : ""}
                         </span>
                       </div>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`${t("documents.share.revoke")} ${principalName(row) ?? ""}`.trim()}
-                          disabled={revokeShare.isPending}
-                          aria-busy={(revokeShare.isPending && revokeShare.variables === row.id) || undefined}
-                          onClick={() => {
-                            setAddError(null);
-                            revokeShare.mutate(row.id);
-                          }}
-                        >
-                          {revokeShare.isPending && revokeShare.variables === row.id ? (
-                            <Spinner aria-hidden role="presentation" />
-                          ) : null}
-                          {t("documents.share.revoke")}
-                        </Button>
-                      </span>
+                      {/* Revoke follows the add-share gate: both wait for W-DOC05 to open them to admin_scope (§2.5). */}
+                      {canManage ? (
+                        <span className="flex shrink-0 items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`${t("documents.share.revoke")} ${principalName(row) ?? ""}`.trim()}
+                            disabled={revokeShare.isPending}
+                            aria-busy={(revokeShare.isPending && revokeShare.variables === row.id) || undefined}
+                            onClick={() => {
+                              setAddError(null);
+                              revokeShare.mutate(row.id);
+                            }}
+                          >
+                            {revokeShare.isPending && revokeShare.variables === row.id ? (
+                              <Spinner aria-hidden role="presentation" />
+                            ) : null}
+                            {t("documents.share.revoke")}
+                          </Button>
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                   {!shares.length && !access.data.acl_owner ? (
@@ -286,6 +316,8 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                 </ul>
               </section>
 
+              {canManage ? (
+              <>
               <section aria-labelledby="share-add-title" className="flex flex-col gap-2 rounded-lg border border-border p-3">
                 <h3 id="share-add-title" className="text-label font-medium text-foreground">
                   {t("documents.share.add_title")}
@@ -413,6 +445,8 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                 onOpenSettings={() => push(`${paths.workspace(workspace.organization_slug, workspace.slug).settings()}?tab=documents`)}
                 locale={i18n.language}
               />
+              </>
+              ) : null}
             </div>
           )}
         </div>
@@ -422,7 +456,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
 }
 
 function NameOrSkeleton({ name }: { name: string | null }) {
-  return name === null ? <Skeleton aria-hidden className="h-4 w-24" /> : <span className="truncate">{name}</span>;
+  return name === null ? (
+    <Skeleton aria-hidden className="h-4 w-24" />
+  ) : (
+    <span className="truncate" title={name}>
+      {name}
+    </span>
+  );
 }
 
 function VisibilitySection({
@@ -431,7 +471,7 @@ function VisibilitySection({
   error,
   onSave,
 }: {
-  doc: Document;
+  doc: Pick<ShareDialogTarget, "visibility">;
   pending: boolean;
   error: string | null;
   onSave: (next: "workspace" | "restricted") => void;
