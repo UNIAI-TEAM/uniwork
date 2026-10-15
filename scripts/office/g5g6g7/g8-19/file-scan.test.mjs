@@ -122,6 +122,12 @@ test("a PDF /T in UTF-16BE hex and one inside a FlateDecode object stream are de
   assert.ok(parts.some((p) => p.startsWith("pdf:stream@")), JSON.stringify(result.hits));
 });
 
+test("a '/T (' inside an unfiltered stream (font bytes) is not read as an annotation author", () => {
+  const pdf = Buffer.from("%PDF-1.7\n1 0 obj\n<< /Length 9 >>\nstream\n#/T((U;m\nendstream\nendobj\n%%EOF\n", "latin1");
+  assert.deepEqual(pdfTitleStrings(pdf), []);
+  assert.deepEqual(scanForNames(pdf, [NAME]).commentParts, []);
+});
+
 test("names shorter than 3 characters and the neutral 'User' are skipped and noted", () => {
   const zip = zipDeflate([["word/comments.xml", '<w:comment w:author="User"/><w:comment w:author="ab"/>']]);
   const result = scanForNames(zip, ["ab", "User", "user", NAME]);
