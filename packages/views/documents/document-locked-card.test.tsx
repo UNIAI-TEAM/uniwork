@@ -1,10 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
-import { requestMock, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentLockedCard } from "./document-locked-card";
 
 // DOC7-W01 (access addendum §3.1-3.4): the member card never shows anything
@@ -227,6 +227,33 @@ describe("DocumentLockedCard variant=admin", () => {
     // Admins manage but never read: the title the summary carries is not on the card.
     expect(screen.queryByText("Lương 2026")).toBeNull();
     expect(screen.queryByRole("button", { name: K("send") })).toBeNull();
+  });
+
+  it("opens Share at the requests section from ?access=requests and drops the parameter (DOC7-W02, §2.5)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1/admin-summary") {
+        return Promise.resolve({ id: "d1", title: "Lương 2026", kind: "page", visibility: "restricted", organization_id: "o1", revision: "4" });
+      }
+      if (path === "/api/v1/documents/d1/access-requests") return Promise.resolve({ requests: [] });
+      if (path === "/api/v1/documents/d1/shares") {
+        return Promise.resolve({ my_level: "", admin_scope: true, acl_owner: null, shares: [], links: [] });
+      }
+      return Promise.resolve({});
+    });
+    const nav = fakeNav("/acme/team/documents/d1?access=requests&x=1");
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <DocumentLockedCard variant="admin" wsId={WS} documentId="d1" onBack={vi.fn()} />
+        </WorkspaceProvider>,
+        nav,
+      ),
+    );
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    expect(
+      await within(dialog).findByRole("heading", { name: t("documents.access_request.section_title", { count: 0 }) }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1?x=1"));
   });
 
   it("shows no Manage access when the admin summary is refused", async () => {
