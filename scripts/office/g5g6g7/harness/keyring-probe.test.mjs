@@ -241,3 +241,155 @@ test("the throwaway password is never in a spec line or echoed by the session sc
     assert.ok(existsSync(join(HERE, file)), `${file} is missing`);
   }
 });
+
+test("keyring-session.sh --exec: refuses unknown flags and empty --exec (exit 2), and exits 77 BLOCKED when a tool is missing", () => {
+  const sessionScript = join(HERE, "keyring-session.sh");
+  const badFlag = spawnSync("bash", [sessionScript, "--unknown-flag"], { encoding: "utf8" });
+  assert.equal(badFlag.status, 2, badFlag.stderr);
+  assert.match(badFlag.stderr, /keyring-session:/);
+
+  const emptyExec = spawnSync("bash", [sessionScript, "--exec"], { encoding: "utf8" });
+  assert.equal(emptyExec.status, 2, emptyExec.stderr);
+  assert.match(emptyExec.stderr, /--exec/);
+
+  const scratch = mkdtempSync(join(tmpdir(), "ks-missing-"));
+  try {
+    for (const name of ["bash", "dirname", "pwd"]) {
+      const target = spawnSync("bash", ["-c", `command -v ${name}`], { encoding: "utf8" }).stdout.trim();
+      if (target) writeFileSync(join(scratch, name), `#!/bin/sh\nexec "${target}" "$@"\n`, { mode: 0o755 });
+    }
+    const missingTool = spawnSync("/bin/bash", [sessionScript, "--exec", "true"], {
+      encoding: "utf8",
+      env: { PATH: scratch, HOME: scratch },
+    });
+    assert.equal(missingTool.status, 77, `${missingTool.stdout}\n${missingTool.stderr}`);
+    assert.match(missingTool.stderr, /BLOCKED: keyring-session needs/);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test("keyring-session.sh --exec: runs command inside dbus-run-session with unlocked keyring, passes exit code through, stops daemon by PID and removes scratch dir", () => {
+  const sessionScript = join(HERE, "keyring-session.sh");
+  const scratch = mkdtempSync(join(tmpdir(), "ks-exec-"));
+  const binDir = join(scratch, "bin");
+  mkdirSync(binDir, { recursive: true });
+
+  try {
+    // Stub dbus-run-session, gnome-keyring-daemon, and dbus-send so the wrapper's
+    // lifecycle, password pipe, PID stop, and scratch cleanup are tested deterministically.
+    const stateDir = join(scratch, "state");
+    mkdirSync(stateDir, { recursive: true });
+
+    writeFileSync(
+      join(binDir, "dbus-run-session"),
+      [
+        "#!/usr/bin/env bash",
+        'if [ "${1:-}" = "--" ]; then shift; fi',
+        'export DBUS_SESSION_BUS_ADDRESS="unix:path=/tmp/fake-bus-$$"',
+        'exec "$@"',
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+
+    writeFileSync(
+      join(binDir, "gnome-keyring-daemon"),
+      [
+        "#!/usr/bin/env bash",
+        "IFS= read -r pw || true",
+        `printf '%s' "\${#pw}" > "${stateDir}/pw-len"`,
+        `printf '%s\\n' "$*" > "${stateDir}/gkd-args"`,
+        `printf '%s' "$$" > "${stateDir}/gkd-pid"`,
+        "trap 'exit 0' TERM INT",
+        "while :; do sleep 0.2; done",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+
+    writeFileSync(
+      join(binDir, "dbus-send"),
+      [
+        "#!/usr/bin/env bash",
+        'case "$*" in',
+        "  *NameHasOwner*org.freedesktop.secrets*)",
+        '    echo "   boolean true"',
+        "    ;;",
+        "  *org.freedesktop.Secret.Collection*string:Locked*)",
+        '    if [ "${FAKE_KEYRING_LOCKED:-0}" = "1" ]; then',
+        '      echo "   variant       boolean true"',
+        "    else",
+        '      echo "   variant       boolean false"',
+        "    fi",
+        "    ;;",
+        "esac",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+
+    const env = {
+      ...process.env,
+      PATH: `${binDir}:${process.env.PATH}`,
+      DBUS_SESSION_BUS_ADDRESS: "",
+    };
+
+    const probeFile = join(scratch, "cmd-seen.json");
+    const runOk = spawnSync(
+      "bash",
+      [
+        sessionScript,
+        "--exec",
+        "node",
+        "-e",
+        `require("node:fs").writeFileSync(${JSON.stringify(probeFile)}, JSON.stringify({ dbus: process.env.DBUS_SESSION_BUS_ADDRESS, xdgData: process.env.XDG_DATA_HOME, xdgRun: process.env.XDG_RUNTIME_DIR, pw: process.env.KEYRING_PASSWORD ?? null }));`,
+      ],
+      { encoding: "utf8", env },
+    );
+    assert.equal(runOk.status, 0, `${runOk.stdout}\n${runOk.stderr}`);
+    assert.match(runOk.stdout, /KEYRING_DAEMON secrets=yes unlocked=yes/);
+
+    const seen = JSON.parse(readFileSync(probeFile, "utf8"));
+    assert.match(seen.dbus, /^unix:path=\/tmp\/fake-bus-/);
+    assert.equal(seen.pw, null, "KEYRING_PASSWORD must be unset before the wrapped command runs");
+    assert.ok(seen.xdgData && seen.xdgRun, "XDG_DATA_HOME and XDG_RUNTIME_DIR are exported to the wrapped command");
+
+    // Scratch dir must be removed on exit
+    const workDir = dirname(seen.xdgData);
+    assert.equal(existsSync(workDir), false, `scratch dir ${workDir} must be removed on exit`);
+
+    // Password was piped to gnome-keyring-daemon (non-empty) and never on its argv
+    const pwLen = Number(readFileSync(join(stateDir, "pw-len"), "utf8"));
+    assert.ok(pwLen >= 24, `expected random password length >= 24, got ${pwLen}`);
+    const gkdArgs = readFileSync(join(stateDir, "gkd-args"), "utf8").trim();
+    assert.equal(gkdArgs, "--foreground --unlock --components=secrets");
+
+    // Daemon PID must be stopped on exit
+    const gkdPid = Number(readFileSync(join(stateDir, "gkd-pid"), "utf8"));
+    assert.ok(Number.isInteger(gkdPid) && gkdPid > 0);
+    let alive = true;
+    try {
+      process.kill(gkdPid, 0);
+    } catch {
+      alive = false;
+    }
+    assert.equal(alive, false, `daemon PID ${gkdPid} should have been stopped on exit`);
+
+    // Non-zero exit code from the wrapped command is passed through unchanged
+    const runExit42 = spawnSync("bash", [sessionScript, "--exec", "bash", "-c", "exit 42"], { encoding: "utf8", env });
+    assert.equal(runExit42.status, 42, `${runExit42.stdout}\n${runExit42.stderr}`);
+
+    // If the daemon fails to unlock, --exec exits 1 without running the wrapped command
+    const markerLocked = join(scratch, "ran-when-locked");
+    const runLocked = spawnSync("bash", [sessionScript, "--exec", "bash", "-c", `touch ${JSON.stringify(markerLocked)}`], {
+      encoding: "utf8",
+      env: { ...env, FAKE_KEYRING_LOCKED: "1" },
+    });
+    assert.equal(runLocked.status, 1, `${runLocked.stdout}\n${runLocked.stderr}`);
+    assert.equal(existsSync(markerLocked), false, "wrapped command must not run when the keyring fails to unlock");
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+

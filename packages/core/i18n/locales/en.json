@@ -1070,7 +1070,10 @@
         "agent_planning": "Agent planning",
         "agent_generation": "Agent generation",
         "agent_evaluation": "Agent evaluation",
-        "embedding": "Embedding"
+        "embedding": "Embedding",
+        "office_uniwork_ai": "UniWork AI in Office",
+        "office_byok": "Office on the web (own key)",
+        "office_byok_desktop": "Office desktop app (own key)"
       },
       "actor": {
         "human": "Human",

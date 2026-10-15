@@ -222,6 +222,99 @@ test('a skip line only turns a clean exit into BLOCKED, and never masks a failur
   assert.equal(masked.exitCode, 1);
 });
 
+test('Playwright "<n> skipped" lines with leading whitespace are classified as BLOCKED, while "0 skipped" stays PASS (C6)', () => {
+  assert.deepEqual(classifyResult({ exitCode: 0, output: 'Running 2 tests using 1 worker\n  2 skipped' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: 2 skipped',
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '    1 skipped\n  3 passed (4.2s)' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: 1 skipped',
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '12 skipped' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: 12 skipped',
+  });
+  // "0 skipped" (with or without leading whitespace) must NOT count as a skip.
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '  0 skipped\n  3 passed (2.1s)' }), {
+    result: 'PASS',
+    blocker: null,
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '0 skipped' }), {
+    result: 'PASS',
+    blocker: null,
+  });
+  // A non-zero exit with "<n> skipped" stays FAIL.
+  assert.deepEqual(classifyResult({ exitCode: 1, output: '  2 skipped\n  1 failed' }), {
+    result: 'FAIL',
+    blocker: null,
+  });
+});
+
+test('node:test "# skipped <n>" and "ℹ skipped <n>" summary lines are classified as BLOCKED when <n> >= 1, while "# skipped 0" stays PASS (G710-BE-6)', () => {
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '# pass 0\n# skipped 1' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: # skipped 1',
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: 'ℹ pass 3\nℹ skipped 2' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: ℹ skipped 2',
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: 'ok 1 - check # SKIP no display' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: ok 1 - check # SKIP no display',
+  });
+  // "# skipped 0" and "ℹ skipped 0" must NOT be treated as a skip.
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '# pass 5\n# skipped 0\n# fail 0' }), {
+    result: 'PASS',
+    blocker: null,
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: 'ℹ pass 5\nℹ skipped 0\nℹ fail 0' }), {
+    result: 'PASS',
+    blocker: null,
+  });
+});
+
+test('vitest and prose skip summaries are classified as BLOCKED, and every zero-count form stays PASS (G710-BE-12)', () => {
+  // The residual forms the r2 review probed: the skip word not at a line start,
+  // which the older line-start rule let through as PASS.
+  const blocked = [
+    'Tests  2 skipped (5)',
+    'Test Files  1 skipped (3)',
+    'Tests: 2 skipped, 3 passed',
+    'Passed: 4, Skipped: 2',
+    '1 skip',
+    '…skipping…',
+    'note: 2 tests were skipped',
+    'Test Files  2 skipped | 4 passed (6.3s)',
+  ];
+  for (const output of blocked) {
+    const verdict = classifyResult({ exitCode: 0, output });
+    assert.equal(verdict.result, 'BLOCKED', `${output} must be BLOCKED`);
+    assert.match(verdict.blocker, /command reported skip: /, `${output} names the line it saw`);
+  }
+  // A zero count is not a skip, whatever the spelling.
+  const passing = [
+    'Tests  0 skipped (5)',
+    'Test Files  0 skipped | 4 passed (6.3s)',
+    'Tests: 0 skipped, 3 passed',
+    'Passed: 4, Skipped: 0',
+    '# pass 5\n# skipped 0',
+    '0 skipped',
+    '  0 skipped\n  3 passed (2.1s)',
+    'the cache was warm; no skip needed',
+    // The tracer prints its loop JSON on stdout, where a step status is the word
+    // SKIPPED with no count: that is a report of its own, not a skipped check.
+    '        "status": "SKIPPED",',
+    '"reason": "app offline save was driven directly"',
+  ];
+  for (const output of passing) {
+    assert.equal(classifyResult({ exitCode: 0, output }).result, 'PASS', `${output} must stay PASS`);
+  }
+  // A non-zero exit is still a FAIL even with a skip summary on it.
+  assert.deepEqual(classifyResult({ exitCode: 1, output: 'Tests  2 skipped (5)' }), { result: 'FAIL', blocker: null });
+});
+
 test('a missing or drifted fixture is BLOCKED and never PASS, and the command does not run', () => {
   const missing = runEvidence({
     requirementId: 'G5-A01',
