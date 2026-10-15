@@ -3,12 +3,14 @@ import {
   DocumentAccessLogListSchema,
   DocumentLinkEnvelopeSchema,
   DocumentSettingsSchema,
+  DocumentShareBatchSchema,
   DocumentShareEnvelopeSchema,
   type DocumentAccess,
   type DocumentAccessLevel,
   type DocumentAccessLogList,
   type DocumentLinkEnvelope,
   type DocumentSettings,
+  type DocumentShareBatch,
   type DocumentShareEnvelope,
 } from "../../types/document";
 import { request } from "../http";
@@ -55,6 +57,30 @@ export async function shareDocument(
   });
   return parseWithFallback<DocumentShareEnvelope | null>(raw, DocumentShareEnvelopeSchema, null, {
     endpoint: "POST /api/v1/documents/{id}/shares",
+  });
+}
+
+export interface ShareDocumentBatchBody {
+  principal_ids: string[];
+  level: DocumentAccessLevel;
+}
+
+/** POST /api/v1/documents/{documentID}/shares/batch — grant one level to up to
+ *  50 people of the document's organization in one transaction (UNI-1641).
+ *  All or nothing: a refused person answers 422 principal_not_in_organization
+ *  with their ids in `fields.principal_ids`, and nothing is written. */
+export async function shareDocumentBatch(
+  documentId: string,
+  body: ShareDocumentBatchBody,
+  signal?: AbortSignal,
+): Promise<DocumentShareBatch | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/shares/batch`, {
+    method: "POST",
+    body,
+    signal,
+  });
+  return parseWithFallback<DocumentShareBatch | null>(raw, DocumentShareBatchSchema, null, {
+    endpoint: "POST /api/v1/documents/{id}/shares/batch",
   });
 }
 

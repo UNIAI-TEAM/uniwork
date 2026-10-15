@@ -63,6 +63,7 @@ func TestDocumentSaveResultClassification(t *testing.T) {
 		{"stale file base", errDocumentVersionConflict(3), documentOutcomeConflict, "document_version_conflict"},
 		{"quota", CodedError{Code: "quota_exceeded", Status: 403, Err: ErrQuotaExceeded}, documentOutcomeQuota, ""},
 		{"deleted", errDocumentDeleted(), documentOutcomeGone, ""},
+		{"archived", documentArchived(), documentOutcomeForbidden, ""},
 		{"storage down", CodedError{Code: "storage_unavailable", Status: 503}, documentOutcomeUnavailable, ""},
 		{"validation", Invalid("thiếu gì đó"), documentOutcomeInvalid, ""},
 		{"forbidden", ErrForbidden, documentOutcomeForbidden, ""},

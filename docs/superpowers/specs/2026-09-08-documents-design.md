@@ -341,6 +341,16 @@ thấy đếm và dung lượng theo org.
 > `visibility=workspace`**: trên tài liệu `restricted` admin quản lý nhưng không đọc nội dung, trừ truy cập khẩn cấp có ghi vết
 > (DOC-05). Mọi dòng khác của §4 giữ nguyên.
 
+> **Bổ sung 2026-10-15 (UNI-1629 DOC-02, UNI-1630 DOC-06, UNI-1631 DOC-07)** — "Hạn chế" một chạm khi tạo (mặc định vẫn
+> `workspace`), chuyển quyền sở hữu (`acl_owner_id`) từng tài liệu và hàng loạt khi vô hiệu hóa thành viên, và xin quyền truy
+> cập (không tự cấp, thẻ khóa `variant="member"`, người quản lý duyệt) ở [phụ lục truy cập](2026-10-15-documents-access-addendum.md);
+> §4 này **không viết lại**, phụ lục chỉ thêm lệnh và cổng `canAdminister()` của DOC-05.
+
+> **Bổ sung 2026-10-15 (SRS Share v1.0)** — [phụ lục căn chỉnh SRS Share](2026-10-15-documents-share-srs-addendum.md) thay
+> dòng `edit nếu visibility=workspace ∧ actor là effective member` bằng **dòng Workspace gốc** có mức riêng (`workspace_level`
+> ∈ view/comment/edit, mặc định `edit` cho tài liệu có sẵn), đổi mặc định tạo ở gốc thành **riêng tư** (`restricted`), và thêm
+> ghi quyền theo lô (tất cả hoặc không), nguồn quyền, phạm vi chia sẻ trên danh sách và thông báo `document_shared`.
+
 ## 5. API
 
 Tag `Documents`; SDI/SDO ở `dto/{sdi,sdo}/document.go`; route `router/documents.go` sau

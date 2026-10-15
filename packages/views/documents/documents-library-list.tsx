@@ -17,6 +17,10 @@ export interface DocumentsLibraryListProps {
   failure: "error" | "permission" | null;
   /** The rows are empty because a filter is on, not because the library is. */
   filtered: boolean;
+  /** The access filter (not only the type chip) is on, so the empty line names access, not file type. */
+  accessFiltered?: boolean;
+  /** The type chip is on too: with both on, the empty line names the filters, not one of them. */
+  typeFiltered?: boolean;
   /** The create cards sit above the list, so the no-match hint may point at them. */
   cardsShown?: boolean;
   /** Show the archive badge on every row (the archive tab). */
@@ -44,6 +48,8 @@ export function DocumentsLibraryList({
   loading,
   failure,
   filtered,
+  accessFiltered = false,
+  typeFiltered = false,
   cardsShown = false,
   archived = false,
   showType = false,
@@ -95,11 +101,19 @@ export function DocumentsLibraryList({
           icon={Search}
           title={t("documents.library.no_matches_title")}
           description={t(
-            hasMore
-              ? "documents.home.no_matches_more_description"
-              : cardsShown
-                ? "documents.home.no_matches_description"
-                : "documents.home.no_matches_plain_description",
+            accessFiltered && typeFiltered
+              ? hasMore
+                ? "documents.home.no_matches_filters_more_description"
+                : "documents.home.no_matches_filters_description"
+              : accessFiltered
+                ? hasMore
+                  ? "documents.home.no_matches_access_more_description"
+                  : "documents.home.no_matches_access_description"
+                : hasMore
+                  ? "documents.home.no_matches_more_description"
+                  : cardsShown
+                    ? "documents.home.no_matches_description"
+                    : "documents.home.no_matches_plain_description",
           )}
           role="status"
           actions={
@@ -136,9 +150,9 @@ export function DocumentsLibraryList({
           {/*
             Below `md` only Name and Actions exist: the other columns are
             display:none, so the group header spans two columns there and all
-            columns from `md` (a colSpan wider than the visible columns would add
-            implicit columns that squeeze Name to nothing). Name takes what the
-            fixed columns leave.
+            columns from `md`, and My access + Visibility from `xl` (a colSpan
+            wider than the visible columns would add implicit columns that
+            squeeze Name to nothing). Name takes what the fixed columns leave.
           */}
           <colgroup>
             <col />
@@ -147,6 +161,8 @@ export function DocumentsLibraryList({
             <col className="hidden w-36 md:table-column" />
             <col className="hidden w-24 md:table-column" />
             <col className="hidden w-24 md:table-column" />
+            <col className="hidden w-28 xl:table-column" />
+            <col className="hidden w-36 xl:table-column" />
             <col className="w-14 md:w-24" />
           </colgroup>
           <thead className="hidden bg-muted/50 md:table-header-group">
@@ -157,6 +173,8 @@ export function DocumentsLibraryList({
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.editor")}</th>
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.updated")}</th>
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.size")}</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium xl:table-cell">{t("documents.home.columns.my_access")}</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium xl:table-cell">{t("documents.home.columns.visibility")}</th>
               <th scope="col" className="px-3 py-2"><span className="sr-only">{t("documents.home.columns.actions")}</span></th>
             </tr>
           </thead>
@@ -169,6 +187,7 @@ export function DocumentsLibraryList({
                     <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
                   </th>
                   <th aria-hidden colSpan={showType ? 5 : 4} className="hidden md:table-cell" />
+                  <th aria-hidden colSpan={2} className="hidden xl:table-cell" />
                 </tr>
               ) : null}
               {group.rows.map((row) => (

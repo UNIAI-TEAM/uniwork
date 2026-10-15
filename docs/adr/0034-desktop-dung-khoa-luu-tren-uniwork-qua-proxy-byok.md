@@ -1,15 +1,14 @@
 # 0034 — Desktop đã đăng nhập dùng khóa lưu trên UniWork qua proxy BYOK của tổ chức
 
-**Trạng thái:** proposed (bản nháp G6-05k, UNI-1637; quyết định người dùng 2026-10-14 16:15 UTC+7, câu Q-M3 = (b): "desktop đã đăng nhập dùng khóa của tổ chức lưu trên UniWork qua proxy BYOK của server"). **Chưa chấp nhận**: Advisor (2026-10-15 03:25Z, ràng buộc) giữ ADR ở `drafts/` cho tới khi người dùng trả lời Q-K1 (xem "Câu hỏi và quyết định"). Code G6-05k đã được xây theo phương án (a) của Q-K1. Số 0034 là tạm, đổi nếu ADR khác land trước.
-**Issue:** UNI-1637 · **Parent:** UNI-635 (G6) · **Liên quan:** [0028](../0028-ai-phia-client-cua-uniwork-office.md) (AI phía client), [0029](../0029-ai-cua-office-tren-web-qua-ai-gateway.md) (proxy BYOK cho web), [0010](../0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md), [0008](../0008-cach-ly-tenant-o-tang-service.md), [0032](../0032-mot-tai-khoan-mot-to-chuc.md).
+**Trạng thái:** accepted (2026-10-15) — chấp nhận theo trả lời của người dùng 2026-10-15 15:10 UTC+7 cho Q-K1 = (a): "khóa của tổ chức" là các khóa cá nhân người dùng đã lưu trên UniWork trong tổ chức đó; khóa dùng chung toàn tổ chức do quản trị đặt (b) vẫn là hướng mở rộng cho một card sau. Bản nháp G6-05k (UNI-1637); quyết định người dùng 2026-10-14 16:15 UTC+7, câu Q-M3 = (b): "desktop đã đăng nhập dùng khóa của tổ chức lưu trên UniWork qua proxy BYOK của server". Code G6-05k đã được xây theo phương án (a).
+**Issue:** UNI-1637 · **Parent:** UNI-635 (G6) · **Liên quan:** [0028](0028-ai-phia-client-cua-uniwork-office.md) (AI phía client), [0029](0029-ai-cua-office-tren-web-qua-ai-gateway.md) (proxy BYOK cho web), [0010](0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md), [0008](0008-cach-ly-tenant-o-tang-service.md), [0032](0032-mot-tai-khoan-mot-to-chuc.md).
 **Bổ sung cho 0028** (không sửa nó): thêm một nguồn khóa thứ ba cho desktop bên cạnh Quyết định 2 (khóa cục bộ / CLI) và Quyết định 3 (credit UniWork). Mở phần "desktop có thể dùng proxy về sau, v1 thì không" ở Quyết định 1 của 0029.
-**Hợp đồng API:** [`docs/office/g5g6g7/contracts/g6-05k-org-keys-api.md`](../../office/g5g6g7/contracts/g6-05k-org-keys-api.md).
+**Hợp đồng API:** [`docs/office/g5g6g7/contracts/g6-05k-org-keys-api.md`](../office/g5g6g7/contracts/g6-05k-org-keys-api.md).
 
 > Vì sao là ADR mới chứ không sửa 0028: `docs/adr/README.md` cấm sửa ADR đã `accepted`
 > ("đổi ý thì viết ADR mới"); tiền lệ gần nhất là 0029, cũng "bổ sung cho 0028 (không sửa
-> nó)". Vì sao nằm trong `drafts/`: trạng thái `proposed` chưa có hiệu lực, và
-> `scripts/governance.test.mjs` chỉ đếm `docs/adr/NNNN-*.md` ở thư mục gốc (tiền lệ:
-> bản nháp 0022 → 0024, commit 51c3f6de6).
+> nó)". Bản nháp nằm ở `drafts/` tới khi người dùng trả lời Q-K1; đã chuyển ra thư mục gốc
+> ngày 2026-10-15 khi chấp nhận (số 0034 giữ nguyên, không ADR nào khác land trước).
 
 ---
 
@@ -41,19 +40,19 @@ Kiểm lại với code (2026-10-14, root 9d987d353):
 
 ## Câu hỏi và quyết định
 
-Năm câu hỏi của bản thiết kế (báo cáo s0), trạng thái tới 2026-10-15:
+Năm câu hỏi của bản thiết kế (báo cáo s0), đã quyết hết tới 2026-10-15:
 
 | Câu | Nội dung | Trạng thái |
 | --- | --- | --- |
-| Q-K1 | "Khóa của tổ chức" là (a) khóa **cá nhân** của người dùng đã lưu trên UniWork trong tổ chức đó (có sẵn, khuyến nghị) hay (b) khóa **dùng chung toàn tổ chức** do quản trị tổ chức đặt (bảng mới, UI/route quản trị, audit, cách ly: một card riêng, lớn hơn)? | **MỞ — của người dùng.** Advisor giữ ADR ở `proposed`. v1 xây trên (a); (b) là hướng mở rộng ở `Resolve`, ghi bên dưới. |
+| Q-K1 | "Khóa của tổ chức" là (a) khóa **cá nhân** của người dùng đã lưu trên UniWork trong tổ chức đó (có sẵn, khuyến nghị) hay (b) khóa **dùng chung toàn tổ chức** do quản trị tổ chức đặt (bảng mới, UI/route quản trị, audit, cách ly: một card riêng, lớn hơn)? | **(a), người dùng quyết 2026-10-15 15:10 UTC+7.** v1 xây trên (a); (b) khóa dùng chung do quản trị đặt là hướng mở rộng ở `Resolve` (một card sau), ghi bên dưới. |
 | Q-K2 | Thứ tự ưu tiên: (a) khóa trên máy thắng theo từng nhà cung cấp; (b) khóa UniWork thắng khi đã đăng nhập; (c) người dùng chọn theo nhà cung cấp | (a), Advisor quyết 2026-10-14 17:18Z |
 | Q-K3 | Capability sử dụng riêng cho desktop: (a) `office.byok_desktop`; (b) dùng chung `office.byok` | (a), Advisor |
 | Q-K4 | Công tắc tắt: (a) không có, entitlement `office.ai_byok` đã chặn; (b) feature flag riêng | (a), Advisor |
 | Q-K5 | Token của stream openai-compatible: (a) không đụng body (dòng sử dụng có thể 0 token, như web); (b) desktop tự thêm `stream_options.include_usage` | (a), Advisor |
 
-Khi người dùng trả lời Q-K1 = (a), việc chấp nhận chỉ là chuyển ADR ra `docs/adr/`, đổi
-trạng thái và làm các bước ở mục "Trạng thái". Nếu trả lời (b), (b) thành một card mới
-dựng trên cùng hợp đồng desktop (mục "Hướng mở rộng (b)").
+Người dùng đã trả lời Q-K1 = (a) và ADR được chấp nhận (mục "Trạng thái"). Phương án (b)
+thành một card mới dựng trên cùng hợp đồng desktop khi người dùng muốn (mục "Hướng mở rộng
+(b)").
 
 ## Quyết định
 
@@ -188,7 +187,7 @@ fx-ui, fx2, fx3, fx4); chi tiết từng tuyến và tên test nằm ở hợp �
 
 ## Hướng mở rộng (b): khóa dùng chung toàn tổ chức do quản trị đặt
 
-Chỉ làm nếu người dùng trả lời Q-K1 = (b) (hoặc muốn thêm sau v1). Là một card riêng, không
+Người dùng chọn (a) cho Q-K1 nên mục này **không** nằm trong v1; chỉ làm khi người dùng muốn thêm sau. Là một card riêng, không
 nằm trong G6-05k: bảng mới (có `organization_id`, ADR 0008) và migration theo luật của
 `CLAUDE.md`, route + UI quản trị chỉ cho chủ/quản trị tổ chức, audit `ai.credential.*` cho
 khóa tổ chức, một dòng mới ở `isoRoutes` và ca cách ly, chính sách ai được dùng khóa nào.
@@ -202,7 +201,7 @@ khóa tổ chức thắng khi cả hai cùng có, và tên nhãn trên chip khi 
 - **Khóa dùng chung do quản trị tổ chức đặt, làm ngay trong v1.** Đúng nghĩa đen hơn của
   "khóa của tổ chức", nhưng là một tính năng mới cả web lẫn server (migration, UI quản trị,
   audit, cách ly) mà Q-M3 không mô tả (Q-M3 (b) nói "hiện khóa lưu trên server và gọi qua
-  proxy BYOK của tổ chức"). Giữ làm hướng mở rộng ở trên, chờ Q-K1.
+  proxy BYOK của tổ chức"). Giữ làm hướng mở rộng ở trên; người dùng chọn (a) cho Q-K1 ngày 2026-10-15.
 - **Trả khóa đã giải mã về desktop để gọi thẳng.** Phá QĐ4 của 0028 và D8 của 0029; khóa
   nằm trên mọi máy, không thu hồi được theo thiết bị.
 - **Route proxy riêng cho desktop (`/desktop/ai/...`).** Lặp lại cổng, giới hạn, isoRoutes
@@ -242,8 +241,7 @@ khóa tổ chức thắng khi cả hai cùng có, và tên nhãn trên chip khi 
 
 ## Trạng thái
 
-`proposed` (2026-10-14, G6-05k, UNI-1637); **chờ người dùng trả lời Q-K1**. Chưa có ngày
-chấp nhận. Khi người dùng chọn (a), việc chấp nhận là một bước một dòng: chuyển ra
-`docs/adr/`, đổi `accepted` kèm ngày, thêm vào bảng trong `README.md`, và thêm một dòng vào
-mục Audit and Events của `CLAUDE.md` kèm tên test giữ luật (hợp đồng API §7). Bổ sung cho
-0028 và 0029; không thay thế ADR nào.
+`accepted` (2026-10-15). Bản nháp 2026-10-14 (G6-05k, UNI-1637); người dùng trả lời Q-K1 = (a)
+lúc 15:10 UTC+7 ngày 2026-10-15, nên ADR chuyển từ `drafts/` ra `docs/adr/`, thêm vào bảng
+trong `README.md` và thêm một dòng vào mục Audit and Events của `CLAUDE.md` kèm các test giữ
+luật (hợp đồng API §7, mục 1–2). Bổ sung cho 0028 và 0029; không thay thế ADR nào.

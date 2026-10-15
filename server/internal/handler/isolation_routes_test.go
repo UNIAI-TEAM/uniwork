@@ -436,6 +436,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/ai/uniwork/chat/completions":              {body: isoJSON(isoUniworkTurnBody)},
 	"POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions": {body: isoJSON(isoUniworkTurnBody)},
 	"POST /api/v1/documents/{documentID}/shares":                                   {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
+	"POST /api/v1/documents/{documentID}/shares/batch":                             {body: isoWith(map[string]string{}, map[string]any{"principal_ids": []any{"01J8X4K2M0N1P2Q3R4S5T6U7V8"}, "level": "view"})},
 	"POST /api/v1/documents/{documentID}/uploads":                                  {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
 	"POST /api/v1/documents/{documentID}/versions/commit":                          {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
 	// G5-07: the lookup sends the key isolation_world_test.go seeds and leaves not_committed, so the
