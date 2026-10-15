@@ -256,11 +256,6 @@ export type OpenLinkNavigate = (
   disposition?: LinkClickIntent,
 ) => void;
 
-/**
- * Append `from=<kind>:<id>` to an internal document path (`/{org}/{ws}/documents/{id}`
- * or the slug-less `/documents/{id}`); any other path is returned as is. A `from`
- * the link already carries wins, and the hash stays last.
- */
 function isDocumentPathname(pathname: string): boolean {
   const segments = pathname.split("/").filter(Boolean);
   return (
@@ -279,6 +274,11 @@ export function isInternalDocumentHref(href: string, appOrigin?: string | null):
   return isDocumentPathname(internalPath.split("#")[0]!.split("?")[0]!);
 }
 
+/**
+ * Append `from=<kind>:<id>` to an internal document path (`/{org}/{ws}/documents/{id}`
+ * or the slug-less `/documents/{id}`); any other path is returned as is. A `from`
+ * the link already carries wins, and the hash stays last.
+ */
 function withDocumentSource(path: string, source: EditorLinkContext): string {
   const hashAt = path.indexOf("#");
   const beforeHash = hashAt === -1 ? path : path.slice(0, hashAt);

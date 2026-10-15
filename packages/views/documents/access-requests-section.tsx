@@ -78,12 +78,20 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
   const rows = requests.data ?? [];
 
   useEffect(() => {
-    if (!handoff || !requests.isSuccess || requests.isFetching) return;
+    if (!handoff || requests.isFetching) return;
+    // A failed refetch swaps the list for the retry block (the decided row's
+    // button is gone) and keeps stale data: land on the heading, never hang.
+    if (requests.isError) {
+      headingRef.current?.focus();
+      setHandoff(null);
+      return;
+    }
+    if (!requests.isSuccess) return;
     if (requests.data?.some((row) => row.id === handoff.decidedId)) return;
     const next = handoff.nextId ? listRef.current?.querySelector<HTMLElement>(`[data-request-id="${handoff.nextId}"]`) : null;
     (next?.querySelector<HTMLElement>("button") ?? headingRef.current)?.focus();
     setHandoff(null);
-  }, [handoff, requests.isSuccess, requests.isFetching, requests.data]);
+  }, [handoff, requests.isSuccess, requests.isError, requests.isFetching, requests.data]);
 
   const nameOf = (row: DocumentAccessRequest) => row.requester_name.trim() || t("documents.share.person_unknown");
   // "comment" is this namespace's own label: documents.share.level_comment belongs to DOC-05.

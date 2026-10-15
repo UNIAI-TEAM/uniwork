@@ -268,6 +268,26 @@ describe("AccessRequestsSection", () => {
     await waitFor(() => expect(heading).toHaveFocus());
   });
 
+  it("moves focus to the section heading when the list refetch after a decision fails", async () => {
+    let listReads = 0;
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === LIST && !opts?.method) {
+        listReads += 1;
+        return listReads === 1 ? Promise.resolve(pending) : Promise.reject(new ApiError("down", "internal", 500));
+      }
+      if (path === `${LIST}/r1/approve`) return Promise.resolve({ id: "r1", status: "approved", share_id: "s1" });
+      return Promise.resolve({});
+    });
+    renderSection();
+    await screen.findByText("Bình");
+    const first = screen.getByRole("listitem", { name: /Bình/ });
+    fireEvent.click(within(first).getByRole("button", { name: new RegExp(t("documents.access_request.approve")) }));
+    // The list is replaced by the retry block, so the clicked button is gone: focus must not be lost.
+    await screen.findByRole("button", { name: t("documents.share.retry") });
+    const heading = screen.getByRole("heading", { name: t("documents.access_request.section_title", { count: "…" }) });
+    await waitFor(() => expect(heading).toHaveFocus());
+  });
+
   it("moves focus to the section heading when it was opened from the inbox link", async () => {
     renderSection({ focusOnOpen: true });
     const heading = await screen.findByRole("heading", { name: t("documents.access_request.section_title", { count: 2 }) });
