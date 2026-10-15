@@ -110,7 +110,7 @@ async function seedFresh({ apiOrigin, must, env, now, dbUrl, sqlClientFactory })
   const stamp = `${now.toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const record = { apiOrigin, seededAt: new Date(now).toISOString(), users: {}, orgs: {}, docs: {}, shares: {} };
 
-  const register = async (key) => {
+  const registerUser = async (key) => {
     const user = {
       key,
       id: "",
@@ -142,7 +142,7 @@ async function seedFresh({ apiOrigin, must, env, now, dbUrl, sqlClientFactory })
     const ws = record.orgs[orgKey].workspaces[wsKey];
     const email = `g8-19-${key.toLowerCase()}-${stamp}@example.com`;
     await must(owner, "createInvitation", { workspaceID: ws.id }, { email, role: "member" });
-    const user = await register(key);
+    const user = await registerUser(key);
     const pending = (await must(user, "myInvitations", {}, undefined)).body.invitations ?? [];
     const invitation = pending.find((i) => i.workspace?.id === ws.id) ?? pending[0];
     if (!invitation?.token) throw new Error(`seedWorld: ${key} has no pending invitation to ${wsKey}`);
@@ -150,11 +150,11 @@ async function seedFresh({ apiOrigin, must, env, now, dbUrl, sqlClientFactory })
     await must(user, "completeOnboarding", {}, { completion_path: "invite_accept", workspace_id: ws.id });
   };
 
-  const a = await register("A");
+  const a = await registerUser("A");
   await createOrg(a, "X", ["W1", "W2"]);
   await joinByInvite(a, "B", "X", "W2");
   await joinByInvite(a, "C", "X", "W2");
-  const m = await register("M");
+  const m = await registerUser("M");
   await createOrg(m, "Y", ["WY"]);
   m.multiOrg = await joinSecondOrgBySql({ env, dbUrl, sqlClientFactory, userId: m.id, org: record.orgs.X, wsKey: "W1" });
   return record;
