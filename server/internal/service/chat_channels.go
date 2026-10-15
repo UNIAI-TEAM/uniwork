@@ -362,17 +362,14 @@ func (s *ChatService) JoinChannel(ctx context.Context, userID, workspaceID, room
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	_ = q.ReactivateChatRoomMember(ctx, db.ReactivateChatRoomMemberParams{
-		RoomID: roomID, UserID: userID,
-	})
-	if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: roomID, UserID: userID,
-	}); errors.Is(err, pgx.ErrNoRows) {
-		if err := s.ensureRoomMemberTx(ctx, q, room, workspaceID, userID, "member"); err != nil {
-			return ChatRoomSummary{}, err
-		}
-	} else if err != nil {
+	// A fresh row, like a re-invite: reviving old 'left' rows breaks the
+	// one-active-row index once a user has left more than once.
+	added, err := s.addRoomMember(ctx, q, room, workspaceID, userID, "member")
+	if err != nil {
 		return ChatRoomSummary{}, err
+	}
+	if !added { // a concurrent join already added the row
+		return s.channelSummaryFromRoom(ctx, userID, room, 0)
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID,

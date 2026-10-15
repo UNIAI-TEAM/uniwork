@@ -184,3 +184,59 @@ func TestListChatRoomsIncludesJoinedChannels(t *testing.T) {
 		t.Fatal("created channel missing from ListChatRooms (sidebar source)")
 	}
 }
+
+// Two leave/re-invite rounds leave two 'left' rows; joining again must add one
+// fresh active row instead of reviving both into the active unique index.
+func TestJoinPublicChannelAfterLeavingTwice(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "ops-rejoin", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := s.LeaveChatRoom(ctx, ub.ID, w.ID, ch.ID); err != nil {
+		t.Fatalf("leave: %v", err)
+	}
+	if _, err := s.InviteGroupMembers(ctx, ua.ID, w.ID, ch.ID, []string{ub.ID}); err != nil {
+		t.Fatalf("re-invite: %v", err)
+	}
+	if err := s.RemoveChatRoomMember(ctx, ua.ID, w.ID, ch.ID, ub.ID); err != nil {
+		t.Fatalf("kick: %v", err)
+	}
+
+	if _, err := s.JoinChannel(ctx, ub.ID, w.ID, ch.ID); err != nil {
+		t.Fatalf("join after leaving twice: %v", err)
+	}
+	mine, err := s.ListChannels(ctx, ub.ID, w.ID, ListChannelsInput{Scope: "mine"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range mine {
+		found = found || r.ID == ch.ID
+	}
+	if !found {
+		t.Fatal("rejoined channel missing from mine list")
+	}
+
+	count := func(sql string) int {
+		t.Helper()
+		var n int
+		if err := s.pool.QueryRow(ctx, sql, ch.ID, ub.ID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := count(`SELECT count(*) FROM chat_room_members WHERE room_id = $1 AND user_id = $2 AND status = 'active'`); n != 1 {
+		t.Fatalf("active member rows = %d, want 1", n)
+	}
+	if n := count(`SELECT count(*) FROM audit_events WHERE action = 'chat.room.member_added' AND resource_id = $1
+		AND metadata::jsonb->>'member_id' = $2 AND metadata::jsonb->>'via' = 'join'`); n != 1 {
+		t.Fatalf("join audit rows = %d, want 1", n)
+	}
+}

@@ -570,12 +570,6 @@ WHERE r.workspace_id = sqlc.arg(workspace_id)
   )
 ORDER BY r.name ASC;
 
--- name: ReactivateChatRoomMember :exec
--- tenant: parent room_id
-UPDATE chat_room_members
-SET status = 'active', joined_at = now(), left_at = NULL, updated_at = now()
-WHERE room_id = $1 AND user_id = $2 AND status = 'left';
-
 -- name: SearchChatMessagesByRoom :many
 SELECT
   m.id,

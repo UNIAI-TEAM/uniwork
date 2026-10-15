@@ -2400,23 +2400,6 @@ func (q *Queries) MuteChatThreadFollower(ctx context.Context, arg MuteChatThread
 	return err
 }
 
-const reactivateChatRoomMember = `-- name: ReactivateChatRoomMember :exec
-UPDATE chat_room_members
-SET status = 'active', joined_at = now(), left_at = NULL, updated_at = now()
-WHERE room_id = $1 AND user_id = $2 AND status = 'left'
-`
-
-type ReactivateChatRoomMemberParams struct {
-	RoomID string `json:"room_id"`
-	UserID string `json:"user_id"`
-}
-
-// tenant: parent room_id
-func (q *Queries) ReactivateChatRoomMember(ctx context.Context, arg ReactivateChatRoomMemberParams) error {
-	_, err := q.db.Exec(ctx, reactivateChatRoomMember, arg.RoomID, arg.UserID)
-	return err
-}
-
 const restoreChatRoomsLeftAtDeactivation = `-- name: RestoreChatRoomsLeftAtDeactivation :exec
 UPDATE chat_room_members m SET status = 'active', left_at = NULL, updated_at = now()
 FROM organization_members om
