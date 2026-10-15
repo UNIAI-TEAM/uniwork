@@ -395,6 +395,10 @@ func TestTasksWorkManagementUpgradeFrom106(t *testing.T) {
 	if err := Up(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	// Rows other tests left behind (the isolation matrix leaves FileService
+	// attachments on purpose) are not what this test checks, and 969's down
+	// refuses them, so which package ran first decided whether this passed.
+	emptyPublicTables(t, pool)
 	for {
 		var applied bool
 		if err := pool.QueryRow(ctx, `
@@ -596,6 +600,9 @@ func TestSingleOwnerBackfillDemotesLaterOwners(t *testing.T) {
 	}
 	// Roll back to just before 132 so the two owners can be inserted without
 	// the unique index refusing them.
+	// The rollback passes 969, whose down refuses FileService attachments
+	// that other tests left behind.
+	emptyPublicTables(t, pool)
 	for {
 		var applied bool
 		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version LIKE '132%')`).Scan(&applied); err != nil {
