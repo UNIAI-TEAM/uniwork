@@ -149,3 +149,98 @@ do đứng sau ` (` hoặc `;` (một khoá thường kết thúc ở dấu các
 - Fixture XLSX không có ô ngày/tháng; fixture DOCX/PPTX không có comment, PDF không có bản scan, nên chưa có ca
   locale ngày và ca nội dung comment/OCR.
 - Tên công cụ cụ thể của genoffice chưa chốt (G6-01); bộ ca chỉ dùng operation trừu tượng.
+
+## Chạy bộ holdout trên cổng AI (G7-12, UNI-1384)
+
+> **Trạng thái:** in-progress. Bộ chạy đã có và test được trên nhà cung cấp giả; **chưa có lần chạy thật nào** và **chưa
+> có ngưỡng đã ký** (G7-D1 còn là bản nháp), nên báo cáo luôn ghi "chưa có ngưỡng".
+
+| Đường dẫn | Nội dung |
+| --- | --- |
+| `../../../../scripts/office/g5g6g7/holdout-run.mjs` | runner: hỏi từng ca bằng vi và en qua cùng đường façade như `devset-run`, ghi một file JSON mỗi lần chạy |
+| `../../../../scripts/office/g5g6g7/holdout-backend.mjs` | backend fixture của ca: trả kết quả công cụ từ fixture, đếm lượt ghi, mô phỏng quyền viewer / thu hồi quyền |
+| `../../../../scripts/office/g5g6g7/holdout-answer.mjs` | adapter đổi câu trả lời + dấu vết công cụ thành dạng đáp án của scorer |
+| `../../../../scripts/office/g5g6g7/holdout-report.mjs` | báo cáo: phân bố min / trung vị / max, theo nhóm và định dạng, độ trễ, ca không ổn định, ca chờ người duyệt |
+| `holdout-run.test.mjs`, `holdout-report.test.mjs` (cùng thư mục `scripts/office/g5g6g7/`) | test xác định trên façade giả (`holdout-stub-facade.helper.mjs`) |
+
+Runner **đọc ca lúc chạy** từ `cases/`; không câu hỏi, đáp án hay marker nào được chép vào mã hay test. Vì câu trả lời của
+model có thể lặp lại giá trị tham chiếu, file kết quả mặc định nằm **ngoài repo** (`~/office-g5g6g7/reports/g6-ai_server/g712-runs/`);
+runner từ chối `--out` trong repo, và từ chối ghi một file có dấu hiệu bí mật.
+
+### Chạy trên bản giả (không cần model thật)
+
+```bash
+# test runner + báo cáo trên façade giả: mô hình tham chiếu trả đúng, các ca lỗi/429/5xx/401 được dựng có chủ đích
+node --test scripts/office/g5g6g7/holdout-run.test.mjs scripts/office/g5g6g7/holdout-report.test.mjs
+
+# kiểm không rò rỉ nội dung ca ra ngoài thư mục này
+node --test scripts/office/g5g6g7/holdout.test.mjs
+```
+
+Với máy chủ Go chạy `AI_PROVIDER=fake`, runner chạy được từ đầu đến cuối để kiểm đường ống (đăng ký frame token, façade,
+`ai_usage_events`), nhưng nhà cung cấp giả có kịch bản cố định nên **đáp án vô nghĩa**: chỉ dùng để thấy đường ống chạy,
+không dùng để đọc kết quả. Lần chạy như vậy phải ghi `providers: fake` trong release tuple, và báo cáo cho thấy ngay điều đó.
+
+### Chạy thật (chỉ sau khi người dùng ký G7-D1)
+
+Lần chạy thật dùng upstream dev đã **"đã cấu hình"** cho máy chủ trên bro (cấu hình nằm ở `~/.codex/config.toml`, mục
+`[model_providers.customlocal]`; **không** ghi host, IP, cổng hay khoá của nó vào repo, issue, báo cáo hay tin nhắn).
+Máy chủ phải chạy trên đúng release tuple cần ký (SHA của D, ghim khung, `prompt_id` của instruction pack).
+
+```bash
+node scripts/office/g5g6g7/holdout-run.mjs --server-url <origin máy chủ> --db-url <postgres của máy chủ> \
+  --runs 3 --threads 2 --redis on|off --server-sha <sha nếu runner không chạy trong checkout của D>
+node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-ai_server/g712-runs/<thư mục lần chạy>
+```
+
+- Ít nhất **3 lần chạy**, cùng một model ở cả ba lần, tối đa **2 luồng**, một người dùng thử. Không chọn lần chạy đẹp nhất.
+- `--db-url` để đọc `ai_usage_events` (token vào/ra, `latency_ms`, `prompt_id`, nhà cung cấp, model đã phân giải). Thiếu nó,
+  độ trễ lấy từ thời gian phía client và token ghi "không có"; báo cáo ghi rõ nguồn.
+- `--redis on|off|unknown` ghi vào release tuple (runner không tự biết). `--tool-schemas <file>` cấp lược đồ công cụ thật của
+  slides/pdf/markdown/html (mặc định chỉ có tên); ca không công cụ nào phục vụ được thao tác bắt buộc bị liệt kê riêng ở mục 7
+  của báo cáo để không bị đọc nhầm là lỗi model. `--numbers lenient` bỏ luật "con số thừa là lệch" (mặc định `strict`).
+- Dòng báo cáo `UNIWORK_ANSWER <json>` được nối vào câu hỏi để model báo đáp án ở dạng máy đọc được; dòng này giống nhau
+  cho mọi ca và không nêu gì về đáp án. Nó **thay đổi prompt**, nên là điều kiện của phép đo, không phải của sản phẩm.
+
+### Đọc báo cáo và "chưa có ngưỡng"
+
+`report.md` (và `report.json`) có: release tuple mỗi lần, tải (lượt gọi, 429/5xx, thử lại, token), mọi chỉ số §9.2 với
+**min / trung vị / max** trên các lần chạy, theo nhóm (XLSX 40, DOCX 20, định dạng khác 20, cross 20) và theo định dạng, độ
+trễ p50/p95 mỗi lần và gộp, ca không ổn định (khớp ở lần này, lệch ở lần khác), ca **chờ người duyệt** (ca `rubric` và ca có
+`caveat`: scorer không bao giờ tự xác nhận).
+
+**"Chưa có ngưỡng"** nghĩa là: chưa có tệp ngưỡng do người dùng ký, nên báo cáo chỉ đưa số đo; **không có PASS hay FAIL ở
+bất cứ đâu**, và một ca bị bỏ qua, bị chặn hoặc chờ người duyệt không bao giờ được tính là đạt. Chỉ khi truyền
+`--thresholds <tệp đã ký>` thì báo cáo mới có kết luận, theo luật G7-D1: **mọi lần chạy phải đạt** (lần xấu nhất quyết định),
+ca không ổn định tính là lệch, và kết luận là `INCONCLUSIVE` (không phải PASS) khi thiếu lần chạy, có lần chạy dở dang hoặc bị
+chặn, release tuple đổi giữa các lần, hoặc tỷ lệ chỉ đạt nếu mọi ca chờ duyệt được xác nhận. Mã thoát: 0 đạt hoặc không có
+ngưỡng, 1 trượt, 2 chưa kết luận.
+
+Dạng tệp ngưỡng (repo **không chứa** tệp này; các con số trong bản nháp G7-D1 là đề xuất cho tới khi được ký):
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-g7-holdout-thresholds",
+  "decision": "G7-D1",
+  "signedBy": "<người ký>",
+  "signedAt": "<ngày giờ ISO>",
+  "aggregation": "every_run",
+  "minRuns": 3,
+  "thresholds": {
+    "leaks": { "max": 0 },
+    "successRateOverall": { "min": 0 }
+  }
+}
+```
+
+Khoá hợp lệ trong `thresholds`: `outsideAllowlistCases`, `unauthorizedWrites`, `leaks`, `staleApplied`, `modelLatencyP50Ms`,
+`modelLatencyP95Ms` (mỗi khoá dạng `{"max": n}`) và `numericPassRate`, `successRateOverall`, `successRateGroupMin` (dạng
+`{"min": n}`); các giá trị trong ví dụ chỉ để minh hoạ cú pháp. Tệp thiếu `signedBy`/`signedAt`, khoá lạ, sai chiều so sánh hoặc
+`aggregation` khác `every_run` bị từ chối.
+
+### Giới hạn đã biết của bản v1
+
+- Quyền viewer và thu hồi quyền được mô phỏng trong backend (không có người dùng thứ hai); lượt ghi được đếm chứ không áp lên fixture.
+- "Ghi đè im lặng" và "mất bản nháp đã xác nhận" chưa đo được ở mức ca (không có chỉ báo xác định); báo cáo ghi rõ điều này.
+- Adapter v1 suy đáp án từ dòng báo cáo: giá trị khớp nhưng sai anchor được đếm riêng (`anchorLenient`), không giấu.
