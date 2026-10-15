@@ -371,6 +371,41 @@ describe("MeetingDetailView", () => {
     success.mockRestore();
   });
 
+  it("lets the host restore a cancelled meeting whose time is still ahead", async () => {
+    const success = vi.spyOn(toast, "success");
+    const cancelled = { ...meeting, status: "CANCELED", version: 4 };
+    rosterMock((p, method) => {
+      if (p === "/api/v1/meetings/m1" && method === undefined) return Promise.resolve({ meeting: cancelled });
+      if (p === "/api/v1/meetings/m1/restore" && method === "POST") return Promise.resolve({ meeting: { ...meeting, version: 5 } });
+      return undefined;
+    });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Khôi phục" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1/restore",
+        expect.objectContaining({ method: "POST", body: { version: 4 } }),
+      ),
+    );
+    await waitFor(() => expect(success).toHaveBeenCalledWith("Đã khôi phục cuộc họp"));
+    success.mockRestore();
+  });
+
+  it("offers no restore once the cancelled meeting's time has passed", async () => {
+    const past = {
+      ...meeting,
+      status: "CANCELED",
+      starts_at: "2026-08-28T02:00:00Z",
+      ends_at: "2026-08-28T02:30:00Z",
+    };
+    rosterMock((p, method) => (p === "/api/v1/meetings/m1" && method === undefined ? Promise.resolve({ meeting: past }) : undefined));
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Khôi phục" })).not.toBeInTheDocument();
+  });
+
   it("lists who is in ahead of notes in reading order, for small screens", async () => {
     rosterMock();
     render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
