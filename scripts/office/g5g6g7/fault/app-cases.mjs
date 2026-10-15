@@ -8,7 +8,12 @@
 //
 //   bash scripts/office/g5g6g7/harness/start.sh                 # D server + web + fork build
 //   dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh \
-//     node scripts/office/g5g6g7/fault/app-cases.mjs [--case FQ-22] [--run-dir <dir>]
+//     node scripts/office/g5g6g7/fault/app-cases.mjs [--case FQ-22] [--run-dir <dir>] [--exits a-b]
+//
+// `--exits a-b` (1-based, inclusive; `--exits n` for one exit) runs only that
+// slice of the row's exits, for a row longer than one capped cloud command can
+// hold: the skipped exits print `SKIPPED - outside --exits a-b` and a sliced row
+// never reports PASS (app-cases-exits.mjs, matrix §4).
 //
 // Per run (one per exit of a multi-exit row): a fresh document, a fresh userData
 // dir, a fresh app signed in as the app's account, the row's proxy rules, the
@@ -31,6 +36,7 @@ import {
   BLOCKED_EXIT_CODE, appTraceArtifacts, blockedAfterFailure, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
   noServerReason, parseTraceText, predictedFor, runEvidenceOf, runExitCode, runResult, selectAppCases,
 } from "./app-cases-lib.mjs";
+import { ExitRangeError, parseExitRange, partialCaseResult, partialLabel, selectExitRange, skippedExitLine } from "./app-cases-exits.mjs";
 import { guardCaseResult, harnessDownReason, seedBehindGuard } from "./app-process-guard.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
@@ -47,8 +53,14 @@ const FIXTURES_MANIFEST = resolve(REPO_ROOT, "docs", "office", "g5g6g7", "fixtur
 const DRIVERS = { ...QUEUE_DRIVERS, ...BLOCKED_DRIVERS };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** One run per exit of a row: its own `exits` array, then the driver's extra exits. */
+const runsOfRow = (row) => [
+  ...expandExits(row),
+  ...(EXTRA_EXITS[row.id] ?? []).map((exit, i) => ({ index: (row.exits?.length ?? 0) + i + 1, label: exit.exit, exit })),
+];
+
 export function parseAppCasesArgs(argv = [], env = process.env) {
-  const out = { caseId: null, runDir: resolve(env.HARNESS_RUN_DIR?.trim() || join(REPO_ROOT, ".harness-run")), casesPath: DEFAULT_CASES_PATH, verifyResult: false };
+  const out = { caseId: null, runDir: resolve(env.HARNESS_RUN_DIR?.trim() || join(REPO_ROOT, ".harness-run")), casesPath: DEFAULT_CASES_PATH, verifyResult: false, exits: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = String(argv[i]);
     const [flag, inline] = arg.includes("=") ? [arg.slice(0, arg.indexOf("=")), arg.slice(arg.indexOf("=") + 1)] : [arg, null];
@@ -56,9 +68,12 @@ export function parseAppCasesArgs(argv = [], env = process.env) {
     if (flag === "--case") out.caseId = value() || null;
     else if (flag === "--run-dir") out.runDir = resolve(value());
     else if (flag === "--cases-file") out.casesPath = resolve(value());
+    else if (flag === "--exits") out.exits = parseExitRange(value());
     else if (flag === "--verify-result") out.verifyResult = true;
     else throw new Error(`unknown argument ${arg}`);
   }
+  // a range names exits of one row: without --case there is no row to slice
+  if (out.exits && !out.caseId) throw new ExitRangeError(`--exits ${out.exits.label} needs --case <id>`);
   return out;
 }
 
@@ -279,9 +294,11 @@ async function runOne({ row, run, runs, caseDir, shared }) {
  * `deps` lets a test stand in for what needs a live stack (Playwright, the
  * /healthz probes, the tenant seed); the run itself uses the real ones.
  */
-export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_CASES_PATH, deps = {} } = {}) {
+export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_CASES_PATH, exits = null, deps = {} } = {}) {
   const { loadPlaywright: load = loadPlaywright, preconditions: precheck = preconditions, harnessDown: probe = harnessDown, seedAppTenant: seed = seedAppTenant } = deps;
   const { runnable, blocked } = selectAppCases(loadFaultCases(casesPath), { caseId });
+  // a range that names no exit of its own row is a usage error, before anything runs
+  for (const row of runnable) selectExitRange(runsOfRow(row), exits, row.id);
   const ports = readEnvFile(harnessPaths(runDir).envFile);
   const serverEnv = readEnvFile(join(runDir, "server.env"));
   const forkSha = process.env.OFFICE_FORK_SHA?.trim() || ports.OFFICE_FORK_SHA || DEFAULT_FORK_SHA;
@@ -349,16 +366,24 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
         results.push(result);
         continue;
       }
-      const runs = [...expandExits(row), ...(EXTRA_EXITS[row.id] ?? []).map((exit, i) => ({ index: (row.exits?.length ?? 0) + i + 1, label: exit.exit, exit }))];
+      const runs = runsOfRow(row);
+      // --exits narrows the row to a slice: the skipped exits are reported, never
+      // counted, and the row can then no longer be a PASS (app-cases-exits.mjs)
+      const { ran, skipped } = selectExitRange(runs, exits, row.id);
+      const skippedRuns = new Set(skipped);
       const runResults = [];
       for (const run of runs) {
+        if (skippedRuns.has(run)) {
+          process.stdout.write(`${skippedExitLine(row.id, run, runs.length, exits)}\n`);
+          continue;
+        }
         // a multi-exit row stops at the first exit that would start against a dead server
-        if (run !== runs[0] && (await probe(runnerApi, runDir))) break;
+        if (run !== ran[0] && (await probe(runnerApi, runDir))) break;
         // N-1: an exit after a FAILed one would start on a state the failure may have polluted
-        const skipped = blockedAfterFailure(run, runResults);
-        if (skipped) {
-          process.stdout.write(`${row.id} [${run.index}/${runs.length}] ${run.label}: BLOCKED — ${skipped.blocker}\n`);
-          runResults.push(skipped);
+        const skippedByFailure = blockedAfterFailure(run, runResults);
+        if (skippedByFailure) {
+          process.stdout.write(`${row.id} [${run.index}/${runs.length}] ${run.label}: BLOCKED — ${skippedByFailure.blocker}\n`);
+          runResults.push(skippedByFailure);
           continue;
         }
         process.stdout.write(`${row.id}${runs.length > 1 ? ` [${run.index}/${runs.length}] ${run.label}` : ""}: running\n`);
@@ -366,9 +391,10 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
       }
       // the guard after the case: a server that died during it leaves no FAIL to read
       downReason = await probe(runnerApi, runDir);
-      const result = finishCase(row, guardCaseResult(caseResult(row, runResults), downReason, { complete: runResults.length === runs.length }), caseDir, runDir, forkSha);
+      const whole = guardCaseResult(caseResult(row, runResults), downReason, { complete: runResults.length === ran.length });
+      const result = finishCase(row, partialCaseResult(whole, { range: exits, total: runs.length, skipped }), caseDir, runDir, forkSha);
       if (downReason) process.stdout.write(`HARNESS_DOWN after ${row.id}: ${downReason}; no further app row runs\n`);
-      process.stdout.write(`${row.id}: ${result.result}${result.predicted ? ` (predicted ${result.predicted})` : ""}${result.infraFailure ? ` (infra: ${result.infraFailure})` : ""}\n`);
+      process.stdout.write(`${row.id}: ${result.result}${result.predicted ? ` (predicted ${result.predicted})` : ""}${result.infraFailure ? ` (infra: ${result.infraFailure})` : ""}${exits && skipped.length ? ` ${partialLabel(exits, runs.length)}` : ""}\n`);
       // a FAIL is read from the log: its full trace and sync requests, not a truncated dump
       for (const run of runResults) for (const text of failEvidenceLines(row.id, run)) process.stdout.write(`${text}\n`);
       results.push(result);
@@ -391,6 +417,7 @@ if (isMainModule({ moduleUrl: import.meta.url })) {
     process.exit(exitCode);
   })().catch((error) => {
     process.stderr.write(`app-cases.mjs: ${error.message}\n`);
-    process.exit(1);
+    // a bad --exits value (or --exits without --case) is a usage error, not a red case
+    process.exit(error instanceof ExitRangeError ? 2 : 1);
   });
 }

@@ -171,6 +171,15 @@ không chạy gì và ghi BLOCKED với lý do `pending <dep>`. Dòng cuối c�
 (`<run-dir>/fault`, thư mục của ca là `<id>/`); với `--verify-result` là `<run-dir>/fault/<id>`. Một ca FAIL của runner
 app in thêm trace intent đầy đủ và các request đồng bộ của tài liệu (`FQ-xx [lối ra] trace …` / `proxy …`) trước dòng đó.
 
+**Cắt dải lối ra (runner app, FIX-15).** Runner app thêm cờ `--exits a-b` (1-based, tính cả hai đầu; `--exits n`
+cho một lối ra) chỉ chạy dải đó của hàng `--case`, vì một lệnh cloud bị trần ~30 phút còn hàng FQ-43 (9 lối ra) và
+FQ-50 (5 lối ra) cần lâu hơn. Lối ra ngoài dải in `<id> [k/N] <label>: SKIPPED - outside --exits a-b` và **không** tính
+là PASS, FAIL hay BLOCKED; `result.json` ghi `exitRange: {from, to, of, skipped}`; một hàng còn lối ra bị bỏ không bao
+giờ PASS — kết quả hàng là mức xấu nhất của các lối ra đã chạy và dòng hàng in `partial a-b of N` (đủ dải thì chỉ ghi
+`exitRange`, hàng vẫn PASS được). Một FAIL không nhãn trước đó chỉ chặn các lối ra sau **trong dải**. Dải sai, hoặc
+`--exits` không đi cùng `--case`, là lỗi dùng cờ: thoát `2` (khác cờ lạ ở trên, thoát `1`); không có `--exits` thì mọi
+thứ như cũ.
+
 **Một dòng bằng chứng mỗi (ca, AC).** Chính runner ghi sổ bằng chứng: sau mỗi ca nó gọi `runEvidence` (thư viện của
 `scripts/office/g5g6g7/evidence.mjs run`) một lần cho mỗi AC của hàng, trên fixture của hàng (mọi AC khai báo fixture
 đó — test kiểm), với lệnh đọc lại kết quả `node …/<runner>.mjs --case <id> --run-dir <dir> --verify-result` và artifact
