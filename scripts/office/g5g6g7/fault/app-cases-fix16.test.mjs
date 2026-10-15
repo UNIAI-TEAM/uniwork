@@ -8,10 +8,28 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { SYNC_STORE_BUDGET_BYTES, syncStoreScopeDir } from "./app-cases-lib.mjs";
+import { signOut, signedOutFacts } from "./app-session.mjs";
 import { deactivateApp, reactivateApp } from "./app-tenant.mjs";
 
 const FAULT_DIR = fileURLToPath(new URL(".", import.meta.url));
 const driver = readFileSync(join(FAULT_DIR, "app-case-drivers-blocked.mjs"), "utf8");
+
+/** A session whose renderer is the shell page (window + window.aiOffice). */
+function fakeSession(inWindow, calls) {
+  return {
+    app: { evaluate: async (_fn, answers) => { calls.push({ call: "native-dialog", answers }); return undefined; } },
+    shell: {
+      evaluate: async (fn) => {
+        globalThis.window = inWindow;
+        try {
+          return await fn();
+        } finally {
+          delete globalThis.window;
+        }
+      },
+    },
+  };
+}
 
 /** A tenant as seedAppTenant builds it; the owner carries a fresh-enough token. */
 const tenant = {
@@ -55,6 +73,33 @@ test("the member deactivate/reactivate calls carry the organization SLUG, not it
     assert.equal(request.headers.authorization, "Bearer owner-token");
   }
   assert.ok(!sent.some((request) => request.url.includes(tenant.orgId)), "the org id is never in the path");
+});
+
+test("signOut answers the G5-11 S3 prompt the way the product's UI does", async () => {
+  const calls = [];
+  const session = fakeSession({ aiOffice: { accountLogout: (options) => { calls.push({ call: "logout", options }); } } }, calls);
+  await signOut(session);
+  // unconfirmed, an explicit sign-out with a pending intent waits on a prompt the
+  // runner never answers: r13's FQ-51 exits 2-3 hung to the 420 s cap on it.
+  assert.deepEqual(calls, [
+    { call: "native-dialog", answers: [0] },
+    { call: "logout", options: { confirmed: true } },
+  ]);
+});
+
+test("the signed-out facts probe reports a missing sync center instead of throwing", async () => {
+  const facts = await signedOutFacts(fakeSession({}, []));
+  assert.equal(facts.status, null);
+  assert.equal(facts.lockedCount, null);
+  assert.match(String(facts.error), /getSnapshot/);
+});
+
+test("FQ-51's signed-out exits assert the surfaces that carry the signed_out reason", () => {
+  // the queue trace has no `signed_out` code (BLOCKED_REASONS, machine.ts:125-137);
+  // the reason lives in the session lock and the sync center summary
+  assert.match(driver, /signed_out_row_locked/);
+  assert.match(driver, /no_dispatch_while_signed_out/);
+  assert.doesNotMatch(driver, /blocked_signed_out/);
 });
 
 test("FQ-53's fill reaches the G5-11 store budget (1 GiB), not the G5-04 one (256 MiB)", () => {

@@ -164,10 +164,43 @@ export async function waitSignedIn(session, timeoutMs = 45_000) {
   }, timeoutMs);
 }
 
+/**
+ * Signs the app out the way the product's own account UI does once the user
+ * answered its S3 prompt: `accountLogout({ confirmed: true })`
+ * (renderer/src/account-model.ts:409). G5-11 (fork 8455f377a) asks that prompt
+ * before an explicit sign-out with a working copy that is not in UniWork
+ * (`beforeSignOut` -> `confirmSignOut`, uniwork-docs/account-boundary.ts:174-201
+ * and wiring.ts:871-885, which sends UNIWORK_DOC_CHANNELS.signOutPrompt to the
+ * shell renderer). Only the renderer's answer resolves it, so an unconfirmed
+ * `accountLogout()` with a pending intent never settles: r13's FQ-51 exits 2-3
+ * hung to the 420 s cap on exactly that promise and died with
+ * `page.evaluate: Application exited` when the cap killed the app.
+ */
 export async function signOut(session) {
   await stubMessageBoxes(session, [0]);
-  await session.shell.evaluate(() => window.aiOffice.accountLogout());
+  await session.shell.evaluate(() => window.aiOffice.accountLogout({ confirmed: true }));
 }
+
+/**
+ * The signed-out facts of the sync center (`window.uniworkSyncCenter.getSnapshot()`,
+ * preload/index.ts:1566): the product's own "signed out, N encrypted local items
+ * are waiting on this device" summary (uniwork-sync/sync-center.ts:1184-1200,
+ * shared/sync-center.ts:213-219). `{status, lockedCount, error}`; the error is
+ * reported, never thrown, so a missing probe is an evidence line.
+ */
+export const signedOutFacts = (session) =>
+  session.shell
+    .evaluate(async () => {
+      const api = window.uniworkSyncCenter;
+      if (!api?.getSnapshot) return { status: null, lockedCount: null, error: "no uniworkSyncCenter.getSnapshot" };
+      try {
+        const snapshot = await api.getSnapshot();
+        return { status: snapshot?.header?.status ?? null, lockedCount: snapshot?.signedOut?.lockedCount ?? null };
+      } catch (error) {
+        return { status: null, lockedCount: null, error: String(error?.message ?? error) };
+      }
+    })
+    .catch((error) => ({ status: null, lockedCount: null, error: String(error?.message ?? error) }));
 
 /** Answers the next native message boxes of main in order (fork e2e answerMessageBoxes). */
 export async function stubMessageBoxes(session, responses) {

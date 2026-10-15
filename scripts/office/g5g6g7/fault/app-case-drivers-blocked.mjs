@@ -11,7 +11,7 @@ import {
   commitPosts, logSince, reachedUpstream, syncStoreScopeDir, uploadPosts,
 } from "./app-cases-lib.mjs";
 import { countAssertion, deltaAssertion, editAndSave, oneIntent, openFresh, pathAssertion, sameKey } from "./app-case-drivers.mjs";
-import { accountStatus, docStatus, edit, save, signIn, signOut } from "./app-session.mjs";
+import { accountStatus, docStatus, edit, save, signIn, signOut, signedOutFacts } from "./app-session.mjs";
 import {
   archiveDocument, deactivateApp, reactivateApp, restoreDocument, setDocumentVisibility, shareDocumentLevel, suspendOrg, unsuspendOrg,
 } from "./app-tenant.mjs";
@@ -241,18 +241,39 @@ async function fq51(ctx) {
       ],
     };
   }
-  // an intent parked offline, then the account signs out
+  // An intent parked offline, then the account signs out. G5-11 locks the
+  // session at sign-out: the queue session is stopped and its in-flight records
+  // are parked (uniwork-docs/service.ts:1936-2050), every working copy of the
+  // account is locked with reason `signed_out` (service.ts:2651-2666,
+  // EXPERIENCE › Lý do bị chặn :149) and the sync center reports the
+  // signed-out summary (sync-center.ts:1184-1200). The reason is a LOCK reason,
+  // not a queue code - `UniworkDocErrorCode` (home-api.ts:159-190) has no
+  // `signed_out` and `BLOCKED_REASONS` (queue/machine.ts:125-137) maps none, so
+  // the trace can never carry `blocked:signed_out`; the row's "blocked
+  // signed_out" is asserted on the two surfaces that do carry it.
   const { doc, session, opened } = await openFresh(ctx, { rules: [ctx.ruleOf({ id: "unreachable", match: { path: "^/api/v1/" }, action: { type: "reset" } })] });
   const since = ctx.now();
   await editAndSave(ctx, session, opened, "O");
   const parked = await ctx.waitState(doc.id, "paused_offline", { since, timeout: 60_000 });
-  await ctx.clearRules();
+  // the network stays cut across the sign-out: a parked intent must not race the
+  // lock and commit (r13's exits committed http=200 exactly that way while the
+  // sign-out was still waiting on its prompt)
   await signOut(session);
-  const signedOut = await ctx.waitState(doc.id, "blocked", { since, timeout: 60_000 });
+  const lockedAt = ctx.now();
+  const account = await accountStatus(session);
+  const signedOutFactsNow = await signedOutFacts(session);
+  await ctx.sleep(10_000);
+  const whileSignedOut = [...commitPosts(await ctx.proxyLog(), doc.id), ...uploadPosts(await ctx.proxyLog(), doc.id)]
+    .filter((e) => String(e.ts) >= lockedAt);
   const pre = [
     assertion("parked_offline", "paused_offline", parked?.to ?? "never", Boolean(parked)),
-    assertEntersWithCode("blocked_signed_out", ctx.trace(doc.id), "blocked", "signed_out"),
+    assertion("signed_out_before_sign_in", "the app is not logged in", account?.state ?? "unknown", account?.loggedIn === false),
+    assertion("signed_out_row_locked", "status signed_out with >= 1 locked item",
+      `${signedOutFactsNow.status ?? signedOutFactsNow.error ?? "none"}/locked=${signedOutFactsNow.lockedCount ?? "-"}`,
+      signedOutFactsNow.status === "signed_out" && Number.isInteger(signedOutFactsNow.lockedCount) && signedOutFactsNow.lockedCount >= 1),
+    assertion("no_dispatch_while_signed_out", 0, whileSignedOut.length, whileSignedOut.length === 0),
   ];
+  await ctx.clearRules();
   if (reason === "signed_out") {
     await signIn(session, ctx.tenant.apiOrigin, ctx.tenant.app);
     const done = await ctx.waitState(doc.id, "committed", { since, timeout: 180_000 });
@@ -276,7 +297,6 @@ async function fq51(ctx) {
     documentId: doc.id,
     assertions: [
       ...pre,
-      assertion("signed_out_entered_blocked", "blocked", signedOut?.to ?? "never", Boolean(signedOut)),
       countAssertion(ctx, "foreign_account_sends_nothing", "writesAfterForeignSignIn", writes.length),
       assertNeverState("foreign_account_never_dispatches", after, ["validating", "uploading", "committing", "committed"]),
       await deltaAssertion(ctx, doc.id),
