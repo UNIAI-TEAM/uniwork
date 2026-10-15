@@ -1,0 +1,4 @@
+$ cd server && go test -count=1 ./internal/ ./migrations/ 2>&1 | tail -4; echo "ARCH_MIG_EXIT=${PIPESTATUS[0]}"; cd ..
+ok  	github.com/unicomhub/uniwork/server/internal	1.244s
+ok  	github.com/unicomhub/uniwork/server/migrations	5.345s
+ARCH_MIG_EXIT=0

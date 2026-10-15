@@ -1,0 +1,7 @@
+$ pnpm --filter @uniwork/core exec vitest run api/endpoints/ai-office.test.ts i18n 2>&1 | tail -5; echo "CORE_EXIT=${PIPESTATUS[0]}"
+ Test Files  7 passed (7)
+      Tests  43 passed (43)
+   Start at  03:45:52
+   Duration  1.93s (transform 777ms, setup 855ms, import 1.21s, tests 231ms, environment 2.07s)
+
+CORE_EXIT=0

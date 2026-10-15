@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+e6cd8172661633119401781cae9d05347d81b55e
+e6cd81726 chore: merge G6-05m model chip D part (UNI-1632) into the G5-G7 root
+6121a30f8 chore: merge G6-05k org keys D part (UNI-1637) into the G5-G7 root
+d15ecd1c4 chore: merge G7-10 tracer (UNI-1379) into the G5-G7 root
