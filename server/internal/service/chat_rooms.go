@@ -27,11 +27,14 @@ const (
 
 // ChatRoomSummary is a dm, group, or channel room visible to the caller.
 type ChatRoomSummary struct {
-	ID                 string
-	Kind               string
-	Name               string
-	WorkspaceID        string
-	MemberUserIDs      []string
+	ID            string
+	Kind          string
+	Name          string
+	WorkspaceID   string
+	MemberUserIDs []string
+	// MemberCount is a channel's size, the caller included; a channel sends
+	// this instead of MemberUserIDs (0 for the default channel in the sidebar).
+	MemberCount        int
 	UnreadCount        int
 	MentionUnreadCount int
 	PeerUserID         string
@@ -645,6 +648,10 @@ func (s *ChatService) roomSummary(
 		ID: roomID, Kind: kind, Name: name, WorkspaceID: anchorWorkspaceID,
 		MemberUserIDs: memberIDs, UnreadCount: unread, MentionUnreadCount: mentionUnread,
 		MemberPermissions: memberPermissionsFromRaw(memberPermissions),
+	}
+	if kind == chatRoomKindChannel {
+		// Same shape as the sidebar row: a channel's size, not its roster.
+		out.MemberCount, out.MemberUserIDs = len(others), nil
 	}
 	if kind == chatRoomKindDM {
 		peerID := ""

@@ -614,7 +614,7 @@ func (s *ChatService) channelSummaryFromRoom(ctx context.Context, userID string,
 func channelSummaryFromMineRow(row db.ListChatChannelsMineRow) ChatRoomSummary {
 	sum := ChatRoomSummary{
 		ID: row.ID, Kind: row.Kind, Name: row.Name, WorkspaceID: textOrEmpty(row.WorkspaceID),
-		MemberUserIDs: row.MemberUserIds, UnreadCount: int(row.UnreadCount),
+		MemberCount: int(row.MemberCount), UnreadCount: int(row.UnreadCount),
 		MentionUnreadCount: int(row.MentionUnreadCount),
 		MemberPermissions:  memberPermissionsFromRaw(row.MemberPermissions),
 		Visibility:         row.Visibility, Topic: row.Topic, IsDefault: row.IsDefault,

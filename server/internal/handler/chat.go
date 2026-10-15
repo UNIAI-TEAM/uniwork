@@ -185,7 +185,7 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 	}
 	out := sdo.ChatRoomDTO{
 		ID: r.ID, Kind: r.Kind, Name: r.Name, WorkspaceID: r.WorkspaceID,
-		MemberUserIDs: memberIDs, UnreadCount: r.UnreadCount, MentionUnreadCount: r.MentionUnreadCount,
+		MemberUserIDs: memberIDs, MemberCount: r.MemberCount, UnreadCount: r.UnreadCount, MentionUnreadCount: r.MentionUnreadCount,
 		PeerUserID: r.PeerUserID, PeerEmail: r.PeerEmail, PeerDisplayName: r.PeerDisplayName,
 		LastMessageBody: r.LastMessageBody, LastMessageKind: r.LastMessageKind,
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,

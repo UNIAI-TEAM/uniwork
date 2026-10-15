@@ -176,7 +176,8 @@ type ChatRoomDTO struct {
 	Kind                  string                        `json:"kind" description:"dm, group, or channel" example:"channel"`
 	Name                  string                        `json:"name" description:"Room display name" example:"marketing"`
 	WorkspaceID           string                        `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	MemberUserIDs         []string                      `json:"member_user_ids" description:"Other member user ids" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
+	MemberUserIDs         []string                      `json:"member_user_ids" description:"Other member user ids (dm and group; empty for a channel)" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
+	MemberCount           int                           `json:"member_count,omitempty" description:"Channel members, the caller included (channels only)" example:"42"`
 	MentionUnreadCount    int                           `json:"mention_unread_count" description:"Unread messages that mention the caller" example:"1"`
 	UnreadCount           int                           `json:"unread_count" description:"Unread messages for the caller" example:"3"`
 	PeerUserID            string                        `json:"peer_user_id,omitempty" description:"DM peer user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`

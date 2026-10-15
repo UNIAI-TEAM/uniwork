@@ -1280,13 +1280,12 @@ SELECT
       LIMIT 100
     ) mentioned
   ) AS mention_unread_count,
-  -- The default channel is the whole workspace; its roster is not a sidebar field.
-  ARRAY(
-    SELECT o.user_id FROM chat_room_members o
-    WHERE o.room_id = r.id AND NOT r.is_default
-      AND o.status IN ('invited', 'active') AND o.user_id != $1
-    ORDER BY o.user_id
-  )::text[] AS member_user_ids,
+  -- A channel carries its size, not its roster (up to 1,000 ids per row).
+  -- The default channel is the whole workspace; its size is not a sidebar field.
+  (
+    SELECT COUNT(*)::int FROM chat_room_members o
+    WHERE o.room_id = r.id AND NOT r.is_default AND o.status IN ('invited', 'active')
+  ) AS member_count,
   -- COALESCE: empty channels have no last_msg row; sqlc maps these as string.
   COALESCE(last_msg.body, '') AS last_message_body,
   COALESCE(last_msg.kind, '') AS last_message_kind,
@@ -1346,7 +1345,7 @@ type ListChatChannelsMineRow struct {
 	NotificationsMuted    bool               `json:"notifications_muted"`
 	UnreadCount           int32              `json:"unread_count"`
 	MentionUnreadCount    int32              `json:"mention_unread_count"`
-	MemberUserIds         []string           `json:"member_user_ids"`
+	MemberCount           int32              `json:"member_count"`
 	LastMessageBody       string             `json:"last_message_body"`
 	LastMessageKind       string             `json:"last_message_kind"`
 	LastMessageSenderID   string             `json:"last_message_sender_id"`
@@ -1383,7 +1382,7 @@ func (q *Queries) ListChatChannelsMine(ctx context.Context, arg ListChatChannels
 			&i.NotificationsMuted,
 			&i.UnreadCount,
 			&i.MentionUnreadCount,
-			&i.MemberUserIds,
+			&i.MemberCount,
 			&i.LastMessageBody,
 			&i.LastMessageKind,
 			&i.LastMessageSenderID,
