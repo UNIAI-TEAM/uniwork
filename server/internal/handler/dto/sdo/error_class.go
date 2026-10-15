@@ -46,6 +46,12 @@ var errorClassByCode = map[string]string{
 	// signature no longer verifies (G5-D1 row 15): the app drops its
 	// committed copy and keeps the locked drafts.
 	"offline_lease_revoked": "permission",
+	// DOC-05 (UNI-1628): an admin who administers a restricted document but
+	// holds no read level asked for its content (document_restricted, with
+	// fields.can_break_glass), or tried to grant themselves read access
+	// outside the audited break-glass path (break_glass_required).
+	"document_restricted":  "permission",
+	"break_glass_required": "permission",
 
 	// missing: unknown, or not visible to this actor.
 	"not_found": "missing",
