@@ -1,0 +1,6 @@
+$ bash scripts/office/g5g6g7/harness/stop.sh || true; for p in $(pgrep -f "next dev" || true); do c=$(readlink -f /proc/$p/cwd 2>/dev/null); case "$c" in "$PWD"/apps/web*) echo "stopping stale next dev pid $p cwd $c"; kill "$p";; esac; done; sleep 2; pgrep -af "next dev" || echo "no next dev left"; true
+harness: no pid file at /workspace/.harness-run/pids; nothing to stop
+stopping stale next dev pid 52170 cwd /workspace/apps/web
+stopping stale next dev pid 52191 cwd /workspace/apps/web
+stopping stale next dev pid 52192 cwd /workspace/apps/web
+59335 bash -c bash scripts/office/g5g6g7/harness/stop.sh || true; for p in $(pgrep -f "next dev" || true); do c=$(readlink -f /proc/$p/cwd 2>/dev/null); case "$c" in "$PWD"/apps/web*) echo "stopping stale next dev pid $p cwd $c"; kill "$p";; esac; done; sleep 2; pgrep -af "next dev" || echo "no next dev left"; true

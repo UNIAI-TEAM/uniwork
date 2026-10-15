@@ -1,0 +1,422 @@
+$ node --test scripts/office/g5g6g7/fault/*.test.mjs; echo "FAULT_UNIT_EXIT $?"; true
+TAP version 13
+# Subtest: every ready app row's expect is sound and resolves a version delta for every run
+ok 1 - every ready app row's expect is sound and resolves a version delta for every run
+  ---
+  duration_ms: 2.86366
+  ...
+# Subtest: deltaAssertion expects the run's expect.server.versionDelta and fails when the measured delta differs
+ok 2 - deltaAssertion expects the run's expect.server.versionDelta and fails when the measured delta differs
+  ---
+  duration_ms: 0.950024
+  ...
+# Subtest: a row whose expect.server.versionDelta changes changes what the driver expects
+ok 3 - a row whose expect.server.versionDelta changes changes what the driver expects
+  ---
+  duration_ms: 0.258429
+  ...
+# Subtest: the shared assertions take their numbers from ctx.expect
+ok 4 - the shared assertions take their numbers from ctx.expect
+  ---
+  duration_ms: 0.800038
+  ...
+# Subtest: no app driver compares a number of its own
+ok 5 - no app driver compares a number of its own
+  ---
+  duration_ms: 0.309574
+  ...
+# Subtest: every machine-readable expectation an app row carries is read by an app driver
+ok 6 - every machine-readable expectation an app row carries is read by an app driver
+  ---
+  duration_ms: 0.504845
+  ...
+# Subtest: selectAppCases runs the ready app rows and reports pending ones with their dependency
+ok 7 - selectAppCases runs the ready app rows and reports pending ones with their dependency
+  ---
+  duration_ms: 2.829154
+  ...
+# Subtest: every ready app row has a driver and every driver serves a ready row
+ok 8 - every ready app row has a driver and every driver serves a ready row
+  ---
+  duration_ms: 2.015256
+  ...
+# Subtest: the client assertions of every app row read the trace hook
+ok 9 - the client assertions of every app row read the trace hook
+  ---
+  duration_ms: 0.95018
+  ...
+# Subtest: FQ-42 drops the first commit so the intent reconciles, then the lookup only says in_flight
+ok 10 - FQ-42 drops the first commit so the intent reconciles, then the lookup only says in_flight
+  ---
+  duration_ms: 0.916248
+  ...
+# Subtest: parseTraceText keeps allow-listed keys and counts torn or foreign lines
+ok 11 - parseTraceText keeps allow-listed keys and counts torn or foreign lines
+  ---
+  duration_ms: 0.588395
+  ...
+# Subtest: an app row's intent-log.jsonl carries the documented keys on every line, mapped from the trace (matrix §4)
+ok 12 - an app row's intent-log.jsonl carries the documented keys on every line, mapped from the trace (matrix §4)
+  ---
+  duration_ms: 0.830261
+  ...
+# Subtest: intent-log attempt counts dispatch runs per intent; keyTag is null without exactly one commit key; empty trace -> empty files
+ok 13 - intent-log attempt counts dispatch runs per intent; keyTag is null without exactly one commit key; empty trace -> empty files
+  ---
+  duration_ms: 0.388478
+  ...
+# Subtest: the server rows' intent-log entries carry the same documented keys as the app rows' (one schema)
+ok 14 - the server rows' intent-log entries carry the same documented keys as the app rows' (one schema)
+  ---
+  duration_ms: 1.461695
+  ...
+# Subtest: matrix §4 documents the intent-log keys the runners write, and the app-trace artifact
+ok 15 - matrix §4 documents the intent-log keys the runners write, and the app-trace artifact
+  ---
+  duration_ms: 0.708427
+  ...
+# Subtest: filterTrace keeps one document, in order, optionally since a timestamp
+ok 16 - filterTrace keeps one document, in order, optionally since a timestamp
+  ---
+  duration_ms: 0.400939
+  ...
+# Subtest: statePath and matchStatePath: adjacency, '*' gaps and 'a|b' alternation
+ok 17 - statePath and matchStatePath: adjacency, '*' gaps and 'a|b' alternation
+  ---
+  duration_ms: 0.310316
+  ...
+# Subtest: transition assertions report the expected and the actual path
+ok 18 - transition assertions report the expected and the actual path
+  ---
+  duration_ms: 0.285929
+  ...
+# Subtest: proxy log helpers split commit, lookup and upload traffic per document
+ok 19 - proxy log helpers split commit, lookup and upload traffic per document
+  ---
+  duration_ms: 0.339848
+  ...
+# Subtest: expandExits runs each exit once; a row without exits is one run
+ok 20 - expandExits runs each exit once; a row without exits is one run
+  ---
+  duration_ms: 1.06347
+  ...
+# Subtest: runResult and caseResult: FAIL wins, PASS needs every run, a blocked run is never a PASS
+ok 21 - runResult and caseResult: FAIL wins, PASS needs every run, a blocked run is never a PASS
+  ---
+  duration_ms: 0.35891
+  ...
+# Subtest: runExitCode: ready rows decide; nothing ready ran is BLOCKED (77)
+ok 22 - runExitCode: ready rows decide; nothing ready ran is BLOCKED (77)
+  ---
+  duration_ms: 0.119402
+  ...
+# Subtest: predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL
+ok 23 - predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL
+  ---
+  duration_ms: 0.826649
+  ...
+# Subtest: FQ-40's reconciling -> committed exit is the predicted FAIL OQ-F11, no other exit is (Advisor qa-fault_local:10)
+ok 24 - FQ-40's reconciling -> committed exit is the predicted FAIL OQ-F11, no other exit is (Advisor qa-fault_local:10)
+  ---
+  duration_ms: 1.609391
+  ...
+# Subtest: a case is reported predicted only when every FAIL run is: an unpredicted FAIL is never hidden
+ok 25 - a case is reported predicted only when every FAIL run is: an unpredicted FAIL is never hidden
+  ---
+  duration_ms: 0.211466
+  ...
+# Subtest: app-cases.mjs --case <pending row>: exit 77, result.json written, the artifact directory is the last line
+ok 26 - app-cases.mjs --case <pending row>: exit 77, result.json written, the artifact directory is the last line
+  ---
+  duration_ms: 190.702319
+  ...
+# Subtest: app plumbing: attempt id, store scope, fault env through appEnv, env files, process tree
+ok 27 - app plumbing: attempt id, store scope, fault env through appEnv, env files, process tree
+  ---
+  duration_ms: 0.832086
+  ...
+# Subtest: parseAppCasesArgs reads --case, --run-dir, --cases-file and --verify-result
+ok 28 - parseAppCasesArgs reads --case, --run-dir, --cases-file and --verify-result
+  ---
+  duration_ms: 0.307068
+  ...
+# Subtest: deviceBCommit sends base_revision as a decimal string, like CommitDocumentVersionSDI
+ok 29 - deviceBCommit sends base_revision as a decimal string, like CommitDocumentVersionSDI
+  ---
+  duration_ms: 32.568673
+  ...
+# Subtest: authedRequest renews an expired session once on a 401 and retries once
+ok 30 - authedRequest renews an expired session once on a 401 and retries once
+  ---
+  duration_ms: 6.073574
+  ...
+# Subtest: authedRequest never loops: a second 401 is returned after one renewal
+ok 31 - authedRequest never loops: a second 401 is returned after one renewal
+  ---
+  duration_ms: 4.10497
+  ...
+# Subtest: a session older than the renew window is renewed before the request; a stub without password never is
+ok 32 - a session older than the renew window is renewed before the request; a stub without password never is
+  ---
+  duration_ms: 4.36857
+  ...
+# Subtest: totpCode matches the RFC 6238 SHA-1 vectors
+ok 33 - totpCode matches the RFC 6238 SHA-1 vectors
+  ---
+  duration_ms: 0.646605
+  ...
+# Subtest: login completes the MFA step with the enrolled secret; enrollTotp confirms with a live code
+ok 34 - login completes the MFA step with the enrolled secret; enrollTotp confirms with a live code
+  ---
+  duration_ms: 8.976602
+  ...
+# Subtest: expireStagedClaims reports the aged row count and BLOCKS a setup that aged nothing
+ok 35 - expireStagedClaims reports the aged row count and BLOCKS a setup that aged nothing
+  ---
+  duration_ms: 3.578035
+  ...
+# Subtest: a run's evidence carries the full trace and every sync request; FAIL runs print them
+ok 36 - a run's evidence carries the full trace and every sync request; FAIL runs print them
+  ---
+  duration_ms: 0.473673
+  ...
+# Subtest: case ids are unique and carry the card prefix
+ok 37 - case ids are unique and carry the card prefix
+  ---
+  duration_ms: 0.948625
+  ...
+# Subtest: the card AC lists in the file match the plan cards
+ok 38 - the card AC lists in the file match the plan cards
+  ---
+  duration_ms: 0.498469
+  ...
+# Subtest: every AC a card lists appears in at least one of its rows
+ok 39 - every AC a card lists appears in at least one of its rows
+  ---
+  duration_ms: 0.233194
+  ...
+# Subtest: the version delta in the matrix row is the version delta in cases.json expect
+ok 40 - the version delta in the matrix row is the version delta in cases.json expect
+  ---
+  duration_ms: 7.106694
+  ...
+# Subtest: a row lists only AC rows of its own card
+ok 41 - a row lists only AC rows of its own card
+  ---
+  duration_ms: 0.276351
+  ...
+# Subtest: every row has a layer, an expectation, artifacts and a status
+ok 42 - every row has a layer, an expectation, artifacts and a status
+  ---
+  duration_ms: 1.434662
+  ...
+# Subtest: pending rows name a dependency and ready rows have none
+ok 43 - pending rows name a dependency and ready rows have none
+  ---
+  duration_ms: 0.275657
+  ...
+# Subtest: every G7-03b row is pending and notes the G5-D1 gate
+ok 44 - every G7-03b row is pending and notes the G5-D1 gate
+  ---
+  duration_ms: 0.14356
+  ...
+# Subtest: a row runs on a fixture every one of its AC rows declares
+ok 45 - a row runs on a fixture every one of its AC rows declares
+  ---
+  duration_ms: 0.358903
+  ...
+# Subtest: proxy rules follow the proxy contract
+ok 46 - proxy rules follow the proxy contract
+  ---
+  duration_ms: 0.574968
+  ...
+# Subtest: proxy forwards methods, rewrites Host to target, passes multipart intact, and never forwards control paths
+ok 47 - proxy forwards methods, rewrites Host to target, passes multipart intact, and never forwards control paths
+  ---
+  duration_ms: 34.824591
+  ...
+# Subtest: proxy proves delay, drop_request, drop_response_after_forward, status, reset, nth, once, and hold + release
+ok 48 - proxy proves delay, drop_request, drop_response_after_forward, status, reset, nth, once, and hold + release
+  ---
+  duration_ms: 96.857853
+  ...
+# Subtest: proxy log records required fields only and never logs bodies, Authorization, cookies, tokens or key values
+ok 49 - proxy log records required fields only and never logs bodies, Authorization, cookies, tokens or key values
+  ---
+  duration_ms: 10.685032
+  ...
+# Subtest: proxy passes WebSocket upgrade connections through and CLI prints FAULT_PROXY_ORIGIN
+ok 50 - proxy passes WebSocket upgrade connections through and CLI prints FAULT_PROXY_ORIGIN
+  ---
+  duration_ms: 46.030024
+  ...
+# Subtest: collect.mjs reads paginated document versions via public API, writes server-versions.json, and enforces FAULT_API_TOKEN from env only
+ok 51 - collect.mjs reads paginated document versions via public API, writes server-versions.json, and enforces FAULT_API_TOKEN from env only
+  ---
+  duration_ms: 10.052421
+  ...
+# Subtest: stripQuery removes query strings and fragments and normalizes full URLs
+ok 52 - stripQuery removes query strings and fragments and normalizes full URLs
+  ---
+  duration_ms: 0.63748
+  ...
+# Subtest: validateRule and validateRules accept all six action types and reject malformed rules
+ok 53 - validateRule and validateRules accept all six action types and reject malformed rules
+  ---
+  duration_ms: 1.10666
+  ...
+# Subtest: first matching rule wins and once rules disarm after the first hit
+ok 54 - first matching rule wins and once rules disarm after the first hit
+  ---
+  duration_ms: 0.473082
+  ...
+# Subtest: nth (1-based) triggers only on the nth matching request
+ok 55 - nth (1-based) triggers only on the nth matching request
+  ---
+  duration_ms: 1.116697
+  ...
+# Subtest: hold action blocks until release(ruleId) is called
+ok 56 - hold action blocks until release(ruleId) is called
+  ---
+  duration_ms: 15.148327
+  ...
+# Subtest: selectServerCases selects all 13 ready server rows or a single --case row
+ok 57 - selectServerCases selects all 13 ready server rows or a single --case row
+  ---
+  duration_ms: 1.30394
+  ...
+# Subtest: parseServerCasesArgs parses --case, --run-dir, env defaults, and rejects unknown flags
+ok 58 - parseServerCasesArgs parses --case, --run-dir, env defaults, and rejects unknown flags
+  ---
+  duration_ms: 0.268265
+  ...
+# Subtest: renderCaseRules renders server rules, substitutes <id>, and substitutes per-exit for FQ-43
+ok 59 - renderCaseRules renders server rules, substitutes <id>, and substitutes per-exit for FQ-43
+  ---
+  duration_ms: 1.045151
+  ...
+# Subtest: evaluateCaseResult, aggregateExitCode, and buildIntentLogEntry follow contract rules
+ok 60 - evaluateCaseResult, aggregateExitCode, and buildIntentLogEntry follow contract rules
+  ---
+  duration_ms: 0.814288
+  ...
+# Subtest: runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a fake transport
+ok 61 - runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a fake transport
+  ---
+  duration_ms: 27.799439
+  ...
+# Subtest: every expectation of a server row in cases.json is asserted by its driver: the version delta of every row, every other value mutated
+ok 62 - every expectation of a server row in cases.json is asserted by its driver: the version delta of every row, every other value mutated
+  ---
+  duration_ms: 180.347733
+  ...
+# Subtest: a driver reading an expectation its row lacks throws instead of falling back to a number of its own
+ok 63 - a driver reading an expectation its row lacks throws instead of falling back to a number of its own
+  ---
+  duration_ms: 0.461645
+  ...
+# Subtest: case-result.json carries {case, ac, result, assertions: [{name, expected, actual, ok}]} (matrix §4)
+ok 64 - case-result.json carries {case, ac, result, assertions: [{name, expected, actual, ok}]} (matrix §4)
+  ---
+  duration_ms: 22.266536
+  ...
+# Subtest: runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent
+ok 65 - runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent
+  ---
+  duration_ms: 2.325768
+  ...
+# Subtest: server-cases.mjs --case <id>: exit 77 without a harness, the artifact directory is the last line; --verify-result rereads it
+ok 66 - server-cases.mjs --case <id>: exit 77 without a harness, the artifact directory is the last line; --verify-result rereads it
+  ---
+  duration_ms: 182.782346
+  ...
+# Subtest: SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201
+ok 67 - SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201
+  ---
+  duration_ms: 0.102373
+  ...
+# Subtest: readVerificationCode reads the run's server.env, then the process env, then the harness default
+ok 68 - readVerificationCode reads the run's server.env, then the process env, then the harness default
+  ---
+  duration_ms: 0.440107
+  ...
+# Subtest: registerAndVerifyUser accepts register 200 and sends the run's verification code
+ok 69 - registerAndVerifyUser accepts register 200 and sends the run's verification code
+  ---
+  duration_ms: 0.613735
+  ...
+# Subtest: registerAndVerifyUser names the step and both statuses when the server answers otherwise
+ok 70 - registerAndVerifyUser names the step and both statuses when the server answers otherwise
+  ---
+  duration_ms: 0.192675
+  ...
+# Subtest: seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently
+ok 71 - seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently
+  ---
+  duration_ms: 0.571042
+  ...
+# Subtest: revisions go on the wire as decimal strings and are never a Number (sdi.CommitDocumentVersionSDI.base_revision)
+ok 72 - revisions go on the wire as decimal strings and are never a Number (sdi.CommitDocumentVersionSDI.base_revision)
+  ---
+  duration_ms: 0.249355
+  ...
+# Subtest: revisionGreater compares decimal strings exactly past 2^53
+ok 73 - revisionGreater compares decimal strings exactly past 2^53
+  ---
+  duration_ms: 0.072284
+  ...
+# Subtest: the fake server refuses a numeric base_revision like the real commit handler (400 invalid_request)
+ok 74 - the fake server refuses a numeric base_revision like the real commit handler (400 invalid_request)
+  ---
+  duration_ms: 0.231247
+  ...
+# Subtest: commit requests carry upload_id and a string base_revision, and the Idempotency-Key header
+ok 75 - commit requests carry upload_id and a string base_revision, and the Idempotency-Key header
+  ---
+  duration_ms: 0.210589
+  ...
+# Subtest: a lookup 410 is parsed from the real envelope {error:{code,fields}} and a 200 from CommitIntentSDO
+ok 76 - a lookup 410 is parsed from the real envelope {error:{code,fields}} and a 200 from CommitIntentSDO
+  ---
+  duration_ms: 0.258723
+  ...
+# Subtest: describeResponse names the error code of every refusal, not `undefined`
+ok 77 - describeResponse names the error code of every refusal, not `undefined`
+  ---
+  duration_ms: 0.05644
+  ...
+# Subtest: a conflict reads fields.current_revision from the envelope as a string revision
+ok 78 - a conflict reads fields.current_revision from the envelope as a string revision
+  ---
+  duration_ms: 0.331711
+  ...
+# Subtest: the AI turn sends {messages:[{role:user}]} and continues with the X-UniWork-AI-Conversation header
+ok 79 - the AI turn sends {messages:[{role:user}]} and continues with the X-UniWork-AI-Conversation header
+  ---
+  duration_ms: 0.291316
+  ...
+# Subtest: restore then move sends a string revision and parent_id, a folder is created with kind folder
+ok 80 - restore then move sends a string revision and parent_id, a folder is created with kind folder
+  ---
+  duration_ms: 0.258017
+  ...
+# Subtest: workspace member removal targets /workspaces/{ws}/members/{userId} and answers 204
+ok 81 - workspace member removal targets /workspaces/{ws}/members/{userId} and answers 204
+  ---
+  duration_ms: 0.085456
+  ...
+# Subtest: createWireContext builds each upload as a multipart file with the Idempotency-Key header
+ok 82 - createWireContext builds each upload as a multipart file with the Idempotency-Key header
+  ---
+  duration_ms: 0.198548
+  ...
+1..82
+# tests 82
+# suites 0
+# pass 82
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 613.214009
+FAULT_UNIT_EXIT 0
