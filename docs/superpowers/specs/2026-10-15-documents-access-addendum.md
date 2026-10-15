@@ -70,6 +70,8 @@
 
 ## 1. DOC-02 — giữ mặc định workspace, "Hạn chế" một chạm khi tạo
 
+> **Thay thế một phần (2026-10-15, SRS Share v1.0, quyết định U-SH2):** mặc định khi tạo ở gốc đổi thành **riêng tư**; công tắc đảo thành **"Chia sẻ với workspace"**, bỏ toast "Đã tạo ở chế độ Hạn chế" và huy hiệu "Hạn chế" — xem [phụ lục căn chỉnh SRS Share §4, §7](2026-10-15-documents-share-srs-addendum.md). Phần còn đúng của mục này: hợp đồng `visibility` ở ba route tạo, idempotency, capability `documents.create_visibility`, vai trò a11y của công tắc và các bề mặt không có công tắc.
+
 Luật đã ký: **mặc định vẫn là `workspace`** (DOC-01/03/04 đúng trong code, không đổi); lúc tạo có một nút "Hạn chế" bấm một lần là tài liệu mới sinh ra ở `restricted`.
 
 **Quy tắc:**
