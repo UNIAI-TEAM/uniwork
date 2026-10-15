@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+b5e0835f19af81bf2d8268588d3cbd7fd43f3bd9
+8c8e040bd21b9811d1271519035b28d2741dffd8
+b5e0835f1 fix(documents): gate the batch share like the single share (DOC-05)
+37c4e2a85 chore: merge the G5-G7 root (8c8e040bd) into card (a) for the UNI-1641 batch share
+8c8e040bd docs(adr): accept 0034, desktop uses the keys saved on UniWork through the BYOK proxy
+aff4e4bf6 docs(documents): one pending access request per person, re-request 1h after decline
+4042131b1 chore: merge UNI-1641 batch share (151f7c7a0) into the G5-G7 root
+228345bc5 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1413-g8-18-doc-05-server
+9797946f6 Merge branch 'feature/UNI-1413-g818-fix' into feature/UNI-1413-g8-18-doc-05-server
+50997166f test(handler): log a banner when ISO_ONLY narrows the isolation matrix
