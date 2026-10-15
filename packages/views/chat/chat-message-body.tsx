@@ -127,7 +127,7 @@ function renderMessageText(
   for (const match of body.matchAll(MENTION_PATTERN)) {
     const start = match.index ?? 0;
     if (start > last) out.push(...linkify(body.slice(last, start), classes.link, `s${last}`));
-    const [, label = "", kind, id] = match;
+    const [, label = "", kind, id = ""] = match;
     const name = kind === "all" ? allLabel : mentionLabel(label, id, nameContext);
     out.push(
       <span key={`m${start}`} className={classes.mention}>
