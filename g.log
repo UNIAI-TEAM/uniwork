@@ -1,0 +1,39 @@
+$ cd packages/views && npx vitest run documents/share-dialog.test.tsx documents/share-people-picker.test.tsx documents/share-dialog-members-error.test.tsx --reporter=verbose 2>&1 | grep -E "✓|×|FAIL|Tests "; echo "SHARE_TESTS_EXIT=${PIPESTATUS[0]}"
+ ✓ documents/share-dialog.test.tsx > ShareDialog > shows the real access list: my level, the ACL owner, grants and links 172ms
+ ✓ documents/share-people-picker.test.tsx > SharePeoplePicker > finds people without diacritics or by email and marks who already has access 199ms
+ ✓ documents/share-people-picker.test.tsx > SharePeoplePicker > adds a picked person to the selection 63ms
+ ✓ documents/share-people-picker.test.tsx > SharePeoplePicker > describes the count as plain text and keeps the live region silent below the cap 12ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > keeps a failed read with a retry 80ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > degrades to the manage-only note when the level drops while open 78ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > renders nothing at all for an owned document 14ms
+ ✓ documents/share-people-picker.test.tsx > SharePeoplePicker > removes the last chip on Backspace in an empty input and announces it 25ms
+ ✓ documents/share-people-picker.test.tsx > SharePeoplePicker > names the chevron button 17ms
+ ✓ documents/share-people-picker.test.tsx > SharePeoplePicker > bounds the chosen list with its own scroll so Level and Share stay in reach 43ms
+ ✓ documents/share-dialog-members-error.test.tsx > ShareDialog member loading errors > first page fails: error line + Retry, rows stay neutral, Retry names them 242ms
+ ✓ documents/share-people-picker.test.tsx > SharePeoplePicker > gives the popup room and keeps the whole name, truncating only the email 62ms
+ ✓ documents/share-people-picker.test.tsx > SharePeoplePicker > disables unpicked people at the 50-person cap and says why 247ms
+ ✓ documents/share-dialog-members-error.test.tsx > ShareDialog member loading errors > later page fails: page-1 people stay pickable, error line shown, Retry resumes the walk 351ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > shares a workspace principal at the chosen level and clears the picker 540ms
+ ✓ documents/share-dialog-members-error.test.tsx > ShareDialog member loading errors > page bound hit with a cursor left: says so and offers no Retry 410ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > keeps the picked people and shows the message when the batch fails 141ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > shares three people at one level with ONE batch POST and lists the three grants 238ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > names the refused person on a 422 principal_not_in_organization and lists nothing new 176ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > removes a picked person with the chip's own button 109ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > drops the picked people when the principal type moves away from person 215ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > drops the picked people when the dialog closes and opens again 118ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > revokes one grant without touching the others 36ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > saves a visibility change on the revision it read 44ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > keeps a failed visibility change with its message 50ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > shows a freshly minted link URL exactly once, with the lost-token hint 61ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > resolves a path-only link URL on the app origin so the copy works outside the app 49ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > keeps the organization picked after an organization grant 120ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > explains the link limit without leaving the dialog 46ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > points at the settings when the organization switch is off 53ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > revokes a public link 41ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > loads every member page so a person past the first page is pickable and shared 110ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > never shows the ACL owner's raw id, and names them once their page arrives 41ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > shows a neutral label for an ACL owner who is not a listed member 31ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > keeps a grant row's name in a shrinkable slot with the level text below it 36ms
+ ✓ documents/share-dialog.test.tsx > ShareDialog > gives the people picker the full row when the principal is a person 33ms
+      Tests  36 passed (36)
+SHARE_TESTS_EXIT=0

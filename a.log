@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -5; git diff --stat 4042131b1 HEAD -- packages server | tail -3
+371eb173336e59cf4dfe340cb0f916b97bdb54b1
+371eb1733 chore: merge the G5-G7 root (8c8e040bd) into UNI-1778 before cloud tests
+55181aff1 test(documents): cover member loading errors in the share dialog
+15cfad841 fix(documents): show a retry line when the share dialog's member walk fails
+8c8e040bd docs(adr): accept 0034, desktop uses the keys saved on UniWork through the BYOK proxy
+aff4e4bf6 docs(documents): one pending access request per person, re-request 1h after decline
+ packages/views/documents/share-members-error.tsx   |  47 +++++
+ packages/views/documents/use-share-members.ts      |  34 +++-
+ 6 files changed, 284 insertions(+), 5 deletions(-)
