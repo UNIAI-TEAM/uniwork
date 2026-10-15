@@ -1,0 +1,40 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/docs -- vitest run tests/g6-09b-image-url-rule.test.ts tests/g6-12-url-fetch-guard.test.ts --reporter=verbose; rc=$?; echo; echo "DOCS_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ✓ tests/g6-12-url-fetch-guard.test.ts > docs ai:fetch-image keeps the SSRF guard > refuses private, loopback, link-local and non-http targets without a request 5ms
+ ✓ tests/g6-12-url-fetch-guard.test.ts > docs ai:fetch-image keeps the SSRF guard > re-checks a redirect hop and refuses one that lands on a private host 1ms
+ ✓ tests/g6-12-url-fetch-guard.test.ts > docs ai:fetch-image keeps the SSRF guard > downloads a public image (the guard is not a blanket refusal) 2ms
+ ✓ tests/g6-12-url-fetch-guard.test.ts > docs ai:fetch-image keeps the size cap > is 50 MB 0ms
+ ✓ tests/g6-12-url-fetch-guard.test.ts > docs ai:fetch-image keeps the size cap > refuses a body whose Content-Length is over the cap 1ms
+ ✓ tests/g6-12-url-fetch-guard.test.ts > docs ai:fetch-image keeps the size cap > refuses a streamed body that grows past the cap without a Content-Length 1ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_image refuses an unregistered URL and fetches nothing 66ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_picture refuses an unregistered URL and fetches nothing 15ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > set_watermark refuses an unregistered URL and fetches nothing 9ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_image refuses an unregistered data: URL 8ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_picture refuses an unregistered data: URL 9ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > set_watermark refuses an unregistered data: URL 10ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_image accepts a URL image_search returned this run 8ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_picture accepts a URL image_search returned this run 7ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > set_watermark accepts a URL image_search returned this run 9ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_image accepts a URL generate_image returned this run 9ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_picture accepts a URL generate_image returned this run 6ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > set_watermark accepts a URL generate_image returned this run 7ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > accepts an image the user attached to the chat (registered at run start) 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_image refuses a URL from a PREVIOUS run 6ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_picture refuses a URL from a PREVIOUS run 8ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > set_watermark refuses a URL from a PREVIOUS run 6ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > keeps the shape error first for a non-URL 5ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > begins a new run from the skill context (one buildContext per loop.run) 6ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule for BYOK > insert_image keeps today's rules: an unregistered URL is fetched 5ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule for BYOK > insert_picture keeps today's rules: an unregistered URL is fetched 7ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule for BYOK > set_watermark keeps today's rules: an unregistered URL is fetched 5ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > docs image URL rule for BYOK > still records what image_search returned 5ms
+
+ Test Files  2 passed (2)
+      Tests  28 passed (28)
+   Start at  20:53:24
+   Duration  3.19s (transform 3.19s, setup 0ms, import 4.38s, tests 233ms, environment 646ms)
+
+
+DOCS_TARGETED_EXIT=0

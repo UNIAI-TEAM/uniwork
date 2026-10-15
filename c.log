@@ -1,0 +1,509 @@
+$ git checkout -q 2fcc97813 -- . ; AI_PROVIDER=fake npm exec -w @genoffice/docs -- vitest run tests/g6-09b-image-url-rule.test.ts; a=$?; AI_PROVIDER=fake npm exec -w @genoffice/markdown -- vitest run tests/g6-09b-image-url-rule.test.ts; b=$?; AI_PROVIDER=fake npm exec -w @genoffice/sheets -- vitest run tests/g6-09b-image-url-rule.test.ts; c=$?; AI_PROVIDER=fake npm exec -w @genoffice/pdf -- vitest run tests/g6-09b-image-url-rule.test.ts; d=$?; git reset -q --hard HEAD; echo; echo "RED_N3 docs=$a md=$b sheets=$c pdf=$d"; [ $a -ne 0 ] && [ $b -ne 0 ] && [ $c -ne 0 ] && [ $d -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ❯ tests/g6-09b-image-url-rule.test.ts (22 tests | 13 failed) 40244ms
+     × insert_image refuses an unregistered URL and fetches nothing 70ms
+     × insert_picture refuses an unregistered URL and fetches nothing 16ms
+     × set_watermark refuses an unregistered URL and fetches nothing 10ms
+     × insert_picture refuses an unregistered data: URL 20002ms
+     × set_watermark refuses an unregistered data: URL 20013ms
+     × insert_image accepts a URL generate_image returned this run 11ms
+     × insert_picture accepts a URL generate_image returned this run 8ms
+     × set_watermark accepts a URL generate_image returned this run 8ms
+     × insert_image refuses a URL from a PREVIOUS run 8ms
+     × insert_picture refuses a URL from a PREVIOUS run 8ms
+     × set_watermark refuses a URL from a PREVIOUS run 7ms
+     × begins a new run from the skill context (one buildContext per loop.run) 8ms
+     × still records what image_search returned 9ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 13 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_image refuses an unregistered URL and fetches nothing
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_picture refuses an unregistered URL and fetches nothing
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > set_watermark refuses an unregistered URL and fetches nothing
+AssertionError: expected 'download failed (the image may not be…' to be 'This image URL was not accepted: only…' // Object.is equality
+
+Expected: "This image URL was not accepted: only an image URL returned by image_search or generate_image in this request, or an image the user attached to the chat, can be inserted. Use image_search or generate_image to get one, or ask the user to attach the image. Nothing was downloaded."
+Received: "download failed (the image may not be accessible)"
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:92:22
+     90|     expect(r.isError).toBe(true)
+     91|     expect(r.mutated).toBeFalsy()
+     92|     expect(r.output).toBe(IMAGE_URL_REFUSAL)
+       |                      ^
+     93|     expect(fetchImage).not.toHaveBeenCalled()
+     94|     expect(watermarkSet).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/13]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_picture refuses an unregistered data: URL
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > set_watermark refuses an unregistered data: URL
+Error: Test timed out in 20000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/g6-09b-image-url-rule.test.ts:97:16
+     95|   })
+     96|
+     97|   it.each(TOOLS)('%s refuses an unregistered data: URL', async (name, …
+       |                ^
+     98|     const { run, fetchImage } = setup(true)
+     99|     // set_watermark and insert_picture take data: URLs today; insert_…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/13]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_image accepts a URL generate_image returned this run
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_picture accepts a URL generate_image returned this run
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > set_watermark accepts a URL generate_image returned this run
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:117:44
+    115|     const { run, fetchImage, imageUrls } = setup(true)
+    116|     await run('generate_image', { prompt: 'a fox' })
+    117|     expect(imageUrls.isAllowed(GENERATED)).toBe(true)
+       |                                            ^
+    118|     fetchImage.mockClear()
+    119|     const r = await run(name, input(GENERATED))
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/13]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_image refuses a URL from a PREVIOUS run
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > insert_picture refuses a URL from a PREVIOUS run
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > set_watermark refuses a URL from a PREVIOUS run
+AssertionError: expected 'download failed (the image may not be…' to be 'This image URL was not accepted: only…' // Object.is equality
+
+Expected: "This image URL was not accepted: only an image URL returned by image_search or generate_image in this request, or an image the user attached to the chat, can be inserted. Use image_search or generate_image to get one, or ask the user to attach the image. Nothing was downloaded."
+Received: "download failed (the image may not be accessible)"
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:139:22
+    137|     const r = await run(name, input(FOUND))
+    138|     expect(r.isError).toBe(true)
+    139|     expect(r.output).toBe(IMAGE_URL_REFUSAL)
+       |                      ^
+    140|     expect(fetchImage).not.toHaveBeenCalled()
+    141|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/13]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule under UniWork AI > begins a new run from the skill context (one buildContext per loop.run)
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:161:40
+    159|     imageUrls.register(FOUND, 'image_search')
+    160|     skill.buildContext?.()
+    161|     expect(imageUrls.isAllowed(FOUND)).toBe(false)
+       |                                        ^
+    162|   })
+    163| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/13]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > docs image URL rule for BYOK > still records what image_search returned
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:176:40
+    174|     const { run, imageUrls } = setup(false)
+    175|     await run('image_search', { query: 'cat' })
+    176|     expect(imageUrls.isAllowed(FOUND)).toBe(true)
+       |                                        ^
+    177|   })
+    178| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/13]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  13 failed | 9 passed (22)
+   Start at  20:52:28
+   Duration  43.43s (transform 2.09s, setup 0ms, import 2.77s, tests 40.24s, environment 324ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ❯ tests/g6-09b-image-url-rule.test.ts (8 tests | 5 failed) 163ms
+     × insert_image refuses an unregistered URL and fetches nothing 80ms
+     × insert_image accepts the URL generate_image returned this run 14ms
+     × insert_image refuses a URL from a PREVIOUS run 11ms
+     × begins a new run from the skill context (one buildContext per loop.run) 13ms
+     × still records what image_search returned 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > markdown image URL rule under UniWork AI > insert_image refuses an unregistered URL and fetches nothing
+AssertionError: expected 'download failed (the image may not be…' to be 'This image URL was not accepted: only…' // Object.is equality
+
+Expected: "This image URL was not accepted: only an image URL returned by image_search or generate_image in this request, or an image the user attached to the chat, can be inserted. Use image_search or generate_image to get one, or ask the user to attach the image. Nothing was downloaded."
+Received: "download failed (the image may not be accessible)"
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:68:22
+     66|     const r = await run('insert_image', { url: STRANGER })
+     67|     expect(r.isError).toBe(true)
+     68|     expect(r.output).toBe(IMAGE_URL_REFUSAL)
+       |                      ^
+     69|     expect(r.output).toContain('image_search')
+     70|     expect(fetchImage).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > markdown image URL rule under UniWork AI > insert_image accepts the URL generate_image returned this run
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:84:44
+     82|     const { run, fetchImage, imageUrls } = setup(true)
+     83|     await run('generate_image', { prompt: 'a fox' })
+     84|     expect(imageUrls.isAllowed(GENERATED)).toBe(true)
+       |                                            ^
+     85|     fetchImage.mockClear()
+     86|     const r = await run('insert_image', { url: GENERATED })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > markdown image URL rule under UniWork AI > insert_image refuses a URL from a PREVIOUS run
+AssertionError: expected 'download failed (the image may not be…' to be 'This image URL was not accepted: only…' // Object.is equality
+
+Expected: "This image URL was not accepted: only an image URL returned by image_search or generate_image in this request, or an image the user attached to the chat, can be inserted. Use image_search or generate_image to get one, or ask the user to attach the image. Nothing was downloaded."
+Received: "download failed (the image may not be accessible)"
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:97:22
+     95|     const r = await run('insert_image', { url: FOUND })
+     96|     expect(r.isError).toBe(true)
+     97|     expect(r.output).toBe(IMAGE_URL_REFUSAL)
+       |                      ^
+     98|     expect(fetchImage).not.toHaveBeenCalled()
+     99|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > markdown image URL rule under UniWork AI > begins a new run from the skill context (one buildContext per loop.run)
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:121:40
+    119|     imageUrls.register(FOUND, 'image_search')
+    120|     skill.buildContext?.()
+    121|     expect(imageUrls.isAllowed(FOUND)).toBe(false)
+       |                                        ^
+    122|   })
+    123| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > markdown image URL rule for BYOK > still records what image_search returned
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:136:40
+    134|     const { run, imageUrls } = setup(false)
+    135|     await run('image_search', { query: 'cat' })
+    136|     expect(imageUrls.isAllowed(FOUND)).toBe(true)
+       |                                        ^
+    137|   })
+    138| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 3 passed (8)
+   Start at  20:53:12
+   Duration  1.60s (transform 731ms, setup 0ms, import 952ms, tests 163ms, environment 379ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+ ❯ tests/g6-09b-image-url-rule.test.ts (13 tests | 8 failed) 28ms
+     × refuses the unregistered URL source https://img.example/stranger.png and applies nothing 13ms
+     × refuses the unregistered URL source http://img.example/a.png and applies nothing 3ms
+     × refuses the unregistered URL source data:image/png;base64,iVBORw0KGgo= and applies nothing 2ms
+     × refuses the unregistered URL source file:///store/generated/g1.png and applies nothing 1ms
+     × refuses a URL from a PREVIOUS run 2ms
+     × refuses the whole batch when one URL is unregistered (all-or-nothing) 1ms
+     × begins a new run from the skill context (one buildContext per loop.run) 1ms
+     × still records what image_search and generate_image returned 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses the unregistered URL source https://img.example/stranger.png and applies nothing
+ FAIL  tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses the unregistered URL source http://img.example/a.png and applies nothing
+ FAIL  tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses the unregistered URL source data:image/png;base64,iVBORw0KGgo= and applies nothing
+ FAIL  tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses the unregistered URL source file:///store/generated/g1.png and applies nothing
+AssertionError: expected 'Rejected — none of the 1 operation(s)…' to contain 'This image URL was not accepted: only…'
+
+Expected: "This image URL was not accepted: only an image URL returned by image_search or generate_image in this request, or an image the user attached to the chat, can be inserted. Use image_search or generate_image to get one, or ask the user to attach the image. Nothing was downloaded."
+Received: "Rejected — none of the 1 operation(s) were applied (a batch is all-or-nothing): reached proposeOperations"
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:98:24
+     96|       expect(r.isError).toBe(true)
+     97|       expect(r.mutated).toBeFalsy()
+     98|       expect(r.output).toContain(IMAGE_URL_REFUSAL)
+       |                        ^
+     99|       expect(r.output).toContain('image_search')
+    100|       expect(proposeOperations).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses a URL from a PREVIOUS run
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array [
+      Array [
+        Object {
+          "anchorCell": "B2",
+          "op": "add_image",
+          "path": "https://img.example/found.png",
+          "sheetId": "sheet-1",
+        },
+      ],
+      "insert images",
+    ]
+
+
+Number of calls: 1
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:124:35
+    122|     const r = await addImage(FOUND)
+    123|     expect(r.isError).toBe(true)
+    124|     expect(proposeOperations).not.toHaveBeenCalled()
+       |                                   ^
+    125|   })
+    126|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses the whole batch when one URL is unregistered (all-or-nothing)
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array [
+      Array [
+        Object {
+          "anchorCell": "B2",
+          "op": "add_image",
+          "path": "https://img.example/found.png",
+          "sheetId": "sheet-1",
+        },
+        Object {
+          "anchorCell": "B3",
+          "op": "add_image",
+          "path": "https://img.example/stranger.png",
+          "sheetId": "sheet-1",
+        },
+      ],
+      "insert images",
+    ]
+
+
+Number of calls: 1
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:132:35
+    130|     const r = await addImage(FOUND, STRANGER)
+    131|     expect(r.isError).toBe(true)
+    132|     expect(proposeOperations).not.toHaveBeenCalled()
+       |                                   ^
+    133|   })
+    134|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > begins a new run from the skill context (one buildContext per loop.run)
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:155:40
+    153|     imageUrls.register(FOUND, 'image_search')
+    154|     skill.buildContext?.()
+    155|     expect(imageUrls.isAllowed(FOUND)).toBe(false)
+       |                                        ^
+    156|   })
+    157| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > sheets image URL rule for BYOK > still records what image_search and generate_image returned
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:170:40
+    168|     await search()
+    169|     await generate()
+    170|     expect(imageUrls.isAllowed(FOUND)).toBe(true)
+       |                                        ^
+    171|     expect(imageUrls.isAllowed(GENERATED)).toBe(true)
+    172|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  8 failed | 5 passed (13)
+   Start at  20:53:14
+   Duration  1.26s (transform 904ms, setup 0ms, import 1.14s, tests 28ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/pdf
+
+ ❯ tests/g6-09b-image-url-rule.test.ts (13 tests | 6 failed) 14ms
+     × insert_image refuses an unregistered URL and fetches nothing 5ms
+     × replace_image refuses an unregistered URL and fetches nothing 1ms
+     × refuses a URL image_search returned in a PREVIOUS run 1ms
+     × does not let a registered URL vouch for a different one 1ms
+     × begins a new run from the skill context (one buildContext per loop.run) 2ms
+     × still records what image_search returned 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > insert_image refuses an unregistered URL and fetches nothing
+ FAIL  tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > replace_image refuses an unregistered URL and fetches nothing
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:60:23
+     58|     const { deps, fetchImage, insertImage, replaceImage } = makeDeps({…
+     59|     const r = await executePdfTool(deps, make(STRANGER))
+     60|     expect(r.isError).toBe(true)
+       |                       ^
+     61|     expect(r.output).toBe(IMAGE_URL_REFUSAL)
+     62|     expect(r.output).toContain('image_search')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > refuses a URL image_search returned in a PREVIOUS run
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:93:23
+     91|     imageUrls.beginRun() // the next user request
+     92|     const r = await executePdfTool(deps, insert(FOUND))
+     93|     expect(r.isError).toBe(true)
+       |                       ^
+     94|     expect(r.output).toBe(IMAGE_URL_REFUSAL)
+     95|     expect(fetchImage).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > does not let a registered URL vouch for a different one
+AssertionError: https://img.example/found.png?x=1: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:103:30
+    101|     for (const url of [`${FOUND}?x=1`, 'https://img.example/found.pn',…
+    102|       const r = await executePdfTool(deps, insert(url))
+    103|       expect(r.isError, url).toBe(true)
+       |                              ^
+    104|     }
+    105|     expect(fetchImage).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > begins a new run from the skill context (one buildContext per loop.run)
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:128:40
+    126|     const skill = createPdfSkill(deps)
+    127|     await executePdfTool(deps, call('image_search', { query: 'cat' }))
+    128|     expect(imageUrls.isAllowed(FOUND)).toBe(true)
+       |                                        ^
+    129|     skill.buildContext?.()
+    130|     expect(imageUrls.isAllowed(FOUND)).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/g6-09b-image-url-rule.test.ts > pdf image URL rule for BYOK > still records what image_search returned
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-09b-image-url-rule.test.ts:148:40
+    146|     const { deps, imageUrls } = makeDeps({ uniwork: false })
+    147|     await executePdfTool(deps, call('image_search', { query: 'cat' }))
+    148|     expect(imageUrls.isAllowed(FOUND)).toBe(true)
+       |                                        ^
+    149|   })
+    150|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 7 passed (13)
+   Start at  20:53:16
+   Duration  1.48s (transform 879ms, setup 96ms, import 980ms, tests 14ms, environment 307ms)
+
+
+RED_N3 docs=1 md=1 sheets=1 pdf=1
+RED_OK
