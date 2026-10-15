@@ -1,0 +1,13 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r15c" OFFICE_FORK_SHA=695421c0 timeout -k 15 300 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-53 --run-dir .harness-run-r15c; rc=$?; echo; echo "APP_CASE_FQ_53_EXIT=$rc"; f=.harness-run-r15c/fault/FQ-53/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",JSON.stringify(r.exitRange||""),(r.assertions||[]).map(a=>(a.ok?"ok ":"FAIL ")+a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "),JSON.stringify(r.exits||r.run_execution||"").slice(0,3000))' "$PWD/$f"; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:36921 app_api=http://127.0.0.1:41865 proxy_upstream=http://127.0.0.1:36921
+FQ-53: running
+dbus-daemon[20921]: [session uid=1000 pid=20921] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20957 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20921]: [session uid=1000 pid=20921] Successfully activated service 'org.a11y.Bus'
+FQ-53: PASS
+FQ-53 (G5-A05): PASS
+/workspace/.harness-run-r15c/fault
+APP_CASES_EXIT=0
+
+APP_CASE_FQ_53_EXIT=0
+FQ-53 PASS   "" ok save_refused_store_full: expected "status error store_full" actual "store_full" | ok no_intent_while_full: expected 0 actual 0 | ok no_request_while_full: expected 0 actual 0 | ok committed_after_room: expected "committed" actual "committed" | ok one_intent: expected 1 actual 1 | ok version_delta: expected 1 actual 1 [{"n":1,"label":"store_full → (giải phóng) Lưu lại → queued","result":"PASS","assertions":[{"name":"save_refused_store_full","expected":"status error store_full","actual":"store_full","ok":true},{"name":"no_intent_while_full","expected":0,"actual":0,"ok":true},{"name":"no_request_while_full","expected":0,"actual":0,"ok":true},{"name":"committed_after_room","expected":"committed","actual":"committed","ok":true},{"name":"one_intent","expected":1,"actual":1,"ok":true},{"name":"version_delta","expected":1,"actual":1,"ok":true}],"evidence":{"documentId":"01M50TX4RNKBQQ5F0R4X8KZKEZ","trace":[{"ts":"2026-10-15T22:29:54.312Z","intentId":"office-intent-812517b2-c3c6-453d-b66f-41e827a5c31e","from":null,"to":"queued"},{"ts":"2026-10-15T22:29:54.346Z","intentId":"office-intent-812517b2-c3c6-453d-b66f-41e827a5c31e","from":"queued","to":"committed","httpStatus":200}],"requests":[{"kind":"upload","ts":"2026-10-15T22:29:54.331Z","method":"POST","status":201,"keyTag":"0e873070cb20","ruleId":null},{"kind":"commit","ts":"2026-10-15T22:29:54.342Z","method":"POST","status":200,"keyTag":"0e873070cb20","ruleId":null}]}}]
