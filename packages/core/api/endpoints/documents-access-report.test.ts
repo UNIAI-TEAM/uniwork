@@ -146,6 +146,26 @@ describe("documents-access-report endpoints (UNI-1643)", () => {
     expect(out?.next_cursor).toBeNull();
   });
 
+  it("drops an invalid row or document and still returns the page", async () => {
+    const body = report();
+    const good = body.documents[0]!;
+    const brokenRow = { principal_id: "u9", level: "view" }; // no source, no principal_type
+    const noId = { document: { title: "No id" }, rows: [] };
+    const noDocument = { rows: [] };
+    body.documents = [noId, { ...good, rows: [good.rows[0]!, brokenRow, good.rows[1]!] }, noDocument] as never;
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    const out = await getDocumentAccessReport("ws1");
+    expect(out?.documents.map((d) => d.document.id)).toEqual(["d1"]);
+    expect(out?.documents[0]?.rows.map((r) => r.principal_id)).toEqual(["u1", "ws9"]);
+    expect(out?.next_cursor).toBe("cur1");
+  });
+
+  it("still degrades to null when the scope is missing", async () => {
+    const { scope: _scope, ...noScope } = report();
+    vi.mocked(fetch).mockResolvedValueOnce(json(noScope));
+    await expect(getDocumentAccessReport("ws1")).resolves.toBeNull();
+  });
+
   it.each(malformedBodies)("degrades to null on a malformed body %j", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(getDocumentAccessReport("ws1")).resolves.toBeNull();

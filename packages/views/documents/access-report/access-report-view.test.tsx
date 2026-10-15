@@ -203,6 +203,50 @@ describe("AccessReportView - report", () => {
     expect(reportCalls()).toHaveLength(2);
   });
 
+  it("keeps reading after documents are shown while later pages come back empty", async () => {
+    const empty = { documents: [], summary: { candidates: 50, documents: 0, rows: 0, skipped: 0 } };
+    serve((url) => {
+      switch (url.searchParams.get("cursor")) {
+        case "cur1":
+          return page({ ...empty, next_cursor: "cur2" });
+        case "cur2":
+          return page({ ...empty, next_cursor: "cur3" });
+        case "cur3":
+          return page({ documents: [docEntry("d2", "Phụ lục B", [ownerRow])], next_cursor: null });
+        default:
+          return page({ next_cursor: "cur1" });
+      }
+    });
+    renderView();
+    // The reader asks for more; the empty pages that follow are read on its own.
+    await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.accessReport.load_more") }));
+    expect(await screen.findByRole("table", { name: "Phụ lục B" })).toBeInTheDocument();
+    expect(reportCalls()).toHaveLength(4);
+    expect(screen.queryByRole("button", { name: t("documents.accessReport.load_more") })).toBeNull();
+  });
+
+  it("stops after a run of empty pages and leaves Load more to the reader", async () => {
+    serve((url) =>
+      url.searchParams.get("cursor")
+        ? page({ documents: [], summary: { candidates: 50, documents: 0, rows: 0, skipped: 0 }, next_cursor: `${url.searchParams.get("cursor")}x` })
+        : page({ next_cursor: "c" }),
+    );
+    renderView();
+    await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.accessReport.load_more") }));
+    await waitFor(() => expect(reportCalls().length).toBeGreaterThan(2));
+    const more = screen.getByRole("button", { name: t("documents.accessReport.load_more") });
+    await waitFor(() => expect(more).toBeEnabled());
+    const calls = reportCalls().length;
+    // The first page, then a bounded run of empty ones.
+    expect(calls).toBeGreaterThan(2);
+    expect(calls).toBeLessThanOrEqual(8);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reportCalls()).toHaveLength(calls);
+    expect(screen.getByRole("table", { name: "Hợp đồng ABC" })).toBeInTheDocument();
+  });
+
   it("shows a status while the first page loads", () => {
     requestMock.mockImplementation(() => new Promise(() => {}));
     renderView();
@@ -216,6 +260,16 @@ describe("AccessReportView - states", () => {
     renderView();
     expect(await screen.findByRole("heading", { name: t("documents.accessReport.empty") })).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("empty: the description is the footnote; the empty-file note stays by the export buttons", async () => {
+    serve(() => page({ documents: [], summary: { candidates: 0, documents: 0, rows: 0, skipped: 0 } }));
+    renderView();
+    const heading = await screen.findByRole("heading", { name: t("documents.accessReport.empty") });
+    const state = heading.parentElement!;
+    expect(within(state).getByText(t("documents.accessReport.footnote"))).toBeInTheDocument();
+    const note = screen.getByText(t("documents.accessReport.empty_export_note"));
+    expect(state.contains(note)).toBe(false);
   });
 
   it("skipped only: the reader manages nothing here", async () => {

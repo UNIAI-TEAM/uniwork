@@ -32,9 +32,8 @@ export function filterWorkspaceMembers(
     if (options.excludeUserIds?.has(member.user_id)) return false;
     if (!q) return true;
     // Accent-insensitive, so "tuan" finds "Tuấn".
-    return (
-      foldedIncludes(memberDisplayLabel(member), q) || (!options.nameOnly && foldedIncludes(member.email, q))
-    );
+    if (options.nameOnly) return foldedIncludes(member.display_name.trim(), q);
+    return foldedIncludes(memberDisplayLabel(member), q) || foldedIncludes(member.email, q);
   });
 }
 

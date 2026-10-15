@@ -239,7 +239,8 @@ export function WorkspaceMemberPickerList({
       >
         {members.map((member, index) => {
           const contact = memberToChatContact(member);
-          const label = memberDisplayLabel(member);
+          // A names-only screen never falls back to the email local part.
+          const label = nameOnly ? member.display_name.trim() || t("chat.workspace_member_unnamed") : memberDisplayLabel(member);
           return (
             <li key={member.user_id} className="first:*:rounded-t-lg last:*:rounded-b-lg">
               <button

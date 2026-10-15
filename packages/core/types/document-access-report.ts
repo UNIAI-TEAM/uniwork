@@ -6,6 +6,16 @@ import { z } from "zod";
 // still parses and the screen labels it "Other". Kept apart from
 // `document.ts`, which is already at the line cap.
 
+/** An array that drops the entries that do not parse instead of failing the page. */
+function lenientArray<S extends z.ZodType>(item: S) {
+  return z
+    .array(z.unknown())
+    .transform((entries) => entries.flatMap((entry) => {
+      const parsed = item.safeParse(entry);
+      return parsed.success ? [parsed.data as z.output<S>] : [];
+    }));
+}
+
 const NullableString = z.string().nullable().optional().transform((v) => v ?? null);
 
 const AccessReportScopeSchema = z.object({
@@ -60,7 +70,7 @@ const AccessReportRowSchema = z.object({
 
 const AccessReportDocumentSchema = z.object({
   document: AccessReportDocumentInfoSchema,
-  rows: z.array(AccessReportRowSchema).optional().default([]),
+  rows: lenientArray(AccessReportRowSchema).optional().default([]),
 });
 
 const AccessReportSummarySchema = z.object({
@@ -74,7 +84,7 @@ export const DocumentAccessReportSchema = z.object({
   scope: AccessReportScopeSchema,
   filter: AccessReportFilterSchema.optional().default({ person_id: null, level: [], visibility: null }),
   generated_at: z.string().optional().default(""),
-  documents: z.array(AccessReportDocumentSchema),
+  documents: lenientArray(AccessReportDocumentSchema),
   summary: AccessReportSummarySchema.optional().default({ candidates: 0, documents: 0, rows: 0, skipped: 0 }),
   next_cursor: NullableString,
 });

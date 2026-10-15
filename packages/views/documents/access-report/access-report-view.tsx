@@ -28,6 +28,9 @@ export interface AccessReportViewProps {
   documentHref?: (documentId: string) => string;
 }
 
+/** Consecutive empty pages the screen reads on its own once documents are shown. */
+const MAX_EMPTY_PAGES = 5;
+
 const VISIBILITIES: readonly string[] = ["workspace", "restricted"];
 
 /** The folder and the filters live in the URL, so a report can be shared and reloaded. */
@@ -67,12 +70,18 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
 
   // A page can come back empty yet keep a cursor (the documents it read were not
   // the reader's to manage): keep reading rather than call the report empty.
+  // With nothing shown yet there is no other way forward, so it reads on; once
+  // documents are shown it reads through a bounded run of empty pages, then
+  // leaves "Load more" to the reader.
   const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = report;
+  let trailingEmpty = 0;
+  while (trailingEmpty < pages.length && pages[pages.length - 1 - trailingEmpty]!.documents.length === 0) trailingEmpty++;
+  const readOn = documents.length === 0 ? true : trailingEmpty > 0 && trailingEmpty < MAX_EMPTY_PAGES;
   useEffect(() => {
-    if (report.data && documents.length === 0 && hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
+    if (report.data && readOn && hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
       void fetchNextPage();
     }
-  }, [report.data, documents.length, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
+  }, [report.data, readOn, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
   const personName = filters.personId
     ? (members?.find((m) => m.user_id === filters.personId)?.display_name ??
@@ -116,6 +125,8 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
     );
   };
 
+  const noRows = !report.isPending && !report.isError && documents.length === 0 && !hasNextPage;
+
   const back = (
     <AppLink href={libraryHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
       <ArrowLeft aria-hidden className="size-3.5" />
@@ -158,7 +169,7 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
       skipped > 0 ? (
         <CollectionPageState icon={ShieldAlert} title={t("documents.accessReport.skipped_only")} description={t("documents.accessReport.skipped", { count: skipped })} />
       ) : (
-        <CollectionPageState icon={FileSearch} title={t("documents.accessReport.empty")} description={t("documents.accessReport.empty_export_note")} />
+        <CollectionPageState icon={FileSearch} title={t("documents.accessReport.empty")} description={t("documents.accessReport.footnote")} />
       );
   } else if (documents.length === 0) {
     body = (
@@ -215,7 +226,10 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
       />
       {unusable ? null : (
         <>
-          <div className="flex items-center border-b border-border px-4 py-2">{back}</div>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-2">
+            {back}
+            {noRows ? <p className="text-caption text-muted-foreground">{t("documents.accessReport.empty_export_note")}</p> : null}
+          </div>
           <AccessReportFiltersBar
             wsId={wsId}
             filters={filters}
