@@ -205,7 +205,7 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
   từng module (`devset` | `file:<sha256>` | `name-only`) và sha256 bộ công cụ được ghi vào `config.toolSurface`.
 - **Bộ công cụ cấp cho model là một phần của bản phát hành (G712-20).** Harness chỉ ánh xạ một số công cụ mỗi module sang thao tác
   trừu tượng của ca (`TOOL_OPS` trong `holdout-backend.mjs`), nên số công cụ được cấp nhỏ hơn bảng công cụ của khung
-  (`genoffice-tools.md`; ví dụ sheets cấp 11 trên 27). Một công cụ chưa ánh xạ không bao giờ được cấp nên không thể bị gọi: "0 công
+  (`genoffice-tools.md` §3, bảng công cụ của khung, không phải đếm cả tệp: sheets 21, docs 38, slides 18, pdf 46, markdown 10, html 8, tổng 141 dòng như §3.1 đối chiếu; ví dụ sheets cấp 11 trên 21). Một công cụ chưa ánh xạ không bao giờ được cấp nên không thể bị gọi: "0 công
   cụ ngoài allowlist" chỉ đúng trong tập đã cấp. `--tool-schemas` chỉ mô tả được các công cụ đã ánh xạ; công cụ khác trong tệp bị bỏ
   và được liệt kê. `config.toolSurface` ghi mỗi module `offered`, `frameTotal` (đọc lúc chạy từ bảng) và `droppedFromFile`; mục 0 của
   báo cáo in "cấp / tổng" và danh sách bị bỏ như một điều kiện của phép đo. Task này **không** ánh xạ thêm công cụ.
