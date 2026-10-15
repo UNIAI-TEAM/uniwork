@@ -627,7 +627,7 @@ describe("DocumentsPageView", () => {
   it("gates Move and Archive by the level of each row, not by the open folder", async () => {
     route({
       list: () => [
-        summary({ id: "m1", title: "Quản lý", my_level: "manage" }),
+        summary({ id: "m1", title: "Báo cáo quản lý", my_level: "manage" }),
         summary({ id: "e1", title: "Chỉnh sửa", my_level: "edit" }),
         summary({ id: "v1", title: "Chỉ xem", my_level: "view" }),
         summary({ id: "n1", title: "Chưa rõ", my_level: undefined }),
@@ -644,7 +644,7 @@ describe("DocumentsPageView", () => {
       await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeNull());
       return out;
     };
-    expect(await menuItems("Quản lý")).toEqual({ move: true, archive: true });
+    expect(await menuItems("Báo cáo quản lý")).toEqual({ move: true, archive: true });
     expect(await menuItems("Chỉnh sửa")).toEqual({ move: true, archive: false });
     expect(await menuItems("Chỉ xem")).toEqual({ move: false, archive: false });
     // A row the server sent no level for reads as view: nothing it would refuse.
