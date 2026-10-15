@@ -130,7 +130,7 @@ function PersonFilter({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { data: members = [], isLoading } = useMembers(open ? wsId : "");
-  const shown = filterWorkspaceMembers(members, { currentUserId: "", query });
+  const shown = filterWorkspaceMembers(members, { currentUserId: "", query, nameOnly: true });
   const label = t("documents.accessReport.filter_person");
 
   return (
@@ -154,6 +154,7 @@ function PersonFilter({
             loading={isLoading}
             query={query}
             actionIcon={<span aria-hidden className="size-4" />}
+            nameOnly
             onPick={(contact) => {
               onPick(contact.user_id);
               setOpen(false);

@@ -176,6 +176,7 @@ export function WorkspaceMemberPickerList({
   emptyLabel,
   allPickedLabel,
   actionIcon,
+  nameOnly = false,
   onPick,
   listRef,
 }: {
@@ -191,6 +192,8 @@ export function WorkspaceMemberPickerList({
   /** Shown with no query when everyone left is already picked or already in the room. */
   allPickedLabel?: string;
   actionIcon?: ReactNode;
+  /** Avatar and name only: for a screen that never shows an email (the access report). */
+  nameOnly?: boolean;
   onPick: (contact: ChatContact) => void;
   /** From useMemberPickerFocus: lets ↓ in the search field reach the rows. */
   listRef?: RefObject<HTMLDivElement | null>;
@@ -255,7 +258,9 @@ export function WorkspaceMemberPickerList({
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-body font-medium text-foreground">{label}</span>
-                  <span className="block truncate text-caption text-muted-foreground">{member.email}</span>
+                  {nameOnly ? null : (
+                    <span className="block truncate text-caption text-muted-foreground">{member.email}</span>
+                  )}
                 </span>
                 {actionIcon ?? (
                   <UserPlus
