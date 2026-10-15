@@ -24,6 +24,29 @@ describe("chat thread endpoints", () => {
     await expect(listChatThreadMessages("w1", "r1", "m1")).resolves.toEqual([]);
   });
 
+  it("listChatThreadMessages reads a drifted thread_following as not following", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          {
+            id: "m1",
+            room_id: "r1",
+            workspace_id: "w1",
+            sender_id: "u1",
+            sender_display_name: "An",
+            body: "root",
+            created_at: "2026-01-01T00:00:00Z",
+            thread_following: "yes",
+          },
+        ],
+      }),
+    );
+    const [root] = await listChatThreadMessages("w1", "r1", "m1");
+    expect(root?.id).toBe("m1");
+    // Absent and drifted both read as "not following"; the thread bar offers Follow.
+    expect(root?.thread_following).toBeUndefined();
+  });
+
   it("sendChatThreadMessage degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ message: 1 }));
     await expect(

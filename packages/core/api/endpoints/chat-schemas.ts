@@ -27,6 +27,8 @@ export const ChatMessageSchema = z.object({
   reply_count: z.number().optional().default(0),
   last_reply_at: z.string().optional(),
   thread_unread: z.boolean().optional().default(false),
+  /** Set on a thread's root in a thread listing: the caller follows it, unmuted. */
+  thread_following: z.boolean().optional().catch(undefined),
   created_at: z.string(),
   /** Opaque history position; sent back verbatim to page older messages. */
   cursor: z.string().optional().catch(undefined),

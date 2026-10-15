@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api/http";
-import { wrap } from "../test/api-mock";
+import { requestMock, wrap } from "../test/api-mock";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
 
 const toggleReaction = vi.fn().mockResolvedValue(undefined);
@@ -20,6 +20,8 @@ type Row = {
   reply_to_message_id?: string;
   reactions: Record<string, number>;
   my_reactions?: string[];
+  reply_count?: number;
+  thread_following?: boolean;
 };
 
 const BASE_ROWS: Row[] = [
@@ -43,6 +45,7 @@ const BASE_ROWS: Row[] = [
   },
 ];
 let rows: Row[] = BASE_ROWS;
+let threadRows: Row[] = [];
 
 vi.mock("@uniwork/core/chat", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/chat")>()),
@@ -53,6 +56,7 @@ vi.mock("@uniwork/core/chat", async (orig) => ({
     isFetchingNextPage: false,
     fetchNextPage,
   }),
+  useChatThreadMessages: () => ({ data: threadRows }),
   useToggleChatReaction: () => ({ mutateAsync: toggleReaction }),
   useDeleteChatMessage: () => ({ mutateAsync: deleteMessage, isPending: false }),
   useEditChatMessage: () => ({ mutateAsync: editMessage, isPending: false }),
@@ -79,6 +83,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   rows = BASE_ROWS;
+  threadRows = [];
   deleteMessage.mockReset();
   editMessage.mockReset();
   vi.mocked(toast.error).mockReset();
@@ -239,6 +244,24 @@ describe("NativeChatMessagePanel", () => {
     const divider = screen.getByRole("separator", { name: "Tin mới" });
     expect(divider.parentElement?.textContent).toContain("Later");
     expect(screen.getAllByRole("separator", { name: "Tin mới" })).toHaveLength(1);
+  });
+
+  it("unfollows the open thread from the thread bar", async () => {
+    const user = userEvent.setup();
+    const root = { ...BASE_ROWS[0]!, reply_count: 1 };
+    rows = [root, BASE_ROWS[1]!];
+    threadRows = [{ ...root, thread_following: true }];
+    render(wrap(panel({ threadsEnabled: true })));
+
+    await user.click(screen.getByRole("button", { name: "1 trả lời" }));
+    await user.click(await screen.findByRole("button", { name: "Bỏ theo dõi" }));
+
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/chat/threads/m1/follow",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
   });
 
   // The cursor itself is chosen by useChatRoomMessages (core chat-hooks-rooms.test).

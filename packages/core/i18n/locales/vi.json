@@ -3965,6 +3965,8 @@
     "pinned_bar_show_less": "Thu gọn",
     "thread_title": "Chủ đề",
     "close_thread": "Đóng chủ đề",
+    "thread_follow": "Theo dõi",
+    "thread_unfollow": "Bỏ theo dõi",
     "thread_replies": "{{count}} trả lời",
     "thread_replies_unread": "{{count}} trả lời · chưa đọc",
     "replying_to": "Trả lời: {{preview}}",

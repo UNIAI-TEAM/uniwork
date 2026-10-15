@@ -401,6 +401,9 @@ export function NativeChatMessagePanel({
     >
       {threadRoot ? (
         <ChatThreadBar
+          workspaceId={workspaceId}
+          threadRootId={threadRoot.id}
+          following={threadQuery.data?.find((row) => row.id === threadRoot.id)?.thread_following ?? false}
           onClose={() => {
             closeThread();
             onFocusComposer?.();

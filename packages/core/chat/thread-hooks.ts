@@ -1,5 +1,5 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
 import { useAuthStore } from "../auth/store";
 import { notificationKeys } from "../notifications/hooks";
@@ -61,13 +61,20 @@ export function useFollowedChatThreads(
   });
 }
 
+// The thread bar reads its Follow state from the root in the thread listing.
+function invalidateThreadFollowState(qc: QueryClient, workspaceId: string, threadRootId: string) {
+  void qc.invalidateQueries({ queryKey: chatKeys.followedThreads(workspaceId) });
+  void qc.invalidateQueries({
+    queryKey: chatKeys.threadMessagesRoot(workspaceId),
+    predicate: (q) => q.queryKey.includes(threadRootId),
+  });
+}
+
 export function useFollowChatThread(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (threadRootId: string) => chat.followChatThread(workspaceId, threadRootId),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: chatKeys.followedThreads(workspaceId) });
-    },
+    onSuccess: (_d, threadRootId) => invalidateThreadFollowState(qc, workspaceId, threadRootId),
   });
 }
 
@@ -75,9 +82,7 @@ export function useUnfollowChatThread(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (threadRootId: string) => chat.unfollowChatThread(workspaceId, threadRootId),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: chatKeys.followedThreads(workspaceId) });
-    },
+    onSuccess: (_d, threadRootId) => invalidateThreadFollowState(qc, workspaceId, threadRootId),
   });
 }
 
