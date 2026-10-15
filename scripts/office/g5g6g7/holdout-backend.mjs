@@ -19,6 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DOCS_TOOL_SCHEMAS, SHEETS_TOOL_SCHEMAS } from '../devset-run.mjs';
+import { parseMechanicalTable } from '../instruction-pack-tools.mjs';
 import { readStyleFormatKinds, readWorkbook, unzip } from './holdout-xlsx-truth.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -90,6 +91,8 @@ const loose = (name, description) => ({
 
 // Where each offered schema came from (file | devset | name-only), kept beside the schema, never inside it.
 const TOOL_ORIGIN = new WeakMap();
+// Names a --tool-schemas file carries for a module that the harness does not map (so it can never offer them), per catalogue.
+const TOOL_DROPPED = new WeakMap();
 const sha256Hex = (value) => createHash('sha256').update(value).digest('hex');
 
 /**
@@ -99,10 +102,12 @@ const sha256Hex = (value) => createHash('sha256').update(value).digest('hex');
  */
 export function toolCatalogue(overrides = null) {
   const out = {};
+  const dropped = {};
   for (const [module, ops] of Object.entries(TOOL_OPS)) {
     const base = module === 'sheets' ? SHEETS_TOOL_SCHEMAS : module === 'docs' ? DOCS_TOOL_SCHEMAS : [];
     const fromDevset = new Map(base.map((t) => [t.function.name, t]));
     const fromFile = new Map((overrides?.[module] ?? []).map((t) => [t.function.name, t]));
+    dropped[module] = [...fromFile.keys()].filter((name) => !(name in ops)).sort();
     out[module] = Object.keys(ops).map((name) => {
       const tool = fromFile.get(name) ?? fromDevset.get(name);
       if (tool) {
@@ -114,21 +119,39 @@ export function toolCatalogue(overrides = null) {
       return hollow;
     });
   }
+  TOOL_DROPPED.set(out, dropped);
   return out;
+}
+
+/** Tools per module of the release's frame, read at runtime from the extracted table (docs/office/g5g6g7/genoffice-tools.md); null if unreadable. */
+export function frameToolCounts(file = path.join(repoRoot, 'docs/office/g5g6g7/genoffice-tools.md')) {
+  try {
+    const { byModule } = parseMechanicalTable(fs.readFileSync(file, 'utf8'));
+    return Object.fromEntries([...byModule].map(([module, tools]) => [module, tools.size]));
+  } catch {
+    return null;
+  }
 }
 
 /**
  * What the model is offered per module and where the schemas came from: source is `file:<sha256 of the --tool-schemas
  * file>` when any tool comes from it, `name-only` when any tool has only a name (the strictest wins), else `devset`.
+ * `offered` of `frameTotal` says how much of the module's tool table the model could ever call (the harness maps only a
+ * subset, G712-20) and `droppedFromFile` lists tools a --tool-schemas file describes that the harness cannot offer: a file
+ * can only describe the mapped tools, it never widens the surface.
  */
-export function toolSurface(catalogue, { fileSha256 = null } = {}) {
+export function toolSurface(catalogue, { fileSha256 = null, frameTotals = frameToolCounts() } = {}) {
   const out = {};
+  const dropped = TOOL_DROPPED.get(catalogue) ?? {};
   for (const [module, tools] of Object.entries(catalogue)) {
     const origins = tools.map((t) => TOOL_ORIGIN.get(t) ?? 'devset');
     const source = origins.includes('name-only') ? 'name-only' : origins.includes('file') ? `file:${fileSha256 ?? 'unknown'}` : 'devset';
     const names = tools.map((t) => t.function.name).sort();
     const byName = [...tools].sort((a, b) => a.function.name.localeCompare(b.function.name));
-    out[module] = { source, tools: names, schemasSha256: sha256Hex(JSON.stringify(byName)) };
+    out[module] = {
+      source, tools: names, offered: names.length, frameTotal: frameTotals?.[module] ?? null, droppedFromFile: dropped[module] ?? [],
+      schemasSha256: sha256Hex(JSON.stringify(byName)),
+    };
   }
   return out;
 }

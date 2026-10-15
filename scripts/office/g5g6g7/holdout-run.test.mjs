@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { parseMechanicalTable } from '../instruction-pack-tools.mjs';
 import { ANSWER_MARKER, deriveAnswer, parseReport, reportingFooter } from './holdout-answer.mjs';
 import {
-  TOOL_OPS, createBackend, modulesOfCase, offeredTools, opsOfTool, toolCatalogue, toolSurface, unobtainableOps,
+  TOOL_OPS, createBackend, frameToolCounts, modulesOfCase, offeredTools, opsOfTool, toolCatalogue, toolSurface, unobtainableOps,
 } from './holdout-backend.mjs';
 import {
   DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, MANIFEST_KIND, MAX_STEPS, buildAsks, createServerSession, createUsageReader, firstMessages, httpTransport,
@@ -104,6 +104,30 @@ describe('tool catalogue', () => {
     const partial = toolSurface(toolCatalogue({ slides: [real('read_slide')] }), { fileSha256: 'f'.repeat(64) });
     assert.equal(partial.slides.source, 'name-only', 'a module with any hollow tool is name-only');
     assert.notEqual(filled.slides.schemasSha256, surface.slides.schemasSha256);
+  });
+
+  it('records how much of the frame\'s tool table is offered per module, and what a --tool-schemas file cannot widen (G712-20)', () => {
+    const { byModule } = parseMechanicalTable(fs.readFileSync(path.join(repoRoot, 'docs/office/g5g6g7/genoffice-tools.md'), 'utf8'));
+    const counts = frameToolCounts();
+    assert.deepEqual(Object.fromEntries(Object.keys(TOOL_OPS).map((m) => [m, counts[m]])), Object.fromEntries(Object.keys(TOOL_OPS).map((m) => [m, byModule.get(m).size])));
+    const surface = toolSurface(toolCatalogue());
+    for (const module of Object.keys(TOOL_OPS)) {
+      assert.equal(surface[module].offered, Object.keys(TOOL_OPS[module]).length, module);
+      assert.equal(surface[module].frameTotal, byModule.get(module).size, module);
+      assert.ok(surface[module].offered < surface[module].frameTotal, `${module}: the harness offers a subset of the frame's tools, and the record says so`);
+      assert.deepEqual(surface[module].droppedFromFile, []);
+    }
+    // A file that describes a tool the harness does not map: it is not offered, and the record names it.
+    const real = (name) => ({ type: 'function', function: { name, description: 'real', parameters: { type: 'object', properties: {} } } });
+    const extra = [...Object.keys(TOOL_OPS.sheets), 'zz_unmapped_b', 'zz_unmapped_a'].map(real);
+    const catalogue = toolCatalogue({ sheets: extra });
+    const widened = toolSurface(catalogue, { fileSha256: 'f'.repeat(64) });
+    assert.ok(!widened.sheets.tools.includes('zz_unmapped_a'), 'an unmapped tool is never offered');
+    assert.equal(widened.sheets.offered, Object.keys(TOOL_OPS.sheets).length);
+    assert.deepEqual(widened.sheets.droppedFromFile, ['zz_unmapped_a', 'zz_unmapped_b']);
+    assert.equal(widened.sheets.source, `file:${'f'.repeat(64)}`);
+    assert.deepEqual(widened.docs.droppedFromFile, []);
+    assert.deepEqual(toolSurface(catalogue, { frameTotals: null }).sheets.frameTotal, null, 'an unreadable table is recorded as unknown');
   });
 });
 
@@ -678,6 +702,10 @@ describe('sessions, manifest and tool surface', () => {
     const { config } = docs[0];
     assert.equal(config.toolSurface.sheets.source, 'devset');
     assert.equal(config.toolSurface.slides.source, 'name-only');
+    // The offered/total tool counts and the dropped file tools reach the run file, so the report can print them (G712-20).
+    assert.equal(config.toolSurface.sheets.offered, Object.keys(TOOL_OPS.sheets).length);
+    assert.equal(config.toolSurface.sheets.frameTotal, frameToolCounts().sheets);
+    assert.deepEqual(config.toolSurface.sheets.droppedFromFile, []);
     assert.match(config.toolSurfaceSha256, /^[0-9a-f]{64}$/);
     assert.equal(config.footerSha256, sha256Hex(reportingFooter()));
     assert.deepEqual([config.numbers, config.anchors, config.computeByReply, config.maxRetries, config.answerProtocol], ['strict', 'strict', true, 3, 'v1']);

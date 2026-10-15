@@ -588,12 +588,16 @@ export function renderReport(report) {
   w(`- **Chính sách chấm**: số = ${cond.policy.numbers}, neo vị trí = ${cond.policy.anchors}${cond.policy.anchors === 'lenient' ? ' (CHO PHÉP giá trị đúng ở neo khác: kết luận đã ký sẽ không thể là đạt)' : ' (giá trị đúng ở neo khác là sai)'}, compute-bằng-trả-lời = ${cond.policy.computeByReply === false ? 'tắt' : 'bật'}, thử lại tối đa ${num(cond.policy.maxRetries)}, ${num(cond.policy.threads)} luồng.`);
   w('- **Backend giả lập**: kết quả công cụ lấy từ fixture tổng hợp; mọi lần ghi chỉ được đếm, không được áp vào tài liệu; vai trò viewer, thu hồi quyền và bản cũ (stale) đều do harness giả lập; kết quả công cụ tổng hợp (`applied`, ghi chú xin làm rõ) là chung cho mọi ca.');
   w('- **Đường đi**: qua route façade AI của khung (không qua panel). Một người dùng thử, tối đa 2 luồng, bằng chứng panel nằm ở G7-08.');
-  w('- **Bộ công cụ cấp cho model** (cùng một danh sách cho mọi ca của một module, không lọc theo allowlist của ca):');
+  w('- **Bộ công cụ cấp cho model** (cùng một danh sách cho mọi ca của một module, không lọc theo allowlist của ca). **Đây là một phần công cụ của bản phát hành, không phải toàn bộ**: harness chỉ ánh xạ một số công cụ mỗi module sang thao tác trừu tượng của ca, nên một công cụ chưa ánh xạ không bao giờ được cấp và không thể bị gọi; "0 công cụ ngoài allowlist" chỉ đúng trong tập đã cấp. Tệp `--tool-schemas` chỉ mô tả được các công cụ đã ánh xạ: công cụ khác trong tệp bị bỏ và được liệt kê ở cột cuối, tệp không mở rộng được bộ công cụ.');
   w();
-  w('| Module | Nguồn lược đồ | Số công cụ | sha256 lược đồ |');
-  w('| --- | --- | ---: | --- |');
-  if (cond.toolSurface) for (const [module, v] of Object.entries(cond.toolSurface)) w(`| ${module} | ${v.source}${v.source === 'name-only' ? ' (chỉ có tên)' : ''} | ${v.tools.length} | \`${String(v.schemasSha256).slice(0, 16)}\` |`);
-  else w('| (không ghi) | | | |');
+  w('| Module | Nguồn lược đồ | Cấp / tổng công cụ của khung | sha256 lược đồ | Công cụ trong tệp bị bỏ (chưa ánh xạ) |');
+  w('| --- | --- | ---: | --- | --- |');
+  if (cond.toolSurface) {
+    for (const [module, v] of Object.entries(cond.toolSurface)) {
+      const dropped = v.droppedFromFile ?? [];
+      w(`| ${module} | ${v.source}${v.source === 'name-only' ? ' (chỉ có tên)' : ''} | ${v.offered ?? v.tools.length} / ${v.frameTotal ?? 'không rõ'} | \`${String(v.schemasSha256).slice(0, 16)}\` | ${dropped.length > 0 ? dropped.join(', ') : '-'} |`);
+    }
+  } else w('| (không ghi) | | | | |');
   w();
   const srcTotals = report.summaries.reduce((t, s) => ({ server: t.server + s.latency.source.server, client: t.client + s.latency.source.client }), { server: 0, client: 0 });
   w(`- **Độ trễ**: ${srcTotals.server} lượt gọi lấy \`latency_ms\` của cổng AI, ${srcTotals.client} lượt gọi chỉ có thời gian phía client (gồm mạng, đọc SSE, façade).`);

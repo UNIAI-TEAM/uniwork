@@ -24,7 +24,8 @@ const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'g712-report-test-'));
 after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 
 const TUPLE = { dSha: 'a'.repeat(40), dirty: false, dShaSource: 'checkout HEAD', framePin: '0.1.0-test', promptIds: ['office_uniwork_ai@test'], providers: ['provider-x'], resolvedModels: ['model-x'], redis: 'on' };
-const SURFACE = Object.fromEntries(['sheets', 'docs', 'slides', 'pdf', 'markdown', 'html'].map((m) => [m, { source: m === 'sheets' || m === 'docs' ? 'devset' : `file:${'b'.repeat(64)}`, tools: ['t'], schemasSha256: 'c'.repeat(64) }]));
+const FRAME_TOTAL = { sheets: 27, docs: 44, slides: 24, pdf: 52, markdown: 16, html: 14 };
+const SURFACE = Object.fromEntries(['sheets', 'docs', 'slides', 'pdf', 'markdown', 'html'].map((m) => [m, { source: m === 'sheets' || m === 'docs' ? 'devset' : `file:${'b'.repeat(64)}`, tools: ['t'], offered: 1, frameTotal: FRAME_TOTAL[m], droppedFromFile: [], schemasSha256: 'c'.repeat(64) }]));
 const CONFIG = { threads: 2, langs: ['vi', 'en'], answerProtocol: 'v1', numbers: 'strict', anchors: 'strict', computeByReply: true, maxRetries: 3, footerSha256: sha256Hex(reportingFooter()), toolSurface: SURFACE, toolSurfaceSha256: 'd'.repeat(64), usageReader: 'ai_usage_events', usageReaderError: null };
 
 function ask(over = {}) {
@@ -559,10 +560,28 @@ describe('measurement conditions section (G712-7)', () => {
     assert.match(md, /số = strict, neo vị trí = strict/);
     assert.match(md, /Backend giả lập.*chỉ được đếm, không được áp vào tài liệu/);
     assert.match(md, /route façade AI của khung \(không qua panel\)/);
-    assert.match(md, /\| sheets \| devset \| 1 \|/);
-    assert.match(md, new RegExp(`\\| slides \\| file:${'b'.repeat(64)} \\|`));
+    assert.match(md, /\| sheets \| devset \| 1 \/ 27 \|/);
+    assert.match(md, new RegExp(`\\| slides \\| file:${'b'.repeat(64)} \\| 1 \\/ 24 \\|`));
     assert.match(md, /600 lượt gọi lấy `latency_ms` của cổng AI, 0 lượt gọi chỉ có thời gian phía client/);
     assert.match(md, /khai báo, không quan sát/);
+  });
+
+  it('prints the offered tools against the frame\'s tool table as a measurement condition, and what a tool-schemas file cannot widen (G712-20)', () => {
+    const surface = { ...SURFACE, sheets: { ...SURFACE.sheets, tools: new Array(11).fill('t'), offered: 11, droppedFromFile: ['zz_unmapped_a', 'zz_unmapped_b'] } };
+    const runs = [run(1, bigSuite(), { config: { toolSurface: surface } })];
+    const md = renderReport(buildReport(runs, { session: makeSession(runs) }));
+    const section0 = md.slice(md.indexOf('## 0.'), md.indexOf('## 1.'));
+    assert.match(section0, /\| sheets \| devset \| 11 \/ 27 \| `c{16}` \| zz_unmapped_a, zz_unmapped_b \|/);
+    assert.match(section0, /\| docs \| devset \| 1 \/ 44 \| `c{16}` \| - \|/);
+    assert.match(section0, /một phần công cụ của bản phát hành, không phải toàn bộ/);
+    assert.match(section0, /không thể bị gọi/);
+    assert.match(section0, /`--tool-schemas` chỉ mô tả được các công cụ đã ánh xạ/);
+    const json = buildReport(runs, { session: makeSession(runs) });
+    assert.equal(json.conditions.toolSurface.sheets.offered, 11);
+    assert.deepEqual(json.conditions.toolSurface.sheets.droppedFromFile, ['zz_unmapped_a', 'zz_unmapped_b']);
+    // Runs written before the fields existed still render (unknown total, no list).
+    const legacy = [run(1, bigSuite(), { config: { toolSurface: Object.fromEntries(Object.entries(SURFACE).map(([m, v]) => [m, { source: v.source, tools: v.tools, schemasSha256: v.schemasSha256 }])) } })];
+    assert.match(renderReport(buildReport(legacy, { session: makeSession(legacy) })), /\| sheets \| devset \| 1 \/ không rõ \| `c{16}` \| - \|/);
   });
 
   it('shows a name-only module as such', () => {
