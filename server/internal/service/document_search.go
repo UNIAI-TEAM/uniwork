@@ -449,7 +449,7 @@ func (s *DocumentService) attachListPathsQ(ctx context.Context, q *db.Queries, s
 			}
 		}
 	}
-	grants, err := s.liveBreakGlassFor(ctx, s.q, scope, workspaceID, adminIDs)
+	grants, err := s.liveBreakGlassFor(ctx, q, scope, workspaceID, adminIDs)
 	if err != nil {
 		return err
 	}
