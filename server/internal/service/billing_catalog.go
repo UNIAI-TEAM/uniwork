@@ -113,6 +113,9 @@ func (s *BillingService) AddPlanCatalog(ctx context.Context, q *db.Queries, in C
 	if err != nil {
 		return AdminPlanCatalogView{}, err
 	}
+	if in.PriceAmount != nil && *in.PriceAmount < 0 {
+		return AdminPlanCatalogView{}, Invalid("price_amount không được âm")
+	}
 	currency := strings.TrimSpace(in.PriceCurrency)
 	if currency == "" {
 		currency = "VND"
@@ -162,6 +165,9 @@ func (s *BillingService) SetPlanCatalogMeta(ctx context.Context, q *db.Queries, 
 	period, err := normalizeBillingPeriod(in.BillingPeriod)
 	if err != nil {
 		return AdminPlanCatalogView{}, err
+	}
+	if in.PriceAmount != nil && *in.PriceAmount < 0 {
+		return AdminPlanCatalogView{}, Invalid("price_amount không được âm")
 	}
 	var price pgtype.Int8
 	if in.PriceAmount != nil {
@@ -220,6 +226,9 @@ func (s *BillingService) SetPlanFeatureEntitlement(ctx context.Context, q *db.Qu
 	}
 	if err != nil {
 		return AdminPlanCatalogView{}, err
+	}
+	if in.QuotaLimit != nil && *in.QuotaLimit < 0 {
+		return AdminPlanCatalogView{}, Invalid("quota_limit không được âm")
 	}
 	var quota pgtype.Int8
 	if in.QuotaLimit != nil {
