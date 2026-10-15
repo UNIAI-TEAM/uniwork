@@ -222,8 +222,8 @@ func (h *handlers) patchDocument(w http.ResponseWriter, r *http.Request) {
 }
 
 // createDocumentFile is POST /workspaces/{workspaceID}/documents/files: one
-// multipart file document. The file part streams into FileService; parent_id
-// and title are optional form fields.
+// multipart file document. The file part streams into FileService; parent_id,
+// title and visibility are optional form fields.
 func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -240,6 +240,7 @@ func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 		Title:          strings.TrimSpace(fields["title"]),
 		Filename:       file.FileName(),
 		Body:           part,
+		Visibility:     strings.TrimSpace(fields["visibility"]),
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
 	if err != nil {

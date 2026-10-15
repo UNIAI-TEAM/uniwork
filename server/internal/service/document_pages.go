@@ -124,6 +124,26 @@ func validDocumentVisibility(v string) error {
 	return nil
 }
 
+// createHomeRow resolves the visibility and the workspace level a document is
+// created with: an empty request inherits the parent's pair - visibility and
+// level together, read off the parent row locked in the transaction (C-01 §4;
+// the inheritance is fixed at create, a later move leaves both columns alone) -
+// and stands for the workspace at the root. The level is only read while the
+// document is workspace-visible.
+func createHomeRow(requested string, parent *db.Document) (visibility, level string) {
+	visibility = requested
+	if parent != nil && visibility == "" {
+		visibility, level = parent.Visibility, parent.WorkspaceLevel
+	}
+	if visibility == "" {
+		visibility = documentVisibilityWorkspace
+	}
+	if level == "" {
+		level = string(DocumentLevelEdit)
+	}
+	return visibility, level
+}
+
 // sanitizedPage is page JSON after the closed schema ran over it.
 type sanitizedPage struct {
 	content []byte
@@ -223,20 +243,17 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return DocumentView{}, err
 	}
-	visibility := in.Visibility
+	var parent *db.Document
 	if in.ParentID != "" {
-		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, w.OrganizationID, workspaceID, kind)
+		p, err := s.lockPageParent(ctx, q, actor, in.ParentID, w.OrganizationID, workspaceID, kind)
 		if err != nil {
 			return DocumentView{}, err
 		}
-		if visibility == "" {
-			// Inherited at create only; a later move leaves visibility alone.
-			visibility = parent.Visibility
-		}
+		parent = &p
 	}
-	if visibility == "" {
-		visibility = documentVisibilityWorkspace
-	}
+	// U-SH2: private at the root unless the request opens the home row; a
+	// child inherits its parent's pair.
+	visibility, workspaceLevel := createHomeRow(in.Visibility, parent)
 	position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
 		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: nullText(in.ParentID),
 	})
@@ -267,7 +284,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		Title:          title,
 		Icon:           icon,
 		Visibility:     visibility,
-		WorkspaceLevel: "edit", // SH-S1 T3: create default
+		WorkspaceLevel: workspaceLevel,
 		Content:        page.content,
 		ContentText:    page.text,
 		SearchText:     documentSearchText(title, page.text),
