@@ -380,6 +380,48 @@ describe("EditLockSession", () => {
   });
 });
 
+describe("EditLockSession review fixes (CFE-1-6, CFE-1-7)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-15T03:12:00Z"));
+  });
+  afterEach(async () => {
+    vi.useRealTimers();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+    await releaseHeldEditLocks(0);
+    vi.unstubAllGlobals();
+  });
+
+  it("CFE-1-6: acquire while acquiring is ignored unless it is moveFromSelf", async () => {
+    let grant: (value: DocumentEditLock) => void = () => undefined;
+    const transport = fakeTransport();
+    transport.acquire.mockImplementationOnce(() => new Promise((resolve) => (grant = resolve)));
+    const { session } = setup({ transport });
+    session.start();
+    void session.acquire();
+    void session.acquire();
+    expect(transport.acquire).toHaveBeenCalledTimes(1);
+    grant(lock());
+    await flush();
+    expect(transport.release).not.toHaveBeenCalled();
+    expect(session.getState()).toMatchObject({ phase: "mine", lock: { lock_id: "L1" } });
+    expect(heldEditLocks()).toEqual([["d1", "L1"]]);
+  });
+
+  it("CFE-1-7: a failed moveHere from mine forgets the old lock id", async () => {
+    const transport = fakeTransport();
+    const { session } = setup({ transport });
+    session.start();
+    await flush();
+    expect(heldEditLockId("d1")).toBe("L1");
+    transport.acquire.mockRejectedValueOnce(new ApiError("locked", "document_locked", 423, undefined, { held_by_me: true }));
+    await session.moveHere();
+    expect(session.getState().phase).toBe("other");
+    expect(heldEditLockId("d1")).toBeUndefined();
+    expect(heldEditLocks()).toEqual([]);
+  });
+});
+
 describe("newEditorId", () => {
   it("mints a 26-character Crockford ULID that sorts by time", () => {
     const a = newEditorId(1_000);

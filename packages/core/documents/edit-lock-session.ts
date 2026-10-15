@@ -206,6 +206,9 @@ export class EditLockSession {
   /** R2: open, "Edit now" after the lock came free, or "Edit here" with `moveFromSelf`. */
   async acquire(moveFromSelf = false): Promise<void> {
     if (this.disposed || (this.state.phase === "mine" && !moveFromSelf)) return;
+    // A second call while R2 flies would bump the op and give back the lock the
+    // first one is about to adopt; only "Edit here" may restart it.
+    if (this.state.phase === "acquiring" && !moveFromSelf) return;
     const op = ++this.op;
     this.clearTimers();
     this.setState({ phase: "acquiring", holder: null, lostReason: null, lostBy: null, baseChanged: false, errorCode: null, slow: false });
@@ -451,6 +454,8 @@ export class EditLockSession {
   private setState(patch: Partial<EditLockSessionState>): void {
     if (this.disposed) return;
     const next = { ...this.state, ...patch };
+    // Whatever way the session leaves "mine", the tab no longer holds that lock.
+    if (this.state.phase === "mine" && next.phase !== "mine" && this.state.lock) forgetHeldEditLock(this.state.lock.lock_id);
     next.editable = next.phase === "mine";
     next.readOnly = next.phase === "other" || next.phase === "lost";
     this.state = next;
