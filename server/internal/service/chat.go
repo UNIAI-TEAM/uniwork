@@ -607,7 +607,7 @@ func (s *ChatService) sendMessage(
 			return ChatMessageRow{}, err
 		}
 	}
-	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", mentions); err != nil {
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", "", mentions); err != nil {
 		return ChatMessageRow{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

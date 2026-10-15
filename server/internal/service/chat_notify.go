@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"slices"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -16,10 +17,14 @@ import (
 // @all past chatSmallRoomMembers notifies only the members it also names: a
 // row per member of a 1,000-person room is spam, and the mention badge still
 // counts it. A thread follower the message mentions hears it once, as the
-// mention. Chat messages are not audited (OPEN_QUESTIONS A4), hence Emit.
+// mention. A thread with more followers than chatSmallRoomMembers is the same
+// badge: only the root's author (threadRootAuthorID) gets a row, so a busy
+// thread does not write a row per follower under the root's lock nor queue
+// them on the workspace's notify lane. Chat messages are not audited
+// (OPEN_QUESTIONS A4), hence Emit.
 func emitChatMessageNotifications(
 	ctx context.Context, q *db.Queries, room db.ChatRoom,
-	senderID, messageID, threadRootID string, m chatMentions,
+	senderID, messageID, threadRootID, threadRootAuthorID string, m chatMentions,
 ) error {
 	mentioned := m.Recipients
 	// Recipients leave the sender out, so the room is one larger.
@@ -51,11 +56,18 @@ func emitChatMessageNotifications(
 		if err != nil {
 			return err
 		}
+		rest := make([]string, 0, len(followers))
 		for _, id := range followers {
 			if !skip[id] {
 				skip[id] = true
-				add("chat.thread.reply_received", id)
+				rest = append(rest, id)
 			}
+		}
+		if len(rest) > chatSmallRoomMembers {
+			rest = slices.DeleteFunc(rest, func(id string) bool { return id != threadRootAuthorID })
+		}
+		for _, id := range rest {
+			add("chat.thread.reply_received", id)
 		}
 	}
 	if len(events) == 0 {

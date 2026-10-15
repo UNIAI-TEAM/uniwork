@@ -261,7 +261,7 @@ func (s *ChatService) SendThreadReply(
 		}
 	}
 	_ = q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, threadRootID, mentions); err != nil {
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, threadRootID, root.SenderID, mentions); err != nil {
 		return ChatMessageRow{}, err
 	}
 

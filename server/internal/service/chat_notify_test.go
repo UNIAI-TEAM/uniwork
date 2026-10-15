@@ -216,3 +216,40 @@ func TestKindMessagesReturnTheFirstOnARepeatedClientMsgID(t *testing.T) {
 		t.Fatalf("room holds %d messages and %d reminders, want 4 and 1", messages, reminders)
 	}
 }
+
+// Past chatSmallRoomMembers a thread reply is a badge for its followers, like
+// @all: a row per follower of a busy thread is written under the root's lock
+// and drained one by one on the workspace's notify lane. The root's author
+// still hears it.
+func TestThreadReplyPastTheBoundNotifiesOnlyTheRootAuthor(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := chatTestUser(t, q, w, "thread-bound-c@example.com")
+	ud := chatTestUser(t, q, w, "thread-bound-d@example.com")
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "thread-bound", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID, uc.ID, ud.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "nghỉ Tết"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range []string{ub.ID, uc.ID} {
+		if _, err := s.SendThreadReply(ctx, u, w.ID, ch.ID, root.ID, SendChatMessageInput{Body: "đã đọc"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	smallChatRoom(t, 1)
+	reply, err := s.SendThreadReply(ctx, ud.ID, w.ID, ch.ID, root.ID, SendChatMessageInput{Body: "đã đọc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chatNotifyRecipients(t, s, "chat.thread.reply_received", reply.ID); !slices.Equal(got, []string{ua.ID}) {
+		t.Fatalf("reply in a busy thread notified %v, want only the root's author", got)
+	}
+}
