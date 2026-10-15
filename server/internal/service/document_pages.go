@@ -59,6 +59,9 @@ type DocumentView struct {
 	Access      DocumentAccess
 	Breadcrumbs []DocumentCrumb
 	File        *DocumentFileInfo
+	// BreakGlassExpiresAt is when the live emergency grant this view was read
+	// through ends; zero unless Access.Via is break_glass (DOC-05).
+	BreakGlassExpiresAt time.Time
 }
 
 // CreatePageInput is POST /workspaces/{ws}/documents with kind page or
@@ -451,8 +454,12 @@ func (s *DocumentService) GetDocument(ctx context.Context, actor Actor, document
 	if err != nil {
 		return DocumentView{}, err
 	}
+	expires, err := s.breakGlassExpiry(ctx, s.q, actor, doc, access)
+	if err != nil {
+		return DocumentView{}, err
+	}
 	s.RecordDocumentRead(ctx, actor, doc, access, DocumentAccessView, nil)
-	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, File: file}, nil
+	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, File: file, BreakGlassExpiresAt: expires}, nil
 }
 
 // currentFileInfo is the `file` block of a file document: its current
@@ -493,7 +500,11 @@ func (s *DocumentService) documentView(ctx context.Context, q *db.Queries, actor
 	if err != nil {
 		return DocumentView{}, err
 	}
-	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs}, nil
+	expires, err := s.breakGlassExpiry(ctx, q, actor, doc, access)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, BreakGlassExpiresAt: expires}, nil
 }
 
 // documentBreadcrumbs walks up from doc's parent and stops at the first

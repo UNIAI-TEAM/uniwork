@@ -463,6 +463,7 @@
         "document_discussion_mentioned": "Mentioned in a discussion",
         "document_discussion_replied": "Reply in a discussion",
         "document_comment_resolved": "Comment resolved",
+        "document_break_glass": "Emergency access to a document",
         "chat_mentioned": "Mentioned in chat",
         "chat_dm": "Direct messages",
         "chat_thread_replied": "Replies in threads you follow"
@@ -4783,6 +4784,8 @@
       "document_discussion_replied_untitled": "{{actor}} replied to your discussion post in a document.",
       "document_comment_resolved": "{{actor}} marked your comment in “{{document}}” as resolved.",
       "document_comment_resolved_untitled": "{{actor}} marked your comment in a document as resolved.",
+      "document_break_glass": "{{actor}} opened emergency view access (24h) to “{{document}}”.",
+      "document_break_glass_untitled": "{{actor}} opened emergency view access (24h) to a document.",
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
       "chat_dm": "{{actor}} sent you a message",
       "chat_thread_replied": "{{actor}} replied to a thread in {{room}}"
@@ -4792,7 +4795,8 @@
       "document_comment_replied": "New reply to your comment",
       "document_discussion_mentioned": "You were mentioned in a discussion",
       "document_discussion_replied": "New reply in a discussion",
-      "document_comment_resolved": "Comment resolved"
+      "document_comment_resolved": "Comment resolved",
+      "document_break_glass": "Emergency access to document"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",

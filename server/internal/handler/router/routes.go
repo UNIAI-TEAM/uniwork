@@ -594,6 +594,11 @@ type Routes struct {
 	ListDocumentShares       http.HandlerFunc
 	CreateDocumentShare      http.HandlerFunc
 	RevokeDocumentShare      http.HandlerFunc
+	// Emergency view access for a workspace admin on a restricted document
+	// (DOC-05; UNI-1628).
+	CreateDocumentBreakGlass http.HandlerFunc
+	RevokeDocumentBreakGlass http.HandlerFunc
+	GetDocumentAdminSummary  http.HandlerFunc
 	CreateDocumentLink       http.HandlerFunc
 	RevokeDocumentLink       http.HandlerFunc
 	ListDocumentAccessLogs   http.HandlerFunc

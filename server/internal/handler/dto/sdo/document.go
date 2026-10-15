@@ -13,32 +13,34 @@ import "encoding/json"
 // the caller's effective access (C-01 §4) and ride along on every document
 // payload the actor may open.
 type DocumentDTO struct {
-	ID             string                  `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	OrganizationID string                  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
-	WorkspaceID    string                  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	ParentID       *string                 `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
-	Kind           string                  `json:"kind" description:"page, file hoặc folder" example:"page"`
-	Title          string                  `json:"title" example:"Kế hoạch Q4"`
-	Icon           *string                 `json:"icon,omitempty" example:"📄"`
-	Visibility     string                  `json:"visibility" description:"workspace hoặc restricted" example:"workspace"`
-	Content        *json.RawMessage        `json:"content,omitempty" description:"ProseMirror JSON đã sanitize; chỉ page"`
-	ContentText    string                  `json:"content_text,omitempty" description:"Văn bản rút từ content phục vụ tìm kiếm/preview" example:"Kế hoạch quý 4"`
-	Revision       string                  `json:"revision" description:"Revision làm việc, chuỗi thập phân" example:"41"`
-	CurrentVersion int32                   `json:"current_version" description:"Ordinal phiên bản mới nhất; 0 = chưa có mốc" example:"3"`
-	Position       float64                 `json:"position" description:"Thứ tự trong cây" example:"0"`
-	MyLevel        string                  `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của actor" example:"edit"`
-	Via            string                  `json:"via,omitempty" description:"member, share, link, owner, ai_context hoặc break_glass" example:"member"`
-	File           *DocumentFileDTO        `json:"file,omitempty" description:"Metadata bản file hiện hành; chỉ kind=file"`
-	Breadcrumbs    []DocumentBreadcrumbDTO `json:"breadcrumbs,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha"`
-	OwnerKind      *string                 `json:"owner_kind,omitempty" description:"work_product khi tài liệu thuộc sở hữu" example:"work_product"`
-	OwnerID        *string                 `json:"owner_id,omitempty" description:"ULID của owner; đọc cùng owner_kind" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
-	ArchivedAt     *string                 `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
-	CreatedBy      string                  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	CreatedByKind  string                  `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
-	UpdatedBy      string                  `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UpdatedByKind  string                  `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
-	CreatedAt      string                  `json:"created_at" example:"2026-09-27T09:00:00Z"`
-	UpdatedAt      string                  `json:"updated_at" example:"2026-09-27T09:00:00Z"`
+	ID                  string                  `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	OrganizationID      string                  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	WorkspaceID         string                  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	ParentID            *string                 `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	Kind                string                  `json:"kind" description:"page, file hoặc folder" example:"page"`
+	Title               string                  `json:"title" example:"Kế hoạch Q4"`
+	Icon                *string                 `json:"icon,omitempty" example:"📄"`
+	Visibility          string                  `json:"visibility" description:"workspace hoặc restricted" example:"workspace"`
+	Content             *json.RawMessage        `json:"content,omitempty" description:"ProseMirror JSON đã sanitize; chỉ page"`
+	ContentText         string                  `json:"content_text,omitempty" description:"Văn bản rút từ content phục vụ tìm kiếm/preview" example:"Kế hoạch quý 4"`
+	Revision            string                  `json:"revision" description:"Revision làm việc, chuỗi thập phân" example:"41"`
+	CurrentVersion      int32                   `json:"current_version" description:"Ordinal phiên bản mới nhất; 0 = chưa có mốc" example:"3"`
+	Position            float64                 `json:"position" description:"Thứ tự trong cây" example:"0"`
+	MyLevel             string                  `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của actor; vắng mặt khi admin_scope và chưa có quyền đọc" example:"edit"`
+	Via                 string                  `json:"via,omitempty" description:"member, share, link, owner, ai_context hoặc break_glass" example:"member"`
+	AdminScope          bool                    `json:"admin_scope,omitempty" description:"true = actor là owner/admin workspace trên tài liệu restricted mà họ không phải ACL owner: được quản trị nhưng không tự có quyền đọc; content bị lược bỏ khi my_level thấp hơn view" example:"true"`
+	BreakGlassExpiresAt *string                 `json:"break_glass_expires_at,omitempty" description:"Hạn của grant truy cập khẩn cấp đang đọc tài liệu; chỉ có khi via=break_glass" example:"2026-09-28T09:00:00Z"`
+	File                *DocumentFileDTO        `json:"file,omitempty" description:"Metadata bản file hiện hành; chỉ kind=file"`
+	Breadcrumbs         []DocumentBreadcrumbDTO `json:"breadcrumbs,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha"`
+	OwnerKind           *string                 `json:"owner_kind,omitempty" description:"work_product khi tài liệu thuộc sở hữu" example:"work_product"`
+	OwnerID             *string                 `json:"owner_id,omitempty" description:"ULID của owner; đọc cùng owner_kind" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
+	ArchivedAt          *string                 `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	CreatedBy           string                  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedByKind       string                  `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
+	UpdatedBy           string                  `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedByKind       string                  `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
+	CreatedAt           string                  `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	UpdatedAt           string                  `json:"updated_at" example:"2026-09-27T09:00:00Z"`
 }
 
 // DocumentBreadcrumbDTO is one ancestor entry in DocumentDTO.breadcrumbs.
@@ -187,8 +189,9 @@ type DocumentSummaryDTO struct {
 	SizeBytes      int64   `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
 	Origin         string  `json:"origin" description:"upload (file tải lên) hoặc created (trang, thư mục, file trống, bản chuyển đổi)" example:"upload"`
 	Snippet        *string `json:"snippet,omitempty" description:"Đoạn khớp ≤ 160 ký tự khi tìm bằng q" example:"…kế hoạch quý 4 gồm ba mốc…"`
-	MyLevel        *string `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view" example:"view"`
+	MyLevel        *string `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view, trừ khi admin_scope (dòng bị khóa)" example:"view"`
 	Via            *string `json:"via,omitempty" description:"member, share, link, owner, ai_context hoặc break_glass" example:"share"`
+	AdminScope     bool    `json:"admin_scope,omitempty" description:"true = người xem là owner/admin workspace trên dòng restricted mà họ không phải ACL owner; không có my_level = dòng bị khóa" example:"true"`
 	OwnerKind      *string `json:"owner_kind,omitempty" example:"work_product"`
 	OwnerID        *string `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
 	ArchivedAt     *string `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
@@ -288,11 +291,64 @@ type DocumentLinkDTO struct {
 // own level always; the grants, acl owner and live links only for a caller at
 // manage level. Everyone else reads `my_level`/`via` alone.
 type DocumentAccessSDO struct {
-	MyLevel  string                   `json:"my_level" description:"view, comment, edit hoặc manage" example:"manage"`
-	Via      string                   `json:"via" description:"member, share, link, owner, ai_context hoặc break_glass" example:"member"`
-	ACLOwner *DocumentPersonAccessDTO `json:"acl_owner,omitempty" description:"Người nắm ACL owner; chỉ khi manage"`
-	Shares   []DocumentShareDTO       `json:"shares,omitempty" description:"Grant sống; chỉ khi manage"`
-	Links    []DocumentLinkDTO        `json:"links,omitempty" description:"Liên kết công khai sống; chỉ khi manage"`
+	MyLevel    string                       `json:"my_level" description:"view, comment, edit hoặc manage; chuỗi rỗng khi admin_scope và chưa có quyền đọc" example:"manage"`
+	Via        string                       `json:"via" description:"member, share, link, owner, ai_context hoặc break_glass; chuỗi rỗng khi chưa có quyền đọc" example:"member"`
+	AdminScope bool                         `json:"admin_scope,omitempty" description:"true = người gọi quản trị tài liệu restricted bằng vai trò owner/admin workspace" example:"true"`
+	ACLOwner   *DocumentPersonAccessDTO     `json:"acl_owner,omitempty" description:"Người nắm ACL owner; chỉ khi manage hoặc admin_scope"`
+	Shares     []DocumentShareDTO           `json:"shares,omitempty" description:"Grant sống; chỉ khi manage hoặc admin_scope"`
+	Links      []DocumentLinkDTO            `json:"links,omitempty" description:"Liên kết công khai sống; chỉ khi manage hoặc admin_scope"`
+	BreakGlass []DocumentBreakGlassGrantDTO `json:"break_glass,omitempty" description:"Grant truy cập khẩn cấp còn hiệu lực, mới nhất trước; chỉ khi manage hoặc admin_scope"`
+}
+
+// DocumentBreakGlassGrantDTO is one emergency view grant (DOC-05; UNI-1628): a
+// workspace admin's audited, 24-hour, view-only access to a restricted
+// document, opened with a written reason.
+type DocumentBreakGlassGrantDTO struct {
+	ID         string `json:"id" description:"ULID grant" example:"01J8X4BGLASS0N1P2Q3R4S5T6U"`
+	DocumentID string `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	ActorID    string `json:"actor_id" description:"ULID người mở truy cập khẩn cấp" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	ActorName  string `json:"actor_name" description:"Tên hiển thị của người mở; rỗng khi tài khoản không còn" example:"Nguyễn An"`
+	Level      string `json:"level" description:"Luôn là view" example:"view"`
+	Reason     string `json:"reason" description:"Lý do người mở nhập, 10–500 ký tự" example:"Kiểm tra hợp đồng theo yêu cầu của kiểm toán"`
+	GrantedAt  string `json:"granted_at" example:"2026-09-27T09:00:00Z"`
+	ExpiresAt  string `json:"expires_at" description:"Hết hiệu lực sau 24 giờ hoặc khi bị thu hồi" example:"2026-09-28T09:00:00Z"`
+}
+
+// DocumentBreakGlassSDO wraps one grant: POST /documents/{id}/break-glass
+// answers 201 for a new grant and 200 for the caller's live one.
+type DocumentBreakGlassSDO struct {
+	Grant DocumentBreakGlassGrantDTO `json:"grant"`
+}
+
+// DocumentAdminSummaryDocumentDTO is the metadata block of the admin summary:
+// what an administrator may see about a restricted document they cannot read.
+// It never carries content, content_text or a file.
+type DocumentAdminSummaryDocumentDTO struct {
+	ID             string  `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	OrganizationID string  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	WorkspaceID    string  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	ParentID       *string `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	Kind           string  `json:"kind" description:"page, file hoặc folder" example:"page"`
+	Title          string  `json:"title" example:"Kế hoạch Q4"`
+	Icon           *string `json:"icon,omitempty" example:"📄"`
+	Visibility     string  `json:"visibility" description:"workspace hoặc restricted" example:"restricted"`
+	SizeBytes      int64   `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
+	ArchivedAt     *string `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	CreatedBy      string  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedAt      string  `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	UpdatedAt      string  `json:"updated_at" example:"2026-09-27T09:00:00Z"`
+}
+
+// DocumentAdminSummarySDO is GET /documents/{id}/admin-summary: metadata, the
+// ACL owner and the caller's own standing, for a caller who may administer the
+// document. Never content.
+type DocumentAdminSummarySDO struct {
+	Document   DocumentAdminSummaryDocumentDTO `json:"document"`
+	ACLOwner   *DocumentPersonAccessDTO        `json:"acl_owner" description:"Người nắm ACL owner; null khi tài liệu không có"`
+	MyLevel    string                          `json:"my_level" description:"view, comment, edit hoặc manage; chuỗi rỗng = chưa có quyền đọc" example:""`
+	Via        string                          `json:"via,omitempty" description:"member, share, link, owner, ai_context hoặc break_glass" example:"break_glass"`
+	AdminScope bool                            `json:"admin_scope" description:"true = người gọi quản trị tài liệu bằng vai trò owner/admin workspace" example:"true"`
+	MyGrant    *DocumentBreakGlassGrantDTO     `json:"my_grant" description:"Grant truy cập khẩn cấp còn hiệu lực của chính người gọi; null khi không có"`
 }
 
 // DocumentShareSDO wraps one grant (share create).

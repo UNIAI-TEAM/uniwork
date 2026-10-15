@@ -92,6 +92,9 @@ func TestErrorClassTable(t *testing.T) {
 		// 409 is the work product's call, 422 a bad principal - neither is a
 		// permission denial of the caller.
 		"document_owned_by_work_product", "principal_not_in_organization",
+		// A field validation of the break-glass reason (422, fields
+		// min/max/length): the composer renders its own sentence.
+		"break_glass_reason_invalid",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {

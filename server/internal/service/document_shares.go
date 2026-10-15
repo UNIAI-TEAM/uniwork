@@ -264,6 +264,8 @@ type DocumentAccessOverview struct {
 	ACLOwner *DocumentPersonAccess
 	Shares   []DocumentShareAccess
 	Links    []db.DocumentShareLink
+	// BreakGlass is the live emergency grants, newest first (DOC-05).
+	BreakGlass []DocumentBreakGlassGrantView
 }
 
 // DocumentPersonAccess is one person's effective level.
@@ -284,12 +286,8 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 	if !my.canAdminister() {
 		return out, nil
 	}
-	if doc.AclOwnerID.Valid && !doc.OwnerKind.Valid {
-		acc, err := s.personAccess(ctx, doc, doc.AclOwnerID.String)
-		if err != nil {
-			return DocumentAccessOverview{}, err
-		}
-		out.ACLOwner = &DocumentPersonAccess{UserID: doc.AclOwnerID.String, Access: acc}
+	if out.ACLOwner, err = s.aclOwnerAccess(ctx, doc); err != nil {
+		return DocumentAccessOverview{}, err
 	}
 	shares, err := s.q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
@@ -330,6 +328,9 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 			return DocumentAccessOverview{}, err
 		}
 		out.Links = links
+		if out.BreakGlass, err = s.listLiveBreakGlass(ctx, doc); err != nil {
+			return DocumentAccessOverview{}, err
+		}
 	}
 	return out, nil
 }
