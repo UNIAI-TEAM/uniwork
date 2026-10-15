@@ -581,7 +581,7 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 					HideResultsUntilVote: in.Poll.Settings.HideResultsUntilVote,
 					HideVoters:           in.Poll.Settings.HideVoters,
 				},
-				ReplyToMessageID: in.ReplyToMessageID,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else if in.Reminder != nil {
@@ -591,10 +591,10 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			workspaceID,
 			roomID,
 			service.SendReminderMessageInput{
-				Body:             in.Reminder.Body,
-				RemindAt:         in.Reminder.RemindAt,
-				Repeat:           in.Reminder.Repeat,
-				ReplyToMessageID: in.ReplyToMessageID,
+				Body:        in.Reminder.Body,
+				RemindAt:    in.Reminder.RemindAt,
+				Repeat:      in.Reminder.Repeat,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else if in.Note != nil {
@@ -604,9 +604,9 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			workspaceID,
 			roomID,
 			service.SendNoteMessageInput{
-				Body:             in.Note.Body,
-				PinToTop:         in.Note.PinToTop,
-				ReplyToMessageID: in.ReplyToMessageID,
+				Body:        in.Note.Body,
+				PinToTop:    in.Note.PinToTop,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else if in.Post != nil {
@@ -616,10 +616,10 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			workspaceID,
 			roomID,
 			service.SendPostMessageInput{
-				Title:            in.Post.Title,
-				Body:             in.Post.Body,
-				PinToTop:         in.Post.PinToTop,
-				ReplyToMessageID: in.ReplyToMessageID,
+				Title:       in.Post.Title,
+				Body:        in.Post.Body,
+				PinToTop:    in.Post.PinToTop,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else {

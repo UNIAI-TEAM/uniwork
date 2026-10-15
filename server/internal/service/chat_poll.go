@@ -7,8 +7,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -54,10 +52,10 @@ type ChatPollInfo struct {
 }
 
 type SendPollMessageInput struct {
-	Question         string
-	Options          []string
-	Settings         ChatPollSettings
-	ReplyToMessageID *string
+	Question    string
+	Options     []string
+	Settings    ChatPollSettings
+	ClientMsgID string
 }
 
 func pollFromMetadata(kind string, meta chatMessageMetadata, viewerID string) *ChatPollInfo {
@@ -191,31 +189,7 @@ func (s *ChatService) SendPollMessage(
 		return ChatMessageRow{}, err
 	}
 
-	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.CreateChatPollMessage(ctx, db.CreateChatPollMessageParams{
-		ID:             util.NewID(),
-		RoomID:         room.ID,
-		OrganizationID: room.OrganizationID,
-		WorkspaceID:    anchorWS,
-		SenderID:       userID,
-		Body:           question,
-		Metadata:       meta,
-	})
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-
-	u, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	createdAt := msg.CreatedAt.Time
-	_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
-		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
-	})
-	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
-	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
+	return s.sendKindMessage(ctx, userID, room, chatMessageKindPoll, question, meta, in.ClientMsgID, nil)
 }
 
 func (s *ChatService) VoteChatPollMessage(

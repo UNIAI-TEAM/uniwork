@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
+	"time"
 )
 
 // chatNotifyRecipients is every user_id the durable chat notification topic
@@ -120,5 +121,98 @@ func TestChatSendWritesDurableNotificationRows(t *testing.T) {
 	}
 	if got := chatNotifyRecipients(t, s, "chat.message.mentioned", pinged.ID); !slices.Equal(got, []string{ua.ID}) {
 		t.Fatalf("thread mention notified %v", got)
+	}
+}
+
+// sendEveryKind sends a poll, a note, a post and a reminder into roomID, each
+// keyed by clientMsgID plus its kind, and returns them in that order.
+func sendEveryKind(t *testing.T, s *ChatService, userID, workspaceID, roomID, clientMsgID string) []ChatMessageRow {
+	t.Helper()
+	ctx := context.Background()
+	remindAt := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	key := func(kind string) string {
+		if clientMsgID == "" {
+			return ""
+		}
+		return clientMsgID + "-" + kind
+	}
+	var out []ChatMessageRow
+	for _, send := range []func() (ChatMessageRow, error){
+		func() (ChatMessageRow, error) {
+			return s.SendPollMessage(ctx, userID, workspaceID, roomID, SendPollMessageInput{
+				Question: "Ăn trưa ở đâu?", Options: []string{"Phở", "Bún"}, ClientMsgID: key("poll"),
+			})
+		},
+		func() (ChatMessageRow, error) {
+			return s.SendNoteMessage(ctx, userID, workspaceID, roomID, SendNoteMessageInput{
+				Body: "Ghi chú họp", ClientMsgID: key("note"),
+			})
+		},
+		func() (ChatMessageRow, error) {
+			return s.SendPostMessage(ctx, userID, workspaceID, roomID, SendPostMessageInput{
+				Title: "Thông báo", Body: "Nghỉ lễ", ClientMsgID: key("post"),
+			})
+		},
+		func() (ChatMessageRow, error) {
+			return s.SendReminderMessage(ctx, userID, workspaceID, roomID, SendReminderMessageInput{
+				Body: "Nộp báo cáo", RemindAt: remindAt, Repeat: "daily", ClientMsgID: key("reminder"),
+			})
+		},
+	} {
+		row, err := send()
+		if err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+// A poll, note, post or reminder in a DM reaches the offline peer the same way
+// a text does: a durable chat.dm.received row in the send transaction.
+func TestKindMessagesInADMNotifyThePeer(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixtureFiles(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, msg := range sendEveryKind(t, s, ua.ID, w.ID, dm.ID, "") {
+		if got := chatNotifyRecipients(t, s, "chat.dm.received", msg.ID); !slices.Equal(got, []string{ub.ID}) {
+			t.Fatalf("dm %s notified %v, want the peer", msg.Kind, got)
+		}
+	}
+}
+
+// The client retries a send on a network error or a 5xx with the same key; a
+// repeat must return the first message, not post a second poll or a second
+// daily reminder.
+func TestKindMessagesReturnTheFirstOnARepeatedClientMsgID(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixtureFiles(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := sendEveryKind(t, s, ua.ID, w.ID, dm.ID, "retry-key-01")
+	again := sendEveryKind(t, s, ua.ID, w.ID, dm.ID, "retry-key-01")
+	for i := range first {
+		if first[i].ID != again[i].ID {
+			t.Fatalf("%s repeat got %s, want the first %s", first[i].Kind, again[i].ID, first[i].ID)
+		}
+	}
+	var messages, reminders int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM chat_messages WHERE room_id = $1`, dm.ID).Scan(&messages); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM chat_reminders WHERE room_id = $1`, dm.ID).Scan(&reminders); err != nil {
+		t.Fatal(err)
+	}
+	if messages != 4 || reminders != 1 {
+		t.Fatalf("room holds %d messages and %d reminders, want 4 and 1", messages, reminders)
 	}
 }

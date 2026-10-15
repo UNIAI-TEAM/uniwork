@@ -103,32 +103,12 @@ WHERE m.room_id = $1
 ORDER BY m.created_at ASC, m.id ASC
 LIMIT sqlc.arg(msg_limit);
 
--- name: CreateChatPollMessage :one
+-- name: CreateChatKindMessage :one
+-- A poll, reminder, note or post; client_msg_id makes a retried send idempotent.
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, client_msg_id, organization_id
 ) VALUES (
-  $1, $2, $3, $4, 'poll', $5, $6, $7
-) RETURNING *;
-
--- name: CreateChatReminderMessage :one
-INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
-) VALUES (
-  $1, $2, $3, $4, 'reminder', $5, $6, $7
-) RETURNING *;
-
--- name: CreateChatNoteMessage :one
-INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
-) VALUES (
-  $1, $2, $3, $4, 'note', $5, $6, $7
-) RETURNING *;
-
--- name: CreateChatPostMessage :one
-INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
-) VALUES (
-  $1, $2, $3, $4, 'post', $5, $6, $7
+  $1, $2, $3, $4, $5, $6, $7, $8, sqlc.narg(client_msg_id), sqlc.arg(organization_id)
 ) RETURNING *;
 
 -- name: CreateChatMessage :one
