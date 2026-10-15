@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git diff --stat b9da169e8 HEAD -- server | tail -3
+72e535dcb5ef293e9cbb48b918ebb273432188fe
+49f57872933d771b7a93219c21978c2bf43757d0
+72e535dcb Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1413-g818-fix
+49f578729 chore: merge W-DOC06 owner transfer (2f9a6a818) into the G5-G7 root
+2f9a6a818 test(e2e): expect the current owner-row copy in the share dialog
+adcc2f5ed Merge origin/feature/UNI-923-office-g5-g6-g7 (463e7fd2b) into UNI-1630 W-DOC06
+463e7fd2b chore: merge G7-12 holdout eval harness (3cfda31fe) into the G5-G7 root
+b9da169e8 test(documents): scan the access report files for unclassified error codes
