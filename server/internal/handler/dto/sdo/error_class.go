@@ -35,9 +35,13 @@ var errorClassByCode = map[string]string{
 	// (email_unverified, mfa_required) and billing gates (entitlement_required,
 	// subscription_inactive, checkout_required) are deliberately absent -
 	// they are not permission denials.
-	"forbidden":                  "permission",
-	"member_deactivated":         "permission",
-	"organization_suspended":     "permission",
+	"forbidden":              "permission",
+	"member_deactivated":     "permission",
+	"organization_suspended": "permission",
+	// The caller may edit a document through a share but holds no seat in its
+	// workspace, so the copy cannot be created there (BE-12-201): the client asks
+	// for a seat instead of telling a member they are not one.
+	"workspace_seat_required":    "permission",
 	"not_meeting_host":           "permission",
 	"ai_context_forbidden":       "permission",
 	"ai_tool_not_allowed":        "permission",
