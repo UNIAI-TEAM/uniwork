@@ -1,0 +1,153 @@
+$ for d in .harness-run-r14c/fault/FQ-*/; do echo "=== $d"; ls "$d"; head -n 15 "$d/intent-log.jsonl" 2>/dev/null; head -n 15 "$d/proxy-log.jsonl" 2>/dev/null; head -c 800 "$d/server-versions.json" 2>/dev/null; echo; done; cat test-results/office-g5g6g7-evidence/evidence.jsonl 2>/dev/null; true
+=== .harness-run-r14c/fault/FQ-41/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T21:05:07.703Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8f029908-5ca3-44d5-99d9-4935663c161f","keyTag":"748a1fa26c9e","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T21:05:07.738Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8f029908-5ca3-44d5-99d9-4935663c161f","keyTag":"748a1fa26c9e","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T21:05:59.583Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8f029908-5ca3-44d5-99d9-4935663c161f","keyTag":"748a1fa26c9e","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T21:05:59.583Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8f029908-5ca3-44d5-99d9-4935663c161f","keyTag":"748a1fa26c9e","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T21:05:59.583Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8f029908-5ca3-44d5-99d9-4935663c161f","keyTag":"748a1fa26c9e","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T21:05:59.583Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8f029908-5ca3-44d5-99d9-4935663c161f","keyTag":"748a1fa26c9e","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T21:04:58.732Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.511Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.522Z","method":"GET","path":"/api/v1/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.528Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.532Z","method":"GET","path":"/api/v1/orgs/o-fault-mva11d4p-a991/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.544Z","method":"GET","path":"/api/v1/orgs/01M50P2WDW29MWC61WF9V1N4A0/billing","status":200,"ms":9,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.563Z","method":"GET","path":"/api/v1/orgs/01M50P2WDW29MWC61WF9V1N4A0/ai/cloud","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.568Z","method":"GET","path":"/api/v1/orgs/01M50P2WDW29MWC61WF9V1N4A0/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.576Z","method":"GET","path":"/api/v1/orgs/01M50P2WDW29MWC61WF9V1N4A0/workspaces","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.584Z","method":"GET","path":"/api/v1/workspaces/01M50P2WE9R6SX5ETXEC26MGEG/documents/changes","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.592Z","method":"GET","path":"/api/v1/orgs/01M50P2WDW29MWC61WF9V1N4A0/ai/credentials","status":503,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:04:59.597Z","method":"GET","path":"/api/v1/orgs/01M50P2WDW29MWC61WF9V1N4A0/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:05:03.540Z","method":"GET","path":"/api/v1/documents/01M50P2WFT5AQ0PD3DX1XG3R32","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:05:03.546Z","method":"GET","path":"/api/v1/documents/01M50P2WFT5AQ0PD3DX1XG3R32/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:05:03.603Z","method":"GET","path":"/api/v1/documents/01M50P2WFT5AQ0PD3DX1XG3R32","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50P2WFT5AQ0PD3DX1XG3R32",
+  "documentId": "01M50P2WFT5AQ0PD3DX1XG3R32",
+  "readAt": "2026-10-15T21:08:28.587Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50P5PA1KBF2QPWGG0XMH2VD",
+      "document_id": "01M50P2WFT5AQ0PD3DX1XG3R32",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50P43M9AWS2D21G151PR9J4",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 16584,
+      "checksum_sha256": "057e9392c918a9834c124255cbb9e458077160177f52192744759f4417e5e481",
+      "download_url": "/api/v1/documents/01M50P2WFT5AQ0PD3DX1XG3R32/download?version=2",
+      "created_by": "01M50P2WBBFZY2GNWJN2QQHECD",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r14c/fault/FQ-42/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T21:09:10.279Z","case":"FQ-42","source":"app-trace","intent":"office-intent-4d992abb-0aef-49db-8b38-8b67a3a193b3","keyTag":"77c3d858270c","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T21:09:10.312Z","case":"FQ-42","source":"app-trace","intent":"office-intent-4d992abb-0aef-49db-8b38-8b67a3a193b3","keyTag":"77c3d858270c","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T21:10:01.968Z","case":"FQ-42","source":"app-trace","intent":"office-intent-4d992abb-0aef-49db-8b38-8b67a3a193b3","keyTag":"77c3d858270c","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T21:10:01.968Z","case":"FQ-42","source":"app-trace","intent":"office-intent-4d992abb-0aef-49db-8b38-8b67a3a193b3","keyTag":"77c3d858270c","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T21:10:01.968Z","case":"FQ-42","source":"app-trace","intent":"office-intent-4d992abb-0aef-49db-8b38-8b67a3a193b3","keyTag":"77c3d858270c","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T21:10:01.968Z","case":"FQ-42","source":"app-trace","intent":"office-intent-4d992abb-0aef-49db-8b38-8b67a3a193b3","keyTag":"77c3d858270c","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T21:09:01.010Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.888Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":12,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.899Z","method":"GET","path":"/api/v1/me","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.907Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.912Z","method":"GET","path":"/api/v1/orgs/o-fault-mva16k2f-c6ca/members/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.924Z","method":"GET","path":"/api/v1/orgs/01M50PA90SWZGV49QFM54NZ1YQ/billing","status":200,"ms":9,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.940Z","method":"GET","path":"/api/v1/orgs/01M50PA90SWZGV49QFM54NZ1YQ/ai/cloud","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.947Z","method":"GET","path":"/api/v1/orgs/01M50PA90SWZGV49QFM54NZ1YQ/office/capabilities","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.956Z","method":"GET","path":"/api/v1/orgs/01M50PA90SWZGV49QFM54NZ1YQ/workspaces","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.970Z","method":"GET","path":"/api/v1/orgs/01M50PA90SWZGV49QFM54NZ1YQ/ai/credentials","status":503,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.972Z","method":"GET","path":"/api/v1/workspaces/01M50PA91126CYS5Y131V3XQEZ/documents/changes","status":200,"ms":13,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:01.977Z","method":"GET","path":"/api/v1/orgs/01M50PA90SWZGV49QFM54NZ1YQ/ai/cloud","status":200,"ms":14,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:05.921Z","method":"GET","path":"/api/v1/documents/01M50PA92JY9ZT3G5FRV38V05R","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:05.927Z","method":"GET","path":"/api/v1/documents/01M50PA92JY9ZT3G5FRV38V05R/download","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:09:05.983Z","method":"GET","path":"/api/v1/documents/01M50PA92JY9ZT3G5FRV38V05R","status":200,"ms":9,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50PA92JY9ZT3G5FRV38V05R",
+  "documentId": "01M50PA92JY9ZT3G5FRV38V05R",
+  "readAt": "2026-10-15T21:13:11.297Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50PD30JQX1768HBX7GR17AG",
+      "document_id": "01M50PA92JY9ZT3G5FRV38V05R",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50PBGGQ0CCAVMRX5P0NT4X7",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 16584,
+      "checksum_sha256": "019cddd5645efe37dbee475a1f816ecc0d325ee7c27dca7a9ac837172eeee878",
+      "download_url": "/api/v1/documents/01M50PA92JY9ZT3G5FRV38V05R/download?version=2",
+      "created_by": "01M50PA8YAWKMJVNACNGWRNR07",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r14c/fault/FQ-53/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T21:14:26.190Z","case":"FQ-53","source":"app-trace","intent":"office-intent-70460201-45ab-4312-961d-efa3720774fd","keyTag":"e6412404ddd7","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T21:14:26.228Z","case":"FQ-53","source":"app-trace","intent":"office-intent-70460201-45ab-4312-961d-efa3720774fd","keyTag":"e6412404ddd7","attempt":null,"event":"queued -> committed","from":"queued","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T21:13:44.555Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":9,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.420Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.428Z","method":"GET","path":"/api/v1/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.433Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.440Z","method":"GET","path":"/api/v1/orgs/o-fault-mva1cmed-17f8/members/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.452Z","method":"GET","path":"/api/v1/orgs/01M50PJXBA49WJBWQVR6DAZ3GR/billing","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.466Z","method":"GET","path":"/api/v1/orgs/01M50PJXBA49WJBWQVR6DAZ3GR/ai/cloud","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.471Z","method":"GET","path":"/api/v1/orgs/01M50PJXBA49WJBWQVR6DAZ3GR/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.479Z","method":"GET","path":"/api/v1/orgs/01M50PJXBA49WJBWQVR6DAZ3GR/workspaces","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.487Z","method":"GET","path":"/api/v1/workspaces/01M50PJXBPGKGRPVE9CR9BJ617/documents/changes","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.496Z","method":"GET","path":"/api/v1/orgs/01M50PJXBA49WJBWQVR6DAZ3GR/ai/cloud","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:45.497Z","method":"GET","path":"/api/v1/orgs/01M50PJXBA49WJBWQVR6DAZ3GR/ai/credentials","status":503,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:49.448Z","method":"GET","path":"/api/v1/documents/01M50PJXDZRSVVNM6CCW7EGM3V","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:49.453Z","method":"GET","path":"/api/v1/documents/01M50PJXDZRSVVNM6CCW7EGM3V/download","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T21:13:49.488Z","method":"GET","path":"/api/v1/documents/01M50PJXDZRSVVNM6CCW7EGM3V","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50PJXDZRSVVNM6CCW7EGM3V",
+  "documentId": "01M50PJXDZRSVVNM6CCW7EGM3V",
+  "readAt": "2026-10-15T21:14:26.736Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50PN51ERCMT12RXHZV75YXK",
+      "document_id": "01M50PJXDZRSVVNM6CCW7EGM3V",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50PN50Z1ZEXZD4PAF5NR6KG",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 4411,
+      "checksum_sha256": "ef6ae4295c6600461bd6cbfd59da81d58e39e3ec64568a9ae1d92c74228e5fd9",
+      "download_url": "/api/v1/documents/01M50PJXDZRSVVNM6CCW7EGM3V/download?version=2",
+      "created_by": "01M50PJX87MMH6SC84Y3XWNQGQ",
+      "created_by_kind": "human",
+      "creat
