@@ -38,6 +38,11 @@ const (
 	KindDocumentDiscussionMentioned = "document_discussion_mentioned"
 	KindDocumentDiscussionReplied   = "document_discussion_replied"
 	KindDocumentCommentResolved     = "document_comment_resolved"
+	// The edit lock (UNI-1645, addendum §5.2): someone asks the holder to
+	// stop editing, the holder's answer, and a manager taking the lock.
+	KindDocumentEditRequested       = "document_edit_requested"
+	KindDocumentEditRequestAnswered = "document_edit_request_answered"
+	KindDocumentEditTakenOver       = "document_edit_taken_over"
 	// Chat (H1): one row per room or thread while unread, so a burst of
 	// messages is one notification and one push.
 	KindChatMentioned     = "chat_mentioned"
@@ -52,6 +57,7 @@ var Kinds = []string{
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
+	KindDocumentEditRequested, KindDocumentEditRequestAnswered, KindDocumentEditTakenOver,
 	KindChatMentioned, KindChatDM, KindChatThreadReplied,
 }
 

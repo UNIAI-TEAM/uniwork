@@ -30,6 +30,9 @@ func (*stubDocumentMetrics) IncDocumentConflict(string, string)                 
 func (*stubDocumentMetrics) IncDocumentQuotaRejected(string)                    {}
 func (*stubDocumentMetrics) ObserveDocumentWorkerSweep(string, string, float64) {}
 func (*stubDocumentMetrics) AddDocumentWorkerRowsFailed(string, int)            {}
+func (*stubDocumentMetrics) IncDocumentEditLockOp(string)                       {}
+func (*stubDocumentMetrics) IncDocumentEditLockRefused(string)                  {}
+func (*stubDocumentMetrics) IncDocumentEditRequest(string)                      {}
 
 // stubOfficeIntentMetrics stands in for reg.Office's intent counters.
 type stubOfficeIntentMetrics struct{}
