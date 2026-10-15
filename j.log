@@ -18,8 +18,6 @@ $ for f in .harness-run/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 6
 07:13:01.894 INF migrate done component=server dir=up
 === .harness-run/logs/server-build.log
 === .harness-run/logs/server.log
-07:13:20.263 INF http request method=POST path=/api/v1/workspaces/01M4Z6H1TSMJ1BSWA6MVQGR38T/documents/files status=201 duration=14.1ms request_id=cursor/8bTtExHs4f-000345 correlation_id=7d4f8ea39efcc250a6fb144d8a045f34 trace_id=7d4f8ea39efcc250a6fb144d8a045f34 span_id=d631f9b3b9c9f5ae organization_id=01M4Z6H1TJ7X1D8XEF7YDZCHJQ workspace_id=01M4Z6H1TSMJ1BSWA6MVQGR38T actor_id=01M4Z6H1P4RSBZMT4FV7QGDTN0 actor_kind=human
-07:13:20.264 INF http request method=GET path=/api/v1/documents/01M4Z6H1W4PB6TX0VZKTJ75MWB/versions status=200 duration=870µs request_id=cursor/8bTtExHs4f-000346 correlation_id=432d11327d5d668d8b0fdda98e3e2c81 trace_id=432d11327d5d668d8b0fdda98e3e2c81 span_id=f0826ae755c8bbfc organization_id=01M4Z6H1TJ7X1D8XEF7YDZCHJQ workspace_id=01M4Z6H1TSMJ1BSWA6MVQGR38T actor_id=01M4Z6H1P4RSBZMT4FV7QGDTN0 actor_kind=human
 07:13:20.266 INF http request method=GET path=/api/v1/documents/01M4Z6H1W4PB6TX0VZKTJ75MWB status=200 duration=945µs request_id=cursor/8bTtExHs4f-000347 correlation_id=764782a6c5700a8f1deef09033ba1771 trace_id=764782a6c5700a8f1deef09033ba1771 span_id=14faece7fd4ec998 organization_id=01M4Z6H1TJ7X1D8XEF7YDZCHJQ workspace_id=01M4Z6H1TSMJ1BSWA6MVQGR38T actor_id=01M4Z6H1P4RSBZMT4FV7QGDTN0 actor_kind=human
 07:13:51.191 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=2.053ms request_id=cursor/8bTtExHs4f-000348 correlation_id=3ed5d108204303b2755742cd3eb26462 trace_id=3ed5d108204303b2755742cd3eb26462 span_id=4460bf5e016b0964
 07:13:51.204 INF http request method=GET path=/api/v1/auth/desktop/authorize status=200 duration=1.727ms request_id=cursor/8bTtExHs4f-000349 correlation_id=5e4eed0efcccb9871f74936e29cfeece trace_id=5e4eed0efcccb9871f74936e29cfeece span_id=6dfb1d45ae628bc1 actor_id=01M4Z6H1RAPY325ZMKWH6XKYBS actor_kind=human
@@ -78,6 +76,8 @@ $ for f in .harness-run/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 6
 07:14:49.205 INF http request method=GET path=/api/v1/documents/01M4Z6JP3068AXG1KRFDQZ0XNF status=200 duration=1.607ms request_id=cursor/8bTtExHs4f-000402 correlation_id=64481fe651ed402020230a9d9826c237 trace_id=64481fe651ed402020230a9d9826c237 span_id=232e741115fb7381 organization_id=01M4Z6H1TJ7X1D8XEF7YDZCHJQ workspace_id=01M4Z6H1TSMJ1BSWA6MVQGR38T actor_id=01M4Z6H1RAPY325ZMKWH6XKYBS actor_kind=human
 07:14:49.565 INF http request method=GET path=/api/v1/orgs/01M4Z6H1TJ7X1D8XEF7YDZCHJQ/ai/cloud status=200 duration=5.142ms request_id=cursor/8bTtExHs4f-000403 correlation_id=c903fce3721a7e8844a26be60ff1246d trace_id=c903fce3721a7e8844a26be60ff1246d span_id=dd0b8f30a13056ed actor_id=01M4Z6H1RAPY325ZMKWH6XKYBS actor_kind=human
 07:14:49.781 INF http request method=GET path=/api/v1/documents/01M4Z6JP3068AXG1KRFDQZ0XNF/comments status=200 duration=4.9ms request_id=cursor/8bTtExHs4f-000404 correlation_id=c9c72ba61c8f7436a3714bca1dbc8d7a trace_id=c9c72ba61c8f7436a3714bca1dbc8d7a span_id=e23be5ee421790f1 organization_id=01M4Z6H1TJ7X1D8XEF7YDZCHJQ workspace_id=01M4Z6H1TSMJ1BSWA6MVQGR38T actor_id=01M4Z6H1RAPY325ZMKWH6XKYBS actor_kind=human
+07:14:54.495 INF shutting down component=server signal=terminated
+07:14:54.503 INF stopped component=server
 === .harness-run/logs/web.log
 
 > @uniwork/web@0.0.0 dev /workspace/apps/web
@@ -126,9 +126,16 @@ Import trace:
 
 
  GET /login 200 in 5.4s (next.js: 5.0s, application-code: 478ms)
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 dev: `node scripts/office-frame-sync.mjs --ensure && sh -c 'next dev --port "${FRONTEND_PORT:-3000}"'`
+Command failed with signal "SIGTERM"
+[?25h
 === .harness-run/fault/.app/FQ-20-0/app.log
 Debugger ending on ws://127.0.0.1:39785/05e2d472-6227-4a35-9ea2-44d6da66ec1e
 For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-21-0/app.log
+[61692:1015/071454.497334:ERROR:ui/gfx/x/connection.cc:66] X connection error received.
+[61692:1015/071454.501185:ERROR:ui/gfx/x/connection.cc:66] X connection error received.
 === .harness-run/fault/.app/FQ-43-5/app.log
 Debugger ending on ws://127.0.0.1:44627/167c32a4-24c0-47bc-92b3-12116e6127d3
 For help, see: https://nodejs.org/learn/getting-started/debugging

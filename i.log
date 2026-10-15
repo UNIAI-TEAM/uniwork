@@ -525,12 +525,105 @@ server-versions.json
       "created_by_kind": "human",
       "creat
 === .harness-run/fault/FQ-21/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T07:14:50.192Z","case":"FQ-21","source":"app-trace","intent":"office-intent-c8842655-fbf7-4cf8-a747-6b6ba7fac67a","keyTag":null,"attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T07:14:50.205Z","case":"FQ-21","source":"app-trace","intent":"office-intent-c8842655-fbf7-4cf8-a747-6b6ba7fac67a","keyTag":null,"attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T07:14:44.569Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.137Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.145Z","method":"GET","path":"/api/v1/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.152Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.158Z","method":"GET","path":"/api/v1/orgs/o-fault-mv97cj80-2b81/members/me","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.166Z","method":"GET","path":"/api/v1/orgs/01M4Z6H1TJ7X1D8XEF7YDZCHJQ/billing","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.175Z","method":"GET","path":"/api/v1/orgs/01M4Z6H1TJ7X1D8XEF7YDZCHJQ/ai/cloud","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.182Z","method":"GET","path":"/api/v1/orgs/01M4Z6H1TJ7X1D8XEF7YDZCHJQ/office/capabilities","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.187Z","method":"GET","path":"/api/v1/orgs/01M4Z6H1TJ7X1D8XEF7YDZCHJQ/workspaces","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.193Z","method":"GET","path":"/api/v1/workspaces/01M4Z6H1TSMJ1BSWA6MVQGR38T/documents/changes","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.202Z","method":"GET","path":"/api/v1/orgs/01M4Z6H1TJ7X1D8XEF7YDZCHJQ/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:45.203Z","method":"GET","path":"/api/v1/orgs/01M4Z6H1TJ7X1D8XEF7YDZCHJQ/ai/credentials","status":503,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:49.165Z","method":"GET","path":"/api/v1/documents/01M4Z6JP3068AXG1KRFDQZ0XNF","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:49.169Z","method":"GET","path":"/api/v1/documents/01M4Z6JP3068AXG1KRFDQZ0XNF/download","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T07:14:49.205Z","method":"GET","path":"/api/v1/documents/01M4Z6JP3068AXG1KRFDQZ0XNF","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4Z6JP3068AXG1KRFDQZ0XNF",
+  "documentId": "01M4Z6JP3068AXG1KRFDQZ0XNF",
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null,
+  "error": "fetch failed"
+}
+
+=== .harness-run/fault/FQ-22/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
 
 === .harness-run/fault/FQ-23/
 case-result.json
 evidence-g5-a06.log
 evidence-g5-a08.log
 result.json
+
+=== .harness-run/fault/FQ-24/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
+
+=== .harness-run/fault/FQ-25/
+app-trace.jsonl
+case-result.json
+evidence-g5-a08.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
 
 === .harness-run/fault/FQ-26/
 case-result.json
@@ -568,6 +661,76 @@ case-result.json
 evidence-g7-a02.log
 result.json
 
+=== .harness-run/fault/FQ-40/
+1
+2
+3
+4
+5
+case-result.json
+evidence-g5-a06.log
+result.json
+
+=== .harness-run/fault/FQ-41/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
+
+=== .harness-run/fault/FQ-42/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
+
+=== .harness-run/fault/FQ-43/
+1
+2
+3
+4
+5
+6
+7
+8
+9
+case-result.json
+evidence-g5-a06.log
+result.json
+
+=== .harness-run/fault/FQ-44/
+1
+2
+3
+case-result.json
+evidence-g5-a06.log
+result.json
+
 === .harness-run/fault/FQ-45/
 case-result.json
 evidence-g5-a06.log
@@ -579,10 +742,47 @@ case-result.json
 evidence-g5-a06.log
 result.json
 
+=== .harness-run/fault/FQ-50/
+1
+2
+3
+4
+5
+case-result.json
+evidence-g5-a08.log
+result.json
+
+=== .harness-run/fault/FQ-51/
+1
+2
+3
+case-result.json
+evidence-g5-a08.log
+result.json
+
 === .harness-run/fault/FQ-52/
 case-result.json
 evidence-g5-a08.log
 result.json
+
+=== .harness-run/fault/FQ-53/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
 
 === .harness-run/fault/FQ-54/
 case-result.json
