@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 3251676b HEAD && echo base-ok
+d76cd39ab4b9aab640bc7c0c64d811bf52879c2f
+7d665a54241c48f803cd24746bf81771d17e0741
+d76cd39a fix(shell): sync center BE review r1 fixes BE-1..BE-12 (G5-10, UNI-1357)
+35414bdf merge: r4 FE review r1 fixes and the pinned pushLocks line (G5-10, UNI-1357)
+b46410aa fix(shell): sync center pane review r1 fixes FE-1..FE-6, FE-11, tests FE-7..FE-9 (G5-10)
+05cb9ded fix(shell): keep the pinned pushLocks line, notify the sync center from a locks listener (G5-10)
+f083cf4e test(shell): sync center header account, saveAgain refusal, abandon event, archived (G5-10)
+9846a54f fix(shell): sync center header account, saveAgain without losing the queued save, archived reason (G5-10)
+48b62ccd test(shell): sync center pane saveAgain, blocked discard, libraryOff (G5-10)
+ec1629a1 test(shell): sync center blocked reasons, saveAgain, discard on blocked (G5-10)
+base-ok

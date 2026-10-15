@@ -1,0 +1,5 @@
+$ npm run typecheck -w @genoffice/shell
+
+> @genoffice/shell@1.0.0 typecheck
+> tsc --noEmit
+
