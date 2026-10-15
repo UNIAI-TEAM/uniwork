@@ -61,7 +61,9 @@ không được governance test đếm. Khi chấp nhận: chuyển ra thư mụ
 
 `drafts/0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md` (G6-05k, UNI-1637,
 2026-10-14) đề xuất cho app desktop đã đăng nhập dùng khóa đã lưu trên UniWork qua proxy BYOK
-của 0029; bổ sung cho 0028, chờ Advisor/người dùng chấp nhận. Số 0034 là tạm.
+của 0029; bổ sung cho 0028. Code đã giao theo phương án (a) của Q-K1 (khóa cá nhân lưu trên
+UniWork); ADR ở lại đây tới khi người dùng trả lời Q-K1 (khóa dùng chung do quản trị tổ chức đặt
+là hướng mở rộng). Số 0034 là tạm.
 
 [0025](0025-mot-process-cho-api-va-worker.md) chưa có guard test (test chạy hai bản của mỗi
 job, land cùng việc làm worker an toàn đa replica); đến lúc đó 0025 không thêm luật vào `CLAUDE.md`.
