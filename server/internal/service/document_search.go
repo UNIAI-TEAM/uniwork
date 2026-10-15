@@ -425,14 +425,27 @@ func (s *DocumentService) attachListPaths(ctx context.Context, scope documentLis
 		return nil
 	}
 	ancByID := make(map[string]db.ListDocumentAncestorsRow, len(ancRows))
-	var shareCheckIDs []string
+	var shareCheckIDs, adminIDs []string
 	for _, r := range ancRows {
 		ancByID[r.ID] = r
-		if scope.allowShares && !scope.seeAll && !r.OwnerKind.Valid {
+		if r.OwnerKind.Valid {
+			continue
+		}
+		switch {
+		case listAdminScopeRow(scope, db.Document{Visibility: r.Visibility, AclOwnerID: r.AclOwnerID}):
+			// DOC-05: an admin reads a restricted ancestor's title only
+			// through a share or a live break-glass grant.
+			shareCheckIDs = append(shareCheckIDs, r.ID)
+			adminIDs = append(adminIDs, r.ID)
+		case scope.allowShares && !scope.seeAll:
 			if r.Visibility == documentVisibilityRestricted || r.ArchivedAt.Valid || !scope.memberVisible {
 				shareCheckIDs = append(shareCheckIDs, r.ID)
 			}
 		}
+	}
+	grants, err := s.liveBreakGlassFor(ctx, s.q, scope, workspaceID, adminIDs)
+	if err != nil {
+		return err
 	}
 	var shares map[string][]db.ListLiveSharesForDocumentsRow
 	if len(shareCheckIDs) > 0 {
@@ -473,7 +486,7 @@ func (s *DocumentService) attachListPaths(ctx context.Context, scope documentLis
 				AclOwnerID:     anc.AclOwnerID,
 				ArchivedAt:     anc.ArchivedAt,
 			}
-			acc := listRowAccess(scope, agent, doc, shares[anc.ID])
+			acc := listRowAccess(scope, agent, doc, shares[anc.ID], grants[anc.ID])
 			if decideDocumentAccess(doc, acc, DocumentLevelView) != nil {
 				break
 			}

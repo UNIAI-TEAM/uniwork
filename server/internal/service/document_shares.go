@@ -33,14 +33,37 @@ func errPrincipalNotInOrganization() error {
 }
 
 // requireDocumentACLChange is the shared head of every share/link command:
-// the actor must read the document (otherwise not found), an owned document
-// is refused for everyone who reads it, and only manage may change access.
+// the actor must read or administer the document (otherwise not found, the
+// outer gate), an owned document is refused for everyone who reaches it, and
+// only those who may administer it (manage or AdminScope, DOC-05) may change
+// access.
 func requireDocumentACLChange(doc db.Document, access DocumentAccess) error {
 	if doc.OwnerKind.Valid {
 		return errDocumentOwned()
 	}
-	if !access.Level.AtLeast(DocumentLevelManage) {
+	if !access.canAdminister() {
 		return ErrForbidden
+	}
+	return nil
+}
+
+// refuseAdminSelfShare is DOC-05's self-grant guard: an AdminScope caller
+// below manage may share the document with others, but a share that would
+// reach themselves (their user, a workspace they are in - every workspace
+// for an organization owner/admin - or the organization) is a way to read
+// it outside the audited break-glass path, so it is break_glass_required.
+func (s *DocumentService) refuseAdminSelfShare(ctx context.Context, q *db.Queries, doc db.Document, access DocumentAccess, actor Actor, in DocumentShareInput) error {
+	if !access.AdminScope || access.Level.AtLeast(DocumentLevelManage) {
+		return nil
+	}
+	reaches, err := s.shareAppliesTo(ctx, q, db.DocumentShare{
+		OrganizationID: doc.OrganizationID, PrincipalType: in.PrincipalType, PrincipalID: in.PrincipalID,
+	}, actor.ID, doc)
+	if err != nil {
+		return err
+	}
+	if reaches {
+		return errBreakGlassRequired()
 	}
 	return nil
 }
@@ -64,11 +87,14 @@ func (s *DocumentService) ShareDocument(ctx context.Context, actor Actor, docume
 		return db.DocumentShare{}, Invalid("level phải là view, comment, edit hoặc manage")
 	}
 	var out db.DocumentShare
-	err := s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err := s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
 		if err := s.validateSharePrincipal(ctx, q, doc, in); err != nil {
+			return err
+		}
+		if err := s.refuseAdminSelfShare(ctx, q, doc, access, actor, in); err != nil {
 			return err
 		}
 		prev, err := q.GetDocumentShare(ctx, db.GetDocumentShareParams{
@@ -172,7 +198,7 @@ func (s *DocumentService) validateSharePrincipal(ctx context.Context, q *db.Quer
 // RevokeDocumentShare ends one live share. The row stays with revoked_at
 // set: the table is the history of who had access.
 func (s *DocumentService) RevokeDocumentShare(ctx context.Context, actor Actor, documentID, shareID string) error {
-	return s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	return s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
@@ -247,14 +273,15 @@ type DocumentPersonAccess struct {
 }
 
 // DocumentAccessList resolves effective access rather than echoing
-// document_shares rows.
+// document_shares rows. A reader below manage gets only My; a caller who may
+// administer the document (manage or AdminScope, DOC-05) gets the full lists.
 func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, documentID string) (DocumentAccessOverview, error) {
-	doc, my, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
+	doc, my, err := s.authorizeDocumentViewOrAdminister(ctx, actor, documentID)
 	if err != nil {
 		return DocumentAccessOverview{}, err
 	}
 	out := DocumentAccessOverview{My: my}
-	if !my.Level.AtLeast(DocumentLevelManage) {
+	if !my.canAdminister() {
 		return out, nil
 	}
 	if doc.AclOwnerID.Valid && !doc.OwnerKind.Valid {

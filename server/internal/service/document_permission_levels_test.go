@@ -311,6 +311,19 @@ func TestDocumentLevelMatrix(t *testing.T) {
 		t.Fatalf("ListDocuments (tree root) for comment share did not include %s", resDoc.ID)
 	}
 
+	// The sidebar tree (DocumentTree) admits the row through any live share.
+	forest, err := f.svc.DocumentTree(f.ctx, Human(uCommentRoot.ID), tn.wsA, "", false)
+	if err != nil {
+		t.Fatalf("DocumentTree for comment share: %v", err)
+	}
+	var foundInForest bool
+	for _, n := range forest {
+		foundInForest = foundInForest || n.ID == resDoc.ID
+	}
+	if !foundInForest {
+		t.Fatalf("DocumentTree for comment share did not include %s", resDoc.ID)
+	}
+
 	searchPage, err := f.svc.ListDocuments(f.ctx, Human(uCommentRoot.ID), tn.wsA, ListDocumentsInput{
 		Query: "Alpha",
 	})

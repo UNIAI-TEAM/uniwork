@@ -1,9 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -15,6 +19,22 @@ type byokPublicResolver struct{}
 func (byokPublicResolver) LookupIPAddr(context.Context, string) ([]net.IPAddr, error) {
 	return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
 }
+
+type stubBYOKResolver struct {
+	configured bool
+}
+
+func (r stubBYOKResolver) Configured() bool { return r.configured }
+
+func (r stubBYOKResolver) Resolve(context.Context, string, string, string) (ai.BYOKCredential, error) {
+	return ai.BYOKCredential{}, ErrNotFound
+}
+
+type stubBYOKEntitlements struct {
+	err error
+}
+
+func (e stubBYOKEntitlements) Can(context.Context, string, string) error { return e.err }
 
 // The proxy's gates run in order — member, provider/route, entitlement,
 // stored key — and only then is a vendor dialled. The dial hook fails, so
@@ -31,21 +51,28 @@ func TestAIBYOKServiceGates(t *testing.T) {
 			return nil, errors.New("no network in tests")
 		},
 	}))
-	svc := NewAIBYOKService(f.orgs, NewEntitlementService(f.pool, f.q), f.svc, gw)
+	ents := NewEntitlementService(f.pool, f.q)
+	svc := NewAIBYOKService(f.orgs, ents, f.svc, gw)
 	body := []byte(`{"model":"gpt-5.6-terra","messages":[]}`)
 
-	if _, err := svc.Proxy(f.ctx, f.second.ID, f.orgID, "openai", ai.ProxyChatCompletions, body, nil); !errors.Is(err, ErrNotFound) {
+	if _, err := svc.Proxy(f.ctx, f.second.ID, f.orgID, "openai", ai.ProxyChatCompletions, ai.ProxySurfaceWeb, body, nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("non-member = %v, want not found", err)
 	}
 	for _, c := range []struct {
 		provider string
 		op       ai.ProxyOp
 	}{{"codex", ai.ProxyChatCompletions}, {"genspark", ai.ProxyModels}, {"openai", ai.ProxyMessages}, {"anthropic", ai.ProxyGenerate}} {
-		if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, c.provider, c.op, body, nil); !errors.Is(err, ai.ErrProviderNotSupported) {
+		if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, c.provider, c.op, ai.ProxySurfaceWeb, body, nil); !errors.Is(err, ai.ErrProviderNotSupported) {
 			t.Errorf("%s/%s = %v, want provider_not_supported", c.provider, c.op, err)
 		}
 	}
-	if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, body, nil); !errors.Is(err, ErrNotFound) {
+	noBox := NewAIBYOKService(f.orgs, ents, NewAICredentialService(f.pool, f.q, f.orgs, ents, nil), gw)
+	if _, err := noBox.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, ai.ProxySurfaceWeb, body, nil); err == nil {
+		t.Fatal("without AI_CREDENTIAL_KEY = nil, want 503 ai_credentials_unavailable")
+	} else if code, status := aiCredentialCode(err); code != "ai_credentials_unavailable" || status != http.StatusServiceUnavailable {
+		t.Fatalf("without AI_CREDENTIAL_KEY = %s %d (%v), want ai_credentials_unavailable 503", code, status, err)
+	}
+	if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, ai.ProxySurfaceWeb, body, nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("no stored key = %v, want credential_missing", err)
 	} else if code, status := aiCredentialCode(err); code != "credential_missing" || status != 404 {
 		t.Fatalf("no stored key = %s %d", code, status)
@@ -54,7 +81,7 @@ func TestAIBYOKServiceGates(t *testing.T) {
 	if _, _, err := f.svc.SaveAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai", SaveAICredentialInput{APIKey: strPtr(testAIKey)}); err != nil {
 		t.Fatal(err)
 	}
-	_, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, body, nil)
+	_, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, ai.ProxySurfaceDesktop, body, nil)
 	var aerr *ai.Error
 	if !errors.As(err, &aerr) || aerr.Code != "provider_unreachable" || dialled == 0 {
 		t.Fatalf("stored key = %v (dialled %d), want provider_unreachable after a dial", err, dialled)
@@ -63,33 +90,79 @@ func TestAIBYOKServiceGates(t *testing.T) {
 	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = '{"office.ai_byok": false}'::jsonb WHERE organization_id = $1`, f.orgID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, body, nil); !errors.Is(err, ErrEntitlementRequired) {
+	if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, ai.ProxySurfaceWeb, body, nil); !errors.Is(err, ErrEntitlementRequired) {
 		t.Fatalf("without office.ai_byok = %v, want entitlement_required", err)
 	}
 }
 
-// Enabled is the host's "may this person have web AI here" read: a
-// non-member is refused like the proxy, a plan without office.ai_byok or a
-// missing credential store is false, and nothing calls a vendor.
+// Status and Enabled report whether the person could use the BYOK proxy here:
+// a non-member gets ErrNotFound, a member with the plan gets (true, ""), a
+// missing credential store gets (false, "ai_credentials_unavailable"), a plan
+// without office.ai_byok gets (false, "entitlement_required"), an inactive
+// subscription gets (false, "subscription_inactive"), an unexpected coded
+// refusal logs and falls back to (false, ""), and nothing calls a vendor.
 func TestAIBYOKServiceEnabled(t *testing.T) {
 	f := newAICredentialFixture(t)
 	gw := ai.NewGateway(f.q, nil, nil, nil, ai.Options{})
 	ents := NewEntitlementService(f.pool, f.q)
 	svc := NewAIBYOKService(f.orgs, ents, f.svc, gw)
 
-	if ok, err := svc.Enabled(f.ctx, f.second.ID, f.orgID); ok || err == nil {
-		t.Fatalf("non-member = %v %v, want refused", ok, err)
+	if ok, reason, err := svc.Status(f.ctx, f.second.ID, f.orgID); ok || reason != "" || !errors.Is(err, ErrNotFound) {
+		t.Fatalf("non-member status = %v %q %v, want false \"\" ErrNotFound", ok, reason, err)
+	}
+	if ok, err := svc.Enabled(f.ctx, f.second.ID, f.orgID); ok || !errors.Is(err, ErrNotFound) {
+		t.Fatalf("non-member = %v %v, want ErrNotFound", ok, err)
+	}
+	if ok, reason, err := svc.Status(f.ctx, f.owner.ID, f.orgID); !ok || reason != "" || err != nil {
+		t.Fatalf("member with the plan status = %v %q %v, want true \"\" nil", ok, reason, err)
 	}
 	if ok, err := svc.Enabled(f.ctx, f.owner.ID, f.orgID); !ok || err != nil {
 		t.Fatalf("member with the plan = %v %v, want true", ok, err)
 	}
-	if ok, err := NewAIBYOKService(f.orgs, ents, nil, gw).Enabled(f.ctx, f.owner.ID, f.orgID); ok || err != nil {
-		t.Fatalf("no credential store = %v %v, want false", ok, err)
+	for _, noStore := range []*AIBYOKService{
+		NewAIBYOKService(f.orgs, ents, nil, gw),
+		NewAIBYOKService(f.orgs, ents, NewAICredentialService(f.pool, f.q, f.orgs, ents, nil), gw),
+		NewAIBYOKService(f.orgs, ents, stubBYOKResolver{configured: false}, gw),
+	} {
+		if ok, reason, err := noStore.Status(f.ctx, f.owner.ID, f.orgID); ok || reason != "ai_credentials_unavailable" || err != nil {
+			t.Fatalf("no credential store status = %v %q %v, want false \"ai_credentials_unavailable\" nil", ok, reason, err)
+		}
+		if ok, err := noStore.Enabled(f.ctx, f.owner.ID, f.orgID); ok || err != nil {
+			t.Fatalf("no credential store = %v %v, want false", ok, err)
+		}
 	}
 	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = '{"office.ai_byok": false}'::jsonb WHERE organization_id = $1`, f.orgID); err != nil {
 		t.Fatal(err)
 	}
+	if ok, reason, err := svc.Status(f.ctx, f.owner.ID, f.orgID); ok || reason != "entitlement_required" || err != nil {
+		t.Fatalf("without office.ai_byok status = %v %q %v, want false \"entitlement_required\" nil", ok, reason, err)
+	}
 	if ok, err := svc.Enabled(f.ctx, f.owner.ID, f.orgID); ok || err != nil {
 		t.Fatalf("without office.ai_byok = %v %v, want false", ok, err)
+	}
+
+	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET status = 'suspended', overrides = '{}'::jsonb WHERE organization_id = $1`, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	if ok, reason, err := svc.Status(f.ctx, f.owner.ID, f.orgID); ok || reason != "subscription_inactive" || err != nil {
+		t.Fatalf("inactive subscription status = %v %q %v, want false \"subscription_inactive\" nil", ok, reason, err)
+	}
+	if ok, err := svc.Enabled(f.ctx, f.owner.ID, f.orgID); ok || err != nil {
+		t.Fatalf("inactive subscription = %v %v, want false", ok, err)
+	}
+
+	var logs bytes.Buffer
+	prevLog := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prevLog) })
+
+	unlistedSvc := NewAIBYOKService(f.orgs, stubBYOKEntitlements{
+		err: CodedError{Code: "future_internal_code", Status: http.StatusForbidden},
+	}, stubBYOKResolver{configured: true}, gw)
+	if ok, reason, err := unlistedSvc.Status(f.ctx, f.owner.ID, f.orgID); ok || reason != "" || err != nil {
+		t.Fatalf("unallowlisted reason status = %v %q %v, want false \"\" nil", ok, reason, err)
+	}
+	if out := logs.String(); !strings.Contains(out, "level=ERROR") || !strings.Contains(out, "future_internal_code") || strings.Contains(out, f.owner.Email) {
+		t.Fatalf("unallowlisted reason log = %q, want ERROR with code and no PII", out)
 	}
 }

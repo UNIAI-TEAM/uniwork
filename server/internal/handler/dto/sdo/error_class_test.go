@@ -2,6 +2,10 @@ package sdo
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -20,6 +24,7 @@ func TestErrorClassTable(t *testing.T) {
 		"copy_consent_required":        "conflict",
 		"owner_requires_copy":          "conflict",
 		"document_upload_invalid":      "conflict",
+		"folder_name_taken":            "conflict",
 		"document_deleted":             "gone",
 		"quota_exceeded":               "quota",
 		"forbidden":                    "permission",
@@ -30,15 +35,29 @@ func TestErrorClassTable(t *testing.T) {
 		"ai_tool_not_allowed":          "permission",
 		"platform_role_insufficient":   "permission",
 		"offline_lease_revoked":        "permission",
+		"document_restricted":          "permission",
+		"break_glass_required":         "permission",
 		"not_found":                    "missing",
 		"engine_incompatible":          "incompatible",
 		"unauthorized":                 "session",
 		"invalid_token":                "session",
 		"invalid_code":                 "session",
+		"device_revoked":               "session",
+		"refresh_reused":               "session",
 	}
 	for code, class := range want {
 		if got := ErrorClassFor(code); got != class {
 			t.Errorf("ErrorClassFor(%q) = %q, want %q", code, got, class)
+		}
+	}
+	// want is the whole table: a code added to errorClassByCode without a
+	// line here (or the reverse) fails.
+	if len(want) != len(errorClassByCode) {
+		t.Errorf("want has %d codes, errorClassByCode has %d", len(want), len(errorClassByCode))
+	}
+	for code := range errorClassByCode {
+		if _, ok := want[code]; !ok {
+			t.Errorf("errorClassByCode has %q, missing from want", code)
 		}
 	}
 
@@ -69,12 +88,66 @@ func TestErrorClassTable(t *testing.T) {
 		// the reload path, and anchor_version_invalid (400) is a stale
 		// editor anchor, not a conflict to retry blindly.
 		"comment_deleted", "anchor_version_invalid",
+		// The share refusals of the permission files (addendum section 4):
+		// 409 is the work product's call, 422 a bad principal - neither is a
+		// permission denial of the caller.
+		"document_owned_by_work_product", "principal_not_in_organization",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {
 			t.Errorf("ErrorClassFor(%q) = %q, want unclassified", code, got)
 		}
 	}
+
+	// Every code the document permission / share / break-glass files emit is
+	// decided here, classified or unclassified on purpose (addendum G8-18 /
+	// DOC-05 section 4). Only these files are scanned: the rest of the
+	// service package predates the rule.
+	decided := map[string]bool{}
+	for code := range want {
+		decided[code] = true
+	}
+	for _, code := range unclassified {
+		decided[code] = true
+	}
+	found := map[string]bool{}
+	for _, name := range []string{"document_permissions.go", "document_shares.go", "document_break_glass.go"} {
+		src, err := os.ReadFile("../../../service/" + name)
+		if errors.Is(err, fs.ErrNotExist) && name == "document_break_glass.go" {
+			continue // lands with the break-glass routes
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, code := range permissionFileCodes(string(src)) {
+			found[code] = true
+			if !decided[code] {
+				t.Errorf("%s emits %q, which is neither in want nor in unclassified", name, code)
+			}
+		}
+	}
+	for _, code := range []string{"document_restricted", "break_glass_required", "document_owned_by_work_product"} {
+		if !found[code] {
+			t.Errorf("scan did not find %q: the emission pattern changed, update permissionFileCodes", code)
+		}
+	}
+}
+
+var (
+	codedErrorLiteral = regexp.MustCompile(`CodedError\{[^}]*?Code:\s*"([a-z0-9_]+)"`)
+	codedHelperCall   = regexp.MustCompile(`\bcoded\([^,()]+,\s*"([a-z0-9_]+)"`)
+)
+
+// permissionFileCodes lists the codes a Go source emits through a
+// CodedError{Code: "..."} literal or a coded(status, "...", msg) call.
+func permissionFileCodes(src string) []string {
+	var out []string
+	for _, re := range []*regexp.Regexp{codedErrorLiteral, codedHelperCall} {
+		for _, m := range re.FindAllStringSubmatch(src, -1) {
+			out = append(out, m[1])
+		}
+	}
+	return out
 }
 
 // The wire field is optional: an unclassified code must not emit an

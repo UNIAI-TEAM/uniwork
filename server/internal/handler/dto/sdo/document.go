@@ -291,8 +291,8 @@ type DocumentLinkDTO struct {
 // own level always; the grants, acl owner and live links only for a caller at
 // manage level. Everyone else reads `my_level`/`via` alone.
 type DocumentAccessSDO struct {
-	MyLevel    string                       `json:"my_level,omitempty" description:"view, comment, edit hoặc manage; vắng mặt khi admin_scope và chưa có quyền đọc" example:"manage"`
-	Via        string                       `json:"via,omitempty" description:"member, share, link, owner, ai_context hoặc break_glass" example:"member"`
+	MyLevel    string                       `json:"my_level" description:"view, comment, edit hoặc manage; chuỗi rỗng khi admin_scope và chưa có quyền đọc" example:"manage"`
+	Via        string                       `json:"via" description:"member, share, link, owner, ai_context hoặc break_glass; chuỗi rỗng khi chưa có quyền đọc" example:"member"`
 	AdminScope bool                         `json:"admin_scope,omitempty" description:"true = người gọi quản trị tài liệu restricted bằng vai trò owner/admin workspace" example:"true"`
 	ACLOwner   *DocumentPersonAccessDTO     `json:"acl_owner,omitempty" description:"Người nắm ACL owner; chỉ khi manage hoặc admin_scope"`
 	Shares     []DocumentShareDTO           `json:"shares,omitempty" description:"Grant sống; chỉ khi manage hoặc admin_scope"`

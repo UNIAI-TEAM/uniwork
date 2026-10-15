@@ -19,7 +19,7 @@ import (
 func registerAICredentials(r api, h Routes, limit func(http.Handler) http.Handler) {
 	r.With(limit).Get("/orgs/{orgID}/ai/credentials", h.ListAICredentials, apiOp{
 		summary:     "List my AI provider keys",
-		description: "Khóa AI riêng của người gọi trong tổ chức (chỉ key_hint, không bao giờ trả khóa) và danh sách nhà cung cấp có thể thêm. 503 ai_credentials_unavailable khi máy chủ chưa cấu hình AI_CREDENTIAL_KEY.",
+		description: "Khóa AI riêng của người gọi trong tổ chức (chỉ key_hint, không bao giờ trả khóa), danh sách nhà cung cấp có thể thêm và trạng thái byok (enabled, reason) cho biết tổ chức hiện dùng được proxy BYOK hay không. 503 ai_credentials_unavailable khi máy chủ chưa cấu hình AI_CREDENTIAL_KEY.",
 		tags:        []string{"ai-credentials"},
 		sdo:         sdo.AICredentialListSDO{},
 		auth:        true,
