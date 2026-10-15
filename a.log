@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+2a2e30bb49e4652eb0803ddd6ceef16ca1f767f2
+2a2e30bb4 Merge branch 'feature/UNI-923-office-g5-g6-g7' into feature/UNI-1413-g8-18-doc-05-web
+55ad94815 chore: merge UNI-1778 share dialog member-load error + retry (7505945b6) into the G5-G7 root
+0edcd2a6e docs(office): add threat T18, another UniWork account on the same OS user (G5-11 D1)
