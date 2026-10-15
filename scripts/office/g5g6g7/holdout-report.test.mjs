@@ -545,6 +545,11 @@ describe('measurement conditions (G712-3, G712-5, G712-8, G712-9)', () => {
     const o = judge([run(1, soft, { redactions: [{ ask: 'HO-B-001/vi', kinds: softKinds }] }), run(2, bigSuite()), run(3, bigSuite())]);
     assert.equal(o.status, 'PASS', o.blockers.join(' | '));
     assert.equal(summarizeRun(run(1, soft)).redactedAsks, 1, 'the hit stays listed in the run');
+    // G712-42: a soft-only hit keeps the verdict, so the markdown has to say a redaction happened and which kinds.
+    const md = renderReport(buildReport([run(1, soft, { redactions: [{ ask: 'HO-B-001/vi', kinds: softKinds }] }), run(2, bigSuite()), run(3, bigSuite())]));
+    assert.match(md, /\| Số lượt hỏi có giá trị bị che .* \| 1; 0; 0 \|/, 'the markdown carries the redacted-ask counts');
+    assert.match(md, /Che bí mật: 1 lượt hỏi có giá trị bị che \(loại: base64_run, hex_run\)/, 'and names the kinds that were redacted');
+    assert.match(renderReport(buildReport([run(1, bigSuite())])), /Che bí mật: 0 lượt hỏi có giá trị bị che \(không loại nào\)/, 'a run with none says so');
     const keyKinds = [{ kind: 'base64_run', count: 1 }, { kind: 'key', count: 1 }];
     const key = bigSuite((a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, redactions: keyKinds } : a));
     inconclusive([run(1, key, { redactions: [{ ask: 'HO-B-001/vi', kinds: keyKinds }] }), run(2, bigSuite()), run(3, bigSuite())], /redacted in run\(s\) 1; a flagged run cannot count as a pass/);

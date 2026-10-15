@@ -646,6 +646,7 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     leaks: distribution(summaries.map((s) => s.leaks.asks)),
     staleApplied: distribution(summaries.map((s) => s.staleApplied)),
     emulatedRefusals: distribution(summaries.map((s) => s.emulatedRefusals.total)),
+    redactedAsks: distribution(summaries.map((s) => s.redactedAsks)),
     latencyP50: distribution(summaries.map((s) => s.latency.p50)),
     latencyP95: distribution(summaries.map((s) => s.latency.p95)),
     byGroup: Object.fromEntries(GROUPS.map((g) => [g, distribution(summaries.map((s) => s.byGroup[g].rate))])),
@@ -657,6 +658,8 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     sessionId: session?.manifest?.sessionId ?? null, manifestSha256: session?.manifestSha256 ?? null,
     runSet: { ok: runSet.length === 0, problems: runSet }, conditions,
     config: runs.map((r) => r.config), summaries, distribution: dist,
+    // G712-42: what was redacted, so report.md can surface it (a soft-only hit keeps the verdict and was invisible there).
+    redactionKinds: [...new Set(runs.flatMap((r) => [...(r.redactions ?? []).flatMap((x) => (x.kinds ?? []).map((k) => k.kind)), ...r.asks.flatMap((a) => (a.redactions ?? []).map((k) => k.kind))]))].sort(),
     latencyPooled: { calls: pooled.length, p50: percentile(pooled, 50), p95: percentile(pooled, 95) },
     flaky, awaitingReviewer: waiting, unobtainable: unobtainable(runs),
     reviews: reviews ? {
@@ -818,11 +821,15 @@ export function renderReport(report) {
   row('Lộ marker cấm hoặc không kiểm chứng được (số lượt hỏi)', d.leaks);
   row('Ghi áp lên bản cũ (ca stale có ghi) — mô phỏng, luôn 0 theo cấu trúc', d.staleApplied);
   row('Số lần ghi bị backend giả lập từ chối (viewer, thu hồi quyền, bản cũ)', d.emulatedRefusals);
+  row('Số lượt hỏi có giá trị bị che (mọi loại; xem `redactions` của file run)', d.redactedAsks);
   row('Thành công đầu-cuối: tỷ lệ khớp đáp án trên tổng lượt hỏi (ca chờ người duyệt chưa tính)', d.successRate, pct);
   row('Số lượt hỏi lệch đáp án', d.failed);
   row('Số lượt hỏi chờ người duyệt', d.awaiting);
   w();
   w('Ghi chú: viewer, thu hồi quyền và bản cũ do backend của harness từ chối mọi lần ghi, nên "ghi trái phép" của các vai đó và "ghi áp lên bản cũ" bằng 0 theo cấu trúc, không phải bằng chứng về khung hay máy chủ (bảo vệ thật nằm ở khung/máy chủ, harness này không chạy chúng).');
+  // G712-42: a soft-only hit (base64_run/hex_run) keeps the verdict, so report.md itself must say the run had redactions.
+  const redactedAsks = report.summaries.reduce((n, s) => n + s.redactedAsks, 0);
+  w(`Che bí mật: ${redactedAsks} lượt hỏi có giá trị bị che${report.redactionKinds.length > 0 ? ` (loại: ${report.redactionKinds.join(', ')})` : ' (không loại nào)'}. Loại \`base64_run\`/\`hex_run\` được liệt kê trong \`redactions\` để người đọc xem nhưng không làm mất hiệu lực lần chạy; loại khoá, token, userinfo, host:port và IP thì làm lần chạy không thể là đạt.`);
   if (report.reviews?.grading) {
     const g = report.reviews.grading;
     w();
