@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -81,5 +83,99 @@ func TestAccessReportRoutesExistWithSDO(t *testing.T) {
 				t.Errorf("%s is missing %s", schemaName, field)
 			}
 		}
+	}
+}
+
+func accessReportDocIDs(t *testing.T, out map[string]any) []string {
+	t.Helper()
+	raw, ok := out["documents"].([]any)
+	if !ok {
+		t.Fatalf("documents missing: %v", out)
+	}
+	ids := make([]string, 0, len(raw))
+	for _, item := range raw {
+		ids = append(ids, item.(map[string]any)["document"].(map[string]any)["id"].(string))
+	}
+	return ids
+}
+
+// The handler half of the report: query parsing, the cursor guard, the 400s
+// and the export headers (contract v1 §10 S13).
+func TestAccessReportHandlerParams(t *testing.T) {
+	w := newDocsWorld(t)
+	for _, title := range []string{"Một", "Hai", "Ba"} {
+		docsCreatePageBody(t, w, w.token, map[string]any{"title": title, "kind": "page"})
+	}
+	base := "/api/v1/workspaces/" + w.wsID + "/documents/access-report"
+
+	res, out := doJSON(t, w.srv, "GET", base+"?limit=2", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("page 1: %d %v", res.StatusCode, out)
+	}
+	if ids := accessReportDocIDs(t, out); len(ids) != 2 {
+		t.Fatalf("page 1 ids = %v", ids)
+	}
+	cursor, _ := out["next_cursor"].(string)
+	if cursor == "" {
+		t.Fatalf("a full page carries a cursor: %v", out)
+	}
+	if scope := out["scope"].(map[string]any); scope["kind"] != "workspace" || scope["folder_id"] != nil {
+		t.Fatalf("scope = %v", scope)
+	}
+	if filter := out["filter"].(map[string]any); filter["person_id"] != nil || len(filter["level"].([]any)) != 0 {
+		t.Fatalf("filter = %v", filter)
+	}
+	res, out = doJSON(t, w.srv, "GET", base+"?limit=2&cursor="+cursor, w.token, nil)
+	if res.StatusCode != 200 || len(accessReportDocIDs(t, out)) != 1 || out["next_cursor"] != nil {
+		t.Fatalf("page 2: %d %v", res.StatusCode, out)
+	}
+
+	for name, query := range map[string]string{
+		"garbage cursor":         "?cursor=***",
+		"undecodable cursor":     "?cursor=bm90LWpzb24",
+		"cursor of other filter": "?level=view&cursor=" + cursor,
+		"cursor of other folder": "?folder_id=01J8X4FLD0N1P2Q3R4S5T6U7&cursor=" + cursor,
+		"negative limit":         "?limit=-1",
+		"non-numeric limit":      "?limit=abc",
+		"unknown level":          "?level=owner",
+		"unknown visibility":     "?visibility=public",
+	} {
+		res, out := doJSON(t, w.srv, "GET", base+query, w.token, nil)
+		if res.StatusCode != 400 {
+			t.Errorf("%s: %d %v, want 400", name, res.StatusCode, out)
+		}
+	}
+
+	res, out = doJSON(t, w.srv, "GET", base+"?folder_id=01J8X4FLD0N1P2Q3R4S5T6U7", w.token, nil)
+	wantErr(t, res, out, 404, "not_found", "")
+
+	req, _ := http.NewRequest("GET", w.srv.URL+base+"/export?format=csv&level=manage,view", nil)
+	req.Header.Set("Authorization", "Bearer "+w.token)
+	resp, err := w.srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := readAll(resp)
+	if resp.StatusCode != 200 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/csv") {
+		t.Fatalf("export: %d %q %s", resp.StatusCode, resp.Header.Get("Content-Type"), body)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(cd, `attachment; filename="access-report-docs-ws-`) || !strings.HasSuffix(cd, `.csv"`) {
+		t.Fatalf("Content-Disposition = %q", cd)
+	}
+	if resp.Header.Get("X-Report-Rows") == "" || resp.Header.Get("X-Report-Skipped") != "0" || resp.Header.Get("X-Report-Generated-At") == "" {
+		t.Fatalf("report headers: %v", resp.Header)
+	}
+	if !bytes.HasPrefix(body, []byte{0xEF, 0xBB, 0xBF}) {
+		t.Fatal("the CSV export starts without a BOM")
+	}
+	for name, query := range map[string]string{"missing format": "", "unknown format": "?format=pdf"} {
+		res, out := doJSON(t, w.srv, "GET", base+"/export"+query, w.token, nil)
+		if res.StatusCode != 400 {
+			t.Errorf("%s: %d %v, want 400", name, res.StatusCode, out)
+		}
+	}
+	res, out = doJSON(t, w.srv, "GET", base+"/export?format=xlsx", w.outsider, nil)
+	if res.StatusCode != 403 && res.StatusCode != 404 {
+		t.Fatalf("outsider export: %d %v", res.StatusCode, out)
 	}
 }
