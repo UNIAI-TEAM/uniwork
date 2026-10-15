@@ -45,7 +45,7 @@ export function WorkspaceIconField({ workspace }: { workspace: Workspace }) {
     if (fileInput.current) fileInput.current.value = "";
     if (!file) return;
     if (file.size > MAX_ICON_BYTES) {
-      toast.error(t("profile.avatarTooLarge"));
+      toast.error(t("workspace.icon_too_large"));
       return;
     }
     upload.mutate({ wsId: workspace.id, file }, { onError: (err) => toastApiError(err, t("workspace.icon_upload_error")) });

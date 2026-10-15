@@ -594,6 +594,7 @@
       "icon_remove": "Bỏ icon",
       "icon_error": "Chưa đổi được icon. Thử lại.",
       "icon_upload_error": "Chưa tải được ảnh. Dùng PNG, JPEG, GIF hoặc WebP, tối đa 2 MB.",
+      "icon_too_large": "Ảnh lớn hơn 2 MB. Chọn ảnh nhỏ hơn.",
       "name_required": "Tên workspace không được để trống.",
       "task_prefix": "Tiền tố mã task",
       "task_prefix_hint": "Đứng trước số của mỗi task, ví dụ {{example}}.",
@@ -604,7 +605,7 @@
       "task_prefix_preview": "{{from}} → {{to}}",
       "task_prefix_invalid": "Dùng 2–10 ký tự A–Z hoặc 0–9, bắt đầu bằng chữ.",
       "task_prefix_saved": "Đã đổi tiền tố mã task",
-      "cancel": "Huỷ"
+      "cancel": "Hủy"
     },
     "integrations": {
       "description": "Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.",

@@ -595,6 +595,7 @@
       "icon_remove": "Remove icon",
       "icon_error": "Couldn't change the icon. Try again.",
       "icon_upload_error": "Couldn't upload the image. Use a PNG, JPEG, GIF or WebP up to 2 MB.",
+      "icon_too_large": "The image is over 2 MB. Choose a smaller one.",
       "name_required": "The workspace name can't be empty.",
       "task_prefix": "Task ID prefix",
       "task_prefix_hint": "Comes before each task's number, for example {{example}}.",
