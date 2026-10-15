@@ -27,6 +27,7 @@ type McpToolService struct {
 	ask      *AskUNIService
 	home     *HomeService
 	ws       *WorkspaceService
+	docs     *DocumentService // nil until SetDocuments; the document tools then say so
 	frontend string
 }
 
@@ -221,7 +222,11 @@ func (s *McpToolService) Search(ctx context.Context, p McpPrincipal, workspaceID
 	for _, src := range topSources(items, mcpMaxResults) {
 		out = append(out, s.item(workspaceID, src, mcpMaxHitRunes, mcpHitCut))
 	}
-	return out, nil
+	docs, err := s.searchDocuments(ctx, p, workspaceID, query)
+	if err != nil {
+		return nil, err
+	}
+	return append(out, docs...), nil
 }
 
 func (s *McpToolService) GetTask(ctx context.Context, p McpPrincipal, workspaceID, taskRef string) (McpTask, error) {
@@ -352,7 +357,7 @@ func McpTools(s *McpToolService) ai.Registry {
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.MyWork(ctx, p, a.WorkspaceID)
 			}),
-		tool("search", "Search UniWork", "Tasks and meetings in one workspace matching a keyword query. Chat is not searched.", mcpSchemaSearch, []string{"workspace_id", "query"},
+		tool("search", "Search UniWork", "Tasks and meetings in one workspace matching a keyword query, then up to "+strconv.Itoa(mcpSearchDocuments)+" documents the user may read (pages, files, folders) whose title or text holds the whole query, most recently updated first; a page's excerpt is the start of its text, and call get_document for the rest. Chat is not searched.", mcpSchemaSearch, []string{"workspace_id", "query"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.Search(ctx, p, a.WorkspaceID, a.Query)
 			}),
@@ -367,5 +372,6 @@ func McpTools(s *McpToolService) ai.Registry {
 	}
 	r = append(r, mcpTaskTools(s)...)
 	r = append(r, mcpProjectTools(s)...)
-	return append(r, mcpMeetingTools(s)...)
+	r = append(r, mcpMeetingTools(s)...)
+	return append(r, mcpDocumentTools(s)...)
 }

@@ -169,6 +169,7 @@ func TestIsolationMCP(t *testing.T) {
 	aTask, aMeeting := a.get(t, "task"), a.get(t, "meeting")
 	aTask2, aProject, aLabel, aComment := a.get(t, "task2"), a.get(t, "project"), a.get(t, "label"), a.get(t, "taskComment")
 	bTask, bProject, bMeeting := b.get(t, "task"), b.get(t, "project"), b.get(t, "meeting")
+	aDoc, aFile, bDoc := a.get(t, "document"), a.get(t, "fileDocument"), b.get(t, "document")
 	// A holds a third task, so it has a PREFIX-N that B's workspace does not:
 	// both workspaces count from 1 under the same prefix, and a ref that B's
 	// own workspace can answer would test nothing.
@@ -232,6 +233,26 @@ func TestIsolationMCP(t *testing.T) {
 		// The meeting tools of Phase 3: A's meetings listed through B's grant,
 		// the range holding A's meeting (it starts in a day).
 		{"list_meetings", map[string]string{"workspace_id": a.wsID, "from": meetingsFrom, "to": meetingsTo}},
+	}
+	// docAttacks are the document tools of Phase 4 aimed at A's documents: A's
+	// workspace listed through B's grant, A's page and A's file named in A's
+	// workspace and in B's, and A's page named as the parent in B's own
+	// workspace, which holds nothing under it (an empty list, not a refusal).
+	// B's owner may also read A's documents as a person once they join A, so
+	// the refusal is the tool's own check, not the document ladder's. Each is
+	// compared with the same call naming ids that never existed.
+	docAttacks := []struct {
+		tool  string
+		args  map[string]any
+		empty bool
+	}{
+		{"list_documents", map[string]any{"workspace_id": a.wsID}, false},
+		{"list_documents", map[string]any{"workspace_id": a.wsID, "parent_id": aDoc}, false},
+		{"list_documents", map[string]any{"workspace_id": b.wsID, "parent_id": aDoc}, true},
+		{"get_document", map[string]any{"workspace_id": a.wsID, "document_id": aDoc}, false},
+		{"get_document", map[string]any{"workspace_id": b.wsID, "document_id": aDoc}, false},
+		{"get_document", map[string]any{"workspace_id": a.wsID, "document_id": aFile}, false},
+		{"get_document", map[string]any{"workspace_id": b.wsID, "document_id": aFile}, false},
 	}
 	// writeAttacks aim B's write grant at A's rows: A's workspace and task, and
 	// A's ids named in a call that is about B's own workspace and task. Each
@@ -341,7 +362,7 @@ func TestIsolationMCP(t *testing.T) {
 	missing := map[string]string{
 		a.wsID: util.NewID(), aTask: util.NewID(), aProject: util.NewID(), aLabel: util.NewID(),
 		a.userID: util.NewID(), aComment: util.NewID(), aRef3: strings.Split(aRef3, "-")[0] + "-9999",
-		aMeeting: util.NewID(), a.peerID: util.NewID(),
+		aMeeting: util.NewID(), a.peerID: util.NewID(), aDoc: util.NewID(), aFile: util.NewID(),
 	}
 	// refused runs every attack with B's access token: each answers 200 with
 	// isError and the not-found text (the tenancy refusal, not a transport
@@ -412,6 +433,37 @@ func TestIsolationMCP(t *testing.T) {
 		}
 		if leak := a.leakIn(raw, ""); leak != "" {
 			t.Errorf("%s list_tasks by A's project leaked %s: %s", label, leak, raw)
+		}
+		// B's own workspace searched for A's marker finds no document of A's, and
+		// the same search for B's own marker finds B's page, so a documentless
+		// answer is not a world without documents.
+		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "search", map[string]string{"workspace_id": b.wsID, "query": a.marker})
+		if status != http.StatusOK || isToolError(raw) {
+			t.Errorf("%s search in B's workspace by A's marker: %d %s", label, status, raw)
+		}
+		if leak := a.leakIn(raw, ""); leak != "" {
+			t.Errorf("%s search in B's workspace by A's marker leaked %s: %s", label, leak, raw)
+		}
+		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "search", map[string]string{"workspace_id": b.wsID, "query": b.marker})
+		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), bDoc) {
+			t.Errorf("%s search in B's workspace by B's marker does not find B's page: %d %s", label, status, raw)
+		}
+		for _, at := range docAttacks {
+			status, raw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, at.args)
+			text := toolText(raw)
+			if at.empty && (status != http.StatusOK || isToolError(raw) || !strings.Contains(text, `"documents":[]`)) {
+				t.Errorf("%s %s %v: status %d, not an empty list: %s", label, at.tool, at.args, status, raw)
+			}
+			if !at.empty && (status != http.StatusOK || !isToolError(raw) || text != mcpNotFoundText) {
+				t.Errorf("%s %s %v: status %d, not refused with %q: %s", label, at.tool, at.args, status, mcpNotFoundText, raw)
+			}
+			if leak := a.leakIn(raw, ""); leak != "" {
+				t.Errorf("%s %s %v leaked %s: %s", label, at.tool, at.args, leak, raw)
+			}
+			twin := swapIDs(t, at.args, missing)
+			if tStatus, tRaw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, twin); tStatus != status || toolText(tRaw) != text {
+				t.Errorf("%s %s %v: A's rows answer %q, rows that do not exist answer %q", label, at.tool, at.args, text, toolText(tRaw))
+			}
 		}
 
 		for _, at := range writeAttacks {
@@ -506,7 +558,41 @@ func TestIsolationMCP(t *testing.T) {
 				t.Errorf("A's own %s %v does not show %s: %s", at.tool, args, want, raw)
 			}
 		}
-		status, raw := mcpCallTool(t, w, a.ids["mcpAccess"], "list_workspaces", nil)
+		// A's own grant runs every attacked document call with B's workspace
+		// swapped for A's: the page and the file read through the tools show
+		// what they hold, and A's workspace lists its page.
+		for _, at := range docAttacks {
+			args := map[string]any{}
+			for k, v := range at.args {
+				if v == b.wsID {
+					v = a.wsID
+				}
+				args[k] = v
+			}
+			status, raw := mcpCallToolJSON(t, w, a.ids["mcpAccess"], at.tool, args)
+			if status != http.StatusOK || isToolError(raw) {
+				t.Errorf("A's own %s %v through MCP: %d %s", at.tool, args, status, raw)
+				continue
+			}
+			want := fmt.Sprint(args["document_id"])
+			if at.tool == "list_documents" {
+				want = aDoc
+			}
+			if _, under := args["parent_id"]; !under && !strings.Contains(string(raw), want) {
+				t.Errorf("A's own %s %v does not show %s: %s", at.tool, args, want, raw)
+			}
+			if args["document_id"] == aFile && !strings.Contains(strings.ToLower(string(raw)), strings.ToLower(a.marker+" file body")) {
+				t.Errorf("A's own get_document of the file does not show its text: %s", raw)
+			}
+			if args["document_id"] == aDoc && !strings.Contains(strings.ToLower(string(raw)), strings.ToLower(a.marker+" page body")) {
+				t.Errorf("A's own get_document of the page does not show its Markdown: %s", raw)
+			}
+		}
+		status, raw := mcpCallTool(t, w, a.ids["mcpAccess"], "search", map[string]string{"workspace_id": a.wsID, "query": a.marker})
+		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), aDoc) {
+			t.Errorf("A's own search does not find A's page: %d %s", status, raw)
+		}
+		status, raw = mcpCallTool(t, w, a.ids["mcpAccess"], "list_workspaces", nil)
 		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), a.wsID) {
 			t.Errorf("A's own list_workspaces does not show A's workspace: %d %s", status, raw)
 		}
