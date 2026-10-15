@@ -12,14 +12,17 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { zipStore } from "../fixtures-lib/zip.mjs";
+import { EDIT_DRIVERS } from "./anchors.mjs";
 import { createFakeWorld } from "./fake-world.mjs";
 import { WEB_FRAME_PIN_BLOCKER, WEB_FRAME_PIN_OWNER, exitCodeFor } from "./run-row.mjs";
 import {
   A04_DESKTOP_BOUND_MS,
   AI_CLAUSE,
+  DIRTY_EDITS,
   decideA03AddOn,
   decideG8A01,
   decideG8A04,
+  downloadVersion,
   runG8A01,
   runG8A04,
   waitDesktopSees,
@@ -38,9 +41,13 @@ function a01Record(over = {}) {
     create: { ok: true, commentId: "c1" },
     rows: [{ id: "c1", body: "G8-A01 marker", author_id: "user-A", author_kind: "human", anchor: { format: "xlsx", v: 1, sheet: "sheet-2", range: "B7" } }],
     webRows: [{ id: "c1" }],
-    scan: { kind: "zip", names: [MACHINE], skipped: [{ name: "User", reason: "neutral" }], hits: [], parts: ["xl/workbook.xml"], commentParts: [] },
-    payloadHits: [],
+    dirtyEdit: { status: "ok" },
     saved: true,
+    versionBefore: "ver-1",
+    versionAfter: { versionId: "ver-2", version: 2 },
+    scan: { kind: "zip", names: [MACHINE], skipped: [{ name: "User", reason: "neutral" }], hits: [], parts: ["xl/workbook.xml"], commentParts: [] },
+    localScan: { kind: "zip", names: [MACHINE], skipped: [], hits: [], parts: ["xl/workbook.xml"], commentParts: [] },
+    payloadHits: [],
     ...over,
   };
 }
@@ -65,6 +72,12 @@ for (const [label, over, step, pattern] of [
   ["the machine name in a payload", { payloadHits: [{ name: MACHINE, part: "payload:list", offset: 3 }] }, "check:payload-scan", /payload:list/],
   ["the desktop create failed", { create: { ok: false, error: "comments.create -> network" } }, "check:create", /network/],
   ["the Save failed", { saved: false }, "check:file-scan", /Save/],
+  ["the dirtying edit failed", { dirtyEdit: { status: "error", at: 1, reason: "no button Insert row" } }, "check:dirty-edit", /Insert row/],
+  ["a Save that made no new version", { versionAfter: { versionId: "ver-1", version: 1 } }, "check:new-version", /no new server version \(head ver-1\)/],
+  ["a Save with no head read", { versionAfter: null }, "check:new-version", /no new server version/],
+  ["the new version was not scanned", { scan: null }, "check:file-scan", /new server version .*not scanned/],
+  ["the machine name in the working copy only", { localScan: { ...a01Record().localScan, hits: [{ name: MACHINE, part: "docProps/core.xml", offset: 7 }] } }, "check:file-scan", /working copy: .*docProps\/core\.xml@7/],
+  ["the working copy was not scanned", { localScan: null }, "check:file-scan", /working copy was not scanned/],
 ]) {
   test(`decideG8A01: ${label} -> FAIL`, () => {
     const d = decideG8A01(a01Record(over));
@@ -203,10 +216,23 @@ function scriptA01(fake, author) {
     server.rows.push(row);
     return { ok: true, value: { comment: row } };
   });
-  fake.script.respond("app.save", { state: "saved" });
+  server.head = { version_id: "ver-1", version: 1 };
+  fake.script.respond("app.evalBounded", { status: "ok" });
+  fake.script.respond("app.save", () => {
+    if (!server.noNewVersion) server.head = { version_id: "ver-2", version: 2 };
+    return { state: "saved" };
+  });
   fake.script.respond("api.listDocumentComments", () => ({ status: 200, body: { comments: server.rows, list_token: "lt1" } }));
-  fake.script.respond("api.getDocument", { status: 200, body: { document: { id: "doc-1", file: { version_id: "ver-2" } } } });
+  fake.script.respond("api.getDocument", () => ({ status: 200, body: { document: { id: "doc-1", file: server.head } } }));
   return server;
+}
+
+/** deps.download: records the version asked for and answers with `bytes`. */
+function fakeDownload(bytes, asked = []) {
+  return async (req) => {
+    asked.push(req);
+    return bytes;
+  };
 }
 
 const savedDocx = (author) => zipStore([{ name: "word/document.xml", data: "<w:document/>" }, { name: "word/comments.xml", data: `<w:comments><w:comment w:author="${author}"/></w:comments>` }]);
@@ -215,8 +241,19 @@ test("runG8A01 (docx, fake): the desktop comment is one server row by A, and the
   const fake = createFakeWorld();
   scriptA01(fake, "G8 A");
   const ctx = fakeCtx(fake, "G8-A01", "fx-docx-report-vi");
-  const record = await runG8A01(ctx, { connectApp: fake.app.connectApp, readFile: async () => savedDocx("G8 A"), machine: { names: [MACHINE], skipped: [], sources: {} } });
+  const asked = [];
+  const record = await runG8A01(ctx, {
+    connectApp: fake.app.connectApp,
+    sleep: async () => {},
+    readFile: async () => savedDocx("G8 A"),
+    download: fakeDownload(savedDocx("G8 A"), asked),
+    machine: { names: [MACHINE], skipped: [], sources: {} },
+  });
   assert.equal(record.status, "PASS", JSON.stringify(record, null, 1));
+  assert.deepEqual(asked.map((r) => [r.documentId, r.version, r.userKey]), [["doc-1", 2, "A"]], "the scan reads the bytes of the new version");
+  assert.equal(record.details.versionAfter.versionId, "ver-2");
+  const order = fake.calls.app.filter((c) => ["comments.create", "evalBounded", "save"].includes(c.key)).map((c) => c.key);
+  assert.deepEqual(order, ["comments.create", ...DIRTY_EDITS.docx.plan.map(() => "evalBounded"), "save"], "a dirtying edit runs before the Save");
   const create = fake.calls.app.find((c) => c.key === "comments.create");
   assert.equal(create.args[0].anchor.format, "docx");
   assert.equal(create.args[0].baseVersionId, "ver-1");
@@ -230,12 +267,53 @@ test("runG8A01 (docx, fake): the machine name in the saved comments.xml or the a
   scriptA01(fake, MACHINE);
   const record = await runG8A01(fakeCtx(fake, "G8-A01", "fx-docx-report-vi"), {
     connectApp: fake.app.connectApp,
+    sleep: async () => {},
     readFile: async () => savedDocx(MACHINE),
+    download: fakeDownload(savedDocx(MACHINE)),
     machine: { names: [MACHINE], skipped: [], sources: {} },
   });
   assert.equal(record.status, "FAIL");
   assert.match(record.reason, /word\/comments\.xml@/);
   assert.match(record.reason, /payload/);
+});
+
+test("runG8A01 (docx, fake): a Save that leaves the server head where it was is FAIL and nothing is downloaded", async () => {
+  const fake = createFakeWorld();
+  const server = scriptA01(fake, "G8 A");
+  server.noNewVersion = true;
+  const asked = [];
+  const record = await runG8A01(fakeCtx(fake, "G8-A01", "fx-docx-report-vi"), {
+    connectApp: fake.app.connectApp,
+    sleep: async () => {},
+    readFile: async () => savedDocx("G8 A"),
+    download: fakeDownload(savedDocx("G8 A"), asked),
+    machine: { names: [MACHINE], skipped: [], sources: {} },
+  });
+  assert.equal(record.status, "FAIL");
+  assert.equal(record.steps["check:new-version"].status, "FAIL");
+  assert.equal(asked.length, 0);
+});
+
+test("DIRTY_EDITS: every format has a product-command plan with fork citations; pdf says why it is not a note", () => {
+  for (const f of ["docx", "xlsx", "pptx", "pdf"]) {
+    assert.ok(DIRTY_EDITS[f].plan.length > 0, f);
+    assert.ok(DIRTY_EDITS[f].cites.length > 0, f);
+  }
+  assert.deepEqual(DIRTY_EDITS.xlsx.plan, EDIT_DRIVERS.xlsx.shift);
+  assert.match(DIRTY_EDITS.pdf.why, /Note tool .*server thread/);
+  assert.ok(DIRTY_EDITS.pdf.plan.some((a) => a.type === "click" && new RegExp(a.name).test("Insert blank page")));
+});
+
+test("downloadVersion GETs /api/v1/documents/{id}/download?version=N with the user's token and returns the bytes", async () => {
+  const seen = [];
+  const fetchImpl = async (url, init) => {
+    seen.push([url, init.headers.authorization]);
+    return { ok: true, status: 200, arrayBuffer: async () => new Uint8Array([80, 75]).buffer };
+  };
+  const bytes = await downloadVersion({ apiOrigin: "http://api", token: "tok", documentId: "D 1", version: 3, fetchImpl });
+  assert.deepEqual([...bytes], [80, 75]);
+  assert.deepEqual(seen, [["http://api/api/v1/documents/D%201/download?version=3", "Bearer tok"]]);
+  await assert.rejects(downloadVersion({ apiOrigin: "http://api", token: "t", documentId: "D", version: 3, fetchImpl: async () => ({ ok: false, status: 404 }) }), /download of version 3 answered 404/);
 });
 
 test("runG8A04 (xlsx, fake): web create seen on desktop after focus, desktop create read by B, R1 BLOCKED, A03 add-on in details", async () => {
