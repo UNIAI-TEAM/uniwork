@@ -33,6 +33,7 @@ func TestErrorClassTable(t *testing.T) {
 		"forbidden":                    "permission",
 		"member_deactivated":           "permission",
 		"organization_suspended":       "permission",
+		"workspace_seat_required":      "permission",
 		"not_meeting_host":             "permission",
 		"ai_context_forbidden":         "permission",
 		"ai_tool_not_allowed":          "permission",

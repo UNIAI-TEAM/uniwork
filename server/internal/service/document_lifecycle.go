@@ -207,7 +207,14 @@ type archiveReplay struct {
 // live node of the subtree must be manageable by the caller; the command
 // refuses a subtree that contains one it cannot manage.
 func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
-	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentArchive, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
+	// pristine is decided once under the row lock: the root gate and the
+	// subtree check below must agree on it.
+	pristine := false
+	rootGate := func(doc db.Document, access DocumentAccess) (err error) {
+		pristine, err = archiveRootGate(actor, doc, access)
+		return err
+	}
+	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentArchive, rootGate, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if doc.ArchivedAt.Valid {
 			// Already in the trash: the command is a no-op the caller can
 			// read back, same answer as a fresh archive.
@@ -235,9 +242,12 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 		// stay stable however the planner returns them.
 		sort.Strings(live)
 		// Never archive a restricted child the caller cannot manage: refuse the
-		// whole command, never leave the child orphaned live.
-		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
-			return DocumentArchiveResult{}, err
+		// whole command, never leave the child orphaned live. A pristine copy
+		// is a file with nothing under it; anything else takes the full check.
+		if !pristine || len(live) != 1 || live[0] != doc.ID {
+			if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
+				return DocumentArchiveResult{}, err
+			}
 		}
 		batch := util.NewID()
 		stamped, err := q.ArchiveDocumentBatch(ctx, db.ArchiveDocumentBatchParams{
@@ -335,7 +345,8 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 	if err != nil {
 		return DocumentArchiveImpact{}, err
 	}
-	if err := decideArchiveRootAccess(doc, access); err != nil {
+	pristine, err := archiveRootGate(actor, doc, access)
+	if err != nil {
 		return DocumentArchiveImpact{}, err
 	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
@@ -367,8 +378,11 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 	// (3) the archive command's own gate on exactly this id set: one node the
 	// caller cannot manage refuses the whole read, and the body never carries
 	// a number.
-	if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
-		return DocumentArchiveImpact{}, err
+	// The pristine-copy root holds nothing under it (the command's own skip).
+	if !pristine || len(live) != 1 || live[0] != doc.ID {
+		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
+			return DocumentArchiveImpact{}, err
+		}
 	}
 	// (4) count on exactly that id set. page and file are both "documents" to
 	// the dialog; the root is counted only in the total.
@@ -402,7 +416,7 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 // outside the batch costs a parent lookup. What does scale with the batch is
 // effectiveLevel for a node the caller manages only through a share.
 func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
-	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentRestore, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
+	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentRestore, decideArchiveRootAccess, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if !doc.ArchivedAt.Valid {
 			return DocumentArchiveResult{}, Invalid("tài liệu không nằm trong thùng rác")
 		}
@@ -654,12 +668,44 @@ func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
 	return decideDocumentAdminister(doc, access)
 }
 
+// pristineCopyCleanup is the one archive that does not need manage: the
+// creator of a plain copy (POST /copies without a job) may trash it while it
+// still holds only the bytes it was copied from. Save as a copy (G5-12)
+// commits the user's bytes as version 2 and, when that commit fails, archives
+// the half copy so server content never passes for the user's version - but
+// the copy keeps the source's ACL owner, so its creator often holds only
+// edit. Trashing a version-1 copy loses nothing the source does not hold,
+// manage holders can still restore it, and no access is widened. Anything
+// else - a second version, a converted copy, another editor, a creator who
+// lost edit - keeps the manage gate.
+func pristineCopyCleanup(actor Actor, doc db.Document, access DocumentAccess) bool {
+	return actor.Kind == audit.KindHuman &&
+		doc.CreatedBy == actor.ID && doc.CreatedByKind == string(audit.KindHuman) &&
+		doc.Kind == DocumentKindFile && !doc.OwnerKind.Valid && !doc.ArchivedAt.Valid &&
+		doc.SourceDocumentID.Valid && !doc.ConversionReason.Valid &&
+		doc.CurrentVersion == 1 &&
+		decideDocumentAccess(doc, access, DocumentLevelEdit) == nil
+}
+
+// archiveRootGate is the archive root gate ArchiveDocument and ArchiveImpact
+// share, so the read can never refuse (or allow) a delete the command decides
+// the other way: the pristine-copy exception first, then the manage gate.
+// pristine tells the caller the exception applied, so it can skip the subtree
+// manage check when the root is the whole live subtree.
+func archiveRootGate(actor Actor, doc db.Document, access DocumentAccess) (pristine bool, err error) {
+	if pristineCopyCleanup(actor, doc, access) {
+		return true, nil
+	}
+	return false, decideArchiveRootAccess(doc, access)
+}
+
 // documentBatchLifecycle is the shared envelope of archive and restore: one
 // transaction holding the ledger claim, the workspace tree lock and the
 // document row lock, with the ACL evaluated under the row lock like every
 // document command.
 func (s *DocumentService) documentBatchLifecycle(
 	ctx context.Context, actor Actor, documentID, idemKey, scope string,
+	rootGate func(doc db.Document, access DocumentAccess) error,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error),
 ) (DocumentArchiveResult, error) {
 	if !validActor(actor) || documentID == "" {
@@ -723,7 +769,7 @@ func (s *DocumentService) documentBatchLifecycle(
 	if err != nil {
 		return DocumentArchiveResult{}, err
 	}
-	if err := decideArchiveRootAccess(doc, access); err != nil {
+	if err := rootGate(doc, access); err != nil {
 		return DocumentArchiveResult{}, err
 	}
 	out, err := fn(q, doc, access)
