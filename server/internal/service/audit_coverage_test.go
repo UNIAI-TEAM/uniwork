@@ -1052,6 +1052,16 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatalf("document.shared rows after ShareDocument + ShareDocumentBatch = %d, want 2", n)
 			}
 		},
+		audit.ActionDocumentsAccessReportExported: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			d, err := f.q.GetDocumentByID(f.ctx, docID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ExportDocumentAccessReport(f.ctx, Human(f.owner.ID), d.WorkspaceID, DocumentAccessReportQuery{}, AccessReportFormatCSV, io.Discard); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentShareRevoked: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
 			sh, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{

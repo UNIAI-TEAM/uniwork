@@ -20,6 +20,12 @@ import (
 // The list SQL admits a row through the same legs, so a row it returns
 // always resolves to a level above none.
 func (s *DocumentService) attachListAccess(ctx context.Context, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
+	return s.attachListAccessQ(ctx, s.q, scope, workspaceID, agent, items)
+}
+
+// attachListAccessQ is attachListAccess read through q, for a caller that
+// holds a snapshot transaction (the access report export).
+func (s *DocumentService) attachListAccessQ(ctx context.Context, q *db.Queries, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -29,7 +35,7 @@ func (s *DocumentService) attachListAccess(ctx context.Context, scope documentLi
 		for i, item := range items {
 			ids[i] = item.Document.ID
 		}
-		rows, err := s.q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
+		rows, err := q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID, DocumentIds: ids,
 		})
 		if err != nil {
