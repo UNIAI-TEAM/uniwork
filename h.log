@@ -1,0 +1,2847 @@
+$ RID=$(cat /tmp/g819-r1-rid); M=/tmp/$RID-markers.txt; R=/tmp/$RID-run; export M OFFICE_FORK_SHA=7d665a54 G819_ALLOW_SQL_MEMBERSHIP=1 HARNESS_RUN_DIR=$R; bash scripts/office/g5g6g7/harness/keyring-session.sh --exec bash -c 'trap "HARNESS_RUN_DIR=$HARNESS_RUN_DIR bash scripts/office/g5g6g7/harness/stop.sh; echo G819_STOP_EXIT \$? | tee -a $M" EXIT; bash scripts/office/g5g6g7/harness/start.sh; echo "G819_START_EXIT $?" | tee -a $M; grep -v -i -E "key|secret|password|token" "$HARNESS_RUN_DIR/ports.env"; export GOFLAGS=-p=1 G819_DATABASE_URL=$( . "${ENV_FILE:-./.env}"; printf %s "$DATABASE_URL" ); node scripts/office/g5g6g7/evidence.mjs run --req G8-A01 --fixture fx-xlsx-revenue-xyz --out "$HARNESS_RUN_DIR" --checker harness:g8-19/comments.mjs -- node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-xlsx-revenue-xyz --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A01_fx-xlsx-revenue-xyz_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A01 --fixture fx-docx-report-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/comments.mjs -- node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A01_fx-docx-report-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A01 --fixture fx-pptx-deck-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/comments.mjs -- node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-pptx-deck-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A01_fx-pptx-deck-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A01 --fixture fx-pdf-invoice-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/comments.mjs -- node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-pdf-invoice-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A01_fx-pdf-invoice-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A02 --fixture fx-docx-report-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/anchors.mjs -- node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A02_fx-docx-report-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A02 --fixture fx-xlsx-revenue-xyz --out "$HARNESS_RUN_DIR" --checker harness:g8-19/anchors.mjs -- node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-xlsx-revenue-xyz --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A02_fx-xlsx-revenue-xyz_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A02 --fixture fx-pptx-deck-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/anchors.mjs -- node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-pptx-deck-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A02_fx-pptx-deck-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A02 --fixture fx-pdf-invoice-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/anchors.mjs -- node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-pdf-invoice-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A02_fx-pdf-invoice-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A04 --fixture fx-docx-report-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/comments.mjs -- node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A04 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A04_fx-docx-report-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A04 --fixture fx-xlsx-revenue-xyz --out "$HARNESS_RUN_DIR" --checker harness:g8-19/comments.mjs -- node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A04 --fixture fx-xlsx-revenue-xyz --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A04_fx-xlsx-revenue-xyz_EXIT $?" | tee -a $M; ( . scripts/local-env.sh && node scripts/office/g5g6g7/evidence.mjs run --req G8-A05 --fixture fx-docx-report-vi --out "$HARNESS_RUN_DIR" --checker go+harness:g8-19/inbox.mjs -- bash scripts/office/g5g6g7/g8-19/server-row.sh G8-A05 --then node scripts/office/g5g6g7/g8-19/inbox.mjs --row G8-A05 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR" ); echo "G819_G8-A05_fx-docx-report-vi_EXIT $?" | tee -a $M; ( . scripts/local-env.sh && node scripts/office/g5g6g7/evidence.mjs run --req G8-A06 --fixture fx-docx-report-vi --out "$HARNESS_RUN_DIR" --checker go+harness:g8-19/inbox.mjs -- bash scripts/office/g5g6g7/g8-19/server-row.sh G8-A06 --then node scripts/office/g5g6g7/g8-19/inbox.mjs --row G8-A06 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR" ); echo "G819_G8-A06_fx-docx-report-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A07 --fixture fx-xlsx-revenue-xyz --out "$HARNESS_RUN_DIR" --checker harness:g8-19/deeplink.mjs -- node scripts/office/g5g6g7/g8-19/deeplink.mjs --row G8-A07 --fixture fx-xlsx-revenue-xyz --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A07_fx-xlsx-revenue-xyz_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A07 --fixture fx-docx-report-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/deeplink.mjs -- node scripts/office/g5g6g7/g8-19/deeplink.mjs --row G8-A07 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A07_fx-docx-report-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A09 --fixture fx-docx-report-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/account.mjs -- node scripts/office/g5g6g7/g8-19/account.mjs --row G8-A09 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A09_fx-docx-report-vi_EXIT $?" | tee -a $M; rm -f "$HARNESS_RUN_DIR/g8-19-world.json"; node scripts/office/g5g6g7/evidence.mjs verify --out "$HARNESS_RUN_DIR"; echo "G819_VERIFY_EXIT $?" | tee -a $M; for f in "$HARNESS_RUN_DIR"/reports/g7-qa/g8-a*/*.json; do [ -f "$f" ] && { echo "=== $f"; cat "$f"; echo; }; done'; echo "G819_KEYRING_EXEC_EXIT $?" | tee -a $M; true
+KEYRING_DAEMON secrets=yes unlocked=yes
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /tmp/g819-r1-1792041294679884550-run
+harness: D server  http://localhost:39545 (metrics 127.0.0.1:44967)
+harness: D web     http://localhost:33385
+harness: fork      7d665a54
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:39545 ...
+harness: cloning the fork at 7d665a54...
+harness: npm ci in the fork (--ignore-scripts; no Electron binary yet)...
+harness: fetching the Electron binary (node /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/node_modules/electron/install.js)...
+harness: building the fork apps (this is the slow step)...
+harness: starting the fork Electron app under xvfb...
+dbus-daemon[27418]: [session uid=1000 pid=27418] Activating service name='org.a11y.Bus' requested by ':1.5' (uid=1000 pid=30684 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[27418]: [session uid=1000 pid=27418] Successfully activated service 'org.a11y.Bus'
+harness: app on :99 (pid 30671)
+harness: up
+  D server  http://localhost:39545
+  D web     http://localhost:33385
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54 @ 7d665a54
+  pids      /tmp/g819-r1-1792041294679884550-run/pids
+  next      OFFICE_FORK_SHA=7d665a54 HARNESS_RUN_DIR=/tmp/g819-r1-1792041294679884550-run node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /tmp/g819-r1-1792041294679884550-run
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=7d665a54 HARNESS_RUN_DIR=/tmp/g819-r1-1792041294679884550-run \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /tmp/g819-r1-1792041294679884550-run
+G819_START_EXIT 0
+# Written by scripts/office/g5g6g7/harness/lib.mjs (start.sh) - one run's ports and origins.
+HARNESS_RUN_DIR=/tmp/g819-r1-1792041294679884550-run
+API_PORT=39545
+WEB_PORT=33385
+METRICS_PORT=44967
+PREVIEW_PORT=38297
+APP_PROXY_PORT=44987
+APP_CDP_PORT=42981
+API_ORIGIN=http://localhost:39545
+APP_API_ORIGIN=http://127.0.0.1:44987
+WEB_ORIGIN=http://localhost:33385
+OFFICE_FORK_SHA=7d665a54
+D_SHA=7ddb9857545fc73cbbe697c1f7a209377f71190c
+DISPLAY=:99
+XAUTHORITY=/tmp/g819-r1-1792041294679884550-run/xauthority
+UNIWORK_USER_DATA=/tmp/g819-r1-1792041294679884550-run/userdata
+ELECTRON_BIN=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/node_modules/electron/dist/electron
+SHELL_APP_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/apps/shell
+OFFICE_FORK_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54
+HARNESS_DEPLOYMENT_ID=default
+{"evidenceId":"ev-g8-a01-0001","requirementId":"G8-A01","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/comments.mjs","--row","G8-A01","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a01-0001.log","checker":"harness:g8-19/comments.mjs","blocker":null,"startedAt":"2026-10-15T05:26:29.697Z","finishedAt":"2026-10-15T05:26:43.089Z"}
+G819_G8-A01_fx-xlsx-revenue-xyz_EXIT 0
+{"evidenceId":"ev-g8-a01-0002","requirementId":"G8-A01","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-docx-report-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/comments.mjs","--row","G8-A01","--fixture","fx-docx-report-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a01-0002.log","checker":"harness:g8-19/comments.mjs","blocker":null,"startedAt":"2026-10-15T05:26:43.125Z","finishedAt":"2026-10-15T05:26:55.142Z"}
+G819_G8-A01_fx-docx-report-vi_EXIT 0
+{"evidenceId":"ev-g8-a01-0003","requirementId":"G8-A01","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-pptx-deck-vi","fixtureSha256":"958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20","command":"node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-pptx-deck-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/comments.mjs","--row","G8-A01","--fixture","fx-pptx-deck-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a01-0003.log","checker":"harness:g8-19/comments.mjs","blocker":null,"startedAt":"2026-10-15T05:26:55.175Z","finishedAt":"2026-10-15T05:27:07.440Z"}
+G819_G8-A01_fx-pptx-deck-vi_EXIT 0
+{"evidenceId":"ev-g8-a01-0004","requirementId":"G8-A01","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-pdf-invoice-vi","fixtureSha256":"17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd","command":"node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-pdf-invoice-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/comments.mjs","--row","G8-A01","--fixture","fx-pdf-invoice-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a01-0004.log","checker":"harness:g8-19/comments.mjs","blocker":null,"startedAt":"2026-10-15T05:27:07.471Z","finishedAt":"2026-10-15T05:27:20.579Z"}
+G819_G8-A01_fx-pdf-invoice-vi_EXIT 0
+{"evidenceId":"ev-g8-a02-0001","requirementId":"G8-A02","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-docx-report-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/anchors.mjs","--row","G8-A02","--fixture","fx-docx-report-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a02-0001.log","checker":"harness:g8-19/anchors.mjs","blocker":null,"startedAt":"2026-10-15T05:27:20.611Z","finishedAt":"2026-10-15T05:28:32.326Z"}
+evidence: ev-g8-a02-0001 FAIL; last 1 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a02-0001.log:
+  | G8-A02 fx-docx-report-vi FAIL: check:shift: anchor stayed on version 01M4Z0EZJB37AJ153566SJ2P99, head is 01M4Z0FA09J9JTF841XQK4TSM4; anchor_state lost, want exact; anchor at path [2], want path [3] (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a02/fx-docx-report-vi.json)
+G819_G8-A02_fx-docx-report-vi_EXIT 1
+{"evidenceId":"ev-g8-a02-0002","requirementId":"G8-A02","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/anchors.mjs","--row","G8-A02","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a02-0002.log","checker":"harness:g8-19/anchors.mjs","blocker":null,"startedAt":"2026-10-15T05:28:32.357Z","finishedAt":"2026-10-15T05:29:45.564Z"}
+evidence: ev-g8-a02-0002 FAIL; last 1 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a02-0002.log:
+  | G8-A02 fx-xlsx-revenue-xyz FAIL: check:shift: anchor at sheet-2!B7, want sheet-2!B8; check:remove-lost: anchor_state exact, want lost; a lost anchor must keep its last version 01M4Z0HGMKMC7WKFSKKMT75SX2, got 01M4Z0HHXKRJCXASSJWFCWNXEV (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a02/fx-xlsx-revenue-xyz.json)
+G819_G8-A02_fx-xlsx-revenue-xyz_EXIT 1
+{"evidenceId":"ev-g8-a02-0003","requirementId":"G8-A02","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-pptx-deck-vi","fixtureSha256":"958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20","command":"node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-pptx-deck-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/anchors.mjs","--row","G8-A02","--fixture","fx-pptx-deck-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a02-0003.log","checker":"harness:g8-19/anchors.mjs","blocker":null,"startedAt":"2026-10-15T05:29:45.600Z","finishedAt":"2026-10-15T05:31:59.129Z"}
+evidence: ev-g8-a02-0003 FAIL; last 1 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a02-0003.log:
+  | G8-A02 fx-pptx-deck-vi FAIL: check:shift: anchor stayed on version 01M4Z0KD5GNSZW31ABQY0ZD6PA, head is 01M4Z0KQWEZ4HQYSB9685VSPTF; anchor at slide 257 at 1, want slide 257 at 2; check:remove-lost: anchor_state exact, want lost (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a02/fx-pptx-deck-vi.json)
+G819_G8-A02_fx-pptx-deck-vi_EXIT 1
+{"evidenceId":"ev-g8-a02-0004","requirementId":"G8-A02","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-pdf-invoice-vi","fixtureSha256":"17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd","command":"node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-pdf-invoice-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/anchors.mjs","--row","G8-A02","--fixture","fx-pdf-invoice-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a02-0004.log","checker":"harness:g8-19/anchors.mjs","blocker":null,"startedAt":"2026-10-15T05:31:59.168Z","finishedAt":"2026-10-15T05:34:16.762Z"}
+evidence: ev-g8-a02-0004 FAIL; last 1 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a02-0004.log:
+  | G8-A02 fx-pdf-invoice-vi FAIL: check:shift: anchor stayed on version 01M4Z0QFM1HQ3R5KNDTQS4EJRJ, head is 01M4Z0QYHVZKQ822SSF7JY23Z8; anchor at page 2, want page 1; check:remove-lost: anchor_state exact, want lost (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a02/fx-pdf-invoice-vi.json)
+G819_G8-A02_fx-pdf-invoice-vi_EXIT 1
+{"evidenceId":"ev-g8-a04-0001","requirementId":"G8-A04","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A04 --fixture fx-docx-report-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/comments.mjs","--row","G8-A04","--fixture","fx-docx-report-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a04-0001.log","checker":"harness:g8-19/comments.mjs","blocker":null,"startedAt":"2026-10-15T05:34:16.804Z","finishedAt":"2026-10-15T05:34:32.213Z"}
+evidence: ev-g8-a04-0001 FAIL; last 1 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a04-0001.log:
+  | G8-A04 fx-docx-report-vi FAIL: panel: open the comments panel: no element button named /^(Comments|Bình luận)( \(\d+\))?$/ (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a04/fx-docx-report-vi.json)
+G819_G8-A04_fx-docx-report-vi_EXIT 1
+{"evidenceId":"ev-g8-a04-0002","requirementId":"G8-A04","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A04 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/comments.mjs","--row","G8-A04","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a04-0002.log","checker":"harness:g8-19/comments.mjs","blocker":null,"startedAt":"2026-10-15T05:34:32.246Z","finishedAt":"2026-10-15T05:34:47.838Z"}
+evidence: ev-g8-a04-0002 FAIL; last 1 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a04-0002.log:
+  | G8-A04 fx-xlsx-revenue-xyz FAIL: panel: open the comments panel: no element button named /^(Comments|Bình luận)( \(\d+\))?$/ (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a04/fx-xlsx-revenue-xyz.json)
+G819_G8-A04_fx-xlsx-revenue-xyz_EXIT 1
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+{"evidenceId":"ev-g8-a05-0001","requirementId":"G8-A05","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"bash scripts/office/g5g6g7/g8-19/server-row.sh G8-A05 --then node scripts/office/g5g6g7/g8-19/inbox.mjs --row G8-A05 --fixture fx-docx-report-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["bash","scripts/office/g5g6g7/g8-19/server-row.sh","G8-A05","--then","node","scripts/office/g5g6g7/g8-19/inbox.mjs","--row","G8-A05","--fixture","fx-docx-report-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a05-0001.log","checker":"go+harness:g8-19/inbox.mjs","blocker":null,"startedAt":"2026-10-15T05:34:47.887Z","finishedAt":"2026-10-15T05:35:12.276Z"}
+evidence: ev-g8-a05-0001 FAIL; last 9 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a05-0001.log:
+  | server-row: go test -count=1 -v ./internal/notification ./internal/service ./internal/mentions -run DocumentMention|MentionCandidates|Claim|TokenIDs
+  | PASS
+  | ok  	github.com/unicomhub/uniwork/server/internal/notification	1.076s
+  | PASS
+  | ok  	github.com/unicomhub/uniwork/server/internal/service	8.636s
+  | PASS
+  | ok  	github.com/unicomhub/uniwork/server/internal/mentions	0.002s
+  | server-row: G8-A05 server checks passed
+  | G8-A05 fx-docx-report-vi FAIL: desktop-create: uniworkComments.create failed (malformed) (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a05/fx-docx-report-vi.json)
+G819_G8-A05_fx-docx-report-vi_EXIT 1
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+{"evidenceId":"ev-g8-a06-0001","requirementId":"G8-A06","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"bash scripts/office/g5g6g7/g8-19/server-row.sh G8-A06 --then node scripts/office/g5g6g7/g8-19/inbox.mjs --row G8-A06 --fixture fx-docx-report-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["bash","scripts/office/g5g6g7/g8-19/server-row.sh","G8-A06","--then","node","scripts/office/g5g6g7/g8-19/inbox.mjs","--row","G8-A06","--fixture","fx-docx-report-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a06-0001.log","checker":"go+harness:g8-19/inbox.mjs","blocker":null,"startedAt":"2026-10-15T05:35:12.323Z","finishedAt":"2026-10-15T05:35:18.151Z"}
+evidence: ev-g8-a06-0001 FAIL; last 5 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a06-0001.log:
+  | server-row: go test -count=1 -v ./internal/notification -run DocumentComment|Titles|Kinds
+  | PASS
+  | ok  	github.com/unicomhub/uniwork/server/internal/notification	3.731s
+  | server-row: G8-A06 server checks passed
+  | G8-A06 fx-docx-report-vi FAIL: comments: POST comments as A answered 400 [object Object] (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a06/fx-docx-report-vi.json)
+G819_G8-A06_fx-docx-report-vi_EXIT 1
+{"evidenceId":"ev-g8-a07-0001","requirementId":"G8-A07","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g8-19/deeplink.mjs --row G8-A07 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/deeplink.mjs","--row","G8-A07","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a07-0001.log","checker":"harness:g8-19/deeplink.mjs","blocker":null,"startedAt":"2026-10-15T05:35:18.181Z","finishedAt":"2026-10-15T05:35:18.510Z"}
+evidence: ev-g8-a07-0001 FAIL; last 1 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a07-0001.log:
+  | G8-A07 fx-xlsx-revenue-xyz FAIL: observe-seed: POST comments as A answered 400 [object Object] (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a07/fx-xlsx-revenue-xyz.json)
+G819_G8-A07_fx-xlsx-revenue-xyz_EXIT 1
+{"evidenceId":"ev-g8-a07-0002","requirementId":"G8-A07","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g8-19/deeplink.mjs --row G8-A07 --fixture fx-docx-report-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/deeplink.mjs","--row","G8-A07","--fixture","fx-docx-report-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a07-0002.log","checker":"harness:g8-19/deeplink.mjs","blocker":null,"startedAt":"2026-10-15T05:35:18.537Z","finishedAt":"2026-10-15T05:35:18.860Z"}
+evidence: ev-g8-a07-0002 FAIL; last 1 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a07-0002.log:
+  | G8-A07 fx-docx-report-vi FAIL: observe-seed: POST comments as A answered 400 [object Object] (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a07/fx-docx-report-vi.json)
+G819_G8-A07_fx-docx-report-vi_EXIT 1
+{"evidenceId":"ev-g8-a09-0001","requirementId":"G8-A09","dSha":"7ddb9857545fc73cbbe697c1f7a209377f71190c","fSha":"7d665a54","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g8-19/account.mjs --row G8-A09 --fixture fx-docx-report-vi --run-dir /tmp/g819-r1-1792041294679884550-run","argv":["node","scripts/office/g5g6g7/g8-19/account.mjs","--row","G8-A09","--fixture","fx-docx-report-vi","--run-dir","/tmp/g819-r1-1792041294679884550-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a09-0001.log","checker":"harness:g8-19/account.mjs","blocker":null,"startedAt":"2026-10-15T05:35:18.887Z","finishedAt":"2026-10-15T05:36:05.611Z"}
+evidence: ev-g8-a09-0001 FAIL; last 1 line(s) of ../tmp/g819-r1-1792041294679884550-run/artifacts/ev-g8-a09-0001.log:
+  | G8-A09 fx-docx-report-vi FAIL: org: pickApplied: after the pick the app works in no organization (expected undefined); rememberedNoStep: re-sign-in shows the picker again; rememberedOrgUsed: re-sign-in works in no organization (expected 01M4Z0DDXEV8YFFE4KM1FZ5KTJ); deact... (/tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a09/fx-docx-report-vi.json)
+G819_G8-A09_fx-docx-report-vi_EXIT 1
+evidence verify: OK (19 records)
+G819_VERIFY_EXIT 0
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a01/fx-docx-report-vi.json
+{
+  "row": "G8-A01",
+  "fixture": "fx-docx-report-vi",
+  "module": "comments",
+  "status": "PASS",
+  "exitCode": 0,
+  "reason": "",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 19
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 9973
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 116
+    },
+    "dirty-edit": {
+      "status": "PASS",
+      "elapsedMs": 567
+    },
+    "save": {
+      "status": "PASS",
+      "elapsedMs": 1015
+    },
+    "server-rows": {
+      "status": "PASS",
+      "elapsedMs": 10
+    },
+    "scan": {
+      "status": "PASS",
+      "elapsedMs": 7
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:one-row": {
+      "status": "PASS"
+    },
+    "check:author": {
+      "status": "PASS"
+    },
+    "check:anchor-format": {
+      "status": "PASS"
+    },
+    "check:web-sees-row": {
+      "status": "PASS"
+    },
+    "check:dirty-edit": {
+      "status": "PASS"
+    },
+    "check:new-version": {
+      "status": "PASS"
+    },
+    "check:file-scan": {
+      "status": "PASS"
+    },
+    "check:payload-scan": {
+      "status": "PASS"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "docx",
+    "fixture": "fx-docx-report-vi",
+    "marker": "G8-A01 fx-docx-report-vi mv93jf8b",
+    "aiOnlyProposes": {
+      "covered_by": "fork-vitest G8-12..15",
+      "why": "AI_PROVIDER=fake turns the AI off for every org on the runner (docs/office/g5g6g7/contract-p0.md §8); the fork adapter vitest of G8-12..15 proves the AI tool never calls comments.create before Send (docs/office/g5g6g7/contract-collab.md §12, A01 command)"
+    },
+    "machine": {
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": []
+    },
+    "userId": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+    "documentId": "01M4Z0DTZC80Z5HR0EDDZNJDYJ",
+    "create": {
+      "ok": true,
+      "commentId": "01M4Z0E4TPRT4C7YH5X4B5MESE"
+    },
+    "dirtyEdit": {
+      "status": "ok"
+    },
+    "dirtyEditCites": [
+      "apps/docs/src/renderer/control.ts:6,50 (goto -> navigateToBlock)",
+      "apps/docs/src/renderer/ai/doc-nav.ts:19-31 (navigateToBlock selects the textblock and focuses the view)",
+      "apps/docs/src/renderer/server-comments/anchor-codec.ts:12-14 (locate by path + quote, else lost)"
+    ],
+    "saved": true,
+    "versionBefore": "01M4Z0DTZC80Z5HR0EDH7AAA0R",
+    "versionAfter": {
+      "versionId": "01M4Z0E5E7BRGAG0FF14JN9D8J",
+      "version": 2
+    },
+    "rows": [
+      {
+        "id": "01M4Z0E4TPRT4C7YH5X4B5MESE",
+        "document_id": "01M4Z0DTZC80Z5HR0EDDZNJDYJ",
+        "author_id": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+        "author_kind": "human",
+        "author": {
+          "id": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+          "kind": "human",
+          "display_name": "G8-19 A"
+        },
+        "body": "G8-A01 fx-docx-report-vi mv93jf8b",
+        "type": "comment",
+        "kind": "comment",
+        "anchor": {
+          "v": 1,
+          "end": 20,
+          "path": [
+            2
+          ],
+          "quote": "Tổng doanh thu quý 1",
+          "start": 0,
+          "format": "docx",
+          "prefix": "",
+          "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+        },
+        "anchor_state": "lost",
+        "anchor_version_id": "01M4Z0DTZC80Z5HR0EDH7AAA0R",
+        "deleted_at": null,
+        "deleted_by_id": null,
+        "deleted_by_kind": null,
+        "revision": 1,
+        "created_at": "2026-10-15T05:26:53Z",
+        "updated_at": "2026-10-15T05:26:54Z",
+        "display_name": "G8-19 A",
+        "reactions": []
+      }
+    ],
+    "webRows": [
+      {
+        "id": "01M4Z0E4TPRT4C7YH5X4B5MESE"
+      }
+    ],
+    "localScan": {
+      "kind": "zip",
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": [],
+      "parts": [
+        "[Content_Types].xml",
+        "_rels/",
+        "_rels/.rels",
+        "docProps/",
+        "docProps/app.xml",
+        "docProps/core.xml",
+        "word/",
+        "word/_rels/",
+        "word/_rels/document.xml.rels",
+        "word/document.xml",
+        "word/numbering.xml",
+        "word/styles.xml"
+      ],
+      "commentParts": [],
+      "hits": []
+    },
+    "scan": {
+      "kind": "zip",
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": [],
+      "parts": [
+        "[Content_Types].xml",
+        "_rels/",
+        "_rels/.rels",
+        "docProps/",
+        "docProps/app.xml",
+        "docProps/core.xml",
+        "word/",
+        "word/_rels/",
+        "word/_rels/document.xml.rels",
+        "word/document.xml",
+        "word/numbering.xml",
+        "word/styles.xml"
+      ],
+      "commentParts": [],
+      "hits": []
+    },
+    "payloadHits": []
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:26:43.162Z",
+  "finishedAt": "2026-10-15T05:26:55.134Z",
+  "appLogTail": []
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a01/fx-pdf-invoice-vi.json
+{
+  "row": "G8-A01",
+  "fixture": "fx-pdf-invoice-vi",
+  "module": "comments",
+  "status": "PASS",
+  "exitCode": 0,
+  "reason": "",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 20
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 9866
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 47
+    },
+    "dirty-edit": {
+      "status": "PASS",
+      "elapsedMs": 1828
+    },
+    "save": {
+      "status": "PASS",
+      "elapsedMs": 1017
+    },
+    "server-rows": {
+      "status": "PASS",
+      "elapsedMs": 13
+    },
+    "scan": {
+      "status": "PASS",
+      "elapsedMs": 9
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:one-row": {
+      "status": "PASS"
+    },
+    "check:author": {
+      "status": "PASS"
+    },
+    "check:anchor-format": {
+      "status": "PASS"
+    },
+    "check:web-sees-row": {
+      "status": "PASS"
+    },
+    "check:dirty-edit": {
+      "status": "PASS"
+    },
+    "check:new-version": {
+      "status": "PASS"
+    },
+    "check:file-scan": {
+      "status": "PASS"
+    },
+    "check:payload-scan": {
+      "status": "PASS"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "pdf",
+    "fixture": "fx-pdf-invoice-vi",
+    "marker": "G8-A01 fx-pdf-invoice-vi mv93jy0l",
+    "aiOnlyProposes": {
+      "covered_by": "fork-vitest G8-12..15",
+      "why": "AI_PROVIDER=fake turns the AI off for every org on the runner (docs/office/g5g6g7/contract-p0.md §8); the fork adapter vitest of G8-12..15 proves the AI tool never calls comments.create before Send (docs/office/g5g6g7/contract-collab.md §12, A01 command)"
+    },
+    "machine": {
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": []
+    },
+    "userId": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+    "documentId": "01M4Z0EJR5983PFZMGV8T2XKE2",
+    "create": {
+      "ok": true,
+      "commentId": "01M4Z0EWDTXSSSG0VJVJQ9GSBX"
+    },
+    "dirtyEdit": {
+      "status": "ok"
+    },
+    "dirtyEditCites": [
+      "apps/pdf/src/renderer/control.ts:3,27-38 (goto page, 1-based)",
+      "apps/pdf/src/renderer/App.tsx:327-333 (ribbon tab page), :7395-7404 (Delete page), :7429-7437 (Insert blank page), :4136-4143 (deletePage needs > 1 page)",
+      "apps/pdf/src/renderer/App.tsx:3837-3857 (Save hands pageMap to the server comments), server-comments/pdf-anchor.ts:85-105 (remap, missing page -> lost)",
+      "apps/pdf/src/renderer/i18n/strings.ts:567,577,580 (en), :925,935,938 (vi)"
+    ],
+    "dirtyEditWhy": "not an annotation: in a document bound to the server the Note tool makes a server thread, not a file note (fork apps/pdf/src/renderer/App.tsx:1558,1712), and highlight/ink need a pointer drag on the page canvas; Insert blank page is the product command the A02 plan already drives",
+    "saved": true,
+    "versionBefore": "01M4Z0EJR5983PFZMGV8Z9RSW4",
+    "versionAfter": {
+      "versionId": "01M4Z0EY9BMDE1XQBKJ66XFNTN",
+      "version": 2
+    },
+    "rows": [
+      {
+        "id": "01M4Z0EWDTXSSSG0VJVJQ9GSBX",
+        "document_id": "01M4Z0EJR5983PFZMGV8T2XKE2",
+        "author_id": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+        "author_kind": "human",
+        "author": {
+          "id": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+          "kind": "human",
+          "display_name": "G8-19 A"
+        },
+        "body": "G8-A01 fx-pdf-invoice-vi mv93jy0l",
+        "type": "comment",
+        "kind": "comment",
+        "anchor": {
+          "v": 1,
+          "page": 1,
+          "rect": [
+            72,
+            700,
+            96,
+            724
+          ],
+          "format": "pdf"
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M4Z0EJR5983PFZMGV8Z9RSW4",
+        "deleted_at": null,
+        "deleted_by_id": null,
+        "deleted_by_kind": null,
+        "revision": 1,
+        "created_at": "2026-10-15T05:27:17Z",
+        "updated_at": "2026-10-15T05:27:17Z",
+        "display_name": "G8-19 A",
+        "reactions": []
+      }
+    ],
+    "webRows": [
+      {
+        "id": "01M4Z0EWDTXSSSG0VJVJQ9GSBX"
+      }
+    ],
+    "localScan": {
+      "kind": "pdf",
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": [],
+      "parts": [
+        "pdf:raw",
+        "pdf:/T"
+      ],
+      "commentParts": [],
+      "titles": 0,
+      "hits": []
+    },
+    "scan": {
+      "kind": "pdf",
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": [],
+      "parts": [
+        "pdf:raw",
+        "pdf:/T"
+      ],
+      "commentParts": [],
+      "titles": 0,
+      "hits": []
+    },
+    "payloadHits": []
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:27:07.508Z",
+  "finishedAt": "2026-10-15T05:27:20.571Z",
+  "appLogTail": []
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a01/fx-pptx-deck-vi.json
+{
+  "row": "G8-A01",
+  "fixture": "fx-pptx-deck-vi",
+  "module": "comments",
+  "status": "PASS",
+  "exitCode": 0,
+  "reason": "",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 15
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 9894
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 195
+    },
+    "dirty-edit": {
+      "status": "PASS",
+      "elapsedMs": 810
+    },
+    "save": {
+      "status": "PASS",
+      "elapsedMs": 1017
+    },
+    "server-rows": {
+      "status": "PASS",
+      "elapsedMs": 12
+    },
+    "scan": {
+      "status": "PASS",
+      "elapsedMs": 8
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:one-row": {
+      "status": "PASS"
+    },
+    "check:author": {
+      "status": "PASS"
+    },
+    "check:anchor-format": {
+      "status": "PASS"
+    },
+    "check:web-sees-row": {
+      "status": "PASS"
+    },
+    "check:dirty-edit": {
+      "status": "PASS"
+    },
+    "check:new-version": {
+      "status": "PASS"
+    },
+    "check:file-scan": {
+      "status": "PASS"
+    },
+    "check:payload-scan": {
+      "status": "PASS"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "pptx",
+    "fixture": "fx-pptx-deck-vi",
+    "marker": "G8-A01 fx-pptx-deck-vi mv93joj5",
+    "aiOnlyProposes": {
+      "covered_by": "fork-vitest G8-12..15",
+      "why": "AI_PROVIDER=fake turns the AI off for every org on the runner (docs/office/g5g6g7/contract-p0.md §8); the fork adapter vitest of G8-12..15 proves the AI tool never calls comments.create before Send (docs/office/g5g6g7/contract-collab.md §12, A01 command)"
+    },
+    "machine": {
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": []
+    },
+    "userId": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+    "documentId": "01M4Z0E6QYBC1MC2GRT1Y1S6C7",
+    "create": {
+      "ok": true,
+      "commentId": "01M4Z0EGK45P4XWHAJ0FGFH1CY"
+    },
+    "dirtyEdit": {
+      "status": "ok"
+    },
+    "dirtyEditCites": [
+      "apps/slides/src/renderer/control.ts:63-95 (goto slide, 0-based)",
+      "apps/slides/src/renderer/keyboard-actions.ts:121-133 (Ctrl+M adds a slide), :373-391 (Delete on the focused rail deletes the selected slides)",
+      "apps/slides/src/renderer/App.tsx:3973-3995 (.slide-list thumbnails with data-index), :2645 (window keydown listener)",
+      "apps/slides/src/renderer/server-comments.ts:5-7 (slide_id survives a reorder, a deleted slide is lost)"
+    ],
+    "saved": true,
+    "versionBefore": "01M4Z0E6QYBC1MC2GRT3QXWD5Z",
+    "versionAfter": {
+      "versionId": "01M4Z0EHE2QCHRYT5S4VDFCB8J",
+      "version": 2
+    },
+    "rows": [
+      {
+        "id": "01M4Z0EGK45P4XWHAJ0FGFH1CY",
+        "document_id": "01M4Z0E6QYBC1MC2GRT1Y1S6C7",
+        "author_id": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+        "author_kind": "human",
+        "author": {
+          "id": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+          "kind": "human",
+          "display_name": "G8-19 A"
+        },
+        "body": "G8-A01 fx-pptx-deck-vi mv93joj5",
+        "type": "comment",
+        "kind": "comment",
+        "anchor": {
+          "v": 1,
+          "format": "pptx",
+          "slide_id": "257",
+          "slide_index": 1
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M4Z0E6QYBC1MC2GRT3QXWD5Z",
+        "deleted_at": null,
+        "deleted_by_id": null,
+        "deleted_by_kind": null,
+        "revision": 1,
+        "created_at": "2026-10-15T05:27:05Z",
+        "updated_at": "2026-10-15T05:27:05Z",
+        "display_name": "G8-19 A",
+        "reactions": []
+      }
+    ],
+    "webRows": [
+      {
+        "id": "01M4Z0EGK45P4XWHAJ0FGFH1CY"
+      }
+    ],
+    "localScan": {
+      "kind": "zip",
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": [],
+      "parts": [
+        "[Content_Types].xml",
+        "_rels/",
+        "_rels/.rels",
+        "docProps/",
+        "docProps/app.xml",
+        "docProps/core.xml",
+        "ppt/",
+        "ppt/_rels/",
+        "ppt/_rels/presentation.xml.rels",
+        "ppt/presentation.xml",
+        "ppt/slideLayouts/",
+        "ppt/slideLayouts/_rels/",
+        "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
+        "ppt/slideLayouts/slideLayout1.xml",
+        "ppt/slideMasters/",
+        "ppt/slideMasters/_rels/",
+        "ppt/slideMasters/_rels/slideMaster1.xml.rels",
+        "ppt/slideMasters/slideMaster1.xml",
+        "ppt/slides/",
+        "ppt/slides/_rels/",
+        "ppt/slides/_rels/slide1.xml.rels",
+        "ppt/slides/_rels/slide2.xml.rels",
+        "ppt/slides/_rels/slide3.xml.rels",
+        "ppt/slides/slide1.xml",
+        "ppt/slides/slide2.xml",
+        "ppt/slides/slide3.xml",
+        "ppt/theme/",
+        "ppt/theme/theme1.xml",
+        "ppt/slides/slide4.xml",
+        "ppt/slides/_rels/slide4.xml.rels"
+      ],
+      "commentParts": [],
+      "hits": []
+    },
+    "scan": {
+      "kind": "zip",
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": [],
+      "parts": [
+        "[Content_Types].xml",
+        "_rels/",
+        "_rels/.rels",
+        "docProps/",
+        "docProps/app.xml",
+        "docProps/core.xml",
+        "ppt/",
+        "ppt/_rels/",
+        "ppt/_rels/presentation.xml.rels",
+        "ppt/presentation.xml",
+        "ppt/slideLayouts/",
+        "ppt/slideLayouts/_rels/",
+        "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
+        "ppt/slideLayouts/slideLayout1.xml",
+        "ppt/slideMasters/",
+        "ppt/slideMasters/_rels/",
+        "ppt/slideMasters/_rels/slideMaster1.xml.rels",
+        "ppt/slideMasters/slideMaster1.xml",
+        "ppt/slides/",
+        "ppt/slides/_rels/",
+        "ppt/slides/_rels/slide1.xml.rels",
+        "ppt/slides/_rels/slide2.xml.rels",
+        "ppt/slides/_rels/slide3.xml.rels",
+        "ppt/slides/slide1.xml",
+        "ppt/slides/slide2.xml",
+        "ppt/slides/slide3.xml",
+        "ppt/theme/",
+        "ppt/theme/theme1.xml",
+        "ppt/slides/slide4.xml",
+        "ppt/slides/_rels/slide4.xml.rels"
+      ],
+      "commentParts": [],
+      "hits": []
+    },
+    "payloadHits": []
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:26:55.215Z",
+  "finishedAt": "2026-10-15T05:27:07.432Z",
+  "appLogTail": []
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a01/fx-xlsx-revenue-xyz.json
+{
+  "row": "G8-A01",
+  "fixture": "fx-xlsx-revenue-xyz",
+  "module": "comments",
+  "status": "PASS",
+  "exitCode": 0,
+  "reason": "",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 21
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 9833
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 23
+    },
+    "dirty-edit": {
+      "status": "PASS",
+      "elapsedMs": 1063
+    },
+    "save": {
+      "status": "PASS",
+      "elapsedMs": 1018
+    },
+    "server-rows": {
+      "status": "PASS",
+      "elapsedMs": 12
+    },
+    "scan": {
+      "status": "PASS",
+      "elapsedMs": 6
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:one-row": {
+      "status": "PASS"
+    },
+    "check:author": {
+      "status": "PASS"
+    },
+    "check:anchor-format": {
+      "status": "PASS"
+    },
+    "check:web-sees-row": {
+      "status": "PASS"
+    },
+    "check:dirty-edit": {
+      "status": "PASS"
+    },
+    "check:new-version": {
+      "status": "PASS"
+    },
+    "check:file-scan": {
+      "status": "PASS"
+    },
+    "check:payload-scan": {
+      "status": "PASS"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "xlsx",
+    "fixture": "fx-xlsx-revenue-xyz",
+    "marker": "G8-A01 fx-xlsx-revenue-xyz mv93j4vb",
+    "aiOnlyProposes": {
+      "covered_by": "fork-vitest G8-12..15",
+      "why": "AI_PROVIDER=fake turns the AI off for every org on the runner (docs/office/g5g6g7/contract-p0.md §8); the fork adapter vitest of G8-12..15 proves the AI tool never calls comments.create before Send (docs/office/g5g6g7/contract-collab.md §12, A01 command)"
+    },
+    "machine": {
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": []
+    },
+    "userId": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+    "documentId": "01M4Z0DDZ8S53999K3JREDVMWG",
+    "create": {
+      "ok": true,
+      "commentId": "01M4Z0DQK69QT8V3MKK1SD29TX"
+    },
+    "dirtyEdit": {
+      "status": "ok"
+    },
+    "dirtyEditCites": [
+      "apps/sheets/src/renderer/control.ts:4-5,63-90 (goto activates the range)",
+      "apps/sheets/src/renderer/ExcelShell.tsx:3985-3995 (Insert row / Delete row buttons, insert-row-here / delete-row-here)",
+      "apps/sheets/src/renderer/i18n/app/en.ts:1336,1344 (en labels; vi Chèn hàng / Xóa hàng)",
+      "apps/sheets/src/renderer/server-comments/anchor-store.ts:102-120 (an insert above shifts the range, a delete loses it)"
+    ],
+    "saved": true,
+    "versionBefore": "01M4Z0DDZ8S53999K3JS0S8HNC",
+    "versionAfter": {
+      "versionId": "01M4Z0DRRKX8A616DQQV3RA91Y",
+      "version": 2
+    },
+    "rows": [
+      {
+        "id": "01M4Z0DQK69QT8V3MKK1SD29TX",
+        "document_id": "01M4Z0DDZ8S53999K3JREDVMWG",
+        "author_id": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+        "author_kind": "human",
+        "author": {
+          "id": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+          "kind": "human",
+          "display_name": "G8-19 A"
+        },
+        "body": "G8-A01 fx-xlsx-revenue-xyz mv93j4vb",
+        "type": "comment",
+        "kind": "comment",
+        "anchor": {
+          "v": 1,
+          "range": "B7",
+          "sheet": "sheet-2",
+          "format": "xlsx"
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M4Z0DRRKX8A616DQQV3RA91Y",
+        "deleted_at": null,
+        "deleted_by_id": null,
+        "deleted_by_kind": null,
+        "revision": 1,
+        "created_at": "2026-10-15T05:26:39Z",
+        "updated_at": "2026-10-15T05:26:41Z",
+        "display_name": "G8-19 A",
+        "reactions": []
+      }
+    ],
+    "webRows": [
+      {
+        "id": "01M4Z0DQK69QT8V3MKK1SD29TX"
+      }
+    ],
+    "localScan": {
+      "kind": "zip",
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": [],
+      "parts": [
+        "[Content_Types].xml",
+        "_rels/.rels",
+        "docProps/app.xml",
+        "docProps/core.xml",
+        "xl/_rels/workbook.xml.rels",
+        "xl/sharedStrings.xml",
+        "xl/styles.xml",
+        "xl/workbook.xml",
+        "xl/worksheets/sheet1.xml",
+        "xl/worksheets/sheet2.xml",
+        "xl/worksheets/sheet3.xml",
+        "xl/worksheets/sheet4.xml"
+      ],
+      "commentParts": [],
+      "hits": []
+    },
+    "scan": {
+      "kind": "zip",
+      "names": [
+        "ubuntu",
+        "cursor"
+      ],
+      "skipped": [],
+      "parts": [
+        "[Content_Types].xml",
+        "_rels/.rels",
+        "docProps/app.xml",
+        "docProps/core.xml",
+        "xl/_rels/workbook.xml.rels",
+        "xl/sharedStrings.xml",
+        "xl/styles.xml",
+        "xl/workbook.xml",
+        "xl/worksheets/sheet1.xml",
+        "xl/worksheets/sheet2.xml",
+        "xl/worksheets/sheet3.xml",
+        "xl/worksheets/sheet4.xml"
+      ],
+      "commentParts": [],
+      "hits": []
+    },
+    "payloadHits": []
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:26:29.734Z",
+  "finishedAt": "2026-10-15T05:26:43.081Z",
+  "appLogTail": []
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a02/fx-docx-report-vi.json
+{
+  "row": "G8-A02",
+  "fixture": "fx-docx-report-vi",
+  "module": "anchors",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "check:shift: anchor stayed on version 01M4Z0EZJB37AJ153566SJ2P99, head is 01M4Z0FA09J9JTF841XQK4TSM4; anchor_state lost, want exact; anchor at path [2], want path [3]",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 20
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 9889
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 167
+    },
+    "shift": {
+      "status": "FAIL",
+      "reason": "the server row did not reach the new version within 60419 ms",
+      "elapsedMs": 60995
+    },
+    "rest-sees-moved": {
+      "status": "PASS",
+      "elapsedMs": 4
+    },
+    "remove": {
+      "status": "PASS",
+      "elapsedMs": 325
+    },
+    "invalid-versions": {
+      "status": "PASS",
+      "elapsedMs": 12
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:shift": {
+      "status": "FAIL",
+      "reason": "anchor stayed on version 01M4Z0EZJB37AJ153566SJ2P99, head is 01M4Z0FA09J9JTF841XQK4TSM4; anchor_state lost, want exact; anchor at path [2], want path [3]"
+    },
+    "check:rest-sees-moved": {
+      "status": "PASS"
+    },
+    "check:remove-lost": {
+      "status": "PASS"
+    },
+    "check:invalid-versions": {
+      "status": "PASS"
+    },
+    "check:web-to-desktop": {
+      "status": "BLOCKED",
+      "blocker": "web frame pin 05fd209 lacks G8-12..15 (R1)",
+      "owner": "lead-f"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "docx",
+    "fixture": "fx-docx-report-vi",
+    "cites": [
+      "apps/docs/src/renderer/control.ts:6,50 (goto -> navigateToBlock)",
+      "apps/docs/src/renderer/ai/doc-nav.ts:19-31 (navigateToBlock selects the textblock and focuses the view)",
+      "apps/docs/src/renderer/server-comments/anchor-codec.ts:12-14 (locate by path + quote, else lost)"
+    ],
+    "reveal": {
+      "covered_by": "G8-A07 deeplink module (T3, desktop reveal B7) + fork vitest G8-12..15 (reveal per format)"
+    },
+    "documentId": "01M4Z0EZJB37AJ153564JWKGMZ",
+    "created": {
+      "ok": true,
+      "commentId": "01M4Z0F9C8WGHN2B8DAST12AKX",
+      "anchor": {
+        "format": "docx",
+        "v": 1,
+        "path": [
+          2
+        ],
+        "start": 0,
+        "end": 20,
+        "quote": "Tổng doanh thu quý 1",
+        "prefix": "",
+        "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+      },
+      "versionId": "01M4Z0EZJB37AJ153566SJ2P99",
+      "replyId": "01M4Z0F9CVNCGTPVVZ2W3TRAGH"
+    },
+    "shift": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "versionBefore": "01M4Z0EZJB37AJ153566SJ2P99",
+      "expected": {
+        "format": "docx",
+        "v": 1,
+        "path": [
+          3
+        ],
+        "start": 0,
+        "end": 20,
+        "quote": "Tổng doanh thu quý 1",
+        "prefix": "",
+        "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+      },
+      "headVersionId": "01M4Z0FA09J9JTF841XQK4TSM4",
+      "row": {
+        "id": "01M4Z0F9C8WGHN2B8DAST12AKX",
+        "anchor": {
+          "v": 1,
+          "end": 20,
+          "path": [
+            2
+          ],
+          "quote": "Tổng doanh thu quý 1",
+          "start": 0,
+          "format": "docx",
+          "prefix": "",
+          "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+        },
+        "anchor_state": "lost",
+        "anchor_version_id": "01M4Z0EZJB37AJ153566SJ2P99",
+        "deleted_at": null
+      },
+      "elapsedMs": 60419
+    },
+    "restSeesMoved": {
+      "anchor": {
+        "v": 1,
+        "end": 20,
+        "path": [
+          2
+        ],
+        "quote": "Tổng doanh thu quý 1",
+        "start": 0,
+        "format": "docx",
+        "prefix": "",
+        "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+      },
+      "anchor_version_id": "01M4Z0EZJB37AJ153566SJ2P99"
+    },
+    "remove": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M4Z0FA09J9JTF841XQK4TSM4",
+      "row": {
+        "id": "01M4Z0F9C8WGHN2B8DAST12AKX",
+        "anchor": {
+          "v": 1,
+          "end": 20,
+          "path": [
+            2
+          ],
+          "quote": "Tổng doanh thu quý 1",
+          "start": 0,
+          "format": "docx",
+          "prefix": "",
+          "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+        },
+        "anchor_state": "lost",
+        "anchor_version_id": "01M4Z0EZJB37AJ153566SJ2P99",
+        "deleted_at": null
+      },
+      "replies": 1,
+      "elapsedMs": 4
+    },
+    "invalidVersionsNote": "purged-version case replaced by empty id: no REST purge route (router/documents.go), same single lookup document_comment_anchors.go:362-369",
+    "invalidVersions": [
+      {
+        "case": "foreign",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "unknown",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "empty",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      }
+    ],
+    "afterInvalid": {
+      "id": "01M4Z0F9C8WGHN2B8DAST12AKX",
+      "anchor": {
+        "v": 1,
+        "end": 20,
+        "path": [
+          2
+        ],
+        "quote": "Tổng doanh thu quý 1",
+        "start": 0,
+        "format": "docx",
+        "prefix": "",
+        "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+      },
+      "anchor_state": "lost",
+      "anchor_version_id": "01M4Z0EZJB37AJ153566SJ2P99",
+      "deleted_at": null
+    },
+    "webToDesktop": {
+      "status": "BLOCKED",
+      "blocker": "web frame pin 05fd209 lacks G8-12..15 (R1)",
+      "owner": "lead-f",
+      "pin": "05fd209"
+    }
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:27:20.646Z",
+  "finishedAt": "2026-10-15T05:28:32.316Z",
+  "appLogTail": [
+    "[30684:1015/052626.761152:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.285983:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.286008:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[30889:30922:1015/052630.948276:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464731:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464771:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068818:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068839:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30889:1015/052632.093068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[31023:7:1015/052632.102511:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[30889:30923:1015/052635.017722:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT"
+  ]
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a02/fx-pdf-invoice-vi.json
+{
+  "row": "G8-A02",
+  "fixture": "fx-pdf-invoice-vi",
+  "module": "anchors",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "check:shift: anchor stayed on version 01M4Z0QFM1HQ3R5KNDTQS4EJRJ, head is 01M4Z0QYHVZKQ822SSF7JY23Z8; anchor at page 2, want page 1; check:remove-lost: anchor_state exact, want lost",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 31
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 10194
+    },
+    "prepare": {
+      "status": "PASS",
+      "elapsedMs": 3895
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 28
+    },
+    "shift": {
+      "status": "FAIL",
+      "reason": "the server row did not reach the new version within 60462 ms",
+      "elapsedMs": 61584
+    },
+    "rest-sees-moved": {
+      "status": "PASS",
+      "elapsedMs": 6
+    },
+    "remove": {
+      "status": "FAIL",
+      "reason": "the row did not go lost within 60403 ms",
+      "elapsedMs": 61521
+    },
+    "invalid-versions": {
+      "status": "PASS",
+      "elapsedMs": 8
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:shift": {
+      "status": "FAIL",
+      "reason": "anchor stayed on version 01M4Z0QFM1HQ3R5KNDTQS4EJRJ, head is 01M4Z0QYHVZKQ822SSF7JY23Z8; anchor at page 2, want page 1"
+    },
+    "check:rest-sees-moved": {
+      "status": "PASS"
+    },
+    "check:remove-lost": {
+      "status": "FAIL",
+      "reason": "anchor_state exact, want lost"
+    },
+    "check:invalid-versions": {
+      "status": "PASS"
+    },
+    "check:web-to-desktop": {
+      "status": "BLOCKED",
+      "blocker": "web frame pin 05fd209 lacks G8-12..15 (R1)",
+      "owner": "lead-f"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "pdf",
+    "fixture": "fx-pdf-invoice-vi",
+    "cites": [
+      "apps/pdf/src/renderer/control.ts:3,27-38 (goto page, 1-based)",
+      "apps/pdf/src/renderer/App.tsx:327-333 (ribbon tab page), :7395-7404 (Delete page), :7429-7437 (Insert blank page), :4136-4143 (deletePage needs > 1 page)",
+      "apps/pdf/src/renderer/App.tsx:3837-3857 (Save hands pageMap to the server comments), server-comments/pdf-anchor.ts:85-105 (remap, missing page -> lost)",
+      "apps/pdf/src/renderer/i18n/strings.ts:567,577,580 (en), :925,935,938 (vi)"
+    ],
+    "reveal": {
+      "covered_by": "G8-A07 deeplink module (T3, desktop reveal B7) + fork vitest G8-12..15 (reveal per format)"
+    },
+    "documentId": "01M4Z0QFM1HQ3R5KNDTP05H3Q0",
+    "created": {
+      "ok": true,
+      "commentId": "01M4Z0QXD9X141PE1RV6N149M3",
+      "anchor": {
+        "format": "pdf",
+        "v": 1,
+        "page": 2,
+        "rect": [
+          72,
+          700,
+          96,
+          724
+        ]
+      },
+      "versionId": "01M4Z0QFM1HQ3R5KNDTQS4EJRJ",
+      "replyId": "01M4Z0QXDM5MADQJ5Y8QGJ80GE"
+    },
+    "shift": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "versionBefore": "01M4Z0QFM1HQ3R5KNDTQS4EJRJ",
+      "expected": {
+        "format": "pdf",
+        "v": 1,
+        "page": 1,
+        "rect": [
+          72,
+          700,
+          96,
+          724
+        ]
+      },
+      "headVersionId": "01M4Z0QYHVZKQ822SSF7JY23Z8",
+      "row": {
+        "id": "01M4Z0QXD9X141PE1RV6N149M3",
+        "anchor": {
+          "v": 1,
+          "page": 2,
+          "rect": [
+            72,
+            700,
+            96,
+            724
+          ],
+          "format": "pdf"
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M4Z0QFM1HQ3R5KNDTQS4EJRJ",
+        "deleted_at": null
+      },
+      "elapsedMs": 60462
+    },
+    "restSeesMoved": {
+      "anchor": {
+        "v": 1,
+        "page": 2,
+        "rect": [
+          72,
+          700,
+          96,
+          724
+        ],
+        "format": "pdf"
+      },
+      "anchor_version_id": "01M4Z0QFM1HQ3R5KNDTQS4EJRJ"
+    },
+    "remove": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M4Z0STPFD66BM0GY75WC5PGB",
+      "row": {
+        "id": "01M4Z0QXD9X141PE1RV6N149M3",
+        "anchor": {
+          "v": 1,
+          "page": 2,
+          "rect": [
+            72,
+            700,
+            96,
+            724
+          ],
+          "format": "pdf"
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M4Z0QFM1HQ3R5KNDTQS4EJRJ",
+        "deleted_at": null
+      },
+      "replies": 1,
+      "elapsedMs": 60403
+    },
+    "invalidVersionsNote": "purged-version case replaced by empty id: no REST purge route (router/documents.go), same single lookup document_comment_anchors.go:362-369",
+    "invalidVersions": [
+      {
+        "case": "foreign",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "unknown",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "empty",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      }
+    ],
+    "afterInvalid": {
+      "id": "01M4Z0QXD9X141PE1RV6N149M3",
+      "anchor": {
+        "v": 1,
+        "page": 2,
+        "rect": [
+          72,
+          700,
+          96,
+          724
+        ],
+        "format": "pdf"
+      },
+      "anchor_state": "exact",
+      "anchor_version_id": "01M4Z0QFM1HQ3R5KNDTQS4EJRJ",
+      "deleted_at": null
+    },
+    "webToDesktop": {
+      "status": "BLOCKED",
+      "blocker": "web frame pin 05fd209 lacks G8-12..15 (R1)",
+      "owner": "lead-f",
+      "pin": "05fd209"
+    }
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:31:59.209Z",
+  "finishedAt": "2026-10-15T05:34:16.749Z",
+  "appLogTail": [
+    "[30684:1015/052626.761152:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.285983:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.286008:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[30889:30922:1015/052630.948276:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464731:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464771:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068818:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068839:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30889:1015/052632.093068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[31023:7:1015/052632.102511:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[30889:30923:1015/052635.017722:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[30889:30923:1015/052930.732627:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[30889:30923:1015/053326.849214:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT"
+  ]
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a02/fx-pptx-deck-vi.json
+{
+  "row": "G8-A02",
+  "fixture": "fx-pptx-deck-vi",
+  "module": "anchors",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "check:shift: anchor stayed on version 01M4Z0KD5GNSZW31ABQY0ZD6PA, head is 01M4Z0KQWEZ4HQYSB9685VSPTF; anchor at slide 257 at 1, want slide 257 at 2; check:remove-lost: anchor_state exact, want lost",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 19
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 9944
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 168
+    },
+    "shift": {
+      "status": "FAIL",
+      "reason": "the server row did not reach the new version within 60380 ms",
+      "elapsedMs": 61198
+    },
+    "rest-sees-moved": {
+      "status": "PASS",
+      "elapsedMs": 4
+    },
+    "remove": {
+      "status": "FAIL",
+      "reason": "the row did not go lost within 60453 ms",
+      "elapsedMs": 61871
+    },
+    "invalid-versions": {
+      "status": "PASS",
+      "elapsedMs": 9
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:shift": {
+      "status": "FAIL",
+      "reason": "anchor stayed on version 01M4Z0KD5GNSZW31ABQY0ZD6PA, head is 01M4Z0KQWEZ4HQYSB9685VSPTF; anchor at slide 257 at 1, want slide 257 at 2"
+    },
+    "check:rest-sees-moved": {
+      "status": "PASS"
+    },
+    "check:remove-lost": {
+      "status": "FAIL",
+      "reason": "anchor_state exact, want lost"
+    },
+    "check:invalid-versions": {
+      "status": "PASS"
+    },
+    "check:web-to-desktop": {
+      "status": "BLOCKED",
+      "blocker": "web frame pin 05fd209 lacks G8-12..15 (R1)",
+      "owner": "lead-f"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "pptx",
+    "fixture": "fx-pptx-deck-vi",
+    "cites": [
+      "apps/slides/src/renderer/control.ts:63-95 (goto slide, 0-based)",
+      "apps/slides/src/renderer/keyboard-actions.ts:121-133 (Ctrl+M adds a slide), :373-391 (Delete on the focused rail deletes the selected slides)",
+      "apps/slides/src/renderer/App.tsx:3973-3995 (.slide-list thumbnails with data-index), :2645 (window keydown listener)",
+      "apps/slides/src/renderer/server-comments.ts:5-7 (slide_id survives a reorder, a deleted slide is lost)"
+    ],
+    "reveal": {
+      "covered_by": "G8-A07 deeplink module (T3, desktop reveal B7) + fork vitest G8-12..15 (reveal per format)"
+    },
+    "documentId": "01M4Z0KD5GNSZW31ABQVHG4YHB",
+    "created": {
+      "ok": true,
+      "commentId": "01M4Z0KQ19FREYWTT6R4MM99P0",
+      "anchor": {
+        "format": "pptx",
+        "v": 1,
+        "slide_id": "257",
+        "slide_index": 1
+      },
+      "versionId": "01M4Z0KD5GNSZW31ABQY0ZD6PA",
+      "replyId": "01M4Z0KQ1Q0FBPQGYS1NKAPHWF"
+    },
+    "shift": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "versionBefore": "01M4Z0KD5GNSZW31ABQY0ZD6PA",
+      "expected": {
+        "format": "pptx",
+        "v": 1,
+        "slide_id": "257",
+        "slide_index": 2
+      },
+      "headVersionId": "01M4Z0KQWEZ4HQYSB9685VSPTF",
+      "row": {
+        "id": "01M4Z0KQ19FREYWTT6R4MM99P0",
+        "anchor": {
+          "v": 1,
+          "format": "pptx",
+          "slide_id": "257",
+          "slide_index": 1
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M4Z0KD5GNSZW31ABQY0ZD6PA",
+        "deleted_at": null
+      },
+      "elapsedMs": 60380
+    },
+    "restSeesMoved": {
+      "anchor": {
+        "v": 1,
+        "format": "pptx",
+        "slide_id": "257",
+        "slide_index": 1
+      },
+      "anchor_version_id": "01M4Z0KD5GNSZW31ABQY0ZD6PA"
+    },
+    "remove": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M4Z0NM7NFX8B6PTR7BHHG53M",
+      "row": {
+        "id": "01M4Z0KQ19FREYWTT6R4MM99P0",
+        "anchor": {
+          "v": 1,
+          "format": "pptx",
+          "slide_id": "257",
+          "slide_index": 1
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M4Z0KD5GNSZW31ABQY0ZD6PA",
+        "deleted_at": null
+      },
+      "replies": 1,
+      "elapsedMs": 60453
+    },
+    "invalidVersionsNote": "purged-version case replaced by empty id: no REST purge route (router/documents.go), same single lookup document_comment_anchors.go:362-369",
+    "invalidVersions": [
+      {
+        "case": "foreign",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "unknown",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "empty",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      }
+    ],
+    "afterInvalid": {
+      "id": "01M4Z0KQ19FREYWTT6R4MM99P0",
+      "anchor": {
+        "v": 1,
+        "format": "pptx",
+        "slide_id": "257",
+        "slide_index": 1
+      },
+      "anchor_state": "exact",
+      "anchor_version_id": "01M4Z0KD5GNSZW31ABQY0ZD6PA",
+      "deleted_at": null
+    },
+    "webToDesktop": {
+      "status": "BLOCKED",
+      "blocker": "web frame pin 05fd209 lacks G8-12..15 (R1)",
+      "owner": "lead-f",
+      "pin": "05fd209"
+    }
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:29:45.638Z",
+  "finishedAt": "2026-10-15T05:31:59.119Z",
+  "appLogTail": [
+    "[30684:1015/052626.761152:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.285983:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.286008:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[30889:30922:1015/052630.948276:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464731:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464771:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068818:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068839:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30889:1015/052632.093068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[31023:7:1015/052632.102511:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[30889:30923:1015/052635.017722:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[30889:30923:1015/052930.732627:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session."
+  ]
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a02/fx-xlsx-revenue-xyz.json
+{
+  "row": "G8-A02",
+  "fixture": "fx-xlsx-revenue-xyz",
+  "module": "anchors",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "check:shift: anchor at sheet-2!B7, want sheet-2!B8; check:remove-lost: anchor_state exact, want lost; a lost anchor must keep its last version 01M4Z0HGMKMC7WKFSKKMT75SX2, got 01M4Z0HHXKRJCXASSJWFCWNXEV",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 24
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 9924
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 21
+    },
+    "shift": {
+      "status": "PASS",
+      "elapsedMs": 2223
+    },
+    "rest-sees-moved": {
+      "status": "PASS",
+      "elapsedMs": 4
+    },
+    "remove": {
+      "status": "FAIL",
+      "reason": "the row did not go lost within 60371 ms",
+      "elapsedMs": 60692
+    },
+    "invalid-versions": {
+      "status": "PASS",
+      "elapsedMs": 10
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:shift": {
+      "status": "FAIL",
+      "reason": "anchor at sheet-2!B7, want sheet-2!B8"
+    },
+    "check:rest-sees-moved": {
+      "status": "PASS"
+    },
+    "check:remove-lost": {
+      "status": "FAIL",
+      "reason": "anchor_state exact, want lost; a lost anchor must keep its last version 01M4Z0HGMKMC7WKFSKKMT75SX2, got 01M4Z0HHXKRJCXASSJWFCWNXEV"
+    },
+    "check:invalid-versions": {
+      "status": "PASS"
+    },
+    "check:web-to-desktop": {
+      "status": "BLOCKED",
+      "blocker": "web frame pin 05fd209 lacks G8-12..15 (R1)",
+      "owner": "lead-f"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "xlsx",
+    "fixture": "fx-xlsx-revenue-xyz",
+    "cites": [
+      "apps/sheets/src/renderer/control.ts:4-5,63-90 (goto activates the range)",
+      "apps/sheets/src/renderer/ExcelShell.tsx:3985-3995 (Insert row / Delete row buttons, insert-row-here / delete-row-here)",
+      "apps/sheets/src/renderer/i18n/app/en.ts:1336,1344 (en labels; vi Chèn hàng / Xóa hàng)",
+      "apps/sheets/src/renderer/server-comments/anchor-store.ts:102-120 (an insert above shifts the range, a delete loses it)"
+    ],
+    "reveal": {
+      "covered_by": "G8-A07 deeplink module (T3, desktop reveal B7) + fork vitest G8-12..15 (reveal per format)"
+    },
+    "documentId": "01M4Z0H5MN1MJR0Z3CJ3TQ5NRV",
+    "created": {
+      "ok": true,
+      "commentId": "01M4Z0HFBE7V1KAWYCCFQCNBKA",
+      "anchor": {
+        "format": "xlsx",
+        "v": 1,
+        "sheet": "sheet-2",
+        "range": "B7"
+      },
+      "versionId": "01M4Z0H5MN1MJR0Z3CJ683AC9N",
+      "replyId": "01M4Z0HFBPJ0112Z8V1A8VEQ8H"
+    },
+    "shift": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "versionBefore": "01M4Z0H5MN1MJR0Z3CJ683AC9N",
+      "expected": {
+        "format": "xlsx",
+        "v": 1,
+        "sheet": "sheet-2",
+        "range": "B8"
+      },
+      "headVersionId": "01M4Z0HGMKMC7WKFSKKMT75SX2",
+      "row": {
+        "id": "01M4Z0HFBE7V1KAWYCCFQCNBKA",
+        "anchor": {
+          "v": 1,
+          "range": "B7",
+          "sheet": "sheet-2",
+          "format": "xlsx"
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M4Z0HGMKMC7WKFSKKMT75SX2",
+        "deleted_at": null
+      },
+      "elapsedMs": 1010
+    },
+    "restSeesMoved": {
+      "anchor": {
+        "v": 1,
+        "range": "B7",
+        "sheet": "sheet-2",
+        "format": "xlsx"
+      },
+      "anchor_version_id": "01M4Z0HGMKMC7WKFSKKMT75SX2"
+    },
+    "remove": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M4Z0HHXKRJCXASSJWFCWNXEV",
+      "row": {
+        "id": "01M4Z0HFBE7V1KAWYCCFQCNBKA",
+        "anchor": {
+          "v": 1,
+          "range": "B7",
+          "sheet": "sheet-2",
+          "format": "xlsx"
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M4Z0HHXKRJCXASSJWFCWNXEV",
+        "deleted_at": null
+      },
+      "replies": 1,
+      "elapsedMs": 60371
+    },
+    "invalidVersionsNote": "purged-version case replaced by empty id: no REST purge route (router/documents.go), same single lookup document_comment_anchors.go:362-369",
+    "invalidVersions": [
+      {
+        "case": "foreign",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "unknown",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "empty",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      }
+    ],
+    "afterInvalid": {
+      "id": "01M4Z0HFBE7V1KAWYCCFQCNBKA",
+      "anchor": {
+        "v": 1,
+        "range": "B7",
+        "sheet": "sheet-2",
+        "format": "xlsx"
+      },
+      "anchor_state": "exact",
+      "anchor_version_id": "01M4Z0HHXKRJCXASSJWFCWNXEV",
+      "deleted_at": null
+    },
+    "webToDesktop": {
+      "status": "BLOCKED",
+      "blocker": "web frame pin 05fd209 lacks G8-12..15 (R1)",
+      "owner": "lead-f",
+      "pin": "05fd209"
+    }
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:28:32.394Z",
+  "finishedAt": "2026-10-15T05:29:45.554Z",
+  "appLogTail": [
+    "[30684:1015/052626.761152:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.285983:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.286008:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[30889:30922:1015/052630.948276:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464731:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464771:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068818:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068839:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30889:1015/052632.093068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[31023:7:1015/052632.102511:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[30889:30923:1015/052635.017722:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[30889:30923:1015/052930.732627:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT"
+  ]
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a04/fx-docx-report-vi.json
+{
+  "row": "G8-A04",
+  "fixture": "fx-docx-report-vi",
+  "module": "comments",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "panel: open the comments panel: no element button named /^(Comments|Bình luận)( \\(\\d+\\))?$/",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 16
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 10045
+    },
+    "panel": {
+      "status": "FAIL",
+      "reason": "open the comments panel: no element button named /^(Comments|Bình luận)( \\(\\d+\\))?$/",
+      "elapsedMs": 5019
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "docx",
+    "fixture": "fx-docx-report-vi",
+    "mutations": [],
+    "documentId": "01M4Z0VP13QHDNA9005J3H7YMA"
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:34:16.850Z",
+  "finishedAt": "2026-10-15T05:34:32.197Z",
+  "appLogTail": [
+    "[30684:1015/052626.761152:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.285983:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.286008:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[30889:30922:1015/052630.948276:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464731:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464771:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068818:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068839:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30889:1015/052632.093068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[31023:7:1015/052632.102511:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[30889:30923:1015/052635.017722:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[30889:30923:1015/052930.732627:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[30889:30923:1015/053326.849214:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU."
+  ]
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a04/fx-xlsx-revenue-xyz.json
+{
+  "row": "G8-A04",
+  "fixture": "fx-xlsx-revenue-xyz",
+  "module": "comments",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "panel: open the comments panel: no element button named /^(Comments|Bình luận)( \\(\\d+\\))?$/",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 13
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 9985
+    },
+    "panel": {
+      "status": "FAIL",
+      "reason": "open the comments panel: no element button named /^(Comments|Bình luận)( \\(\\d+\\))?$/",
+      "elapsedMs": 5278
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "xlsx",
+    "fixture": "fx-xlsx-revenue-xyz",
+    "mutations": [],
+    "documentId": "01M4Z0W53E9TKZSHP602FCD13B"
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:34:32.288Z",
+  "finishedAt": "2026-10-15T05:34:47.831Z",
+  "appLogTail": [
+    "[30684:1015/052626.761152:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.285983:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.286008:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[30889:30922:1015/052630.948276:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464731:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464771:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068818:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068839:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30889:1015/052632.093068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[31023:7:1015/052632.102511:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[30889:30923:1015/052635.017722:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[30889:30923:1015/052930.732627:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[30889:30923:1015/053326.849214:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session."
+  ]
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a05/fx-docx-report-vi.json
+{
+  "row": "G8-A05",
+  "fixture": "fx-docx-report-vi",
+  "module": "inbox",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "desktop-create: uniworkComments.create failed (malformed)",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "seed": {
+      "status": "PASS",
+      "details": {
+        "documentId": "01M4Z0X22FF2JD9YDVXCSFK09G",
+        "workspace": "W1",
+        "sharedTo": "B"
+      },
+      "elapsedMs": 24
+    },
+    "desktop-open": {
+      "status": "PASS",
+      "details": {
+        "signIn": {
+          "state": "signed-in"
+        },
+        "kind": "docs",
+        "openedDocumentId": "01M4Z0X22FF2JD9YDVXCSFK09G"
+      },
+      "elapsedMs": 10014
+    },
+    "picker": {
+      "status": "PASS",
+      "details": {
+        "desktopB": {
+          "ok": true,
+          "ids": [
+            "01M4Z0DDRR25TDCYAMDN0HQQE1"
+          ]
+        },
+        "desktopC": {
+          "ok": true,
+          "ids": []
+        },
+        "rest": {
+          "status": 200,
+          "ids": [
+            "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+            "01M4Z0DDRR25TDCYAMDN0HQQE1",
+            "01M4Z0DDX80ABKX8KXE6T10EC1"
+          ]
+        }
+      },
+      "elapsedMs": 14
+    },
+    "desktop-create": {
+      "status": "FAIL",
+      "reason": "uniworkComments.create failed (malformed)",
+      "elapsedMs": 4
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    }
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:35:01.948Z",
+  "finishedAt": "2026-10-15T05:35:12.269Z",
+  "appLogTail": [
+    "[30684:1015/052626.761152:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.285983:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.286008:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[30889:30922:1015/052630.948276:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464731:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464771:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068818:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068839:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30889:1015/052632.093068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[31023:7:1015/052632.102511:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[30889:30923:1015/052635.017722:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[30889:30923:1015/052930.732627:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[30889:30923:1015/053326.849214:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Opening in existing browser session."
+  ]
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a06/fx-docx-report-vi.json
+{
+  "row": "G8-A06",
+  "fixture": "fx-docx-report-vi",
+  "module": "inbox",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "comments: POST comments as A answered 400 [object Object]",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "seed": {
+      "status": "PASS",
+      "details": {
+        "documentId": "01M4Z0XHKT8FFFAK4ENES4TRJX",
+        "workspace": "W2"
+      },
+      "elapsedMs": 18
+    },
+    "comments": {
+      "status": "FAIL",
+      "reason": "POST comments as A answered 400 [object Object]",
+      "elapsedMs": 6
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    }
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:35:17.868Z",
+  "finishedAt": "2026-10-15T05:35:18.147Z",
+  "appLogTail": [
+    "[30684:1015/052626.761152:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.285983:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.286008:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[30889:30922:1015/052630.948276:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464731:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464771:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068818:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068839:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30889:1015/052632.093068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[31023:7:1015/052632.102511:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[30889:30923:1015/052635.017722:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[30889:30923:1015/052930.732627:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[30889:30923:1015/053326.849214:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Opening in existing browser session."
+  ]
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a07/fx-docx-report-vi.json
+{
+  "row": "G8-A07",
+  "fixture": "fx-docx-report-vi",
+  "module": "deeplink",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "observe-seed: POST comments as A answered 400 [object Object]",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "observe-seed": {
+      "status": "FAIL",
+      "reason": "POST comments as A answered 400 [object Object]",
+      "elapsedMs": 29
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    }
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:35:18.573Z",
+  "finishedAt": "2026-10-15T05:35:18.857Z",
+  "appLogTail": [
+    "[30684:1015/052626.761152:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.285983:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.286008:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[30889:30922:1015/052630.948276:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464731:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464771:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068818:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068839:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30889:1015/052632.093068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[31023:7:1015/052632.102511:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[30889:30923:1015/052635.017722:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[30889:30923:1015/052930.732627:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[30889:30923:1015/053326.849214:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Opening in existing browser session."
+  ]
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a07/fx-xlsx-revenue-xyz.json
+{
+  "row": "G8-A07",
+  "fixture": "fx-xlsx-revenue-xyz",
+  "module": "deeplink",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "observe-seed: POST comments as A answered 400 [object Object]",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "observe-seed": {
+      "status": "FAIL",
+      "reason": "POST comments as A answered 400 [object Object]",
+      "elapsedMs": 33
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    }
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:35:18.218Z",
+  "finishedAt": "2026-10-15T05:35:18.506Z",
+  "appLogTail": [
+    "[30684:1015/052626.761152:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.285983:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30684:1015/052627.286008:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[30889:30922:1015/052630.948276:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464731:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052631.464771:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068818:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30922:1015/052632.068839:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[30889:30889:1015/052632.093068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[31023:7:1015/052632.102511:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[30889:30923:1015/052635.017722:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[30889:30923:1015/052930.732627:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[30889:30923:1015/053326.849214:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Opening in existing browser session."
+  ]
+}
+
+=== /tmp/g819-r1-1792041294679884550-run/reports/g7-qa/g8-a09/fx-docx-report-vi.json
+{
+  "row": "G8-A09",
+  "fixture": "fx-docx-report-vi",
+  "module": "account",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "org: pickApplied: after the pick the app works in no organization (expected undefined); rememberedNoStep: re-sign-in shows the picker again; rememberedOrgUsed: re-sign-in works in no organization (expected 01M4Z0DDXEV8YFFE4KM1FZ5KTJ); deact...",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "signIn:orgChoice": {
+      "status": "PASS",
+      "details": {
+        "orgChoiceShown": true,
+        "orgApiCallsBeforeChoice": 0,
+        "orgIds": [
+          "01M4Z0DDPANJQJ0DETRQGAP5N9",
+          "01M4Z0DDXEV8YFFE4KM1FZ5KTJ"
+        ],
+        "expectedOrgIds": [
+          "01M4Z0DDPANJQJ0DETRQGAP5N9",
+          "01M4Z0DDXEV8YFFE4KM1FZ5KTJ"
+        ],
+        "sessionBinExists": true
+      },
+      "elapsedMs": 4886
+    },
+    "selectOrg:Y": {
+      "status": "FAIL",
+      "reason": "page.evaluate: Error: Error invoking remote method 'home:account-select-org': TransportError: uniwork request failed: malformed_response",
+      "elapsedMs": 11
+    },
+    "reSignIn:remembered": {
+      "status": "PASS",
+      "details": {
+        "orgChoiceShown": true,
+        "orgId": null,
+        "expectedOrgId": "01M4Z0DDXEV8YFFE4KM1FZ5KTJ"
+      },
+      "elapsedMs": 4836
+    },
+    "selectOrg:X": {
+      "status": "FAIL",
+      "reason": "page.evaluate: Error: Error invoking remote method 'home:account-select-org': TransportError: uniwork request failed: malformed_response",
+      "elapsedMs": 20
+    },
+    "workspaces": {
+      "status": "PASS",
+      "details": {
+        "ok": true,
+        "ids": [],
+        "expectedWorkspaceId": "01M4Z0DDPJEWR0GZVK7ZMJ57BK",
+        "myRole": null,
+        "expectedRoles": [
+          "member"
+        ]
+      },
+      "elapsedMs": 2
+    },
+    "sharedWithMe": {
+      "status": "PASS",
+      "details": {
+        "sharedBy": "A",
+        "ok": true,
+        "ids": [],
+        "expectedDocumentId": "01M4Z0XWEZA9PGEXREXTTBFXFE"
+      },
+      "elapsedMs": 24
+    },
+    "properties": {
+      "status": "PASS",
+      "details": {
+        "appOk": true,
+        "version": 1,
+        "myLevel": "view"
+      },
+      "elapsedMs": 7
+    },
+    "create": {
+      "status": "PASS",
+      "details": {
+        "documentId": "01M4Z0XWG5HVDJEGS102GCMXT0",
+        "before": 0,
+        "after": 1,
+        "workingCopies": 1
+      },
+      "elapsedMs": 56
+    },
+    "rename": {
+      "status": "PASS",
+      "details": {
+        "ok": true,
+        "serverStatus": 200
+      },
+      "elapsedMs": 21
+    },
+    "webRename": {
+      "status": "PASS",
+      "details": {
+        "patchStatus": 200,
+        "expectedTitle": "G8-A09 mv93uhmf web",
+        "appTitleAfterFocus": "G8-A09 mv93uhmf renamed",
+        "titleSource": "binding.json",
+        "focuses": 18,
+        "via": "PATCH /documents/{id} (the web library's rename call)"
+      },
+      "elapsedMs": 36213
+    },
+    "archive": {
+      "status": "PASS",
+      "details": {
+        "archiveOk": true,
+        "serverArchived": true,
+        "restoreOk": true,
+        "serverRestored": true
+      },
+      "elapsedMs": 32
+    },
+    "deactivate": {
+      "status": "PASS",
+      "details": {
+        "deactivateStatus": 200,
+        "listWorkspacesError": null,
+        "createError": "member_deactivated"
+      },
+      "elapsedMs": 10
+    },
+    "decide:org": {
+      "status": "FAIL",
+      "reason": "pickApplied: after the pick the app works in no organization (expected undefined); rememberedNoStep: re-sign-in shows the picker again; rememberedOrgUsed: re-sign-in works in no organization (expected 01M4Z0DDXEV8YFFE4KM1FZ5KTJ); deactivate...",
+      "details": {
+        "checks": {
+          "choiceShown": {
+            "ok": true,
+            "detail": "org choice shown for an account with two organizations"
+          },
+          "choiceListsBothOrgs": {
+            "ok": true,
+            "detail": "the picker lists 2 organization(s)"
+          },
+          "noOrgCallBeforeChoice": {
+            "ok": true,
+            "detail": "0 org-scoped requests before the choice"
+          },
+          "pickApplied": {
+            "ok": false,
+            "detail": "after the pick the app works in no organization (expected undefined)"
+          },
+          "rememberedNoStep": {
+            "ok": false,
+            "detail": "re-sign-in shows the picker again"
+          },
+          "rememberedOrgUsed": {
+            "ok": false,
+            "detail": "re-sign-in works in no organization (expected 01M4Z0DDXEV8YFFE4KM1FZ5KTJ)"
+          },
+          "deactivatedLibraryRefused": {
+            "ok": false,
+            "detail": "workspace list for a deactivated member answered ok (expected member_deactivated)"
+          },
+          "deactivatedCreateRefused": {
+            "ok": true,
+            "detail": "create for a deactivated member answered member_deactivated (expected member_deactivated)"
+          }
+        }
+      },
+      "elapsedMs": 0
+    },
+    "decide:docs": {
+      "status": "FAIL",
+      "reason": "workspacesWithRole: workspace 01M4Z0DDPJEWR0GZVK7ZMJ57BK listed=false role=none expected [\"member\"]; sharedListed: shared-with-me lists 0 document(s); 01M4Z0XWEZA9PGEXREXTTBFXFE present=false; webRenameOnDesktop: desktop title still old aft...",
+      "details": {
+        "checks": {
+          "workspacesWithRole": {
+            "ok": false,
+            "detail": "workspace 01M4Z0DDPJEWR0GZVK7ZMJ57BK listed=false role=none expected [\"member\"]"
+          },
+          "sharedListed": {
+            "ok": false,
+            "detail": "shared-with-me lists 0 document(s); 01M4Z0XWEZA9PGEXREXTTBFXFE present=false"
+          },
+          "propertiesEqualServer": {
+            "ok": true,
+            "detail": "properties equal GET /documents/{id}"
+          },
+          "createdPlusOne": {
+            "ok": true,
+            "detail": "documents before=0 after=1"
+          },
+          "createdOnce": {
+            "ok": true,
+            "detail": "titleCount=1 GET 200 title equal"
+          },
+          "openedById": {
+            "ok": true,
+            "detail": "open by id 01M4Z0XWG5HVDJEGS102GCMXT0 ok"
+          },
+          "workingCopyUnique": {
+            "ok": true,
+            "detail": "working copies of the document: 1"
+          },
+          "renameReflected": {
+            "ok": true,
+            "detail": "GET 200 title equal after the app renamed"
+          },
+          "webRenameOnDesktop": {
+            "ok": false,
+            "detail": "desktop title still old after 18 focus(es)"
+          },
+          "archiveReflected": {
+            "ok": true,
+            "detail": "app archive ok=true, GET shows archived_at=true"
+          },
+          "restoreReflected": {
+            "ok": true,
+            "detail": "app restore ok=true, GET shows archived_at gone=true"
+          }
+        }
+      },
+      "elapsedMs": 0
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "org": {
+      "multiOrg": {
+        "status": "SEEDED",
+        "via": "sql",
+        "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+      },
+      "signIn": {
+        "orgChoiceShown": true,
+        "orgApiCallsBeforeChoice": 0,
+        "orgIds": [
+          "01M4Z0DDPANJQJ0DETRQGAP5N9",
+          "01M4Z0DDXEV8YFFE4KM1FZ5KTJ"
+        ],
+        "expectedOrgIds": [
+          "01M4Z0DDPANJQJ0DETRQGAP5N9",
+          "01M4Z0DDXEV8YFFE4KM1FZ5KTJ"
+        ]
+      },
+      "resignIn": {
+        "orgChoiceShown": true,
+        "orgId": null,
+        "expectedOrgId": "01M4Z0DDXEV8YFFE4KM1FZ5KTJ"
+      },
+      "deactivated": {
+        "deactivateStatus": 200,
+        "listWorkspacesError": null,
+        "createError": "member_deactivated"
+      }
+    },
+    "docs": {
+      "workspaces": {
+        "ok": true,
+        "ids": [],
+        "expectedWorkspaceId": "01M4Z0DDPJEWR0GZVK7ZMJ57BK",
+        "myRole": null,
+        "expectedRoles": [
+          "member"
+        ]
+      },
+      "sharedDocumentId": "01M4Z0XWEZA9PGEXREXTTBFXFE",
+      "shared": {
+        "ok": true,
+        "ids": [],
+        "expectedDocumentId": "01M4Z0XWEZA9PGEXREXTTBFXFE"
+      },
+      "properties": {
+        "app": {
+          "documentId": "01M4Z0XWEZA9PGEXREXTTBFXFE",
+          "workspaceId": "01M4Z0DDPS3XRD4S9Y4Q4Z77FV",
+          "title": "fx-docx-report-vi.docx",
+          "ownerName": null,
+          "createdByName": null,
+          "createdAt": "2026-10-15T05:35:29Z",
+          "updatedByName": null,
+          "updatedAt": "2026-10-15T05:35:29Z",
+          "myLevel": "view",
+          "version": 1,
+          "versionByName": null,
+          "ownerId": null,
+          "createdById": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+          "updatedById": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ"
+        },
+        "server": {
+          "id": "01M4Z0XWEZA9PGEXREXTTBFXFE",
+          "organization_id": "01M4Z0DDPANJQJ0DETRQGAP5N9",
+          "workspace_id": "01M4Z0DDPS3XRD4S9Y4Q4Z77FV",
+          "kind": "file",
+          "title": "fx-docx-report-vi.docx",
+          "visibility": "workspace",
+          "revision": "1",
+          "current_version": 1,
+          "position": 0,
+          "my_level": "view",
+          "via": "share",
+          "file": {
+            "file_id": "01M4Z0XWEQSQ0J8EJKT6AD1Z5X",
+            "version_id": "01M4Z0XWEZA9PGEXREXW6F561B",
+            "version": 1,
+            "filename": "fx-docx-report-vi.docx",
+            "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "size_bytes": 11187,
+            "checksum_sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+          },
+          "created_by": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+          "created_by_kind": "human",
+          "updated_by": "01M4Z0DDNPCC5C6Y6QWAPR5YFJ",
+          "updated_by_kind": "human",
+          "created_at": "2026-10-15T05:35:29Z",
+          "updated_at": "2026-10-15T05:35:29Z"
+        }
+      },
+      "create": {
+        "ok": true,
+        "before": 0,
+        "after": 1,
+        "createdId": "01M4Z0XWG5HVDJEGS102GCMXT0",
+        "expectedTitle": "G8-A09 mv93uhmf",
+        "titleCount": 1,
+        "serverStatus": 200,
+        "serverTitle": "G8-A09 mv93uhmf",
+        "openOk": true,
+        "workingCopies": 1
+      },
+      "rename": {
+        "ok": true,
+        "expectedTitle": "G8-A09 mv93uhmf renamed",
+        "serverStatus": 200,
+        "serverTitle": "G8-A09 mv93uhmf renamed"
+      },
+      "webRename": {
+        "patchStatus": 200,
+        "expectedTitle": "G8-A09 mv93uhmf web",
+        "appTitleAfterFocus": "G8-A09 mv93uhmf renamed",
+        "titleSource": "binding.json",
+        "focuses": 18,
+        "via": "PATCH /documents/{id} (the web library's rename call)"
+      },
+      "archive": {
+        "archiveOk": true,
+        "serverArchived": true,
+        "restoreOk": true,
+        "serverRestored": true
+      }
+    }
+  },
+  "log": [],
+  "forkSha": "7d665a54",
+  "startedAt": "2026-10-15T05:35:18.920Z",
+  "finishedAt": "2026-10-15T05:36:05.603Z",
+  "appLogTail": [
+    "[30889:30923:1015/052701.066857:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "[30889:30923:1015/052752.183780:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[30889:30923:1015/052930.732627:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[30889:30923:1015/053326.849214:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "Opening in existing browser session.",
+    "Error occurred in handler for 'home:account-select-org': TransportError: uniwork request failed: malformed_response",
+    "at parseOrgMembership (/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/apps/shell/out/main/index.js:51658:62)",
+    "at Object.orgMembership (/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/apps/shell/out/main/index.js:51805:14)",
+    "at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
+    "at async AccountManager.authorized (/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/apps/shell/out/main/index.js:54160:14)",
+    "at async AccountManager.selectOrg (/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/apps/shell/out/main/index.js:54567:26)",
+    "at async Session.<anonymous> (node:electron/js2c/browser_init:2:120495) {",
+    "code: 'malformed_response',",
+    "status: undefined,",
+    "fromServer: false",
+    "}",
+    "Opening in existing browser session.",
+    "Error occurred in handler for 'home:account-select-org': TransportError: uniwork request failed: malformed_response",
+    "at parseOrgMembership (/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/apps/shell/out/main/index.js:51658:62)",
+    "at Object.orgMembership (/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/apps/shell/out/main/index.js:51805:14)",
+    "at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
+    "at async AccountManager.authorized (/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/apps/shell/out/main/index.js:54160:14)",
+    "at async AccountManager.selectOrg (/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-7d665a54/apps/shell/out/main/index.js:54567:26)",
+    "at async Session.<anonymous> (node:electron/js2c/browser_init:2:120495) {",
+    "code: 'malformed_response',",
+    "status: undefined,",
+    "fromServer: false",
+    "}"
+  ]
+}
+
+harness: stopped 4 process group(s) from /tmp/g819-r1-1792041294679884550-run
+G819_STOP_EXIT 0
+G819_KEYRING_EXEC_EXIT 0
