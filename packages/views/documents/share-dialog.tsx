@@ -41,6 +41,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import { ShareLinksSection } from "./share-links-section";
+import { SharePeoplePicker, useSharePeople } from "./share-people-picker";
 
 export interface ShareDialogProps {
   open: boolean;
@@ -96,6 +97,8 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
 
   const memberName = (userId: string) =>
     memberRows.find((m) => m.user_id === userId)?.display_name || userId;
+  const people = useSharePeople(wsId, doc.id, memberName, setAddError);
+  const pending = share.isPending || people.isPending;
   const workspaceName = (id: string) =>
     orgWorkspaces.data?.find((w) => w.id === id)?.name || id;
 
@@ -123,20 +126,17 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
   };
 
   const principalItems = useMemo(() => {
+    // People pick through SharePeoplePicker; this list feeds the single select.
     switch (principalType) {
-      case "user":
-        return memberRows.map((m) => ({
-          value: m.user_id,
-          label: m.display_name ? `${m.display_name} · ${m.email}` : m.email,
-        }));
       case "workspace":
         return (orgWorkspaces.data ?? []).map((w) => ({ value: w.id, label: w.name }));
       default:
         return [{ value: doc.organization_id, label: workspace.organization_name }];
     }
-  }, [principalType, memberRows, orgWorkspaces.data, doc.organization_id, workspace.organization_name]);
+  }, [principalType, orgWorkspaces.data, doc.organization_id, workspace.organization_name]);
 
   const submitShare = async () => {
+    if (principalType === "user") return people.submit(level);
     if (!principalId || share.isPending) return;
     setAddError(null);
     try {
@@ -312,25 +312,29 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="share-principal-id">{t("documents.share.principal_placeholder")}</Label>
-                    <Select
-                      items={principalItems}
-                      value={principalId || null}
-                      onValueChange={(next) => {
-                        setPrincipalId(typeof next === "string" ? next : "");
-                        setAddError(null);
-                      }}
-                    >
-                      <SelectTrigger id="share-principal-id" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {principalItems.map((item) => (
-                          <SelectItem key={item.value} value={item.value}>
-                            {item.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {principalType === "user" ? (
+                      <SharePeoplePicker id="share-principal-id" members={memberRows} shares={shares} people={people} />
+                    ) : (
+                      <Select
+                        items={principalItems}
+                        value={principalId || null}
+                        onValueChange={(next) => {
+                          setPrincipalId(typeof next === "string" ? next : "");
+                          setAddError(null);
+                        }}
+                      >
+                        <SelectTrigger id="share-principal-id" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {principalItems.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="share-level">{t("documents.share.level_label")}</Label>
@@ -355,11 +359,11 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                     <Button
                       type="button"
                       className="w-full"
-                      disabled={!principalId || share.isPending}
-                      aria-busy={share.isPending || undefined}
+                      disabled={(principalType === "user" ? !people.ids.length : !principalId) || pending}
+                      aria-busy={pending || undefined}
                       onClick={() => void submitShare()}
                     >
-                      {share.isPending ? (
+                      {pending ? (
                         <>
                           <Spinner aria-hidden role="presentation" />
                           {t("documents.share.submitting")}
