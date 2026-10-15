@@ -275,4 +275,6 @@ type SetDocumentSettingsSDI struct {
 type ListMentionCandidatesSDI struct {
 	Query *string `query:"q" description:"Từ khóa tìm theo tên hiển thị và email (gấp dấu); bỏ trống = mọi người đọc được" example:"nguyen"`
 	Limit *int32  `query:"limit" description:"Kích thước trang, mặc định 20, tối đa 50; ngoài khoảng bị kẹp" example:"20"`
+	// Include is honoured only for a caller who may list the workspace's members.
+	Include *string `query:"include" description:"no_access = thêm cả người chưa xem được tài liệu, mỗi dòng có can_view (G8-18); chỉ có hiệu lực khi người gọi xem được danh sách thành viên workspace, ngược lại bị bỏ qua" example:"no_access"`
 }

@@ -503,6 +503,7 @@ type MentionCandidateDTO struct {
 	DisplayName string  `json:"display_name" description:"Tên hiển thị hiện tại" example:"Nguyễn Văn An"`
 	AvatarURL   *string `json:"avatar_url,omitempty" description:"Ảnh đại diện; vắng mặt khi người này chưa có" example:"https://cdn.example.com/avatars/an.png"`
 	Email       *string `json:"email,omitempty" description:"Email; chỉ có khi người gọi xem được danh sách thành viên của workspace chứa tài liệu" example:"an.nguyen@example.com"`
+	CanView     *bool   `json:"can_view,omitempty" description:"Người này có xem được tài liệu hiện nay không; chỉ có khi gọi với include=no_access (vắng mặt = mọi dòng đều xem được)" example:"false"`
 }
 
 // MentionCandidateListSDO is GET /api/v1/documents/{documentID}/mention-candidates:
