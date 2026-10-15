@@ -98,7 +98,27 @@ test("harness rows run their module with the same --row/--fixture and the run di
     assert.match(rest, new RegExp(`node scripts/office/g5g6g7/g8-19/${mod}\\.mjs --row ${row} --fixture ${fixture} --run-dir "?\\$(?:HARNESS_RUN_DIR|R)"?`), `${row} ${fixture}: ${rest.trim()}`);
     assert.match(rest, new RegExp(`--checker [a-z+]*:?g8-19/${mod}\\.mjs|--checker harness:g8-19/${mod}\\.mjs`), `${row} ${fixture} checker`);
   }
-  assert.ok(existsSync(join(HERE, "account.mjs")), "account.mjs (this task's module) exists");
+});
+
+test("every script the spec names exists in the repo (modules, server-row.sh, harness, evidence)", OPTS, () => {
+  const named = new Set([...text().matchAll(/scripts\/office\/g5g6g7\/[A-Za-z0-9_./-]+\.(?:mjs|sh)\b/g)].map((m) => m[0]));
+  assert.ok(named.size >= 8, `${named.size} scripts named`);
+  for (const rel of named) assert.ok(existsSync(join(REPO, rel)), `${rel} does not exist`);
+  for (const mod of new Set(Object.values(MODULE_OF))) {
+    assert.ok(text().includes(`scripts/office/g5g6g7/g8-19/${mod}.mjs`), `the spec runs ${mod}.mjs`);
+    assert.ok(existsSync(join(HERE, `${mod}.mjs`)), `${mod}.mjs exists`);
+  }
+});
+
+test("A07 runs only through deeplink.mjs: revoke runs inside it, so no revoke line and no other module on an A07 line", OPTS, () => {
+  assert.doesNotMatch(text(), /g8-19\/revoke\.mjs/);
+  const a07 = evidenceRuns().filter((r) => r.row === "G8-A07");
+  assert.deepEqual(a07.map((r) => r.fixture).sort(), declared.filter((d) => d.row === "G8-A07").map((d) => d.fixture).sort());
+  for (const r of a07) {
+    assert.match(r.rest, /-- node scripts\/office\/g5g6g7\/g8-19\/deeplink\.mjs --row G8-A07 /);
+    assert.equal((r.rest.match(/g8-19\/[a-z-]+\.mjs/g) ?? []).filter((m) => m !== "g8-19/deeplink.mjs").length, 0, "only deeplink.mjs on an A07 line");
+  }
+  assert.equal((text().match(/--row G8-A07/g) ?? []).length, a07.length, "no A07 module run outside its evidence line");
 });
 
 test("server rows go through server-row.sh with their own row; A05 and A06 chain the inbox module after it, A03 and A08 do not", OPTS, () => {
