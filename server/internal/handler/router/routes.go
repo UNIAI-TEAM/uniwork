@@ -583,23 +583,25 @@ type Routes struct {
 	ListRecentDocuments http.HandlerFunc
 	ListDocumentChanges http.HandlerFunc
 	// Offline lease of one desktop device on one document (G5-08s).
-	PutOfficeOfflineLease    http.HandlerFunc
-	DeleteOfficeOfflineLease http.HandlerFunc
-	ListSharedWithMe         http.HandlerFunc
-	DocumentTree             http.HandlerFunc
-	MoveDocument             http.HandlerFunc
-	ArchiveDocument          http.HandlerFunc
-	ArchiveImpact            http.HandlerFunc
-	RestoreDocument          http.HandlerFunc
-	ListDocumentShares       http.HandlerFunc
-	CreateDocumentShare      http.HandlerFunc
-	RevokeDocumentShare      http.HandlerFunc
-	CreateDocumentLink       http.HandlerFunc
-	RevokeDocumentLink       http.HandlerFunc
-	ListDocumentAccessLogs   http.HandlerFunc
-	GetDocumentSettings      http.HandlerFunc
-	SetDocumentSettings      http.HandlerFunc
-	GetPublicDocument        http.HandlerFunc
-	DownloadPublicDocument   http.HandlerFunc
-	GetPublicDocumentAsset   http.HandlerFunc
+	PutOfficeOfflineLease      http.HandlerFunc
+	DeleteOfficeOfflineLease   http.HandlerFunc
+	ListSharedWithMe           http.HandlerFunc
+	DocumentAccessReport       http.HandlerFunc
+	ExportDocumentAccessReport http.HandlerFunc
+	DocumentTree               http.HandlerFunc
+	MoveDocument               http.HandlerFunc
+	ArchiveDocument            http.HandlerFunc
+	ArchiveImpact              http.HandlerFunc
+	RestoreDocument            http.HandlerFunc
+	ListDocumentShares         http.HandlerFunc
+	CreateDocumentShare        http.HandlerFunc
+	RevokeDocumentShare        http.HandlerFunc
+	CreateDocumentLink         http.HandlerFunc
+	RevokeDocumentLink         http.HandlerFunc
+	ListDocumentAccessLogs     http.HandlerFunc
+	GetDocumentSettings        http.HandlerFunc
+	SetDocumentSettings        http.HandlerFunc
+	GetPublicDocument          http.HandlerFunc
+	DownloadPublicDocument     http.HandlerFunc
+	GetPublicDocumentAsset     http.HandlerFunc
 }
