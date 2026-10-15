@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+677bb6eaf81285bef7e7c54984ac4811e99fdcbf
+677bb6ea test(ai): pdf flags test deps leave the optional imageUrls host dep absent (UNI-1374)
+0e3472f3 fix(ai): write_document checks the markdown that lands, including the truncated rendered prefix (UNI-1374)
+483fd30c test(ai): pin markdown image rule spellings and the truncated write_document landing prefix (UNI-1374)
