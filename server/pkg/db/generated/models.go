@@ -709,6 +709,45 @@ type DocumentCommitIntent struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
+type DocumentEditLock struct {
+	ID                  string             `json:"id"`
+	OrganizationID      string             `json:"organization_id"`
+	DocumentID          string             `json:"document_id"`
+	UserID              string             `json:"user_id"`
+	SessionID           string             `json:"session_id"`
+	EditorID            string             `json:"editor_id"`
+	Client              string             `json:"client"`
+	BaseRevision        int64              `json:"base_revision"`
+	AcquiredAt          pgtype.Timestamptz `json:"acquired_at"`
+	HeartbeatAt         pgtype.Timestamptz `json:"heartbeat_at"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	OfflineHoldUntil    pgtype.Timestamptz `json:"offline_hold_until"`
+	HoldDeviceSessionID pgtype.Text        `json:"hold_device_session_id"`
+	HoldChainStartedAt  pgtype.Timestamptz `json:"hold_chain_started_at"`
+	HoldRenewals        int32              `json:"hold_renewals"`
+	GrantedVia          string             `json:"granted_via"`
+	PreviousLockID      pgtype.Text        `json:"previous_lock_id"`
+	EndedAt             pgtype.Timestamptz `json:"ended_at"`
+	EndReason           pgtype.Text        `json:"end_reason"`
+	EndedBy             pgtype.Text        `json:"ended_by"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DocumentEditRequest struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	DocumentID     string             `json:"document_id"`
+	LockID         string             `json:"lock_id"`
+	RequesterID    string             `json:"requester_id"`
+	HolderID       string             `json:"holder_id"`
+	Status         string             `json:"status"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	AnsweredAt     pgtype.Timestamptz `json:"answered_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DocumentFavorite struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
