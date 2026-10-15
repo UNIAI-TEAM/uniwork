@@ -1,7 +1,10 @@
 /* UI geometry observed at uniwork.demo.ubos.vn, 24 September 2026.
    Only the noninteractive illustration scales. Real controls never shrink. */
 .unified-workspace[data-presentation=watch] .workspace-app-body { display: block; }
-.unified-workspace[data-presentation=watch] .preview-main { padding: 0; min-height: 0; }
+/* Four sheets set .preview-main padding at the same specificity (landing-playback, landing-focus,
+   landing-dual-navigation, here), so the winner depended on chunk order. The extra class keeps the
+   fitted frame edge to edge whichever sheet loads last. */
+.unified-workspace[data-presentation=watch] .workspace-display .preview-main { padding: 0; min-height: 0; }
 .lovable-preview-tools { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
 .lovable-preview-tools > span { font-size: var(--text-caption); font-weight: 600; }
 .lovable-preview-tools small { font-weight: 400; color: var(--muted-foreground); margin-left: 10px; }
