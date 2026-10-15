@@ -4,9 +4,18 @@
 // a watchdog, writes one artifact per (row, fixture) and maps the record to
 // the exit code evidence.mjs expects: 0 PASS, 1 FAIL, 77 BLOCKED with a named
 // blocker. Contract: scripts/office/g5g6g7/harness/g8-contract.md §8.
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { BLOCKED_EXIT } from "../harness/lib.mjs";
+import { redact } from "../harness/api-contract.mjs";
+import { createApi } from "../harness/api.mjs";
+import { parseEnvFile, readRedactedAppLogTail, redactSignInError } from "../harness/app-steps.mjs";
+import { BLOCKED_EXIT, harnessPaths, readStartStatus, startGate } from "../harness/lib.mjs";
+import { seedWorld } from "../harness/world.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const DEFAULT_REPO_ROOT = resolve(HERE, "../../../..");
 
 export const ROW_EXIT = Object.freeze({ PASS: 0, FAIL: 1, BLOCKED: BLOCKED_EXIT });
 export const DEFAULT_ROW_TIMEOUT_MS = 600_000;
@@ -77,10 +86,165 @@ export function parseRowArgs(argv, env = process.env) {
   return out;
 }
 
+const safe = (text) => redactSignInError(redact(String(text ?? "")));
+
+function writeArtifact(path, record) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`);
+}
+
 /**
- * Runs one row module and returns its exit code (contract §8). STEP 1 stub:
- * the signature is final, the body lands with T1 STEP 2.
+ * Runs one row module and returns its exit code (contract §8): the start
+ * gate, ports.env, `fn(ctx)` under the watchdog, the artifact at
+ * rowArtifactPath(), and the 0 / 1 / 77 mapping. `worldFactory` (tests)
+ * replaces seedWorld for ctx.getWorld().
  */
-export async function runRowModule(_opts, _fn) {
-  throw new Error("runRowModule: not implemented yet (UNI-1414 T1 step 2)");
+export async function runRowModule(
+  { row, fixture, runDir, module = "", timeoutMs = null, repoRoot = DEFAULT_REPO_ROOT, worldFactory = null, env = process.env },
+  fn,
+) {
+  const artifactPath = rowArtifactPath(runDir, row, fixture);
+  rmSync(artifactPath, { force: true });
+  const startedAt = new Date().toISOString();
+  const record = { row, fixture, module, status: "FAIL", exitCode: 1, reason: "", blocker: "", owner: "", steps: {}, details: {}, log: [] };
+  const finish = (outcome) => {
+    let { status, reason = "", blocker = "", owner = "" } = outcome;
+    if (status === "BLOCKED" && !String(blocker).trim()) {
+      status = "FAIL";
+      reason = `BLOCKED without a named blocker${reason ? `: ${reason}` : ""}`;
+    }
+    if (!Object.hasOwn(ROW_EXIT, status)) {
+      reason = `unknown status ${status}${reason ? `: ${reason}` : ""}`;
+      status = "FAIL";
+    }
+    Object.assign(record, { status, reason: safe(reason), blocker: safe(blocker), owner: String(owner ?? ""), exitCode: exitCodeFor(status) });
+    record.startedAt = startedAt;
+    record.finishedAt = new Date().toISOString();
+    record.appLogTail = status === "PASS" ? [] : readRedactedAppLogTail(runDir);
+    writeArtifact(artifactPath, record);
+    return record.exitCode;
+  };
+
+  const paths = harnessPaths(runDir);
+  const portsText = existsSync(paths.envFile) ? readFileSync(paths.envFile, "utf8") : "";
+  const portsEnv = parseEnvFile(portsText);
+  record.forkSha = env.OFFICE_FORK_SHA || portsEnv.OFFICE_FORK_SHA || "";
+
+  const gate = startGate(readStartStatus(runDir));
+  if (gate.gate !== "proceed") {
+    return gate.gate === "blocked"
+      ? finish({ status: "BLOCKED", reason: gate.reason, blocker: gate.reason, owner: "g7-qa" })
+      : finish({ status: "FAIL", reason: gate.reason });
+  }
+  if (!portsText) return finish({ status: "FAIL", reason: `no ports.env in ${runDir} (run scripts/office/g5g6g7/harness/start.sh first)` });
+  if (!portsEnv.API_ORIGIN) return finish({ status: "FAIL", reason: `API_ORIGIN missing from ${paths.envFile}` });
+
+  let currentStep = "";
+  let worldPromise = null;
+  const ctx = {
+    row,
+    fixture,
+    runDir,
+    repoRoot,
+    portsEnv,
+    apiOrigin: portsEnv.API_ORIGIN,
+    webOrigin: portsEnv.WEB_ORIGIN ?? "",
+    api: createApi({ apiOrigin: portsEnv.API_ORIGIN }),
+    getWorld() {
+      worldPromise ??= Promise.resolve(
+        worldFactory ? worldFactory({ runDir, apiOrigin: portsEnv.API_ORIGIN }) : seedWorld({ runDir, apiOrigin: portsEnv.API_ORIGIN, repoRoot }),
+      ).then((world) => {
+        if (world?.users?.M?.multiOrg) record.details.multiOrg = world.users.M.multiOrg;
+        return world;
+      });
+      return worldPromise;
+    },
+    async step(name, stepFn) {
+      currentStep = name;
+      const began = Date.now();
+      let result;
+      try {
+        const out = await stepFn();
+        result = { status: "PASS", ...(out && typeof out === "object" ? out : {}) };
+      } catch (err) {
+        result = { status: "FAIL", reason: err instanceof Error ? err.message : String(err) };
+        if (err?.appStepTimeout) result.details = { appStepTimeout: { call: err.appStepTimeout.call, elapsedMs: err.appStepTimeout.elapsedMs } };
+      }
+      if (record.steps[name]?.reason === "row watchdog") return record.steps[name];
+      for (const key of ["reason", "blocker"]) if (result[key] !== undefined) result[key] = safe(result[key]);
+      record.steps[name] = { ...result, elapsedMs: Date.now() - began };
+      currentStep = "";
+      return record.steps[name];
+    },
+    block(blocker, owner = "") {
+      return { status: "BLOCKED", blocker, owner };
+    },
+    log(message) {
+      record.log.push(safe(message));
+    },
+  };
+
+  const limitMs = Number(timeoutMs) > 0 ? Number(timeoutMs) : Number(env.G819_ROW_TIMEOUT_MS) > 0 ? Number(env.G819_ROW_TIMEOUT_MS) : DEFAULT_ROW_TIMEOUT_MS;
+  let timer = null;
+  const watchdog = new Promise((resolveWatchdog) => {
+    timer = setTimeout(() => resolveWatchdog({ watchdog: true }), limitMs);
+  });
+  let outcome;
+  try {
+    outcome = await Promise.race([Promise.resolve().then(() => fn(ctx)).then((value) => ({ value })), watchdog]);
+  } catch (err) {
+    clearTimeout(timer);
+    return finish({ status: "FAIL", reason: err instanceof Error ? err.message : String(err) });
+  }
+  clearTimeout(timer);
+  if (outcome.watchdog) {
+    if (currentStep) record.steps[currentStep] = { ...(record.steps[currentStep] ?? {}), status: "FAIL", reason: "row watchdog" };
+    return finish({ status: "FAIL", reason: "row watchdog" });
+  }
+  const value = outcome.value && typeof outcome.value === "object" ? outcome.value : {};
+  if (value.details && typeof value.details === "object") Object.assign(record.details, value.details);
+  if (value.steps && typeof value.steps === "object") Object.assign(record.steps, value.steps);
+  if (value.status) return finish(value);
+  return finish(decideFromSteps(record.steps));
+}
+
+/**
+ * The CLI of a row module: `node g8-19/<module>.mjs --row G8-Axx --fixture <id> --run-dir <dir>`.
+ * Runs `fn` through runRowModule, prints one status line (never a secret), and
+ * with G819_WRITE_EVIDENCE=1 outside evidence.mjs appends the evidence line itself.
+ * Resolves the exit code; the module's entry point passes it to process.exit.
+ */
+export async function rowMain(module, fn, { argv = process.argv.slice(2), env = process.env } = {}) {
+  const startedAt = new Date().toISOString();
+  const args = parseRowArgs(argv, env);
+  const exitCode = await runRowModule({ ...args, module, env }, fn);
+  const artifact = rowArtifactPath(args.runDir, args.row, args.fixture);
+  const record = JSON.parse(readFileSync(artifact, "utf8"));
+  console.log(`${args.row} ${args.fixture} ${record.status}${record.reason ? `: ${record.reason}` : ""} (${artifact})`);
+  if (env.G819_WRITE_EVIDENCE === "1" && !env.OFFICE_EVIDENCE_ID) {
+    const { evidenceLine, fixtureSha256Of, harnessEvidenceId, ledgerIdentity } = await import("../harness/lib.mjs");
+    const command = `node scripts/office/g5g6g7/g8-19/${module}.mjs ${argv.join(" ")}`;
+    const line = evidenceLine({
+      evidenceId: harnessEvidenceId(args.row),
+      ...(await ledgerIdentity(env)),
+      requirementId: args.row,
+      fixtureId: args.fixture,
+      fixtureSha256: await fixtureSha256Of(args.fixture),
+      fSha: record.forkSha,
+      platform: `${process.platform}-${process.arch}`,
+      build: `node ${process.versions.node}`,
+      command,
+      argv: [...process.argv],
+      exitCode,
+      result: record.status,
+      artifact,
+      checker: `harness:g8-19/${module}.mjs`,
+      blocker: record.status === "BLOCKED" ? record.blocker : "",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+    });
+    const { appendFileSync } = await import("node:fs");
+    appendFileSync(harnessPaths(args.runDir).evidenceFile, `${JSON.stringify(line)}\n`);
+  }
+  return exitCode;
 }
