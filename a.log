@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+e33c49a4e1042507e77e2323b1e7f123f74097a3
+e33c49a4e Merge W-DOC06 owner transfer + D root (access report) into W-DOC07
+252550c91 Merge W-DOC07 B: access requests manager section, ?access=requests entries, notification kinds
+2350d6ef5 Merge origin/feature/UNI-923-office-g5-g6-g7 (07ad36ec4) into UNI-1630 W-DOC06
+ec5b30d25 feat(notifications): renderers for the three document access kinds
+a9583ec60 feat(documents): access requests section in Share and the ?access=requests entries
+d92bd1335 feat(documents): approve and decline hooks for access requests
+07ad36ec4 chore: merge UNI-1643 document access report (9a36185df) into the G5-G7 root
+6dfb145f8 Merge W-DOC07 C: ?from=task link tagging (df8a4d5dc, f7e56cfa2)

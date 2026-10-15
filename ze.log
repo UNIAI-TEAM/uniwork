@@ -1,0 +1,189 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18460 FRONTEND_ORIGIN=http://localhost:13380 API_PUBLIC_URL=http://localhost:18460 PREVIEW_ORIGIN=http://localhost:13381 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18460 NEXT_PUBLIC_WS_URL=ws://localhost:18460 NEXT_PUBLIC_APP_URL=http://localhost:13380 E2E_BASE_URL=http://localhost:13380 E2E_API_URL=http://localhost:18460 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-isolation.spec.ts --reporter=list > /tmp/wdoc07-documents-isolation.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/wdoc07-documents-isolation.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/wdoc07-documents-isolation.log && echo "skipped: documents-isolation has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/wdoc07-documents-isolation.log || { echo "no passing test matched documents-isolation"; [ $rc -eq 0 ] && rc=1; }; echo "E2E_DOCUMENTS_ISOLATION_EXIT=$rc"
+
+
+  1) documents-isolation.spec.ts:182:1 › a workspace member without access sees the not-found screen, not the content 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Không tìm thấy tài liệu này')
+    Expected: visible
+    Timeout: 60000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 60000ms
+      - waiting for getByText('Không tìm thấy tài liệu này')
+
+
+      183 |   await loginViaUi(page, m.aOther.email);
+      184 |   await page.goto(restrictedDocUrl);
+    > 185 |   await expect(page.getByText("Không tìm thấy tài liệu này")).toBeVisible({ timeout: 60_000 });
+          |                                                               ^
+      186 | });
+      187 |
+      188 | test("the other organization's shell sends a foreign document URL to the picker", async ({ page }) => {
+
+    Error Context: test-results/documents-isolation-a-work-457d3-ound-screen-not-the-content/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-isolation-a-work-457d3-ound-screen-not-the-content/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-isolation-a-work-457d3-ound-screen-not-the-content/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    documents-isolation.spec.ts:182:1 › a workspace member without access sees the not-found screen, not the content 
+  8 passed (1.2m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-isolation.spec.ts --reporter=list
+===== e2e/test-results/documents-isolation-a-work-457d3-ound-screen-not-the-content/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-isolation.spec.ts >> a workspace member without access sees the not-found screen, not the content
+- Location: documents-isolation.spec.ts:182:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByText('Không tìm thấy tài liệu này')
+Expected: visible
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 60000ms
+  - waiting for getByText('Không tìm thấy tài liệu này')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org g109-iso-1792080257117-a-owner, o-a-owner-mv9qbcbp64vi: chuyển workspace"': Org g109-iso-1792080257117-a-owner o-a-owner-mv9qbcbp64vi
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm
+    - listitem:
+      - link "Hộp việc":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /o-a-owner-mv9qbcbp64vi/w-a-owner-mv9qbcbw18lm/people
+- list:
+  - listitem:
+    - 'button "g109-iso-1792080257117-a-other, g109-iso-1792080257117-a-other-1792080257523@example.com: tài khoản"': G g109-iso-1792080257117-a-other g109-iso-1792080257117-a-other-1792080257523@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - heading "Tìm kiếm" [level=2]
+  - paragraph: Điều hướng trang và chạy lệnh
+  - region "Bạn chưa mở được tài liệu này":
+    - heading "Bạn chưa mở được tài liệu này" [level=2]
+    - paragraph: Tài liệu có thể không tồn tại, hoặc bạn chưa có quyền xem. Bạn có thể gửi yêu cầu tới người quản lý tài liệu.
+    - group "Quyền cần xin":
+      - text: Quyền cần xin
+      - radiogroup:
+        - radio "Xem" [checked]
+        - text: Xem
+        - radio "Sửa"
+        - text: Sửa
+    - text: Lời nhắn (không bắt buộc)
+    - textbox "Lời nhắn (không bắt buộc)":
+      - /placeholder: Vì sao bạn cần tài liệu này?
+    - paragraph
+    - paragraph: 0/500
+    - button "Gửi yêu cầu"
+    - button "Thử mở lại"
+    - button "Về thư viện tài liệu"
+- status
+- region "Notifications alt+T"
+- alert
+```
+
+# Test source
+
+```ts
+  85  | async function expectWriteLikeUnknown(request: APIRequestContext, token: string): Promise<void> {
+  86  |   const h = authHeaders(token);
+  87  |   const data = { revision: "1", title: "hijacked" };
+  88  |   const hidden = await request.patch(`${api}/api/v1/documents/${pageDocId}`, { headers: h, data });
+  89  |   const unknown = await request.patch(`${api}/api/v1/documents/${UNKNOWN_ID}`, { headers: h, data });
+  90  |   expect(hidden.status()).toBe(404);
+  91  |   expect(await hidden.text()).toBe(await unknown.text());
+  92  | }
+  93  | 
+  94  | test("another organization answers not found across read, history, comments and download", async ({ request }) => {
+  95  |   const read = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: authHeaders(m.bMember.token) });
+  96  |   expect(((await read.json()) as { error: { code: string } }).error.code).toBe("not_found");
+  97  |   await expectHiddenLikeUnknown(request, m.bMember.token, READ_PATHS);
+  98  | 
+  99  |   // A write from the other tenant changes nothing.
+  100 |   await expectWriteLikeUnknown(request, m.bMember.token);
+  101 |   const asOwner = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: authHeaders(m.aOwner.token) });
+  102 |   expect(asOwner.status()).toBe(200);
+  103 |   expect(((await asOwner.json()) as { document: { title: string } }).document.title).toBe(pageDocTitle);
+  104 | });
+  105 | 
+  106 | test("an organization member outside the document workspace answers not found", async ({ request }) => {
+  107 |   await expectHiddenLikeUnknown(request, m.aOutside.token, READ_PATHS);
+  108 | });
+  109 | 
+  110 | test("an account in no organization answers not found", async ({ request }) => {
+  111 |   await expectHiddenLikeUnknown(request, m.publicUser.token, READ_PATHS);
+  112 |   await expectWriteLikeUnknown(request, m.publicUser.token);
+  113 | });
+  114 | 
+  115 | test("a deactivated member is refused with member_deactivated", async ({ request }) => {
+  116 |   const h = authHeaders(m.aDeact.token);
+  117 |   const read = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: h });
+  118 |   expect(read.status()).toBe(403);
+  119 |   expect(((await read.json()) as { error: { code: string } }).error.code).toBe("member_deactivated");
+  120 | });
+  121 | 
+  122 | tesE2E_DOCUMENTS_ISOLATION_EXIT=1
