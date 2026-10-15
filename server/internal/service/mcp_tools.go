@@ -242,46 +242,24 @@ func (s *McpToolService) GetTask(ctx context.Context, p McpPrincipal, workspaceI
 	if err != nil {
 		return McpTask{}, err
 	}
-	item, err := s.one(ctx, p, workspaceID, t.ID, "task_id", s.ask.taskContext)
-	if err != nil {
-		return McpTask{}, err
-	}
 	base, err := s.ask.base(ctx, workspaceID)
 	if err != nil {
 		return McpTask{}, err
 	}
 	out := s.taskOf(base, t)
-	// The item carries the full excerpt, with comments; the status and due
-	// date come from the row, which the excerpt reader does not set.
-	status, due := out.Status, out.DueDate
-	out.McpItem = item
-	out.Status, out.DueDate = status, due
+	// The excerpt is Ask UNI's rendering of the task (status, priority, due
+	// date, assignee by name, description); the comments have a field of their
+	// own, with the ids add_comment's reply_to takes.
+	out.Excerpt = capRunes(taskSource(base, t, s.ask.memberNames(ctx, s.tc(p, workspaceID))).Excerpt, mcpMaxItemRunes, mcpItemCut)
 	if out.Labels, err = s.labelsOf(ctx, p, t.ID); err != nil {
+		return McpTask{}, hidden(err)
+	}
+	if out.Comments, out.CommentsTruncated, err = s.commentsOf(ctx, p, t.ID); err != nil {
 		return McpTask{}, hidden(err)
 	}
 	desc := capRunes(t.Description, mcpMaxItemRunes, "")
 	out.Description, out.DescriptionTruncated = &desc, desc != t.Description
 	return out, nil
-}
-
-// one reads a single object of the workspace. The comments of a task and the
-// summary of a meeting arrive inside the excerpt of the one source Ask UNI's
-// context readers return.
-func (s *McpToolService) one(ctx context.Context, p McpPrincipal, workspaceID, id, field string, read func(context.Context, ai.ToolContext, string) ([]ai.Source, error)) (McpItem, error) {
-	if strings.TrimSpace(id) == "" {
-		return McpItem{}, McpInvalidArgs{Msg: field + " is required"}
-	}
-	if err := s.inGrant(ctx, p, workspaceID); err != nil {
-		return McpItem{}, err
-	}
-	srcs, err := read(ctx, s.tc(p, workspaceID), id)
-	if err != nil {
-		return McpItem{}, hidden(err)
-	}
-	if len(srcs) == 0 {
-		return McpItem{}, ErrNotFound
-	}
-	return s.item(workspaceID, srcs[0], mcpMaxItemRunes, mcpItemCut), nil
 }
 
 // item renders one source for the model, its excerpt cut to max characters.
@@ -366,7 +344,7 @@ func McpTools(s *McpToolService) ai.Registry {
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.Search(ctx, p, a.WorkspaceID, a.Query)
 			}),
-		tool("get_task", "Get task", "One task with its comments, labels and revision, and its description exactly as stored (Markdown) to edit from; description_truncated says it was longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters and was cut. task_id is the id or the PREFIX-N reference.", mcpSchemaTask, []string{"workspace_id", "task_id"},
+		tool("get_task", "Get task", "One task with its labels and revision, its description exactly as stored (Markdown) to edit from, and its comments: the latest "+strconv.Itoa(mcpMaxList)+", oldest first, each with its id (what add_comment's reply_to takes), author name (no emails), created_at, body cut to "+strconv.Itoa(mcpMaxHitRunes)+" characters, and reply_to when it answers another comment. comments_truncated says the task has more than "+strconv.Itoa(mcpMaxList)+" comments and the older ones are left out; description_truncated says the description was longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters and was cut. The excerpt holds the status, priority, due date, assignee by name and the description, not the comments. task_id is the id or the PREFIX-N reference.", mcpSchemaTask, []string{"workspace_id", "task_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetTask(ctx, p, a.WorkspaceID, a.TaskID)
 			}),

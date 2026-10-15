@@ -222,7 +222,10 @@ tổ chức của grant) và `hidden()` như v1. Tham số id task nhận cả U
 | `add_comment` | `task_id`, `body` (Markdown), `reply_to?` | `AddCommentSuite` |
 
 `get_task` (v1) trả thêm `revision`, nhãn, project, task cha. Mô tả task lưu Markdown như
-editor web; server không chuyển đổi.
+editor web; server không chuyển đổi. Từ UNI-1801 nó trả `comments`: 50 bình luận mới nhất,
+cũ trước, mỗi cái có `id` (cái `reply_to` của `add_comment` nhận), tên người viết (không
+email), `created_at`, nội dung cắt 1200 ký tự và `reply_to`; `comments_truncated` báo còn
+bình luận cũ hơn. Excerpt không lặp lại bình luận.
 
 ### 5.2 Dự án (Phase 2)
 

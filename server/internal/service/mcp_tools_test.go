@@ -90,7 +90,7 @@ func TestMCPToolCatalogue(t *testing.T) {
 		"create_document":      {"Markdown", strconv.Itoa(document.MaxMarkdownRunes), "in parts", "Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link", "an image becomes a link", "parent_id", "reads as not found", "restricted", "parent's own shares are not copied", "No one is notified", "doc_kind", "revision", "uniwork://user/", "no duplicate guard", "second page", "list_documents or search"},
 		"update_document":      {"revision_conflict", "lossy_document", "lossy", "blank paragraph", "merged table cell", "append still works", "mode append", strconv.Itoa(mcpMaxItemRunes), strconv.Itoa(document.MaxMarkdownRunes), "in parts", "version of the page as it was", "unless the latest version already is that page", "A rename saves none", "Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link", "no one is notified", "reads as not found", "not files or folders", "cannot be renamed here", "changes shows", "for append", "from is empty", "Markdown that was added"},
 		"add_document_comment": {"cannot reply", "right to edit", "reads as not found", "Everyone who can read the document sees the comment", "No one is notified unless", "mention://member/", "list_members", "can read the document", "never notified of their own mention", "plain text notifies no one", strconv.Itoa(mcpMaxBodyRunes)},
-		"get_task":             {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
+		"get_task":             {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "comments", "comments_truncated", "reply_to", "no emails", "latest " + strconv.Itoa(mcpMaxList), strconv.Itoa(mcpMaxHitRunes), "not the comments"},
 		"get_project":          {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count", "and status to narrow"},
 		"list_projects":        {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
 		"create_project":       {"without a chat channel", "Everyone in the workspace", "No one is notified", "duplicate_project_title", strconv.Itoa(mcpMaxItemRunes), "its title stays taken"},
@@ -352,13 +352,14 @@ func TestMcpToolsShapeEveryItem(t *testing.T) {
 		}
 	}
 
-	// A comment reaches get_task; a summary reaches get_meeting; both arrive in
-	// the excerpt of the one item.
-	if _, err := x.tools.ask.tasks.AddComment(ctx, Human(x.ua.ID), x.taskID, "Đã gửi bản nháp cho sếp"); err != nil {
+	// A comment reaches get_task in its comments, with its id; a summary
+	// reaches get_meeting in the excerpt of the item.
+	comment, err := x.tools.ask.tasks.AddComment(ctx, Human(x.ua.ID), x.taskID, "Đã gửi bản nháp cho sếp")
+	if err != nil {
 		t.Fatal(err)
 	}
 	task, err := x.tools.GetTask(ctx, x.p, x.w.ID, x.taskID)
-	if err != nil || task.Kind != "task" || task.ID != x.taskID || task.URL != taskURL || !strings.Contains(task.Excerpt, "Đã gửi bản nháp cho sếp") {
+	if err != nil || task.Kind != "task" || task.ID != x.taskID || task.URL != taskURL || len(task.Comments) != 1 || task.Comments[0].ID != comment.ID || task.Comments[0].Body != "Đã gửi bản nháp cho sếp" {
 		t.Fatalf("get task = %+v, %v", task, err)
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
@@ -898,7 +899,19 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 	check("search", raw, err, itemKeys)
 	taskKeys := with("revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels")
 	raw, err = callMcpTool(t, x.tools, x.p, "get_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`"}`)
-	check("get_task", raw, err, with("revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels", "description", "description_truncated"))
+	check("get_task", raw, err, with("revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels", "description", "description_truncated", "comments", "comments_truncated"))
+	// The comments of a task carry an id, an author name and nothing more.
+	var task struct{ Comments []map[string]json.RawMessage }
+	if err := json.Unmarshal(raw, &task); err != nil || len(task.Comments) == 0 {
+		t.Fatalf("get_task = %s (%v)", raw, err)
+	}
+	for _, c := range task.Comments {
+		for k := range c {
+			if !map[string]bool{"id": true, "author": true, "created_at": true, "body": true, "reply_to": true}[k] {
+				t.Errorf("get_task comment has undocumented field %q: %s", k, raw)
+			}
+		}
+	}
 	// The list tools wrap their rows: the wrapper and each row are checked.
 	checkWrapped := func(name, rowsKey string, input string, rowKeys map[string]bool) {
 		t.Helper()
@@ -1128,9 +1141,14 @@ func TestMcpExcerptsAreCapped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// One comment past the list cap; the newest is longer than a search hit.
 	chatty := x.task(t, x.ua.ID, x.w.ID, "Nhiều bình luận")
-	for i := 0; i < 40; i++ {
-		if _, err := x.tools.ask.tasks.AddComment(ctx, Human(x.ua.ID), chatty.ID, strings.Repeat("ệ", 500)); err != nil {
+	for i := 0; i <= mcpMaxList; i++ {
+		body := "Bình luận " + strconv.Itoa(i)
+		if i == mcpMaxList {
+			body = strings.Repeat("ệ", 2000)
+		}
+		if _, err := x.tools.ask.tasks.AddComment(ctx, Human(x.ua.ID), chatty.ID, body); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1179,9 +1197,19 @@ func TestMcpExcerptsAreCapped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkCut("get_task comments", item.Excerpt, 16000, "Trạng thái:")
-	if !strings.Contains(item.Excerpt, "Bình luận:") || strings.Count(item.Excerpt, "ệ") >= 40*500 {
-		t.Errorf("get_task comments: head kept, tail cut expected")
+	// The comments are their own field: the latest mcpMaxList, oldest first,
+	// each body cut like a search hit, and none of them in the excerpt.
+	if len(item.Comments) != mcpMaxList || !item.CommentsTruncated {
+		t.Fatalf("get_task comments: %d, truncated %v; want the latest %d and the flag", len(item.Comments), item.CommentsTruncated, mcpMaxList)
+	}
+	if item.Comments[0].Body != "Bình luận 1" {
+		t.Errorf("get_task oldest comment listed = %q, want the second one written", item.Comments[0].Body)
+	}
+	if last := item.Comments[len(item.Comments)-1].Body; utf8.RuneCountInString(last) != mcpMaxHitRunes || !strings.HasSuffix(last, mcpHitCut) {
+		t.Errorf("get_task newest comment: %d characters; want %d ending %q", utf8.RuneCountInString(last), mcpMaxHitRunes, mcpHitCut)
+	}
+	if strings.Contains(item.Excerpt, "Bình luận") {
+		t.Errorf("get_task excerpt repeats the comments: %.80q", item.Excerpt)
 	}
 	meetingItem, err := x.tools.GetMeeting(ctx, x.p, x.w.ID, m.ID)
 	if err != nil {
