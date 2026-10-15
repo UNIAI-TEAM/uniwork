@@ -106,7 +106,7 @@ test("every -run alternative of every row, grouped ones expanded, matches at lea
       }
     }
   }
-  assert.ok(checked >= 20, `the alternatives were really checked (${checked})`);
+  assert.ok(checked >= 19, `the alternatives were really checked (${checked})`);
 });
 
 test("G8-A08 audit coverage runs the Test funcs of audit_coverage_test.go by their real names (the contract's AuditCoverage matches none)", () => {

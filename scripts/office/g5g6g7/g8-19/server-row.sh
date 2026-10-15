@@ -79,7 +79,7 @@ step_node() {
 
 case "$ROW" in
   G8-A03)
-    step_go 1 ./internal/service ./internal/handler -run 'DocumentComment(Kind|Tombstone|Revision|Purge|Copy|ListToken)'
+    step_go 1 ./internal/service ./internal/handler -run 'DocumentComment(Kind|CollabTombstoneHTTP|Revision|RevisionsTombstoneRefused|ListToken)|DocumentPurgeDropsTheCommentOrbit|DocumentCopyCarriesNoComments'
     step_go 0 ./migrations
     ;;
   G8-A05)
