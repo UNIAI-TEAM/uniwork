@@ -3,6 +3,8 @@
 // the user spot-checks the result. This file holds the format of that grading and the rule that turns it into a verdict:
 // effective verdict = the user's spot-check when there is one, else the grader's; "borderline" never resolves by itself.
 
+import { BLANK_CHARS } from './holdout-score.mjs';
+
 export const REVIEWS_KIND = 'uniwork-office-g7-holdout-reviews';
 export const PACKET_KIND = 'uniwork-office-g7-holdout-review-packet';
 export const SPOTCHECK_KIND = 'uniwork-office-g7-holdout-spotcheck';
@@ -14,6 +16,9 @@ export const GRADING_WORDING = { en: 'graded by Opus 5.5, spot-checked by the us
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const filled = (v) => typeof v === 'string' && v.trim() !== '';
+// A quote must carry at least one visible character: whitespace alone and invisible format characters alone (a lone
+// U+200B, say) prove nothing, so the same rule as the scorer's blank reply applies (G712-30).
+const visible = (v) => typeof v === 'string' && v.replace(BLANK_CHARS, '') !== '';
 const isDate = (v) => typeof v === 'string' && !Number.isNaN(Date.parse(v));
 
 /** "<case id>/<lang>/<run>": the identity of one graded answer. */
@@ -29,7 +34,7 @@ export function validateGrader(grader, problems) {
 export function validateGradedEntry(r, at, problems) {
   if (!GRADED_VERDICTS.includes(r.verdict)) problems.push(`${at}.verdict must be pass, fail or borderline`);
   if (!filled(r.reason)) problems.push(`${at}.reason is required`);
-  if (!filled(r.quote)) problems.push(`${at}.quote is required (a verbatim part of the answer)`);
+  if (!visible(r.quote)) problems.push(`${at}.quote is required (a verbatim part of the answer, at least one visible character)`);
   if (!(Number.isInteger(r.run) && r.run >= 1)) problems.push(`${at}.run is required (each run's answer is graded on its own)`);
   if (r.date !== undefined && !isDate(r.date)) problems.push(`${at}.date must be a date`);
   if (r.injection !== undefined && typeof r.injection !== 'boolean') problems.push(`${at}.injection must be a boolean`);

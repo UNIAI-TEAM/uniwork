@@ -191,6 +191,10 @@ describe('model-graded reviews file', () => {
     bad((d) => ({ ...d, reviews: [{ ...d.reviews[0], verdict: 'maybe' }] }), /verdict must be pass, fail or borderline/);
     bad((d) => ({ ...d, reviews: [{ ...d.reviews[0], reason: '' }] }), /reason is required/);
     bad((d) => ({ ...d, reviews: [{ ...d.reviews[0], quote: ' ' }] }), /quote is required/);
+    bad((d) => ({ ...d, reviews: [{ ...d.reviews[0], quote: '\t\n ' }] }), /quote is required/);
+    // A quote of invisible format characters only proves nothing: refused like the empty and whitespace arms (G712-30).
+    bad((d) => ({ ...d, reviews: [{ ...d.reviews[0], quote: '\u200b' }] }), /quote is required/);
+    bad((d) => ({ ...d, reviews: [{ ...d.reviews[0], quote: '\u200b\u00a0\t\ufeff' }] }), /quote is required/);
     bad((d) => ({ ...d, reviews: [{ ...d.reviews[0], run: undefined }] }), /run is required/);
     bad((d) => ({ ...d, reviews: [{ ...d.reviews[0], spotCheck: { by: 'model', date: '2026-10-21', verdict: 'pass' } }] }), /spotCheck.by must be "user"/);
     bad((d) => ({ ...d, reviews: [{ ...d.reviews[0], spotCheck: { by: 'user', date: '2026-10-21', verdict: 'borderline' } }] }), /spotCheck.verdict must be pass or fail/);
