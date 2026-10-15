@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1380-g7-03a-fixtures; git log --oneline -3
+12ccb8f0af8a67aaad66cbd042c07a17a29500a9
+12ccb8f0af8a67aaad66cbd042c07a17a29500a9
+12ccb8f0 test(sync): G7-03a test-hook queue overrides are inert without the env (Advisor qa-fault_local:35)
+228ffa18 chore(sync): merge fork main 0a622efed (G5-11) into the G7-03a fixtures
+0a622efe fix(sheets): stub node:fs unlinkSync for the web frame build
