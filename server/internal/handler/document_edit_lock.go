@@ -62,6 +62,16 @@ func documentEditLockSummarySDO(s service.DocumentEditLockSummary) sdo.DocumentE
 	return out
 }
 
+// documentRowEditLockSDO renders the lock summary a list row carries; nil
+// (the field is absent) when nobody is editing the document.
+func documentRowEditLockSDO(lock *service.DocumentEditLockSummary) *sdo.DocumentEditLockSummarySDO {
+	if lock == nil {
+		return nil
+	}
+	sum := documentEditLockSummarySDO(*lock)
+	return &sum
+}
+
 func documentEditRequestSDO(v service.DocumentEditRequestView) sdo.DocumentEditRequestSDO {
 	r := v.Request
 	return sdo.DocumentEditRequestSDO{

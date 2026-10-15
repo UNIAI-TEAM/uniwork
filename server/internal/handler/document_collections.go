@@ -156,7 +156,9 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(page.Items))}
 	for _, row := range page.Items {
 		access := row.Access
-		out.Documents = append(out.Documents, documentSummaryDTO(row.Document, row.Facts, "", &access))
+		dto := documentSummaryDTO(row.Document, row.Facts, "", &access)
+		dto.EditLock = documentRowEditLockSDO(row.EditLock)
+		out.Documents = append(out.Documents, dto)
 	}
 	if page.NextID != "" {
 		cursor := encodeSharedWithMeCursor(page.NextCreatedAt, page.NextID)
@@ -285,6 +287,7 @@ func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 			access = &item.Access
 		}
 		dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
+		dto.EditLock = documentRowEditLockSDO(item.EditLock)
 		if len(item.Path) > 0 {
 			dto.Path = make([]sdo.DocumentPathItemSDO, len(item.Path))
 			for i, p := range item.Path {
@@ -353,6 +356,7 @@ func documentTreeDTOs(nodes []service.DocumentTreeNode) []sdo.DocumentTreeNodeDT
 		dto := sdo.DocumentTreeNodeDTO{
 			ID: n.ID, Title: n.Title, Kind: n.Kind, Position: n.Position,
 			Children: documentTreeDTOs(n.Children),
+			EditLock: documentRowEditLockSDO(n.EditLock),
 		}
 		if n.ParentID != "" {
 			parent := n.ParentID
