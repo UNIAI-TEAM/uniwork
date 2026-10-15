@@ -646,7 +646,7 @@ describe('reviewer input (G712-4)', () => {
     assert.match(o.blockers.join(' '), /117 ask\(s\) still wait/);
   });
 
-  it('counts the asks that still wait in one unit and names the pairs with no entry (G712-28)', () => {
+  it('counts the asks that still wait in one unit and names the pairs with no entry (G712-28, G712-50)', () => {
     const answerOf = (a, runIndex) => `stub answer ${a.id}/${a.lang}/run ${runIndex}`;
     const input = [1, 2, 3].map((i) => {
       const r = run(i, bigSuite(rubric));
@@ -662,7 +662,8 @@ describe('reviewer input (G712-4)', () => {
         entry(oneRun, 1, { spotCheck: { by: 'user', date: '2026-10-21', verdict: 'pass' } }),
       ],
     });
-    const o = buildReport(input, { thresholds: signed(limits), session: makeSession(input), reviews }).overall;
+    const report = buildReport(input, { thresholds: signed(limits), session: makeSession(input), reviews });
+    const o = report.overall;
     const line = o.blockers.find((b) => /still wait for a reviewer/.test(b));
     // 20 docx cases × 2 languages × 3 runs = 120 asks wait, an ask being one run: the borderline pair's 3 asks are pending
     // (their own entry, so not "no entry") and the second pair's run 1 is resolved, so 116 asks over 39 pairs have no entry.
@@ -671,6 +672,19 @@ describe('reviewer input (G712-4)', () => {
     assert.ok(!line.includes(`${pending.id} (vi)`), 'a pair whose every entry is pending is named by the pending blocker instead');
     assert.equal(new Set(line.slice(line.indexOf(': ') + 2).split(', ')).size, 39, 'every pair with no entry is named, once');
     assert.match(o.blockers.join(' '), /3 graded ask\(s\) are "chưa kết luận"/);
+    // G712-50: section 6 and the per-group reason carry the same per-run ask count as the blocker (116 with no entry + 3
+    // pending = 119 asks over the 40 pairs), never the pair count under an ask label.
+    assert.equal(report.awaitingReviewerAsks, 119);
+    const md = renderReport(report);
+    assert.match(md, /119 lượt hỏi theo từng lần chạy \(20 ca\) cần người duyệt chấm/);
+    assert.match(md, /119 ask\(s\) of this group still wait for a reviewer/);
+    // The all-awaiting shape (no --reviews at all): all three sites read the same 120 asks of the 3-run set.
+    const bare = buildReport(input, { thresholds: signed(limits), session: makeSession(input) });
+    const bareMd = renderReport(bare);
+    assert.equal(bare.awaitingReviewerAsks, 120);
+    assert.match(bare.overall.blockers.join(' '), /120 ask\(s\) still wait for a reviewer/);
+    assert.match(bareMd, /120 lượt hỏi theo từng lần chạy \(20 ca\) cần người duyệt chấm/);
+    assert.match(bareMd, /120 ask\(s\) of this group still wait for a reviewer/);
   });
 
   it('applies a per-run review to that run only and lets it win over a general one; never rescues a deterministic fail', () => {

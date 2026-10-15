@@ -635,6 +635,9 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
   const runSet = checkRunSet(runs, session);
   const conditions = measurementConditions(runs, summaries);
   const waiting = awaitingReviewer(runs);
+  // G712-50: every count of "asks that still wait" in the report is in ONE unit — the ask, one per case+language+run — so the
+  // top-level blocker, section 6 and each group's reason agree; a pair (case + language) is ever only named, never counted as an ask.
+  const awaitingAsks = runs.reduce((n, run) => n + run.asks.filter((a) => a.status === 'needs_reviewer').length, 0);
   const dist = {
     successRate: distribution(summaries.map((s) => s.overall.rate)),
     awaiting: distribution(summaries.map((s) => s.overall.awaiting)),
@@ -661,7 +664,7 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     // G712-42: what was redacted, so report.md can surface it (a soft-only hit keeps the verdict and was invisible there).
     redactionKinds: [...new Set(runs.flatMap((r) => [...(r.redactions ?? []).flatMap((x) => (x.kinds ?? []).map((k) => k.kind)), ...r.asks.flatMap((a) => (a.redactions ?? []).map((k) => k.kind))]))].sort(),
     latencyPooled: { calls: pooled.length, p50: percentile(pooled, 50), p95: percentile(pooled, 95) },
-    flaky, awaitingReviewer: waiting, unobtainable: unobtainable(runs),
+    flaky, awaitingReviewer: waiting, awaitingReviewerAsks: awaitingAsks, unobtainable: unobtainable(runs),
     reviews: reviews ? {
       applied: reviewed.applied, unused: reviewed.unused, reviewers: reviewed.reviewers, count: reviews.reviews.length, sessionId: reviews.sessionId, refused: refusal,
       confirmed: [...new Map(reviewed.used.map((r) => [`${r.id}/${r.lang}/${r.run ?? '*'}`, { id: r.id, lang: r.lang, run: r.run ?? null, verdict: r.resolved?.verdict ?? r.verdict, reviewer: r.reviewer ?? r.resolved?.by, date: r.spotCheck?.date ?? r.date ?? null, source: r.resolved?.source ?? 'reviewer', grader: r.resolved ? r.verdict : null }])).values()]
@@ -703,8 +706,9 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     }
     if (reviewed.pending.length > 0) reviewerBlockers.push(`${reviewed.pending.length} graded ask(s) are "chưa kết luận": borderline, an injection pass or a file without the user's spot-check (${GRADING_WORDING.en})`);
     if (reviewed.rejected.length > 0) reviewerBlockers.push(`${reviewed.rejected.length} graded ask(s) were rejected: the quote is not a verbatim part of the answer`);
+    // G712-50: the per-group reason carries the same unit as the blocker above — the ask, one per run — never the pair list.
     const awaitingByGroup = new Map();
-    for (const w of waiting) awaitingByGroup.set(w.group, (awaitingByGroup.get(w.group) ?? 0) + 1);
+    for (const run of runs) for (const ask of run.asks) if (ask.status === 'needs_reviewer') awaitingByGroup.set(ask.group, (awaitingByGroup.get(ask.group) ?? 0) + 1);
     const scoped = { latency: conditions.scoped.latency, reviewer: reviewerBlockers, nameOnly: conditions.scoped.nameOnly, awaiting: awaitingByGroup };
     report.overall = evaluateThresholds(adjusted, thresholds, { completeRuns, tuple, extraBlockers, scoped });
     report.flakyCountedAsFailed = flaky.length;
@@ -892,9 +896,9 @@ export function renderReport(report) {
     }
     w();
   }
-  if (report.awaitingReviewer.length === 0) w('Không có.');
+  if (report.awaitingReviewerAsks === 0) w('Không có.');
   else {
-    w(`${report.awaitingReviewer.length} lượt hỏi (${new Set(report.awaitingReviewer.map((a) => a.id)).size} ca) cần người duyệt chấm; bộ chấm không bao giờ tự xác nhận${report.reviews ? '' : ' (không có --reviews: kết luận có ngưỡng chỉ có thể là trượt hoặc chưa kết luận được, không bao giờ đạt)'}.`);
+    w(`${report.awaitingReviewerAsks} lượt hỏi theo từng lần chạy (${new Set(report.awaitingReviewer.map((a) => a.id)).size} ca) cần người duyệt chấm; bộ chấm không bao giờ tự xác nhận${report.reviews ? '' : ' (không có --reviews: kết luận có ngưỡng chỉ có thể là trượt hoặc chưa kết luận được, không bao giờ đạt)'}.`);
     w();
     const langsOf = new Map();
     for (const a of report.awaitingReviewer) langsOf.set(a.id, [...(langsOf.get(a.id) ?? []), a.lang]);
