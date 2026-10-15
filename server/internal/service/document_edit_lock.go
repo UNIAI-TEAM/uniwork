@@ -156,27 +156,9 @@ var documentEditLockSystem = audit.System("document_edit_lock")
 // documentSaveResult counts it as outcome "locked" (addendum §3.3).
 var ErrDocumentLocked = errors.New("document_locked")
 
-// documentEditLockMetrics is the edit lock half of the A0 metrics port. It is
-// read by assertion so the service builds before A0's DocumentMetrics grows
-// the three methods; nop when the wired metrics lack them.
-type documentEditLockMetrics interface {
-	IncDocumentEditLockOp(op string)
-	IncDocumentEditLockRefused(route string)
-	IncDocumentEditRequest(op string)
-}
-
-type nopEditLockMetrics struct{}
-
-func (nopEditLockMetrics) IncDocumentEditLockOp(string)      {}
-func (nopEditLockMetrics) IncDocumentEditLockRefused(string) {}
-func (nopEditLockMetrics) IncDocumentEditRequest(string)     {}
-
-func (s *DocumentService) editLockMetrics() documentEditLockMetrics {
-	if m, ok := s.metrics.(documentEditLockMetrics); ok {
-		return m
-	}
-	return nopEditLockMetrics{}
-}
+// editLockMetrics is the metrics port (A0's three edit lock counters on
+// DocumentMetrics).
+func (s *DocumentService) editLockMetrics() DocumentMetrics { return s.metrics }
 
 // countEditLockRefused moves the refused-write counter for a 423.
 func (s *DocumentService) countEditLockRefused(route string, err error) {
