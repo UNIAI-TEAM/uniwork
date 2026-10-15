@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -136,6 +137,8 @@ func TestMarkdownToPageKeepsWhatItCannotMap(t *testing.T) {
 			`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"build","marks":[{"type":"link","attrs":{"href":"https://ci.test"}}]}]}]}`},
 		{"unclosed <u> underlines to the end of the paragraph", "a <u>b *c*",
 			`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"a "},{"type":"text","text":"b ","marks":[{"type":"underline"}]},{"type":"text","text":"c","marks":[{"type":"italic"},{"type":"underline"}]}]}]}`},
+		{"nested emphasis of one kind is one mark", "*a *b* c*",
+			`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"a b c","marks":[{"type":"italic"}]}]}]}`},
 		{"table with an empty header row has no header", "|  |  |\n| --- | --- |\n| 1 | 2 |",
 			`{"type":"doc","content":[{"type":"table","content":[{"type":"tableRow","content":[{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"1"}]}]},{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"2"}]}]}]}]}]}`},
 	}
@@ -175,22 +178,23 @@ func TestMarkdownToPageCapsItsInput(t *testing.T) {
 }
 
 // goldmark's block parse is quadratic in the markers a line opens; the input
-// must fail on a scan, not after the parse. Each of these took 2-15 s before.
+// must fail on a scan, not after the parse. At this size the parse alone takes
+// 0.1-1 s (2-15 s at the 200000 cap this once had), the scan microseconds, so
+// the time bound is what tells the two apart.
 func TestMarkdownToPageRefusesPathologicalNestingFast(t *testing.T) {
 	var indented strings.Builder
-	for i := 0; i < 400; i++ {
+	for i := 0; i < 200; i++ {
 		indented.WriteString(strings.Repeat("  ", i) + "- x\n")
 	}
 	cases := map[string]string{
-		"- x50000":           strings.Repeat("- ", 50000) + "x",
-		"- x99999":           strings.Repeat("- ", 99999) + "x",
-		"1. x60000":          strings.Repeat("1. ", 60000) + "x",
-		"> - x49999":         strings.Repeat("> - ", 49999) + "x",
-		"> x99999":           strings.Repeat("> ", 99999) + "x",
-		">x199990":           strings.Repeat(">", 199990) + " x",
-		"indent 400 levels":  indented.String(),
-		"after a CRLF":       "a\r\n" + strings.Repeat("> ", 50000) + "x",
-		"inside a list item": "- a\n  " + strings.Repeat("> ", 50000) + "x",
+		"- x24999":           strings.Repeat("- ", 24999) + "x",
+		"1. x16666":          strings.Repeat("1. ", 16666) + "x",
+		"> - x12499":         strings.Repeat("> - ", 12499) + "x",
+		"> x24999":           strings.Repeat("> ", 24999) + "x",
+		">x49990":            strings.Repeat(">", 49990) + " x",
+		"indent 200 levels":  indented.String(),
+		"after a CRLF":       "a\r\n" + strings.Repeat("> ", 20000) + "x",
+		"inside a list item": "- a\n  " + strings.Repeat("> ", 20000) + "x",
 	}
 	for name, md := range cases {
 		start := time.Now()
@@ -199,7 +203,52 @@ func TestMarkdownToPageRefusesPathologicalNestingFast(t *testing.T) {
 		if !errors.As(err, &de) || de.Code != ErrCodeInvalid {
 			t.Errorf("%s: want %s, got %v", name, ErrCodeInvalid, err)
 		}
-		if d := time.Since(start); d > time.Second {
+		if d := time.Since(start); d > 250*time.Millisecond {
+			t.Errorf("%s: took %s", name, d)
+		}
+	}
+}
+
+// goldmark's inline parse is quadratic too (unclosed destinations, delimiter
+// runs) and a scan cannot refuse what is valid Markdown, so MaxMarkdownRunes
+// is what bounds it: each of these, filled to the cap, took 0.5-1 s on the
+// machine this was measured on, and 14 s at 200000 runes. The bound is
+// generous (CI is slower than that machine); a regression to cubic (the first
+// version of the walk took minutes on the nested emphasis) or a cap raised to
+// 200000 without a new scan fails it. Skipped under the race detector, which
+// slows the parse 4-7x.
+func TestMarkdownToPageStaysFastAtTheCap(t *testing.T) {
+	if raceEnabled {
+		t.Skip("wall-clock bound; the race detector slows the parse 4-7x")
+	}
+	fill := func(unit string) string {
+		return strings.Repeat(unit, MaxMarkdownRunes/utf8.RuneCountInString(unit))
+	}
+	cases := map[string]string{
+		"unclosed link destinations": fill("[a]("),
+		"unclosed image":             fill("![a]("),
+		"parens in a destination":    fill("[a]((("),
+		"mixed delimiters":           fill("*_a"),
+		"unclosed brackets":          fill("["),
+		"nested emphasis":            strings.Repeat("*a ", 8000) + strings.Repeat("a* ", 8000),
+		"nested bold":                strings.Repeat("**a ", 6000) + strings.Repeat("a** ", 6000),
+		"nested underscore":          strings.Repeat("_a ", 8000) + strings.Repeat("a_ ", 8000),
+		"nested strike":              strings.Repeat("~~a ", 6000) + strings.Repeat("a~~ ", 6000),
+		"nested underline":           fill("<u>a "),
+		"backtick runs":              fill("`a ``b ```c "),
+		"escapes":                    fill("\\*"),
+		"autolink openers":           fill("<a@"),
+		"link definitions":           fill("[a]: /u\n"),
+	}
+	for name, md := range cases {
+		if n := utf8.RuneCountInString(md); n > MaxMarkdownRunes {
+			t.Fatalf("%s: %d runes is over the cap", name, n)
+		}
+		start := time.Now()
+		if _, err := MarkdownToPage(md, nil); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+		if d := time.Since(start); d > 5*time.Second {
 			t.Errorf("%s: took %s", name, d)
 		}
 	}
@@ -222,6 +271,7 @@ func TestMarkdownToPageKeepsNestingWithinTheLimit(t *testing.T) {
 		"markers in code inside an item":  "- a\n\n      " + strings.Repeat("- ", 60),
 		"markers in indented code":        "    " + strings.Repeat("> ", 60),
 		"a long rule":                     strings.Repeat("-", 5000),
+		"a lone CR is no line break":      "a\r" + strings.Repeat("- ", 20000) + "x",
 	}
 	for name, md := range cases {
 		if _, err := MarkdownToPage(md, nil); err != nil {

@@ -26,8 +26,11 @@ const MentionScheme = "uniwork://"
 
 // MaxMarkdownRunes is the longest Markdown MarkdownToPage and AppendMarkdown
 // read; longer input fails as document_too_large before any parsing. The tool
-// layer states the same figure to the model.
-const MaxMarkdownRunes = 200_000
+// layer states the same figure to the model: a longer page is written by
+// appending in parts. goldmark's inline parse is quadratic in the worst case,
+// so the figure also bounds the CPU one call can take (see
+// TestMarkdownToPageStaysFastAtTheCap).
+const MaxMarkdownRunes = 50_000
 
 type pmNode struct {
 	Type    string         `json:"type"`
@@ -297,16 +300,15 @@ func textNodes(s string, marks []pmMark) []pmNode {
 	return []pmNode{{Type: "text", Text: s, Marks: m}}
 }
 
-func hasLink(marks []pmMark) bool {
-	for _, m := range marks {
-		if m.Type == "link" {
-			return true
+// withMark adds m to marks. A mark is on or off, so one already there stays
+// as it is (an outer link wins over the one around an image inside it); that
+// also keeps a run at six marks however deep the emphasis nests.
+func withMark(marks []pmMark, m pmMark) []pmMark {
+	for _, e := range marks {
+		if e.Type == m.Type {
+			return marks
 		}
 	}
-	return false
-}
-
-func withMark(marks []pmMark, m pmMark) []pmMark {
 	out := make([]pmMark, 0, len(marks)+1)
 	return append(append(out, marks...), m)
 }
@@ -458,8 +460,18 @@ func (r *mdReader) rawHTML(v *ast.RawHTML) string {
 	return b.String()
 }
 
+// inlines is the inline content of parent as page nodes, text runs merged.
 func (r *mdReader) inlines(parent ast.Node, marks []pmMark) []pmNode {
 	out := []pmNode{}
+	r.appendInlines(&out, parent, marks)
+	return mergeText(out)
+}
+
+// appendInlines adds parent's inline children to out. Nested emphasis and
+// links append to the same slice and the runs are merged once, by inlines:
+// each level copying and merging its children's output was cubic in the
+// nesting depth.
+func (r *mdReader) appendInlines(out *[]pmNode, parent ast.Node, marks []pmMark) {
 	under := false
 	for n := parent.FirstChild(); n != nil; n = n.NextSibling() {
 		if h, ok := n.(*ast.RawHTML); ok {
@@ -471,7 +483,7 @@ func (r *mdReader) inlines(parent ast.Node, marks []pmMark) []pmNode {
 			case "</u>":
 				under = false
 			default:
-				out = append(out, textNodes(tag, marks)...)
+				*out = append(*out, textNodes(tag, marks)...)
 			}
 			continue
 		}
@@ -479,9 +491,8 @@ func (r *mdReader) inlines(parent ast.Node, marks []pmMark) []pmNode {
 		if under {
 			m = withMark(marks, pmMark{Type: "underline"})
 		}
-		out = append(out, r.inline(n, m)...)
+		r.inline(out, n, m)
 	}
-	return mergeText(out)
 }
 
 func mentionOf(dest, label string) (pmNode, bool) {
@@ -503,19 +514,19 @@ func mentionOf(dest, label string) (pmNode, bool) {
 	return pmNode{Type: "mention", Attrs: attrs}, true
 }
 
-func (r *mdReader) inline(n ast.Node, marks []pmMark) []pmNode {
+func (r *mdReader) inline(out *[]pmNode, n ast.Node, marks []pmMark) {
+	add := func(nodes ...pmNode) { *out = append(*out, nodes...) }
 	switch v := n.(type) {
 	case *ast.Text:
-		out := textNodes(unescape(v.Segment.Value(r.src)), marks)
+		add(textNodes(unescape(v.Segment.Value(r.src)), marks)...)
 		switch {
 		case v.HardLineBreak():
-			out = append(out, pmNode{Type: "hardBreak"})
+			add(pmNode{Type: "hardBreak"})
 		case v.SoftLineBreak():
-			out = append(out, textNodes(" ", marks)...)
+			add(textNodes(" ", marks)...)
 		}
-		return out
 	case *ast.String:
-		return textNodes(string(v.Value), marks)
+		add(textNodes(string(v.Value), marks)...)
 	case *ast.CodeSpan:
 		var b strings.Builder
 		for c := v.FirstChild(); c != nil; c = c.NextSibling() {
@@ -523,27 +534,30 @@ func (r *mdReader) inline(n ast.Node, marks []pmMark) []pmNode {
 				b.Write(t.Segment.Value(r.src))
 			}
 		}
-		return textNodes(strings.ReplaceAll(b.String(), "\n", " "), withMark(marks, pmMark{Type: "code"}))
+		add(textNodes(strings.ReplaceAll(b.String(), "\n", " "), withMark(marks, pmMark{Type: "code"}))...)
 	case *ast.Emphasis:
 		m := "italic"
 		if v.Level == 2 {
 			m = "bold"
 		}
-		return r.inlines(v, withMark(marks, pmMark{Type: m}))
+		r.appendInlines(out, v, withMark(marks, pmMark{Type: m}))
 	case *east.Strikethrough:
-		return r.inlines(v, withMark(marks, pmMark{Type: "strike"}))
+		r.appendInlines(out, v, withMark(marks, pmMark{Type: "strike"}))
 	case *ast.Link:
 		dest := unescape(v.Destination)
-		if mention, ok := mentionOf(dest, r.plain(v)); ok {
-			return []pmNode{mention}
+		if strings.HasPrefix(dest, MentionScheme) {
+			if mention, ok := mentionOf(dest, r.plain(v)); ok {
+				add(mention)
+				return
+			}
 		}
-		return r.inlines(v, withMark(marks, pmMark{Type: "link", Attrs: map[string]any{"href": dest}}))
+		r.appendInlines(out, v, withMark(marks, pmMark{Type: "link", Attrs: map[string]any{"href": dest}}))
 	case *ast.AutoLink:
 		href := string(v.URL(r.src))
 		if v.AutoLinkType == ast.AutoLinkEmail {
 			href = "mailto:" + href // goldmark's URL() leaves the scheme to its HTML renderer
 		}
-		return textNodes(string(v.Label(r.src)), withMark(marks, pmMark{Type: "link", Attrs: map[string]any{"href": href}}))
+		add(textNodes(string(v.Label(r.src)), withMark(marks, pmMark{Type: "link", Attrs: map[string]any{"href": href}}))...)
 	case *ast.Image:
 		dest, alt := unescape(v.Destination), r.plain(v)
 		if id, ok := strings.CutPrefix(dest, "asset://"); ok && r.assets[strings.ToUpper(id)] != "" {
@@ -551,25 +565,25 @@ func (r *mdReader) inline(n ast.Node, marks []pmMark) []pmNode {
 			if alt != "" {
 				attrs["alt"] = alt
 			}
-			return []pmNode{{Type: "image", Attrs: attrs}}
+			add(pmNode{Type: "image", Attrs: attrs})
+			return
 		}
 		// Any other image is a link to it; without alt text its address is the
-		// text, so an image the model wrote never leaves nothing behind.
+		// text, so an image the model wrote never leaves nothing behind. Inside
+		// a link ([![badge](img)](url)) the outer link stays: withMark.
 		label := alt
 		if label == "" {
 			label = dest
 		}
-		if hasLink(marks) {
-			return textNodes(label, marks) // [![badge](img)](url): the outer link stays
-		}
-		return textNodes(label, withMark(marks, pmMark{Type: "link", Attrs: map[string]any{"href": dest}}))
+		add(textNodes(label, withMark(marks, pmMark{Type: "link", Attrs: map[string]any{"href": dest}}))...)
 	case *east.TaskCheckBox:
 		if v.IsChecked {
-			return textNodes("[x] ", marks)
+			add(textNodes("[x] ", marks)...)
+		} else {
+			add(textNodes("[ ] ", marks)...)
 		}
-		return textNodes("[ ] ", marks)
 	default:
-		return r.inlines(n, marks)
+		r.appendInlines(out, n, marks)
 	}
 }
 
