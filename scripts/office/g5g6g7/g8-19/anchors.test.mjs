@@ -14,7 +14,9 @@ import {
   FIXTURE_FORMAT,
   anchorForFixture,
   anchorMatches,
+  PURGED_CASE_NOTE,
   decideG8A02,
+  decideWebToDesktop,
   expectedAfterShift,
   framePinBlock,
   readFramePin,
@@ -245,8 +247,8 @@ function scriptXlsxServer(fake) {
     }
     return { state: "saved" };
   });
-  fake.script.respond("api.getDocument", () => ({ status: 200, body: { document: { id: "doc-1", file: { version_id: state.head } } } }));
-  fake.script.respond("api.listDocumentComments", () => ({
+  state.docAnswer = () => ({ status: 200, body: { document: { id: "doc-1", file: { version_id: state.head } } } });
+  state.listAnswer = () => ({
     status: 200,
     body: {
       comments: [
@@ -255,10 +257,126 @@ function scriptXlsxServer(fake) {
       ],
       list_token: `lt-${state.saves}`,
     },
-  }));
+  });
+  fake.script.respond("api.getDocument", () => state.docAnswer());
+  fake.script.respond("api.listDocumentComments", () => state.listAnswer());
   fake.script.respond("api.putDocumentCommentAnchors", { status: 400, body: bodyInvalid });
   return state;
 }
+
+/**
+ * The web -> desktop document (doc-3, uploaded third): A comments on B7 over REST, the web
+ * frame's Save moves it to B8 on the saved version, and the desktop list reads it there.
+ */
+function scriptWebDoc(fake, xlsx, { webSave = null } = {}) {
+  const web = { head: "ver-3", row: null, saves: 0 };
+  const isWeb = (call) => call.args.pathParams.documentID === "doc-3";
+  fake.script.respond("api.getDocument", (call) =>
+    isWeb(call) ? { status: 200, body: { document: { id: "doc-3", file: { version_id: web.head } } } } : xlsx.docAnswer(),
+  );
+  fake.script.respond("api.listDocumentComments", (call) =>
+    isWeb(call) ? { status: 200, body: { comments: web.row ? [web.row] : [], list_token: `w-${web.saves}` } } : xlsx.listAnswer(),
+  );
+  fake.script.respond("api.createDocumentComment", (call) => {
+    const b = call.args.body;
+    web.row = { id: "cw", body: b.body, anchor: b.anchor, anchor_state: "exact", anchor_version_id: b.base_version_id, deleted_at: null, parent_id: null };
+    return { status: 201, body: { comment: web.row } };
+  });
+  fake.script.respond(
+    "web.webSave",
+    webSave ??
+      (() => {
+        web.saves += 1;
+        web.head = `ver-web-${web.saves}`;
+        web.row = { ...web.row, anchor: { ...web.row.anchor, range: "B8" }, anchor_version_id: web.head };
+        return { status: "saved", versionId: web.head, revision: String(web.saves + 1), version: web.saves + 1 };
+      }),
+  );
+  fake.script.respond("web.webFrameEval", { status: "ok" });
+  fake.script.respond("app.comments.list", (call) =>
+    call.args[0].path === "/wc/doc-3.xlsx" ? { ok: true, value: { comments: web.row ? [web.row] : [], listToken: "d" } } : { ok: true, value: { comments: [], listToken: "x" } },
+  );
+  fake.script.respond("app.openByTicket", (call) => ({ path: `/wc/${call.args[1]?.documentId ?? "doc-1"}.xlsx`, documentId: call.args[1]?.documentId ?? "doc-1", kind: "sheets" }));
+  return web;
+}
+
+const REPINNED = { framePin: { gitSha: "abc1234", file: "sheets.pin.json" }, isAncestor: () => true };
+
+test("runG8A02 after a re-pin: the web frame's Save moves A's B7 comment to B8 and the desktop reads it there -> PASS", async () => {
+  const fake = createFakeWorld();
+  const xlsx = scriptXlsxServer(fake);
+  scriptWebDoc(fake, xlsx);
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, web: fake.web, launchBrowser: async () => fake.browser, ...REPINNED });
+  assert.equal(record.status, "PASS", JSON.stringify(record.steps, null, 1));
+  assert.equal(record.steps["check:web-to-desktop"].status, "PASS");
+  const w = record.details.webToDesktop;
+  assert.equal(w.documentId, "doc-3");
+  assert.equal(w.saved.versionId, "ver-web-1");
+  assert.equal(w.desktopRow.anchor.range, "B8");
+  const created = fake.calls.api.find((c) => c.key === "createDocumentComment");
+  assert.equal(created.user, "A");
+  assert.deepEqual(created.args.body.anchor, B7_ANCHOR);
+  assert.equal(created.args.body.base_version_id, "ver-3");
+  const saves = fake.calls.web.filter((c) => c.key === "webSave");
+  assert.deepEqual(saves.map((c) => c.args[1].kind), ["sheets"]);
+  const frameEdits = fake.calls.web.filter((c) => c.key === "webFrameEval").map((c) => c.args[2]);
+  assert.deepEqual(frameEdits, EDIT_DRIVERS.xlsx.shift, "the desktop shift plan runs in the web frame");
+  assert.ok(fake.calls.web.some((c) => c.key === "webLogin" && c.args[0] === "A"));
+});
+
+test("runG8A02 after a re-pin: a web Save that makes no version is FAIL on check:web-to-desktop", async () => {
+  const fake = createFakeWorld();
+  const xlsx = scriptXlsxServer(fake);
+  scriptWebDoc(fake, xlsx, { webSave: { status: "timeout", reason: "no frame commit within the bound (the frame was not dirty)" } });
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, web: fake.web, launchBrowser: async () => fake.browser, ...REPINNED });
+  assert.equal(record.status, "FAIL");
+  assert.equal(record.steps["check:web-to-desktop"].status, "FAIL");
+  assert.match(record.steps["check:web-to-desktop"].reason, /web Save: timeout/);
+});
+
+test("runG8A02 on the old pin: the web direction is BLOCKED(R1) without opening a browser", async () => {
+  const fake = createFakeWorld();
+  scriptXlsxServer(fake);
+  let launched = 0;
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), {
+    connectApp: fake.app.connectApp,
+    sleep: async () => {},
+    web: fake.web,
+    launchBrowser: async () => (launched += 1, fake.browser),
+    framePin: { gitSha: "05fd209" },
+  });
+  assert.equal(record.steps["check:web-to-desktop"].status, "BLOCKED");
+  assert.equal(launched, 0);
+  assert.equal(fake.calls.web.length, 0);
+});
+
+test("runG8A02 artifact says why the purged-version case is the empty id", async () => {
+  const fake = createFakeWorld();
+  scriptXlsxServer(fake);
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  assert.equal(record.details.invalidVersionsNote, PURGED_CASE_NOTE);
+  assert.equal(
+    PURGED_CASE_NOTE,
+    "purged-version case replaced by empty id: no REST purge route (router/documents.go), same single lookup document_comment_anchors.go:362-369",
+  );
+});
+
+test("decideWebToDesktop: saved version, exact moved row on it, desktop reads the same; a preset BLOCKED/FAIL passes through", () => {
+  const good = {
+    ran: true,
+    expected: B8,
+    saved: { status: "saved", versionId: "vw" },
+    serverRow: { anchor: B8, anchor_state: "exact", anchor_version_id: "vw" },
+    desktopRow: { anchor: B8, anchor_version_id: "vw" },
+  };
+  assert.deepEqual(decideWebToDesktop(good), { status: "PASS" });
+  assert.match(decideWebToDesktop({ ...good, serverRow: { ...good.serverRow, anchor_version_id: "v1" } }).reason, /anchor stayed on version v1, the web Save made vw/);
+  assert.match(decideWebToDesktop({ ...good, desktopRow: { anchor: B7_ANCHOR, anchor_version_id: "vw" } }).reason, /desktop reads .*B7/);
+  assert.match(decideWebToDesktop({ ...good, desktopRow: null }).reason, /desktop list has no row/);
+  assert.deepEqual(decideWebToDesktop({ status: "BLOCKED", blocker: "b", owner: "o" }), { status: "BLOCKED", blocker: "b", owner: "o" });
+  assert.deepEqual(decideWebToDesktop({ status: "FAIL", reason: "r" }), { status: "FAIL", reason: "r" });
+  assert.equal(decideWebToDesktop(undefined).status, "FAIL");
+});
 
 test("runG8A02 (xlsx, fake): upload, desktop comment on B7, insert row + Save -> B8, delete + Save -> lost, three 400s, R1 BLOCKED", async () => {
   const fake = createFakeWorld();
