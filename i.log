@@ -1,0 +1,18 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/slides -- vitest run; rc=$?; echo; echo "SLIDES_SUITE_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+
+ Test Files  170 passed | 1 skipped (171)
+      Tests  1701 passed | 14 skipped (1715)
+   Start at  17:31:21
+   Duration  51.46s (transform 10.70s, setup 0ms, import 49.31s, tests 29.10s, environment 59.36s)
+
+
+SLIDES_SUITE_EXIT=0

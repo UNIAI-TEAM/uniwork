@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor origin/main HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+65f59abda8b09c745d2914c40c973ea031d4b0ee
+a0cffc387e27f23586b9fa87e10f3f2bbb1efd98
+65f59abd merge: fork main a0cffc387 (G5-11 account switch lock) into the lane branch
+287083e9 fix(ai): keep the UniWork wording when a bound pdf refuses a file-write tool (G6-09a r1 RFA-1, UNI-1374)
+5f127989 test(ai): pin the pdf panel feeding the provider and capability into the skill gates (G6-09a r1 RFA-5, UNI-1374)
+07e78a6a fix(ai): note hidden pdf edit tools and drop insert_web_image under UniWork AI (G6-09a r1 RFA-2, RFA-4, UNI-1374)
+65f19368 fix(ai): refuse hidden tools at execution in the slides and pdf skills (G6-09a r1 RFA-1, UNI-1374)
+a363353d test(ai): pin executeTool refusal of hidden tools and the pdf / slides prompt notes (G6-09a r1, UNI-1374)
+edae0f7f feat(ai): hide UniWork-gated tools in the slides and pdf skills (G6-09a, UNI-1374)
+1ff69ccc test(ai): pin UniWork AI / bound tool gating in the slides and pdf skills (G6-09a, UNI-1374)
+
+SYNCED_EXIT=0
