@@ -1,6 +1,6 @@
 # Bộ dữ liệu phát triển G6-08 (`docs/office/g5g6g7/devset/`)
 
-> **Trạng thái:** Hoàn thành (w21: bảng đo lường trong `docs/office/g5g6g7/g6-08-devset-report.md` tái lập được từ `devset/runs/` đã commit; `G6-08`, UNI-1373 — tách biệt hoàn toàn với `docs/office/g5g6g7/holdout/`)
+> **Trạng thái:** Hoàn thành (w22: sửa `extractConclusionPart` chọn vùng kết quả trước dấu mốc `Phạm vi:`/`Scope:`/`Ghi chú:`/`Note:`, chấm lại `devset/runs/` bằng `--rescore`, đồng bộ `DATABASE_URL` và kiểm chứng bất biến cây tệp fork; `G6-08`, UNI-1373 — tách biệt hoàn toàn với `docs/office/g5g6g7/holdout/`)
 
 Tài liệu này mô tả bộ dữ liệu phát triển (dev set) tổng hợp dùng để đo lường và tinh chỉnh gói chỉ dẫn `office_uniwork_ai` từ `@1` lên `@2` trong phạm vi `G6-08` (ADR 0037).
 
@@ -35,16 +35,18 @@ node scripts/office/devset.mjs --check
 # Kiểm định lược đồ, quét bí mật, tách biệt holdout, oracle phủ định, run JSON + bảng báo cáo:
 node --test scripts/office/devset.test.mjs scripts/office/instruction-pack-tools.test.mjs
 
-# Tính lại bảng báo cáo từ runs/ ( --check báo lệch, --write ghi lại ):
+# Chấm lại runs/ khi bộ chấm điểm thay đổi (--rescore) và tính lại bảng báo cáo (--write / --check):
+node scripts/office/devset-report.mjs --rescore
+node scripts/office/devset-report.mjs --write
 node scripts/office/devset-report.mjs --check
 
 # Chạy đo lường thật (dev upstream qua biến môi trường; xem docs/office/g5g6g7/dev-upstream.md):
 #   @2 = server ở commit hiện hành, @1 = server dựng từ 4df589a37 trong worktree tạm (tự xoá sau khi chạy)
-node scripts/office/devset-run.mjs --server-sha 4df589a37 --db-url "$UNIWORK_DEVSET_DB_URL" \
+node scripts/office/devset-run.mjs --server-sha 4df589a37 --db-url "$DATABASE_URL" \
   --frame-dir <fork-checkout> --out docs/office/g5g6g7/devset/runs/run-v1-4df589a37.json
-node scripts/office/devset-run.mjs --server-sha <commit-@2> --db-url "$UNIWORK_DEVSET_DB_URL" \
+node scripts/office/devset-run.mjs --server-sha <commit-@2> --db-url "$DATABASE_URL" \
   --frame-dir <fork-checkout> --out docs/office/g5g6g7/devset/runs/run-v2-<commit-@2>.json
 node scripts/office/devset-run.mjs --help
 ```
 
-`--frame-dir` bật phần chứng minh giao diện bảng điều khiển: runner tự gõ prompt của từng ca vào panel thật của fork (docs/sheets × vi/en), chấm câu trả lời bằng `scoreDevCase` và **từ chối ghi summary** nếu không đủ 4 tổ hợp hoặc một tổ hợp không gọi tới façade bằng `frame_token`. Harness chỉ đọc checkout fork: mọi liên kết `@genoffice` được dựng trong thư mục harness ở `/tmp`.
+`--frame-dir` bật phần chứng minh giao diện bảng điều khiển: runner tự gõ prompt của từng ca vào panel thật của fork (docs/sheets × vi/en), chấm câu trả lời bằng `scoreDevCase` và **từ chối ghi summary** nếu không đủ 4 tổ hợp hoặc một tổ hợp không gọi tới façade bằng `frame_token`. Harness chỉ đọc checkout fork: mọi liên kết `@genoffice` được dựng trong thư mục harness ở `/tmp` và được kiểm chứng bằng `assertPanelHarnessFilesystem` (đối chiếu ảnh chụp trực tiếp `<fork>/node_modules/@genoffice` trên đĩa).
