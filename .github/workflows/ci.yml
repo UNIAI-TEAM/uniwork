@@ -61,6 +61,9 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - 'scripts/**'
+              # the contract tests read the pinned office tool schema and the
+              # tool table under docs/office; a docs-only re-pin must run this job.
+              - 'docs/office/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/changelog.yml'
               - 'server/internal/service/reserved_slugs.json'
