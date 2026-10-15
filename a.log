@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+222dd502c36ec8d1798153d7789b9c5cc21b37a1
+222dd502c fix(documents): wrap the owner row at 390, keep focus and a result title after deactivation
+b111c6afc fix(settings): aria-disabled confirms, gate Chuyển tài liệu, lazy member picker
+96e0d7b96 fix(documents): share one member picker, align owner copy, hide Revoke from a pure admin
+4cc9466ea docs: glossary rows for document owner transfer
+4d3aee95c Merge branch 'feature/UNI-1630-w-doc06-bulk' into feature/UNI-1630-w-doc06-owner-transfer
+896171fc5 feat(settings): offer to transfer a member's documents when deactivating them
+47d414e6e refactor(settings): keep the document-ownership endpoint types private
+c77e8df9d fix(documents): return focus to Transfer ownership when its dialog closes

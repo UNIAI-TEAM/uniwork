@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18430 13350; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18430/tcp 13350/tcp 2>/dev/null; sleep 1; for p in 18430 13350; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+222dd502c36ec8d1798153d7789b9c5cc21b37a1
+222dd502c fix(documents): wrap the owner row at 390, keep focus and a result title after deactivation
+b111c6afc fix(settings): aria-disabled confirms, gate Chuyển tài liệu, lazy member picker
+96e0d7b96 fix(documents): share one member picker, align owner copy, hide Revoke from a pure admin
+4cc9466ea docs: glossary rows for document owner transfer
