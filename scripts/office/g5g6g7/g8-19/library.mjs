@@ -114,15 +114,10 @@ export function decideG8A09Docs(record) {
     : { status: "FAIL", reason: failed.map(([name, c]) => `${name}: ${c.detail}`).join("; "), checks };
 }
 
-/**
- * How many local working copies of `documentId` exist under
- * `<userData>/uniwork-documents/<deployment>/<account>/<key>/`: a directory
- * named by the id, or one whose binding.json is bound to it. A second one means
- * the app copied the document instead of opening it by id.
- */
-export function countWorkingCopies(userDataDir, documentId) {
+/** the working-copy directories bound to `documentId`, with their parsed binding.json (null when unreadable) */
+function workingCopiesOf(userDataDir, documentId) {
   const root = join(userDataDir ?? "", "uniwork-documents");
-  if (!userDataDir || !documentId || !existsSync(root)) return 0;
+  if (!userDataDir || !documentId || !existsSync(root)) return [];
   const dirs = (path) => {
     try {
       return readdirSync(path, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(path, d.name));
@@ -130,21 +125,45 @@ export function countWorkingCopies(userDataDir, documentId) {
       return [];
     }
   };
-  let count = 0;
+  const found = [];
   for (const deployment of dirs(root)) {
     for (const account of dirs(deployment)) {
       for (const dir of dirs(account)) {
-        let bound = false;
+        let binding = null;
         try {
-          bound = JSON.parse(readFileSync(join(dir, "binding.json"), "utf8")).documentId === documentId;
+          binding = JSON.parse(readFileSync(join(dir, "binding.json"), "utf8"));
         } catch {
           // no readable binding: the directory name decides
         }
-        if (bound || basename(dir) === documentId) count += 1;
+        if (binding?.documentId === documentId || basename(dir) === documentId) found.push({ dir, binding });
       }
     }
   }
-  return count;
+  return found;
+}
+
+/**
+ * How many local working copies of `documentId` exist under
+ * `<userData>/uniwork-documents/<deployment>/<account>/<key>/`: a directory
+ * named by the id, or one whose binding.json is bound to it. A second one means
+ * the app copied the document instead of opening it by id.
+ */
+export function countWorkingCopies(userDataDir, documentId) {
+  return workingCopiesOf(userDataDir, documentId).length;
+}
+
+/**
+ * The title the desktop holds for the document: `title` of its binding.json,
+ * which the app rewrites when a rename made elsewhere reaches it (fork
+ * uniwork-docs/service.ts applyTitle). Read from disk because the app also
+ * renames the working-copy file when no editor holds it, so
+ * uniworkDocStatus(<old path>) answers null after a web rename.
+ */
+export function readWorkingCopyTitle(userDataDir, documentId) {
+  for (const { binding } of workingCopiesOf(userDataDir, documentId)) {
+    if (typeof binding?.title === "string" && binding.title) return binding.title;
+  }
+  return null;
 }
 
 const appError = (res) => (res && typeof res === "object" && res.ok === false ? String(res.error ?? "unknown") : "no answer");
@@ -271,19 +290,27 @@ export async function gatherLibrary(ctx, deps) {
     const patch = await session.call("patchDocument", { documentID: created.id }, { revision, title: names.web });
     if (patch.status === 0) throw new Error(`PATCH /documents/${created.id} did not answer (${patch.error})`);
     let title = null;
+    let titleSource = "none";
     let focuses = 0;
     if (patch.status === 200) {
       const maxFocuses = Math.max(1, Math.ceil(waitMs / Math.max(1, pollMs)));
       for (let i = 0; i < maxFocuses; i += 1) {
         if (created.path) await ctrl.focus(created.path);
         focuses += 1;
-        const status = created.path ? await app("uniworkDocStatus", created.path) : null;
-        title = status?.title ?? null;
+        // the binding is the desktop's own record and survives the app moving the working copy;
+        // the status by the old path is only a fallback while the copy has not moved
+        title = readWorkingCopyTitle(userDataDir, created.id);
+        titleSource = title ? "binding.json" : "none";
+        if (!title && created.path) {
+          const status = await app("uniworkDocStatus", created.path).catch(() => null);
+          title = status?.title ?? null;
+          if (title) titleSource = "uniworkDocStatus";
+        }
         if (title === names.web) break;
         await nap(pollMs);
       }
     }
-    record.webRename = { patchStatus: patch.status, expectedTitle: names.web, appTitleAfterFocus: title, focuses, via: "PATCH /documents/{id} (the web library's rename call)" };
+    record.webRename = { patchStatus: patch.status, expectedTitle: names.web, appTitleAfterFocus: title, titleSource, focuses, via: "PATCH /documents/{id} (the web library's rename call)" };
     return { details: { ...record.webRename } };
   });
 
