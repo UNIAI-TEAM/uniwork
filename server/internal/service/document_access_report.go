@@ -73,9 +73,9 @@ type DocumentAccessReportExport struct {
 	Format, FileName string
 }
 
-// EffectiveAccessReportLimit clamps a requested page size (<= 0 or > 100 ->
-// 50), exported so the handler can tell a full page without a second copy.
-func EffectiveAccessReportLimit(limit int) int {
+// effectiveAccessReportLimit clamps a requested page size (<= 0 or > 100 ->
+// 50). The handler tells a full page from NextAfterID, not from the limit.
+func effectiveAccessReportLimit(limit int) int {
 	if limit <= 0 || limit > 100 {
 		return 50
 	}
@@ -260,20 +260,30 @@ type accessReportPageResult struct {
 func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (accessReportPageResult, error) {
 	var out accessReportPageResult
 	var docs []db.Document
-	var err error
 	if r.folder != nil {
-		docs, err = r.q.ListDocumentAccessReportSubtreeCandidates(ctx, db.ListDocumentAccessReportSubtreeCandidatesParams{
+		rows, err := r.q.ListDocumentAccessReportSubtreeCandidates(ctx, db.ListDocumentAccessReportSubtreeCandidatesParams{
 			OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID, RootID: r.folder.ID,
 			MaxLevel: subtreeMaxLevel(), Visibility: r.in.Visibility, AfterID: afterID, MaxRows: int32(limit),
 		})
+		if err != nil {
+			return out, err
+		}
+		docs = make([]db.Document, len(rows))
+		for i, row := range rows {
+			docs[i] = accessReportCandidate(row)
+		}
 	} else {
-		docs, err = r.q.ListDocumentAccessReportWorkspaceCandidates(ctx, db.ListDocumentAccessReportWorkspaceCandidatesParams{
+		rows, err := r.q.ListDocumentAccessReportWorkspaceCandidates(ctx, db.ListDocumentAccessReportWorkspaceCandidatesParams{
 			OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID,
 			Visibility: r.in.Visibility, AfterID: afterID, MaxRows: int32(limit),
 		})
-	}
-	if err != nil {
-		return out, err
+		if err != nil {
+			return out, err
+		}
+		docs = make([]db.Document, len(rows))
+		for i, row := range rows {
+			docs[i] = accessReportCandidate(db.ListDocumentAccessReportSubtreeCandidatesRow(row))
+		}
 	}
 	out.candidates = len(docs)
 	if len(docs) == limit {
@@ -338,6 +348,17 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 		}
 	}
 	return out, r.attachNames(ctx, out.items)
+}
+
+// accessReportCandidate is a narrow candidate row as the document the list
+// mirror reads; the columns it leaves out (content, search text, versions)
+// no report path reads.
+func accessReportCandidate(r db.ListDocumentAccessReportSubtreeCandidatesRow) db.Document {
+	return db.Document{
+		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID, ParentID: r.ParentID,
+		Kind: r.Kind, Title: r.Title, Visibility: r.Visibility, OwnerKind: r.OwnerKind, OwnerID: r.OwnerID,
+		AclOwnerID: r.AclOwnerID, ArchivedAt: r.ArchivedAt, UpdatedAt: r.UpdatedAt,
+	}
 }
 
 // buildItem turns one listed document into its rows, then applies the person
@@ -556,7 +577,7 @@ func (s *DocumentService) DocumentAccessReport(ctx context.Context, actor Actor,
 	if err != nil {
 		return DocumentAccessReportPage{}, err
 	}
-	res, err := run.page(ctx, in.AfterID, EffectiveAccessReportLimit(in.Limit))
+	res, err := run.page(ctx, in.AfterID, effectiveAccessReportLimit(in.Limit))
 	if err != nil {
 		return DocumentAccessReportPage{}, err
 	}

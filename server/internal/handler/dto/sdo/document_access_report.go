@@ -15,7 +15,7 @@ type DocumentAccessReportSDO struct {
 // DocumentAccessReportScopeDTO echoes the resolved scope of the report.
 type DocumentAccessReportScopeDTO struct {
 	Kind        string  `json:"kind" description:"folder hoặc workspace" example:"folder"`
-	WorkspaceID string  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	WorkspaceID string  `json:"workspace_id" description:"Workspace của báo cáo" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	FolderID    *string `json:"folder_id" description:"Thư mục gốc; null khi phạm vi là cả workspace" example:"01J8X4FLD0N1P2Q3R4S5T6U7"`
 	FolderTitle *string `json:"folder_title" description:"Tên thư mục gốc; null khi phạm vi là cả workspace" example:"Hợp đồng"`
 }
@@ -35,20 +35,20 @@ type DocumentAccessReportDocumentDTO struct {
 
 // DocumentAccessReportDocumentInfoDTO is the document block of one report entry.
 type DocumentAccessReportDocumentInfoDTO struct {
-	ID            string                        `json:"id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	Title         string                        `json:"title" example:"Hợp đồng ABC"`
+	ID            string                        `json:"id" description:"Id tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Title         string                        `json:"title" description:"Tên tài liệu" example:"Hợp đồng ABC"`
 	Kind          string                        `json:"kind" description:"page, file, folder, ... (chuỗi mở)" example:"file"`
 	Visibility    string                        `json:"visibility" description:"workspace hoặc restricted (chuỗi mở)" example:"restricted"`
 	Path          []DocumentPathItemSDO         `json:"path" description:"Tổ tiên từ gốc tới cha trực tiếp; dừng ở tổ tiên đầu tiên người gọi không đọc được" example:"[{\"id\":\"01J8X4FLD0N1P2Q3R4S5T6U7\",\"title\":\"Hợp đồng\"}]"`
 	ACLOwner      *DocumentAccessReportOwnerDTO `json:"acl_owner" description:"Chủ sở hữu ACL; null khi không có"`
 	PersonLevel   *string                       `json:"person_level,omitempty" description:"Chỉ có khi lọc person_id: mức của người đó trên tài liệu (none, view, comment, edit, manage)" example:"edit"`
 	LiveLinkCount int                           `json:"live_link_count" description:"Số liên kết công khai còn sống (chưa thu hồi, chưa hết hạn)" example:"1"`
-	UpdatedAt     string                        `json:"updated_at" example:"2026-10-14T09:00:00Z"`
+	UpdatedAt     string                        `json:"updated_at" description:"Lần sửa cuối, RFC3339 UTC" example:"2026-10-14T09:00:00Z"`
 }
 
 // DocumentAccessReportOwnerDTO names the ACL owner; name only, never email.
 type DocumentAccessReportOwnerDTO struct {
-	ID   string  `json:"id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	ID   string  `json:"id" description:"Id người dùng chủ sở hữu ACL" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	Name *string `json:"name" description:"Tên hiển thị; null nếu tài khoản không còn" example:"Nguyễn An"`
 }
 
@@ -57,7 +57,7 @@ type DocumentAccessReportRowDTO struct {
 	Source         string  `json:"source" description:"acl_owner, workspace (thành viên workspace trên tài liệu hiển thị workspace), share, break_glass; giá trị lạ hiển thị là Khác" example:"share"`
 	Via            string  `json:"via" description:"member, share hoặc break_glass (chuỗi mở)" example:"share"`
 	PrincipalType  string  `json:"principal_type" description:"user, workspace hoặc organization" example:"workspace"`
-	PrincipalID    string  `json:"principal_id" example:"01J8X4WS9N1P2Q3R4S5T6U7V8"`
+	PrincipalID    string  `json:"principal_id" description:"Id người dùng, workspace hoặc tổ chức được cấp" example:"01J8X4WS9N1P2Q3R4S5T6U7V8"`
 	PrincipalName  *string `json:"principal_name" description:"Tên hiển thị (không email); null nếu không còn" example:"Pháp chế"`
 	Level          string  `json:"level" description:"Mức đường này cấp: view, comment, edit, manage (chuỗi mở)" example:"view"`
 	EffectiveLevel string  `json:"effective_level" description:"user: mức thực của người đó trên tài liệu; workspace/organization: mức mọi thành viên nhóm cùng nhận được từ tài liệu; none nếu không còn" example:"view"`

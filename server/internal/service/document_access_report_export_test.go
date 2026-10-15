@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -184,5 +185,127 @@ func TestAccessReportExportTooLarge(t *testing.T) {
 	var ve ValidationError
 	if _, err := f.svc.ExportDocumentAccessReport(f.ctx, Human(tn.owner.ID), tn.wsA, in, "pdf", io.Discard); !errors.As(err, &ve) {
 		t.Fatalf("format pdf: err = %v", err)
+	}
+}
+
+// arExportParts unzips a workbook into part name -> body.
+func arExportParts(t *testing.T, raw []byte) map[string]string {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatalf("not a zip: %v", err)
+	}
+	parts := map[string]string{}
+	for _, file := range zr.File {
+		rc, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(rc)
+		_ = rc.Close()
+		parts[file.Name] = string(body)
+	}
+	return parts
+}
+
+// BEB-1: a person_id of a user of another organization never brings that
+// user's name into the page or either export format.
+func TestAccessReportPersonOfAnotherOrganizationIsNeverNamed(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn, in := f.arExportFixture(t, "arx4")
+	other := f.tenant(t, "arx4o")
+	foreign := registerVerified(t, f.q, f.as, "arx4o-foreign@example.com", "Zforeign Tenantname")
+	f.orgMember(t, other.orgID, foreign.ID, OrgRoleMember)
+	in.PersonID = foreign.ID
+	const name = "Zforeign"
+
+	page := f.report(t, Human(tn.owner.ID), tn.wsA, in)
+	if len(page.Items) != 0 {
+		t.Fatalf("a foreign person lists %v", arIDs(page))
+	}
+	if s := fmt.Sprintf("%+v", page); strings.Contains(s, name) {
+		t.Fatalf("the page carries the foreign name: %s", s)
+	}
+	for _, format := range []string{AccessReportFormatCSV, AccessReportFormatXLSX} {
+		t.Run(format, func(t *testing.T) {
+			var buf bytes.Buffer
+			res, err := f.svc.ExportDocumentAccessReport(f.ctx, Human(tn.owner.ID), tn.wsA, in, format, &buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Rows != 0 || strings.Contains(fmt.Sprintf("%+v", res), name) {
+				t.Fatalf("export facts: %+v", res)
+			}
+			body := buf.String()
+			if format == AccessReportFormatXLSX {
+				var all strings.Builder
+				for _, p := range arExportParts(t, buf.Bytes()) {
+					all.WriteString(p)
+				}
+				body = all.String()
+				if !strings.Contains(body, ">person_name<") {
+					t.Fatal("sheet meta lacks the person_name key")
+				}
+			}
+			if strings.Contains(body, name) {
+				t.Fatalf("the %s file carries the foreign name", format)
+			}
+		})
+	}
+}
+
+// BEB-2, BEB-5: a CSV cell never starts a formula, and records end in CRLF.
+// The XLSX keeps the text as is: inline strings are never formulas.
+func TestAccessReportExportNeutralisesFormulas(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "arx5")
+	evil := registerVerified(t, f.q, f.as, "arx5-evil@example.com", "@SUM(1+1)")
+	f.orgMember(t, tn.orgID, evil.ID, OrgRoleMember)
+	f.wsMember(t, tn.wsA, evil.ID, "member")
+	d := f.arDoc(t, tn, arDocSpec{title: `=HYPERLINK("http://x","y")`, visibility: "restricted"})
+	f.share(t, d, DocumentPrincipalUser, evil.ID, DocumentLevelView, tn.owner.ID)
+	in := DocumentAccessReportQuery{PersonID: evil.ID}
+
+	var buf bytes.Buffer
+	if _, err := f.svc.ExportDocumentAccessReport(f.ctx, Human(tn.owner.ID), tn.wsA, in, AccessReportFormatCSV, &buf); err != nil {
+		t.Fatal(err)
+	}
+	raw := buf.Bytes()[3:]
+	if !bytes.Contains(raw, []byte("\r\n")) || bytes.Count(raw, []byte("\n")) != bytes.Count(raw, []byte("\r\n")) {
+		t.Fatalf("records do not end in CRLF: %q", raw)
+	}
+	lines, err := csv.NewReader(bytes.NewReader(raw)).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 2 {
+		t.Fatalf("lines = %d, want header + 1", len(lines))
+	}
+	for _, line := range lines {
+		for i, cell := range line {
+			if cell != "" && strings.ContainsRune("=+-@\t\r", []rune(cell)[0]) {
+				t.Fatalf("cell %d starts a formula: %q", i, cell)
+			}
+		}
+	}
+	if got := lines[1][1]; got != `'=HYPERLINK("http://x","y")` {
+		t.Fatalf("title cell = %q", got)
+	}
+	if got := lines[1][11]; got != "'@SUM(1+1)" {
+		t.Fatalf("principal_name cell = %q", got)
+	}
+
+	buf.Reset()
+	if _, err := f.svc.ExportDocumentAccessReport(f.ctx, Human(tn.owner.ID), tn.wsA, in, AccessReportFormatXLSX, &buf); err != nil {
+		t.Fatal(err)
+	}
+	sheet := arExportParts(t, buf.Bytes())["xl/worksheets/sheet1.xml"]
+	for _, want := range []string{`t="inlineStr"`, `>=HYPERLINK(&#34;http://x&#34;,&#34;y&#34;)<`, ">@SUM(1+1)<"} {
+		if !strings.Contains(sheet, want) {
+			t.Fatalf("sheet access_report lacks %q", want)
+		}
+	}
+	if strings.Contains(sheet, "<f>") || strings.Contains(sheet, ">'=") || strings.Contains(sheet, ">'@") {
+		t.Fatal("the XLSX cells changed: a formula or a quote prefix")
 	}
 }

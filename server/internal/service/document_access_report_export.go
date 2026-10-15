@@ -129,8 +129,11 @@ func (s *DocumentService) ExportDocumentAccessReport(ctx context.Context, actor 
 	if err != nil {
 		return out, err
 	}
+	// The name is read only when the person's own gates admitted them here,
+	// the same gate the rows use: an id from another organization, or of a
+	// deactivated member, stays an id in the file.
 	personName := ""
-	if in.PersonID != "" {
+	if in.PersonID != "" && run.person != nil {
 		infos, err := NewActorService(q).Resolve(ctx, []ActorRef{{Kind: audit.KindHuman, ID: in.PersonID}})
 		if err != nil {
 			return out, err
@@ -247,7 +250,7 @@ func accessReportLines(items []DocumentAccessReportItem, withPerson bool) ([]str
 	return header, lines
 }
 
-// writeAccessReportCSV writes strict RFC 4180 with a UTF-8 BOM (Excel on a
+// writeAccessReportCSV writes RFC 4180 (CRLF records) with a UTF-8 BOM (Excel on a
 // Vietnamese Windows reads BOM-less UTF-8 as Windows-1252). The generation
 // time and the filter ride two trailing columns of every line, so no
 // preamble breaks a parser and any row-wise import keeps them.
@@ -256,12 +259,13 @@ func writeAccessReportCSV(w io.Writer, header []string, lines [][]string, meta a
 		return err
 	}
 	cw := csv.NewWriter(w)
+	cw.UseCRLF = true
 	filter := meta.filter()
-	if err := cw.Write(append(append([]string(nil), header...), "report_generated_at", "report_filter")); err != nil {
+	if err := cw.Write(csvSafeCells(append(append([]string(nil), header...), "report_generated_at", "report_filter"))); err != nil {
 		return err
 	}
 	for _, line := range lines {
-		if err := cw.Write(append(append([]string(nil), line...), meta.generatedAt, filter)); err != nil {
+		if err := cw.Write(csvSafeCells(append(append([]string(nil), line...), meta.generatedAt, filter))); err != nil {
 			return err
 		}
 	}
@@ -281,4 +285,17 @@ func writeAccessReportXLSX(w io.Writer, header []string, lines [][]string, meta 
 	}
 	_, err := w.Write(book)
 	return err
+}
+
+// csvSafeCells neutralises spreadsheet formulas in place: a cell whose first
+// rune is = + - @ TAB or CR (a title or display name anyone can set) gets a
+// leading quote, so Excel and LibreOffice show it as text instead of running
+// it. The XLSX needs no such guard: its cells are inline strings.
+func csvSafeCells(cells []string) []string {
+	for i, c := range cells {
+		if c != "" && strings.ContainsRune("=+-@\t\r", rune(c[0])) {
+			cells[i] = "'" + c
+		}
+	}
+	return cells
 }

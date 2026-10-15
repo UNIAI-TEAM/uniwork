@@ -2,9 +2,12 @@
 -- non-owned documents of one workspace (or one folder subtree), walked by id
 -- so pages never repeat a row; the service resolves the caller's level on a
 -- page through the list mirror of the resolver before it lists anything.
+-- The candidate reads name the columns a report uses: never d.*, which
+-- would drag content, content_text and search_text through every page.
 
 -- name: ListDocumentAccessReportWorkspaceCandidates :many
-SELECT d.*
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
+  d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
 FROM documents d
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
@@ -34,7 +37,8 @@ WITH RECURSIVE sub AS (
     AND c.workspace_id = sqlc.arg(workspace_id)
     AND sub.lvl < sqlc.arg(max_level)::int
 )
-SELECT d.*
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
+  d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
 FROM sub
 JOIN documents d ON d.id = sub.id
 WHERE d.organization_id = sqlc.arg(organization_id)
