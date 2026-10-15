@@ -495,7 +495,7 @@ test("runG8A02 (xlsx, fake): upload, desktop comment on B7, insert row + Save ->
   assert.equal(record.details.shift.row.anchor.range, "B8");
   assert.equal(record.details.remove.row.anchor_state, "lost");
 
-  const created = fake.calls.app.find((c) => c.key === "comments.create" && !c.args[0].parentId);
+  const created = fake.calls.app.find((c) => c.key === "comments.create" && !c.args[0].parentId && c.args[0].path !== CLOSED_PATH);
   assert.deepEqual(created.args[0].anchor, B7_ANCHOR);
   assert.equal(created.args[0].baseVersionId, "ver-1");
   const mint = fake.calls.api.find((c) => c.key === "mintLaunch");
@@ -526,12 +526,14 @@ test("runG8A02 opens the editor's comments panel and waits until the editor list
   const record = await runG8A02(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
   assert.equal(ctx.steps["editor-lists"]?.status, "PASS", JSON.stringify(ctx.steps));
   assert.equal(record.details.editorLists.listed, true);
-  const evals = fake.calls.app.filter((c) => c.key === "evalBounded").map((c) => c.args[2]);
+  // the panel-open path starts after the closed-panel document's Save
+  const after = fake.calls.app.slice(fake.calls.app.findIndex((c) => c.key === "save" && c.args[0] === CLOSED_PATH) + 1);
+  const evals = after.filter((c) => c.key === "evalBounded").map((c) => c.args[2]);
   const opened = evals.indexOf("edit:click:1");
   const listed = evals.lastIndexOf("probe:listed");
   const inserted = evals.findIndex((l, i) => i > listed && l.startsWith("edit:"));
   assert.ok(opened >= 0 && listed > opened && inserted > listed, `opener, then the listing, then the edit: ${evals.join(",")}`);
-  const actions = fake.calls.app.filter((c) => c.key === "evalBounded").map((c) => c.args[1]);
+  const actions = after.filter((c) => c.key === "evalBounded").map((c) => c.args[1]);
   assert.deepEqual(actions.slice(1, 1 + PANEL_OPENERS.xlsx.plan.length), PANEL_OPENERS.xlsx.plan);
 });
 
@@ -543,7 +545,7 @@ test("runG8A02: an editor that never lists the comment is FAIL at editor-lists a
   const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 5_000), framePin: { gitSha: "05fd209" } });
   assert.equal(record.status, "FAIL");
   assert.match(record.reason, /^editor-lists: .*did not list comment c1/);
-  assert.equal(fake.calls.app.filter((c) => c.key === "save").length, 0, "no Save without a tracked anchor");
+  assert.equal(fake.calls.app.filter((c) => c.key === "save" && c.args[0] !== CLOSED_PATH).length, 0, "no Save without a tracked anchor");
 });
 
 test("decideG8A02 remove: the kept-version rule speaks only about a lost row (an exact row already fails on its state)", () => {
@@ -577,7 +579,8 @@ test("decideG8A02 closed-panel Save: an anchor left on the old version is FAIL w
     assert.equal(CLOSED_PANEL_OWNER, "g8-fork_editors / Lead F");
     assert.equal(d.status, "FAIL", `${format}: not BLOCKED, not hidden`);
   }
-  assert.match(decideG8A02(passingRecord({ format: "docx", closedPanel: closedMoved() })).steps["check:closed-panel-save"].reason ?? "", /ServerCommentsHost\.tsx:194-203/, "docx cites its anchor round");
+  const stayed = closedMoved({ row: { id: "cc", anchor: B7_ANCHOR, anchor_state: "lost", anchor_version_id: "vc-1" } });
+  assert.match(decideG8A02(passingRecord({ format: "docx", closedPanel: stayed })).steps["check:closed-panel-save"].reason, /ServerCommentsHost\.tsx:194-203/, "docx cites its anchor round");
 });
 
 test("decideG8A02 closed-panel Save: moved but wrong place, a failed edit or Save, or a part that did not run -> FAIL with that reason", () => {

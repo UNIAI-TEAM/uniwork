@@ -1,7 +1,11 @@
 // G8-19 (UNI-1414) row module G8-A02 "anchors survive Save", plus the anchor
 // and desktop helpers comments.mjs shares:
 //   node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture <fx> --run-dir <dir>
-// Desktop user A comments on an anchor of the fixture, opens the editor's own
+// First, on its own document (check:closed-panel-save): the same comment made with
+// the panel closed, a structural edit before it and a Save must move the server
+// anchor to the new head (AC G8-A02, contract-collab G8-D2: a map after every Save
+// receipt); left on the old version it is a product FAIL, never hidden or BLOCKED.
+// Then desktop user A comments on an anchor of the fixture, opens the editor's own
 // comments panel and waits until it lists that comment (the post-Save anchor
 // round only covers roots the editor has listed), makes a structural edit
 // in the editor that moves it, saves, and the server row must follow to the new
@@ -17,7 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { connectApp as realConnectApp, editorKindOfFormat } from "../harness/app.mjs";
+import { connectApp as realConnectApp, editorKindOfFormat, editorKindOfUrl } from "../harness/app.mjs";
 import { loadPlaywrightChromium, sleep as realSleep } from "../harness/app-steps.mjs";
 import { loadVerifiedFixture } from "../harness/fixture-files.mjs";
 import { DEV_CLIENT_ID, forkCacheDir, isMainModule } from "../harness/lib.mjs";
@@ -448,6 +452,51 @@ const rowState = (row) => (row ? { id: row.id, anchor: row.anchor ?? null, ancho
 
 // ---- G8-A02 decision ----------------------------------------------------------------------
 
+/** Owner candidate of a desktop that does not re-anchor on Save with the panel closed. */
+export const CLOSED_PANEL_OWNER = "g8-fork_editors / Lead F";
+
+/**
+ * Fork 7d665a54: the post-Save anchor round of each editor, built only from the roots its
+ * collab controller has listed (that controller lists once at mount, use-collab-threads.ts:455-475,
+ * and reloads only while the panel is open, comments-poll.ts:128-131).
+ */
+export const ANCHOR_ROUND_CITES = Object.freeze({
+  docx: "apps/docs/src/renderer/server-comments/ServerCommentsHost.tsx:194-203",
+  xlsx: "apps/sheets/src/renderer/server-comments/SheetsServerComments.tsx:207-213",
+  pptx: "apps/slides/src/renderer/use-server-comments.ts:158-166",
+  pdf: "apps/pdf/src/renderer/server-comments/PdfServerComments.tsx:179-188",
+});
+const POLL_GATE_CITE = "packages/electron-utils/src/comments-poll.ts:128-131";
+
+/**
+ * check:closed-panel-save (pure): a comment made with the panel closed, a structural edit before
+ * its anchor and a Save must leave the row exact on the new head at the moved place. A row still
+ * on the old version is the product finding (never BLOCKED); a setup failure passes its reason.
+ */
+export function decideClosedPanel(part, format) {
+  if (!part) return { status: "FAIL", reason: "the closed-panel Save did not run" };
+  if (!part.ran) return { status: "FAIL", reason: part.reason ?? "the closed-panel Save did not run" };
+  if (part.edited?.status !== "ok") return { status: "FAIL", reason: `edit driver: ${part.edited?.reason ?? "did not run"}` };
+  if (!part.saved) return { status: "FAIL", reason: "Save failed" };
+  const row = part.row;
+  if (!row) return { status: "FAIL", reason: "the comment row is missing after Save" };
+  if (!part.headVersionId || part.headVersionId === part.versionBefore) return { status: "FAIL", reason: `Save made no new version (head ${part.headVersionId ?? "none"})` };
+  if (row.anchor_version_id !== part.headVersionId) {
+    return {
+      status: "FAIL",
+      reason:
+        `desktop re-anchors on Save only the roots its open comments panel listed (${POLL_GATE_CITE}, ${ANCHOR_ROUND_CITES[format] ?? "the editor's anchor round"}); ` +
+        `with the panel closed the server anchor stays on the old version (row on ${row.anchor_version_id}, ${row.anchor_state}, at ${describeAnchor(row.anchor)}; head ${part.headVersionId}; ` +
+        `owner candidate ${CLOSED_PANEL_OWNER})`,
+      owner: CLOSED_PANEL_OWNER,
+    };
+  }
+  const reasons = [];
+  if (row.anchor_state !== "exact") reasons.push(`anchor_state ${row.anchor_state}, want exact`);
+  if (!anchorMatches(part.expected, row.anchor)) reasons.push(`anchor at ${describeAnchor(row.anchor)}, want ${describeAnchor(part.expected)}`);
+  return check(reasons);
+}
+
 function check(reasons) {
   return reasons.length === 0 ? { status: "PASS" } : { status: "FAIL", reason: reasons.join("; ") };
 }
@@ -471,6 +520,7 @@ function decideEdit(name, part, more) {
  */
 export function decideG8A02(rec) {
   const steps = {};
+  steps["check:closed-panel-save"] = decideClosedPanel(rec.closedPanel, rec.format);
   const c = rec.created ?? {};
   steps["check:create"] = check([
     ...(c.ok && c.commentId ? [] : ["the desktop create did not return a comment"]),
@@ -637,6 +687,48 @@ async function runWebToDesktop({ ctx, world, desk, format, driver, web, launchBr
 
 // ---- G8-A02 flow ---------------------------------------------------------------------------
 
+/** How many pages of `kind` the app shows (diagnostic: editorPage(kind) takes the first one). */
+function countEditorPages(ctrl, kind) {
+  try {
+    return ctrl.browser.contexts().flatMap((c) => c.pages()).filter((p) => editorKindOfUrl(p.url()) === kind).length;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * check:closed-panel-save flow (panel never opened): pdf prepares + saves its pages, A creates the
+ * fixture anchor over the editor bridge exactly as r1 did, the shift plan edits before it, Save,
+ * and the server is polled (bounded) for the row to reach the new head. Fills `part`.
+ */
+async function runClosedPanelSave({ ctx, A, desk, driver, documentId, poll, part }) {
+  if (driver.prepare) {
+    const prepared = await runEditPlan(desk.ctrl, desk.page, driver.prepare);
+    if (prepared.status !== "ok") throw new Error(`prepare edit: ${prepared.reason}`);
+    await saveOnDesktop(desk.ctrl, desk.path);
+  }
+  const context = unwrap(await desk.comments.context({ path: desk.path }), "comments.context");
+  const anchor = anchorForFixture(ctx.fixture, { repoRoot: ctx.repoRoot });
+  const root = unwrap(
+    await desk.comments.create({ path: desk.path, kind: "comment", body: `G8-A02 closed panel ${ctx.fixture}`, anchor, baseVersionId: context.versionId }),
+    "comments.create",
+  ).comment;
+  const versionBefore = (await readServer(A, documentId)).head;
+  Object.assign(part, { commentId: root.id, anchor, versionBefore, expected: expectedAfterShift(anchor) });
+  part.edited = await runEditPlan(desk.ctrl, desk.page, driver.shift);
+  if (part.edited.status !== "ok") return { status: "FAIL", reason: `edit driver: ${part.edited.reason}` };
+  part.saved = false;
+  await saveOnDesktop(desk.ctrl, desk.path);
+  part.saved = true;
+  const rowOf = (srv) => srv.comments.find((r) => r.id === root.id) ?? null;
+  const settled = await poll(
+    () => readServer(A, documentId),
+    (srv) => Boolean(srv.head && srv.head !== versionBefore && rowOf(srv)?.anchor_version_id === srv.head),
+  );
+  Object.assign(part, { headVersionId: settled.value.head, row: rowState(rowOf(settled.value)), elapsedMs: settled.elapsedMs });
+  return settled.ok ? {} : { status: "FAIL", reason: `the anchor did not reach the new version within ${settled.elapsedMs} ms` };
+}
+
 /** Saves `path` through the app; a reply that says it did not save throws. */
 export async function saveOnDesktop(ctrl, path) {
   const res = await ctrl.save(path);
@@ -666,15 +758,28 @@ export async function runG8A02(ctx, deps = {}) {
     const B = world.session("B");
     let doc;
     let other;
+    let closedDoc;
     let s = await ctx.step("upload", async () => {
       doc = await world.upload("A", "W2", ctx.fixture, { title: `G8-A02 ${ctx.fixture}` });
       other = await world.upload("A", "W2", ctx.fixture, { title: `G8-A02 foreign ${ctx.fixture}` });
+      closedDoc = await world.upload("A", "W2", ctx.fixture, { title: `G8-A02 closed panel ${ctx.fixture}` });
       rec.documentId = doc.documentId;
     });
     if (s.status !== "PASS") return failed("upload", s);
 
+    // first, on its own document: the normal case of a user who edits with the comments panel closed
+    rec.closedPanel = { ran: true, documentId: closedDoc.documentId };
+    s = await ctx.step("closed-panel-save", async () => {
+      desk = await openOnDesktop({ ctx, world, connectApp, documentId: closedDoc.documentId, format });
+      return runClosedPanelSave({ ctx, A, desk, driver, documentId: closedDoc.documentId, poll, part: rec.closedPanel });
+    });
+    if (s.status === "FAIL" && !rec.closedPanel.saved && rec.closedPanel.edited?.status === undefined) rec.closedPanel = { ran: false, reason: s.reason };
+
     s = await ctx.step("open-desktop", async () => {
-      desk = await openOnDesktop({ ctx, world, connectApp, documentId: doc.documentId, format });
+      desk = desk?.ctrl
+        ? await openTicketOnDesktop({ ctx, world, ctrl: desk.ctrl, documentId: doc.documentId, format })
+        : await openOnDesktop({ ctx, world, connectApp, documentId: doc.documentId, format });
+      rec.editorPagesOfKind = countEditorPages(desk.ctrl, desk.kind);
     });
     if (s.status !== "PASS") return failed("open-desktop", s);
 
