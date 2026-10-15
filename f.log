@@ -1,0 +1,21 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r13c" OFFICE_FORK_SHA=12ccb8f0 timeout -k 15 300 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-53 --run-dir .harness-run-r13c; rc=$?; echo; echo "APP_CASE_FQ_53_EXIT=$rc"; f=.harness-run-r13c/fault/FQ-53/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",JSON.stringify(r.exitRange||""),(r.assertions||[]).map(a=>(a.ok?"ok ":"FAIL ")+a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "),JSON.stringify(r.exits||r.run_execution||"").slice(0,3000))' "$PWD/$f"; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:44263 app_api=http://127.0.0.1:37031 proxy_upstream=http://127.0.0.1:44263
+FQ-53: running
+dbus-daemon[20940]: [session uid=1000 pid=20940] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20976 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20940]: [session uid=1000 pid=20940] Successfully activated service 'org.a11y.Bus'
+FQ-53: FAIL
+  FQ-53 [store_full → (giải phóng) Lưu lại → queued] trace 2026-10-15T19:21:46.049Z ∅ -> queued
+  FQ-53 [store_full → (giải phóng) Lưu lại → queued] trace 2026-10-15T19:21:46.081Z queued -> committed http=200
+  FQ-53 [store_full → (giải phóng) Lưu lại → queued] trace 2026-10-15T19:22:22.026Z ∅ -> queued
+  FQ-53 [store_full → (giải phóng) Lưu lại → queued] trace 2026-10-15T19:22:22.055Z queued -> committed http=200
+  FQ-53 [store_full → (giải phóng) Lưu lại → queued] proxy 2026-10-15T19:21:46.065Z upload POST 201 key=3e39cb4e9558 rule=-
+  FQ-53 [store_full → (giải phóng) Lưu lại → queued] proxy 2026-10-15T19:21:46.076Z commit POST 200 key=3e39cb4e9558 rule=-
+  FQ-53 [store_full → (giải phóng) Lưu lại → queued] proxy 2026-10-15T19:22:22.040Z upload POST 201 key=fa64f0f44835 rule=-
+  FQ-53 [store_full → (giải phóng) Lưu lại → queued] proxy 2026-10-15T19:22:22.051Z commit POST 200 key=fa64f0f44835 rule=-
+FQ-53 (G5-A05): FAIL
+/workspace/.harness-run-r13c/fault
+APP_CASES_EXIT=1
+
+APP_CASE_FQ_53_EXIT=1
+FQ-53 FAIL   "" FAIL save_refused_store_full: expected "status error store_full" actual "no store_full status" | FAIL no_intent_while_full: expected 0 actual 2 | FAIL no_request_while_full: expected 0 actual 2 | ok committed_after_room: expected "committed" actual "committed" | FAIL one_intent: expected 1 actual 2 | FAIL version_delta: expected 1 actual 2 [{"n":0,"label":"store_full → (giải phóng) Lưu lại → queued","result":"FAIL","assertions":[{"name":"save_refused_store_full","expected":"status error store_full","actual":"no store_full status","ok":false},{"name":"no_intent_while_full","expected":0,"actual":2,"ok":false},{"name":"no_request_while_full","expected":0,"actual":2,"ok":false},{"name":"committed_after_room","expected":"committed","actual":"committed","ok":true},{"name":"one_intent","expected":1,"actual":2,"ok":false},{"name":"version_delta","expected":1,"actual":2,"ok":false}],"evidence":{"documentId":"01M50G5QHDG7KPDZGJY2JJF3AX","trace":[{"ts":"2026-10-15T19:21:46.049Z","intentId":"office-intent-27e44c2a-bc97-4c27-b31d-11803e8b4081","from":null,"to":"queued"},{"ts":"2026-10-15T19:21:46.081Z","intentId":"office-intent-27e44c2a-bc97-4c27-b31d-11803e8b4081","from":"queued","to":"committed","httpStatus":200},{"ts":"2026-10-15T19:22:22.026Z","intentId":"office-intent-0bef6113-0001-48ab-9a82-7b582340bb0d","from":null,"to":"queued"},{"ts":"2026-10-15T19:22:22.055Z","intentId":"office-intent-0bef6113-0001-48ab-9a82-7b582340bb0d","from":"queued","to":"committed","httpStatus":200}],"requests":[{"kind":"upload","ts":"2026-10-15T19:21:46.065Z","method":"POST","status":201,"keyTag":"3e39cb4e9558","ruleId":null},{"kind":"commit","ts":"2026-10-15T19:21:46.076Z","method":"POST","status":200,"keyTag":"3e39cb4e9558","ruleId":null},{"kind":"upload","ts":"2026-10-15T19:22:22.040Z","method":"POST","status":201,"keyTag":"fa64f0f44835","ruleId":null},{"kind":"commit","ts":"2026-10-15T19:22:22.051Z","method":"POST","status":200,"keyTag":"fa64f0f44835","ruleId":null}]}}]

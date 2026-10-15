@@ -1,0 +1,155 @@
+$ for d in .harness-run-r13c/fault/FQ-*/; do echo "=== $d"; ls "$d"; head -n 15 "$d/intent-log.jsonl" 2>/dev/null; head -n 15 "$d/proxy-log.jsonl" 2>/dev/null; head -c 800 "$d/server-versions.json" 2>/dev/null; echo; done; cat test-results/office-g5g6g7-evidence/evidence.jsonl 2>/dev/null; true
+=== .harness-run-r13c/fault/FQ-41/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T19:13:06.290Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8ef80c6f-320c-49e0-9284-e5ab0ace872f","keyTag":"fcf9cadfa9ce","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T19:13:06.311Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8ef80c6f-320c-49e0-9284-e5ab0ace872f","keyTag":"fcf9cadfa9ce","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T19:13:58.671Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8ef80c6f-320c-49e0-9284-e5ab0ace872f","keyTag":"fcf9cadfa9ce","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T19:13:58.671Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8ef80c6f-320c-49e0-9284-e5ab0ace872f","keyTag":"fcf9cadfa9ce","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T19:13:58.671Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8ef80c6f-320c-49e0-9284-e5ab0ace872f","keyTag":"fcf9cadfa9ce","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T19:13:58.671Z","case":"FQ-41","source":"app-trace","intent":"office-intent-8ef80c6f-320c-49e0-9284-e5ab0ace872f","keyTag":"fcf9cadfa9ce","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T19:12:57.985Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.623Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.630Z","method":"GET","path":"/api/v1/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.634Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.638Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9x1bho-62d3/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.645Z","method":"GET","path":"/api/v1/orgs/01M50FNSBE35GH7YVVMY2Q5Y1K/billing","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.655Z","method":"GET","path":"/api/v1/orgs/01M50FNSBE35GH7YVVMY2Q5Y1K/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.659Z","method":"GET","path":"/api/v1/orgs/01M50FNSBE35GH7YVVMY2Q5Y1K/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.664Z","method":"GET","path":"/api/v1/orgs/01M50FNSBE35GH7YVVMY2Q5Y1K/workspaces","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.671Z","method":"GET","path":"/api/v1/workspaces/01M50FNSBNXMD69TF3H34RDE9A/documents/changes","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.680Z","method":"GET","path":"/api/v1/orgs/01M50FNSBE35GH7YVVMY2Q5Y1K/ai/cloud","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:12:58.683Z","method":"GET","path":"/api/v1/orgs/01M50FNSBE35GH7YVVMY2Q5Y1K/ai/credentials","status":503,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:13:02.655Z","method":"GET","path":"/api/v1/documents/01M50FNSD48XHWGGYK273WZH1Q","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:13:02.659Z","method":"GET","path":"/api/v1/documents/01M50FNSD48XHWGGYK273WZH1Q/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:13:02.693Z","method":"GET","path":"/api/v1/documents/01M50FNSD48XHWGGYK273WZH1Q","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50FNSD48XHWGGYK273WZH1Q",
+  "documentId": "01M50FNSD48XHWGGYK273WZH1Q",
+  "readAt": "2026-10-15T19:16:27.128Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50FRJX6J3BM10V8NF0XPDVJ",
+      "document_id": "01M50FNSD48XHWGGYK273WZH1Q",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50FPZQVJFVY85NB4KHCQQ91",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 16584,
+      "checksum_sha256": "057e9392c918a9834c124255cbb9e458077160177f52192744759f4417e5e481",
+      "download_url": "/api/v1/documents/01M50FNSD48XHWGGYK273WZH1Q/download?version=2",
+      "created_by": "01M50FNS98M0D0FW1G7NFXWNNJ",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r13c/fault/FQ-42/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T19:17:07.356Z","case":"FQ-42","source":"app-trace","intent":"office-intent-af25988f-721b-4c57-ad37-64172f310be4","keyTag":"eecfed141133","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T19:17:07.382Z","case":"FQ-42","source":"app-trace","intent":"office-intent-af25988f-721b-4c57-ad37-64172f310be4","keyTag":"eecfed141133","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T19:17:59.770Z","case":"FQ-42","source":"app-trace","intent":"office-intent-af25988f-721b-4c57-ad37-64172f310be4","keyTag":"eecfed141133","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T19:17:59.770Z","case":"FQ-42","source":"app-trace","intent":"office-intent-af25988f-721b-4c57-ad37-64172f310be4","keyTag":"eecfed141133","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T19:17:59.770Z","case":"FQ-42","source":"app-trace","intent":"office-intent-af25988f-721b-4c57-ad37-64172f310be4","keyTag":"eecfed141133","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T19:17:59.770Z","case":"FQ-42","source":"app-trace","intent":"office-intent-af25988f-721b-4c57-ad37-64172f310be4","keyTag":"eecfed141133","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T19:16:59.139Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.719Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.726Z","method":"GET","path":"/api/v1/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.730Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.734Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9x6hms-52e8/members/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.740Z","method":"GET","path":"/api/v1/orgs/01M50FX4Y75XQGG6VR8PRJ9J3N/billing","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.749Z","method":"GET","path":"/api/v1/orgs/01M50FX4Y75XQGG6VR8PRJ9J3N/ai/cloud","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.752Z","method":"GET","path":"/api/v1/orgs/01M50FX4Y75XQGG6VR8PRJ9J3N/office/capabilities","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.758Z","method":"GET","path":"/api/v1/orgs/01M50FX4Y75XQGG6VR8PRJ9J3N/workspaces","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.764Z","method":"GET","path":"/api/v1/workspaces/01M50FX4YCZTZZAJSCWNWX1KW6/documents/changes","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.771Z","method":"GET","path":"/api/v1/orgs/01M50FX4Y75XQGG6VR8PRJ9J3N/ai/credentials","status":503,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:16:59.776Z","method":"GET","path":"/api/v1/orgs/01M50FX4Y75XQGG6VR8PRJ9J3N/ai/cloud","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:17:03.753Z","method":"GET","path":"/api/v1/documents/01M50FX4ZJKDFXP0YKH9RHP2XF","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:17:03.758Z","method":"GET","path":"/api/v1/documents/01M50FX4ZJKDFXP0YKH9RHP2XF/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:17:03.798Z","method":"GET","path":"/api/v1/documents/01M50FX4ZJKDFXP0YKH9RHP2XF","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50FX4ZJKDFXP0YKH9RHP2XF",
+  "documentId": "01M50FX4ZJKDFXP0YKH9RHP2XF",
+  "readAt": "2026-10-15T19:21:08.283Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50FZYBMCT79HKS3FRE9MTTE",
+      "document_id": "01M50FX4ZJKDFXP0YKH9RHP2XF",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50FYB585364FT88F62V2ZD6",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 16584,
+      "checksum_sha256": "019cddd5645efe37dbee475a1f816ecc0d325ee7c27dca7a9ac837172eeee878",
+      "download_url": "/api/v1/documents/01M50FX4ZJKDFXP0YKH9RHP2XF/download?version=2",
+      "created_by": "01M50FX4W0Q9A8WRCMJY2MK6VV",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r13c/fault/FQ-53/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T19:21:46.049Z","case":"FQ-53","source":"app-trace","intent":"office-intent-27e44c2a-bc97-4c27-b31d-11803e8b4081","keyTag":null,"attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T19:21:46.081Z","case":"FQ-53","source":"app-trace","intent":"office-intent-27e44c2a-bc97-4c27-b31d-11803e8b4081","keyTag":null,"attempt":null,"event":"queued -> committed","from":"queued","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T19:22:22.026Z","case":"FQ-53","source":"app-trace","intent":"office-intent-0bef6113-0001-48ab-9a82-7b582340bb0d","keyTag":null,"attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T19:22:22.055Z","case":"FQ-53","source":"app-trace","intent":"office-intent-0bef6113-0001-48ab-9a82-7b582340bb0d","keyTag":null,"attempt":null,"event":"queued -> committed","from":"queued","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T19:21:40.304Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.934Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.945Z","method":"GET","path":"/api/v1/me","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.948Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.951Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9xcikk-86b7/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.958Z","method":"GET","path":"/api/v1/orgs/01M50G5QG67VTHGHHERMW8ZV2D/billing","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.968Z","method":"GET","path":"/api/v1/orgs/01M50G5QG67VTHGHHERMW8ZV2D/ai/cloud","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.974Z","method":"GET","path":"/api/v1/orgs/01M50G5QG67VTHGHHERMW8ZV2D/office/capabilities","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.980Z","method":"GET","path":"/api/v1/orgs/01M50G5QG67VTHGHHERMW8ZV2D/workspaces","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.989Z","method":"GET","path":"/api/v1/workspaces/01M50G5QGBJMRGEZVKF9H21REZ/documents/changes","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.990Z","method":"GET","path":"/api/v1/orgs/01M50G5QG67VTHGHHERMW8ZV2D/ai/credentials","status":503,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:40.993Z","method":"GET","path":"/api/v1/orgs/01M50G5QG67VTHGHHERMW8ZV2D/ai/cloud","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:44.966Z","method":"GET","path":"/api/v1/documents/01M50G5QHDG7KPDZGJY2JJF3AX","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:44.971Z","method":"GET","path":"/api/v1/documents/01M50G5QHDG7KPDZGJY2JJF3AX/download","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T19:21:44.998Z","method":"GET","path":"/api/v1/documents/01M50G5QHDG7KPDZGJY2JJF3AX","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50G5QHDG7KPDZGJY2JJF3AX",
+  "documentId": "01M50G5QHDG7KPDZGJY2JJF3AX",
+  "readAt": "2026-10-15T19:22:22.575Z",
+  "head": {
+    "revision": "3"
+  },
+  "versions": [
+    {
+      "id": "01M50G7YF1R35RQ8CCEZPH50XC",
+      "document_id": "01M50G5QHDG7KPDZGJY2JJF3AX",
+      "version": 3,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50G7YEKRZJF4DBP70PRB8D9",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 4410,
+      "checksum_sha256": "f5e194e8c9fda483429df97cc8ff3c66bd688ebc61836fee7751365e22407af2",
+      "download_url": "/api/v1/documents/01M50G5QHDG7KPDZGJY2JJF3AX/download?version=3",
+      "created_by": "01M50G5QDY3HRTT41ZFM6ENYJ1",
+      "created_by_kind": "human",
+      "creat
