@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
+import type { DocumentAdminScopeFake } from "@uniwork/core/documents/doc05-fake";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -70,7 +71,7 @@ function documentFixture(over: Record<string, unknown> = {}): Document {
   );
 }
 
-function renderMenu(doc = documentFixture(), over: { onArchived?: () => void } = {}) {
+function renderMenu(doc: Document & DocumentAdminScopeFake = documentFixture(), over: { onArchived?: () => void } = {}) {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
@@ -144,6 +145,14 @@ describe("DocumentActionsMenu", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.restore") })).toBeNull();
   });
 
+  it("keeps every item it renders at 44px on coarse pointers", async () => {
+    renderMenu();
+    await openMenu();
+    for (const name of ["share", "access_log", "copy", "archive"]) {
+      expect(screen.getByRole("menuitem", { name: t(`documents.actions.${name}`) })).toHaveClass("pointer-coarse:min-h-11");
+    }
+  });
+
   it("hides share, links, archive and copy on an owned document", async () => {
     renderMenu(documentFixture({ owner_kind: "work_product", owner_id: "wp1" }));
     await openMenu();
@@ -161,6 +170,30 @@ describe("DocumentActionsMenu", () => {
     expect(screen.getByRole("menuitem", { name: t("documents.actions.versions") })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.share") })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
+  });
+
+  // DOC6-W01 (access addendum §2.5, N-01): only Share moves to the
+  // canAdminister() gate; logs, archive and copy keep theirs.
+  it("opens Share to a break-glass admin (view + admin_scope) and keeps logs and archive at manage", async () => {
+    renderMenu({ ...documentFixture({ my_level: "view" }), admin_scope: true });
+    await openMenu();
+
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.share") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.access_log") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
+
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.share") }));
+    expect(await screen.findByRole("dialog", { name: t("documents.share.title") })).toBeInTheDocument();
+    expect(screen.getByText(t("documents.share.admin_scope_note"))).toBeInTheDocument();
+  });
+
+  it("never mounts the share dialog for an editor without admin_scope", async () => {
+    renderMenu(documentFixture({ my_level: "edit" }));
+    await openMenu();
+
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.share") })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: t("documents.share.title") })).toBeNull();
+    expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/shares"))).toBe(false);
   });
 
   it("offers restore instead of archive in the trash", async () => {
