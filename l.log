@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18420 13340; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18420/tcp 13340/tcp 2>/dev/null; sleep 1; for p in 18420 13340; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+4cc9466eaa6b4be47021cf381effc4cfef325568
+4cc9466ea docs: glossary rows for document owner transfer
+4d3aee95c Merge branch 'feature/UNI-1630-w-doc06-bulk' into feature/UNI-1630-w-doc06-owner-transfer
+896171fc5 feat(settings): offer to transfer a member's documents when deactivating them
+47d414e6e refactor(settings): keep the document-ownership endpoint types private

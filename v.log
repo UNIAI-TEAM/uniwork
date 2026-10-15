@@ -1,0 +1,13 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18420 FRONTEND_ORIGIN=http://localhost:13340 API_PUBLIC_URL=http://localhost:18420 PREVIEW_ORIGIN=http://localhost:13341 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18420 NEXT_PUBLIC_WS_URL=ws://localhost:18420 NEXT_PUBLIC_APP_URL=http://localhost:13340 E2E_BASE_URL=http://localhost:13340 E2E_API_URL=http://localhost:18420 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-folders.spec.ts --grep "FD-A06 " --reporter=list > /tmp/wdoc06-FD-A06.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/wdoc06-FD-A06.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/wdoc06-FD-A06.log && echo "skipped: FD-A06 has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/wdoc06-FD-A06.log || { echo "no passing test matched FD-A06"; [ $rc -eq 0 ] && rc=1; }; echo "E2E_FD_A06_EXIT=$rc"
+
+Running 2 tests using 1 worker
+
+(node:89795) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:89795) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-folders.spec.ts:1049:1 › FD-A06 moving folder into itself or a descendant is rejected with 422 document_cycle and blocked in tree drag-and-drop (2.6s)
+  ✓  2 documents-folders.spec.ts:1151:1 › FD-A06 (FD-09 UI) Move-to picker lists self and descendants as focusable aria-disabled rows with the reason Nằm trong chính nó and refuses to select them (2.4s)
+
+  2 passed (6.0s)
+E2E_FD_A06_EXIT=0
