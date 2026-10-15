@@ -217,8 +217,10 @@ while IFS= read -r cmd || [ -n "$cmd" ]; do
   dur=$(( $(date +%s) - t ))
   # A spec line that prints NAME_EXIT=<n> and ends with echo/true exits 0 even
   # when its check failed: the worst non-zero marker in the log decides then.
+  # No boundary before the marker: a truncated dump without a trailing newline
+  # can glue NAME_EXIT=<n> to its last word, and the value is all we read.
   if [ "$code" -eq 0 ]; then
-    marker=$(tail -n +2 "$log" | grep -oE '(^|[^A-Za-z0-9_])[A-Z][A-Z0-9_]*_EXIT=[0-9]+' | sed 's/.*=//' | sort -n | tail -1)
+    marker=$(tail -n +2 "$log" | grep -oE '[A-Z][A-Z0-9_]*_EXIT=[0-9]+' | sed 's/.*=//' | sort -n | tail -1)
     [ -n "$marker" ] && [ "$marker" -ne 0 ] && code=$marker
   fi
   result=pass; [ "$code" -eq 0 ] || { result=fail; any_fail=true; }
