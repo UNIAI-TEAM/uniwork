@@ -809,6 +809,7 @@
         ],
         "proxyLog": "đúng 1 POST commit; ≥1 GET versions/commit cùng keyTag; không POST commit với keyTag khác"
       },
+      "notes": "Save trực tiếp của fork không đối soát câu trả lời commit bị mất (OQ-F11); predicted FAIL OQ-F11",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
