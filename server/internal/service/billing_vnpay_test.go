@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/billing"
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -117,25 +116,9 @@ func TestApplyProviderEventConcurrentAppliesWriteOnce(t *testing.T) {
 		}()
 	}
 
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		var waiting int
-		qerr := f.pool.QueryRow(f.ctx, `
-			SELECT count(*) FROM pg_stat_activity
-			WHERE datname = current_database()
-			  AND wait_event_type = 'Lock'
-			  AND query LIKE '%status <> ''canceled''%'`).Scan(&waiting)
-		if qerr != nil {
-			t.Fatal(qerr)
-		}
-		if waiting >= 2 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for both applies to block on the subscription lock, saw %d", waiting)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	// Poll on hold's connection. A pooled poll needs a fifth connection, and
+	// CI's pool is four (the advisory lock, this barrier, and both applies).
+	waitForLockWaiters(t, hold, 2)
 	if err := hold.Rollback(f.ctx); err != nil {
 		t.Fatal(err)
 	}
