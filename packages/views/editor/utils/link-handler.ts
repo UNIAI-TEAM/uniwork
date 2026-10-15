@@ -261,6 +261,24 @@ export type OpenLinkNavigate = (
  * or the slug-less `/documents/{id}`); any other path is returned as is. A `from`
  * the link already carries wins, and the hash stays last.
  */
+function isDocumentPathname(pathname: string): boolean {
+  const segments = pathname.split("/").filter(Boolean);
+  return (
+    (segments.length === 2 && segments[0] === "documents") ||
+    (segments.length === 4 && segments[2] === "documents")
+  );
+}
+
+/**
+ * Report whether a link addresses an internal document page (the only links a
+ * host's `EditorLinkContext` tags). Same internal-path resolution as `openLink`.
+ */
+export function isInternalDocumentHref(href: string, appOrigin?: string | null): boolean {
+  const internalPath = href.startsWith("/") ? href : toInternalAppPath(href, appOrigin);
+  if (!internalPath) return false;
+  return isDocumentPathname(internalPath.split("#")[0]!.split("?")[0]!);
+}
+
 function withDocumentSource(path: string, source: EditorLinkContext): string {
   const hashAt = path.indexOf("#");
   const beforeHash = hashAt === -1 ? path : path.slice(0, hashAt);
@@ -269,11 +287,7 @@ function withDocumentSource(path: string, source: EditorLinkContext): string {
   const pathname = queryAt === -1 ? beforeHash : beforeHash.slice(0, queryAt);
   const query = queryAt === -1 ? "" : beforeHash.slice(queryAt + 1);
 
-  const segments = pathname.split("/").filter(Boolean);
-  const isDocument =
-    (segments.length === 2 && segments[0] === "documents") ||
-    (segments.length === 4 && segments[2] === "documents");
-  if (!isDocument) return path;
+  if (!isDocumentPathname(pathname)) return path;
   if (new URLSearchParams(query).has("from")) return path;
 
   const tag = `from=${source.kind}:${encodeURIComponent(source.id)}`;
