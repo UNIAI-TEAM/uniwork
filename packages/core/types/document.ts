@@ -19,10 +19,10 @@ export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 export const DOCUMENT_VISIBILITIES = ["workspace", "restricted"] as const;
 export type DocumentVisibility = (typeof DOCUMENT_VISIBILITIES)[number];
 
-export const DOCUMENT_ACCESS_LEVELS = ["view", "edit", "manage"] as const;
+export const DOCUMENT_ACCESS_LEVELS = ["view", "comment", "edit", "manage"] as const;
 export type DocumentAccessLevel = (typeof DOCUMENT_ACCESS_LEVELS)[number];
 
-export const DOCUMENT_ACCESS_VIA = ["member", "share", "link", "ai_context"] as const;
+export const DOCUMENT_ACCESS_VIA = ["member", "share", "link", "ai_context", "break_glass"] as const;
 export type DocumentAccessVia = (typeof DOCUMENT_ACCESS_VIA)[number];
 
 export const DOCUMENT_VERSION_REASONS = ["manual", "auto", "restore", "upload", "agent"] as const;
@@ -113,6 +113,8 @@ export type Document = Omit<
   visibility: DocumentVisibility;
   my_level?: DocumentAccessLevel;
   via?: DocumentAccessVia;
+  /** True for a workspace admin on a restricted document they do not own (DOC-05). */
+  admin_scope?: boolean;
   owner_kind?: DocumentOwnerKind | null;
 };
 
@@ -296,6 +298,8 @@ export type DocumentSummary = Omit<
   visibility: DocumentVisibility;
   my_level?: DocumentAccessLevel | null;
   via?: DocumentAccessVia | null;
+  /** True for a workspace admin on a restricted row they do not own (DOC-05); no my_level = locked row. */
+  admin_scope?: boolean;
   owner_kind?: DocumentOwnerKind | null;
 };
 
@@ -430,6 +434,8 @@ export const DocumentAccessSchema = z.object({
 export type DocumentAccess = Omit<z.infer<typeof DocumentAccessSchema>, "my_level" | "via"> & {
   my_level: DocumentAccessLevel;
   via: DocumentAccessVia;
+  /** True for a workspace admin administering a restricted document they do not own (DOC-05). */
+  admin_scope?: boolean;
 };
 
 export const DocumentShareEnvelopeSchema = z.object({ share: DocumentShareSchema });

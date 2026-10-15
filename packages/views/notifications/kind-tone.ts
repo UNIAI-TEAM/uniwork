@@ -29,6 +29,8 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   document_discussion_mentioned: moduleTone("documents"),
   document_discussion_replied: moduleTone("documents"),
   document_comment_resolved: moduleTone("documents"),
+  // TEMPORARY (UNI-1413 card (a)): copied from document_commented; card (b) sets the final icon/tone/category.
+  document_break_glass: moduleTone("documents"),
   chat_mentioned: moduleTone("chat"),
   chat_dm: moduleTone("chat"),
   chat_thread_replied: moduleTone("chat"),

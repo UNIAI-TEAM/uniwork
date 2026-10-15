@@ -33,7 +33,7 @@ func (h *handlers) listDocumentShares(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := sdo.DocumentAccessSDO{MyLevel: string(overview.My.Level), Via: string(overview.My.Via)}
+	out := sdo.DocumentAccessSDO{MyLevel: string(overview.My.Level), Via: string(overview.My.Via), AdminScope: overview.My.AdminScope}
 	if overview.ACLOwner != nil {
 		out.ACLOwner = &sdo.DocumentPersonAccessDTO{
 			UserID: overview.ACLOwner.UserID,
@@ -46,6 +46,9 @@ func (h *handlers) listDocumentShares(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, link := range overview.Links {
 		out.Links = append(out.Links, documentLinkDTO(link))
+	}
+	for _, g := range overview.BreakGlass {
+		out.BreakGlass = append(out.BreakGlass, documentBreakGlassGrantDTO(g))
 	}
 	respondJSON(w, http.StatusOK, out)
 }

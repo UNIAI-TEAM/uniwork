@@ -279,6 +279,63 @@ func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Contex
 	return items, nil
 }
 
+const listLiveBreakGlassGrantsForReport = `-- name: ListLiveBreakGlassGrantsForReport :many
+SELECT id, document_id, actor_id, actor_kind, level, granted_at
+FROM document_break_glass_grants
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = ANY($3::text[])
+  AND revoked_at IS NULL
+  AND expires_at > now()
+ORDER BY document_id, granted_at, id
+`
+
+type ListLiveBreakGlassGrantsForReportParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	DocumentIds    []string `json:"document_ids"`
+}
+
+type ListLiveBreakGlassGrantsForReportRow struct {
+	ID         string             `json:"id"`
+	DocumentID string             `json:"document_id"`
+	ActorID    string             `json:"actor_id"`
+	ActorKind  string             `json:"actor_kind"`
+	Level      string             `json:"level"`
+	GrantedAt  pgtype.Timestamptz `json:"granted_at"`
+}
+
+// The live break-glass grants of a page of documents (UNI-1413 DOC-05):
+// every admin's, not only the caller's, as the report shows who holds
+// access. Live = not revoked and not expired, as resolveLevelInTenant reads
+// them. Never the reason: that stays on the share panel and the audit row.
+func (q *Queries) ListLiveBreakGlassGrantsForReport(ctx context.Context, arg ListLiveBreakGlassGrantsForReportParams) ([]ListLiveBreakGlassGrantsForReportRow, error) {
+	rows, err := q.db.Query(ctx, listLiveBreakGlassGrantsForReport, arg.OrganizationID, arg.WorkspaceID, arg.DocumentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLiveBreakGlassGrantsForReportRow{}
+	for rows.Next() {
+		var i ListLiveBreakGlassGrantsForReportRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.ActorID,
+			&i.ActorKind,
+			&i.Level,
+			&i.GrantedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLiveDocumentSharesForReport = `-- name: ListLiveDocumentSharesForReport :many
 SELECT id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, created_at
 FROM document_shares

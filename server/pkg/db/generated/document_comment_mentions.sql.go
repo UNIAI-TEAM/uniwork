@@ -211,6 +211,70 @@ func (q *Queries) ListDocumentCommentMentions(ctx context.Context, arg ListDocum
 	return items, nil
 }
 
+const listNoAccessDocumentCommentMentions = `-- name: ListNoAccessDocumentCommentMentions :many
+SELECT
+  m.user_id,
+  COALESCE(u.display_name, '')::text AS display_name,
+  (om.user_id IS NOT NULL AND om.deactivated_at IS NULL)::boolean AS active_member
+FROM document_comment_mentions m
+LEFT JOIN organization_members om
+  ON om.user_id = m.user_id
+ AND om.organization_id = m.organization_id
+LEFT JOIN users u ON u.id = om.user_id
+WHERE m.comment_id = $1
+  AND m.document_id = $2
+  AND m.organization_id = $3
+  AND m.workspace_id = $4
+  AND m.state = 'no_access'
+ORDER BY m.user_id
+`
+
+type ListNoAccessDocumentCommentMentionsParams struct {
+	CommentID      string `json:"comment_id"`
+	DocumentID     string `json:"document_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+type ListNoAccessDocumentCommentMentionsRow struct {
+	UserID       string `json:"user_id"`
+	DisplayName  string `json:"display_name"`
+	ActiveMember bool   `json:"active_member"`
+}
+
+// The people one comment named who could not read the document when it was
+// saved (G8-18, UNI-1413): the no_access rows the create/edit transaction
+// wrote, answered to the author as mentions_without_access. display_name is
+// read only for a person who belongs to the organization (a stray id outside
+// it carries no name), and active_member tells the service whether a share
+// could ever be offered (a deactivated member keeps their name but cannot be
+// shared with). The row itself never changes: a later grant does not turn it
+// active, so it never notifies retroactively.
+func (q *Queries) ListNoAccessDocumentCommentMentions(ctx context.Context, arg ListNoAccessDocumentCommentMentionsParams) ([]ListNoAccessDocumentCommentMentionsRow, error) {
+	rows, err := q.db.Query(ctx, listNoAccessDocumentCommentMentions,
+		arg.CommentID,
+		arg.DocumentID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListNoAccessDocumentCommentMentionsRow{}
+	for rows.Next() {
+		var i ListNoAccessDocumentCommentMentionsRow
+		if err := rows.Scan(&i.UserID, &i.DisplayName, &i.ActiveMember); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markDocumentCommentMentionsRemoved = `-- name: MarkDocumentCommentMentionsRemoved :exec
 
 UPDATE document_comment_mentions
@@ -247,17 +311,18 @@ func (q *Queries) MarkDocumentCommentMentionsRemoved(ctx context.Context, arg Ma
 
 const reactivateDocumentCommentMention = `-- name: ReactivateDocumentCommentMention :exec
 UPDATE document_comment_mentions
-SET state = 'active',
+SET state = $1::text,
     updated_at = now()
-WHERE comment_id = $1
-  AND user_id = $2
-  AND document_id = $3
-  AND organization_id = $4
-  AND workspace_id = $5
+WHERE comment_id = $2
+  AND user_id = $3
+  AND document_id = $4
+  AND organization_id = $5
+  AND workspace_id = $6
   AND state = 'removed'
 `
 
 type ReactivateDocumentCommentMentionParams struct {
+	State          string `json:"state"`
 	CommentID      string `json:"comment_id"`
 	UserID         string `json:"user_id"`
 	DocumentID     string `json:"document_id"`
@@ -265,10 +330,13 @@ type ReactivateDocumentCommentMentionParams struct {
 	WorkspaceID    string `json:"workspace_id"`
 }
 
-// A dropped mention that returns in the body: active again, notified_at kept,
-// so the same row never notifies twice (contract-collab section 8.1).
+// A dropped mention that returns in the body: the service re-checks read
+// access like for a new mention, so the row comes back active for a reader and
+// no_access for a non-reader (G8-18). notified_at is kept either way, so the
+// same row never notifies twice (contract-collab section 8.1).
 func (q *Queries) ReactivateDocumentCommentMention(ctx context.Context, arg ReactivateDocumentCommentMentionParams) error {
 	_, err := q.db.Exec(ctx, reactivateDocumentCommentMention,
+		arg.State,
 		arg.CommentID,
 		arg.UserID,
 		arg.DocumentID,

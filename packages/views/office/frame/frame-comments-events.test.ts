@@ -50,6 +50,10 @@ describe("frameCommentsLevel (OQ-C12)", () => {
     expect(frameCommentsLevel({ myLevel: "manage", readonly: false, canEdit: true })).toBe("manage");
   });
 
+  it("a comment-level document reads view until the frame knows comment", () => {
+    expect(frameCommentsLevel({ myLevel: "comment", readonly: false, canEdit: true })).toBe("view");
+  });
+
   it("a read-only page never grants more than view, whatever the document says", () => {
     expect(frameCommentsLevel({ myLevel: "manage", readonly: true, canEdit: true })).toBe("view");
     expect(frameCommentsLevel({ myLevel: "edit", readonly: true, canEdit: true })).toBe("view");
