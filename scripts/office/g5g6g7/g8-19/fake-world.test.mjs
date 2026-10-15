@@ -51,6 +51,24 @@ test("world methods: upload/share/revokeShare/deactivate/cleanup return the §3 
   assert.deepEqual(calls.world.map((c) => c.key), ["upload", "share", "revokeShare", "deactivate", "cleanup"]);
 });
 
+test("refreshTokens gives every user a new token and the sessions read it per call", async () => {
+  const { world, script, calls } = createFakeWorld();
+  const s = world.session("B");
+  const before = world.users.B.token;
+  await world.refreshTokens();
+  assert.notEqual(world.users.B.token, before);
+  script.respond("api.listNotifications", { status: 200, body: {} });
+  await s.call("listNotifications");
+  assert.equal(s.user.token, world.users.B.token);
+  assert.equal(calls.world.at(-1).key, "refreshTokens");
+});
+
+test("connectApp can be scripted to reject with the appUnavailable classification", async () => {
+  const { app, script } = createFakeWorld();
+  script.queue("app.connectApp", Object.assign(new Error("no keyring"), { appUnavailable: { status: "BLOCKED", reason: "no keyring" } }));
+  await assert.rejects(app.connectApp({}), (err) => err.appUnavailable.status === "BLOCKED");
+});
+
 test("a world method can be scripted to fail", async () => {
   const { world, script } = createFakeWorld();
   script.queue("world.share", new Error("403 forbidden"));
@@ -121,9 +139,9 @@ test("app: ctrl has every §7 member; comments/discussion expose exactly the for
   for (const m of ["signIn", "selectOrg", "signOut", "openByTicket", "editorPage", "comments", "discussion", "aiOffice", "save", "focus", "selection", "evalBounded", "close"]) {
     assert.equal(typeof ctrl[m], "function", m);
   }
-  const page = ctrl.editorPage("sheets");
+  const page = await ctrl.editorPage("sheets");
   assert.equal(page.kind, "sheets");
-  assert.throws(() => ctrl.editorPage("paint"), /no paint editor page/);
+  await assert.rejects(ctrl.editorPage("paint"), /no paint editor page/);
   const comments = ctrl.comments(page);
   assert.deepEqual(Object.keys(comments), [...COMMENTS_API_NAMES]);
   assert.deepEqual(Object.keys(ctrl.discussion()), [...DISCUSSION_API_NAMES]);
@@ -133,7 +151,9 @@ test("app: ctrl has every §7 member; comments/discussion expose exactly the for
   assert.deepEqual(await comments.create({ path: "/p", kind: "comment", body: "x", anchor: { ...B7_ANCHOR }, baseVersionId: "ver-1" }), reply);
   assert.deepEqual(calls.app.at(-1).args, [{ path: "/p", kind: "comment", body: "x", anchor: { ...B7_ANCHOR }, baseVersionId: "ver-1" }]);
   const signedIn = await ctrl.signIn(world.user("M"), { expectOrgChoice: true });
-  assert.deepEqual(Object.keys(signedIn).sort(), ["orgApiCallsBeforeChoice", "orgChoiceShown", "status"]);
+  assert.deepEqual(Object.keys(signedIn).sort(), ["expectOrgChoice", "orgApiCallsBeforeChoice", "orgChoiceShown", "sessionBinExists", "status"]);
+  assert.deepEqual(await ctrl.openByTicket("uniwork-office-dev://open?ticket=T", { documentId: "doc-1" }), { path: "/fake/working-copy", documentId: "doc-1", kind: null });
+  assert.deepEqual(await ctrl.focus("/fake/working-copy"), { activated: true, pages: 1 });
   await assert.rejects(ctrl.aiOffice("uniworkDeleteEverything"), /SHELL_API_NAMES/);
   script.queue("app.aiOffice.uniworkListWorkspaces", [{ id: "ws-W1", role: "owner" }]);
   assert.deepEqual(await ctrl.aiOffice("uniworkListWorkspaces"), [{ id: "ws-W1", role: "owner" }]);
@@ -143,7 +163,7 @@ test("app: FAKE_TIMEOUT rejects with the §7 isAppStepTimeout error carrying {ca
   const { app, script } = createFakeWorld();
   const ctrl = await app.connectApp({});
   script.queue("app.comments.list", FAKE_TIMEOUT);
-  await assert.rejects(ctrl.comments(ctrl.editorPage("docs")).list({ path: "/p" }), (err) => {
+  await assert.rejects(ctrl.comments(await ctrl.editorPage("docs")).list({ path: "/p" }), (err) => {
     assert.equal(err.isAppStepTimeout, true);
     assert.equal(err.appStepTimeout.call, "comments.list");
     assert.equal(typeof err.appStepTimeout.elapsedMs, "number");

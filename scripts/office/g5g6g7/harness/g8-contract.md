@@ -16,14 +16,16 @@ All modules are ESM (`.mjs`), Node 22, no new dependencies. Playwright comes fro
 |---|---|
 | `harness/world.mjs` | `seedWorld(opts)`, `loadWorld(runDir)`, `WORLD_FILE`, `SQL_MEMBERSHIP_ENV`, `SQL_MEMBERSHIP_REASON`, `SQL_MEMBERSHIP_BLOCKER` |
 | `harness/api.mjs` | `createApi({apiOrigin, fetchImpl?})`, `session(userRecord, {apiOrigin, fetchImpl?})` |
-| `harness/api-contract.mjs` | `API_CALLS` (document step, unchanged but for `mintLaunch.comment_id`), `G8_CALLS` (the rows of §4), `G8_API_CALLS` = both, `apiPath(name, params, table = API_CALLS)`, `assertBodyKeys(name, body, table = API_CALLS)`, `ApiError`, `failureInfo` |
-| `harness/web.mjs` | `webLogin(browser, user, opts)`, `openDocument(page, opts)`, `documentUrl(opts)` (pure URL rule of §6) |
-| `harness/app.mjs` | `connectApp(opts)`, `COMMENTS_API_NAMES`, `DISCUSSION_API_NAMES`, `SHELL_API_NAMES`, `editorKindOfUrl(url)` |
-| `g8-19/run-row.mjs` | `runRowModule(opts, fn)`, `rowArtifactPath(runDir,row,fixture)`, `decideFromSteps(steps)`, `exitCodeFor(status)`, `parseRowArgs(argv)`, `ROW_EXIT`, `B7_ANCHOR`, `WEB_FRAME_PIN_BLOCKER`, `WEB_FRAME_PIN_OWNER` |
+| `harness/api-contract.mjs` | `API_CALLS` (document step, unchanged but for `mintLaunch.comment_id`), `TRACER_CALLS` (the G7-10 tracer rows, incl. `getDocument`, `completeOnboarding`, the desktop consent pair), `G8_CALLS` (the rows of §4), `G8_API_CALLS` = all three, `redact(text)`, `apiPath(name, params, table = API_CALLS)`, `assertBodyKeys(name, body, table = API_CALLS)`, `ApiError`, `failureInfo` |
+| `harness/web.mjs` | `webLogin(browser, user, opts)`, `openDocument(page, opts)`, `documentUrl(opts)` (pure URL rule of §6), `classifyDocumentPage(read, {comment})` |
+| `harness/app.mjs` | `connectApp(opts)`, `COMMENTS_API_NAMES`, `DISCUSSION_API_NAMES`, `SHELL_API_NAMES`, `editorKindOfUrl(url)`, `editorKindOfFormat(format)`, `sanitizeAccountStatus(status)`, `countOrgScopedRequests(logPath, offset)` |
+| `harness/app-steps.mjs`, `harness/fixture-files.mjs` | the helpers moved out of `g7-10/tracer.mjs` (bounded CDP step, sign-in record, deep-link handoff, working copy, fixture loader, zip/XLSX readers); `loadVerifiedFixture(id)` and `readZipEntries(bytes)` are the ones a row module may want |
+| `g8-19/run-row.mjs` | `runRowModule(opts, fn)`, `rowMain(module, fn)`, `rowArtifactPath(runDir,row,fixture)`, `decideFromSteps(steps)`, `exitCodeFor(status)`, `parseRowArgs(argv)`, `ROW_EXIT`, `B7_ANCHOR`, `WEB_FRAME_PIN_BLOCKER`, `WEB_FRAME_PIN_OWNER` |
 | `g8-19/fake-world.mjs` | `createFakeWorld(opts)`, `FAKE_TIMEOUT`, `fakeNetworkError(message)` |
 
 Row modules (`g8-19/{comments,anchors,file-scan,inbox,deeplink,revoke,account,library}.mjs`) belong to
-T2-T4. Each one exports a pure `decideG8Axx(record)` and, when run as a script, calls `runRowModule`.
+T2-T4. Each one exports a pure `decideG8Axx(record)` and, when run as a script, ends with
+`process.exit(await rowMain("<module>", fn))` (§8).
 
 ## 2. Users, orgs, workspaces (the world)
 
@@ -93,7 +95,8 @@ seeding is not under test; row modules assert through `api.mjs`, which never thr
 | `world.share(ownerKey, documentId, userId, level)` | `{ shareId }` (a user share; `level` = `view`/`edit`/`manage`, `ShareDocumentSDI`) | `createDocumentShare` |
 | `world.revokeShare(ownerKey, documentId, shareId)` | `{ status }` | `revokeDocumentShare` |
 | `world.deactivate(ownerKey, orgKey, userId)` | `{ status }` | `deactivateOrgMember` |
-| `world.session(userKey)` | the `session()` of §5 for that user | - |
+| `world.session(userKey)` | the `session()` of §5 for that user (it reads the user's token per call) | - |
+| `world.refreshTokens()` | logs every user in again (access tokens live 15 min); a reused world does it on load | `login` |
 | `world.user(key)` / `world.org(key)` / `world.workspace(orgKey, wsKey)` | the record entries | - |
 | `world.cleanup()` | `{ leftovers: string[] }` - names of things it could not remove (org deletion request refused, SQL rows left, cache file); never throws | `requestOrganizationDeletion`, `deleteAccount` |
 
@@ -145,7 +148,7 @@ intent. A row module never builds an `/api/v1` path by hand.
 ```js
 const api = createApi({ apiOrigin, fetchImpl });
 const s = api.session(world.user("B"));          // or world.session("B"), or session(user, {apiOrigin})
-const res = await s.call(name, pathParams = {}, body = undefined, { query, headers, timeoutMs = 30_000 } = {});
+const res = await s.call(name, pathParams = {}, body = undefined, { query, headers, form, timeoutMs = 30_000 } = {});
 // res = { status: number, body: any | null, ok: boolean, error?: string }
 ```
 
@@ -156,42 +159,48 @@ const res = await s.call(name, pathParams = {}, body = undefined, { query, heade
 - `body` is the parsed JSON, `null` for an empty body, `{ rawText }` when not JSON.
 - `error` and every thrown message are redacted (no token, ticket, password).
 - `s.user` is the user record; `s.userKey` its key. A session with no token sends no `authorization`.
+- `form` (a `FormData`) is sent instead of a JSON body (the multipart upload rows).
 
 ## 6. `harness/web.mjs`
 
 ```js
 const web = await webLogin(browser, user, { webOrigin, locale = "en", timeoutMs });
 // web = { context, page, user, locale, setLocale(locale), close() }
-const opened = await openDocument(web.page, { webOrigin, org, ws, documentId, comment, kind });
-// opened = { url, status: "ok" | "no-access" | "not-found" | "error", panelCount, focusedCommentId }
+const opened = await openDocument(web.page, { webOrigin, org, ws, documentId, comment, kind, timeoutMs = 60_000 });
+// opened = { url, status: "ok" | "no-access" | "not-found" | "error", panelCount, focusedCommentId, reason? }
 ```
 
 - `org`, `ws` are slugs. `comment` -> `?comment=<id>`, `kind:"discussion"` -> `&kind=discussion`
   (mirrors `packages/views/notifications/resource-href.ts`).
 - `webLogin` signs in through the D `/login` page with the user's email/password, sets the
   `uniwork-locale` cookie to `locale`, and never logs the password.
-- `panelCount` = number of comment panels on the page; `focusedCommentId` = the focused thread id or
-  `null`. `status` reads the S15 states the page renders.
+- `panelCount` = number of comment panels on the page (`document-comments-pane`); `focusedCommentId` =
+  the highlighted thread (`document-thread-<id>` with `data-highlighted`) or `null`. `status` reads the S15
+  state (`data-document-inbox-state`: `no_access` -> `no-access`, `gone` -> `not-found`); `ok` waits for
+  the panel and, when `comment` is named, for that thread to be highlighted; `error` (with `reason`) when
+  nothing settles, e.g. an Office frame with no D panel (R1).
 
 ## 7. `harness/app.mjs`
 
 ```js
-const ctrl = await connectApp({ portsEnv, runDir, cdpConnector?, deepLinkDeliverer?, timeoutMs? });
+const ctrl = await connectApp({ portsEnv, runDir, apiOrigin?, cdpConnector?, deepLinkDeliverer?, timeoutMs? });
+// rejects with err.appUnavailable = { status: "BLOCKED" | "FAIL", reason } (+ err.appSignIn) when the app
+// cannot be driven: not started / no CDP port or Playwright -> BLOCKED; CDP refused / no shell window -> FAIL
 ```
 
 | Member | Contract |
 |---|---|
 | `ctrl.browser`, `ctrl.shellPage` | the CDP browser and the shell page |
-| `ctrl.signIn(user, { expectOrgChoice = false })` | drives `aiOffice.accountLogin` + the web consent as `user`; resolves `{ status, orgChoiceShown, orgApiCallsBeforeChoice }` where `status` = `aiOffice.accountStatus()` after the flow |
+| `ctrl.signIn(user, { expectOrgChoice = false })` | signs out first, then `aiOffice.accountLogin` + the desktop consent API as `user` (`runDesktopConsentSignIn`); resolves `{ status, orgChoiceShown, expectOrgChoice, sessionBinExists, orgApiCallsBeforeChoice }`: `status` = `accountStatus()` after the flow without emails, `orgChoiceShown` = `status.needsOrgChoice` (fork `home-api.ts:1027`), `orgApiCallsBeforeChoice` = org/workspace-scoped requests in `logs/server.log` since the flow started (null when no choice was shown or there is no log) |
 | `ctrl.selectOrg(orgId)` | `aiOffice.accountSelectOrg(orgId)` -> account status |
 | `ctrl.signOut()` | `aiOffice.accountLogout()` -> account status |
-| `ctrl.openByTicket(launchUrl)` | delivers the deep link (`uniwork-office-dev://open?ticket=...`), waits for the editor tab; `{ path, documentId, kind }` |
-| `ctrl.editorPage(kind)` | the editor page whose URL kind is `kind` (`docs`/`sheets`/`slides`/`pdf`), chosen by `editorKindOfUrl(page.url())`; throws `no <kind> editor page` |
+| `ctrl.openByTicket(launchUrl, { documentId? })` | delivers the deep link (`uniwork-office-dev://open?ticket=...`), waits until `aiOffice.uniworkActiveDocStatus()` names a document (that `documentId` when given); `{ path, documentId, kind }` |
+| `await ctrl.editorPage(kind)` | the editor page whose URL kind is `kind` (`docs`/`sheets`/`slides`/`pdf`), chosen by `editorKindOfUrl(page.url())`, waited for up to the app step bound; rejects `no <kind> editor page` |
 | `ctrl.comments(page)` | `{ list, create, update, remove, resolve, reopen, revisions, anchors, searchMentions, context }`: each evaluates `window.uniworkComments.<name>(input)` on `page` and resolves the `CommentsReply` envelope `{ok:true,value}` / `{ok:false,error}` UNCHANGED. Inputs are the fork shapes (`path`, `kind`, `parentId`, `body`, `anchor`, `baseVersionId`, `commentId`, `versionId`, `anchors[]`, `q`, `limit`) |
 | `ctrl.discussion()` | `{ list, create, update, remove, resolve, reopen, revisions, searchMentions }` over `window.uniworkDiscussion.*` on the shell page, same envelope |
 | `ctrl.aiOffice(name, ...args)` | `window.aiOffice[name](...args)` on the shell page; `name` must be in `SHELL_API_NAMES` (account*, uniwork* library/save calls) or it throws |
 | `ctrl.save(path)` | `aiOffice.uniworkSave(path)` -> doc status |
-| `ctrl.focus(path)` | brings the editor tab for `path` to the front and fires a window `focus` on it (forces the desktop comment poll) |
+| `ctrl.focus(path)` | `aiOfficeTabs.activate` on the tab of `path`, then a window `focus` event on every editor page (the editors reload comments on focus: fork `apps/docs/src/renderer/server-comments/ServerCommentsHost.tsx:227`, `apps/sheets/src/renderer/server-comments/SheetsServerComments.tsx:238`); `{ activated, pages }` |
 | `ctrl.selection(kind)` | `window.__genofficeControl({ cmd: "selection" })` on the `kind` editor page |
 | `ctrl.evalBounded(page, fn, arg, call)` | `page.evaluate(fn, arg)` under `HARNESS_APP_STEP_TIMEOUT_MS`; on timeout throws an `Error` with `isAppStepTimeout: true` and `appStepTimeout: { call, timeoutMs, elapsedMs, reason, appLogTail }` |
 | `ctrl.close()` | disconnects CDP; never kills the app (stop.sh owns it) |
@@ -216,6 +225,7 @@ process.exit(exit);
 2. **ports.env.** Missing file or missing `API_ORIGIN` -> FAIL (1) with the reason.
 3. **ctx** passed to `fn`:
    `{ row, fixture, runDir, repoRoot, portsEnv, apiOrigin, webOrigin, getWorld(), api, step(name, fn), block(blocker, owner), log(msg) }`.
+   `opts.worldFactory` (tests) replaces `seedWorld` behind `getWorld()`.
    - `getWorld()` seeds or reuses the world (memoised).
    - `step(name, fn)` runs `fn`, stores `{ status, reason?, blocker?, owner?, elapsedMs, details? }` under
      `record.steps[name]`; a thrown error becomes `FAIL` with the redacted message; `fn` may return
@@ -238,7 +248,10 @@ process.exit(exit);
    The evidence line is written by `evidence.mjs run` (the spec wraps every module); `run-row` writes
    none itself unless `OFFICE_EVIDENCE_ID` is unset AND `G819_WRITE_EVIDENCE=1`.
 8. **CLI** (`parseRowArgs`): `--row G8-Axx --fixture <id> --run-dir <dir> [--timeout-ms <ms>]`;
-   `--run-dir` defaults to `HARNESS_RUN_DIR`.
+   `--run-dir` defaults to `HARNESS_RUN_DIR`. `rowMain(module, fn)` parses them, runs `runRowModule`,
+   prints one status line and resolves the exit code: a module ends with
+   `if (isMainModule({ moduleUrl: import.meta.url })) process.exit(await rowMain("comments", run));`
+   (`isMainModule` from `harness/lib.mjs`).
 
 Constants:
 
@@ -279,7 +292,7 @@ const fake = createFakeWorld({ sqlMembership = true, users, orgs });
   member. `fake.browser` is the opaque browser to pass to `webLogin`.
 - **Scripting** (`fake.script`): `respond(key, valueOrFn)` sets a standing answer, `queue(key, valueOrFn)`
   a one-shot answer (FIFO, wins over `respond`). A function gets the recorded call and returns the answer.
-  Keys: `api.<name>` (answer `{status, body}`), `web.webLogin` / `web.openDocument`,
+  Keys: `api.<name>` (answer `{status, body}`), `web.webLogin` / `web.openDocument`, `app.connectApp`,
   `app.signIn` / `app.selectOrg` / `app.signOut` / `app.openByTicket` / `app.save` / `app.focus` /
   `app.selection` / `app.evalBounded`, `app.comments.<name>`, `app.discussion.<name>`,
   `app.aiOffice.<name>`, `world.<method>` (to make a world method fail).
@@ -292,7 +305,8 @@ const fake = createFakeWorld({ sqlMembership = true, users, orgs });
   `app.selection`, `app.save` -> `null`; `openByTicket` -> `{path:"/fake/<doc>", documentId, kind}` parsed
   from nothing (`documentId:null`) unless scripted; `web.openDocument` ->
   `{url, status:"ok", panelCount:1, focusedCommentId: comment ?? null}` with the real URL rule of §6;
-  `signIn` -> `{status:{loggedIn:true,state:"signed-in"}, orgChoiceShown:false, orgApiCallsBeforeChoice:0}`.
+  `signIn` -> `{status:{loggedIn:true,state:"signed-in"}, orgChoiceShown:false, expectOrgChoice, sessionBinExists:true, orgApiCallsBeforeChoice:null}`;
+  `focus` -> `{activated:true, pages:1}`; `refreshTokens` gives every user a new token.
 - **Calls** (`fake.calls`): `api`, `web`, `app`, `world` arrays of `{key, user?, args}` in call order;
   `fake.calls.all` is every call in order.
 
@@ -312,3 +326,19 @@ const fake = createFakeWorld({ sqlMembership = true, users, orgs });
    with the run dir).
 7. `B7_ANCHOR.sheet` is `"sheet-2"` (the stable id the sheets reader gives the file's sheetId 2), not a
    placeholder.
+
+## 12. Changes after the STEP 1 commit (b7b3382ef)
+
+All additive or tightening; the STEP 1 signatures still hold except item 1.
+
+1. `ctrl.editorPage(kind)` is **async** (it waits for the page); write `await ctrl.editorPage(kind)`. The fake
+   is async too.
+2. `ctrl.openByTicket(launchUrl, { documentId })` takes an optional second argument.
+3. `connectApp` rejects with `err.appUnavailable = { status, reason }` when the app cannot be driven.
+4. `ctrl.signIn` also resolves `expectOrgChoice` and `sessionBinExists`; `orgApiCallsBeforeChoice` is read
+   from `logs/server.log` (null when unknown); `status` carries no email.
+5. `ctrl.focus(path)` resolves `{ activated, pages }`.
+6. `world.refreshTokens()`; a reused world re-logs every user in (15 min access tokens).
+7. `session().call` `opts.form`; `G8_API_CALLS` also holds `TRACER_CALLS`; `redact` is exported.
+8. `openDocument` takes `timeoutMs`/`pollMs` and returns `reason` on `error`; `classifyDocumentPage` exported.
+9. `rowMain(module, fn)` added; `runRowModule` takes `worldFactory` for tests.
