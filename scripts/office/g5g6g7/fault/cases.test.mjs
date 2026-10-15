@@ -1,5 +1,6 @@
-// Shape checks of the G7-03a / G7-03b fault case list (UNI-1380). The runner
-// (fault/run.mjs) reads docs/office/g5g6g7/fault/cases.json; these checks keep
+// Shape checks of the G7-03a / G7-03b fault case list (UNI-1380). The runners
+// (fault/server-cases.mjs for the FQ-01..FQ-13 server rows, fault/app-cases.mjs
+// for the app rows) read docs/office/g5g6g7/fault/cases.json; these checks keep
 // it honest against the cards and the acceptance matrix before any case runs.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

@@ -1338,7 +1338,8 @@
       "exits": [
         {
           "exit": "reconciling → committed",
-          "assert": "lookup committed → receipt, versionDelta 1"
+          "assert": "lookup committed → receipt, versionDelta 1",
+          "predicted": "OQ-F11"
         },
         {
           "exit": "reconciling → queued (attempt mới)",
@@ -1402,7 +1403,7 @@
         ],
         "proxyLog": "không POST commit với keyTag mới ở mọi lối ra"
       },
-      "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9)",
+      "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9); lối ra reconciling → committed dự báo FAIL OQ-F11 (trường predicted của exit: cùng rule lose-commit-answer với FQ-22, Save trực tiếp không đối soát)",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,

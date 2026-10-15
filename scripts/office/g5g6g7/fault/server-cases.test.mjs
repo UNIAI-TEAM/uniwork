@@ -4,9 +4,11 @@
 // result/exit-code aggregation, missing-harness BLOCKED, and all 13 server case drivers.
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { createRuleEngine } from "./rules.mjs";
 import { SETUP_STATUS, readVerificationCode, registerAndVerifyUser, seedFaultTenant } from "./server-cases-setup.mjs";
@@ -522,6 +524,29 @@ test("runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts 
     assert.deepEqual(emptyVersions.versions, []);
   } finally {
     rmSync(tempRunDir, { recursive: true, force: true });
+  }
+});
+
+// R1-5: the matrix §4 command is this script; run it for real (no harness, so BLOCKED is the honest answer)
+test("server-cases.mjs --case <id>: exit 77 without a harness, the artifact directory is the last line; --verify-result rereads it", () => {
+  const runDir = mkdtempSync(join(tmpdir(), "fault-server-cli-"));
+  const script = resolve(fileURLToPath(new URL("./server-cases.mjs", import.meta.url)));
+  const run = (args) => spawnSync(process.execPath, [script, ...args], {
+    encoding: "utf8", env: { ...process.env, OFFICE_EVIDENCE_ID: "ev-unit-test", HARNESS_RUN_DIR: "", API_ORIGIN: "" },
+  });
+  try {
+    const first = run(["--case", "FQ-01", "--run-dir", runDir]);
+    assert.equal(first.status, BLOCKED_EXIT_CODE, first.stderr);
+    const lines = first.stdout.trim().split(/\r?\n/);
+    assert.match(lines[0], /^FQ-01 \(G5-A06\): BLOCKED/);
+    assert.equal(lines.at(-1), join(runDir, "fault"));
+    const verify = run(["--case", "FQ-01", "--run-dir", runDir, "--verify-result"]);
+    assert.equal(verify.status, BLOCKED_EXIT_CODE);
+    assert.equal(verify.stdout.trim().split(/\r?\n/).at(-1), join(runDir, "fault", "FQ-01"));
+    assert.equal(run(["--case", "FQ-20", "--run-dir", runDir]).status, 1, "an app row is not a server case");
+    assert.equal(run(["--bogus"]).status, 1);
+  } finally {
+    rmSync(runDir, { recursive: true, force: true });
   }
 });
 

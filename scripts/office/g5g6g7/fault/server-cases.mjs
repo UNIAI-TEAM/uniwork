@@ -154,7 +154,7 @@ function verifyRecordedCaseResult({ caseId, runDir }) {
     return BLOCKED_EXIT_CODE;
   }
   const data = JSON.parse(readFileSync(resultFile, "utf8"));
-  process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(data, null, 2)}\n${join(runDir, "fault", String(caseId))}\n`);
   if (data.result === "PASS") return 0;
   if (data.result === "BLOCKED") return BLOCKED_EXIT_CODE;
   return 1;
@@ -338,7 +338,8 @@ if (isMainModule({ moduleUrl: import.meta.url })) {
     const args = parseServerCasesArgs(process.argv.slice(2), process.env);
     if (args.verifyResult) process.exit(verifyRecordedCaseResult(args));
     const { results, exitCode } = await runSelectedServerCases(args);
-    for (const r of results) process.stdout.write(`${r.case} (${r.ac.join(",")}): ${r.result}\n`);
+    for (const r of results) process.stdout.write(`${r.case} (${r.ac.join(",")}): ${r.result}${r.blocker ? ` - ${r.blocker}` : ""}\n`);
+    process.stdout.write(`${join(args.runDir, "fault")}\n`);
     process.exit(exitCode);
   })().catch((error) => {
     process.stderr.write(`server-cases.mjs: ${error.message}\n`);

@@ -3,7 +3,11 @@
 // helpers, aggregation and the app plumbing that needs no Electron or server.
 // Run: node --test scripts/office/g5g6g7/fault/app-cases.test.mjs
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import test from "node:test";
 import { appEnv } from "../harness/lib.mjs";
@@ -14,7 +18,7 @@ import {
   BLOCKED_EXIT_CODE, assertEntersWithCode, assertNeverState, assertStatePath, attemptIdFromAuthorizationUrl,
   blockedCase, caseResult, commitLookups, commitPosts, descendantPids, documentWrites, envFileValue, expandExits,
   failEvidenceLines, faultAppExtraEnv, filterTrace, intentIdsOf, keyTagsOf, lastEntry, logSince, matchStatePath,
-  parseProxyLog, parseTraceText, predictedTag, reachedUpstream, runEvidenceOf, runExitCode, runResult,
+  parseProxyLog, parseTraceText, predictedFor, predictedTag, reachedUpstream, runEvidenceOf, runExitCode, runResult,
   selectAppCases, statePath, syncRequests, syncStoreScopeDir, uploadPosts,
 } from "./app-cases-lib.mjs";
 import {
@@ -185,6 +189,58 @@ test("predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL", () =>
   assert.equal(predictedTag(loadFaultCases().cases.find((r) => r.id === "FQ-24")), "F4");
   assert.equal(predictedTag({ notes: "nothing" }), null);
   assert.equal(predictedTag({}), null);
+});
+
+test("FQ-40's reconciling -> committed exit is the predicted FAIL OQ-F11, no other exit is (Advisor qa-fault_local:10)", () => {
+  const rows = loadFaultCases().cases;
+  const fq22 = rows.find((r) => r.id === "FQ-22");
+  const fq40 = rows.find((r) => r.id === "FQ-40");
+  assert.equal(predictedFor(fq22, expandExits(fq22)[0]), "OQ-F11", "FQ-22 keeps its row tag");
+  assert.equal(predictedTag(fq40), null, "the tag is per exit: a row note would cover every exit");
+  const tags = expandExits(fq40).map((run) => [run.label, predictedFor(fq40, run)]);
+  assert.deepEqual(tags.filter(([, tag]) => tag).map(([label, tag]) => [label, tag]), [["reconciling → committed", "OQ-F11"]]);
+  assert.equal(tags.length, 5);
+  // the OQ-F6 exits of FQ-43 and the row tag of FQ-24 still resolve
+  const fq43 = rows.find((r) => r.id === "FQ-43");
+  assert.deepEqual(expandExits(fq43).map((run) => predictedFor(fq43, run)), [null, null, null, "OQ-F6", null, null]);
+  assert.equal(predictedFor(rows.find((r) => r.id === "FQ-24"), { label: "x", exit: null }), "F4");
+});
+
+test("a case is reported predicted only when every FAIL run is: an unpredicted FAIL is never hidden", () => {
+  const row = { id: "FQ-40", ac: ["G5-A06"], fixture: "fx" };
+  const predictedFail = runResult({ label: "a", assertions: [{ name: "x", ok: false }], predicted: "OQ-F11" });
+  const plainFail = runResult({ label: "b", assertions: [{ name: "x", ok: false }] });
+  const pass = runResult({ label: "c", assertions: [{ name: "x", ok: true }] });
+  assert.equal(caseResult(row, [predictedFail, pass]).predicted, "OQ-F11");
+  assert.equal(caseResult(row, [predictedFail, plainFail]).result, "FAIL");
+  assert.equal(caseResult(row, [predictedFail, plainFail]).predicted, undefined);
+  assert.equal(caseResult(row, [plainFail, pass]).predicted, undefined);
+});
+
+// R1-5: the matrix §4 commands are these scripts; run them for real (no harness, so BLOCKED is the honest answer)
+const FAULT_DIR = fileURLToPath(new URL(".", import.meta.url));
+const runCli = (script, args) => spawnSync(process.execPath, [join(FAULT_DIR, script), ...args], {
+  encoding: "utf8", env: { ...process.env, OFFICE_EVIDENCE_ID: "ev-unit-test", HARNESS_RUN_DIR: "" },
+});
+
+test("app-cases.mjs --case <pending row>: exit 77, result.json written, the artifact directory is the last line", () => {
+  const runDir = mkdtempSync(join(tmpdir(), "fault-app-cli-"));
+  try {
+    const run = runCli("app-cases.mjs", ["--case", "FQ-23", "--run-dir", runDir]);
+    assert.equal(run.status, BLOCKED_EXIT_CODE, run.stderr);
+    const lines = run.stdout.trim().split(/\r?\n/);
+    assert.match(lines[0], /^FQ-23 \(G5-A06,G5-A08\): BLOCKED .*pending G5-10/);
+    assert.equal(lines.at(-1), join(runDir, "fault"));
+    assert.equal(JSON.parse(readFileSync(join(runDir, "fault", "FQ-23", "result.json"), "utf8")).result, "BLOCKED");
+    const verify = runCli("app-cases.mjs", ["--case", "FQ-23", "--run-dir", runDir, "--verify-result"]);
+    assert.equal(verify.status, BLOCKED_EXIT_CODE);
+    assert.equal(verify.stdout.trim().split(/\r?\n/).at(-1), join(runDir, "fault", "FQ-23"));
+    assert.equal(runCli("app-cases.mjs", ["--case", "FQ-01", "--run-dir", runDir]).status, 1, "a server row is not an app case");
+    assert.equal(runCli("app-cases.mjs", ["--bogus"]).status, 1);
+    assert.equal(existsSync(join(runDir, "fault", "FQ-01")), false);
+  } finally {
+    rmSync(runDir, { recursive: true, force: true });
+  }
 });
 
 test("app plumbing: attempt id, store scope, fault env through appEnv, env files, process tree", () => {

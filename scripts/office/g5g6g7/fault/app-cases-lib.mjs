@@ -226,7 +226,9 @@ export function caseResult(row, runs) {
     : statuses.includes("FAIL") ? "FAIL"
       : statuses.every((s) => s === "PASS") ? "PASS" : "BLOCKED";
   const blockers = runs.filter((run) => run.blocker).map((run) => (run.label ? `${run.label}: ${run.blocker}` : run.blocker));
-  const predicted = runs.filter((run) => run.predicted).map((run) => run.predicted);
+  // the case is "predicted" only when every failing run is: one unpredicted FAIL must not hide behind another run's tag
+  const failed = runs.filter((run) => run.result === "FAIL");
+  const predicted = failed.every((run) => run.predicted) ? failed.map((run) => run.predicted) : [];
   return {
     case: row.id,
     ac: [...(row.ac ?? [])],
@@ -258,6 +260,15 @@ export function runExitCode(readyResults) {
 export function predictedTag(row) {
   const match = /predicted FAIL\s+([A-Z0-9-]+)/.exec(String(row?.notes ?? ""));
   return match ? match[1] : null;
+}
+
+/**
+ * The predicted FAIL of one run: the exit's own `predicted` (FQ-40's
+ * `reconciling -> committed`: OQ-F11), else the row's note tag, else OQ-F6 on the
+ * document_archived exits. A tag on one exit never covers the row's other exits.
+ */
+export function predictedFor(row, run) {
+  return run?.exit?.predicted ?? predictedTag(row) ?? (/document_archived/.test(String(run?.label)) ? "OQ-F6" : null);
 }
 
 // ---- app plumbing (pure parts) -----------------------------------------------

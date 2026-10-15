@@ -28,7 +28,7 @@ import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
 import { BLOCKED_DRIVERS, EXTRA_EXITS } from "./app-case-drivers-blocked.mjs";
 import {
   BLOCKED_EXIT_CODE, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
-  parseTraceText, predictedTag, runEvidenceOf, runExitCode, runResult, selectAppCases,
+  parseTraceText, predictedFor, runEvidenceOf, runExitCode, runResult, selectAppCases,
 } from "./app-cases-lib.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
@@ -138,9 +138,6 @@ function finishCase(row, result, caseDir, runDir, forkSha) {
   return result;
 }
 
-/** Predicted FAILs the matrix names: the row's own tag, and OQ-F6 on the document_archived exits. */
-const predictedFor = (row, label) => predictedTag(row) ?? (/document_archived/.test(String(label)) ? "OQ-F6" : null);
-
 async function runOne({ row, run, runs, caseDir, shared }) {
   const { ports, proxy, tenant, fixtures, playwright, databaseUrl, runDir } = shared;
   const fixture = fixtures.get(row.fixture);
@@ -233,7 +230,7 @@ async function runOne({ row, run, runs, caseDir, shared }) {
   const traceLines = docId ? readTrace(docId) : [];
   const proxyRaw = await proxyLogRaw().catch(() => "");
   const evidence = runEvidenceOf(traceLines, parseProxyLog(proxyRaw), docId);
-  const result = runResult({ label: run.label, assertions: outcome.assertions, blocker: outcome.blocker, predicted: predictedFor(row, run.label), evidence });
+  const result = runResult({ label: run.label, assertions: outcome.assertions, blocker: outcome.blocker, predicted: predictedFor(row, run), evidence });
   writeFileSync(join(runDirOut, "intent-log.jsonl"), traceLines.map((l) => JSON.stringify(l)).join("\n") + (traceLines.length ? "\n" : ""));
   writeFileSync(join(runDirOut, "proxy-log.jsonl"), proxyRaw);
   if (docId) {

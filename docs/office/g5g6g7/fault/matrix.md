@@ -81,7 +81,7 @@ bước. Artifact của mỗi ca nằm ở `<HARNESS_RUN_DIR>/fault/<id>/` (mụ
 | FQ-30 | AI sửa trong editor rồi Lưu khi đang có intent G5: không intent mới, intent N chỉ commit snapshot N | spec §5.2 bước 2; EXPERIENCE Ctrl/⌘+S › "Đã có intent ở bất kỳ trạng thái nào (gồm khi AI đang ghi)" | G7-A02, G5-A05 | app | `hold-commit`: POST …/versions/commit #1 → hold<br>ui: Lưu (N) → trong lúc hold: lượt AI sửa (N+1) → Ctrl+S → release | versionDelta: 1<br>versions: checksum version mới = checksum snapshot N | Ctrl+S khi có intent → không intent mới (uwQueueBlockedSave)<br>committing → committed; editor còn dirty với N+1<br>proxy: đúng 1 POST commit trong cả ca | `fault/FQ-30/` fx-docx-report-vi | G6-05u | pending G6-05u (client: trace) |
 | FQ-31 | Lưu khi AI đang ghi (chưa có intent): chờ ranh giới bước công cụ rồi mới chụp snapshot | EXPERIENCE Ctrl/⌘+S › "AI đang ghi"; Save pill › "đang chờ AI xong bước" | G6-A04 | app | `slow-ai`: POST …/ai/uniwork/chat/completions #2 → delay 5000 ms<br>ui: Ctrl+S giữa hai bước công cụ ghi | versionDelta: 1 | pill uwChipSaving + uwTipWaitAi tới ranh giới bước; snapshot sau bước đã xong; không commit giữa bước<br>proxy: POST uploads chỉ sau khi request AI của bước hiện tại trả lời | `fault/FQ-31/` fx-docx-report-vi | G6-05u | pending G6-05u (client: trace) |
 | FQ-32 | revoke trong lượt AI: lượt kế tiếp bị 403, không version; kết quả muộn không áp lên bản mới | AC G7-A02; EXPERIENCE S6 › Revoke | G7-A02 | app | api: thu hồi quyền sửa của user app trong lượt AI | versionDelta: 0<br>statuses: lượt kế 403 | editor chỉ đọc (mất quyền sửa) hoặc S11 (mất quyền đọc); không intent mới<br>proxy: không POST commit | `fault/FQ-32/` fx-xlsx-revenue-xyz | G6-05u | pending G6-05u (client: trace) |
-| FQ-40 | lối ra của reconciling theo kết quả tra: committed / not_committed / in_flight<br>• reconciling → committed: lookup committed → receipt, versionDelta 1<br>• reconciling → queued (attempt mới): lookup not_committed (dựng bằng 409 sau claim như FQ-09) → attempt+1 cùng key<br>• reconciling → paused_admin: như trên khi office_sync_write tắt cho tổ chức<br>• reconciling → paused_offline: như trên khi rule unreachable bật<br>• reconciling ở lại (in_flight): lookup tổng hợp 200 {outcome:"in_flight"} → vẫn reconciling, tra lại theo backoff | EXPERIENCE Queue rows › reconciling (cột Thoát) | G5-A06 | app | `lose-commit-answer`: POST …/versions/commit #1 → drop_response_after_forward<br>`fake-in-flight`: GET …/versions/commit #1 → status 200<br>env: office_sync_write tắt (override tổ chức) cho lối ra paused_admin | versionDelta: 1 mỗi lần chạy kết thúc committed; 0 khi dừng ở paused_* | một chuyển trạng thái mỗi lối ra như cột exits<br>proxy: không POST commit với keyTag mới ở mọi lối ra | `fault/FQ-40/` fx-xlsx-revenue-xyz | none | ready (client: trace); in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9) |
+| FQ-40 | lối ra của reconciling theo kết quả tra: committed / not_committed / in_flight<br>• reconciling → committed: lookup committed → receipt, versionDelta 1 (**predicted FAIL OQ-F11**, như FQ-22)<br>• reconciling → queued (attempt mới): lookup not_committed (dựng bằng 409 sau claim như FQ-09) → attempt+1 cùng key<br>• reconciling → paused_admin: như trên khi office_sync_write tắt cho tổ chức<br>• reconciling → paused_offline: như trên khi rule unreachable bật<br>• reconciling ở lại (in_flight): lookup tổng hợp 200 {outcome:"in_flight"} → vẫn reconciling, tra lại theo backoff | EXPERIENCE Queue rows › reconciling (cột Thoát) | G5-A06 | app | `lose-commit-answer`: POST …/versions/commit #1 → drop_response_after_forward<br>`fake-in-flight`: GET …/versions/commit #1 → status 200<br>env: office_sync_write tắt (override tổ chức) cho lối ra paused_admin | versionDelta: 1 mỗi lần chạy kết thúc committed; 0 khi dừng ở paused_* | một chuyển trạng thái mỗi lối ra như cột exits<br>proxy: không POST commit với keyTag mới ở mọi lối ra | `fault/FQ-40/` fx-xlsx-revenue-xyz | none | ready (client: trace); lối ra `reconciling → committed`: predicted FAIL OQ-F11 (trường `predicted` của exit trong `cases.json`; các lối ra khác không được tag); in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9) |
 | FQ-41 | reconciling → reconciling-stuck khi tra trả "không biết" (410), không bao giờ queued<br>• reconciling → reconciling-stuck: lookup 410 commit_intent_unknown → stuck; không POST commit nào sau đó | EXPERIENCE Queue rows › reconciling ("không biết/đã bị dọn → reconciling-stuck") | G5-A06 | app | `drop-commit`: POST …/versions/commit #1 → drop_request | versionDelta: 0<br>statuses: GET lookup 410 | committing → reconciling → reconciling-stuck<br>proxy: sau 410: 0 POST commit (xem OQ-F1) | `fault/FQ-41/` fx-xlsx-revenue-xyz | none | ready (client: trace); giữ EXPERIENCE: không gửi lại khi unknown (OQ-F1, câu hỏi cho owner G5-06) |
 | FQ-42 | reconciling → reconciling-stuck sau 1 giờ đối soát không có kết quả xác định<br>• reconciling → reconciling-stuck (hết giờ): lookup luôn in_flight (synthetic); sau stuckAfterMs → stuck | EXPERIENCE Queue rows › reconciling ("đã 1 giờ … → reconciling-stuck"); fork QUEUE_LIMITS.stuckAfterMs | G5-A06 | app | `drop-commit`: POST …/versions/commit #1 → drop_request<br>`always-in-flight`: GET …/versions/commit → status 200<br>clock: `UNIWORK_SYNC_TEST_STUCK_AFTER_MS=20000` (hook fork, OQ-F5) | versionDelta: 0 | reconciling → reconciling-stuck<br>proxy: 0 POST commit sau lần đầu | `fault/FQ-42/` fx-xlsx-revenue-xyz | none | ready (client: trace); in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9) |
 | FQ-43 | reconciling → blocked theo mã lỗi của lần tra<br>• reconciling → blocked session_expired: lookup 401<br>• reconciling → blocked organization_suspended: lookup 403 organization_suspended<br>• reconciling → blocked member_deactivated: lookup 403 member_deactivated<br>• reconciling → blocked document_archived: lookup 403 document_archived (dự báo hôm nay: permission_revoked, OQ-F6)<br>• reconciling → blocked permission_revoked: lookup 403 forbidden<br>• reconciling → blocked document_deleted: lookup 410 document_deleted | EXPERIENCE Queue rows › reconciling (401 / 403 theo mã / 410) | G5-A06 | app | `lose-commit-answer`: POST …/versions/commit #1 → drop_response_after_forward<br>`lookup-verdict`: GET …/versions/commit → status per-exit<br>driver: mỗi lối ra một lần chạy; thêm một lần chạy với điều kiện thật trên server (đình chỉ tổ chức, vô hiệu thành viên, xóa tài liệu) thay cho status tổng hợp | versionDelta: 1 (commit đã vào trước khi lookup bị chặn) — blocked không xóa nháp | reconciling → blocked {reason} đúng bảng Lý do bị chặn<br>proxy: 0 POST commit sau lối ra blocked | `fault/FQ-43/` fx-xlsx-revenue-xyz | none | ready (client: trace); lối ra document_archived lệch ở fork (OQ-F6) |
@@ -150,20 +150,31 @@ lối ra dùng thư mục con `<id>/<n>/` cho lối ra thứ n):
 | `proxy-log.jsonl` | Bản sao `GET /__fault/log` của ca (mục 3) | proxy |
 | `case-result.json` (cùng nội dung `result.json`) | `{case, ac[], result: PASS\|FAIL\|BLOCKED, assertions: [{name, expected, actual, ok}], blocker?}`; hàng app thêm `fixture`, `layer`, `predicted?` và `exits: [{n, label, result, assertions, blocker?, predicted?, evidence}]` (mỗi lối ra một mục, `assertions` ở cấp ca gộp mọi lối ra kèm `exit`). `versionDelta` = số version sau − trước nằm trong khẳng định `version_delta` (`expected` lấy từ `expect.server.versionDelta` của hàng, mục 6), không phải khóa riêng | runner |
 
-**Một dòng bằng chứng mỗi (ca, AC).** Runner chạy dưới `evidence.mjs`, mỗi AC của hàng một lần (fixture của hàng được
-mọi AC khai báo — test kiểm):
+**Chạy một ca.** Hai runner thật (không có `run.mjs`): `server-cases.mjs` cho 13 hàng (S), `app-cases.mjs` cho các hàng
+`app`. Cùng cờ: `--case <id>` (một hàng; id lạ hoặc, ở runner server, hàng không phải `ready` → lỗi, thoát `1`),
+`--run-dir <dir>` (mặc định `$HARNESS_RUN_DIR`, rồi `.harness-run/`), `--cases-file <path>` (mặc định `cases.json`),
+`--verify-result` (đọc lại `result.json` đã ghi của ca, in nó và thoát theo kết quả đó; không chạy lại). Cờ lạ → lỗi,
+thoát `1`.
 
 ```sh
-OFFICE_FORK_SHA=<pin> node scripts/office/g5g6g7/evidence.mjs run \
-  --req <AC> --fixture <fixture của hàng> --checker tester-cloud \
-  --artifact "$HARNESS_RUN_DIR/fault/<id>/evidence-<AC>.log" -- \
-  node scripts/office/g5g6g7/fault/run.mjs --case <id>
+bash scripts/office/g5g6g7/harness/start.sh            # D server + web (+ app fork cho lớp app)
+node scripts/office/g5g6g7/fault/server-cases.mjs --case FQ-01 [--run-dir <dir>]
+dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh \
+  node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-22 [--run-dir <dir>]
 ```
 
-`run.mjs` thoát `0` khi mọi khẳng định của ca PASS, `1` khi một khẳng định FAIL, `77` khi ca `pending`, một tiền điều
-kiện vắng (harness, keyring, núm thời gian) hoặc một khẳng định chưa có nguồn đọc — `evidence.mjs` ghi BLOCKED cho 77.
-`run.mjs` in đường dẫn thư mục artifact của ca ở dòng cuối để log của `evidence.mjs` dẫn tới nó. Hàng `pending` không
-chạy gì và ghi BLOCKED với lý do `pending <dep>`.
+Thoát `0` khi mọi hàng `ready` đã chạy đều PASS, `1` khi một khẳng định FAIL (runner app: cũng khi `start.sh` của harness đã chạy và hỏng), `77`
+(BLOCKED) khi không có gì chạy được tới PASS: hàng `pending`, một tiền điều kiện vắng (harness, keyring, Playwright,
+admin MFA, `expireStagedClaims` không làm già được claim nào), hoặc một lối ra BLOCKED lẫn với lối ra PASS. Hàng `pending`
+không chạy gì và ghi BLOCKED với lý do `pending <dep>`. Dòng cuối của stdout là thư mục artifact
+(`<run-dir>/fault`, thư mục của ca là `<id>/`); với `--verify-result` là `<run-dir>/fault/<id>`. Một ca FAIL của runner
+app in thêm trace intent đầy đủ và các request đồng bộ của tài liệu (`FQ-xx [lối ra] trace …` / `proxy …`) trước dòng đó.
+
+**Một dòng bằng chứng mỗi (ca, AC).** Chính runner ghi sổ bằng chứng: sau mỗi ca nó gọi `runEvidence` (thư viện của
+`scripts/office/g5g6g7/evidence.mjs run`) một lần cho mỗi AC của hàng, trên fixture của hàng (mọi AC khai báo fixture
+đó — test kiểm), với lệnh đọc lại kết quả `node …/<runner>.mjs --case <id> --run-dir <dir> --verify-result` và artifact
+`<id>/evidence-<ac>.log`. Sổ nằm ở `$OFFICE_EVIDENCE_OUT` (mặc định `<run-dir>`); đặt `OFFICE_EVIDENCE_ID` (đang chạy
+bên trong một dòng bằng chứng khác) thì runner không ghi thêm. `OFFICE_FORK_SHA` ghim bản fork cho dòng đó.
 
 ## 5. Câu hỏi mở
 
@@ -217,5 +228,5 @@ ghi kỳ vọng theo spec/EXPERIENCE, không theo hành vi hiện tại. OQ-F4, 
   versionDelta vẫn 1, nhưng EXPERIENCE (`committing → reconciling → committed`, đúng 1 POST, ≥1 lookup) không đạt.
   Không do runner: rule `lose-commit-answer` bắt POST commit #1 của đúng tài liệu, version 2 của server có
   `created_at` trùng giây intent `queued` (commit đầu đã vào), POST thứ hai là gửi lại sau ~52 s. FQ-22 giữ kỳ vọng,
-  ghi "predicted FAIL OQ-F11"; lối ra `reconciling → committed` của FQ-40 dùng cùng rule nên cùng nguyên nhân.
+  ghi "predicted FAIL OQ-F11"; lối ra `reconciling → committed` của FQ-40 dùng cùng rule nên cùng nguyên nhân và được tag "predicted FAIL OQ-F11" như FQ-22 (Advisor, qa-fault_local:10); runner app báo `predicted` ở cấp ca chỉ khi mọi lối ra FAIL đều có tag.
   Finding sản phẩm cho owner G5-06, lead chuyển Advisor.
