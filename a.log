@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor origin/main HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+546e864384a8b17914368e571ea59fde9b03ceec
+0a622efedb285108480555620783d93e43307bbe
+546e8643 merge: fork main 0a622efed (web build stub hotfix for a0cffc387) into the lane branch
+0a622efe fix(sheets): stub node:fs unlinkSync for the web frame build
+65f59abd merge: fork main a0cffc387 (G5-11 account switch lock) into the lane branch
+287083e9 fix(ai): keep the UniWork wording when a bound pdf refuses a file-write tool (G6-09a r1 RFA-1, UNI-1374)
+5f127989 test(ai): pin the pdf panel feeding the provider and capability into the skill gates (G6-09a r1 RFA-5, UNI-1374)
+07e78a6a fix(ai): note hidden pdf edit tools and drop insert_web_image under UniWork AI (G6-09a r1 RFA-2, RFA-4, UNI-1374)
+65f19368 fix(ai): refuse hidden tools at execution in the slides and pdf skills (G6-09a r1 RFA-1, UNI-1374)
+a363353d test(ai): pin executeTool refusal of hidden tools and the pdf / slides prompt notes (G6-09a r1, UNI-1374)
+
+SYNCED_EXIT=0
