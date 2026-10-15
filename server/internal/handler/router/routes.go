@@ -349,6 +349,7 @@ type Routes struct {
 	EndMeeting                     http.HandlerFunc
 	ExtendMeeting                  http.HandlerFunc
 	CancelMeeting                  http.HandlerFunc
+	RestoreMeeting                 http.HandlerFunc
 	TransferHost                   http.HandlerFunc
 	ListNotes                      http.HandlerFunc
 	CreateNote                     http.HandlerFunc

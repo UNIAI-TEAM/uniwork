@@ -534,6 +534,8 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
 		"plan_code": "starter", "success_path": "/billing/ok", "cancel_path": "/billing/cancel",
 	})},
+	"POST /api/v1/meetings/{meetingID}/restore": {control: []int{http.StatusConflict},
+		reason: "the tenant's own fixture meeting was never cancelled, so its owner's restore answers 409 invalid_meeting_state; the cross-tenant call must still be refused 403/404 and A's digest catches a restore"},
 	"PATCH /api/v1/orgs/{orgID}/billing/plan":                         {body: isoJSON(map[string]any{"plan_code": "starter", "row_version": 1})},
 	"POST /api/v1/meetings/{meetingID}/host-transfer":                 {body: isoWith(map[string]string{"new_host_user_id": "peer"}, nil)},
 	"POST /api/v1/orgs/{org}/transfer-ownership":                      {body: isoWith(map[string]string{"to_user_id": "third"}, map[string]any{"password": "password123"})},
