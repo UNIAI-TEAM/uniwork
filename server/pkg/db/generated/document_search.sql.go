@@ -40,7 +40,7 @@ WHERE d.organization_id = $1
        OR (NOT $14::boolean
            AND (NOT $3::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = $5
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -63,7 +63,7 @@ WHERE d.organization_id = $1
            AND d.search_text ILIKE '%' || $13::text || '%' ESCAPE '\')
        OR (($14::boolean OR NOT (NOT $3::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = $5
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -298,7 +298,7 @@ WHERE d.organization_id = $1
        OR (NOT $17::boolean
            AND (NOT $4::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = $7
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -321,7 +321,7 @@ WHERE d.organization_id = $1
            AND d.search_text ILIKE '%' || $16::text || '%' ESCAPE '\')
        OR (($17::boolean OR NOT (NOT $4::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = $7
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -461,7 +461,7 @@ SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.
        COALESCE(CASE WHEN $1::text IS NULL THEN NULL::text
                      WHEN NOT (NOT $2::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = $3
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -510,7 +510,7 @@ WHERE d.organization_id = $5
        OR (NOT $16::boolean
            AND (NOT $2::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = $3
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -533,7 +533,7 @@ WHERE d.organization_id = $5
            AND d.search_text ILIKE '%' || $1::text || '%' ESCAPE '\')
        OR (($16::boolean OR NOT (NOT $2::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = $3
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -651,6 +651,10 @@ type ListDocumentsPageRow struct {
 // an empty snippet and a query matches its title only, never search_text, so
 // neither the snippet nor a body-only keyword leaks the content. The
 // "content readable" predicate is inlined where it is used.
+// acl_owner_id is NULL for agent/system-created documents: every ACL-owner leg of
+// that predicate carries IS NOT NULL, or the comparison is NULL, NOT NULL stays
+// NULL and the snippet CASE falls through to the body (same trap as
+// document_tree.sql ListDocumentSubtreeNeedingAccessCheck).
 //
 // Actor-kind guards (resolveLevel answers the same): agents are never share
 // principals and never ACL owners, so callers pass allow_shares / acl_owner

@@ -60,6 +60,9 @@ func TestIsolationMatrix(t *testing.T) {
 	}
 
 	narrowed := strings.TrimSpace(os.Getenv("ISO_ONLY")) != ""
+	if narrowed {
+		t.Logf("ISO_ONLY=%q: SKIPPED the \"references\" subtest and the member-of-both reference loop; a narrowed run is NOT merge evidence", os.Getenv("ISO_ONLY"))
+	}
 	routes = isoOnly(routes, os.Getenv("ISO_ONLY"))
 
 	t.Run("control", func(t *testing.T) {
@@ -374,6 +377,8 @@ type isoRoute struct{ method, pattern string }
 // matrix is what gates a merge; it lets a lane that may not run the whole
 // matrix on a shared box exercise just the routes it added. The routes are
 // still checked for a class and for staleness before this narrows them.
+// A narrowed run also skips the "references" subtest and the reference loop, so
+// it is NOT merge evidence; the test logs a banner saying so.
 func isoOnly(routes []isoRoute, only string) []isoRoute {
 	if strings.TrimSpace(only) == "" {
 		return routes

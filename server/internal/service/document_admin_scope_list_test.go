@@ -109,6 +109,59 @@ func TestAdminScopeCannotReadRestrictedList(t *testing.T) {
 	}
 }
 
+// DOC5-A03 on the row shape agent/system-created documents have: a restricted
+// document with acl_owner_id NULL, no share, no grant. The ACL-owner leg of the
+// "content readable" predicate compares NULL = actor, so without its IS NOT NULL
+// guard the snippet CASE fell through to the body on a title-only search.
+func TestAdminScopeCannotReadRestrictedNullACLOwnerList(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "doc5nullacl")
+	admin := Human(tn.wsAdmin.ID)
+
+	// aclOwner "" inserts NULL.
+	docR := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", createdBy: tn.aclOwner.ID})
+	if docR.AclOwnerID.Valid {
+		t.Fatalf("fixture row has an ACL owner %q; want NULL", docR.AclOwnerID.String)
+	}
+	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET title = 'Quarterly zeta', content_text = 'secret body xylophone',
+		search_text = 'quarterly zeta secret body xylophone' WHERE id = $1`, docR.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	rowOf := func(t *testing.T, in ListDocumentsInput) (DocumentListItem, bool) {
+		t.Helper()
+		page, err := f.svc.ListDocuments(f.ctx, admin, tn.wsA, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, it := range page.Items {
+			if it.Document.ID == docR.ID {
+				return it, true
+			}
+		}
+		return DocumentListItem{}, false
+	}
+
+	// The Go side: listed, locked.
+	it, ok := rowOf(t, ListDocumentsInput{})
+	if !ok || it.Access.Level != DocumentLevelNone || !it.Access.AdminScope {
+		t.Fatalf("admin list row = %+v found %v; want level none + AdminScope", it.Access, ok)
+	}
+	// A title search, in both match modes, finds it with an empty snippet.
+	for _, match := range []string{"", DocumentMatchTitle} {
+		it, ok = rowOf(t, ListDocumentsInput{Query: "zeta", Match: match})
+		if !ok || it.Snippet != "" || it.Access.Level != DocumentLevelNone || !it.Access.AdminScope {
+			t.Fatalf("admin title search (match %q) = snippet %q access %+v found %v; want the row with an empty snippet", match, it.Snippet, it.Access, ok)
+		}
+	}
+	// A keyword only the body holds never matches.
+	for _, match := range []string{"", DocumentMatchTitle} {
+		if _, ok = rowOf(t, ListDocumentsInput{Query: "xylophone", Match: match}); ok {
+			t.Fatalf("admin body-keyword search (match %q) matched the NULL-ACL-owner restricted document", match)
+		}
+	}
+}
+
 // listRowAccess's DOC-05 rows without a database.
 func TestListRowAccessAdminScope(t *testing.T) {
 	restricted := db.Document{ID: "r", OrganizationID: "org", Visibility: documentVisibilityRestricted}
