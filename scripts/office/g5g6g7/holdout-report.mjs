@@ -233,6 +233,8 @@ export function parseReviews(doc) {
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw new Error('reviews file is not an object');
   if (doc.kind !== REVIEWS_KIND) problems.push(`kind must be ${REVIEWS_KIND}`);
   if (doc.schemaVersion !== 1) problems.push('schemaVersion must be 1');
+  if (typeof doc.sessionId !== 'string' || doc.sessionId.trim() === '') problems.push('sessionId is required (the session the reviews were made for)');
+  if (typeof doc.manifestSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(doc.manifestSha256)) problems.push('manifestSha256 is required (the sha256 of the session manifest.json the reviews were made for)');
   if (!Array.isArray(doc.reviews) || doc.reviews.length === 0) problems.push('reviews must be a non-empty array');
   const seen = new Set();
   for (const [i, r] of (Array.isArray(doc.reviews) ? doc.reviews : []).entries()) {
@@ -253,12 +255,33 @@ export function parseReviews(doc) {
 }
 
 /**
+ * Is the reviews file about THIS run set? Returns the reasons it is not ([] = bound). The file names the session and the
+ * sha256 of its manifest (which holds the sha256 of every run file), so a file written for another session, another model
+ * or a changed run set is refused as a whole, and no review is dated before the session finished (G712-18).
+ */
+export function checkReviewBinding(reviews, session) {
+  const manifest = session?.manifest && !session.manifest.unreadable ? session.manifest : null;
+  if (!manifest || !session.manifestSha256) return ['there is no readable manifest.json, so the reviews cannot be tied to this run set'];
+  const problems = [];
+  if (reviews.sessionId !== manifest.sessionId) problems.push(`the reviews are for session ${reviews.sessionId}, this run set is session ${manifest.sessionId}`);
+  if (reviews.manifestSha256 !== session.manifestSha256) problems.push('the reviews name another manifest sha256: they were made for a different run set, or the runs changed after the reviews were written');
+  const finished = Date.parse(manifest.finishedAt ?? '');
+  if (Number.isNaN(finished)) problems.push('the manifest has no finishedAt, so the review dates cannot be checked');
+  else {
+    const day = Math.floor(finished / 86400000) * 86400000;
+    const early = reviews.reviews.filter((r) => Date.parse(r.date) < day).length;
+    if (early > 0) problems.push(`${early} review(s) are dated before the session finished (${manifest.finishedAt})`);
+  }
+  return problems;
+}
+
+/**
  * Applies the reviewer verdicts to the asks that wait for one: pass -> pass, fail -> fail. A review without `run` covers
  * the ask in every run (D1.c option B, "QA confirms the rubric cases once for all runs"); one with `run` covers that run only
  * and wins. Returns new runs (the inputs are untouched) and the reviews that matched no waiting ask.
  */
 export function applyReviews(runs, reviews) {
-  if (!reviews) return { runs, applied: 0, unused: [], reviewers: [] };
+  if (!reviews) return { runs, applied: 0, unused: [], reviewers: [], used: [] };
   const used = new Set();
   let applied = 0;
   const reviewers = new Set();
@@ -275,7 +298,7 @@ export function applyReviews(runs, reviews) {
       return { ...ask, status: hit.verdict, statusBeforeReview: 'needs_reviewer', reviewedBy: hit.reviewer };
     }),
   }));
-  return { runs: out, applied, unused: reviews.reviews.filter((r) => !used.has(r)).map((r) => `${r.id}/${r.lang}${r.run ? `/run ${r.run}` : ''}`), reviewers: [...reviewers].sort() };
+  return { runs: out, applied, unused: reviews.reviews.filter((r) => !used.has(r)).map((r) => `${r.id}/${r.lang}${r.run ? `/run ${r.run}` : ''}`), reviewers: [...reviewers].sort(), used: [...used] };
 }
 
 // ---- run-set integrity (G712-2) and measurement conditions (G712-3, -5, -7, -8, -9) ----
@@ -460,7 +483,8 @@ export function evaluateThresholds(summaries, thresholds, { completeRuns, tuple,
 // ---- report ----
 
 export function buildReport(runsIn, { thresholds = null, reviews = null, session = null } = {}) {
-  const reviewed = applyReviews(runsIn, reviews);
+  const refusal = reviews ? checkReviewBinding(reviews, session) : [];
+  const reviewed = applyReviews(runsIn, refusal.length === 0 ? reviews : null);
   const runs = reviewed.runs;
   const flaky = findFlaky(runs);
   const flakyKeys = new Set(flaky.map(askKey));
@@ -494,7 +518,11 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     config: runs.map((r) => r.config), summaries, distribution: dist,
     latencyPooled: { calls: pooled.length, p50: percentile(pooled, 50), p95: percentile(pooled, 95) },
     flaky, awaitingReviewer: waiting, unobtainable: unobtainable(runs),
-    reviews: reviews ? { applied: reviewed.applied, unused: reviewed.unused, reviewers: reviewed.reviewers, count: reviews.reviews.length } : null,
+    reviews: reviews ? {
+      applied: reviewed.applied, unused: reviewed.unused, reviewers: reviewed.reviewers, count: reviews.reviews.length, sessionId: reviews.sessionId, refused: refusal,
+      confirmed: [...new Map(reviewed.used.map((r) => [`${r.id}/${r.lang}/${r.run ?? '*'}`, { id: r.id, lang: r.lang, run: r.run ?? null, verdict: r.verdict, reviewer: r.reviewer, date: r.date }])).values()]
+        .sort((a, b) => `${a.id}/${a.lang}/${a.run ?? 0}`.localeCompare(`${b.id}/${b.lang}/${b.run ?? 0}`)),
+    } : null,
     lenientAsks: listAsks(runs, (a) => a.adapter?.anchorLenient ?? 0),
     proseMismatchAsks: listAsks(runs, (a) => ((a.adapter?.proseFigureMismatch ?? 0) > 0 ? 1 : 0)),
     unbackedEditAsks: listAsks(runs, (a) => a.adapter?.writeUnbacked ?? 0),
@@ -508,6 +536,7 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     if (thresholds.caseSetSha256 !== seen?.caseSetSha256 || thresholds.caseCount !== seen?.caseCount) {
       extraBlockers.push(`the run set was made over a different case set than the one the thresholds were signed for (${seen?.caseCount ?? '?'} cases, sha256 ${String(seen?.caseSetSha256 ?? 'unknown').slice(0, 12)} vs signed ${thresholds.caseCount}, ${String(thresholds.caseSetSha256).slice(0, 12)})`);
     }
+    for (const reason of refusal) extraBlockers.push(`the reviews file was refused and applied to nothing: ${reason}`);
     if (waiting.length > 0) extraBlockers.push(`${waiting.length} ask(s) still wait for a reviewer (no review for them in --reviews)`);
     report.overall = evaluateThresholds(adjusted, thresholds, { completeRuns, tuple, extraBlockers });
     report.flakyCountedAsFailed = flaky.length;
@@ -579,7 +608,7 @@ export function renderReport(report) {
   w();
   w('## 1. Bộ lần chạy và release tuple');
   w();
-  w(`Phiên: ${report.sessionId ?? 'không có manifest'}${report.manifestSha256 ? ` (manifest sha256 \`${report.manifestSha256.slice(0, 16)}\`)` : ''}. Bộ lần chạy ${report.runSet.ok ? 'đầy đủ và nhất quán' : 'KHÔNG đầy đủ hoặc không nhất quán'}.`);
+  w(`Phiên: ${report.sessionId ?? 'không có manifest'}${report.manifestSha256 ? ` (manifest sha256 \`${report.manifestSha256}\`)` : ''}. Bộ lần chạy ${report.runSet.ok ? 'đầy đủ và nhất quán' : 'KHÔNG đầy đủ hoặc không nhất quán'}.`);
   for (const p of report.runSet.problems) w(`- ${p}`);
   w();
   w(`Tuple nhất quán giữa các lần chạy: ${report.tuple.consistent ? 'có' : `KHÔNG (${report.tuple.differing.join(', ')})`}.`);
@@ -645,7 +674,20 @@ export function renderReport(report) {
   w('## 6. Ca chờ người duyệt (awaiting reviewer)');
   w();
   if (report.reviews) {
-    w(`Tệp duyệt: ${report.reviews.count} mục, ${report.reviews.applied} lượt hỏi đã áp dụng (người duyệt: ${report.reviews.reviewers.join(', ') || 'không có'}).${report.reviews.unused.length > 0 ? ` Mục duyệt không khớp lượt hỏi nào đang chờ: ${report.reviews.unused.join(', ')}.` : ''}`);
+    const r = report.reviews;
+    if (r.refused.length > 0) {
+      w(`**Tệp duyệt BỊ TỪ CHỐI (${r.count} mục, phiên ${r.sessionId}) và không áp cho lượt hỏi nào**, nên mọi ca chờ duyệt vẫn chờ:`);
+      w();
+      for (const reason of r.refused) w(`- ${reason}`);
+    } else {
+      w(`Tệp duyệt: ${r.count} mục của phiên ${r.sessionId}${r.sha256 ? ` (sha256 \`${r.sha256}\`)` : ''}, ${r.applied} lượt hỏi đã áp dụng (người duyệt: ${r.reviewers.join(', ') || 'không có'}).${r.unused.length > 0 ? ` Mục duyệt không khớp lượt hỏi nào đang chờ: ${r.unused.join(', ')}.` : ''}`);
+      if (r.confirmed.length > 0) {
+        w();
+        w('| Ca | Ngôn ngữ | Lần chạy | Kết luận | Người duyệt | Ngày |');
+        w('| --- | --- | --- | --- | --- | --- |');
+        for (const c of r.confirmed) w(`| ${c.id} | ${c.lang} | ${c.run ?? 'mọi lần'} | ${c.verdict === 'pass' ? 'khớp' : 'lệch'} | ${c.reviewer} | ${c.date} |`);
+      }
+    }
     w();
   }
   if (report.awaitingReviewer.length === 0) w('Không có.');
@@ -694,7 +736,8 @@ export function renderReport(report) {
 
 const HELP = `Usage: node scripts/office/g5g6g7/holdout-report.mjs --runs <session folder> [--reviews <file>] [--thresholds <signed.json>] [--out <dir>] [--allow-in-repo]
 Reads run-NN.json and manifest.json of one runner invocation and writes report.md + report.json (default into the session folder).
---reviews    reviewer verdicts for the asks that wait for a human (kind ${REVIEWS_KIND}; per case id + lang, pass|fail, reviewer, date).
+--reviews    reviewer verdicts for the asks that wait for a human (kind ${REVIEWS_KIND}; per case id + lang, pass|fail, reviewer, date), bound to
+             one run set by its sessionId and the sha256 of its manifest.json (a file for another session is refused).
 --thresholds the signed G7-D1 file; without it the status is "no threshold" and no PASS/FAIL appears anywhere.
 Exit codes: 0 signed PASS, 1 signed FAIL, 2 INCONCLUSIVE, 3 no threshold (no verdict), 4 usage or read error.
 `;

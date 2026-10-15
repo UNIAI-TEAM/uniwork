@@ -54,12 +54,17 @@ function run(index, asks = suite(), over = {}) {
     caseCount, caseSetSha256: 'e'.repeat(64), tuple: TUPLE, config: { ...CONFIG, casesRead: caseCount, ...config }, redactions: [], asks, ...rest };
 }
 
+const FINISHED = '2026-10-19T10:00:00.000Z';
+const MANIFEST_SHA = sha256Hex('manifest');
+// What a reviews file must carry to be about the run set makeSession() builds (G712-18).
+const BOUND = { sessionId: 's-1', manifestSha256: MANIFEST_SHA };
+
 /** The manifest and file hashes the runner would have written for these runs (one invocation, session s-1). */
 function makeSession(runs, over = {}) {
   const files = runs.map((r) => ({ file: `run-${String(r.runIndex).padStart(2, '0')}.json`, sha256: sha256Hex(`run ${r.runIndex}`) }));
-  const manifest = { schemaVersion: 1, kind: MANIFEST_KIND, sessionId: 's-1', runsPlanned: runs.length, caseCount: runs[0].caseCount, caseSetSha256: 'e'.repeat(64), asksPerRun: runs[0].asks.length, partial: false, status: 'completed', startedAt: 't', finishedAt: 't',
+  const manifest = { schemaVersion: 1, kind: MANIFEST_KIND, sessionId: 's-1', runsPlanned: runs.length, caseCount: runs[0].caseCount, caseSetSha256: 'e'.repeat(64), asksPerRun: runs[0].asks.length, partial: false, status: 'completed', startedAt: '2026-10-19T09:00:00.000Z', finishedAt: FINISHED,
     runs: runs.map((r, i) => ({ runIndex: r.runIndex, file: files[i].file, sha256: files[i].sha256, status: r.status, asks: r.asks.length })), ...over };
-  return { runs, files, manifest, manifestSha256: sha256Hex('manifest') };
+  return { runs, files, manifest, manifestSha256: MANIFEST_SHA };
 }
 
 // A suite as big as the one G7-D1 is about: MIN_CASES cases, in the four groups.
@@ -572,7 +577,7 @@ describe('reviewer input (G712-4)', () => {
   const limits = { successRateOverall: { min: 0.5 } };
   const rubric = (a) => (a.group === 'docx' ? { ...a, status: 'needs_reviewer' } : a);
   const runs = () => [run(1, bigSuite(rubric)), run(2, bigSuite(rubric)), run(3, bigSuite(rubric))];
-  const reviewsFor = (verdict, over = {}) => parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: bigSuite(rubric).filter((a) => a.status === 'needs_reviewer').map((a) => ({ id: a.id, lang: a.lang, verdict: typeof verdict === 'function' ? verdict(a) : verdict, reviewer: 'QA reviewer', date: '2026-10-21', ...over })) });
+  const reviewsFor = (verdict, over = {}) => parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, ...BOUND, reviews: bigSuite(rubric).filter((a) => a.status === 'needs_reviewer').map((a) => ({ id: a.id, lang: a.lang, verdict: typeof verdict === 'function' ? verdict(a) : verdict, reviewer: 'QA reviewer', date: '2026-10-21', ...over })) });
   const judge = (reviews) => buildReport(runs(), { thresholds: signed(limits), session: makeSession(runs()), reviews }).overall;
 
   it('keeps a rubric ask "awaiting reviewer" and a signed rate gate inconclusive when no review exists, even if the rate would hold', () => {
@@ -597,7 +602,7 @@ describe('reviewer input (G712-4)', () => {
   });
 
   it('is inconclusive while some waiting ask has no review', () => {
-    const partial = parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: [{ id: 'HO-B-041', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' }] });
+    const partial = parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, ...BOUND, reviews: [{ id: 'HO-B-041', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' }] });
     const o = judge(partial);
     assert.equal(o.status, 'INCONCLUSIVE');
     assert.match(o.blockers.join(' '), /39 ask\(s\) still wait/);
@@ -605,7 +610,7 @@ describe('reviewer input (G712-4)', () => {
 
   it('applies a per-run review to that run only and lets it win over a general one; never rescues a deterministic fail', () => {
     const input = [run(1, bigSuite(rubric)), run(2, bigSuite(rubric))];
-    const reviews = parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: [
+    const reviews = parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, ...BOUND, reviews: [
       { id: 'HO-B-041', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' },
       { id: 'HO-B-041', lang: 'vi', run: 2, verdict: 'fail', reviewer: 'QA second', date: '2026-10-21' },
       { id: 'HO-B-001', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' },
@@ -618,13 +623,13 @@ describe('reviewer input (G712-4)', () => {
     assert.deepEqual(out.unused, ['HO-B-001/vi', 'HO-B-999/vi']);
     assert.equal(input[0].asks.find((a) => a.id === 'HO-B-041').status, 'needs_reviewer', 'the inputs are untouched');
     const md = renderReport(buildReport(input, { reviews, session: makeSession(input) }));
-    assert.match(md, /Tệp duyệt: 4 mục, 2 lượt hỏi đã áp dụng/);
+    assert.match(md, /Tệp duyệt: 4 mục của phiên s-1, 2 lượt hỏi đã áp dụng/);
     assert.match(md, /không khớp lượt hỏi nào đang chờ: HO-B-001\/vi, HO-B-999\/vi/);
   });
 
   it('validates the reviews file: kind, case id, language, verdict, a named reviewer, a date, no repeats', () => {
     const base = { id: 'HO-B-041', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' };
-    const file = (over, extra = {}) => ({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: [{ ...base, ...over }], ...extra });
+    const file = (over, extra = {}) => ({ schemaVersion: 1, kind: REVIEWS_KIND, ...BOUND, reviews: [{ ...base, ...over }], ...extra });
     assert.doesNotThrow(() => parseReviews(file({})));
     assert.throws(() => parseReviews(file({ verdict: 'confirmed' })), /verdict must be pass or fail/);
     assert.throws(() => parseReviews(file({ reviewer: ' ' })), /reviewer is required/);
@@ -634,7 +639,7 @@ describe('reviewer input (G712-4)', () => {
     assert.throws(() => parseReviews(file({ run: 0 })), /run must be a run index/);
     assert.throws(() => parseReviews(file({}, { kind: 'other' })), /kind must be/);
     assert.throws(() => parseReviews({ ...file({}), reviews: [base, base] }), /repeats HO-B-041\/vi\/\*/);
-    assert.throws(() => parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: [] }), /non-empty array/);
+    assert.throws(() => parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, ...BOUND, reviews: [] }), /non-empty array/);
   });
 
   it('is wired into the command line, and the reviews file hash goes into the report', () => {
@@ -642,9 +647,10 @@ describe('reviewer input (G712-4)', () => {
     fs.mkdirSync(dir, { recursive: true });
     const input = runs();
     const entries = input.map((r) => { const json = `${JSON.stringify(r)}\n`; const file = `run-0${r.runIndex}.json`; fs.writeFileSync(path.join(dir, file), json); return { runIndex: r.runIndex, file, sha256: sha256Hex(json), status: 'completed', asks: r.asks.length }; });
-    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ schemaVersion: 1, kind: MANIFEST_KIND, sessionId: 's-1', runsPlanned: 3, caseCount: 100, caseSetSha256: 'e'.repeat(64), status: 'completed', partial: false, runs: entries }));
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ schemaVersion: 1, kind: MANIFEST_KIND, sessionId: 's-1', runsPlanned: 3, caseCount: 100, caseSetSha256: 'e'.repeat(64), status: 'completed', partial: false, finishedAt: FINISHED, runs: entries }));
     const reviews = path.join(tmpRoot, 'reviews.json');
-    fs.writeFileSync(reviews, JSON.stringify(reviewsFor('pass')));
+    const realManifestSha = sha256Hex(fs.readFileSync(path.join(dir, 'manifest.json')));
+    fs.writeFileSync(reviews, JSON.stringify({ ...reviewsFor('pass'), manifestSha256: realManifestSha }));
     const limitsFile = path.join(tmpRoot, 'limits.json');
     fs.writeFileSync(limitsFile, JSON.stringify(signedBody(limits)));
     const out = path.join(tmpRoot, 'review-out');
@@ -653,6 +659,74 @@ describe('reviewer input (G712-4)', () => {
     assert.equal(JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8')).reviews.sha256, sha256Hex(fs.readFileSync(reviews)));
     const without = spawnSync(process.execPath, [path.join(here, 'holdout-report.mjs'), '--runs', dir, '--thresholds', limitsFile, '--out', out], { encoding: 'utf8' });
     assert.equal(without.status, EXIT.inconclusive, 'without the reviews the same runs give no pass');
+    // The same file, bound to the manifest of ANOTHER run set, is refused through the command line too.
+    const stale = path.join(tmpRoot, 'reviews-stale.json');
+    fs.writeFileSync(stale, JSON.stringify({ ...reviewsFor('pass'), manifestSha256: 'a'.repeat(64) }));
+    const refused = spawnSync(process.execPath, [path.join(here, 'holdout-report.mjs'), '--runs', dir, '--thresholds', limitsFile, '--reviews', stale, '--out', out], { encoding: 'utf8' });
+    assert.equal(refused.status, EXIT.inconclusive, refused.stdout + refused.stderr);
+    assert.match(refused.stdout, /Tệp duyệt BỊ TỪ CHỐI/);
+  });
+
+  describe('binding to the run set (G712-18)', () => {
+    const wholeRuns = () => runs();
+    const report = (reviews, over = {}) => buildReport(wholeRuns(), { thresholds: signed(limits), session: makeSession(wholeRuns(), over), reviews });
+
+    it('requires the session id and the manifest sha256 in the file', () => {
+      const file = (extra) => ({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: [{ id: 'HO-B-041', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' }], ...extra });
+      assert.throws(() => parseReviews(file({})), /sessionId is required/);
+      assert.throws(() => parseReviews(file({ sessionId: 's-1' })), /manifestSha256 is required/);
+      assert.throws(() => parseReviews(file({ sessionId: 's-1', manifestSha256: 'abc' })), /manifestSha256 is required/);
+      assert.doesNotThrow(() => parseReviews(file(BOUND)));
+    });
+
+    it('applies a file for this session and prints who confirmed what, and when', () => {
+      const r = report(reviewsFor('pass'));
+      assert.equal(r.overall.status, 'PASS');
+      assert.deepEqual(r.reviews.refused, []);
+      assert.equal(r.reviews.applied, 120);
+      assert.equal(r.reviews.confirmed.length, 40);
+      const md = renderReport({ ...r, reviews: { ...r.reviews, sha256: 'f'.repeat(64) } });
+      assert.match(md, /Tệp duyệt: 40 mục của phiên s-1 \(sha256 `f{64}`\)/);
+      assert.match(md, /\| HO-B-041 \| vi \| mọi lần \| khớp \| QA reviewer \| 2026-10-21 \|/);
+    });
+
+    it('refuses a file made for another session: INCONCLUSIVE with the reason, nothing applied', () => {
+      const other = reviewsFor('pass', {});
+      other.sessionId = 's-other';
+      const r = report(other);
+      assert.equal(r.overall.status, 'INCONCLUSIVE');
+      assert.equal(r.reviews.applied, 0);
+      assert.match(r.reviews.refused.join(' '), /for session s-other, this run set is session s-1/);
+      assert.match(r.overall.blockers.join(' '), /reviews file was refused and applied to nothing/);
+      assert.match(r.overall.blockers.join(' '), /40 ask\(s\) still wait for a reviewer/, 'the asks still wait');
+      assert.match(renderReport(r), /Tệp duyệt BỊ TỪ CHỐI/);
+    });
+
+    it('refuses a file whose manifest hash is not this run set\'s (another model, or a run that changed)', () => {
+      const other = { ...reviewsFor('pass'), manifestSha256: 'b'.repeat(64) };
+      const r = report(other);
+      assert.equal(r.overall.status, 'INCONCLUSIVE');
+      assert.match(r.reviews.refused.join(' '), /another manifest sha256/);
+      // A later change of a run file changes the manifest the reviews were hashed against: same refusal.
+      const changed = report(reviewsFor('pass'), { sessionId: 's-1' });
+      assert.equal(changed.overall.status, 'PASS', 'the matching manifest is accepted');
+    });
+
+    it('refuses reviews dated before the session finished, and a manifest without a finish time', () => {
+      const early = report(reviewsFor('pass', { date: '2026-10-18' }));
+      assert.equal(early.overall.status, 'INCONCLUSIVE');
+      assert.match(early.reviews.refused.join(' '), /40 review\(s\) are dated before the session finished/);
+      const sameDay = report(reviewsFor('pass', { date: '2026-10-19' }));
+      assert.equal(sameDay.overall.status, 'PASS', 'a date-only review on the finishing day is fine');
+      const unfinished = report(reviewsFor('pass'), { finishedAt: null });
+      assert.match(unfinished.reviews.refused.join(' '), /no finishedAt/);
+    });
+
+    it('refuses any reviews file when there is no manifest to bind to', () => {
+      const r = buildReport(wholeRuns(), { thresholds: signed(limits), reviews: reviewsFor('pass') });
+      assert.equal(r.overall.status, 'INCONCLUSIVE');
+      assert.match(r.reviews.refused.join(' '), /no readable manifest/);
+    });
   });
 });
 

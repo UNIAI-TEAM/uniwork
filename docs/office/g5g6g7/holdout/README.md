@@ -241,12 +241,19 @@ vẫn gate vì đo thật việc ghi vượt trần ở vai editor.
 {
   "schemaVersion": 1,
   "kind": "uniwork-office-g7-holdout-reviews",
+  "sessionId": "<mã phiên của thư mục chạy>",
+  "manifestSha256": "<sha256 của manifest.json của phiên đó>",
   "reviews": [
     { "id": "<mã ca>", "lang": "vi", "verdict": "pass", "reviewer": "<tên người duyệt>", "date": "<ngày>" },
     { "id": "<mã ca>", "lang": "en", "run": 2, "verdict": "fail", "reviewer": "<tên>", "date": "<ngày>" }
   ]
 }
 ```
+
+Tệp duyệt **gắn với đúng một bộ lần chạy**: `sessionId` và `manifestSha256` (manifest đã giữ sha256 của từng file run) là bắt buộc.
+Tệp của phiên khác, của một bộ lần chạy khác hoặc khi run đã đổi bị **từ chối cả tệp** (không áp cho lượt hỏi nào, lượt hỏi vẫn
+chờ người duyệt, kết luận đã ký là `INCONCLUSIVE` kèm lý do), và mục duyệt ghi ngày trước lúc phiên kết thúc (`finishedAt`) cũng bị từ chối.
+Mục 6 của báo cáo in từng mục đã áp (ca, ngôn ngữ, lần chạy, kết luận, người duyệt, ngày) và sha256 của tệp duyệt.
 
 Mỗi mục là một ca + ngôn ngữ (chỉ mã ca, không chứa văn bản). Không có `run` thì áp cho lượt hỏi đó ở **mọi** lần chạy (QA xác
 nhận một lần cho cả ba lần); có `run` thì chỉ áp cho lần đó và thắng mục chung. `pass` tính là khớp, `fail` tính là lệch; một mục
