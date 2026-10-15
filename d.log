@@ -1,0 +1,67 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r15b" OFFICE_FORK_SHA=695421c0 timeout -k 15 1080 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-40 --run-dir .harness-run-r15b; rc=$?; echo; echo "APP_CASE_FQ_40_EXIT=$rc"; f=.harness-run-r15b/fault/FQ-40/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",JSON.stringify(r.exitRange||""),(r.assertions||[]).map(a=>(a.ok?"ok ":"FAIL ")+a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "),JSON.stringify(r.exits||r.run_execution||"").slice(0,3000))' "$PWD/$f"; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:44431 app_api=http://127.0.0.1:36689 proxy_upstream=http://127.0.0.1:44431
+FQ-40 [1/5] reconciling → committed: running
+dbus-daemon[20385]: [session uid=1000 pid=20385] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20421 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20385]: [session uid=1000 pid=20385] Successfully activated service 'org.a11y.Bus'
+FQ-40 [2/5] reconciling → queued (attempt mới): running
+FQ-40 [3/5] reconciling → paused_admin: running
+FQ-40 [4/5] reconciling → paused_offline: running
+FQ-40 [5/5] reconciling ở lại (in_flight): running
+FQ-40: FAIL (predicted OQ-F11)
+  FQ-40 [reconciling → committed] trace 2026-10-15T22:19:47.708Z ∅ -> queued
+  FQ-40 [reconciling → committed] trace 2026-10-15T22:19:47.746Z queued -> paused_offline code=network
+  FQ-40 [reconciling → committed] trace 2026-10-15T22:20:40.009Z queued -> validating
+  FQ-40 [reconciling → committed] trace 2026-10-15T22:20:40.009Z validating -> uploading
+  FQ-40 [reconciling → committed] trace 2026-10-15T22:20:40.009Z uploading -> committing
+  FQ-40 [reconciling → committed] trace 2026-10-15T22:20:40.009Z committing -> committed http=200
+  FQ-40 [reconciling → committed] proxy 2026-10-15T22:19:47.729Z upload POST 201 key=7672d342842b rule=-
+  FQ-40 [reconciling → committed] proxy 2026-10-15T22:19:47.744Z commit POST dropped key=7672d342842b rule=lose-commit-answer
+  FQ-40 [reconciling → committed] proxy 2026-10-15T22:20:40.020Z upload POST 201 key=7672d342842b rule=-
+  FQ-40 [reconciling → committed] proxy 2026-10-15T22:20:40.028Z commit POST 200 key=7672d342842b rule=-
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-15T22:21:19.483Z ∅ -> queued
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-15T22:21:19.505Z queued -> paused_offline code=network
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-15T22:22:11.888Z queued -> validating
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-15T22:22:11.888Z validating -> uploading
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-15T22:22:11.888Z uploading -> committing
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-15T22:22:11.888Z committing -> conflict code=conflict http=409
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-15T22:21:19.497Z upload POST 201 key=aaf9740d6859 rule=-
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-15T22:21:19.503Z commit POST dropped key=aaf9740d6859 rule=lose-commit-answer
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-15T22:22:11.901Z upload POST 201 key=aaf9740d6859 rule=-
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-15T22:22:11.910Z commit POST 409 key=aaf9740d6859 rule=-
+  FQ-40 [reconciling → paused_admin] trace 2026-10-15T22:24:00.465Z ∅ -> queued
+  FQ-40 [reconciling → paused_admin] trace 2026-10-15T22:24:00.499Z queued -> paused_offline code=network
+  FQ-40 [reconciling → paused_admin] trace 2026-10-15T22:24:52.856Z queued -> validating
+  FQ-40 [reconciling → paused_admin] trace 2026-10-15T22:24:52.856Z validating -> uploading
+  FQ-40 [reconciling → paused_admin] trace 2026-10-15T22:24:52.856Z uploading -> committing
+  FQ-40 [reconciling → paused_admin] trace 2026-10-15T22:24:52.856Z committing -> committed http=200
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-15T22:24:00.484Z upload POST 201 key=d1f09234c6c1 rule=-
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-15T22:24:00.496Z commit POST dropped key=d1f09234c6c1 rule=lose-commit-answer
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-15T22:24:52.872Z upload POST 201 key=d1f09234c6c1 rule=-
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-15T22:24:52.879Z commit POST 200 key=d1f09234c6c1 rule=-
+  FQ-40 [reconciling → paused_offline] trace 2026-10-15T22:28:50.315Z ∅ -> queued
+  FQ-40 [reconciling → paused_offline] trace 2026-10-15T22:28:50.346Z queued -> paused_offline code=network
+  FQ-40 [reconciling → paused_offline] trace 2026-10-15T22:29:42.742Z queued -> validating
+  FQ-40 [reconciling → paused_offline] trace 2026-10-15T22:29:42.742Z validating -> uploading
+  FQ-40 [reconciling → paused_offline] trace 2026-10-15T22:29:42.742Z uploading -> committing
+  FQ-40 [reconciling → paused_offline] trace 2026-10-15T22:29:42.742Z committing -> committed http=200
+  FQ-40 [reconciling → paused_offline] proxy 2026-10-15T22:28:50.332Z upload POST 201 key=54dc263dc95c rule=-
+  FQ-40 [reconciling → paused_offline] proxy 2026-10-15T22:28:50.343Z commit POST dropped key=54dc263dc95c rule=lose-commit-answer
+  FQ-40 [reconciling → paused_offline] proxy 2026-10-15T22:29:42.755Z upload POST 201 key=54dc263dc95c rule=-
+  FQ-40 [reconciling → paused_offline] proxy 2026-10-15T22:29:42.760Z commit POST 200 key=54dc263dc95c rule=-
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-15T22:31:40.182Z ∅ -> queued
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-15T22:31:40.210Z queued -> paused_offline code=network
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-15T22:32:32.610Z queued -> validating
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-15T22:32:32.610Z validating -> uploading
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-15T22:32:32.610Z uploading -> committing
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-15T22:32:32.610Z committing -> committed http=200
+  FQ-40 [reconciling ở lại (in_flight)] proxy 2026-10-15T22:31:40.196Z upload POST 201 key=21f8e0996b92 rule=-
+  FQ-40 [reconciling ở lại (in_flight)] proxy 2026-10-15T22:31:40.207Z commit POST dropped key=21f8e0996b92 rule=lose-commit-answer
+  FQ-40 [reconciling ở lại (in_flight)] proxy 2026-10-15T22:32:32.620Z upload POST 201 key=21f8e0996b92 rule=-
+  FQ-40 [reconciling ở lại (in_flight)] proxy 2026-10-15T22:32:32.627Z commit POST 200 key=21f8e0996b92 rule=-
+FQ-40 (G5-A06): FAIL predicted OQ-F11
+/workspace/.harness-run-r15b/fault
+APP_CASES_EXIT=1
+
+APP_CASE_FQ_40_EXIT=1
+FQ-40 FAIL OQ-F11  "" FAIL client_path: expected "* → reconciling → committed" actual "queued → paused_offline → validating → uploading → committing → committed" | ok receipt: expected "committed" actual "committed" | ok one_key_for_commits: expected 1 actual "1 keyTag(s) over 2 request(s)" | ok version_delta: expected 1 actual 1 | ok device_b_commit_200: expected 200 actual 200 | FAIL lookup_answered_by_server: expected 200 actual "none" | FAIL reconciling_to_queued: expected "reconciling → queued" actual "never" | ok new_attempt_same_key: expected ">= 2" actual 2 | ok one_key_for_commits: expected 1 actual "1 keyTag(s) over 2 request(s)" | ok no_terminal_failure: expected "never failed/cancelled" actual "never" | ok version_delta: expected 1 actual 1 | FAIL lookup_held: expected "held" actual "never" | FAIL reconciling_to_paused_admin: expected "reconciling → paused_admin" actual "never" | FAIL no_commit_while_paused: expected 0 actual 2 | ok receipt_after_capability_back: expected "committed" actual "committed" | ok one_key_for_commits: expected 1 actual "1 keyTag(s) over 2 request(s)" | ok version_delta: expected 1 actual 1 | FAIL reconciling_to_paused_offline: expected "reconciling → paused_offline" actual "never" | FAIL no_commit_while_paused: expected 0 actual 2 | ok receipt_after_network_back: expected "committed" actual "committed" | ok one_key_for_commits: expected 1 actual "1 keyTag(s) over 2 request(s)" | ok version_delta: expected 1 actual 1 | FAIL in_flight_kept_reconciling: expected "reconciling → reconciling on in_flight" actual "no in_flight lookup traced" | FAIL looked_up_again: expected ">= 2 lookups, the first synthetic" actual 0 | FAIL client_path: expected "* → reconciling → * → committed" actual "queued → paused_offline → validating → uploading → committing → committed" | ok receipt: expected "committed" actual "committed" | ok one_key_for_commits: expected 1 actual "1 keyTag(s) over 2 request(s)" | ok version_delta: expected 1 actual 1 [{"n":1,"label":"reconciling → committed","result":"FAIL","assertions":[{"name":"client_path","expected":"* → reconciling → committed","actual":"queued → paused_offline → validating → uploading → committing → committed","ok":false},{"name":"receipt","expected":"committed","actual":"committed","ok":true},{"name":"one_key_for_commits","expected":1,"actual":"1 keyTag(s) over 2 request(s)","ok":true},{"name":"version_delta","expected":1,"actual":1,"ok":true}],"predicted":"OQ-F11","evidence":{"documentId":"01M50TBMCS1QT7NNW0133HB2S3","trace":[{"ts":"2026-10-15T22:19:47.708Z","intentId":"office-intent-a36b0680-5f4a-4497-9682-93225005b650","from":null,"to":"queued"},{"ts":"2026-10-15T22:19:47.746Z","intentId":"office-intent-a36b0680-5f4a-4497-9682-93225005b650","from":"queued","to":"paused_offline","code":"network"},{"ts":"2026-10-15T22:20:40.009Z","intentId":"office-intent-a36b0680-5f4a-4497-9682-93225005b650","from":"queued","to":"validating"},{"ts":"2026-10-15T22:20:40.009Z","intentId":"office-intent-a36b0680-5f4a-4497-9682-93225005b650","from":"validating","to":"uploading"},{"ts":"2026-10-15T22:20:40.009Z","intentId":"office-intent-a36b0680-5f4a-4497-9682-93225005b650","from":"uploading","to":"committing"},{"ts":"2026-10-15T22:20:40.009Z","intentId":"office-intent-a36b0680-5f4a-4497-9682-93225005b650","from":"committing","to":"committed","httpStatus":200}],"requests":[{"kind":"upload","ts":"2026-10-15T22:19:47.729Z","method":"POST","status":201,"keyTag":"7672d342842b","ruleId":null},{"kind":"commit","ts":"2026-10-15T22:19:47.744Z","method":"POST","status":"dropped","keyTag":"7672d342842b","ruleId":"lose-commit-answer"},{"kind":"upload","ts":"2026-10-15T22:20:40.020Z","method":"POST","status":201,"keyTag":"7672d342842b","ruleId":null},{"kind":"commit","ts":"2026-10-15T22:20:40.028Z","method":"POST","status":200,"keyTag":"7672d342842b","ruleId":null}]}},{"n":2,"label":"reconciling → queued (attempt mới)","result":"FAIL","assertions":[{"name":"device_b_commit_200","expected":200,"actual":200,"ok":true},{"name":"lookup_answered_by_server","expected":200,"actual":"none","ok":false},{"name":"reconciling_to_queued","expected":"reconciling → queued","actual":"never","ok":false},{"name":"new_attempt_same_key","expected":">= 2","actual":2,"ok":true},{"name":"one_key_for_commits","expected":1,"actual":"1 keyTag(s) over 2 request(s)","ok":true},{"name":"no_terminal_failure","expected":"never failed/cancelled","actual":"never","ok":true},{"name":"version_delta","expected":1,"actual":1,"ok":true}],"predicted":"OQ-F11","evidence":{"documentId":"01M50TEE17Z906946W3T6YT9GR","trace":[{"ts":"2026-10-15T22:21:19.483Z","intentId":"office-intent-70e1fecd-36c3-427c-921d-2cc0db264dda","from":null,"to":"queued"},{"ts":"2026-10-15T22:21:19.505Z","intentId":"office-intent-70e1fecd-36c3-427c-921d-2cc0db264dda","from":"queued","to":"paused_offline","code":"network"},{"ts":"2026-10-15T22:22:11.888Z","intentId":"office-intent-70e1fecd-36c3-427c-921d-2cc0db264dda","from":"queued",
