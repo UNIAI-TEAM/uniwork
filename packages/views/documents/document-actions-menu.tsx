@@ -12,7 +12,10 @@ import {
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@uniwork/core/auth";
+import type { DocumentAdminScopeFake } from "@uniwork/core/documents/doc05-fake";
 import { useFlag } from "@uniwork/core/feature-flags";
+import { canAdministerDocument } from "@uniwork/core/permissions";
 import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -22,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, useHeaderActionsSlotFilled } from "../layout/header-actions-slot";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import { documentCommentsTitleKey, useDocumentCommentsChrome } from "./document-comments-context";
 import { AccessLogSheet } from "./access-log-sheet";
@@ -32,7 +36,7 @@ import { VersionHistorySheet } from "./version-history-sheet";
 
 export interface DocumentActionsMenuProps {
   wsId: string;
-  doc: Document;
+  doc: Document & DocumentAdminScopeFake;
   /** Route of a document id, for opening a freshly created copy. */
   documentHrefFor?: (documentId: string) => string;
   /** Called after a verified archive so the host can leave the trashed doc. */
@@ -65,8 +69,14 @@ export function DocumentActionsMenu({
 }: DocumentActionsMenuProps) {
   const { t } = useTranslation();
   const { push } = useNavigation();
+  const sessionUserId = useAuthStore((st) => st.user?.id ?? null);
+  const userId = useOptionalWorkspace()?.user.id ?? sessionUserId;
   const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
   const canManage = doc.my_level === "manage";
+  // Share opens for DOC-05 admin_scope too (a break-glass admin holds view):
+  // the dialog's access list and owner transfer are canAdminister() surfaces
+  // (access addendum §2.5). Every other entry keeps its own gate.
+  const canAdminister = canAdministerDocument(doc, { userId, orgRole: null, wsRole: null }).allowed;
   const owned = !!doc.owner_kind;
   const archived = !!doc.archived_at;
   const [panel, setPanel] = useState<PanelId>(null);
@@ -77,8 +87,10 @@ export function DocumentActionsMenu({
 
   const items: { id: Exclude<PanelId, null>; label: string; icon: typeof RotateCcwClock; destructive?: boolean }[] = [];
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });
-  if (canManage && !owned && !archived) {
+  if (canAdminister && !owned && !archived) {
     items.push({ id: "share", label: t("documents.actions.share"), icon: Share2 });
+  }
+  if (canManage && !owned && !archived) {
     items.push({ id: "logs", label: t("documents.actions.access_log"), icon: ScrollText });
   }
   if (canEdit && !owned && !archived && doc.kind === "file" && !copyUnavailable) {
@@ -111,7 +123,7 @@ export function DocumentActionsMenu({
               and the file commands its canvas replaced (download, upload). */}
           <HeaderActionsMenuItems />
           {folded && comments && commentsEnabled ? (
-            <DropdownMenuItem className="gap-2 px-2 py-2 sm:hidden" onClick={() => comments.setOpen(!comments.open)}>
+            <DropdownMenuItem className="gap-2 px-2 py-2 pointer-coarse:min-h-11 sm:hidden" onClick={() => comments.setOpen(!comments.open)}>
               <MessageSquare aria-hidden className="size-3.5" />
               {t(documentCommentsTitleKey(doc))}
             </DropdownMenuItem>
@@ -120,7 +132,7 @@ export function DocumentActionsMenu({
             <DropdownMenuItem
               key={item.id}
               variant={item.destructive ? "destructive" : "default"}
-              className="gap-2 px-2 py-2"
+              className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
               onClick={() => setPanel(item.id)}
             >
               <item.icon aria-hidden className="size-3.5" />
@@ -136,7 +148,7 @@ export function DocumentActionsMenu({
         wsId={wsId}
         doc={doc}
       />
-      {!owned && canManage ? (
+      {!owned && canAdminister ? (
         <ShareDialog
           open={panel === "share"}
           onOpenChange={(next) => setPanel(next ? "share" : null)}
