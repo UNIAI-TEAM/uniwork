@@ -5009,6 +5009,11 @@
         "name": "Display name",
         "description": "Description",
         "billing_period": "Billing period (none / month / year)",
+        "period": {
+          "month": "Month",
+          "year": "Year",
+          "none": "No billing period"
+        },
         "price": "Price (smallest unit; empty = contact us)",
         "sort_order": "Sort order",
         "is_active": "Visible on billing page"
@@ -7031,7 +7036,23 @@
       "rate_limit": "You've sent several requests recently. Please try again later.",
       "success_title": "Demo request received",
       "success_description": "Your request has been saved. The UniWork team will contact {{email}} to arrange your demo.",
-      "receipt": "Request reference: {{id}}"
+      "receipt": "Request reference: {{id}}",
+      "search": "Search example tasks",
+      "reset": "Reset demo",
+      "noResults": "No tasks found. Try a different search.",
+      "complete": "Mark complete",
+      "reopen": "Reopen task",
+      "openDiscussion": "Open discussion",
+      "openTask": "Open task",
+      "messageHistory": "Example conversation history",
+      "messageLabel": "Example message",
+      "messagePlaceholder": "Try a message to the team…",
+      "send": "Send message",
+      "you": "You",
+      "ownerQuestion": "Who owns the work?",
+      "ownerAnswer": "Hoàng Anh owns the onboarding design. Minh Linh owns the product brief, UNI gathers feedback, and Thanh Ngân owns the launch scope.",
+      "completedCount_one": "{{count}} of 4 example tasks is complete.",
+      "completedCount_other": "{{count}} of 4 example tasks are complete."
     },
     "explorer": {
       "sub": "Choose a feature. See how your team connects.",

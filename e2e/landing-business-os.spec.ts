@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady } from "./landing-ready";
 
 for (const theme of ["light", "dark"] as const) {
   test(`Business OS shows all capabilities around four readable ${theme} previews`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: theme });
     await page.goto("/");
+    await landingReady(page);
     const os = page.locator("#business-os");
     await expect(os.getByRole("heading", { name: "UniWork Business OS", exact: true })).toBeVisible();
     await expect(os.locator(".business-os-layer")).toHaveCount(4);
@@ -52,6 +54,7 @@ test("the full Business OS gallery fits mobile in English", async ({ page, conte
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/");
+    await landingReady(page);
     const os = page.locator("#business-os");
     const items = os.locator("[data-capability]");
     await expect(items).toHaveCount(37);
@@ -70,6 +73,7 @@ test("the full Business OS gallery fits mobile in English", async ({ page, conte
 test("previews respond to keyboard and respect reduced motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/#business-os");
+  await landingReady(page);
   const project = page.locator("[data-showcase=projects] button");
   const board = project.locator(".os-preview-board");
   const check = project.locator(".os-preview-check");
@@ -97,6 +101,7 @@ test("previews respond to keyboard and respect reduced motion", async ({ page })
 test("gallery motion pauses on request and outside the viewport", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
+  await landingReady(page);
   const os = page.locator("#business-os");
   const project = os.locator("[data-showcase=projects]");
   await project.scrollIntoViewIfNeeded();

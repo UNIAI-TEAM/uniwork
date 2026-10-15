@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { landingReady } from "./landing-ready";
 
 for (const width of [1910, 1440, 768, 390]) {
   test(`product stage shares the landing frame at ${width}px`, async ({ page, context, baseURL }) => {
@@ -7,6 +8,7 @@ for (const width of [1910, 1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: width === 390 ? "dark" : "light" });
     await page.goto("/#du-an");
+    await landingReady(page);
     const workspace = page.locator("#product-preview");
     await expect(workspace.locator(width < 768 ? ".mobile-feature-story" : ".lovable-canvas")).toBeVisible();
     await expect(page.locator(".demo-director, .demo-beats, .workspace-availability, .hero-scene-footer, .preview-caption")).toHaveCount(0);

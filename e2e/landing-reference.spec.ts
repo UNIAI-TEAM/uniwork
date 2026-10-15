@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { selectWorkspaceFeature } from "./landing-catalog-helpers";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { landingReady } from "./landing-ready";
 
 for (const width of [1440, 390]) {
   test(`Lovable reference structure and remaining landing sections at ${width}px`, async ({ page }) => {
@@ -10,6 +11,7 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 960 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/#du-an");
+    await landingReady(page);
     const dir = resolve(import.meta.dirname, "../.impeccable/review");
     await mkdir(dir, { recursive: true });
     const capture = async (selector: string, name: string) => {
@@ -68,6 +70,7 @@ for (const width of [1440, 390]) test(`Today rows and counts share completion, r
   await page.setViewportSize({ width, height: 960 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/#daily-tools");
+  await landingReady(page);
   await selectWorkspaceFeature(page, "today");
   await page.locator(".today-task-panel button").first().click();
   await page.locator(".preview-detail-actions button").first().click();
@@ -94,6 +97,7 @@ test("skip link remains hidden without focus across tall section captures", asyn
   await page.setViewportSize({ width, height: 960 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  await landingReady(page);
   // The shared app Providers remount landing after auth/config settles.
   // Focus assertions must use that final tree, not the pre-refresh DOM.
   await page.waitForLoadState("networkidle");
@@ -106,6 +110,7 @@ test("skip link remains hidden without focus across tall section captures", asyn
   expect((await probe()).bottom).toBeLessThanOrEqual(0);
   await expect(link).toHaveCSS("clip-path", "inset(50%)");
   await page.goto("/");
+  await landingReady(page);
   await page.reload();
   await page.waitForLoadState("networkidle");
   await expect(page.locator(".landing-site h1")).toBeVisible();

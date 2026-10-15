@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady } from "./landing-ready";
 
 const overview = ["learn", "features", "solutions", "solutions/product", "solutions/operations", "pricing", "enterprise"];
 const features = ["dashboard", "tasks", "projects", "today", "calendar", "workflows", "meetings", "chat", "email", "outputs", "documents", "approvals", "knowledge", "ask", "agents", "automation", "organization", "audit"];
@@ -22,6 +23,7 @@ for (const sample of samples) {
     const leaves = sample.all ? features : ["tasks", "chat", "automation"];
     for (const route of [...overview, ...leaves.map(key => `features/${key}`)]) {
       const response = await page.goto(`/${route}`);
+      await landingReady(page);
       expect(response?.status(), route).toBe(200);
       await expect(page.locator("main")).toHaveCount(1);
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
@@ -80,6 +82,7 @@ for (const sample of samples) {
     }
     expect(errors).toEqual([]);
     await page.goto("/solutions");
+    await landingReady(page);
     await page.locator('.chapter-table a[href="/solutions/product"]').click();
     await expect(page).toHaveURL(/\/solutions\/product$/);
     await expect(page.locator(".chapter-row")).toHaveCount(3);
@@ -96,6 +99,7 @@ test("contextual closing demo links open their actual preview", async ({ page, c
   ] as const;
   for (const [route, feature] of destinations) {
     await page.goto(`/${route}`);
+    await landingReady(page);
     const demo = page.locator(".final-compact-demo");
     await expect(demo).toHaveAttribute("href", `/features/${feature}#feature-preview`);
     await demo.click();

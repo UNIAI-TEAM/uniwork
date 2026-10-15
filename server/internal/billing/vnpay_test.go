@@ -63,6 +63,36 @@ func TestVNPayCreateCheckoutBuildsURL(t *testing.T) {
 	}
 }
 
+func TestVNPayCreateCheckoutUsesIntentDates(t *testing.T) {
+	t.Parallel()
+	v, err := NewVNPay(VNPayConfig{
+		TMNCode: "VJT011BP", HashSecret: "secret", PaymentURL: "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v.now = func() time.Time { return time.Date(2099, 1, 1, 0, 0, 0, 0, v.loc) }
+	created := time.Date(2026, 3, 1, 17, 0, 0, 0, v.loc)
+	expires := time.Date(2026, 3, 1, 17, 15, 0, 0, v.loc)
+	sess, err := v.CreateCheckout(context.Background(), CheckoutInput{
+		IntentID: "01TESTINTENT00000001", Amount: 100000, SuccessURL: "https://app/ok",
+		CreatedAt: created, ExpiresAt: expires,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(sess.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := u.Query().Get("vnp_CreateDate"); got != "20260301170000" {
+		t.Fatalf("vnp_CreateDate = %s", got)
+	}
+	if got := u.Query().Get("vnp_ExpireDate"); got != "20260301171500" {
+		t.Fatalf("vnp_ExpireDate = %s", got)
+	}
+}
+
 func TestVNPayParseWebhookGET(t *testing.T) {
 	t.Parallel()
 	secret := "testsecret"

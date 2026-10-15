@@ -23,6 +23,19 @@ func normalizePlanCode(code string) (string, error) {
 	return code, nil
 }
 
+func normalizeBillingPeriod(period string) (string, error) {
+	period = strings.TrimSpace(period)
+	if period == "" {
+		return "month", nil
+	}
+	switch period {
+	case "month", "year", "none":
+		return period, nil
+	default:
+		return "", Invalid("billing_period phải là month, year hoặc none")
+	}
+}
+
 // CreatePlanCatalogInput is POST /admin/plans.
 type CreatePlanCatalogInput struct {
 	Code string
@@ -96,9 +109,9 @@ func (s *BillingService) AddPlanCatalog(ctx context.Context, q *db.Queries, in C
 	if in.Name == "" {
 		return AdminPlanCatalogView{}, Invalid("name bắt buộc")
 	}
-	period := strings.TrimSpace(in.BillingPeriod)
-	if period == "" {
-		period = "month"
+	period, err := normalizeBillingPeriod(in.BillingPeriod)
+	if err != nil {
+		return AdminPlanCatalogView{}, err
 	}
 	currency := strings.TrimSpace(in.PriceCurrency)
 	if currency == "" {
@@ -146,12 +159,16 @@ func (s *BillingService) SetPlanCatalogMeta(ctx context.Context, q *db.Queries, 
 	if before.IsDefault && !in.IsActive {
 		return AdminPlanCatalogView{}, Invalid("không thể tắt gói mặc định")
 	}
+	period, err := normalizeBillingPeriod(in.BillingPeriod)
+	if err != nil {
+		return AdminPlanCatalogView{}, err
+	}
 	var price pgtype.Int8
 	if in.PriceAmount != nil {
 		price = pgtype.Int8{Int64: *in.PriceAmount, Valid: true}
 	}
 	after, err := q.UpdatePlanCatalog(ctx, db.UpdatePlanCatalogParams{
-		Code: code, Name: in.Name, Description: in.Description, BillingPeriod: in.BillingPeriod,
+		Code: code, Name: in.Name, Description: in.Description, BillingPeriod: period,
 		PriceAmount: price, PriceCurrency: in.PriceCurrency, IsActive: in.IsActive, SortOrder: in.SortOrder,
 	})
 	if err != nil {
