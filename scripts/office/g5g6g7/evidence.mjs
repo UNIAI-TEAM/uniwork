@@ -31,13 +31,49 @@ const LEDGER_NAME = 'evidence.jsonl';
 // Exit 77 is the harness convention for "this environment cannot run the check"
 // (the C harness exits 77 when the cloud VM lacks xvfb or Electron libs), and a
 // line that says the check was skipped is the same statement in text form. The
-// word may be `skip`, `skipped` or `skipping` in any case, at the start of a line
-// or right after a clause boundary ("no xvfb; skipping G7-10"), because the plan
-// Section 8 fallback is written exactly that way. The line is read only when the
-// command exited 0, so a failure that mentions a skip stays a FAIL. The direction
-// is deliberate: a verbose check that says "skip" is BLOCKED, never PASS.
+// word may be `skip`, `skipped` or `skipping` in any case. The line is read only
+// when the command exited 0, so a failure that mentions a skip stays a FAIL. The
+// direction is deliberate: a verbose check that says "skip" is BLOCKED, never PASS.
 export const SKIP_EXIT_CODE = 77;
-const SKIP_LINE = /(?:^|[;.]\s+)(?:skip|skipped|skipping)\b/i;
+
+/**
+ * What one line has to look like to say "this check was skipped" (G710-BE-12).
+ * The older rule read the skip word only at the start of a line or right after a
+ * clause boundary, so a suite summary that reports the skip in the middle of the
+ * line stayed PASS: `Tests  2 skipped (5)`, `Test Files  1 skipped (3)`,
+ * `Tests: 2 skipped, 3 passed`, `Passed: 4, Skipped: 2`, `1 skip`,
+ * `note: 2 tests were skipped`, `…skipping…`. The families are now:
+ *
+ *   * a statement: the word at the start of the (trimmed) line, right after a
+ *     clause boundary (`;`, `.`, `:`, `#`, `ℹ`, `…`) or alone on the line;
+ *   * a non-zero count next to the word: `2 skipped`, `1 skip`,
+ *     `2 tests were skipped` (a count within three words before it) and
+ *     `Skipped: 2` / `skipped=2` (a count right after it).
+ *
+ * A count of zero is not a skip in any spelling (`0 skipped`, `# skipped 0`,
+ * `skipped: 0`), a mention in prose is not one (`the cache was warm; no skip
+ * needed`, where the word is not the statement the line makes), and neither is a
+ * value that happens to spell the word with no count anywhere near it — the
+ * tracer prints its loop JSON on stdout, where a step status reads
+ * `"status": "SKIPPED"`.
+ */
+const SKIP_WORD = "(?:skip|skips|skipped|skipping)";
+const SKIP_NOT_ZERO_AFTER = "(?!\\s*[:=]?\\s*0\\b)";
+const SKIP_STATEMENT = new RegExp(`(?:^|[;.:#ℹ…]\\s*)${SKIP_WORD}\\b${SKIP_NOT_ZERO_AFTER}`, "i");
+const SKIP_COUNT_BEFORE = new RegExp(`\\b[1-9]\\d*(?:\\s+\\S+){0,3}\\s+${SKIP_WORD}\\b${SKIP_NOT_ZERO_AFTER}`, "i");
+const SKIP_COUNT_AFTER = new RegExp(`\\b${SKIP_WORD}\\b\\s*[:=]?\\s*[1-9]\\d*\\b`, "i");
+const SKIP_ONLY = new RegExp(`^[^\\p{L}\\p{N}]*${SKIP_WORD}[^\\p{L}\\p{N}]*$`, "iu");
+
+export function isSkipLine(line) {
+  const text = String(line ?? "").trim();
+  if (!text) return false;
+  return (
+    SKIP_STATEMENT.test(text) ||
+    SKIP_COUNT_BEFORE.test(text) ||
+    SKIP_COUNT_AFTER.test(text) ||
+    SKIP_ONLY.test(text)
+  );
+}
 
 /** Every evidence line carries these fields (spec Section 9.1). */
 export const REQUIRED_FIELDS = [
@@ -148,7 +184,7 @@ export function classifyResult({ exitCode, output }) {
   if (exitCode !== 0) return { result: 'FAIL', blocker: null };
   const skipLine = String(output ?? '')
     .split('\n')
-    .find((line) => SKIP_LINE.test(line.trim()));
+    .find((line) => isSkipLine(line));
   if (skipLine) return { result: 'BLOCKED', blocker: `command reported skip: ${skipLine.trim()}` };
   return { result: 'PASS', blocker: null };
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -13,6 +14,7 @@ import (
 // byokCredentialResolver decrypts the caller's stored key for one provider
 // (AICredentialService, UNI-1008 W1). ErrNotFound when none is stored.
 type byokCredentialResolver interface {
+	Configured() bool
 	Resolve(ctx context.Context, userID, orgID, provider string) (ai.BYOKCredential, error)
 }
 
@@ -39,7 +41,7 @@ func NewAIBYOKService(orgs *OrganizationService, ents byokEntitlements, creds by
 // Proxy runs the gates in order — organization member, provider/route
 // match, plan entitlement, stored key — then hands the call to the gateway.
 // The caller copies the returned stream to the client and closes it.
-func (s *AIBYOKService) Proxy(ctx context.Context, userID, orgID, providerID string, op ai.ProxyOp, body json.RawMessage, header http.Header) (*ai.ProxyStream, error) {
+func (s *AIBYOKService) Proxy(ctx context.Context, userID, orgID, providerID string, op ai.ProxyOp, surface ai.ProxySurface, body json.RawMessage, header http.Header) (*ai.ProxyStream, error) {
 	if _, err := s.orgs.RequireMember(ctx, orgID, userID); err != nil {
 		// Same answer as the credential routes: an organization id cannot be probed.
 		if errors.Is(err, ErrForbidden) {
@@ -65,27 +67,54 @@ func (s *AIBYOKService) Proxy(ctx context.Context, userID, orgID, providerID str
 		return nil, err
 	}
 	return s.gw.Proxy(ctx, ai.ProxyRequest{
-		Actor: Human(userID), OrganizationID: orgID, Credential: cred, Op: op, Body: body, Header: header,
+		Actor: Human(userID), OrganizationID: orgID, Credential: cred, Op: op, Surface: surface, Body: body, Header: header,
 	})
 }
 
-// Enabled reports whether the person could use the proxy in orgID at all: a
-// member, a plan with office.ai_byok and a credential store wired. It reads
-// no key and never calls a vendor; the web host uses it to decide whether a
-// frame gets the `ai` grant. A plan refusal is false, not an error.
-func (s *AIBYOKService) Enabled(ctx context.Context, userID, orgID string) (bool, error) {
-	if _, err := s.orgs.RequireMember(ctx, orgID, userID); err != nil {
-		return false, err
+func (s *AIBYOKService) credentialsConfigured() bool {
+	return s != nil && s.creds != nil && s.creds.Configured()
+}
+
+func allowlistedBYOKReason(code string) (string, bool) {
+	switch code {
+	case "entitlement_required", "subscription_inactive", "ai_credentials_unavailable":
+		return code, true
+	default:
+		return "", false
 	}
-	if s.creds == nil {
-		return false, nil
+}
+
+// Status reports whether the person could use the proxy in orgID at all — a
+// member, a plan with office.ai_byok and a credential store wired — and why
+// when not (G6-05k, ADR 0034). It reads no key and never calls a vendor. A
+// non-member gets ErrNotFound, the same as on Proxy and the credential routes.
+func (s *AIBYOKService) Status(ctx context.Context, userID, orgID string) (enabled bool, reason string, err error) {
+	if _, err := s.orgs.RequireMember(ctx, orgID, userID); err != nil {
+		if errors.Is(err, ErrForbidden) {
+			return false, "", ErrNotFound
+		}
+		return false, "", err
+	}
+	if !s.credentialsConfigured() {
+		return false, "ai_credentials_unavailable", nil
 	}
 	if err := s.ents.Can(ctx, orgID, FeatureOfficeAIBYOK); err != nil {
 		var ce CodedError
 		if errors.As(err, &ce) {
-			return false, nil
+			if reason, ok := allowlistedBYOKReason(ce.Code); ok {
+				return false, reason, nil
+			}
+			slog.ErrorContext(ctx, "ai byok status: unexpected reason code", "organization_id", orgID, "user_id", userID, "code", ce.Code)
+			return false, "", nil
 		}
-		return false, err
+		return false, "", err
 	}
-	return true, nil
+	return true, "", nil
+}
+
+// Enabled is the boolean projection of Status for callers that only need to
+// show or hide BYOK (the web Office frame grant).
+func (s *AIBYOKService) Enabled(ctx context.Context, userID, orgID string) (bool, error) {
+	ok, _, err := s.Status(ctx, userID, orgID)
+	return ok, err
 }

@@ -65,3 +65,34 @@ test("the old placeholder would have failed bash -n (red case)", () => {
   // and the fixed form parses
   assert.equal(bashSyntaxError(['export UNIWORK_CHECKOUT="/path/to/uniwork"', 'cd "$UNIWORK_CHECKOUT"'].join("\n")), null);
 });
+
+test("the headless keyring section documents keyring-session.sh --exec wrapping start.sh and stop.sh in one session", () => {
+  const blocks = shBlocks(README);
+  const wrapped = blocks.find((block) => block.includes("keyring-session.sh --exec"));
+  assert.ok(wrapped, "the README has no sh block showing keyring-session.sh --exec");
+  assert.match(wrapped, /scripts\/office\/g5g6g7\/harness\/start\.sh/);
+  assert.match(wrapped, /scripts\/office\/g5g6g7\/harness\/stop\.sh/);
+  assert.equal(bashSyntaxError(wrapped), null);
+});
+
+test("the README documents the warm-run-dir rule: a previous start's recorded groups are stopped first, the userData is per start, and an app that is gone is a FAIL (ADDENDUM r5 G2)", () => {
+  assert.match(README, /exit `1`|FAIL/, "the rule must say what an app that is gone means: a FAIL, not BLOCKED");
+  assert.match(README, /pids/, "the README names the run dir's PID file the stop reuses");
+  assert.match(README, /userdata\.previous-/, "the README names where the previous start's userdata goes");
+  assert.match(README, /single-instance lock/, "the README explains why a second app on one userData is wrong");
+  assert.match(README, /HARNESS_APP_SETTLE_SECONDS/, "the settle knob is in the environment table");
+});
+
+test("the README documents HARNESS_APP_STEP_TIMEOUT_MS (90000) and HARNESS_LOOP_TIMEOUT_MS (600000) for bounded app CDP steps and the per-loop watchdog (r6 H1)", () => {
+  assert.match(README, /HARNESS_APP_STEP_TIMEOUT_MS/, "the per-step CDP timeout knob is in the README");
+  assert.match(README, /90000/, "the default 90000 ms is documented");
+  assert.match(README, /HARNESS_LOOP_TIMEOUT_MS/, "the per-loop watchdog knob is in the README");
+  assert.match(README, /600000/, "the default 600000 ms is documented");
+});
+
+test("the README documents the docs tab close-readiness wait and HARNESS_DOCS_CLOSE_SETTLE_MS (2500) before aiOfficeTabs.close (r7 H2, r7b H2-1)", () => {
+  assert.match(README, /docs tab not ready to close within/, "the README names the docs tab close-readiness timeout reason");
+  assert.match(README, /onCloseCheck|__genofficeControl/, "the README names the docs renderer readiness signal waited on before aiOfficeTabs.close");
+  assert.match(README, /HARNESS_DOCS_CLOSE_SETTLE_MS/, "the README documents HARNESS_DOCS_CLOSE_SETTLE_MS");
+  assert.match(README, /2500/, "the default 2500 ms settle window is documented");
+});
