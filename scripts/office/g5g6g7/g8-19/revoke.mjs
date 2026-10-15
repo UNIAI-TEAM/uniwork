@@ -6,8 +6,10 @@
 // - the desktop panel's next list is refused (`forbidden` / `permission_revoked`
 //   / `not_found`: fork apps/shell/src/main/uniwork-docs/errors.ts:130,142-143);
 // - B's REST list answers 403/404 (D server/internal/handler/router/documents.go:316);
-// - B's deep link renders the S15 no-access state (D packages/views/documents/document-detail-view.tsx:92-93,
-//   packages/views/documents/document-inbox-state.tsx:31);
+// - B's deep link renders the S15 no-access state (EXPERIENCE-G8.md S15 row 2: the row reads
+//   resource_access_lost; D packages/views/documents/document-detail-view.tsx:92-93,
+//   packages/views/documents/document-inbox-state.tsx:31). The gone page there is a product
+//   finding, not a harness one: the server's 404 is right, the page never reads the row (decideRevokedLink);
 // - B's notification keeps its link but loses `snippet`/`document` and reads
 //   `resource_access_lost: true` (D server/internal/notification/service.go:91,245-247;
 //   server/internal/service/document_access.go:388-411).
@@ -43,6 +45,27 @@ export const LOCKED_DESKTOP_CODES = Object.freeze(["forbidden", "permission_revo
 export const DESKTOP_LOCK_TIMEOUT_MS = 35_000;
 const WEB_BEFORE_TIMEOUT_MS = 15_000;
 
+/** Who answers the revoked recipient's deep link showing the gone page instead of S15 no-access. */
+export const REVOKED_NO_ACCESS_OWNER = "owner candidate Lead D (G8-07 deep link: D web Inbox row / document page)";
+/**
+ * The product reading of "row reads resource_access_lost, page shows gone": the server's 404 is
+ * right (a former share recipient holds no level, and nothing readable is not found), so only the
+ * web side can tell no-access from gone, and it never consults the row.
+ */
+export const REVOKED_NO_ACCESS_PRODUCT =
+  "product: B's row reads resource_access_lost, and EXPERIENCE-G8.md S15 row 2 shows the no-access page (inboxDocNoAccess) for that row, " +
+  "but the row links to the page like any other (D packages/views/notifications/resource-href.ts:33-44), the read answers 404 by design " +
+  "(server/internal/service/document_permissions.go decideDocumentAccess: no level -> ErrNotFound, CLAUDE.md Backend ID Rules), " +
+  "and the page maps a 404 to the gone state (packages/views/documents/document-detail-view.tsx:108-109); its no-access branch " +
+  `(document-detail-view.tsx:92-93) needs a 403, which a read never gets; ${REVOKED_NO_ACCESS_OWNER}`;
+
+/** The no-access verdict for a revoked recipient's deep link (shared with deeplink.mjs exception no_access). */
+export function decideRevokedLink(web, notification) {
+  if (web?.status === "no-access") return pass();
+  if (web?.status === "not-found" && notification?.resource_access_lost === true) return fail(REVOKED_NO_ACCESS_PRODUCT);
+  return fail(`B's deep link shows ${web?.status ?? "nothing"}, want the S15 no-access state`);
+}
+
 const pass = () => ({ status: "PASS", reason: "" });
 const fail = (reason) => ({ status: "FAIL", reason });
 const hasSnippet = (params) => params && (Object.hasOwn(params, "snippet") || Object.hasOwn(params, "document"));
@@ -66,7 +89,7 @@ export function decideRevoke(record) {
   else if (!LOCKED_DESKTOP_CODES.includes(code)) checks["desktop-locked"] = fail(`the desktop list failed with ${code ?? "no code"}, not a permission verdict`);
   else checks["desktop-locked"] = pass();
   checks["rest-locked"] = [403, 404].includes(a.rest?.status) ? pass() : fail(`B's REST list answered ${a.rest?.status ?? "nothing"} after the revoke`);
-  checks["web-no-access"] = a.web?.status === "no-access" ? pass() : fail(`B's deep link shows ${a.web?.status ?? "nothing"}, want the S15 no-access state`);
+  checks["web-no-access"] = decideRevokedLink(a.web, a.notification);
   const n = a.notification;
   if (!n) checks["snippet-hidden"] = fail("B's row is gone after the revoke; it should stay with the snippet hidden");
   else if (n.resource_access_lost !== true) checks["snippet-hidden"] = fail("B's row does not read resource_access_lost");
