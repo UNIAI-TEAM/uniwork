@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+d8be67d2c706742cdc4d432a410bde315a9c93bc
+d8be67d2c test(server): CopyDocument writes its own document.created row (G5-12)
+023b5eb5f feat(server): the creator of a pristine copy may archive it (G5-12)
+9bbecbd1f fix(server): copies need a workspace seat in the destination (G5-12)
+8c8e040bd docs(adr): accept 0034, desktop uses the keys saved on UniWork through the BYOK proxy
