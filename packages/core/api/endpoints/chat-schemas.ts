@@ -257,6 +257,8 @@ export const ChatRoomMemberSchema = z.object({
   send_restricted: z.boolean().optional().default(false),
   email: z.string(),
   display_name: z.string(),
+  /** The room's creator, whom the server's moderation rules treat apart from `role`. */
+  is_creator: z.boolean().catch(false),
 });
 export type ChatRoomMemberRecord = z.infer<typeof ChatRoomMemberSchema>;
 

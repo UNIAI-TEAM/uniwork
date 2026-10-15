@@ -23,7 +23,8 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@uniwork/core/chat", () => ({
   useChatRoomMembers: () => state.members,
-  useChatRooms: () => ({ data: [] }),
+  // The sidebar list always carries the workspace room the sheet is opened on.
+  useChatRooms: () => ({ data: [{ id: "room-ws", kind: "workspace", name: "Chung", workspace_id: "ws1", member_user_ids: [] }] }),
   useUpdateChatRoomMember: () => ({ mutateAsync: vi.fn() }),
   useRemoveChatRoomMember: () => ({ mutateAsync: vi.fn() }),
   useUpdateChatRoomSettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -248,6 +249,7 @@ describe("ChannelSettingsSheet", () => {
           channel={channel as never}
           currentUserId="self"
           youLabel="Bạn"
+          onAddMembers={vi.fn()}
         />,
       ),
     );
@@ -263,6 +265,21 @@ describe("ChannelSettingsSheet", () => {
     expect(screen.getByText("Chiến dịch Q4")).toBeInTheDocument();
     expect(screen.getByText("Ra mắt")).toBeInTheDocument();
     expect(screen.getByText(/Chỉ admin kênh mới đổi được/)).toBeInTheDocument();
+  });
+
+  it("lets a workspace admin edit the channel but invite only once they moderate it", () => {
+    state.wsRole = "admin";
+    state.members = { data: [member("self", "Tôi")], isPending: false, isError: false, refetch: vi.fn() };
+    renderChannel();
+    expect(screen.getByRole("textbox", { name: "Tên kênh" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thêm thành viên" })).toBeNull();
+  });
+
+  it("offers the invite to the channel's admin", () => {
+    state.wsRole = "member";
+    state.members = { data: [member("self", "Tôi", "admin")], isPending: false, isError: false, refetch: vi.fn() };
+    renderChannel();
+    expect(screen.getByRole("button", { name: "Thêm thành viên" })).toBeInTheDocument();
   });
 
   it("lets a channel admin edit, and asks before dropping unsaved edits", () => {

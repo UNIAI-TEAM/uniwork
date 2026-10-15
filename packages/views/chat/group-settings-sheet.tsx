@@ -156,6 +156,7 @@ export function GroupSettingsSheet({
           send_restricted: false,
           email: "",
           display_name: youLabel,
+          is_creator: false,
         },
       });
     }
@@ -284,7 +285,13 @@ export function GroupSettingsSheet({
                           <ChatRoomMemberActions
                             label={member.label}
                             canPromote={canPromoteChatMember(member.chat, isModerator)}
-                            canDemote={canDemoteChatMember(member.chat, currentUserId, isModerator)}
+                            canDemote={canDemoteChatMember(
+                              member.chat,
+                              currentUserId,
+                              chatMembers,
+                              currentMember.role,
+                              roomRecord,
+                            )}
                             canMute={canMuteChatMember(member.chat, isModerator)}
                             canUnmute={canUnmuteChatMember(member.chat, isModerator)}
                             canKick={isModerator && member.chat.role === "member"}

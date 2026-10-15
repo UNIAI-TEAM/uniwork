@@ -486,6 +486,22 @@ describe("chat endpoints", () => {
     expect(await listChatRoomMembers("ws1", "room1")).toEqual([]);
   });
 
+  it("listChatRoomMembers keeps a member whose is_creator drifts, as not the creator", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        members: [
+          { user_id: "u1", role: "admin", email: "a@x.vn", display_name: "A", is_creator: "yes" },
+          { user_id: "u2", role: "member", email: "b@x.vn", display_name: "B", is_creator: true },
+        ],
+      }),
+    );
+    const members = await listChatRoomMembers("ws1", "room1");
+    expect(members.map((m) => [m.user_id, m.is_creator])).toEqual([
+      ["u1", false],
+      ["u2", true],
+    ]);
+  });
+
   it("patchChatRoomMember degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await patchChatRoomMember("ws1", "room1", "user1", { role: "admin" })).toBe(false);
