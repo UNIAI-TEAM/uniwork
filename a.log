@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+0e3472f3be081957ea058a2243760f5655406b7d
+0e3472f3 fix(ai): write_document checks the markdown that lands, including the truncated rendered prefix (UNI-1374)
+483fd30c test(ai): pin markdown image rule spellings and the truncated write_document landing prefix (UNI-1374)
+e816a91e fix(ai): markdown write_document and apply_ops refuse unregistered remote image references under UniWork AI
