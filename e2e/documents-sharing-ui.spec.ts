@@ -71,7 +71,9 @@ test("share, public link, anonymous read, access log and revoke", async ({ page,
 
   await revokeOrg.click();
   await expect(revokeOrg).toHaveCount(0, { timeout: 30_000 });
-  await expect(dialog.getByText("Chủ sở hữu quyền")).toBeVisible();
+  // The owner row survives the revoke: the badge reads "Chủ sở hữu" and, for the owner, carries the transfer button.
+  await expect(dialog.getByText("Chủ sở hữu", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Chuyển quyền sở hữu" })).toBeVisible();
 
   // Anonymous second session: no app session, only the token.
   const anon = await browser.newContext();
