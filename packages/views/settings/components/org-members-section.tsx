@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@uniwork/core/auth";
 import {
-  useDeactivateOrgMember,
   useOrgMembers,
   useReactivateOrgMember,
   useUpdateOrgMemberRole,
@@ -15,9 +14,9 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { toast } from "sonner";
-import { ConfirmDialog } from "../../common/form-dialog";
 import { initials } from "../../people/actor-chip";
 import { toastApiError } from "../../toast-api-error";
+import { DeactivateMemberDialog, TransferMemberDocumentsDialog } from "./member-documents-dialogs";
 import { MemberSearch, fold, foldMember, matchesFolded } from "./member-search";
 import { decisionReason } from "./permission-reason";
 import {
@@ -49,13 +48,14 @@ export function OrgMembersSection({ orgSlug }: { orgSlug: string }) {
   );
   const { canManageMembers, decideChangeRole, decideDeactivate } = usePeoplePermissions(orgSlug);
   const updateRole = useUpdateOrgMemberRole(orgSlug);
-  const deactivate = useDeactivateOrgMember(orgSlug);
   const reactivate = useReactivateOrgMember(orgSlug);
   const [query, setQuery] = useState("");
   // The target outlives the dialog's open state, so the title keeps the name
   // while the dialog animates out.
   const [deactivating, setDeactivating] = useState<OrgMember | null>(null);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [transferring, setTransferring] = useState<OrgMember | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
   // Folded once per page load, not once per member per keystroke.
   const index = useMemo(
     () => (data?.pages ?? []).flatMap((p) => p.members).map((member) => ({ member, folded: foldMember(member) })),
@@ -65,7 +65,6 @@ export function OrgMembersSection({ orgSlug }: { orgSlug: string }) {
   const shown = index.filter((entry) => matchesFolded(foldedQuery, entry.folded)).map((entry) => entry.member);
   const count = index.length;
   const manages = canManageMembers.allowed;
-  const deactivatingName = deactivating?.display_name || deactivating?.email;
 
   const onChangeRole = (member: OrgMember, role: string) => {
     if (member.role === role || (updateRole.isPending && updateRole.variables?.userId === member.user_id)) return;
@@ -82,17 +81,6 @@ export function OrgMembersSection({ orgSlug }: { orgSlug: string }) {
     if (reactivate.isPending) return;
     reactivate.mutate(member.user_id, {
       onSuccess: () => toast.success(t("org.members.reactivated")),
-      onError: (err) => toastApiError(err, t("common.error")),
-    });
-  };
-
-  const confirmDeactivate = () => {
-    if (!deactivating || deactivate.isPending) return;
-    deactivate.mutate(deactivating.user_id, {
-      onSuccess: () => {
-        toast.success(t("org.members.deactivated"));
-        setDeactivateOpen(false);
-      },
       onError: (err) => toastApiError(err, t("common.error")),
     });
   };
@@ -178,6 +166,19 @@ export function OrgMembersSection({ orgSlug }: { orgSlug: string }) {
                       {t(`people.role_${member.role}`, { defaultValue: member.role })}
                     </span>
                   )}
+                  {manages && isDeactivated && toggle.allowed ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setTransferring(member);
+                        setTransferOpen(true);
+                      }}
+                    >
+                      {t("org.members.transfer_docs.action")}
+                    </Button>
+                  ) : null}
                   {manages && isDeactivated ? (
                     <Button
                       type="button"
@@ -239,16 +240,17 @@ export function OrgMembersSection({ orgSlug }: { orgSlug: string }) {
           {t("people.load_more")}
         </Button>
       ) : null}
-      <ConfirmDialog
+      <DeactivateMemberDialog
+        orgSlug={orgSlug}
+        member={deactivating}
         open={deactivateOpen}
-        onOpenChange={(open) => {
-          if (!open && !deactivate.isPending) setDeactivateOpen(false);
-        }}
-        title={t("org.members.deactivate_title", { name: deactivatingName })}
-        description={t("org.members.deactivate_body", { name: deactivatingName })}
-        confirmLabel={t("org.members.deactivate")}
-        onConfirm={confirmDeactivate}
-        pending={deactivate.isPending}
+        onOpenChange={setDeactivateOpen}
+      />
+      <TransferMemberDocumentsDialog
+        orgSlug={orgSlug}
+        member={transferring}
+        open={transferOpen}
+        onOpenChange={setTransferOpen}
       />
     </SettingsSection>
   );
