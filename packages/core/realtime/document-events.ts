@@ -59,6 +59,29 @@ export function documentFrameKeys(
       // folder content, search results and an open delete dialog's counts.
       return ownWorkspace ? [documentKeys.workspace(wsId)] : [];
     }
+    case "document.lock_changed": {
+      // UNI-1645: who holds the document changed (acquire, release, expiry,
+      // take-over, handover, hold). The R1 state and every row that shows the
+      // holder refresh; detail never does - an open editor must not refetch
+      // its document because someone started or stopped editing it - and the
+      // org-scoped favourites rows carry no lock.
+      if (!ownWorkspace || !payload.document_id) return [];
+      return [
+        documentKeys.editLock(wsId, payload.document_id),
+        documentKeys.listRoot(wsId),
+        documentKeys.treeRoot(wsId),
+        documentKeys.recent(wsId),
+        documentKeys.sharedWithMe(wsId),
+      ];
+    }
+    case "document.lock_taken_over":
+    case "document.edit_requested":
+    case "document.edit_request_answered": {
+      // User-scoped lock frames: only the R1 state of that document. The
+      // Inbox row they produce arrives as its own notification.created frame.
+      if (!ownWorkspace || !payload.document_id) return [];
+      return [documentKeys.editLock(wsId, payload.document_id)];
+    }
     default:
       return null;
   }
