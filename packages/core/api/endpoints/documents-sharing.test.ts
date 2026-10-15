@@ -10,6 +10,7 @@ import {
   revokeDocumentShare,
   setDocumentPublicLinks,
   shareDocument,
+  shareDocumentBatch,
 } from "./documents-sharing";
 
 const json = (body: unknown, status = 200) =>
@@ -101,6 +102,18 @@ describe("documents-sharing endpoints", () => {
     expect(out?.share.id).toBe("s1");
   });
 
+  it("shareDocumentBatch posts the user ids and one level to the batch route", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ shares: [share({ id: "s1", principal_id: "u2" }), share({ id: "s2", principal_id: "u3" })] }),
+    );
+    const out = await shareDocumentBatch("d1", { principal_ids: ["u2", "u3"], level: "view" });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/shares/batch");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ principal_ids: ["u2", "u3"], level: "view" });
+    expect(out?.shares.map((row) => row.id)).toEqual(["s1", "s2"]);
+  });
+
   it("revokeDocumentShare and revokeDocumentLink use DELETE", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ status: "ok" }))
@@ -185,6 +198,14 @@ describe("documents-sharing endpoints", () => {
       shareDocument("d1", { principal_type: "user", principal_id: "u2", level: "view" }),
     ).resolves.toBeNull();
   });
+
+  it.each([...malformedBodies, { shares: "x" }, { shares: [{ nope: true }] }])(
+    "shareDocumentBatch degrades %#",
+    async (body) => {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(shareDocumentBatch("d1", { principal_ids: ["u2"], level: "view" })).resolves.toBeNull();
+    },
+  );
 
   it.each(malformedBodies)("createDocumentLink degrades %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));

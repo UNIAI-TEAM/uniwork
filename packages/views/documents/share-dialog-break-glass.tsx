@@ -44,7 +44,8 @@ export interface ShareDialogBreakGlassSectionProps {
   docId: string;
   grants?: DocumentBreakGlassGrant[];
   initialOpen?: boolean;
-  resolveName: (userId: string) => string;
+  /** Null while member pages are still loading; the row then falls back to a neutral label. */
+  resolveName: (userId: string) => string | null;
 }
 
 export function ShareDialogBreakGlassSection({
@@ -79,7 +80,7 @@ export function ShareDialogBreakGlassSection({
       ) : null}
       <ul className="divide-y divide-warning/20">
         {grants.map((grant) => {
-          const actorDisplay = grant.actor_name || resolveName(grant.actor_id);
+          const actorDisplay = grant.actor_name || resolveName(grant.actor_id) || t("documents.share.person_unknown");
           const expiryDisplay = formatBreakGlassTime(grant.expires_at, i18n.language);
           return (
             <li

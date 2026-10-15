@@ -11,8 +11,10 @@ import {
   useDocumentShares,
   useSetDocumentPublicLinks,
   useShareDocument,
+  useShareDocumentBatch,
 } from "./hooks-sharing";
 import { documentKeys } from "./keys";
+import { sharePrincipalsNotInOrganization } from "./errors";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -103,6 +105,67 @@ describe("documents sharing hooks (G1-05b)", () => {
         }),
       );
     });
+  });
+
+  it("useShareDocumentBatch invalidates what useShareDocument does and refuses an unverifiable answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ shares: [share({ id: "s1", principal_id: "u2" }), share({ id: "s2", principal_id: "u3" })] }),
+    );
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.shares("w1", "d1"), { my_level: "manage", via: "member" });
+    qc.setQueryData(documentKeys.detail("w1", "d1"), { id: "d1" });
+    const { result } = renderHook(() => useShareDocumentBatch("w1", "d1"), { wrapper });
+    await act(async () => {
+      const out = await result.current.mutateAsync({ principal_ids: ["u2", "u3"], level: "view" });
+      expect(out.shares).toHaveLength(2);
+    });
+    expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.detail("w1", "d1"))?.isInvalidated).toBe(true);
+
+    // One row without its identity makes the whole answer unverifiable.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ shares: [share(), share({ principal_id: "" })] }));
+    const second = renderHook(() => useShareDocumentBatch("w1", "d1"), { wrapper });
+    await act(async () => {
+      await expectNotVerifiable(() =>
+        second.result.current.mutateAsync({ principal_ids: ["u2", "u3"], level: "view" }),
+      );
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ shares: [] }));
+    const third = renderHook(() => useShareDocumentBatch("w1", "d1"), { wrapper });
+    await act(async () => {
+      await expectNotVerifiable(() =>
+        third.result.current.mutateAsync({ principal_ids: ["u2"], level: "view" }),
+      );
+    });
+  });
+
+  it("useShareDocumentBatch surfaces the refused principal ids of a 422", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        {
+          error: {
+            code: "principal_not_in_organization",
+            message: "not in organization",
+            fields: { principal_ids: ["u9", 7, "u8"] },
+          },
+        },
+        422,
+      ),
+    );
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.shares("w1", "d1"), { my_level: "manage", via: "member" });
+    const { result } = renderHook(() => useShareDocumentBatch("w1", "d1"), { wrapper });
+    let caught: unknown = null;
+    await act(async () => {
+      caught = await result.current
+        .mutateAsync({ principal_ids: ["u2", "u9", "u8"], level: "view" })
+        .then(() => null, (e: unknown) => e);
+    });
+    // Non-string entries are dropped rather than trusted.
+    expect(sharePrincipalsNotInOrganization(caught)).toEqual(["u9", "u8"]);
+    expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(false);
+    expect(sharePrincipalsNotInOrganization(new Error("offline"))).toBeNull();
   });
 
   it("useCreateDocumentLink verifies the one-time token and invalidates the overview", async () => {

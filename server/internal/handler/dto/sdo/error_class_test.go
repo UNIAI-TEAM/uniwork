@@ -69,6 +69,9 @@ func TestErrorClassTable(t *testing.T) {
 		// the reload path, and anchor_version_invalid (400) is a stale
 		// editor anchor, not a conflict to retry blindly.
 		"comment_deleted", "anchor_version_invalid",
+		// Count limits with no class on purpose: neither a usage meter nor a
+		// conflict to reload (UNI-1641 batch share cap, document link cap).
+		"share_batch_too_large", "document_link_limit",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {

@@ -8480,6 +8480,23 @@
       "principal_placeholder": "Pick a principal",
       "principal_search": "Search by name",
       "principal_empty": "No matching principal.",
+      "people_placeholder": "Search by name or email",
+      "people_empty": "No matching members.",
+      "people_loading": "Loading members…",
+      "person_unknown": "Unknown member",
+      "members_error_first": "Could not load the members.",
+      "members_error_partial": "Not every member loaded, so some people may be missing.",
+      "members_error_limit": "Only part of a very large member list is shown.",
+      "people_already_shared": "Has access",
+      "people_chosen": "Selected people",
+      "people_selected_one": "{{count}} person selected",
+      "people_selected_other": "{{count}} people selected",
+      "people_limit": "Up to {{max}} people per share. Remove someone to add another.",
+      "people_remove": "Remove {{name}}",
+      "people_removed": "Removed {{name}}",
+      "people_toggle": "Show members",
+      "people_not_in_org_one": "Not shared: {{names}} is not in this organization. Remove them and try again.",
+      "people_not_in_org_other": "Not shared: {{names}} are not in this organization. Remove them and try again.",
       "level_label": "Level",
       "submit": "Share",
       "submitting": "Sharing…",
@@ -8886,6 +8903,24 @@
         "md": "MD",
         "html": "HTML"
       },
+      "access_filter_label": "Filter by access",
+      "access_group_caption": "Access",
+      "access_filters": {
+        "all": "All",
+        "manage": "I manage",
+        "edit": "I can edit",
+        "restricted": "Restricted"
+      },
+      "access": {
+        "view": "View",
+        "comment": "Comment",
+        "edit": "Edit",
+        "manage": "Manage"
+      },
+      "visibility": {
+        "workspace": "Whole workspace",
+        "restricted": "Restricted"
+      },
       "group_by": {
         "label": "Group by",
         "folder": "Folder",
@@ -8914,7 +8949,9 @@
         "updated": "Updated",
         "size": "Size",
         "actions": "Actions",
-        "type": "Type"
+        "type": "Type",
+        "my_access": "My access",
+        "visibility": "Visibility"
       },
       "row": {
         "open_folder": "Open folder",
@@ -8954,6 +8991,10 @@
       "no_matches_description": "No files of this type. Create one above or clear the filter.",
       "no_matches_plain_description": "No files of this type. Clear the filter to see everything.",
       "no_matches_more_description": "No files of this type in what has loaded so far. Load more to keep looking, or clear the filter.",
+      "no_matches_access_description": "No documents match this access. Clear the filter to see everything.",
+      "no_matches_access_more_description": "No documents match this access in what has loaded so far. Load more to keep looking, or clear the filter.",
+      "no_matches_filters_description": "No documents match these filters. Clear the filters to see everything.",
+      "no_matches_filters_more_description": "No documents match these filters in what has loaded so far. Load more to keep looking, or clear the filters.",
       "drop_hint": "Drop files on the list to upload them.",
       "drop_active": "Drop to upload to the open folder",
       "drop_failed": "Could not upload {{name}}.",

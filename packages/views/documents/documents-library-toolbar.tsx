@@ -21,7 +21,7 @@ import {
 } from "@uniwork/ui/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
-import { FOLDER_SORT, GROUP_BY, TYPE_CHIPS, type FolderSort, type GroupBy, type TypeChip } from "./library-rows";
+import { ACCESS_FILTERS, FOLDER_SORT, GROUP_BY, TYPE_CHIPS, type AccessFilter, type FolderSort, type GroupBy, type TypeChip } from "./library-rows";
 
 export const SCOPE_TABS = ["home", "recent", "shared", "archived"] as const;
 export type ScopeTab = (typeof SCOPE_TABS)[number];
@@ -33,6 +33,8 @@ export interface LibraryToolbarProps {
   onScope: (scope: ScopeTab) => void;
   chip: TypeChip;
   onChip: (chip: TypeChip) => void;
+  access: AccessFilter;
+  onAccess: (access: AccessFilter) => void;
   groupBy: GroupBy;
   onGroupBy: (groupBy: GroupBy) => void;
   /** Present when an open folder (`?folder`) is displayed; replaces Group by. */
@@ -40,15 +42,15 @@ export interface LibraryToolbarProps {
   onSort?: (sort: FolderSort) => void;
 }
 
-/** Scope tabs, the type chips and "Group by" (or folder "Sort by") above the table. */
-export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, onGroupBy, sort, onSort }: LibraryToolbarProps) {
+/** Scope tabs, the type chips, the access filter and "Group by" (or folder "Sort by") above the table. */
+export function LibraryToolbar({ scope, count, onScope, chip, onChip, access, onAccess, groupBy, onGroupBy, sort, onSort }: LibraryToolbarProps) {
   const { t } = useTranslation();
   const groupItems = GROUP_BY.map((value) => ({ value, label: t(`documents.home.group_by.${value}`) }));
   const sortItems = FOLDER_SORT.map((value) => ({ value, label: t(`documents.home.sort.${value}`) }));
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Tabs value={scope ?? ""} onValueChange={(next) => onScope(next as ScopeTab)}>
-        <TabsList className="max-w-full overflow-x-auto" aria-label={t("documents.home.scope_label")}>
+        <TabsList className="no-scrollbar max-w-full overflow-x-auto overflow-y-hidden" aria-label={t("documents.home.scope_label")}>
           {SCOPE_TABS.map((tab) => (
             <TabsTrigger key={tab} value={tab} className="pointer-coarse:min-h-11 pointer-coarse:min-w-11">
               {t(`documents.home.scope.${tab}`)}
@@ -62,7 +64,7 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
           ))}
         </TabsList>
       </Tabs>
-      <div role="group" aria-label={t("documents.home.chips_label")} className="-mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 py-0.5">
+      <div role="group" aria-label={t("documents.home.chips_label")} className="no-scrollbar -mx-1 flex max-w-full gap-1.5 overflow-x-auto overflow-y-hidden px-1 py-1">
         {TYPE_CHIPS.map((value) => (
           <button
             key={value}
@@ -79,6 +81,28 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
             {t(`documents.home.chips.${value}`)}
           </button>
         ))}
+      </div>
+      {/* The caption keeps the second "All" from reading as a repeat of the type chips, wherever the groups wrap. */}
+      <div className="flex max-w-full items-center gap-1.5">
+        <span className="shrink-0 text-caption text-muted-foreground">{t("documents.home.access_group_caption")}</span>
+        <div role="group" aria-label={t("documents.home.access_filter_label")} className="-mx-1 flex min-w-0 gap-1.5 overflow-x-auto px-1 py-0.5">
+          {ACCESS_FILTERS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={access === value}
+              onClick={() => onAccess(value)}
+              className={cn(
+                "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
+                access === value
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border bg-background text-foreground hover:bg-accent",
+              )}
+            >
+              {t(`documents.home.access_filters.${value}`)}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="ml-auto flex items-center gap-2">
         {sort && onSort ? (
