@@ -75,7 +75,11 @@ import {
 import { loadVerifiedFixture, readXlsxSheetCells, sha256Hex } from "../harness/fixture-files.mjs";
 
 // Moved to harness/app-steps.mjs and harness/fixture-files.mjs for G8-19
-// (UNI-1414); re-exported so this module's surface is unchanged.
+// (UNI-1414); re-exported so this module's surface is unchanged. `callTracerApi`,
+// `seedFixtureDocument` and `cleanupSeededOrganization` are exported as well for
+// the G7-04 cross-host loop (UNI-1386), which chains this driver's seeding and
+// HTTP transport instead of copying them.
+export { callTracerApi, cleanupSeededOrganization, seedFixtureDocument };
 export {
   DEFAULT_APP_STEP_TIMEOUT_MS,
   DEFAULT_DOCS_CLOSE_SETTLE_MS,
