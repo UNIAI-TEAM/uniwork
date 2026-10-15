@@ -171,6 +171,44 @@ describe("useDocumentEditLock (UNI-1645)", () => {
     expect(result.current.state).toMatchObject({ phase: "mine", editable: true });
   });
 
+  it("CFE-2-2: R2 still flying across pagehide + pageshow: the late grant is released with keepalive and the new session ends mine", async () => {
+    const heldByMe = () =>
+      json({ error: { code: "document_locked", message: "locked", fields: { holder_id: "me", holder_name: "Tôi", held_by_me: true } } }, 423);
+    const calls = routes({
+      [`GET ${BASE}`]: [() => json(r1())],
+      // 1st: the R2 that is still flying at pagehide; 2nd: the new session meets that tenure; 3rd: after its release.
+      [`POST ${BASE}`]: [() => json(lock("L1"), 201), heldByMe, () => json(lock("L2"), 201)],
+      [`DELETE ${BASE}/L1`]: [() => new Response(null, { status: 204 })],
+    });
+    const route = vi.mocked(fetch).getMockImplementation();
+    let open: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (open = resolve));
+    let posts = 0;
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const first = init?.method === "POST" && String(input).endsWith(BASE) && ++posts === 1;
+      const answer = route!(input, init);
+      if (first) await gate;
+      return answer;
+    });
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useDocumentEditLock("w1", "d1", { canEdit: true, client: "web_page" }), { wrapper });
+    await waitFor(() => expect(calls.filter((c) => c.key === `POST ${BASE}`)).toHaveLength(1));
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("released"));
+    act(() => {
+      window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+    });
+    await waitFor(() => expect(calls.filter((c) => c.key === `POST ${BASE}`)).toHaveLength(2));
+    // The new session waits for the old R2 to settle instead of reading its own tenure as another tab's.
+    expect(result.current.state.phase).toBe("acquiring");
+    open();
+    await waitFor(() => expect(result.current.editLockId).toBe("L2"));
+    expect(result.current.state).toMatchObject({ phase: "mine", editable: true });
+    expect(calls.find((c) => c.key === `DELETE ${BASE}/L1`)?.init.keepalive).toBe(true);
+  });
+
   it("CFE-1-11: a take-over granted after unmount is released, not leaked", async () => {
     const calls = routes({
       [`GET ${BASE}`]: [() => json(r1({ lock: summary({ lock_id: "L0" }), can_take_over: true }))],

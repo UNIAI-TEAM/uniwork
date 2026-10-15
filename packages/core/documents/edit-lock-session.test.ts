@@ -559,6 +559,30 @@ describe("EditLockSession review fixes (CFE-1-4)", () => {
     expect(transport.heartbeat).toHaveBeenCalledTimes(2);
     expect(session.getState().phase).toBe("mine");
   });
+
+  it("CFE-2-2: a wake queued behind a beat that ends expired sends no beat on the lost session", async () => {
+    let refuse: (err: unknown) => void = () => undefined;
+    const transport = fakeTransport();
+    transport.heartbeat
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => (refuse = reject)))
+      // The reclaim's own heartbeat of the old tenure: the server confirms it expired.
+      .mockRejectedValueOnce(lost("expired"));
+    const { session, wake } = setup({ transport, canReclaim: () => false });
+    session.start();
+    await flush();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(transport.heartbeat).toHaveBeenCalledTimes(1);
+    wake();
+    await flush();
+    refuse(lost("expired"));
+    await flush();
+    expect(session.getState()).toMatchObject({ phase: "lost", lostReason: "expired", baseChanged: true });
+    // One beat plus the reclaim's check: the queued wake did not become a third call.
+    expect(transport.heartbeat).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(transport.heartbeat).toHaveBeenCalledTimes(2);
+    expect(session.getState().phase).toBe("lost");
+  });
 });
 
 describe("EditLockSession review fixes (CFE-1-3, CFE-1-5, CFE-1-11)", () => {
@@ -583,6 +607,20 @@ describe("EditLockSession review fixes (CFE-1-3, CFE-1-5, CFE-1-11)", () => {
     grant(lock());
     await flush();
     expect(transport.release).toHaveBeenCalledWith("L1", { keepalive: true });
+  });
+
+  it("CFE-2-4: a keepalive release during an R2 that then fails leaves nothing behind for a later op", async () => {
+    let fail: (err: unknown) => void = () => undefined;
+    const transport = fakeTransport();
+    transport.acquire.mockImplementationOnce(() => new Promise((_resolve, reject) => (fail = reject)));
+    const { session } = setup({ transport });
+    session.start();
+    await session.release({ keepalive: true });
+    fail(offline());
+    await flush();
+    // The op number of the failed R2 is gone: a grant that reuses no number must not be read as a pagehide one.
+    expect((session as unknown as { keepaliveOps: Set<number> }).keepaliveOps.size).toBe(0);
+    expect(transport.release).not.toHaveBeenCalled();
   });
 
   it("CFE-1-5: a remount whose R2 meets its own old tenure waits for that release and retries once", async () => {
