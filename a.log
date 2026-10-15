@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+4ab390efc5cd5abfabad9e906109e837af44c5ff
+fa2ed957a653b838f8ddf42727a41e8caf12657e
+4ab390ef fix(shell): key the R1 backoff to its owner, back off after a server 401, cap Retry-After, test the pick store
+c04beb8c fix(ai): readers of the current model use the model main will serve
+a3ab3868 fix(ai-provider): a 503 with no JSON error body is a UniWork answer; add ai_byok_not_configured
