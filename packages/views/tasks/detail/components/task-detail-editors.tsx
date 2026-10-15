@@ -18,6 +18,7 @@ import { ReactionBar } from "@uniwork/ui/components/common/reaction-bar";
 import {
   ContentEditor,
   type ContentEditorRef,
+  EditorLinkProvider,
   TitleEditor,
   type TitleEditorRef,
   FileDropOverlay,
@@ -158,24 +159,26 @@ export function TaskDetailEditors({
         <TaskDetailContextLine workspaceId={workspaceId} task={task} />
 
         <div className="relative mt-5 rounded-lg" {...dropZoneProps}>
-          <ContentEditor
-            ref={descEditorRef}
-            key={task.id}
-            value={task.description ?? ""}
-            placeholder={t("tasks.detail.description_placeholder")}
-            onDocumentChange={setLiveDescription}
-            onUpdate={(md) => {
-              if (md !== (task.description ?? "")) {
-                onSaveDescription(md);
-              }
-            }}
-            debounceMs={1500}
-            flushPendingOnUnmount
-            currentTaskId={task.id}
-            attachments={attachments.data}
-            onUploadFile={(file) => uploadIntoDescription(file)}
-            disableMentions
-          />
+          <EditorLinkProvider value={{ kind: "task", id: task.id }}>
+            <ContentEditor
+              ref={descEditorRef}
+              key={task.id}
+              value={task.description ?? ""}
+              placeholder={t("tasks.detail.description_placeholder")}
+              onDocumentChange={setLiveDescription}
+              onUpdate={(md) => {
+                if (md !== (task.description ?? "")) {
+                  onSaveDescription(md);
+                }
+              }}
+              debounceMs={1500}
+              flushPendingOnUnmount
+              currentTaskId={task.id}
+              attachments={attachments.data}
+              onUploadFile={(file) => uploadIntoDescription(file)}
+              disableMentions
+            />
+          </EditorLinkProvider>
           <div className="mt-3 flex items-center gap-1">
             <ReactionBar
               reactions={task.reactions ?? []}

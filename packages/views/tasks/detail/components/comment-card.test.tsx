@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { TaskComment } from "@uniwork/core/types";
+import { fakeNav, wrapWithNav } from "../../../test/api-mock";
 import { TaskCommentCard } from "./comment-card";
 
 initI18n();
@@ -182,5 +183,23 @@ describe("TaskCommentCard", () => {
       screen.getByRole("button", { name: /xóa bình luận|delete comment/i }),
     );
     expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it("tags an internal document link in the rendered body with ?from=task:<task id> (DOC7-W03)", async () => {
+    const nav = fakeNav("/acme/eng/tasks/t1");
+    render(
+      wrapWithNav(
+        <TaskCommentCard
+          comment={{ ...base, body: "xem [spec](/acme/eng/documents/D1)" }}
+          onToggleReaction={vi.fn()}
+        />,
+        nav,
+      ),
+    );
+    const link = await screen.findByRole("link", { name: "spec" });
+    act(() => {
+      fireEvent.click(link);
+    });
+    expect(nav.push).toHaveBeenCalledWith("/acme/eng/documents/D1?from=task:t1");
   });
 });

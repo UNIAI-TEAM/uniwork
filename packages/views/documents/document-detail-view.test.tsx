@@ -90,6 +90,8 @@ function renderView(
 
 beforeEach(() => {
   requestMock.mockReset();
+  // The locked card keeps a per-document "sent" flag on the device.
+  localStorage.clear();
 });
 
 describe("DocumentDetailView", () => {
@@ -117,15 +119,129 @@ describe("DocumentDetailView", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("says a document is not found without confirming the id exists", async () => {
+  it("answers a 404 with the member locked card, never confirming the id exists", async () => {
     requestMock.mockRejectedValue(new ApiError("not found", "not_found", 404));
     const { onBackToList } = renderView();
 
-    expect(await screen.findByText(t("documents.detail.not_found"))).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: t("documents.detail.retry") })).toBeNull();
+    // DOC7-W01: the neutral card replaces "not found"; nothing of the document shows.
+    expect(await screen.findByRole("heading", { name: t("documents.access_request.locked_title") })).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.detail.not_found"))).toBeNull();
+    expect(screen.queryByText("Kế hoạch Q3")).toBeNull();
+    expect(screen.getByRole("button", { name: t("documents.access_request.send") })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: t("documents.detail.back_to_library") }));
     expect(onBackToList).toHaveBeenCalled();
+  });
+
+  it("refetches the document when the locked card asks to try opening again", async () => {
+    requestMock.mockRejectedValue(new ApiError("not found", "not_found", 404));
+    renderView();
+    const retry = await screen.findByRole("button", { name: t("documents.access_request.retry_open") });
+    const before = requestMock.mock.calls.filter(([path]) => path === "/api/v1/documents/d1").length;
+    fireEvent.click(retry);
+    await waitFor(() =>
+      expect(requestMock.mock.calls.filter(([path]) => path === "/api/v1/documents/d1").length).toBeGreaterThan(before),
+    );
+  });
+
+  it("shows the admin locked card for 403 document_restricted", async () => {
+    requestMock.mockImplementation((path: string) =>
+      Promise.reject(
+        path === "/api/v1/documents/d1"
+          ? new ApiError("restricted", "document_restricted", 403)
+          : new ApiError("forbidden", "forbidden", 403),
+      ),
+    );
+    renderView();
+    expect(await screen.findByRole("heading", { name: t("documents.access_request.admin_locked_title") })).toBeInTheDocument();
+    expect(document.querySelector("[data-document-locked-card='admin']")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: t("documents.access_request.send") })).toBeNull();
+  });
+
+  it("reads ?from=task:<id>, drops it from the address, and sends it as the request's source", async () => {
+    const taskId = "01J8X4T9K0N1P2Q3R4S5T6V7W8";
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/documents/d1/access-requests"
+        ? Promise.resolve({ status: "sent" })
+        : Promise.reject(new ApiError("not found", "not_found", 404)),
+    );
+    const nav = fakeNav(`/acme/doi/documents/d1?from=task:${taskId}&x=1`);
+    render(withFlag(
+      <DocumentDetailView wsId={WS} documentId="d1" libraryHref={LIBRARY} onBackToList={vi.fn()} />,
+      true,
+      nav,
+    ));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/doi/documents/d1?x=1"));
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.access_request.send") }));
+    await screen.findByRole("status");
+    const send = requestMock.mock.calls.find(([path]) => path === "/api/v1/documents/d1/access-requests");
+    expect(send?.[1]).toMatchObject({ body: { source_kind: "task", source_id: taskId } });
+  });
+
+  it("resets the locked card and the from source when the route moves to another locked document", async () => {
+    const taskA = "01J8X4T9K0N1P2Q3R4S5T6V7W8";
+    const taskB = "01J8X4T9K0N1P2Q3R4S5T6V7W9";
+    requestMock.mockImplementation((path: string) =>
+      path.endsWith("/access-requests")
+        ? Promise.resolve({ status: "sent" })
+        : Promise.reject(new ApiError("not found", "not_found", 404)),
+    );
+    const nav = fakeNav(`/acme/doi/documents/d1?from=task:${taskA}`);
+    function Switcher() {
+      const [id, setId] = useState("d1");
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setId("d2");
+              nav.push(`/acme/doi/documents/d2?from=task:${taskB}`);
+            }}
+          >
+            go-d2
+          </button>
+          <DocumentDetailView wsId={WS} documentId={id} libraryHref={LIBRARY} onBackToList={vi.fn()} />
+        </>
+      );
+    }
+    render(withFlag(<Switcher />, true, nav));
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.access_request.send") }));
+    expect((await screen.findByRole("status")).textContent).toContain(t("documents.access_request.sent"));
+
+    fireEvent.click(screen.getByRole("button", { name: "go-d2" }));
+    const send = await screen.findByRole("button", { name: t("documents.access_request.send") });
+    expect(screen.queryByRole("status")).toBeNull();
+    fireEvent.click(send);
+    await screen.findByRole("status");
+    const second = requestMock.mock.calls.find(([path]) => path === "/api/v1/documents/d2/access-requests");
+    expect(second?.[1]).toMatchObject({ body: { source_kind: "task", source_id: taskB } });
+  });
+
+  it("ignores a from value that is not a task id", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/documents/d1/access-requests"
+        ? Promise.resolve({ status: "sent" })
+        : Promise.reject(new ApiError("not found", "not_found", 404)),
+    );
+    const nav = fakeNav("/acme/doi/documents/d1?from=task:nope");
+    render(withFlag(
+      <DocumentDetailView wsId={WS} documentId="d1" libraryHref={LIBRARY} onBackToList={vi.fn()} />,
+      true,
+      nav,
+    ));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/doi/documents/d1"));
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.access_request.send") }));
+    await screen.findByRole("status");
+    const send = requestMock.mock.calls.find(([path]) => path === "/api/v1/documents/d1/access-requests");
+    expect(send?.[1].body).not.toHaveProperty("source_id");
+  });
+
+  it("clears this device's sent flag once the document loads", async () => {
+    localStorage.setItem("uniwork_document_access_request_sent:d1", String(Date.now() + 3_600_000));
+    requestMock.mockResolvedValue({ document: pageDocument() });
+    renderView();
+    await screen.findByRole("textbox", { name: t("documents.page_ui.title_label") });
+    expect(localStorage.getItem("uniwork_document_access_request_sent:d1")).toBeNull();
   });
 
   it("offers a failed load again instead of calling the document missing", async () => {

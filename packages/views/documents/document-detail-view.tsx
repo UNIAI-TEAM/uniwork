@@ -1,10 +1,11 @@
 "use client";
 
-import { FolderX, ShieldAlert, CircleX, RefreshCw } from "lucide-react";
-import type { ComponentType } from "react";
+import { ShieldAlert, CircleX, RefreshCw } from "lucide-react";
+import { useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { useDocument } from "@uniwork/core/documents/hooks";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
+import { clearDocumentAccessRequestSent } from "@uniwork/core/documents/hooks-access-requests";
 import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -14,8 +15,10 @@ import { DocumentActionsMenu } from "./document-actions-menu";
 import { DocumentCommentsPanel } from "./document-comments-panel";
 import { DocumentCommentsProvider } from "./document-comments-context";
 import { DocumentInboxState } from "./document-inbox-state";
+import { DocumentLockedCard } from "./document-locked-card";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { DocumentWorkspace } from "./document-workspace";
+import { useRequestSourceFromUrl } from "./use-request-source-from-url";
 
 export interface DocumentDetailViewProps {
   wsId: string;
@@ -65,6 +68,12 @@ export function DocumentDetailView({
   // A link that names a comment came from the Inbox (or its push): its refusals are the
   // S15 page messages with the way back to the Inbox (UNI-1389 rows 1-2).
   const fromInbox = (useOptionalNavigation()?.searchParams.get("comment") ?? "") !== "";
+  const requestSource = useRequestSourceFromUrl(documentId);
+  const loaded = !!query.data;
+  // An open document ends any request this device sent for it (F-08).
+  useEffect(() => {
+    if (loaded) clearDocumentAccessRequestSent(documentId);
+  }, [loaded, documentId]);
 
   const backAction = (
     <Button type="button" variant="outline" size="sm" onClick={onBackToList}>
@@ -91,6 +100,10 @@ export function DocumentDetailView({
   // that is refused reads the same way, never as a load error.
   if (error && errorClass === "permission") {
     if (fromInbox) return <DocumentInboxState reason="no_access" className="mx-auto w-full max-w-3xl" />;
+    // DOC-05: an admin is refused a restricted document's content, never its management.
+    if (classifyDocumentError(error).code === "document_restricted") {
+      return <DocumentLockedCard key={documentId} variant="admin" wsId={wsId} documentId={documentId} onBack={onBackToList} />;
+    }
     return (
       <CollectionPageState
         className="mx-auto w-full max-w-3xl"
@@ -108,31 +121,38 @@ export function DocumentDetailView({
     if (fromInbox && (errorClass === "missing" || errorClass === "gone")) {
       return <DocumentInboxState reason="gone" className="mx-auto w-full max-w-3xl" />;
     }
-    // 404 and an unreachable server are answered differently on purpose; both
-    // keep the id's existence out of the copy the user sees.
-    const missing = errorClass === "missing";
+    // DOC-07: a 404 (missing, unshared or another organization's, on purpose
+    // indistinguishable) is the member locked card with a way to ask for access.
+    if (errorClass === "missing") {
+      return (
+        <DocumentLockedCard
+          key={documentId}
+          variant="member"
+          wsId={wsId}
+          documentId={documentId}
+          source={requestSource}
+          onRetryOpen={() => void query.refetch()}
+          retrying={query.isFetching}
+          onBack={onBackToList}
+        />
+      );
+    }
+    // An unreachable server is not a refusal: it says so and offers the load again.
     return (
       <CollectionPageState
         className="mx-auto w-full max-w-3xl"
-        icon={missing ? FolderX : ShieldAlert}
-        title={missing ? t("documents.detail.not_found") : t("documents.detail.load_error")}
-        description={missing ? undefined : t("documents.detail.load_error_description")}
-        tone={missing ? "muted" : "destructive"}
+        icon={ShieldAlert}
+        title={t("documents.detail.load_error")}
+        description={t("documents.detail.load_error_description")}
+        tone="destructive"
         role="alert"
         actions={
           <>
             {backAction}
-            {!missing ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void query.refetch()}
-              >
-                <RefreshCw aria-hidden className="size-3.5" />
-                {t("documents.detail.retry")}
-              </Button>
-            ) : null}
+            <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
+              <RefreshCw aria-hidden className="size-3.5" />
+              {t("documents.detail.retry")}
+            </Button>
           </>
         }
       />
