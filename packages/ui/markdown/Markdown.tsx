@@ -48,7 +48,7 @@ export interface MarkdownProps {
   /**
    * Callback when a URL is clicked
    */
-  onUrlClick?: (url: string) => void
+  onUrlClick?: (url: string, event?: React.MouseEvent) => void
   /**
    * Callback when a file path is clicked
    */
@@ -94,7 +94,7 @@ const FILE_PATH_REGEX =
  */
 function createComponents(
   mode: RenderMode,
-  onUrlClick?: (url: string) => void,
+  onUrlClick?: (url: string, event?: React.MouseEvent) => void,
   onFileClick?: (path: string) => void,
   renderMention?: (props: { type: string; id: string }) => React.ReactNode,
   renderImage?: (props: { src: string; alt: string }) => React.ReactNode,
@@ -195,7 +195,7 @@ function createComponents(
           if (FILE_PATH_REGEX.test(href) && onFileClick) {
             onFileClick(href)
           } else if (onUrlClick) {
-            onUrlClick(href)
+            onUrlClick(href, e)
           } else {
             // Default: open in new window
             window.open(href, '_blank', 'noopener,noreferrer')
