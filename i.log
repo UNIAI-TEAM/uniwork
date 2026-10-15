@@ -1,0 +1,2 @@
+$ set -o pipefail; pnpm exec knip --include files,exports 2>&1 | tail -20; echo "KNIP_EXIT=$?"
+KNIP_EXIT=0

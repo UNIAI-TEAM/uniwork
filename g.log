@@ -1,0 +1,106 @@
+$ node --test scripts/office/devset.test.mjs scripts/office/instruction-pack-tools.test.mjs; echo "DEVSET_EXIT=$?"
+TAP version 13
+# Subtest: G6-08 synthetic dev set & guard
+    # Subtest: has a Vietnamese README.md with > **Trạng thái:** header
+    ok 1 - has a Vietnamese README.md with > **Trạng thái:** header
+      ---
+      duration_ms: 0.691619
+      ...
+    # Subtest: has deterministic synthetic XLSX and DOCX fixtures matching manifest.json
+    ok 2 - has deterministic synthetic XLSX and DOCX fixtures matching manifest.json
+      ---
+      duration_ms: 3.618334
+      ...
+    # Subtest: validates devset cases.json schema, categories, secret scan, and holdout prompt disjointness
+    ok 3 - validates devset cases.json schema, categories, secret scan, and holdout prompt disjointness
+      ---
+      duration_ms: 10.177747
+      ...
+    # Subtest: detects secret-looking values (IPv4, http(s)://host:port, sk-... key prefix)
+    ok 4 - detects secret-looking values (IPv4, http(s)://host:port, sk-... key prefix)
+      ---
+      duration_ms: 0.160998
+      ...
+    # Subtest: normalizes prompts consistently and scores oracle criteria deterministically
+    ok 5 - normalizes prompts consistently and scores oracle criteria deterministically
+      ---
+      duration_ms: 18.030001
+      ...
+    # Subtest: verifies office_uniwork_ai@2 goldens obey the tool allowlist and contain no dev-set case answers
+    ok 6 - verifies office_uniwork_ai@2 goldens obey the tool allowlist and contain no dev-set case answers
+      ---
+      duration_ms: 2.078693
+      ...
+    # Subtest: enforces negative oracles on DV-XLSX-005..008 (error cell replaced by 0 and stale cache reported as result fail)
+    ok 7 - enforces negative oracles on DV-XLSX-005..008 (error cell replaced by 0 and stale cache reported as result fail)
+      ---
+      duration_ms: 2.747044
+      ...
+    1..7
+ok 1 - G6-08 synthetic dev set & guard
+  ---
+  duration_ms: 39.072246
+  type: 'suite'
+  ...
+# Subtest: G6-08 committed dev-set runs & report tables (BE68-5)
+    # Subtest: commits one valid, secret-free run JSON per pack version and keeps the report tables computed from them
+    ok 1 - commits one valid, secret-free run JSON per pack version and keeps the report tables computed from them
+      ---
+      duration_ms: 3.259822
+      ...
+    1..1
+ok 2 - G6-08 committed dev-set runs & report tables (BE68-5)
+  ---
+  duration_ms: 3.507817
+  type: 'suite'
+  ...
+# Subtest: the mechanical table parses into the six pack modules with a plausible tool count
+ok 3 - the mechanical table parses into the six pack modules with a plausible tool count
+  ---
+  duration_ms: 3.138115
+  ...
+# Subtest: the mechanical table parses a CRLF copy of the doc
+ok 4 - the mechanical table parses a CRLF copy of the doc
+  ---
+  duration_ms: 2.171838
+  ...
+# Subtest: a wrapped row inside the mechanical block fails the parse loudly
+ok 5 - a wrapped row inside the mechanical block fails the parse loudly
+  ---
+  duration_ms: 0.585618
+  ...
+# Subtest: every tool name in a module section is in that module's column
+ok 6 - every tool name in a module section is in that module's column
+  ---
+  duration_ms: 0.955657
+  ...
+# Subtest: every tool name in the common section is in all six module columns
+ok 7 - every tool name in the common section is in all six module columns
+  ---
+  duration_ms: 1.668294
+  ...
+# Subtest: a section that names an unknown tool fails, naming token, section and file
+ok 8 - a section that names an unknown tool fails, naming token, section and file
+  ---
+  duration_ms: 0.433133
+  ...
+# Subtest: a section that names another module's tool fails
+ok 9 - a section that names another module's tool fails
+  ---
+  duration_ms: 0.80326
+  ...
+# Subtest: a common-section tool missing in one module fails
+ok 10 - a common-section tool missing in one module fails
+  ---
+  duration_ms: 0.562756
+  ...
+1..10
+# tests 16
+# suites 2
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 110.465731
+DEVSET_EXIT=0

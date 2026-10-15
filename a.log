@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+c7eb0639739994f55c4e197b6f01441e9d4f3785
+595eb764e540e5de1ef3a33764609f0a247d09ba
+c7eb06397 chore: merge the G5-G7 root into G6-08 before the final cloud round
+9978255f6 test(office): commit the run outputs and the tables computed from them
+9a6aadeb2 fix(scripts): keep the panel session alive through a run
+3021fb1a8 docs(office): correct the dev-set report, commands and status
+cc857a7c0 test(office): guard the committed run outputs and the report tables
+afb0b9cbd fix(scripts): make a silent panel run explain itself
