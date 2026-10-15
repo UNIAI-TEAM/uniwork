@@ -1,6 +1,6 @@
 # Documents — Phụ lục: căn chỉnh Chia sẻ & quyền truy cập theo SRS Share v1.0
 
-> **Trạng thái:** in-progress — v1.0, viết 2026-10-15. Chỉ là đối chiếu, hợp đồng và kế hoạch sửa; chưa có dòng code nào. Nguồn yêu cầu: "SRS — Chức năng chia sẻ và quản lý quyền truy cập tài liệu" v1.0 (đề xuất nghiệp vụ, user gửi 2026-10-15, file ngoài repo). Mọi quyết định đã chốt 2026-10-15: sáu câu ở mục 1.1, các câu mục 10 theo đề xuất (user: "theo đề xuất"). Còn chờ duy nhất: ký ADR 0035 (nháp) trước khi code SH-S4/SH-W4.
+> **Trạng thái:** in-progress — v1.0, viết 2026-10-15. Chỉ là đối chiếu, hợp đồng và kế hoạch sửa; chưa có dòng code nào. Nguồn yêu cầu: "SRS — Chức năng chia sẻ và quản lý quyền truy cập tài liệu" v1.0 (đề xuất nghiệp vụ, user gửi 2026-10-15, file ngoài repo). Mọi quyết định đã chốt 2026-10-15: sáu câu ở mục 1.1, các câu mục 10 theo đề xuất (user: "theo đề xuất"). Phần agent (SH-S4/SH-W4) theo ADR 0010 và chờ hạ tầng `action_proposals` của agent runtime.
 
 **Quan hệ:** [Documents C-01 §4](2026-09-08-documents-design.md) (bảng quyền gốc), [phụ lục mức quyền](2026-10-14-documents-permission-levels-addendum.md) (DOC-05/G8-18: `view < comment < edit < manage`, `AdminScope`, `canAdminister()`, break-glass), [phụ lục truy cập](2026-10-15-documents-access-addendum.md) (DOC-02/06/07). Phụ lục này **thay** mặc định `workspace` khi tạo (DOC-01, ký 2026-10-14 14:30) và hướng của DOC-02 (mục 4); mọi luật khác của hai phụ lục trên giữ nguyên. Khi lệch `CLAUDE.md` hoặc ADR, `CLAUDE.md`/ADR thắng.
 **Hiện trạng:** `file:line` đọc ở root `54b1eca8c`. DOC-05 (a) server và (b) web nằm trên `feature/UNI-1413-g8-18-doc-05-{server,web}`, **chưa** là tổ tiên của root (server đi trước root 36 commit, web 21); mọi tên DOC-05 dưới đây là hợp đồng của phụ lục mức quyền.
@@ -49,7 +49,7 @@
 | U-SH2 | Q04 — mặc định khi tạo | **Riêng tư**: tài liệu mới ở gốc không có dòng Workspace gốc; chỉ chủ sở hữu (mục 4) |
 | U-SH3 | Q16 — lô có đối tượng lỗi | **Tất cả hoặc không**: một đối tượng lỗi → không lưu gì, báo từng đối tượng lỗi (mục 6.1) |
 | U-SH4 | Q06 — người không quản lý thấy gì | **Chỉ quyền của mình** (+ nguồn của mình); trên danh sách Documents thấy loại phạm vi và số lượng, không thấy tên (mục 5.2, 7) |
-| U-SH5 | Q-S6 — agent với tài liệu riêng tư | Agent tự chạy được coi như một người: là **đối tượng được share**; mức Nhận xét/Chỉnh sửa thì **ghi trực tiếp như người**, không qua đề xuất (mục 6.6). Trái điểm 1–3 của ADR 0010 → bản nháp [ADR 0035](../../adr/drafts/0035-agent-duoc-share-tai-lieu-ghi-truc-tiep.md), chờ ký trước khi code |
+| U-SH5 | Q-S6 — agent với tài liệu riêng tư | Agent tự chạy là **đối tượng được share** (như một người); mức Nhận xét/Chỉnh sửa nghĩa là agent được **đề xuất** bình luận/bản sửa, người có quyền tương ứng xác nhận rồi mới ghi — đúng [ADR 0010](../../adr/0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md), không ghi trực tiếp (user chốt lại 2026-10-15, bỏ phương án ghi trực tiếp và bản nháp ADR 0035) (mục 6.6) |
 | U-SH6 | Agent có được Quản lý không | **Không**, tối đa Chỉnh sửa |
 
 ### 1.2 Theo SRS, không cần hỏi lại
@@ -165,13 +165,13 @@ SDI `UpdateDocumentAccessSDI{ items: [{ principal_type "user|workspace|organizat
 - Catalogue 3 nơi: `document.workspace_access_changed`. `audit/actions.go` + `audit_coverage_test.go`: action `document.workspace_access_changed`.
 - `packages/core/api/endpoints/documents*.ts`: hàm + schema + case malformed cho `share-candidates`, `access` (kể cả `rejected`, `preview`), `home_workspace`, `sources`, `my_sources`, `share_scope`.
 
-### 6.6 Agent là đối tượng được share (U-SH5, U-SH6; ADR 0035 nháp)
+### 6.6 Agent là đối tượng được share (U-SH5, U-SH6; theo ADR 0010)
 
 - `principal_type = "agent"` cho `PUT …/access`, `POST …/shares`, `share-candidates` (agent của tổ chức, kiểm qua `workspace_agent_members`/`RequireAgentMember` của một workspace trong tổ chức); mức `view | comment | edit`, `manage` → `level_not_allowed`. CHECK `document_shares.principal_type` mở thêm `agent` (migration `999<ms>_`).
 - Resolver: actor `agent` lấy mức cao nhất giữa (a) luật hôm nay — tài liệu có dòng gốc → `view` (share Workspace/Tổ chức cho agent cũng tối đa `view`) — và (b) share **trực tiếp** cho agent đó (đến `edit`). Tài liệu riêng tư không có share trực tiếp → agent vẫn không thấy.
-- Kiểm thêm lúc agent đọc/ghi: người khởi chạy lượt chạy (hoặc owner của agent) đọc được tài liệu (ADR 0010 điểm 6); thiếu → từ chối như không có quyền.
-- Ghi: port `DocumentAgentWriter` (bình luận, sửa nội dung, tạo phiên bản) trong `DocumentService`, actor `service.Agent`, audit `actor_kind=agent` + `run_id`; mỗi lần sửa một phiên bản; `revision` bắt buộc; ngân sách 60 lệnh/phút/agent/tổ chức; công tắc tổ chức "Agent được ghi tài liệu" (mặc định bật) tắt tức thì.
-- UI: picker có nhóm **Agent** (biểu tượng `MODULE_ICONS` của agent + chữ "Agent"); dòng agent trong danh sách quyền chỉ có Chỉ xem / Nhận xét / Chỉnh sửa; huy hiệu phạm vi đếm agent vào "người" hay nhóm riêng — chọn **nhóm riêng** "{{count}} agent" để người dùng thấy rõ AI có quyền.
+- Kiểm thêm mỗi lần agent đọc hoặc tạo đề xuất: người khởi chạy lượt chạy (hoặc owner của agent) đọc được tài liệu (ADR 0010 điểm 6); thiếu → từ chối như không có quyền.
+- **Ghi = đề xuất (ADR 0010 điểm 1–4):** agent không gọi lệnh ghi nghiệp vụ. Với share `comment` agent tạo đề xuất bình luận/trả lời; với `edit` agent tạo thêm đề xuất sửa nội dung (bản sửa kèm `revision` đã đọc). Đề xuất nằm trong `action_proposals` (`proposed → confirmed | rejected → executed | failed`, `created_by_kind=agent`). Người xác nhận phải giữ mức tương ứng trên tài liệu lúc xác nhận (Nhận xét cho đề xuất bình luận, Chỉnh sửa cho đề xuất sửa); bước `executed` do `DocumentService` chạy với actor là **người xác nhận**, `confirmed_by` = người đó, audit ghi cả agent đề xuất. Đề xuất sửa có `revision` lệch lúc xác nhận → `failed` (`document_version_conflict`), agent đề xuất lại. Mỗi lần thực thi là một phiên bản mới, hoàn tác bằng khôi phục phiên bản (điểm 5). Ngoại lệ tự chạy của điểm 3 (rủi ro thấp + policy tổ chức) **không** bật cho tài liệu trong phạm vi này.
+- UI: picker có nhóm **Agent** (biểu tượng `MODULE_ICONS` của agent + chữ "Agent"); dòng agent trong danh sách quyền chỉ có Chỉ xem / Nhận xét / Chỉnh sửa; huy hiệu phạm vi đếm agent vào "người" hay nhóm riêng — chọn **nhóm riêng** "{{count}} agent" để người dùng thấy rõ AI có quyền. Đề xuất của agent hiện trong tài liệu (gợi ý sửa / bình luận chờ duyệt) với nút "Áp dụng" / "Bỏ qua" cho người đủ mức, và trong Hộp việc của người quản lý tài liệu.
 - Isolation: agent của tổ chức A trong lô của B → `422` (`isoReferences` cùng trường `principal_id`).
 
 ## 7. Huy hiệu phạm vi trên danh sách (FR-10, SH-13)
@@ -208,7 +208,7 @@ SDI `UpdateDocumentAccessSDI{ items: [{ principal_type "user|workspace|organizat
 - **Q-S5 (SRS Q11) — Nhiều public link:** chốt: **giữ tối đa 5 link sống** như hôm nay.
 - ~~Q-S6~~ — **đã chốt** (U-SH5, U-SH6). Ghi chú: AI chạy thay người dùng (Ask UNI với `ActorID = UserID` ở `askuni_sources.go:68`, AI trong editor Office, connector MCP theo ADR 0031/0033) đọc đúng quyền của người dùng nên không bị ảnh hưởng bởi mặc định riêng tư; chỉ agent tự chạy cần share (mục 6.6).
 - **Q-S7 (FR-11, AC20) — Tài liệu thuộc Work Product:** quyền đi qua resolver của sản phẩm (§13.4), không phải "liên kết Project". Chốt: **giữ**, hiện như nguồn "Theo kết quả công việc" trong `sources`; "liên kết Project" có cấu trúc để sau (SRS §2.2).
-- **Q-S8 — Agent nhận quyền qua share nhóm:** chốt: share Workspace (kể cả dòng gốc) và Tổ chức cho agent tối đa **Chỉ xem**; quyền ghi của agent chỉ đến từ share trực tiếp cho agent đó (mục 6.6, ADR 0035 điểm 2).
+- **Q-S8 — Agent nhận quyền qua share nhóm:** chốt: share Workspace (kể cả dòng gốc) và Tổ chức cho agent tối đa **Chỉ xem**; quyền đề xuất bình luận/sửa của agent chỉ đến từ share trực tiếp cho agent đó (mục 6.6).
 
 ## 11. Tách thẻ code và thứ tự
 
@@ -220,11 +220,11 @@ SDI `UpdateDocumentAccessSDI{ items: [{ principal_type "user|workspace|organizat
 | **SH-W1** popup Chia sẻ | web | mục 5 (ba khu vực, tách file), endpoints + hooks + malformed test, locales vi/en, glossary | DOC-05 (b) merged; hợp đồng SH-S2 (làm trên fake được) |
 | **SH-W2** huy hiệu phạm vi + W-DOC02 đảo | web | mục 7; công tắc "Chia sẻ với workspace" (mục 4) | SH-S1 (công tắc), SH-S3 (huy hiệu) |
 | **SH-W3** Inbox `document_shared` | web | renderer + test | SH-S3 |
-| **SH-S4** agent là đối tượng share | server | mục 6.6: `principal_type=agent`, resolver agent, kiểm người khởi chạy, port `DocumentAgentWriter`, ngân sách, công tắc tổ chức, test của ADR 0035 | **ADR 0035 được chấp nhận**; SH-S2 |
-| **SH-W4** agent trong popup Chia sẻ | web | nhóm Agent trong picker, dòng agent (tối đa Chỉnh sửa), huy hiệu "{{count}} agent", công tắc tổ chức trong cài đặt | SH-S4, SH-W1 |
+| **SH-S4** agent là đối tượng share | server | mục 6.6: `principal_type=agent`, resolver agent, kiểm người khởi chạy, loại đề xuất tài liệu (bình luận, sửa nội dung) trong `action_proposals` + thực thi bằng actor người xác nhận, test ADR 0010 (runtime không ghi nghiệp vụ, không đặt `accepted`) | hạ tầng `action_proposals` của agent runtime (ADR 0010; chưa có trong cây); SH-S2 |
+| **SH-W4** agent trong popup Chia sẻ + duyệt đề xuất | web | nhóm Agent trong picker, dòng agent (tối đa Chỉnh sửa), huy hiệu "{{count}} agent", hiện đề xuất của agent trong tài liệu với "Áp dụng"/"Bỏ qua" | SH-S4, SH-W1 |
 | **SH-E2E** | e2e | `e2e/documents-share.spec.ts` (cloud runner): AC01–AC20 luồng thật | tất cả |
 
-Thứ tự merge: DOC-05 (a)+(b) lockstep → SH-S1 → SH-S2 ∥ SH-S3 → SH-W1 ∥ SH-W2 → SH-W3 → SH-S4 → SH-W4 (chờ ADR 0035) → SH-E2E; DOC-06/07 theo phụ lục truy cập, rebase sau SH-S2 khi chạm `document_shares.go`. Web làm song song trên fake nhưng chỉ merge sau thẻ server tương ứng. Issue UniAI cho các thẻ SH-* do người giữ issue tạo (sub-issue của UNI-923 hoặc issue mới theo `UNIAI_TRACKING.md`).
+Thứ tự merge: DOC-05 (a)+(b) lockstep → SH-S1 → SH-S2 ∥ SH-S3 → SH-W1 ∥ SH-W2 → SH-W3 → SH-S4 → SH-W4 (chờ `action_proposals`) → SH-E2E; DOC-06/07 theo phụ lục truy cập, rebase sau SH-S2 khi chạm `document_shares.go`. Web làm song song trên fake nhưng chỉ merge sau thẻ server tương ứng. Issue UniAI cho các thẻ SH-* do người giữ issue tạo (sub-issue của UNI-923 hoặc issue mới theo `UNIAI_TRACKING.md`).
 
 ## 12. Nghiệm thu (SRS §13 → test)
 
