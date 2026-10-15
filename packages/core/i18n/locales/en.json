@@ -8577,6 +8577,7 @@
       "level_none": "None",
       "level_other": "Other",
       "visibility_other": "Other",
+      "principal_other": "Other",
       "inactive": "No longer active",
       "person_level": "This person's level: {{level}}",
       "filter_person": "Person",

@@ -50,6 +50,6 @@ export function principalTypeLabel(t: TFunction, principalType: string): string 
     case "organization":
       return t(`documents.share.principal_${principalType}`);
     default:
-      return t("documents.accessReport.level_other");
+      return t("documents.accessReport.principal_other");
   }
 }

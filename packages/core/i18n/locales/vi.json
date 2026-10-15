@@ -8571,6 +8571,7 @@
       "level_none": "Không có",
       "level_other": "Khác",
       "visibility_other": "Khác",
+      "principal_other": "Khác",
       "inactive": "Không còn hiệu lực",
       "person_level": "Mức của người này: {{level}}",
       "filter_person": "Người",
