@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripQuery, validateRules } from "./rules.mjs";
+import { describeResponse, errorCodeOf, revisionGreater } from "./server-cases-wire.mjs";
 
 const THIS_DIR = resolve(fileURLToPath(new URL(".", import.meta.url)));
 export const REPO_ROOT = resolve(THIS_DIR, "..", "..", "..", "..");
@@ -148,7 +149,6 @@ export function aggregateExitCode(caseResults = []) {
   return BLOCKED_EXIT_CODE;
 }
 
-const errorCodeOf = (body) => body?.error?.code ?? null;
 const commitPostsInLog = (log) => log.filter((e) => e.method === "POST" && /\/versions\/commit$/.test(e.path));
 const commitGetsInLog = (log) => log.filter((e) => e.method === "GET" && /\/versions\/commit$/.test(e.path));
 const uploadPostsInLog = (log) => log.filter((e) => e.method === "POST" && /\/uploads$/.test(e.path));
@@ -182,7 +182,7 @@ export async function runServerCaseDriver(caseRow, ctx) {
     assertions.push(
       assertion("upload_201", 201, up.status, up.status === 201),
       assertion("commit_1_dropped", "dropped", c1.dropped ? "dropped" : c1.status, Boolean(c1.dropped)),
-      assertion("lookup_200_committed", "200:committed", `${look.status}:${look.body?.outcome}`, look.status === 200 && look.body?.outcome === "committed" && Boolean(look.body?.version_id)),
+      assertion("lookup_200_committed", "200:committed", describeResponse(look), look.status === 200 && look.body?.outcome === "committed" && Boolean(look.body?.version_id)),
       assertion("replay_200_same_version", look.body?.version_id ?? "ver", c2.body?.version?.id ?? null, c2.status === 200 && Boolean(look.body?.version_id) && c2.body?.version?.id === look.body?.version_id),
       assertion("version_delta", 1, finish.versionDelta, finish.versionDelta === 1),
       assertion("proxy_log_same_key_tag", "1 tag across 2 POST + 1 GET", `${new Set(allCommitTags).size} tag(s) across ${postLogs.length} POST`, postLogs.length === 2 && postLogs[0].status === "dropped" && postLogs[1].status === 200 && new Set(allCommitTags).size === 1),
@@ -235,7 +235,7 @@ export async function runServerCaseDriver(caseRow, ctx) {
     const tags = new Set(postLogs.map((e) => e.keyTag).filter(Boolean));
     assertions.push(
       assertion("concurrent_statuses", "2x200(same version) or 200+409(idempotency_in_flight)", `${c1.status}+${c2.status}`, both200SameVer || one200One409),
-      assertion("lookup_200_committed", "200:committed", `${look.status}:${look.body?.outcome}`, look.status === 200 && look.body?.outcome === "committed"),
+      assertion("lookup_200_committed", "200:committed", describeResponse(look), look.status === 200 && look.body?.outcome === "committed"),
       assertion("version_delta", 1, finish.versionDelta, finish.versionDelta === 1),
       assertion("proxy_log", "2 POST commit same keyTag", `${postLogs.length} POST (${tags.size} tag)`, postLogs.length === 2 && tags.size === 1),
     );
@@ -258,7 +258,7 @@ export async function runServerCaseDriver(caseRow, ctx) {
     assertions.push(
       assertion("commit_1_503", 503, c1.status, c1.status === 503),
       assertion("commit_2_200", 200, c2.status, c2.status === 200),
-      assertion("lookup_200_committed", "200:committed", `${look.status}:${look.body?.outcome}`, look.status === 200 && look.body?.outcome === "committed"),
+      assertion("lookup_200_committed", "200:committed", describeResponse(look), look.status === 200 && look.body?.outcome === "committed"),
       assertion("version_delta", 1, finish.versionDelta, finish.versionDelta === 1),
       assertion("proxy_log", "synthetic then 200 same keyTag", `${postLogs.map((e) => e.status).join(",")} (${tags.size} tag)`, postLogs.length === 2 && postLogs[0].status === "synthetic" && postLogs[1].status === 200 && tags.size === 1),
     );
@@ -309,7 +309,7 @@ export async function runServerCaseDriver(caseRow, ctx) {
     assertions.push(
       assertion("client_aborted_while_held", true, Boolean(c1.aborted || c1.dropped), Boolean(c1.aborted || c1.dropped)),
       assertion("release_hold_commit", 1, rel?.released ?? 0, (rel?.released ?? 0) >= 1),
-      assertion("lookup_200_committed", "200:committed", `${look.status}:${look.body?.outcome}`, look.status === 200 && look.body?.outcome === "committed"),
+      assertion("lookup_200_committed", "200:committed", describeResponse(look), look.status === 200 && look.body?.outcome === "committed"),
       assertion("version_delta", 1, finish.versionDelta, finish.versionDelta === 1),
       assertion("proxy_log_single_post_same_key", "1 POST + 1 GET (1 keyTag)", `${postLogs.length} POST + ${getLogs.length} GET (${allTags.size} tag)`, postLogs.length === 1 && getLogs.length >= 1 && allTags.size === 1),
     );
@@ -343,7 +343,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { docId, r0, intentLog, as
     assertions.push(
       assertion("device_b_commit_200", 200, bCommit.status, bCommit.status === 200 && Boolean(rB)),
       assertion("device_a_commit_409_conflict", `409:document_version_conflict:${rB}`, `${cA.status}:${errorCodeOf(cA.body)}:${conflictRev}`, cA.status === 409 && errorCodeOf(cA.body) === "document_version_conflict" && conflictRev === rB),
-      assertion("lookup_200_not_committed", "200:not_committed", `${look.status}:${look.body?.outcome}`, look.status === 200 && look.body?.outcome === "not_committed"),
+      assertion("lookup_200_not_committed", "200:not_committed", describeResponse(look), look.status === 200 && look.body?.outcome === "not_committed"),
       assertion("version_delta", 1, finish.versionDelta, finish.versionDelta === 1),
       assertion("proxy_log", "1 POST + 1 GET same keyTag", `${postLogs.length} POST + ${getLogs.length} GET (${tags.size} tag)`, postLogs.length === 1 && getLogs.length === 1 && tags.size === 1),
     );
@@ -396,7 +396,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { docId, r0, intentLog, as
     const tags = new Set([...postLogs, ...getLogs].map((e) => e.keyTag).filter(Boolean));
     assertions.push(
       assertion("commit_409_conflict", "409:document_version_conflict", `${cA.status}:${errorCodeOf(cA.body)}`, cA.status === 409 && errorCodeOf(cA.body) === "document_version_conflict"),
-      assertion("lookup_200_not_committed", "200:not_committed", `${look.status}:${look.body?.outcome}`, look.status === 200 && look.body?.outcome === "not_committed"),
+      assertion("lookup_200_not_committed", "200:not_committed", describeResponse(look), look.status === 200 && look.body?.outcome === "not_committed"),
       assertion("version_delta", 1, finish.versionDelta, finish.versionDelta === 1),
       assertion("proxy_log", "1 POST + 1 GET same keyTag", `${postLogs.length} POST + ${getLogs.length} GET (${tags.size} tag)`, postLogs.length === 1 && getLogs.length === 1 && tags.size === 1),
     );
@@ -484,7 +484,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { docId, r0, intentLog, as
     const tags = new Set(postLogs.map((e) => e.keyTag).filter(Boolean));
     assertions.push(
       assertion("commit_while_archived_410", "410:document_deleted", `${c1.status}:${errorCodeOf(c1.body)}`, c1.status === 410 && errorCodeOf(c1.body) === "document_deleted"),
-      assertion("restore_move_bumped_revision", `>${r0}`, String(restored.revision ?? ""), Number(restored.revision) > Number(r0)),
+      assertion("restore_move_bumped_revision", `>${r0}`, String(restored.revision ?? ""), typeof restored.revision === "string" && revisionGreater(restored.revision, r0)),
       assertion("commit_after_restore_move_200", 200, c2.status, c2.status === 200),
       assertion("version_delta", 1, finish.versionDelta, finish.versionDelta === 1),
       assertion("proxy_log_2_commits_same_key", "2 POST commit (1 keyTag)", `${postLogs.length} POST (${tags.size} tag)`, postLogs.length === 2 && tags.size === 1),

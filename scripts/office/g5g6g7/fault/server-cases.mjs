@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global process, Buffer, fetch, FormData, Blob */
+/* global process, fetch, FormData, Blob */
 // Server-layer fault cases runner for G7-03a (UNI-1380): runs FQ-01..FQ-13
 // against the D server through the fault proxy (`./proxy.mjs`).
 
@@ -11,6 +11,7 @@ import { runEvidence } from "../evidence.mjs";
 import { DEFAULT_FORK_SHA, harnessPaths, isMainModule, readStartStatus, startGate } from "../harness/lib.mjs";
 import { collectServerVersions, writeServerVersions } from "./collect.mjs";
 import { startFaultProxy } from "./proxy.mjs";
+import { CONVERSATION_HEADER, createWireContext } from "./server-cases-wire.mjs";
 import { readVerificationCode, seedFaultTenant } from "./server-cases-setup.mjs";
 import {
   BLOCKED_EXIT_CODE, DEFAULT_CASES_PATH, REPO_ROOT, aggregateExitCode, assertion, buildIntentLogEntry,
@@ -87,7 +88,7 @@ async function httpJson(origin, path, { method = "GET", token, headers = {}, bod
   try {
     const res = await fetch(`${origin}${path}`, { method, headers: reqHeaders, body: payload, signal });
     const parsed = parseJsonOrRaw(await res.text());
-    const conversationId = res.headers.get("x-uniwork-conversation-id") || "";
+    const conversationId = res.headers.get(CONVERSATION_HEADER) || "";
     return { ok: res.ok, status: res.status, body: parsed, conversationId, dropped: false, aborted: false };
   } catch (error) {
     const isAbort = error?.name === "AbortError" || Boolean(signal?.aborted);
@@ -233,94 +234,25 @@ export async function runSelectedServerCases({ caseId = null, runDir, casesPath 
           await httpJson(proxy.origin, "/__fault/rules", { method: "POST", body: renderedRules });
         }
 
-        const makeVariantBytes = (label) => Buffer.concat([fx.bytes, Buffer.from(`\n<!-- ${row.id}:${label} -->`)]);
+        const newKey = (prefix) => `${prefix}-${row.id}-${crypto.randomUUID()}`;
+        const wire = createWireContext({
+          http: httpJson,
+          multipart: httpMultipartFile,
+          apiOrigin,
+          proxyOrigin: proxy.origin,
+          tenant,
+          doc,
+          caseId: row.id,
+          fixture: { bytes: fx.bytes, mime: fx.mime, filename: basename(fx.path) },
+          newKey,
+        });
         const ctx = {
           document: doc,
           beforeCount: beforeVersions.versions.length,
           sleep,
-          newKey: (prefix) => `${prefix}-${row.id}-${crypto.randomUUID()}`,
+          newKey,
           keyTag: (rawKey) => computeKeyTag(rawKey, driverSalt),
-          uploadViaProxy: (actor, docId, { idempotencyKey, label = "v" }) =>
-            httpMultipartFile(proxy.origin, `/api/v1/documents/${docId}/uploads`, {
-              token: tenant.tokens[actor],
-              fileBytes: makeVariantBytes(label),
-              filename: basename(fx.path),
-              mime: fx.mime,
-              headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
-            }),
-          uploadDirect: (actor, docId, { idempotencyKey, label = "v" }) =>
-            httpMultipartFile(apiOrigin, `/api/v1/documents/${docId}/uploads`, {
-              token: tenant.tokens[actor],
-              fileBytes: makeVariantBytes(label),
-              filename: basename(fx.path),
-              mime: fx.mime,
-              headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
-            }),
-          commitViaProxy: (actor, docId, { idempotencyKey, uploadId, baseRevision, signal }) =>
-            httpJson(proxy.origin, `/api/v1/documents/${docId}/versions/commit`, {
-              method: "POST",
-              token: tenant.tokens[actor],
-              headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
-              body: { upload_id: uploadId, base_revision: Number(baseRevision) },
-              signal,
-            }),
-          lookupViaProxy: (actor, docId, { idempotencyKey }) =>
-            httpJson(proxy.origin, `/api/v1/documents/${docId}/versions/commit`, {
-              method: "GET",
-              token: tenant.tokens[actor],
-              headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
-            }),
-          getDocumentViaProxy: (actor, docId) =>
-            httpJson(proxy.origin, `/api/v1/documents/${docId}`, { method: "GET", token: tenant.tokens[actor] }),
-          uploadAndCommitDirect: async (actor, docId, { baseRevision, label = "direct" }) => {
-            const up = await ctx.uploadDirect(actor, docId, { idempotencyKey: ctx.newKey("up-direct"), label });
-            return httpJson(apiOrigin, `/api/v1/documents/${docId}/versions/commit`, {
-              method: "POST",
-              token: tenant.tokens[actor],
-              headers: { "Idempotency-Key": ctx.newKey("commit-direct") },
-              body: { upload_id: up.body?.upload_id, base_revision: Number(baseRevision) },
-            });
-          },
-          seedFailedIntentDirect: async (actor, docId) => {
-            const kA = ctx.newKey("seed-intent");
-            const up = await ctx.uploadDirect(actor, docId, { idempotencyKey: ctx.newKey("up-seed"), label: "seed" });
-            await httpJson(apiOrigin, `/api/v1/documents/${docId}/versions/commit`, {
-              method: "POST",
-              token: tenant.tokens[actor],
-              headers: { "Idempotency-Key": kA },
-              body: { upload_id: up.body?.upload_id, base_revision: 999999 },
-            });
-            return kA;
-          },
-          aiTurnViaProxy: (actor, docId, { prompt, conversationId = "" }) =>
-            httpJson(proxy.origin, `/api/v1/documents/${docId}/ai/uniwork/chat/completions`, {
-              method: "POST",
-              token: tenant.tokens[actor],
-              headers: conversationId ? { "X-Uniwork-Conversation-Id": conversationId } : {},
-              body: { messages: [{ role: "user", content: prompt }] },
-            }),
-          removeWorkspaceMemberDirect: (actor) =>
-            httpJson(apiOrigin, `/api/v1/workspaces/${tenant.workspaceId}/members/${tenant.users[actor]}`, {
-              method: "DELETE",
-              token: tenant.tokens.owner,
-            }),
-          archiveDocumentDirect: (docId) =>
-            httpJson(apiOrigin, `/api/v1/documents/${docId}/archive`, { method: "POST", token: tenant.tokens.owner }),
-          restoreAndMoveDocumentDirect: async (docId) => {
-            await httpJson(apiOrigin, `/api/v1/documents/${docId}/restore`, { method: "POST", token: tenant.tokens.owner });
-            const cur = await httpJson(apiOrigin, `/api/v1/documents/${docId}`, { method: "GET", token: tenant.tokens.owner });
-            const folder = await httpJson(apiOrigin, `/api/v1/workspaces/${tenant.workspaceId}/documents`, {
-              method: "POST",
-              token: tenant.tokens.owner,
-              body: { title: `Folder ${row.id} ${Date.now()}`, kind: "folder" },
-            });
-            const moved = await httpJson(apiOrigin, `/api/v1/documents/${docId}/move`, {
-              method: "POST",
-              token: tenant.tokens.owner,
-              body: { parent_id: folder.body?.document?.id, revision: String(cur.body?.document?.revision ?? doc.revision) },
-            });
-            return { revision: moved.body?.document?.revision ?? null };
-          },
+          ...wire,
           waitForRuleHeld: async (ruleId, timeoutMs = 4000) => {
             const deadline = Date.now() + timeoutMs;
             while (Date.now() < deadline) {
