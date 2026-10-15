@@ -253,7 +253,7 @@ function createFakeServer(docId, { breakCase = false } = {}) {
     }
     if (state.archived) {
       state.intents.set(key, { actor, status: "not_committed" });
-      return refusal(410, "document_deleted");
+      return refusal(403, "document_archived");
     }
     const base = BigInt(body.base_revision.trim());
     if (!(BigInt(state.contentRevision) <= base && base <= BigInt(state.revision))) {
@@ -820,6 +820,18 @@ test("restore then move sends a string revision and parent_id, a folder is creat
   const move = ctx.server.state.calls.find((c) => c.path.endsWith("/move"));
   assert.equal(move.body.revision, "2");
   assert.equal(move.body.parent_id, "folder_1");
+});
+
+test("FQ-13 expects 403 document_archived for a commit on an archived document (G5-07 F6), not 410 document_deleted", async () => {
+  const row = selectServerCases(casesDoc, { caseId: "FQ-13" })[0];
+  assert.equal(row.expect.server.statuses.commit_while_archived, 403);
+  assert.equal(row.expect.server.errorCodes.commit_while_archived, "document_archived");
+  const outcome = await runServerCaseDriver(row, createFakeCaseContext(row));
+  const archived = outcome.assertions.find((a) => a.name === "commit_while_archived_403");
+  assert.ok(archived, "the assertion is named for 403");
+  assert.equal(archived.expected, "403:document_archived");
+  assert.equal(archived.ok, true);
+  assert.equal(outcome.assertions.some((a) => a.name === "commit_while_archived_410"), false);
 });
 
 test("workspace member removal targets /workspaces/{ws}/members/{userId} and answers 204", async () => {

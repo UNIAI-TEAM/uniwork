@@ -850,11 +850,11 @@
         "server": {
           "versionDelta": 1,
           "statuses": {
-            "commit_while_archived": 410,
+            "commit_while_archived": 403,
             "commit_after_restore_move": 200
           },
           "errorCodes": {
-            "commit_while_archived": "document_deleted"
+            "commit_while_archived": "document_archived"
           }
         },
         "proxyLog": {
@@ -863,7 +863,7 @@
         },
         "notes": {
           "server": [
-            "statuses: commit khi đang lưu trữ: 410 document_deleted (server hôm nay, xem OQ-F6); commit sau bỏ lưu trữ + di chuyển: 200, không 409"
+            "statuses: commit khi đang lưu trữ: 403 document_archived (G5-07 F6, UNI-1345; xem OQ-F6); commit sau bỏ lưu trữ + di chuyển: 200, không 409"
           ],
           "client": [
             "driver: blocked → queued → committed"
@@ -873,7 +873,7 @@
           ]
         }
       },
-      "notes": "mã khi đang lưu trữ lệch EXPERIENCE (OQ-F6)",
+      "notes": "mã khi đang lưu trữ khớp EXPERIENCE từ G5-07 F6 (OQ-F6 phía server đã xong)",
       "status": "ready",
       "serverOnly": true,
       "artifacts": [

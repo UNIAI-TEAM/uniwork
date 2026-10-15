@@ -372,7 +372,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { X, docId, r0, intentLog,
     recordStep({ step: "commit_after_restore_and_move", keyTag: ctx.keyTag(k1), attempt: 2, status: c2.status, outcome: c2.status === 200 ? "committed" : errorCodeOf(c2.body) });
     const finish = await ctx.collectCaseEnd(docId);
     assertions.push(
-      assertion("commit_while_archived_410", `${X.status("commit_while_archived")}:${X.errorCode("commit_while_archived")}`, `${c1.status}:${errorCodeOf(c1.body)}`, statusMatches(X.status("commit_while_archived"), c1.status) && errorCodeOf(c1.body) === X.errorCode("commit_while_archived")),
+      assertion("commit_while_archived_403", `${X.status("commit_while_archived")}:${X.errorCode("commit_while_archived")}`, `${c1.status}:${errorCodeOf(c1.body)}`, statusMatches(X.status("commit_while_archived"), c1.status) && errorCodeOf(c1.body) === X.errorCode("commit_while_archived")),
       assertion("restore_move_bumped_revision", `>${r0}`, String(restored.revision ?? ""), typeof restored.revision === "string" && revisionGreater(restored.revision, r0)),
       statusAssertion("commit_after_restore_move_200", X.status("commit_after_restore_move"), c2.status),
       versionDeltaAssertion(X, finish),
