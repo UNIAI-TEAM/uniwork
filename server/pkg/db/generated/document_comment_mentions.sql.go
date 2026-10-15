@@ -311,17 +311,18 @@ func (q *Queries) MarkDocumentCommentMentionsRemoved(ctx context.Context, arg Ma
 
 const reactivateDocumentCommentMention = `-- name: ReactivateDocumentCommentMention :exec
 UPDATE document_comment_mentions
-SET state = 'active',
+SET state = $1::text,
     updated_at = now()
-WHERE comment_id = $1
-  AND user_id = $2
-  AND document_id = $3
-  AND organization_id = $4
-  AND workspace_id = $5
+WHERE comment_id = $2
+  AND user_id = $3
+  AND document_id = $4
+  AND organization_id = $5
+  AND workspace_id = $6
   AND state = 'removed'
 `
 
 type ReactivateDocumentCommentMentionParams struct {
+	State          string `json:"state"`
 	CommentID      string `json:"comment_id"`
 	UserID         string `json:"user_id"`
 	DocumentID     string `json:"document_id"`
@@ -329,10 +330,13 @@ type ReactivateDocumentCommentMentionParams struct {
 	WorkspaceID    string `json:"workspace_id"`
 }
 
-// A dropped mention that returns in the body: active again, notified_at kept,
-// so the same row never notifies twice (contract-collab section 8.1).
+// A dropped mention that returns in the body: the service re-checks read
+// access like for a new mention, so the row comes back active for a reader and
+// no_access for a non-reader (G8-18). notified_at is kept either way, so the
+// same row never notifies twice (contract-collab section 8.1).
 func (q *Queries) ReactivateDocumentCommentMention(ctx context.Context, arg ReactivateDocumentCommentMentionParams) error {
 	_, err := q.db.Exec(ctx, reactivateDocumentCommentMention,
+		arg.State,
 		arg.CommentID,
 		arg.UserID,
 		arg.DocumentID,

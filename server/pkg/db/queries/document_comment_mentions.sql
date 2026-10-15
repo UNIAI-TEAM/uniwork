@@ -42,16 +42,18 @@ INSERT INTO document_comment_mentions (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
 -- name: ReactivateDocumentCommentMention :exec
--- A dropped mention that returns in the body: active again, notified_at kept,
--- so the same row never notifies twice (contract-collab section 8.1).
+-- A dropped mention that returns in the body: the service re-checks read
+-- access like for a new mention, so the row comes back active for a reader and
+-- no_access for a non-reader (G8-18). notified_at is kept either way, so the
+-- same row never notifies twice (contract-collab section 8.1).
 UPDATE document_comment_mentions
-SET state = 'active',
+SET state = sqlc.arg(state)::text,
     updated_at = now()
-WHERE comment_id = $1
-  AND user_id = $2
-  AND document_id = $3
-  AND organization_id = $4
-  AND workspace_id = $5
+WHERE comment_id = sqlc.arg(comment_id)
+  AND user_id = sqlc.arg(user_id)
+  AND document_id = sqlc.arg(document_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
   AND state = 'removed';
 
 -- name: RemoveDocumentCommentMentions :exec

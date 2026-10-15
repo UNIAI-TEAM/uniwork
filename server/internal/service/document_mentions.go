@@ -361,18 +361,20 @@ func (s *DocumentService) syncDocumentCommentMentions(ctx context.Context, q *db
 			dropped = append(dropped, r.UserID)
 		}
 	}
-	if len(added) > 0 {
-		// The read gate decides active vs no_access; it excludes deactivated
-		// members and revoked shares, exactly as the delivery-time gate does.
+	readable := make(map[string]bool, len(added)+len(reactivated))
+	if len(added)+len(reactivated) > 0 {
+		// The read gate decides active vs no_access, for a returning id as
+		// for a new one (G8-18: a non-reader never comes back active). It
+		// excludes deactivated members, revoked shares and admins with no
+		// break-glass grant, exactly as the delivery-time gate does.
 		// It runs on the caller's q, never the pool: this sync is inside the
 		// create/edit transaction, which already holds the document row lock
 		// and a connection, so a second borrow could deadlock a saturated
 		// pool (TestDocumentMutationGateOnSmallPool).
-		readers, err := s.FilterDocumentReadersQ(ctx, q, ref.ResourceID, added)
+		readers, err := s.FilterDocumentReadersQ(ctx, q, ref.ResourceID, append(append([]string(nil), added...), reactivated...))
 		if err != nil {
 			return err
 		}
-		readable := make(map[string]bool, len(readers))
 		for _, id := range readers {
 			readable[id] = true
 		}
@@ -391,8 +393,12 @@ func (s *DocumentService) syncDocumentCommentMentions(ctx context.Context, q *db
 		}
 	}
 	for _, id := range reactivated {
+		state := "no_access"
+		if readable[id] {
+			state = "active"
+		}
 		if err := q.ReactivateDocumentCommentMention(ctx, db.ReactivateDocumentCommentMentionParams{
-			CommentID: commentID, UserID: id, DocumentID: ref.ResourceID,
+			State: state, CommentID: commentID, UserID: id, DocumentID: ref.ResourceID,
 			OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
 		}); err != nil {
 			return err
