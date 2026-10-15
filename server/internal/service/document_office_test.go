@@ -171,8 +171,11 @@ func newOfficeFixture(t *testing.T, content string) *officeFixture {
 // them. It answers (document id, version id, revision).
 func (f *officeFixture) seedDocument(t *testing.T, content string) (string, string, int64) {
 	t.Helper()
+	// Explicitly workspace-visible: the office cases have several members
+	// reach the document, and U-SH2's private default is not what they test.
 	res, err := f.docs.CreateFileDocument(context.Background(), f.actor, f.ws, CreateFileDocumentInput{
 		Title: "Tài liệu " + util.NewID()[20:], Filename: "note.md", Body: strings.NewReader(content),
+		Visibility: documentVisibilityWorkspace,
 	})
 	if err != nil {
 		t.Fatalf("seed document: %v", err)

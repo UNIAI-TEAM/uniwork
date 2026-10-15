@@ -9,7 +9,8 @@ import (
 // optional visibility field - a multipart form field on the upload route and
 // a JSON field on the blank route. The field names the home row the new
 // document opens with; anything but workspace|restricted is a 400
-// invalid_request (no fields).
+// invalid_request (no fields), and omitting it keeps the private default at
+// the root.
 
 // createFileDocWithFields posts one file document through the multipart route
 // with the given form fields and decodes the answer.
@@ -39,6 +40,23 @@ func TestCreateDocumentFileVisibilityField(t *testing.T) {
 		}
 	})
 
+	t.Run("private by default and by name", func(t *testing.T) {
+		status, out := createFileDocWithFields(t, w, map[string]string{"title": "Riêng tư"})
+		if status != 201 {
+			t.Fatalf("create = %d %v", status, out)
+		}
+		if v := out["document"].(map[string]any)["visibility"]; v != "restricted" {
+			t.Fatalf("default visibility = %v, want restricted", v)
+		}
+		status, out = createFileDocWithFields(t, w, map[string]string{"title": "Riêng tư 2", "visibility": "restricted"})
+		if status != 201 {
+			t.Fatalf("create = %d %v", status, out)
+		}
+		if v := out["document"].(map[string]any)["visibility"]; v != "restricted" {
+			t.Fatalf("named visibility = %v, want restricted", v)
+		}
+	})
+
 	t.Run("a value outside the allowlist is refused", func(t *testing.T) {
 		status, out := createFileDocWithFields(t, w, map[string]string{"title": "Sai", "visibility": "public"})
 		if code, _ := errCodeClass(out); status != 400 || code != "invalid_request" {
@@ -54,22 +72,21 @@ func TestCreateBlankDocumentFileVisibilityField(t *testing.T) {
 	w := newOfficeWorld(t, true)
 	path := "/api/v1/workspaces/" + w.wsID + "/documents/files/blank"
 
-	res, out := doJSON(t, w.srv, "POST", path, w.token,
+	res, out := doJSON(t, w.srv, "POST", path, w.token, map[string]string{"format": "docx", "title": "Riêng tư"})
+	if res.StatusCode != 201 {
+		t.Fatalf("blank = %d %v", res.StatusCode, out)
+	}
+	if v := out["document"].(map[string]any)["visibility"]; v != "restricted" {
+		t.Fatalf("default visibility = %v, want restricted", v)
+	}
+
+	res, out = doJSON(t, w.srv, "POST", path, w.token,
 		map[string]string{"format": "docx", "title": "Chia sẻ", "visibility": "workspace"})
 	if res.StatusCode != 201 {
 		t.Fatalf("blank workspace = %d %v", res.StatusCode, out)
 	}
 	if v := out["document"].(map[string]any)["visibility"]; v != "workspace" {
 		t.Fatalf("visibility = %v, want workspace", v)
-	}
-
-	res, out = doJSON(t, w.srv, "POST", path, w.token,
-		map[string]string{"format": "docx", "title": "Riêng", "visibility": "restricted"})
-	if res.StatusCode != 201 {
-		t.Fatalf("blank restricted = %d %v", res.StatusCode, out)
-	}
-	if v := out["document"].(map[string]any)["visibility"]; v != "restricted" {
-		t.Fatalf("visibility = %v, want restricted", v)
 	}
 
 	res, out = doJSON(t, w.srv, "POST", path, w.token,

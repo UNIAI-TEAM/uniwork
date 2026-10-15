@@ -46,7 +46,7 @@ type CreateBlankDocumentFileSDI struct {
 	Format     string  `json:"format" description:"md, html, xlsx, docx, pptx hoặc pdf; định dạng khác trả unsupported_operation" example:"docx"`
 	Title      string  `json:"title" minLength:"1" description:"Tiêu đề tài liệu, 1-500 ký tự" example:"Ghi chú họp"`
 	ParentID   *string `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	Visibility *string `json:"visibility" description:"workspace hoặc restricted; bỏ trống = kế thừa cha, ở gốc = workspace; giá trị khác -> 400 invalid_request" example:"workspace"`
+	Visibility *string `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
 }
 
 // CopyDocumentSDI is POST /api/v1/documents/{documentID}/copies

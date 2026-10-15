@@ -125,21 +125,33 @@ func validDocumentVisibility(v string) error {
 }
 
 // createHomeRow resolves the visibility and the workspace level a document is
-// created with: an empty request inherits the parent's pair - visibility and
+// created with (SH-S1, U-SH2). The default is private: an empty request at the
+// root stores restricted, and a document that is not workspace-visible has no
+// home row (BR-10) even though the level column keeps a value.
+//
+// An empty request under a parent inherits the parent's pair - visibility and
 // level together, read off the parent row locked in the transaction (C-01 §4;
-// the inheritance is fixed at create, a later move leaves both columns alone) -
-// and stands for the workspace at the root. The level is only read while the
-// document is workspace-visible.
+// the inheritance is fixed at create, a later move leaves both columns alone).
+//
+// A request that names a visibility is stored as sent. The level is the one
+// the document would grant if that visibility were workspace: the parent's
+// level when the parent is workspace-visible (under a restricted parent there
+// is no home row to read, so view), and view at the root - Q-S3: turning
+// "share with workspace" on at create grants view, the owner raises it from
+// the share dialog.
 func createHomeRow(requested string, parent *db.Document) (visibility, level string) {
 	visibility = requested
 	if parent != nil && visibility == "" {
 		visibility, level = parent.Visibility, parent.WorkspaceLevel
 	}
 	if visibility == "" {
-		visibility = documentVisibilityWorkspace
+		visibility = documentVisibilityRestricted
 	}
 	if level == "" {
-		level = string(DocumentLevelEdit)
+		level = string(DocumentLevelView)
+		if parent != nil && parent.Visibility == documentVisibilityWorkspace {
+			level = parent.WorkspaceLevel
+		}
 	}
 	return visibility, level
 }

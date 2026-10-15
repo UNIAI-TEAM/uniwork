@@ -18,7 +18,7 @@ type CreateDocumentSDI struct {
 	ParentID   *string          `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; thư mục chỉ nằm trong thư mục; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Icon       *string          `json:"icon" description:"Emoji ≤ 8 ký tự" example:"📄"`
 	Content    *json.RawMessage `json:"content" description:"ProseMirror JSON {type:\"doc\"}; server sanitize trước khi lưu"`
-	Visibility string           `json:"visibility" description:"workspace (mặc định) hoặc restricted" example:"workspace"`
+	Visibility string           `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted" example:"restricted"`
 }
 
 // CreateDocumentFileSDI documents POST
@@ -30,7 +30,7 @@ type CreateDocumentSDI struct {
 // stream is consumed part-by-part); a title that trails the file falls back
 // to the sanitized filename.
 type CreateDocumentFileSDI struct {
-	Visibility *string `formData:"visibility" description:"workspace hoặc restricted; bỏ trống = kế thừa cha, ở gốc = workspace; giá trị khác -> 400 invalid_request" example:"workspace"`
+	Visibility *string `formData:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
 	File       []byte  `formData:"file" description:"Byte tài liệu; MIME phải trong allowlist document_file và khớp magic bytes"`
 	ParentID   *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Title      *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`

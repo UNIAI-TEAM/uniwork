@@ -68,8 +68,14 @@ func TestDocumentPage(t *testing.T) {
 		}
 		d := v.Document
 		if d.Title != "Kế hoạch Q4" || d.Kind != DocumentKindPage || d.Revision != 1 || d.CurrentVersion != 0 ||
-			d.Position != 0 || d.Visibility != "workspace" || d.Icon.String != "📄" || d.ParentID.Valid {
+			d.Position != 0 || d.Visibility != documentVisibilityRestricted || d.Icon.String != "📄" || d.ParentID.Valid {
 			t.Fatalf("created = %+v", d)
+		}
+		// U-SH2: a root create with no visibility is private. The level column
+		// is the one the row would open at if it were workspace-visible (view
+		// at the root, Q-S3) and is ignored while the row is restricted.
+		if d.WorkspaceLevel != string(DocumentLevelView) {
+			t.Fatalf("workspace level = %q, want view", d.WorkspaceLevel)
 		}
 		if d.OrganizationID != tn.orgID || d.WorkspaceID != tn.wsA || d.CreatedBy != tn.member.ID ||
 			d.CreatedByKind != "human" || d.AclOwnerID.String != tn.member.ID {
@@ -201,7 +207,11 @@ func TestDocumentPage(t *testing.T) {
 	})
 
 	t.Run("get logs a view and hides the id from non-readers", func(t *testing.T) {
-		v, err := f.svc.CreatePage(f.ctx, Human(tn.aclOwner.ID), tn.wsA, CreatePageInput{Title: "Đọc", Content: pageJSON("một")})
+		// Explicitly workspace-visible: this case is about the member reading
+		// and the access log, not about the create default.
+		v, err := f.svc.CreatePage(f.ctx, Human(tn.aclOwner.ID), tn.wsA, CreatePageInput{
+			Title: "Đọc", Content: pageJSON("một"), Visibility: documentVisibilityWorkspace,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -238,7 +248,9 @@ func TestDocumentPage(t *testing.T) {
 	})
 
 	t.Run("update", func(t *testing.T) {
-		v, err := f.svc.CreatePage(f.ctx, Human(tn.aclOwner.ID), tn.wsA, CreatePageInput{Title: "Kế hoạch", Content: pageJSON("bí mật ban đầu")})
+		v, err := f.svc.CreatePage(f.ctx, Human(tn.aclOwner.ID), tn.wsA, CreatePageInput{
+			Title: "Kế hoạch", Content: pageJSON("bí mật ban đầu"), Visibility: documentVisibilityWorkspace,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -351,7 +363,11 @@ func TestDocumentPage(t *testing.T) {
 	})
 
 	t.Run("the trash is read-only", func(t *testing.T) {
-		v, err := f.svc.CreatePage(f.ctx, Human(tn.aclOwner.ID), tn.wsA, CreatePageInput{Title: "Rác"})
+		// Workspace-visible on purpose: the member below is an editor on the
+		// row, which is what the trash answer is about.
+		v, err := f.svc.CreatePage(f.ctx, Human(tn.aclOwner.ID), tn.wsA, CreatePageInput{
+			Title: "Rác", Visibility: documentVisibilityWorkspace,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -428,7 +444,9 @@ func TestDocumentPage(t *testing.T) {
 func TestDocumentPageConcurrentSaves(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "save")
-	v, err := f.svc.CreatePage(f.ctx, Human(tn.member.ID), tn.wsA, CreatePageInput{Title: "Đua"})
+	v, err := f.svc.CreatePage(f.ctx, Human(tn.member.ID), tn.wsA, CreatePageInput{
+		Title: "Đua", Visibility: documentVisibilityWorkspace,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
