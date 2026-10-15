@@ -1111,6 +1111,112 @@ function panelWrites(toolCalls) {
   ).length;
 }
 
+// Snapshot of <frameDir>/node_modules/@genoffice on the filesystem (BE68-G2-5):
+// git status cannot see changes inside gitignored node_modules, so we record
+// the directory entries and symlink targets directly on disk and assert they
+// do not change when the panel harness builds or runs.
+export function snapshotGenofficeDir(frameDir) {
+  const forkGenDir = path.join(frameDir, 'node_modules', '@genoffice');
+  if (!fs.existsSync(forkGenDir)) return [];
+  return fs
+    .readdirSync(forkGenDir)
+    .sort()
+    .map((name) => {
+      const full = path.join(forkGenDir, name);
+      const st = fs.lstatSync(full);
+      return {
+        name,
+        isSymbolicLink: st.isSymbolicLink(),
+        target: st.isSymbolicLink() ? fs.readlinkSync(full) : null,
+        ino: st.ino,
+      };
+    });
+}
+
+export function assertPanelHarnessFilesystem(frameDir, harnessDir, beforeSnapshot) {
+  const absFrame = path.resolve(frameDir);
+  const absHarness = path.resolve(harnessDir);
+  const harnessModules = path.join(absHarness, 'node_modules');
+  const genDir = path.join(harnessModules, '@genoffice');
+
+  const afterSnapshot = snapshotGenofficeDir(absFrame);
+  if (JSON.stringify(afterSnapshot) !== JSON.stringify(beforeSnapshot)) {
+    throw new Error(
+      `fork node_modules/@genoffice was modified by panel harness: before=${JSON.stringify(beforeSnapshot)}, after=${JSON.stringify(afterSnapshot)}`,
+    );
+  }
+
+  if (!fs.existsSync(genDir)) {
+    throw new Error(`missing harness @genoffice directory ${genDir}`);
+  }
+  const genEntries = fs.readdirSync(genDir).sort();
+  if (genEntries.length === 0) {
+    throw new Error(`expected @genoffice links inside ${genDir}, found none`);
+  }
+  for (const name of genEntries) {
+    const linkPath = path.join(genDir, name);
+    if (!linkPath.startsWith(absHarness + path.sep)) {
+      throw new Error(`harness link ${linkPath} is outside ${absHarness}`);
+    }
+    const st = fs.lstatSync(linkPath);
+    if (!st.isSymbolicLink()) {
+      throw new Error(`expected ${linkPath} to be a symlink`);
+    }
+    const resolvedTarget = path.resolve(path.dirname(linkPath), fs.readlinkSync(linkPath));
+    if (!resolvedTarget.startsWith(absFrame + path.sep)) {
+      throw new Error(`harness @genoffice/${name} target ${resolvedTarget} is outside ${absFrame}`);
+    }
+  }
+
+  for (const name of fs.readdirSync(harnessModules).sort()) {
+    if (name === '@genoffice') continue;
+    const linkPath = path.join(harnessModules, name);
+    if (!linkPath.startsWith(absHarness + path.sep)) {
+      throw new Error(`harness module link ${linkPath} is outside ${absHarness}`);
+    }
+    const st = fs.lstatSync(linkPath);
+    if (!st.isSymbolicLink()) {
+      throw new Error(`expected ${linkPath} to be a symlink`);
+    }
+    const resolvedTarget = path.resolve(path.dirname(linkPath), fs.readlinkSync(linkPath));
+    if (!resolvedTarget.startsWith(path.join(absFrame, 'node_modules') + path.sep)) {
+      throw new Error(`harness node_modules/${name} target ${resolvedTarget} is outside ${absFrame}/node_modules`);
+    }
+  }
+  return { genEntries, forkGenSnapshot: afterSnapshot };
+}
+
+// BE68-12 / BE68-G2-5: the fork checkout is read-only. Every link the harness
+// needs is built inside the harness directory (its own node_modules, with
+// @genoffice pointing at the fork's packages and apps); frameDir/node_modules
+// is only read, never rewritten, and assertPanelHarnessFilesystem verifies on
+// the filesystem that all links live inside harnessDir and
+// <frameDir>/node_modules/@genoffice is unchanged.
+export function setupPanelHarnessLinks(frameDir, harnessDir) {
+  const beforeSnapshot = snapshotGenofficeDir(frameDir);
+  const harnessModules = path.join(harnessDir, 'node_modules');
+  fs.mkdirSync(harnessModules, { recursive: true });
+  const genDir = path.join(harnessModules, '@genoffice');
+  fs.mkdirSync(genDir, { recursive: true });
+  for (const group of ['packages', 'apps']) {
+    for (const name of fs.readdirSync(path.join(frameDir, group))) {
+      const p = path.join(frameDir, group, name);
+      if (fs.statSync(p).isDirectory()) {
+        fs.symlinkSync(p, path.join(genDir, name));
+      }
+    }
+  }
+  for (const name of fs.readdirSync(path.join(frameDir, 'node_modules'))) {
+    if (name === '@genoffice') continue;
+    fs.symlinkSync(
+      path.join(frameDir, 'node_modules', name),
+      path.join(harnessModules, name),
+    );
+  }
+  const verified = assertPanelHarnessFilesystem(frameDir, harnessDir, beforeSnapshot);
+  return { beforeSnapshot, ...verified };
+}
+
 async function proveRealPanelEndToEnd({
   frameDir,
   serverUrl,
@@ -1132,29 +1238,7 @@ async function proveRealPanelEndToEnd({
   fs.rmSync(harnessDir, { recursive: true, force: true });
   fs.mkdirSync(harnessDir, { recursive: true });
 
-  // BE68-12: the fork checkout is read-only. Every link the harness needs is
-  // built inside the harness directory (its own node_modules, with @genoffice
-  // pointing at the fork's packages and apps); frameDir/node_modules is only
-  // read, never rewritten, so `git -C <fork> status` stays clean after a run.
-  const harnessModules = path.join(harnessDir, 'node_modules');
-  fs.mkdirSync(harnessModules, { recursive: true });
-  const genDir = path.join(harnessModules, '@genoffice');
-  fs.mkdirSync(genDir, { recursive: true });
-  for (const group of ['packages', 'apps']) {
-    for (const name of fs.readdirSync(path.join(frameDir, group))) {
-      const p = path.join(frameDir, group, name);
-      if (fs.statSync(p).isDirectory()) {
-        fs.symlinkSync(p, path.join(genDir, name));
-      }
-    }
-  }
-  for (const name of fs.readdirSync(path.join(frameDir, 'node_modules'))) {
-    if (name === '@genoffice') continue;
-    fs.symlinkSync(
-      path.join(frameDir, 'node_modules', name),
-      path.join(harnessModules, name),
-    );
-  }
+  const { beforeSnapshot } = setupPanelHarnessLinks(frameDir, harnessDir);
 
   const vitePort = 15173;
   const proxyPort = 15180;
@@ -1836,6 +1920,7 @@ main().catch((err) => {
           `without a bearer-authenticated façade call: ${unreached.map((p) => p.caseId).join(', ') || 'none'}`,
       );
     }
+    assertPanelHarnessFilesystem(frameDir, harnessDir, beforeSnapshot);
     return panelProofs;
   } finally {
     if (proxyServer) {
