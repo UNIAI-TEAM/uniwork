@@ -248,18 +248,15 @@ test("predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL", () =>
   assert.equal(predictedTag({}), null);
 });
 
-test("FQ-40's reconciling -> committed exit is the predicted FAIL OQ-F11, no other exit is (Advisor qa-fault_local:10)", () => {
+test("every exit of FQ-40 is the predicted FAIL OQ-F11, tagged per exit (Advisor qa-fault_local:10 and :23)", () => {
   const rows = loadFaultCases().cases;
   const fq22 = rows.find((r) => r.id === "FQ-22");
   const fq40 = rows.find((r) => r.id === "FQ-40");
   assert.equal(predictedFor(fq22, expandExits(fq22)[0]), "OQ-F11", "FQ-22 keeps its row tag");
   assert.equal(predictedTag(fq40), null, "the tag is per exit: a row note would cover every exit");
   const tags = expandExits(fq40).map((run) => [run.label, predictedFor(fq40, run)]);
-  assert.deepEqual(tags.filter(([, tag]) => tag).map(([label, tag]) => [label, tag]), [["reconciling → committed", "OQ-F11"]]);
   assert.equal(tags.length, 5);
-  // the OQ-F6 exits of FQ-43 and the row tag of FQ-24 still resolve
-  const fq43 = rows.find((r) => r.id === "FQ-43");
-  assert.deepEqual(expandExits(fq43).map((run) => predictedFor(fq43, run)), [null, null, null, "OQ-F6", null, null]);
+  assert.ok(tags.every(([, tag]) => tag === "OQ-F11"), JSON.stringify(tags));
   assert.equal(predictedFor(rows.find((r) => r.id === "FQ-24"), { label: "x", exit: null }), "F4");
 });
 

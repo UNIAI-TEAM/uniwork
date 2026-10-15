@@ -36,12 +36,12 @@ const CONDITIONS = {
   organization_suspended: { admin: true, set: (ctx) => suspendOrg(ctx.tenant), lift: (ctx) => unsuspendOrg(ctx.tenant) },
 };
 
-/** FQ-43's extra runs with the real condition on the server instead of a synthetic status. */
+/** FQ-43's extra runs with the real condition on the server instead of a synthetic status; they also reach reconciling first, so they carry the same predicted OQ-F11 (Advisor qa-fault_local:23). */
 export const EXTRA_EXITS = {
   "FQ-43": [
-    { exit: "real: reconciling → blocked organization_suspended", real: true },
-    { exit: "real: reconciling → blocked member_deactivated", real: true },
-    { exit: "real: reconciling → blocked document_deleted", real: true },
+    { exit: "real: reconciling → blocked organization_suspended", real: true, predicted: "OQ-F11" },
+    { exit: "real: reconciling → blocked member_deactivated", real: true, predicted: "OQ-F11" },
+    { exit: "real: reconciling → blocked document_deleted", real: true, predicted: "OQ-F11" },
   ],
 };
 

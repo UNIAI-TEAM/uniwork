@@ -1743,6 +1743,7 @@
         {
           "exit": "reconciling → queued (attempt mới)",
           "assert": "lookup not_committed (dựng bằng 409 sau claim như FQ-09) → attempt+1 cùng key",
+          "predicted": "OQ-F11",
           "expect": {
             "server": {
               "lookup": {
@@ -1760,6 +1761,7 @@
         {
           "exit": "reconciling → paused_admin",
           "assert": "như trên khi office_sync_write tắt cho tổ chức",
+          "predicted": "OQ-F11",
           "expect": {
             "proxyLog": {
               "commitPostsWhilePaused": 0
@@ -1769,6 +1771,7 @@
         {
           "exit": "reconciling → paused_offline",
           "assert": "như trên khi rule unreachable bật",
+          "predicted": "OQ-F11",
           "expect": {
             "proxyLog": {
               "commitPostsWhilePaused": 0
@@ -1778,6 +1781,7 @@
         {
           "exit": "reconciling ở lại (in_flight)",
           "assert": "lookup tổng hợp 200 {outcome:\"in_flight\"} → vẫn reconciling, tra lại theo backoff",
+          "predicted": "OQ-F11",
           "expect": {
             "clientPath": [
               "*",
@@ -1846,7 +1850,7 @@
           ]
         }
       },
-      "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9); lối ra reconciling → committed dự báo FAIL OQ-F11 (trường predicted của exit: cùng rule lose-commit-answer với FQ-22, Save trực tiếp không đối soát)",
+      "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9); mọi lối ra dự báo FAIL OQ-F11 (trường predicted của từng exit: cùng rule lose-commit-answer với FQ-22, Save trực tiếp không đối soát nên app không bao giờ vào reconciling và không gọi tra intent; Advisor qa-fault_local:10, qa-fault_local:23)",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
@@ -1871,7 +1875,8 @@
       "exits": [
         {
           "exit": "reconciling → reconciling-stuck",
-          "assert": "lookup 410 commit_intent_unknown → stuck; không POST commit nào sau đó"
+          "assert": "lookup 410 commit_intent_unknown → stuck; không POST commit nào sau đó",
+          "predicted": "OQ-F11"
         }
       ],
       "proxyRules": [
@@ -1917,7 +1922,7 @@
           ]
         }
       },
-      "notes": "giữ EXPERIENCE: không gửi lại khi unknown (OQ-F1, câu hỏi cho owner G5-06)",
+      "notes": "giữ EXPERIENCE: không gửi lại khi unknown (OQ-F1, câu hỏi cho owner G5-06); lối ra dự báo FAIL OQ-F11 (trường predicted của exit: app không bao giờ vào reconciling, Advisor qa-fault_local:23)",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
@@ -1942,7 +1947,8 @@
       "exits": [
         {
           "exit": "reconciling → reconciling-stuck (hết giờ)",
-          "assert": "lookup luôn in_flight (synthetic); sau stuckAfterMs → stuck"
+          "assert": "lookup luôn in_flight (synthetic); sau stuckAfterMs → stuck",
+          "predicted": "OQ-F11"
         }
       ],
       "proxyRules": [
@@ -2001,7 +2007,7 @@
           ]
         }
       },
-      "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9)",
+      "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9); lối ra dự báo FAIL OQ-F11 (trường predicted của exit: app không bao giờ vào reconciling, Advisor qa-fault_local:23)",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
@@ -2027,6 +2033,7 @@
         {
           "exit": "reconciling → blocked session_expired",
           "assert": "lookup 401",
+          "predicted": "OQ-F11",
           "lookup": {
             "code": 401,
             "errorCode": "token_expired"
@@ -2035,6 +2042,7 @@
         {
           "exit": "reconciling → blocked organization_suspended",
           "assert": "lookup 403 organization_suspended",
+          "predicted": "OQ-F11",
           "lookup": {
             "code": 403,
             "errorCode": "organization_suspended"
@@ -2043,6 +2051,7 @@
         {
           "exit": "reconciling → blocked member_deactivated",
           "assert": "lookup 403 member_deactivated",
+          "predicted": "OQ-F11",
           "lookup": {
             "code": 403,
             "errorCode": "member_deactivated"
@@ -2051,6 +2060,7 @@
         {
           "exit": "reconciling → blocked document_archived",
           "assert": "lookup 403 document_archived (dự báo hôm nay: permission_revoked, OQ-F6)",
+          "predicted": "OQ-F11",
           "lookup": {
             "code": 403,
             "errorCode": "document_archived"
@@ -2059,6 +2069,7 @@
         {
           "exit": "reconciling → blocked permission_revoked",
           "assert": "lookup 403 forbidden",
+          "predicted": "OQ-F11",
           "lookup": {
             "code": 403,
             "errorCode": "forbidden"
@@ -2067,6 +2078,7 @@
         {
           "exit": "reconciling → blocked document_deleted",
           "assert": "lookup 410 document_deleted",
+          "predicted": "OQ-F11",
           "lookup": {
             "code": 410,
             "errorCode": "document_deleted"
@@ -2129,7 +2141,7 @@
           ]
         }
       },
-      "notes": "lối ra document_archived lệch ở fork (OQ-F6)",
+      "notes": "lối ra document_archived lệch ở fork (OQ-F6); mọi lối ra dự báo FAIL OQ-F11 (trường predicted của từng exit: app không bao giờ vào reconciling, Advisor qa-fault_local:23); lối ra document_archived mang OQ-F11 vì reconciling là chỗ hở đầu tiên chạm tới, OQ-F6 vẫn áp dụng khi reconciling có",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
@@ -2154,15 +2166,18 @@
       "exits": [
         {
           "exit": "reconciling-stuck → committed",
-          "assert": "lookup lần sau trả committed → committed (dựng: 410 tổng hợp rồi bỏ rule, commit thật đã vào)"
+          "assert": "lookup lần sau trả committed → committed (dựng: 410 tổng hợp rồi bỏ rule, commit thật đã vào)",
+          "predicted": "OQ-F11"
         },
         {
           "exit": "reconciling-stuck → blocked",
-          "assert": "lookup 403/410 → blocked như hàng reconciling"
+          "assert": "lookup 403/410 → blocked như hàng reconciling",
+          "predicted": "OQ-F11"
         },
         {
           "exit": "reconciling-stuck ở lại",
           "assert": "trong suốt ca: 0 POST commit, 0 POST uploads cho intent",
+          "predicted": "OQ-F11",
           "expect": {
             "proxyLog": {
               "commitLookupsAfterStuckMin": 2
@@ -2239,7 +2254,8 @@
         "server-versions.json",
         "proxy-log.jsonl",
         "case-result.json"
-      ]
+      ],
+      "notes": "mọi lối ra dự báo FAIL OQ-F11 (trường predicted của từng exit: app không bao giờ vào reconciling nên không tới reconciling-stuck, Advisor qa-fault_local:23)"
     },
     {
       "id": "FQ-45",
