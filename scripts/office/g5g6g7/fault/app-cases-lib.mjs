@@ -330,10 +330,14 @@ export function noServerReason({ probed, apiOrigin, error = null }) {
 /**
  * N-1: once an exit of a row has FAILed, a later exit starts on a state the
  * failed one may have polluted, so it is reported BLOCKED instead of run. null
- * while no earlier exit failed (a complete PASS is untouched).
+ * while no earlier exit failed (a complete PASS is untouched). A FAIL that
+ * carries `predicted` (a known, owned product gap such as OQ-F11) does not
+ * block: every exit opens a fresh document and clears the proxy rules, so the
+ * rest of the row still gives product evidence (review r3 R3-1). A FAIL with
+ * no tag, and an infra FAIL (`runResult` drops `predicted` from it), still do.
  */
 export function blockedAfterFailure(run, runResults) {
-  const failed = runResults.find((r) => r.result === "FAIL");
+  const failed = runResults.find((r) => r.result === "FAIL" && !r.predicted);
   return failed ? runResult({ label: run.label, blocker: `earlier exit ${failed.label} failed` }) : null;
 }
 
