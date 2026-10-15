@@ -215,6 +215,12 @@ while IFS= read -r cmd || [ -n "$cmd" ]; do
   (cd "$root" && env "${unset_args[@]}" bash -c "$cmd") >> "$log" 2>&1
   code=$?
   dur=$(( $(date +%s) - t ))
+  # A spec line that prints NAME_EXIT=<n> and ends with echo/true exits 0 even
+  # when its check failed: the worst non-zero marker in the log decides then.
+  if [ "$code" -eq 0 ]; then
+    marker=$(tail -n +2 "$log" | grep -oE '(^|[^A-Za-z0-9_])[A-Z][A-Z0-9_]*_EXIT=[0-9]+' | sed 's/.*=//' | sort -n | tail -1)
+    [ -n "$marker" ] && [ "$marker" -ne 0 ] && code=$marker
+  fi
   result=pass; [ "$code" -eq 0 ] || { result=fail; any_fail=true; }
   PROFILE=$profile CMD=$cmd RESULT=$result DUR=$dur CODE=$code LOG=$log node -e '
     const fs = require("fs");
