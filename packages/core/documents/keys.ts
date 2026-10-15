@@ -1,3 +1,5 @@
+import type { AccessReportFilters } from "../types/document-access-report";
+
 /**
  * Query-key factory for Documents. Every key carries `wsId` so invalidate
  * waves stay tenant-local, even though document ids are globally unique —
@@ -50,6 +52,16 @@ export const documentKeys = {
     [...documentKeys.detail(wsId, documentId), "shares"] as const,
   accessLogs: (wsId: string, documentId: string, action: string = "") =>
     [...documentKeys.detail(wsId, documentId), "access-logs", action] as const,
+  // UNI-1643. Under the workspace root so a `document.*` frame refreshes an open
+  // report. The filters are normalized (level order, empty values) so one
+  // report is one cache entry however the URL spelled it.
+  accessReport: (wsId: string, folderId: string | undefined, filters: AccessReportFilters) =>
+    [
+      ...documentKeys.workspace(wsId),
+      "access-report",
+      folderId ?? "",
+      [filters.personId ?? "", [...(filters.levels ?? [])].sort().join(","), filters.visibility ?? ""].join("|"),
+    ] as const,
   settings: (orgId: string) => [...documentKeys.all, "settings", orgId] as const,
   public: (token: string) => [...documentKeys.all, "public", token] as const,
   /**

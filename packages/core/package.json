@@ -64,6 +64,7 @@
     "./documents/hooks-sharing": "./documents/hooks-sharing.ts",
     "./documents/hooks-owner": "./documents/hooks-owner.ts",
     "./documents/doc05-fake": "./documents/doc05-fake.ts",
+    "./documents/hooks-access-report": "./documents/hooks-access-report.ts",
     "./documents/hooks-public": "./documents/hooks-public.ts",
     "./documents/keys": "./documents/keys.ts",
     "./documents/folder-limits": "./documents/folder-limits.ts",
