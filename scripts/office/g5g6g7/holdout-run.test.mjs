@@ -373,17 +373,22 @@ describe('answer adapter', () => {
   it('scores the real xlsx edit cases from the arguments: the right cell and value pass, either alone fails (G712-17)', () => {
     const edits = cases.filter((c) => c.format === 'xlsx' && c.expected.writes > 0);
     assert.equal(edits.length, 3);
-    const items = (c) => c.referenceAnswer.structural.filter((x) => x.kind === 'cell');
+    // Blank cells are left alone and a percent probe is a format beside the cell's address, as the reference model writes them.
+    const items = (c) => c.referenceAnswer.structural.filter((x) => x.kind === 'cell' && String(x.value) !== '');
+    const op = ({ anchor, value }, over = {}) => {
+      const probe = /^(.+)#numberFormat$/.exec(anchor);
+      return probe ? { anchor: probe[1], format: value } : { anchor, value, ...over };
+    };
     const run = (c, make) => {
       const backend = createBackend(c);
       backend.execute('propose_operations', JSON.stringify({ edits: items(c).map(make) }));
-      const ask = { reply: `${c.referenceAnswer.text}\n${referenceLine(c)}`, calls: [{ name: 'propose_operations' }], writes: backend.writes(), writeLog: backend.writeLog(), dropped: [], modules: ['sheets'], sheetNames: backend.sheetNames() };
+      const ask = { reply: `${c.referenceAnswer.text}\n${referenceLine(c)}`, calls: [{ name: 'propose_operations' }], writes: backend.writes(), writeLog: backend.writeLog(), dropped: [], modules: ['sheets'], sheetNames: backend.sheetNames(), sourceText: backend.sourceText() };
       return score(c, deriveAnswer(c, ask).answer).checks.filter((x) => x.id.startsWith('structural:')).map((x) => x.status);
     };
     for (const c of edits) {
-      assert.ok(run(c, ({ anchor, value }) => ({ anchor, value })).every((st) => st === 'pass'), `${c.id}: the reference edit`);
-      assert.ok(run(c, ({ anchor }) => ({ anchor, value: 987654321 })).includes('fail'), `${c.id}: a wrong value at the right cells`);
-      assert.ok(run(c, ({ anchor, value }) => ({ anchor: `${anchor.split('!')[0]}!ZZ900`, value })).includes('fail'), `${c.id}: the right values at the wrong cell`);
+      assert.ok(run(c, (item) => op(item)).every((st) => st === 'pass'), `${c.id}: the reference edit`);
+      assert.ok(run(c, (item) => op(item, { value: 987654321 })).includes('fail'), `${c.id}: a wrong value at the right cells`);
+      assert.ok(run(c, (item) => op({ ...item, anchor: `${item.anchor.split('!')[0]}!ZZ900` })).includes('fail'), `${c.id}: the right values at the wrong cell`);
     }
   });
 

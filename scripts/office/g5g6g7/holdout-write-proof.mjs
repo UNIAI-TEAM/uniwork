@@ -154,3 +154,55 @@ export function percentFormatProof(writes, anchorBase, { sheetNames = [] } = {})
   }
   return false;
 }
+
+// ---- what an edit keeps and what it introduces (G712-16) ----
+
+// Keys that say WHERE or HOW a write acts, not what it writes: their values are never content.
+const LOCATOR_KEY_RE = /^(sheet\w*|selection|anchor|selector|range|address|cell|target|path|type|op|operation|kind|action|mode|id)$|(index|page|slide|row|col|column|line|offset|position|start|end)$/i;
+
+const TAG_RE = /<[^>]*>/g;
+const MARKDOWN_LEAD_RE = /^\s*(?:#{1,6}\s+|[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)/;
+
+/** The ways one line of a document may be written as a unit (raw, without tags, without a markdown marker, one markdown table cell). */
+function unitVariants(line) {
+  const raw = norm(line);
+  const plain = norm(line.replace(TAG_RE, ' '));
+  const out = new Set([raw, plain, norm(line.replace(MARKDOWN_LEAD_RE, ''))]);
+  if (line.includes('|')) for (const cell of line.split('|')) out.add(norm(cell));
+  out.delete('');
+  return out;
+}
+
+const sourceUnits = (sourceText) => new Set(String(sourceText ?? '').split('\n').flatMap((line) => [...unitVariants(line)]));
+const sourceNumbers = (sourceText) => (String(sourceText ?? '').match(NUMBER_TOKEN_RE) ?? []).map(toNumber).filter((n) => n !== null);
+
+/**
+ * Is the value already part of the document as it was opened? A number is when the text carries that number (grouping and
+ * percent aside); a text is only when it equals a whole line, markdown cell or tag-free element of the document, so a
+ * heading or cell that an edit shortens or extends is never mistaken for one the edit left alone.
+ */
+export function presentInSource(sourceText, value) {
+  const wanted = toNumber(value);
+  if (wanted !== null) return sourceNumbers(sourceText).some((n) => Math.abs(n - wanted) < 1e-9);
+  const needle = norm(value);
+  return needle !== '' && sourceUnits(sourceText).has(needle);
+}
+
+/** Content leaves of one write (outside control, sheet and locator keys, and cell addresses), each as { text } or { number }. */
+function contentLeaves(node, key = '', out = []) {
+  if (Array.isArray(node)) node.forEach((el) => contentLeaves(el, key, out));
+  else if (node !== null && typeof node === 'object') {
+    for (const [k, child] of Object.entries(node)) if (!CONTROL_KEYS.has(k)) contentLeaves(child, k, out);
+  } else if (!LOCATOR_KEY_RE.test(key)) {
+    if (typeof node === 'string' && node.trim() !== '' && parseRangeText(node) === null) out.push({ text: node });
+    else if (typeof node === 'number' && Number.isFinite(node)) out.push({ number: node });
+  }
+  return out;
+}
+
+/** Does the write put anything into the document that it did not already hold (a text that is no existing line, a number the document lacks)? */
+export function introducesNew(args, sourceText) {
+  const units = sourceUnits(sourceText);
+  const numbers = sourceNumbers(sourceText);
+  return contentLeaves(args ?? {}).some((leaf) => ('text' in leaf ? !units.has(norm(leaf.text)) : !numbers.some((n) => Math.abs(n - leaf.number) < 1e-9)));
+}

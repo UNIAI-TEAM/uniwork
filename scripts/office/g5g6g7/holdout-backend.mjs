@@ -285,6 +285,23 @@ function applySetup(view, fixtureId, setup = {}) {
   }
 }
 
+/** Every text of an opened document (cells, blocks, table cells, slide shapes, page lines): what an edit can be compared with. */
+function viewText(view) {
+  const parts = [];
+  if (view.workbook) {
+    for (const [name, sheet] of Object.entries(view.workbook.sheets)) {
+      parts.push(name);
+      for (const cell of Object.values(sheet.cells)) if (cell.v !== null && cell.v !== undefined) parts.push(String(cell.v));
+    }
+  }
+  for (const block of view.blocks ?? []) parts.push(block.text ?? '', ...(block.rows ?? []).flat());
+  for (const slide of view.slides ?? []) parts.push(...slide.texts);
+  parts.push(...(view.titles ?? []).filter((t) => typeof t === 'string'));
+  for (const page of view.pages ?? []) parts.push(...page.lines);
+  parts.push(...(view.lines ?? []));
+  return parts.join('\n');
+}
+
 const cellText = (cell) => {
   if (!cell) return null;
   const shown = cell.v === null ? '' : String(cell.v);
@@ -450,14 +467,15 @@ function parseArguments(raw) {
 /**
  * One case's tool session. execute(name, args) answers a call; writes() is the number of writes let through;
  * denied() lists calls it refused (revoked access, viewer, stale version) so the runner can record them; writeLog()
- * keeps the arguments of every write attempt (applied or refused) so an edit can be scored from what was proposed;
+ * keeps the arguments of every write attempt (applied or refused, a dry run is none) so an edit can be scored from what
+ * was proposed; sourceText() is the text of the documents as opened;
  * invalid() lists calls whose arguments the real tool would refuse (answered `invalid_arguments`, never a crash).
  */
 export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = null } = {}) {
   const documents = caseDoc.fixtures.map((fixture, i) => {
     const doc = views?.[i] ?? loadView(fixture.id, fixturesDir);
     applySetup(doc, fixture.id, caseDoc.setup);
-    return { module: MODULE_OF_FORMAT[doc.format] ?? 'docs', role: fixture.role ?? caseDoc.role, read: readTools(caseDoc, doc), sheetNames: doc.workbook ? Object.keys(doc.workbook.sheets) : [] };
+    return { module: MODULE_OF_FORMAT[doc.format] ?? 'docs', role: fixture.role ?? caseDoc.role, read: readTools(caseDoc, doc), sheetNames: doc.workbook ? Object.keys(doc.workbook.sheets) : [], text: viewText(doc) };
   });
   const modules = documents.map((d) => d.module);
   const revokeAfter = caseDoc.setup?.revokeAfterTool ?? Infinity;
@@ -478,6 +496,8 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = nul
     writeLog: () => writeLog.map((entry) => ({ ...entry })),
     invalid: () => [...invalid],
     sheetNames: () => documents.find((d) => d.sheetNames.length > 0)?.sheetNames ?? [],
+    /** The text of every open document as it was opened (setup applied): what a write may keep or introduce (G712-16). */
+    sourceText: () => documents.map((d) => d.text).join('\n'),
     execute(name, rawArgs) {
       const target = documents.find((d) => TOOL_OPS[d.module][name]);
       if (!target) return { error: `unsupported tool ${name}` };
@@ -491,7 +511,9 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = nul
         return { error: 'permission_denied', message: 'Your access to this document was revoked.' };
       }
       if (name === 'ask_clarification') return { status: 'clarification_requested', questions: Array.isArray(args.questions) ? args.questions : [] };
-      const isWrite = ops.some((op) => WRITE_OPERATIONS.has(op)) && !(name === 'apply_ops' && args.dryRun === true);
+      // A call that asks for a dry run changes nothing in the editor, whatever the tool: it is not a write (G712-16).
+      const dryRun = args.dryRun === true || args.dry_run === true;
+      const isWrite = ops.some((op) => WRITE_OPERATIONS.has(op)) && !dryRun;
       if (isWrite) {
         if (target.role === 'viewer') { denied.push({ name, reason: 'viewer' }); writeLog.push({ name, applied: false, args }); return { error: 'permission_denied', message: 'This document is view-only.' }; }
         if (caseDoc.setup?.serverVersionAhead) { denied.push({ name, reason: 'version_conflict' }); writeLog.push({ name, applied: false, args }); return { error: 'version_conflict', message: 'The server holds a newer version than the copy that is open.' }; }

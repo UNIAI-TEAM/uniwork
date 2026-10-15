@@ -45,12 +45,21 @@ export function toolsToCall(caseDoc, offered) {
   return names;
 }
 
-/** Arguments for a call of the reference model: a write carries the reference edits, so the edit is provable from them. */
+/**
+ * Arguments for a call of the reference model: a write carries the reference edit, so the edit is provable from them. Every
+ * value the reference answer reports (cell, formula, heading, table cell) is written at its anchor, a percent probe as a
+ * format beside the cell's address, and the reference text stands for the new text of an edit that names no value.
+ */
 export function argumentsFor(caseDoc, name) {
   const isWrite = opsOfTool(modulesOfCase(caseDoc), name)?.some((op) => WRITE_OPERATIONS.has(op));
   if (!isWrite) return '{}';
-  const edits = caseDoc.referenceAnswer.structural.filter((s) => s.kind === 'cell').map(({ anchor, value }) => ({ anchor, value }));
-  return JSON.stringify({ note: 'reference edit', edits });
+  const edits = [];
+  for (const { kind, anchor, value } of caseDoc.referenceAnswer.structural) {
+    if (!['cell', 'formula', 'heading', 'table_cell'].includes(kind) || String(value).trim() === '') continue;
+    const probe = /^(.+)#numberFormat$/.exec(anchor);
+    edits.push(probe ? { anchor: probe[1], format: value } : { anchor, value });
+  }
+  return JSON.stringify({ note: 'reference edit', text: caseDoc.referenceAnswer.text, edits });
 }
 
 /** The reference model as a façade handler: (request, state) -> { content, toolCalls, status? }. */

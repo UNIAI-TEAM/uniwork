@@ -27,8 +27,8 @@
 // keeps that protocol failure apart from a wrong answer.
 
 import { anchorMatches, splitAnchor, toNumber } from './holdout-score.mjs';
-import { opsOfTool } from './holdout-backend.mjs';
-import { cellProof } from './holdout-write-proof.mjs';
+import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
+import { cellProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
 const VALUE_KINDS = new Set(['cell', 'formula', 'heading', 'table_cell', 'count']);
@@ -107,35 +107,60 @@ function proseFigureMismatch(text, figures) {
 }
 
 /**
- * Can the arguments of the applied writes prove this expected cell? Returns 'value' or 'formula' for a provable item (a cell
- * with a plain location and a non-empty value in a case that expects a write), false when they cannot show it, or null when
- * the arguments cannot say (a blank, a format probe, a count, a heading...), in which case the item stays self-reported.
- * The value must be written AT the cell: one applied operation carries both its address and its value (G712-17).
+ * What the write arguments say about one reported item of an edit case (G712-16):
+ *   { status: 'backed', via: 'value' | 'formula' | 'format' }  an applied write carries the value the edit introduces
+ *       (a cell: ONE operation with its address and its value, G712-17; a heading, table cell or pdf cell: the value in the arguments);
+ *   { status: 'unbacked' }  the edit introduces the value but no applied write carries it: the item fails;
+ *   { status: 'self', why: 'preserved' | 'count' | 'probe' }  the arguments cannot say: a value the document already held
+ *       (an untouched heading or total, a blank left alone), a count, or a format probe other than percent. Counted and labelled.
  */
-function writeBacks(caseDoc, expected, applied, sheetNames) {
-  if (caseDoc.expected.writes <= 0 || !caseDoc.tools.required.includes('write_range')) return null;
-  if (expected.kind !== 'cell' || splitAnchor(expected.anchor).probe) return null;
+function editProof(expected, applied, sheetNames, sourceText) {
+  const backed = (via) => ({ status: 'backed', via });
+  const unbacked = { status: 'unbacked' };
+  if (expected.kind === 'count') return { status: 'self', why: 'count' };
   const value = String(expected.value ?? '').trim();
-  if (value === '') return null;
-  const cell = splitAnchor(expected.anchor).base;
-  return cellProof(applied, cell, value, { sheetNames }) ?? false;
+  if (value === '') return { status: 'self', why: 'preserved' };
+  const { base, probe } = splitAnchor(expected.anchor);
+  if (probe) {
+    if (probe === 'numberFormat' && norm(value) === 'percent') return percentFormatProof(applied, base, { sheetNames }) ? backed('format') : unbacked;
+    return { status: 'self', why: 'probe' };
+  }
+  if (expected.kind === 'cell' || expected.kind === 'formula') {
+    if (parseRangeText(base.slice(base.lastIndexOf('!') + 1)) !== null) {
+      const proof = cellProof(applied, base, value, { sheetNames });
+      return proof ? backed(proof) : unbacked;
+    }
+    return valueInWrites(applied, value) ? backed('value') : unbacked;
+  }
+  if (presentInSource(sourceText, value)) return { status: 'self', why: 'preserved' };
+  return valueInWrites(applied, value) ? backed('value') : unbacked;
 }
 
 /**
  * deriveAnswer(caseDoc, ask) -> { answer, adapter }.
  * ask = { reply, calls: [{name}], writes, writeLog: [{name, applied, args}], dropped: [name], modules: [module of every fixture],
- *   sheetNames: [sheet names of the open workbook, in order] }
+ *   sheetNames: [sheet names of the open workbook, in order], sourceText: the text of the documents as opened }
  */
 export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply = true, anchors = 'strict' } = {}) {
   const parsed = parseReport(ask.reply);
   const report = parsed.report ?? {};
   const used = new Set();
+  // An edit case needs an APPLIED write that carries content and introduces something the document did not hold, from a tool
+  // that serves a required write operation: a dry run, a refused write, `{}` and a write of what is already there are none.
+  const editCase = caseDoc.expected.writes > 0;
+  const writeOps = caseDoc.tools.required.filter((op) => WRITE_OPERATIONS.has(op));
+  const sourceText = ask.sourceText ?? '';
+  const editWrites = contentfulWrites(ask.writeLog).filter((w) => (opsOfTool(ask.modules, w.name) ?? []).some((op) => writeOps.includes(op)) && introducesNew(w.args, sourceText));
   for (const call of ask.calls) {
     const ops = opsOfTool(ask.modules, call.name);
     if (!ops) { used.add(call.name); continue; }
     // A tool that serves several operations counts under those the case allows; outside all of them it counts as is.
     const inside = ops.filter((op) => caseDoc.tools.allowed.includes(op));
-    (inside.length > 0 ? inside : ops).forEach((op) => used.add(op));
+    for (const op of inside.length > 0 ? inside : ops) {
+      // Any call counts for the allowlist; a required write operation counts as used only through an applied edit.
+      const unproven = editCase && writeOps.includes(op) && !editWrites.some((w) => w.name === call.name);
+      if (!unproven || !caseDoc.tools.allowed.includes(op)) used.add(op);
+    }
   }
   for (const name of ask.dropped ?? []) used.add(name);
   const figures = Array.isArray(report.numbers) ? report.numbers : [];
@@ -154,13 +179,14 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   let writeBacked = 0;
   let writeUnbacked = 0;
   let writeSelfReported = 0;
+  let writeSelfPreserved = 0;
   let writeFormula = 0;
   const asked = ask.calls.some((c) => c.name === 'ask_clarification');
   const caveats = Array.isArray(report.caveats) && report.caveats.some((c) => typeof c === 'string' && c.trim());
   for (const expected of caseDoc.expected.structural) {
     if (VALUE_KINDS.has(expected.kind)) {
       const same = items.filter((it) => it.kind === expected.kind && !taken.has(it));
-      const proof = writeBacks(caseDoc, expected, applied, ask.sheetNames ?? []);
+      const proof = editCase ? editProof(expected, applied, ask.sheetNames ?? [], sourceText) : null;
       const atAnchor = (it) => anchorMatches(expected.kind, expected.anchor, String(it.anchor ?? ''));
       let pick = same.find((it) => sameValue(it.value, expected.value) && atAnchor(it));
       let lenient = false;
@@ -168,9 +194,9 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
         pick = same.find((it) => sameValue(it.value, expected.value)) ?? same.find((it) => norm(it.anchor) === norm(expected.anchor));
         lenient = Boolean(pick);
       }
-      if (pick && caseDoc.expected.writes > 0) {
-        if (proof === null) writeSelfReported += 1;
-        else if (proof === false) { writeUnbacked += 1; taken.add(pick); pick = undefined; lenient = false; } else { writeBacked += 1; if (proof === 'formula') writeFormula += 1; }
+      if (pick && proof) {
+        if (proof.status === 'self') { writeSelfReported += 1; if (proof.why === 'preserved') writeSelfPreserved += 1; }
+        else if (proof.status === 'unbacked') { writeUnbacked += 1; taken.add(pick); pick = undefined; lenient = false; } else { writeBacked += 1; if (proof.via === 'formula') writeFormula += 1; }
       }
       if (!pick) continue;
       taken.add(pick);
@@ -200,7 +226,11 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       writeBacked,
       writeUnbacked,
       writeSelfReported,
+      writeSelfPreserved,
       writeFormula,
+      appliedWrites: applied.length,
+      editWrites: editWrites.length,
+      noAppliedWrite: editCase && editWrites.length === 0,
       proseFigureMismatch: mismatch.length,
       refused: report.refused === true,
       notFound: report.not_found === true,
