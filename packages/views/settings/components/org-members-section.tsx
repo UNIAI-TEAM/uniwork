@@ -166,7 +166,7 @@ export function OrgMembersSection({ orgSlug }: { orgSlug: string }) {
                       {t(`people.role_${member.role}`, { defaultValue: member.role })}
                     </span>
                   )}
-                  {manages && isDeactivated ? (
+                  {manages && isDeactivated && toggle.allowed ? (
                     <Button
                       type="button"
                       variant="ghost"

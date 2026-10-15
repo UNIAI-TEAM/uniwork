@@ -3,6 +3,7 @@
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "@uniwork/core/api";
 import { useOrgMembers } from "@uniwork/core/organizations";
 import {
   BulkTransferFailure,
@@ -10,11 +11,10 @@ import {
   type BulkTransferProgress,
   type useMemberDocumentOwnership,
 } from "@uniwork/core/organizations/document-ownership";
-import type { OrgMember } from "@uniwork/core/types/people";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
-import { Select } from "@uniwork/ui/components/ui/select";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { PersonCombobox, type PersonOption } from "../../common/person-combobox";
 import { SettingsLoadError } from "./settings-layout";
 
 /**
@@ -32,16 +32,21 @@ export const recipientOf = (value: string) => (value === LATER ? "" : value);
 
 /**
  * Active members other than the one whose documents move. The member list is
- * cursor-paginated and has no search, so every page is read while the step is
- * on screen and the picker offers everyone. The caller may pick themselves.
+ * cursor-paginated and has no search, so every page is read while the picker
+ * is on screen (it only mounts when there are documents to move) and the
+ * combobox searches them. The caller may pick themselves.
  */
 function useRecipients(orgSlug: string, sourceUserId: string) {
   const { data, isLoading, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = useOrgMembers(
     orgSlug,
     "active",
   );
-  const recipients = useMemo(
-    () => (data?.pages ?? []).flatMap((p) => p.members).filter((m) => !m.deactivated_at && m.user_id !== sourceUserId),
+  const recipients = useMemo<PersonOption[]>(
+    () =>
+      (data?.pages ?? [])
+        .flatMap((p) => p.members)
+        .filter((m) => !m.deactivated_at && m.user_id !== sourceUserId)
+        .map((m) => ({ id: m.user_id, name: m.display_name || m.email, email: m.email })),
     [data, sourceUserId],
   );
   const wantMore = hasNextPage && !isError;
@@ -82,8 +87,16 @@ export function DocumentCountStep({
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "org.members.transfer_docs" });
   const total = ownership.data?.total ?? 0;
-  const { recipients, loading, isError, retry } = useRecipients(orgSlug, userId);
   if (ownership.isError) {
+    // A refusal is an answer (the caller may not act on this member), not a
+    // failed count: no retry, no promise that the dialog still works.
+    if (ownership.error instanceof ApiError && ownership.error.status === 403) {
+      return (
+        <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-body text-muted-foreground">
+          {t("forbidden")}
+        </p>
+      );
+    }
     return (
       <div className="rounded-lg border border-border bg-muted/40">
         <SettingsLoadError onRetry={() => void ownership.refetch()}>{t("count_failed")}</SettingsLoadError>
@@ -105,11 +118,49 @@ export function DocumentCountStep({
       </p>
     ) : null;
   }
+  return (
+    <RecipientPicker
+      orgSlug={orgSlug}
+      userId={userId}
+      name={name}
+      total={total}
+      workspaces={ownership.data.workspaces}
+      value={value}
+      onValueChange={onValueChange}
+      disabled={disabled}
+    />
+  );
+}
+
+/**
+ * The picker itself, mounted only once the count says there is something to
+ * move: counting, a failed count and "no documents" never page through the
+ * organization's members.
+ */
+function RecipientPicker({
+  orgSlug,
+  userId,
+  name,
+  total,
+  workspaces,
+  value,
+  onValueChange,
+  disabled,
+}: {
+  orgSlug: string;
+  userId: string;
+  name: string;
+  total: number;
+  workspaces: NonNullable<Ownership["data"]>["workspaces"];
+  value: string;
+  onValueChange: (value: string, label: string) => void;
+  disabled: boolean;
+}) {
+  const { t } = useTranslation(undefined, { keyPrefix: "org.members.transfer_docs" });
+  const { recipients, loading, isError, retry } = useRecipients(orgSlug, userId);
   const pickerId = `transfer-docs-${userId}`;
-  const items = [
-    ...recipients.map((m: OrgMember) => ({ value: m.user_id, label: m.display_name || m.email })),
-    { value: LATER, label: t("later") },
-  ];
+  const later = useMemo<PersonOption>(() => ({ id: LATER, name: t("later"), email: "" }), [t]);
+  const picked = value === LATER ? later : (recipients.find((m) => m.id === value) ?? null);
   return (
     <section aria-labelledby={`${pickerId}-title`} className="space-y-3 rounded-lg border border-border p-3">
       <div className="space-y-1">
@@ -117,9 +168,9 @@ export function DocumentCountStep({
           {t("title")}
         </h3>
         <p className="text-body text-muted-foreground text-pretty">{t("body", { name, count: total })}</p>
-        {ownership.data.workspaces.length > 0 ? (
+        {workspaces.length > 0 ? (
           <ul className="text-caption text-muted-foreground">
-            {ownership.data.workspaces.map((w) => (
+            {workspaces.map((w) => (
               <li key={w.workspace_id}>
                 {w.workspace_name || w.workspace_id}: {w.count}
               </li>
@@ -129,17 +180,15 @@ export function DocumentCountStep({
       </div>
       <Field>
         <FieldLabel htmlFor={pickerId}>{t("recipient_label")}</FieldLabel>
-        <Select
+        <PersonCombobox
           id={pickerId}
-          aria-label={t("recipient_label")}
-          value={value}
-          disabled={disabled}
+          options={recipients}
+          pinned={later}
+          value={picked}
+          onValueChange={(next) => onValueChange(next?.id ?? "", next?.name ?? "")}
           placeholder={t("recipient_placeholder")}
-          onValueChange={(v) => {
-            const picked = (v as string) ?? "";
-            onValueChange(picked, items.find((item) => item.value === picked)?.label ?? "");
-          }}
-          items={items}
+          emptyLabel={loading ? t("recipients_loading") : t("recipients_none")}
+          disabled={disabled}
         />
         {isError ? (
           <SettingsLoadError onRetry={retry}>{t("recipients_error")}</SettingsLoadError>

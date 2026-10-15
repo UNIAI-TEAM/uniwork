@@ -1,6 +1,7 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User } from "@uniwork/core/types";
@@ -31,6 +32,14 @@ const members = [
     created_at: "",
     deactivated_at: "2026-09-10T00:00:00Z",
   },
+  {
+    user_id: "u5",
+    email: "duc@acme.vn",
+    display_name: "Phạm Đức",
+    role: "admin",
+    created_at: "",
+    deactivated_at: "2026-09-11T00:00:00Z",
+  },
 ];
 
 type Init = { method?: string; body?: Record<string, string> } | undefined;
@@ -47,6 +56,9 @@ const batch = (over: Record<string, unknown>) => ({
 });
 
 type Answers = {
+  deactivate?: () => Promise<unknown>;
+  /** The caller's own organization role (the member list's gates read it). */
+  role?: string;
   count?: () => Promise<unknown>;
   transfer?: (init: Init, n: number) => Promise<unknown>;
 };
@@ -54,12 +66,13 @@ type Answers = {
 function mockApi(answers: Answers = {}) {
   let transfers = 0;
   requestMock.mockImplementation((path: string, init?: Init) => {
-    if (path.endsWith("/members/me")) return Promise.resolve({ role: "owner" });
+    if (path.endsWith("/members/me")) return Promise.resolve({ role: answers.role ?? "owner" });
     if (path.includes("/members?")) return Promise.resolve({ members });
     if (path.endsWith("/document-ownership") && init?.method === "POST") {
       return (answers.transfer ?? (() => Promise.resolve(batch({ transferred: 3 }))))(init, transfers++);
     }
     if (path.endsWith("/document-ownership")) return (answers.count ?? (() => Promise.resolve(counted)))();
+    if (path.endsWith("/deactivate") && answers.deactivate) return answers.deactivate();
     if (init?.method === "POST") return Promise.resolve({ status: "ok" });
     return Promise.resolve({});
   });
@@ -82,10 +95,15 @@ async function openDeactivate(name = "Nguyễn Văn An") {
   return { ui, dialog };
 }
 
-async function pickRecipient(ui: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, name: string) {
-  await ui.click(within(dialog).getByRole("combobox", { name: "Chuyển cho" }));
-  await ui.click(await screen.findByRole("option", { name }));
+/** Types into the searchable picker (diacritics folded) and clicks the option whose name matches. */
+async function pickRecipient(ui: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, name: string, query = name) {
+  await ui.type(await within(dialog).findByRole("combobox", { name: "Chuyển cho" }), query);
+  await ui.click(await screen.findByRole("option", { name: new RegExp(name) }));
 }
+
+const memberPages = () =>
+  requestMock.mock.calls.filter(([path]) => String(path).includes("/members?") && String(path).includes("status=active"))
+    .length;
 
 describe("deactivating a member with documents (DOC6-W02)", () => {
   beforeEach(() => {
@@ -127,14 +145,60 @@ describe("deactivating a member with documents (DOC6-W02)", () => {
     await waitFor(() => expect(posts()).toEqual([["/api/v1/orgs/acme/members/u2/deactivate", undefined]]));
   });
 
+  it("keeps Vô hiệu hóa focusable with aria-disabled while the lock is in flight, and never sends twice", async () => {
+    mockApi({ deactivate: () => new Promise(() => {}) });
+    const { ui, dialog } = await openDeactivate();
+    await within(dialog).findByText("Nguyễn Văn An đang là chủ sở hữu của 3 tài liệu.");
+    const button = within(dialog).getByRole("button", { name: "Vô hiệu hóa" });
+    await ui.click(button);
+    await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
+    expect(button).not.toHaveAttribute("disabled");
+    expect(button).toHaveAttribute("aria-busy", "true");
+    await ui.click(button);
+    expect(posts().filter(([path]) => path.endsWith("/deactivate"))).toHaveLength(1);
+  });
+
+  it("does not page through the members while counting, after a failed count, or with no documents", async () => {
+    mockApi({ count: () => new Promise(() => {}) });
+    let { dialog } = await openDeactivate();
+    expect(within(dialog).getByText("Đang đếm tài liệu…")).toBeInTheDocument();
+    expect(memberPages()).toBe(0);
+    cleanup();
+
+    mockApi({ count: () => Promise.reject(new Error("offline")) });
+    ({ dialog } = await openDeactivate());
+    await within(dialog).findByText(/Chưa đếm được tài liệu/);
+    expect(memberPages()).toBe(0);
+    cleanup();
+
+    mockApi({ count: () => Promise.resolve({ user_id: "u2", total: 0, workspaces: [] }) });
+    ({ dialog } = await openDeactivate());
+    await waitFor(() => expect(within(dialog).queryByText("Đang đếm tài liệu…")).not.toBeInTheDocument());
+    expect(memberPages()).toBe(0);
+  });
+
+  it("loads the members once there are documents to move, and the picker searches without diacritics", async () => {
+    mockApi();
+    const { ui, dialog } = await openDeactivate();
+    await within(dialog).findByText("Nguyễn Văn An đang là chủ sở hữu của 3 tài liệu.");
+    await waitFor(() => expect(memberPages()).toBeGreaterThan(0));
+    await ui.type(within(dialog).getByRole("combobox", { name: "Chuyển cho" }), "le chi");
+    expect(await screen.findByRole("option", { name: /Lê Chi/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Đỗ Thị Hà/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Để sau" })).toBeInTheDocument();
+  });
+
   it("offers a recipient picker with Để sau, and Để sau transfers nothing", async () => {
     mockApi();
     const { ui, dialog } = await openDeactivate();
     expect(await within(dialog).findByText("Nguyễn Văn An đang là chủ sở hữu của 3 tài liệu.")).toBeInTheDocument();
     expect(within(dialog).getByText("Team: 3")).toBeInTheDocument();
-    await ui.click(within(dialog).getByRole("combobox", { name: "Chuyển cho" }));
+    await ui.type(within(dialog).getByRole("combobox", { name: "Chuyển cho" }), "a");
     // The member being deactivated and the deactivated ones are not offered.
-    expect(screen.queryByRole("option", { name: "Nguyễn Văn An" })).not.toBeInTheDocument();
+    await screen.findByRole("option", { name: /Lê Chi/ });
+    expect(screen.queryByRole("option", { name: /Nguyễn Văn An/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Trần Bình/ })).not.toBeInTheDocument();
+    // "Để sau" stays listed whatever is typed.
     await ui.click(await screen.findByRole("option", { name: "Để sau" }));
     await ui.click(within(dialog).getByRole("button", { name: "Vô hiệu hóa" }));
     await waitFor(() => expect(posts()).toEqual([["/api/v1/orgs/acme/members/u2/deactivate", undefined]]));
@@ -221,11 +285,39 @@ describe("Chuyển tài liệu on a deactivated row", () => {
     const { ui, dialog } = await openRow();
     await within(dialog).findByText("Trần Bình đang là chủ sở hữu của 3 tài liệu.");
     const submit = within(dialog).getByRole("button", { name: "Chuyển" });
-    expect(submit).toBeDisabled();
+    // aria-disabled, not disabled: the button stays reachable by keyboard.
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    expect(submit).not.toHaveAttribute("disabled");
+    await ui.click(submit);
+    expect(posts()).toEqual([]);
     await pickRecipient(ui, dialog, "Nguyễn Văn An");
     expect(posts()).toEqual([]);
     await ui.click(submit);
     expect(await within(dialog).findByText("Đã chuyển 3 tài liệu cho Nguyễn Văn An.")).toBeInTheDocument();
     expect(posts()).toEqual([[ownershipPath("u3"), { to_user_id: "u2" }]]);
+  });
+
+  it("says the caller cannot act, not that counting failed, when the server refuses with 403", async () => {
+    mockApi({ count: () => Promise.reject(new ApiError("forbidden", "forbidden", 403)) });
+    const { dialog } = await openRow();
+    expect(await within(dialog).findByText("Bạn không có quyền chuyển tài liệu của thành viên này.")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Chưa đếm được tài liệu/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
+  });
+
+  it("is hidden on a deactivated admin when the caller is an admin (only the owner acts on admins)", async () => {
+    mockApi({ role: "admin" });
+    render(wrap(<OrgMembersSection orgSlug="acme" />));
+    const admin = (await screen.findByText("Phạm Đức")).closest("li")!;
+    const member = (await screen.findByText("Trần Bình")).closest("li")!;
+    expect(within(member).getByRole("button", { name: "Chuyển tài liệu" })).toBeInTheDocument();
+    expect(within(admin).queryByRole("button", { name: "Chuyển tài liệu" })).not.toBeInTheDocument();
+  });
+
+  it("is offered on a deactivated admin to the owner", async () => {
+    mockApi({ role: "owner" });
+    render(wrap(<OrgMembersSection orgSlug="acme" />));
+    const admin = (await screen.findByText("Phạm Đức")).closest("li")!;
+    expect(within(admin).getByRole("button", { name: "Chuyển tài liệu" })).toBeInTheDocument();
   });
 });

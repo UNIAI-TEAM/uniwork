@@ -15,10 +15,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
-import { Dialog } from "@uniwork/ui/components/ui/dialog";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { Dialog, DialogFooter } from "@uniwork/ui/components/ui/dialog";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { toast } from "sonner";
-import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
+import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../../common/form-dialog";
 import { toastApiError } from "../../toast-api-error";
 import { DocumentCountStep, TransferRunStatus, recipientOf, useTransferRun } from "./member-documents-transfer";
 
@@ -127,9 +128,11 @@ function DeactivateContent({
       <AlertDialogFooter>
         <AlertDialogCancel disabled={busy}>{deactivated ? t("common.close") : t("common.cancel")}</AlertDialogCancel>
         {deactivated ? null : (
+          // aria-disabled, not disabled: the button keeps focus and its place in
+          // the tab order while the lock and the transfer run (UI Rules).
           <AlertDialogAction
             variant="destructive"
-            disabled={busy}
+            aria-disabled={busy || undefined}
             aria-busy={deactivate.isPending || undefined}
             onClick={confirm}
           >
@@ -218,16 +221,24 @@ function TransferContent({
         ) : null}
         <TransferRunStatus run={run} recipientName={pick.label} deactivated onRetry={() => void retry()} />
       </FormDialogBody>
-      <FormDialogFooter
-        onCancel={onClose}
-        cancelLabel={run.status === "idle" ? undefined : t("common.close")}
-        submitLabel={run.status === "idle" ? t("org.members.transfer_docs.confirm") : undefined}
-        submitDisabled={!ready}
-        submitting={busy}
-        onSubmit={() => {
-          if (ready) void start(member.user_id, to);
-        }}
-      />
+      <DialogFooter className="items-center px-5 py-3">
+        <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+          {run.status === "idle" ? t("common.cancel") : t("common.close")}
+        </Button>
+        {run.status === "idle" ? (
+          // aria-disabled keeps the button focusable until a recipient is picked.
+          <Button
+            type="button"
+            aria-disabled={!ready || undefined}
+            aria-busy={busy || undefined}
+            onClick={() => {
+              if (ready) void start(member.user_id, to);
+            }}
+          >
+            {t("org.members.transfer_docs.confirm")}
+          </Button>
+        ) : null}
+      </DialogFooter>
     </>
   );
 }
