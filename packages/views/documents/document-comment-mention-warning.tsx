@@ -73,7 +73,8 @@ export function MentionWarningDialog({
               : t(K.collabShareViewFailed, { failedNames: list(state.failed) })}
           </p>
         ) : null}
-        <AlertDialogFooter>
+        {/* min-w-0 + flex-wrap: the footer stays inside the card's inner width and three buttons wrap instead of poking out. */}
+        <AlertDialogFooter className="min-w-0 sm:flex-wrap">
           <Button type="button" variant="outline" aria-disabled={sharing || undefined} onClick={guard(onCancel)}>
             {t(K.collabCancel)}
           </Button>

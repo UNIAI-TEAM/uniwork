@@ -493,6 +493,8 @@ describe("G8-18 mention without access", () => {
     expect(alert).toHaveTextContent(t(K.collabShareViewPartial, { sharedNames: "An", failedNames: "Bình" }));
     expect(onSend).not.toHaveBeenCalled();
     const dlg = await dialog();
+    // V9 F1: three buttons wrap inside the card instead of widening the footer past it.
+    expect(dlg.querySelector("[data-slot=alert-dialog-footer]")).toHaveClass("min-w-0", "sm:flex-wrap");
     fireEvent.click(within(dlg).getByRole("button", { name: t(K.collabRetryShareFor, { failedNames: "Bình" }) }));
     await waitFor(() => expect(shareCalls()).toHaveLength(3));
     expect((shareCalls()[2]!.body as { principal_id: string }).principal_id).toBe(BINH);
