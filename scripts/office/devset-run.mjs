@@ -98,7 +98,7 @@ export function summarizeRunResults(caseResults, meta = {}) {
 
 // ---- Tool schemas offered by the fork web frame (apps/sheets & apps/docs) ----
 
-const SHEETS_TOOL_SCHEMAS = [
+export const SHEETS_TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
@@ -279,7 +279,7 @@ const SHEETS_TOOL_SCHEMAS = [
   },
 ];
 
-const DOCS_TOOL_SCHEMAS = [
+export const DOCS_TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
@@ -696,7 +696,7 @@ function createCaseToolExecutor(caseDoc, xlsxOracle, docxOracle) {
 
 // ---- Parse one-chunk SSE or JSON response from the UniWork AI façade ----
 
-function parseUniworkFacadeResponse(rawText) {
+export function parseUniworkFacadeResponse(rawText) {
   const trimmed = String(rawText ?? '').trim();
   if (trimmed.startsWith('{')) {
     const obj = JSON.parse(trimmed);
@@ -739,7 +739,7 @@ function parseUniworkFacadeResponse(rawText) {
 
 // ---- Bootstrap tenant, documents, and frame tokens on the local D server ----
 
-function execPsql(dbUrl, extraArgs) {
+export function execPsql(dbUrl, extraArgs) {
   let dbName = 'uniwork_g608_dev';
   try {
     const u = new URL(dbUrl);
@@ -837,7 +837,7 @@ async function bootstrapServerTenant(serverUrl, dbUrl) {
   return { token, userId, orgId, wsId };
 }
 
-async function uploadFixtureAndMintFrameToken(serverUrl, session, fixtureRelPath, fileName, mimeType) {
+export async function uploadFixtureAndMintFrameToken(serverUrl, session, fixtureRelPath, fileName, mimeType) {
   const bytes = fs.readFileSync(path.join(repoRoot, fixtureRelPath));
   const form = new FormData();
   form.append('file', new Blob([bytes], { type: mimeType }), fileName);

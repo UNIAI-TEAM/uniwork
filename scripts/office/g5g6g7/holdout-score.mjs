@@ -193,7 +193,7 @@ const normalizeAnchor = (anchor) =>
  * only an equal anchor matches (R1-2): reporting the right number at "Doanh thu Q1!G8:G8" or "…G8 extra" is a wrong
  * address, not a looser way of naming the same cell.
  */
-function anchorMatches(kind, expected, actual) {
+export function anchorMatches(kind, expected, actual) {
   const a = normalizeAnchor(splitAnchor(expected).base);
   const b = normalizeAnchor(splitAnchor(actual).base);
   if (IDENTITY_KINDS.has(kind)) return a === b;
