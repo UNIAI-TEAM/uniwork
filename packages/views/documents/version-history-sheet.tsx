@@ -4,7 +4,7 @@ import { lazy, Suspense, useRef, useState } from "react";
 import { Download, Eye, RotateCcwClock, RotateCcw, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { heldEditLockId } from "@uniwork/core/documents/edit-lock-registry";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useDocumentDownload } from "@uniwork/core/documents/hooks";
@@ -37,6 +37,7 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { formatFileSize, formatWhen } from "./document-format";
+import { reportWriteRefused } from "./edit-lock-refusal";
 
 // The editor chunk only arrives when a page version is actually previewed, so
 // opening the sheet never drags TipTap into the route's first load.
@@ -92,6 +93,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
   const [restoreTarget, setRestoreTarget] = useState<DocumentVersion | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const restoreKeyRef = useRef<string | null>(null);
+  const restoreKeyLockRef = useRef<string | undefined>(undefined);
   const [downloading, setDownloading] = useState<number | null>(null);
 
   const rows = versions.data?.pages.flatMap((page) => page.versions) ?? [];
@@ -129,6 +131,10 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
   const confirmRestore = async () => {
     if (!restoreTarget || restore.isPending) return;
     setRestoreError(null);
+    // The body carries edit_lock_id: a key is only valid for the lock id it was minted under.
+    const lockId = heldEditLockId(doc.id);
+    if (restoreKeyRef.current && restoreKeyLockRef.current !== lockId) restoreKeyRef.current = null;
+    if (!restoreKeyRef.current) restoreKeyLockRef.current = lockId;
     restoreKeyRef.current ??= createSafeId();
     try {
       await restore.mutateAsync({
@@ -138,13 +144,18 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
         // replace the working copy and the server owns the revision.
         baseRevision: doc.kind === "file" ? doc.revision : undefined,
         // The open editor holds the lock: the server refuses a content write without it (423).
-        editLockId: heldEditLockId(doc.id),
+        editLockId: lockId,
       });
       restoreKeyRef.current = null;
       setRestoreTarget(null);
     } catch (err) {
       const cls = classifyDocumentError(err).cls;
-      if (cls === "conflict") {
+      if (cls === "locked") {
+        // The page ends its hold when this was the lock it holds; the next try is a new write.
+        restoreKeyRef.current = null;
+        reportWriteRefused(doc.id, err instanceof ApiError ? err.fields : undefined, lockId);
+        setRestoreError(apiErrorMessage(err) ?? t("documents.versions.restore_failed"));
+      } else if (cls === "conflict") {
         restoreKeyRef.current = null;
         setRestoreError(t("documents.versions.restore_conflict"));
       } else {

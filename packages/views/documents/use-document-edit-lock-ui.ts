@@ -14,6 +14,7 @@ import { useNavigation } from "../navigation";
 import type { FrameEditLock } from "../office/frame/frame-edit-lock";
 import type { DocumentEditorHandle } from "./document-editor";
 import { downloadPageCopy } from "./edit-lock-copy";
+import { onWriteRefused } from "./edit-lock-refusal";
 import { editLockBannerView } from "./edit-lock-view-model";
 
 /**
@@ -92,6 +93,22 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
     if (phase !== "mine" || saveState.phase !== "locked") return;
     if (was !== "mine" || saveState.sentEditLockId !== lock.editLockId) save.lockRestored();
   }, [phase, saveState.phase, saveState.sentEditLockId, lock.editLockId, save]);
+
+  // A restore or a new file version sent from outside the editor was refused 423 (CFE-1-12): the
+  // same ending, for the lock id it carried only (a write of an older tenure says nothing about now).
+  const heldId = useRef(lock.editLockId);
+  heldId.current = lock.editLockId;
+  const markLostRef = useRef(lock.markLost);
+  markLostRef.current = lock.markLost;
+  useEffect(
+    () =>
+      onWriteRefused(doc.id, (fields, sentLockId) => {
+        if (sentLockId !== undefined && sentLockId !== heldId.current) return;
+        const lost = lostFrom423(fields);
+        markLostRef.current(lost.reason, lost.by);
+      }),
+    [doc.id],
+  );
 
   /* ---- read-only -> mine: start from the server's current revision (addendum §9) ---- */
   // A content-only save emits no document.updated, so a read-only copy can be

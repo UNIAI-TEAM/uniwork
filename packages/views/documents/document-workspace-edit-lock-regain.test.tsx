@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
@@ -7,6 +7,7 @@ import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
 import { defaultEditLockRoute, editLockRoute, grantedLock, lockState } from "../test/edit-lock-fake";
 import { DocumentWorkspace } from "./document-workspace";
+import { reportWriteRefused } from "./edit-lock-refusal";
 
 // UNI-1645 CFE-1-1: a 423 that was answered for an older lock id must not end the hold on a regained lock.
 
@@ -100,5 +101,15 @@ describe("DocumentWorkspace edit lock: regaining after a 423", () => {
     await waitFor(() => expect(patches.filter((b) => b.edit_lock_id === "lock-new")).toHaveLength(1));
     expect(editor).toHaveAttribute("contenteditable", "true");
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("a restore / file commit refused 423 under the held id ends the hold; one under an older id does not (CFE-1-12)", async () => {
+    renderPage();
+    const editor = await screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });
+    await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "true"));
+    act(() => reportWriteRefused("d1", { ...elsewhere, held_by_me: false, holder_id: "u2", holder_name: "An" }, "lock-older"));
+    expect(editor).toHaveAttribute("contenteditable", "true");
+    act(() => reportWriteRefused("d1", { ...elsewhere, held_by_me: false, holder_id: "u2", holder_name: "An" }, "lock-d1"));
+    await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "false"));
   });
 });
