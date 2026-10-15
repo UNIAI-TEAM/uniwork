@@ -1,8 +1,10 @@
 // G8-19 (UNI-1414) row module for comments across hosts:
 //   node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01|G8-A04 --fixture <fx> --run-dir <dir>
-// G8-A01: desktop A creates an anchored comment in the fixture's editor; it is
-// exactly one server row authored by A (human), the second user reads it, and
-// neither the saved file nor any payload carries the machine's account name.
+// G8-A01: desktop A creates an anchored comment in the fixture's editor, makes a
+// small edit through a product command and Saves; the Save must make a new server
+// version, the comment is exactly one server row authored by A (human), the second
+// user reads it, and neither the bytes of that new version, the working copy nor
+// any payload carries the machine's account name.
 // "AI only proposes" is cited from the fork vitest of G8-12..15 (lead decision
 // Q2: AI_PROVIDER=fake turns the AI off on the runner).
 // G8-A04: one data set for two hosts. The desktop has no push: it sees a web
@@ -12,11 +14,13 @@
 // The G8-A03 rename/copy add-on runs inside A04 and is reported in its artifact.
 import { readFile as fsReadFile } from "node:fs/promises";
 
+import { API_PREFIX } from "../harness/api-contract.mjs";
 import { connectApp as realConnectApp } from "../harness/app.mjs";
 import { loadPlaywrightChromium, sleep as realSleep } from "../harness/app-steps.mjs";
 import { isMainModule, setAppApiProxyOnline } from "../harness/lib.mjs";
 import { openDocument, webLogin } from "../harness/web.mjs";
 import {
+  EDIT_DRIVERS,
   FIXTURE_FORMAT,
   anchorForFixture,
   forkAncestorChecker,
@@ -45,6 +49,42 @@ const DESKTOP_PROBE_INTERVAL_MS = 2_500;
 const isOk = (status) => status >= 200 && status < 300;
 const check = (reasons) => (reasons.length === 0 ? { status: "PASS" } : { status: "FAIL", reason: reasons.join("; ") });
 const hitList = (hits) => hits.map((h) => `${h.part}@${h.offset}`).join(", ");
+
+/**
+ * The A01 dirtying edit per format (lead decision r1b): a product command, so the
+ * Save has something to store. Reuses the A02 plans (EDIT_DRIVERS); the moved
+ * anchor does not matter to A01, which checks the row, the author and the bytes.
+ */
+export const DIRTY_EDITS = Object.freeze({
+  docx: { plan: EDIT_DRIVERS.docx.shift, cites: EDIT_DRIVERS.docx.cites },
+  xlsx: { plan: EDIT_DRIVERS.xlsx.shift, cites: EDIT_DRIVERS.xlsx.cites },
+  pptx: { plan: EDIT_DRIVERS.pptx.shift, cites: EDIT_DRIVERS.pptx.cites },
+  pdf: {
+    // one Insert blank page after page 1: the page-1 anchor stays on page 1
+    plan: EDIT_DRIVERS.pdf.prepare.slice(0, 3),
+    cites: EDIT_DRIVERS.pdf.cites,
+    why:
+      "not an annotation: in a document bound to the server the Note tool makes a server thread, not a file note " +
+      "(fork apps/pdf/src/renderer/App.tsx:1558,1712), and highlight/ink need a pointer drag on the page canvas; " +
+      "Insert blank page is the product command the A02 plan already drives",
+  },
+});
+
+/** GET the bytes of version `version` of a file document as the bearer of `token` (router/documents.go:198, ?version=N). */
+export async function downloadVersion({ apiOrigin, token, documentId, version, fetchImpl = fetch, timeoutMs = 60_000 }) {
+  const url = `${apiOrigin}${API_PREFIX}/documents/${encodeURIComponent(documentId)}/download?version=${encodeURIComponent(String(version))}`;
+  const res = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`download of version ${version} answered ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+/** The document head: `{ versionId, version }` from getDocument; throws on a non-2xx. */
+async function readHead(session, documentId) {
+  const doc = await session.call("getDocument", { documentID: documentId });
+  if (!doc.ok) throw new Error(`getDocument answered ${doc.status}`);
+  const file = doc.body?.document?.file ?? {};
+  return { versionId: file.version_id ?? null, version: file.version ?? null };
+}
 
 // ---- in-page probes (evaluated through ctrl.evalBounded; self-contained) -----------------
 
@@ -120,21 +160,34 @@ export function decideG8A01(rec) {
   );
   steps["check:anchor-format"] = check(row?.anchor?.format === rec.format ? [] : [`anchor format ${row?.anchor?.format ?? "none"}, want ${rec.format}`]);
   steps["check:web-sees-row"] = check((rec.webRows ?? []).some((r) => r.id === create.commentId) ? [] : ["user B does not read the row"]);
+  steps["check:dirty-edit"] = check(rec.dirtyEdit?.status === "ok" ? [] : [`the edit before Save failed: ${rec.dirtyEdit?.reason ?? "did not run"}`]);
+  const after = rec.versionAfter;
+  steps["check:new-version"] = check(
+    rec.saved && after?.versionId && after.versionId !== rec.versionBefore ? [] : [`the Save made no new server version (head ${after?.versionId ?? "unread"})`],
+  );
   const scan = rec.scan;
+  const local = rec.localScan;
   steps["check:file-scan"] = check(
     !rec.saved
       ? ["Save failed, so there is no saved file to scan"]
-      : !scan
-        ? ["the saved file was not scanned"]
-        : [...(scan.names?.length ? [] : ["no machine name left to scan for (all skipped)"]), ...(scan.hits?.length ? [`machine name in ${hitList(scan.hits)}`] : [])],
+      : [
+          ...(!scan ? ["the bytes of the new server version were not scanned"] : []),
+          ...(!local ? ["the working copy was not scanned"] : []),
+          ...(scan && !scan.names?.length ? ["no machine name left to scan for (all skipped)"] : []),
+          ...(scan?.hits?.length ? [`machine name in ${hitList(scan.hits)}`] : []),
+          ...(local?.hits?.length ? [`machine name in the working copy: ${hitList(local.hits)}`] : []),
+        ],
   );
   steps["check:payload-scan"] = check(rec.payloadHits?.length ? [`machine name in ${hitList(rec.payloadHits)}`] : []);
   return { ...decideFromSteps(steps), steps, aiOnlyProposes: AI_CLAUSE };
 }
 
-/** Runs G8-A01 on one editor fixture. `deps`: connectApp, readFile, machine (machineNames()). */
+/**
+ * Runs G8-A01 on one editor fixture. `deps`: connectApp, readFile, machine (machineNames()),
+ * download (`{documentId, version, userKey}` -> bytes), sleep, now.
+ */
 export async function runG8A01(ctx, deps = {}) {
-  const { connectApp = realConnectApp, readFile = fsReadFile, machine = machineNames() } = deps;
+  const { connectApp = realConnectApp, readFile = fsReadFile, machine = machineNames(), sleep = realSleep, now = Date.now } = deps;
   const format = FIXTURE_FORMAT[ctx.fixture];
   if (!format) return { status: "FAIL", reason: `G8-A01 has no editor for fixture ${ctx.fixture}` };
   const rec = { format, fixture: ctx.fixture, marker: `G8-A01 ${ctx.fixture} ${Date.now().toString(36)}`, aiOnlyProposes: AI_CLAUSE, machine: { names: machine.names, skipped: machine.skipped } };
@@ -168,10 +221,27 @@ export async function runG8A01(ctx, deps = {}) {
       if (!reply?.ok) return { status: "FAIL", reason: `comments.create -> ${rec.create.error}` };
       return {};
     });
+    const download =
+      deps.download ??
+      (({ documentId, version, userKey }) => downloadVersion({ apiOrigin: ctx.apiOrigin, token: world.user(userKey).token, documentId, version }));
+    await ctx.step("dirty-edit", async () => {
+      rec.dirtyEdit = await runEditPlan(desk.ctrl, desk.page, DIRTY_EDITS[format].plan);
+      rec.dirtyEditCites = DIRTY_EDITS[format].cites;
+      if (DIRTY_EDITS[format].why) rec.dirtyEditWhy = DIRTY_EDITS[format].why;
+      return rec.dirtyEdit.status === "ok" ? {} : { status: "FAIL", reason: rec.dirtyEdit.reason };
+    });
     await ctx.step("save", async () => {
       rec.saved = false;
+      rec.versionBefore = (await readHead(A, doc.documentId)).versionId;
       await saveOnDesktop(desk.ctrl, desk.path);
       rec.saved = true;
+      const settled = await pollUntil(
+        () => readHead(A, doc.documentId),
+        (h) => Boolean(h.versionId && h.versionId !== rec.versionBefore),
+        { boundMs: 60_000, intervalMs: 1_000, sleep, now },
+      );
+      rec.versionAfter = settled.value;
+      return settled.ok ? {} : { status: "FAIL", reason: `no new server version within ${settled.elapsedMs} ms (head ${settled.value?.versionId})` };
     });
     await ctx.step("server-rows", async () => {
       const server = await readServer(A, doc.documentId);
@@ -180,7 +250,11 @@ export async function runG8A01(ctx, deps = {}) {
       rec.webRows = (await readServer(B, doc.documentId)).comments.filter((r) => r.id === rec.create?.commentId).map((r) => ({ id: r.id }));
     });
     await ctx.step("scan", async () => {
-      if (rec.saved) rec.scan = scanForNames(await readFile(desk.path), machine.names);
+      if (rec.saved) rec.localScan = scanForNames(await readFile(desk.path), machine.names);
+      const after = rec.versionAfter;
+      if (rec.saved && after?.versionId && after.versionId !== rec.versionBefore && after.version !== null) {
+        rec.scan = scanForNames(await download({ documentId: doc.documentId, version: after.version, userKey: "A" }), machine.names);
+      }
       rec.payloadHits = payloads.flatMap(([part, value]) => scanText(JSON.stringify(value ?? null), rec.scan?.names ?? machine.names, part));
     });
     return out(decideG8A01(rec));
