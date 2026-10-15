@@ -1,0 +1,31 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r14d2" OFFICE_FORK_SHA=c321a746 timeout -k 15 420 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-43 --exits 5 --run-dir .harness-run-r14d2; rc=$?; echo; echo "APP_CASE_FQ_43_5_EXIT=$rc"; f=.harness-run-r14d2/fault/FQ-43/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",JSON.stringify(r.exitRange||""),(r.assertions||[]).map(a=>(a.ok?"ok ":"FAIL ")+a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "),JSON.stringify(r.exits||r.run_execution||"").slice(0,3000))' "$PWD/$f"; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:39597 app_api=http://127.0.0.1:43921 proxy_upstream=http://127.0.0.1:39597
+FQ-43 [1/9] reconciling → blocked session_expired: SKIPPED - outside --exits 5-5
+FQ-43 [2/9] reconciling → blocked organization_suspended: SKIPPED - outside --exits 5-5
+FQ-43 [3/9] reconciling → blocked member_deactivated: SKIPPED - outside --exits 5-5
+FQ-43 [4/9] reconciling → blocked document_archived: SKIPPED - outside --exits 5-5
+FQ-43 [5/9] reconciling → blocked permission_revoked: running
+dbus-daemon[20661]: [session uid=1000 pid=20661] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20697 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20661]: [session uid=1000 pid=20661] Successfully activated service 'org.a11y.Bus'
+FQ-43 [6/9] reconciling → blocked document_deleted: SKIPPED - outside --exits 5-5
+FQ-43 [7/9] real: reconciling → blocked organization_suspended: SKIPPED - outside --exits 5-5
+FQ-43 [8/9] real: reconciling → blocked member_deactivated: SKIPPED - outside --exits 5-5
+FQ-43 [9/9] real: reconciling → blocked document_deleted: SKIPPED - outside --exits 5-5
+FQ-43: FAIL (predicted OQ-F11) partial 5-5 of 9
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-15T21:07:02.680Z ∅ -> queued
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-15T21:07:02.718Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-15T21:07:55.033Z queued -> validating
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-15T21:07:55.033Z validating -> uploading
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-15T21:07:55.033Z uploading -> committing
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-15T21:07:55.033Z committing -> committed http=200
+  FQ-43 [reconciling → blocked permission_revoked] proxy 2026-10-15T21:07:02.699Z upload POST 201 key=c328b1044043 rule=-
+  FQ-43 [reconciling → blocked permission_revoked] proxy 2026-10-15T21:07:02.712Z commit POST dropped key=c328b1044043 rule=lose-commit-answer
+  FQ-43 [reconciling → blocked permission_revoked] proxy 2026-10-15T21:07:55.044Z upload POST 201 key=c328b1044043 rule=-
+  FQ-43 [reconciling → blocked permission_revoked] proxy 2026-10-15T21:07:55.050Z commit POST 200 key=c328b1044043 rule=-
+FQ-43 (G5-A06): FAIL predicted OQ-F11
+/workspace/.harness-run-r14d2/fault
+APP_CASES_EXIT=1
+
+APP_CASE_FQ_43_5_EXIT=1
+FQ-43 FAIL OQ-F11  {"from":5,"to":5,"of":9,"skipped":[1,2,3,4,6,7,8,9]} FAIL client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | FAIL blocked_reason: expected "blocked:permission_revoked" actual "(never entered)" | ok no_commit_after_blocked: expected 0 actual 0 | ok version_delta: expected 1 actual 1 [{"n":5,"label":"reconciling → blocked permission_revoked","result":"FAIL","assertions":[{"name":"client_path","expected":"* → reconciling → blocked","actual":"queued → paused_offline → validating → uploading → committing → committed","ok":false},{"name":"blocked_reason","expected":"blocked:permission_revoked","actual":"(never entered)","ok":false},{"name":"no_commit_after_blocked","expected":0,"actual":0,"ok":true},{"name":"version_delta","expected":1,"actual":1,"ok":true}],"predicted":"OQ-F11","evidence":{"documentId":"01M50P6DHA4NSD0RX5XANH65J2","trace":[{"ts":"2026-10-15T21:07:02.680Z","intentId":"office-intent-bb222f0a-4248-4390-bee8-a9f0d0e3a225","from":null,"to":"queued"},{"ts":"2026-10-15T21:07:02.718Z","intentId":"office-intent-bb222f0a-4248-4390-bee8-a9f0d0e3a225","from":"queued","to":"paused_offline","code":"network"},{"ts":"2026-10-15T21:07:55.033Z","intentId":"office-intent-bb222f0a-4248-4390-bee8-a9f0d0e3a225","from":"queued","to":"validating"},{"ts":"2026-10-15T21:07:55.033Z","intentId":"office-intent-bb222f0a-4248-4390-bee8-a9f0d0e3a225","from":"validating","to":"uploading"},{"ts":"2026-10-15T21:07:55.033Z","intentId":"office-intent-bb222f0a-4248-4390-bee8-a9f0d0e3a225","from":"uploading","to":"committing"},{"ts":"2026-10-15T21:07:55.033Z","intentId":"office-intent-bb222f0a-4248-4390-bee8-a9f0d0e3a225","from":"committing","to":"committed","httpStatus":200}],"requests":[{"kind":"upload","ts":"2026-10-15T21:07:02.699Z","method":"POST","status":201,"keyTag":"c328b1044043","ruleId":null},{"kind":"commit","ts":"2026-10-15T21:07:02.712Z","method":"POST","status":"dropped","keyTag":"c328b1044043","ruleId":"lose-commit-answer"},{"kind":"upload","ts":"2026-10-15T21:07:55.044Z","method":"POST","status":201,"keyTag":"c328b1044043","ruleId":null},{"kind":"commit","ts":"2026-10-15T21:07:55.050Z","method":"POST","status":200,"keyTag":"c328b1044043","ruleId":null}]}}]
