@@ -2370,7 +2370,13 @@ test("FD-A12 another member archiving and restoring a folder subtree is seen liv
     );
     await expect(
       blockedDialog.getByRole("button", { name: "Xóa", exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
+    await expect(
+      blockedDialog.getByRole("button", { name: "Hủy", exact: true }),
+    ).toBeVisible();
+    await expect(
+      blockedDialog.getByRole("button", { name: "Hủy", exact: true }),
+    ).toBeEnabled();
   } finally {
     await searchPageA?.close();
     await contextB.close();
