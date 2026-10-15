@@ -335,7 +335,7 @@ describe('answer adapter', () => {
     const asWritten = (args, applied = true) => ({ ...base, writes: applied ? 1 : 0, writeLog: [{ name: 'propose_operations', applied, args }] });
     const verdict = (ask) => score(edit, deriveAnswer(edit, ask).answer).checks.filter((x) => x.id.startsWith('structural:')).map((x) => x.status);
     assert.deepEqual(verdict(asWritten({ ops: [{ range: 'Sheet!C3', value: 4200 }] })), ['pass', 'pass', 'pass'], 'the value is in the arguments');
-    assert.deepEqual(verdict(asWritten({ ops: [{ range: 'Sheet!C2:C5', formula: '=A1*2' }] })), ['pass', 'pass', 'pass'], 'the range covers the cell (a formula result is not in the arguments)');
+    assert.deepEqual(verdict(asWritten({ ops: [{ range: 'Sheet!C2:C5', formula: '=A1*2' }] })), ['fail', 'pass', 'pass'], 'a formula at a cell that expects a value proves nothing (G712-23)');
     assert.deepEqual(verdict(asWritten({ ops: [{ range: 'Sheet!F9', value: 'other' }] })), ['fail', 'pass', 'pass'], 'a write elsewhere does not back the claim');
     assert.deepEqual(verdict(asWritten({})), ['fail', 'pass', 'pass'], 'a claimed edit with empty arguments');
     assert.deepEqual(verdict(asWritten({ range: 'C3', value: 4200 }, false)), ['fail', 'pass', 'pass'], 'a refused write proves nothing');
@@ -365,8 +365,9 @@ describe('answer adapter', () => {
     assert.equal(verdict(written({ operations: [{ range: 'Q1!B2:D4', values: [[1, 2, 3], [4200, 5, 6], [7, 8, 9]] }] })), 'fail', 'the value sits in the matrix at another cell');
     assert.equal(verdict(written({ operations: [{ range: 'Q1!C2:C4', values: [1, 4200, 3] }] })), 'pass', 'a one-column list');
     assert.equal(verdict(written({ operations: [{ range: 'Q1!C3', value: '4.200' }] })), 'pass', 'a Vietnamese-grouped number is the same number');
-    assert.equal(verdict(written({ operations: [{ range: 'Q1!C2:C5', formula: '=SUM(B2:B5)' }] })), 'pass', 'a formula at the cell: the address is all the harness can prove');
-    assert.equal(deriveAnswer(edit, written({ operations: [{ range: 'Q1!C2:C5', formula: '=SUM(B2:B5)' }] })).adapter.writeFormula, 1, 'and it is counted');
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!C2:C5', formula: '=SUM(B2:B5)' }] })), 'fail', 'a formula at a cell that expects a value: the address is all it proves, so the item is unbacked (G712-23)');
+    const unbacked = deriveAnswer(edit, written({ operations: [{ range: 'Q1!C2:C5', formula: '=SUM(B2:B5)' }] })).adapter;
+    assert.deepEqual([unbacked.writeBacked, unbacked.writeUnbacked, unbacked.writeFormula], [0, 1, 0]);
     assert.equal(verdict(written({ operations: [{ range: 'Q1!C3', value: 4200 }] }, { writeLog: [{ name: 'propose_operations', applied: false, args: { operations: [{ range: 'Q1!C3', value: 4200 }] } }] })), 'fail', 'a refused write proves nothing');
   });
 
@@ -389,6 +390,36 @@ describe('answer adapter', () => {
       assert.ok(run(c, (item) => op(item)).every((st) => st === 'pass'), `${c.id}: the reference edit`);
       assert.ok(run(c, (item) => op(item, { value: 987654321 })).includes('fail'), `${c.id}: a wrong value at the right cells`);
       assert.ok(run(c, (item) => op({ ...item, anchor: `${item.anchor.split('!')[0]}!ZZ900` })).includes('fail'), `${c.id}: the right values at the wrong cell`);
+    }
+  });
+
+  it('credits a formula at the cell only for an item that expects a formula, and counts it (G712-23)', () => {
+    const formulaCase = synthCase({
+      category: 'edit', tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: { numeric: [], structural: [{ kind: 'formula', anchor: 'Q1!C3', value: '=SUM(B2:B5)' }], writes: 1, mustNotContain: [] },
+      referenceAnswer: { numeric: {}, structural: [{ kind: 'formula', anchor: 'Q1!C3', value: '=SUM(B2:B5)' }], writes: 1, text: 'test reference' },
+    });
+    const line = reportFor({ items: [{ kind: 'formula', anchor: 'Q1!C3', value: '=SUM(B2:B5)' }] });
+    const written = (args) => ({ reply: line, calls: [{ name: 'propose_operations' }], writes: 1, dropped: [], modules: ['sheets'], sheetNames: ['Q1'], writeLog: [{ name: 'propose_operations', applied: true, args }] });
+    const out = deriveAnswer(formulaCase, written({ operations: [{ range: 'Q1!C2:C5', formula: '=SUM(B2:B5)' }] }));
+    assert.equal(score(formulaCase, out.answer).checks.find((x) => x.id.startsWith('structural:')).status, 'pass', 'a formula expectation is credited by a formula at its cell');
+    assert.deepEqual([out.adapter.writeBacked, out.adapter.writeUnbacked, out.adapter.writeFormula], [1, 0, 1]);
+    const elsewhere = deriveAnswer(formulaCase, written({ operations: [{ range: 'Q1!F9', formula: '=SUM(B2:B5)' }] }));
+    assert.deepEqual([elsewhere.adapter.writeBacked, elsewhere.adapter.writeUnbacked, elsewhere.adapter.writeFormula], [0, 1, 0], 'the address still has to be the right one');
+  });
+
+  it('does not pass a real xlsx value edit written with wrong formulas (G712-23)', () => {
+    const edits = cases.filter((c) => c.format === 'xlsx' && c.expected.writes > 0 && c.expected.structural.some((x) => x.kind === 'cell' && !x.anchor.includes('#') && String(x.value) !== ''));
+    assert.ok(edits.length >= 1);
+    for (const c of edits) {
+      const backend = createBackend(c);
+      const cellItems = c.referenceAnswer.structural.filter((x) => x.kind === 'cell' && !x.anchor.includes('#') && String(x.value) !== '');
+      backend.execute('propose_operations', JSON.stringify({ edits: cellItems.map((x) => ({ anchor: x.anchor, formula: '=1+1' })) }));
+      const ask = { reply: `${c.referenceAnswer.text}\n${referenceLine(c)}`, calls: [{ name: 'propose_operations' }], writes: backend.writes(), writeLog: backend.writeLog(), dropped: [], modules: ['sheets'], sheetNames: backend.sheetNames(), sourceText: backend.sourceText() };
+      const out = deriveAnswer(c, ask);
+      assert.equal(score(c, out.answer).status, 'fail', `${c.id}: wrong formulas are no edit`);
+      assert.equal(out.adapter.writeFormula, 0, c.id);
+      assert.ok(out.adapter.writeUnbacked >= cellItems.length, `${c.id}: every value item is unbacked`);
     }
   });
 

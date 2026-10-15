@@ -109,7 +109,7 @@ function proseFigureMismatch(text, figures) {
 /**
  * What the write arguments say about one reported item of an edit case (G712-16):
  *   { status: 'backed', via: 'value' | 'formula' | 'format' }  an applied write carries the value the edit introduces
- *       (a cell: ONE operation with its address and its value, G712-17; a heading, table cell or pdf cell: the value in the arguments);
+ *       (a cell: ONE operation with its address and its value, G712-17; a formula at the cell only for an item that expects a formula, G712-23; a heading, table cell or pdf cell: the value in the arguments);
  *   { status: 'unbacked' }  the edit introduces the value but no applied write carries it: the item fails;
  *   { status: 'self', why: 'preserved' | 'count' | 'probe' }  the arguments cannot say: a value the document already held
  *       (an untouched heading or total, a blank left alone), a count, or a format probe other than percent. Counted and labelled.
@@ -128,6 +128,9 @@ function editProof(expected, applied, sheetNames, sourceText) {
   if (expected.kind === 'cell' || expected.kind === 'formula') {
     if (parseRangeText(base.slice(base.lastIndexOf('!') + 1)) !== null) {
       const proof = cellProof(applied, base, value, { sheetNames });
+      // A formula at the cell proves only the address, never the value (the harness cannot evaluate it): it backs an item whose
+      // expectation IS a formula, and nothing else (G712-23).
+      if (proof === 'formula') return expected.kind === 'formula' ? backed('formula') : unbacked;
       return proof ? backed(proof) : unbacked;
     }
     return valueInWrites(applied, value) ? backed('value') : unbacked;

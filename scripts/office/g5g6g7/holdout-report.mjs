@@ -172,6 +172,7 @@ export function summarizeRun(run, flaky = new Set()) {
       proseMismatchAsks: run.asks.filter((a) => (a.adapter?.proseFigureMismatch ?? 0) > 0).length,
       writeBacked: sum((a) => a.adapter?.writeBacked ?? 0),
       writeUnbacked: sum((a) => a.adapter?.writeUnbacked ?? 0),
+      writeFormula: sum((a) => a.adapter?.writeFormula ?? 0),
       writeSelfReported: sum((a) => a.adapter?.writeSelfReported ?? 0),
       writeSelfPreserved: sum((a) => a.adapter?.writeSelfPreserved ?? 0),
       noAppliedWriteAsks: run.asks.filter((a) => a.adapter?.noAppliedWrite === true).length,
@@ -231,11 +232,12 @@ function editCaseSplit(runs) {
   for (const run of runs) {
     for (const ask of run.asks) {
       if (!((ask.expects?.writes ?? 0) > 0)) continue;
-      const row = byId.get(ask.id) ?? { id: ask.id, asks: 0, noAppliedWrite: 0, backed: 0, unbacked: 0, selfPreserved: 0, selfOther: 0 };
+      const row = byId.get(ask.id) ?? { id: ask.id, asks: 0, noAppliedWrite: 0, backed: 0, formula: 0, unbacked: 0, selfPreserved: 0, selfOther: 0 };
       const a = ask.adapter ?? {};
       row.asks += 1;
       row.noAppliedWrite += a.noAppliedWrite === true ? 1 : 0;
       row.backed += a.writeBacked ?? 0;
+      row.formula += a.writeFormula ?? 0;
       row.unbacked += a.writeUnbacked ?? 0;
       row.selfPreserved += a.writeSelfPreserved ?? 0;
       row.selfOther += (a.writeSelfReported ?? 0) - (a.writeSelfPreserved ?? 0);
@@ -736,16 +738,16 @@ export function renderReport(report) {
   w();
   w('## 7. Giới hạn của bộ chạy (đáp án suy ra từ dòng báo cáo, adapter v1)');
   w();
-  w('| Lần | Thiếu dòng UNIWORK_ANSWER | Dòng không hợp lệ | Giá trị đúng nhưng sai neo (chỉ khi --anchors lenient) | Số thừa | Lượt hỏi lời văn lệch dòng báo cáo | Tham số công cụ sai | Sửa đổi: lượt hỏi không có lần ghi đã áp mang nội dung sửa | Sửa đổi: mục chứng minh bằng đối số ghi / không có bằng chứng ghi / tự báo cáo (giữ nguyên) / tự báo cáo (số đếm, dò định dạng) |');
-  w('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |');
-  report.summaries.forEach((s) => w(`| ${s.runIndex} | ${s.adapter.reportMissing} | ${s.adapter.reportInvalid} | ${s.adapter.anchorLenient} | ${s.adapter.extraFigures} | ${s.adapter.proseMismatchAsks} | ${s.adapter.invalidArgumentAsks} | ${s.adapter.noAppliedWriteAsks} | ${s.adapter.writeBacked} / ${s.adapter.writeUnbacked} / ${s.adapter.writeSelfPreserved} / ${s.adapter.writeSelfReported - s.adapter.writeSelfPreserved} |`));
+  w('| Lần | Thiếu dòng UNIWORK_ANSWER | Dòng không hợp lệ | Giá trị đúng nhưng sai neo (chỉ khi --anchors lenient) | Số thừa | Lượt hỏi lời văn lệch dòng báo cáo | Tham số công cụ sai | Sửa đổi: lượt hỏi không có lần ghi đã áp mang nội dung sửa | Sửa đổi: mục chứng minh bằng đối số ghi / không có bằng chứng ghi / tự báo cáo (giữ nguyên) / tự báo cáo (số đếm, dò định dạng) | Sửa đổi: mục chứng minh chỉ bằng địa chỉ (công thức) |');
+  w('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |');
+  report.summaries.forEach((s) => w(`| ${s.runIndex} | ${s.adapter.reportMissing} | ${s.adapter.reportInvalid} | ${s.adapter.anchorLenient} | ${s.adapter.extraFigures} | ${s.adapter.proseMismatchAsks} | ${s.adapter.invalidArgumentAsks} | ${s.adapter.noAppliedWriteAsks} | ${s.adapter.writeBacked} / ${s.adapter.writeUnbacked} / ${s.adapter.writeSelfPreserved} / ${s.adapter.writeSelfReported - s.adapter.writeSelfPreserved} | ${s.adapter.writeFormula} |`));
   w();
-  w('Một lượt hỏi thiếu dòng báo cáo bị chấm lệch đáp án (đóng theo hướng an toàn); cột này tách lỗi giao thức khỏi lỗi trả lời. Ca sửa đổi chỉ đạt khi có ít nhất một lần ghi ĐÃ ÁP (không phải chạy thử, không bị từ chối, không rỗng `{}`) của công cụ ghi bắt buộc, mang nội dung và đưa vào tài liệu một thứ tài liệu chưa có. Giá trị mà bản sửa đưa vào (ô, tiêu đề, ô bảng, định dạng phần trăm) phải nằm trong đối số của lần ghi đã áp, nếu không mục đó trượt. Giá trị tài liệu vốn đã có (tiêu đề hay tổng không đụng tới, ô trống để nguyên) và số đếm chỉ có tự báo cáo của model: được tính và gắn nhãn "tự báo cáo (giữ nguyên)" hoặc "tự báo cáo (số đếm, dò định dạng)", không phải bằng chứng. Bộ chạy không phân biệt được một lần ghi văn bản MỚI nhưng sai chỗ ở ca chỉ có giá trị giữ nguyên và số đếm; ở ca đó nội dung bản sửa chỉ có tự báo cáo của model làm bằng chứng (giới hạn đã biết).');
+  w('Một lượt hỏi thiếu dòng báo cáo bị chấm lệch đáp án (đóng theo hướng an toàn); cột này tách lỗi giao thức khỏi lỗi trả lời. Ca sửa đổi chỉ đạt khi có ít nhất một lần ghi ĐÃ ÁP (không phải chạy thử, không bị từ chối, không rỗng `{}`) của công cụ ghi bắt buộc, mang nội dung và đưa vào tài liệu một thứ tài liệu chưa có. Giá trị mà bản sửa đưa vào (ô, tiêu đề, ô bảng, định dạng phần trăm) phải nằm trong đối số của lần ghi đã áp, nếu không mục đó trượt. Một công thức đặt ở ô chỉ chứng minh được địa chỉ, không chứng minh được giá trị (bộ chạy không tính công thức): nó chỉ được tính cho mục mà ca mong đợi chính một công thức; với mục mong đợi một giá trị, công thức không chứng minh gì và mục trượt. Cột "chỉ bằng địa chỉ (công thức)" đếm các mục nằm trong phần chứng minh bằng đối số ghi mà chỉ có địa chỉ làm bằng chứng. Giá trị tài liệu vốn đã có (tiêu đề hay tổng không đụng tới, ô trống để nguyên) và số đếm chỉ có tự báo cáo của model: được tính và gắn nhãn "tự báo cáo (giữ nguyên)" hoặc "tự báo cáo (số đếm, dò định dạng)", không phải bằng chứng. Bộ chạy không phân biệt được một lần ghi văn bản MỚI nhưng sai chỗ ở ca chỉ có giá trị giữ nguyên và số đếm; ở ca đó nội dung bản sửa chỉ có tự báo cáo của model làm bằng chứng (giới hạn đã biết).');
   if (report.editCases.length > 0) {
     w();
-    w('| Ca sửa đổi | Lượt hỏi | Không có lần ghi đã áp mang nội dung sửa | Chứng minh bằng đối số ghi | Không có bằng chứng ghi | Tự báo cáo (giữ nguyên) | Tự báo cáo (số đếm, dò định dạng) |');
-    w('| --- | ---: | ---: | ---: | ---: | ---: | ---: |');
-    for (const c of report.editCases) w(`| ${c.id} | ${c.asks} | ${c.noAppliedWrite} | ${c.backed} | ${c.unbacked} | ${c.selfPreserved} | ${c.selfOther} |`);
+    w('| Ca sửa đổi | Lượt hỏi | Không có lần ghi đã áp mang nội dung sửa | Chứng minh bằng đối số ghi | Trong đó chỉ bằng địa chỉ (công thức) | Không có bằng chứng ghi | Tự báo cáo (giữ nguyên) | Tự báo cáo (số đếm, dò định dạng) |');
+    w('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+    for (const c of report.editCases) w(`| ${c.id} | ${c.asks} | ${c.noAppliedWrite} | ${c.backed} | ${c.formula} | ${c.unbacked} | ${c.selfPreserved} | ${c.selfOther} |`);
   }
   const listLine = (title, items) => { if (items.length > 0) { w(); w(`${title} ${items.map((i) => `${i.key} ×${i.count}`).join(', ')}`); } };
   listLine('Lượt hỏi được chấm nới neo (mỗi ca/ngôn ngữ, số lần trên mọi lần chạy):', report.lenientAsks);

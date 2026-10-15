@@ -779,25 +779,27 @@ describe('adapter findings in the report (G712-5, G712-11)', () => {
 
 describe('edit scoring split (G712-16)', () => {
   const edit = (id, adapter) => (a) => (a.id === id ? { ...a, expects: { numeric: 0, writes: 1, mustNotContain: 0 }, adapter: { ...a.adapter, ...adapter } } : a);
-  const marked = (a) => edit('HO-T-02', { noAppliedWrite: true, writeSelfReported: 3, writeSelfPreserved: 1 })(edit('HO-T-01', { noAppliedWrite: false, writeBacked: 2, writeUnbacked: 1, writeSelfReported: 4, writeSelfPreserved: 3 })(a));
+  const marked = (a) => edit('HO-T-02', { noAppliedWrite: true, writeSelfReported: 3, writeSelfPreserved: 1 })(edit('HO-T-01', { noAppliedWrite: false, writeBacked: 2, writeFormula: 1, writeUnbacked: 1, writeSelfReported: 4, writeSelfPreserved: 3 })(a));
 
   it('counts the asks with no applied write and splits the items per edit case', () => {
     const report = buildReport([run(1, suite(marked)), run(2, suite(marked))]);
     assert.deepEqual(report.noAppliedWriteAsks.map((x) => `${x.key}:${x.count}`), ['HO-T-02/en:2', 'HO-T-02/vi:2']);
     assert.deepEqual(report.editCases, [
-      { id: 'HO-T-01', asks: 4, noAppliedWrite: 0, backed: 8, unbacked: 4, selfPreserved: 12, selfOther: 4 },
-      { id: 'HO-T-02', asks: 4, noAppliedWrite: 4, backed: 0, unbacked: 0, selfPreserved: 4, selfOther: 8 },
+      { id: 'HO-T-01', asks: 4, noAppliedWrite: 0, backed: 8, formula: 4, unbacked: 4, selfPreserved: 12, selfOther: 4 },
+      { id: 'HO-T-02', asks: 4, noAppliedWrite: 4, backed: 0, formula: 0, unbacked: 0, selfPreserved: 4, selfOther: 8 },
     ]);
     const s = report.summaries[0];
-    assert.deepEqual([s.adapter.noAppliedWriteAsks, s.adapter.writeSelfPreserved, s.adapter.writeSelfReported], [2, 8, 14]);
+    assert.deepEqual([s.adapter.noAppliedWriteAsks, s.adapter.writeSelfPreserved, s.adapter.writeSelfReported, s.adapter.writeFormula], [2, 8, 14, 2]);
   });
 
   it('prints the rules, the per-ask list and the per-case split', () => {
     const md = renderReport(buildReport([run(1, suite(marked))]));
     assert.match(md, /không có lần ghi đã áp mang nội dung sửa.*HO-T-02\/en ×1, HO-T-02\/vi ×1/);
     assert.match(md, /tự báo cáo \(giữ nguyên\)/);
-    assert.match(md, /\| HO-T-01 \| 2 \| 0 \| 4 \| 2 \| 6 \| 2 \|/);
-    assert.match(md, /\| HO-T-02 \| 2 \| 2 \| 0 \| 0 \| 2 \| 4 \|/);
+    assert.match(md, /\| HO-T-01 \| 2 \| 0 \| 4 \| 2 \| 2 \| 6 \| 2 \|/);
+    assert.match(md, /\| HO-T-02 \| 2 \| 2 \| 0 \| 0 \| 0 \| 2 \| 4 \|/);
+    assert.match(md, /chỉ bằng địa chỉ \(công thức\)/, 'the formula-only count has its own column (G712-23)');
+    assert.match(md, /\| 1 \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 2 \| 4 \/ 2 \/ 8 \/ 6 \| 2 \|/, 'and the per-run row shows it');
   });
 
   it('prints no split table and no per-ask line when the run has no edit case', () => {
