@@ -26,6 +26,8 @@ let pageDocId: string;
 let pageDocTitle: string;
 let ownerDocUrl: string;
 let restrictedDocUrl: string;
+let restrictedDocTitle: string;
+let restrictedDocId: string;
 
 function authHeaders(token: string): Record<string, string> {
   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
@@ -54,13 +56,14 @@ test.beforeAll(async ({ browser }) => {
     pageDocId = ((await created.json()) as { document: { id: string } }).document.id;
     ownerDocUrl = `/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents/${pageDocId}`;
 
+    restrictedDocTitle = `G1-09 restricted ${stamp}`;
     const restricted = await createPage(page.request, m.aMember.token, m.aOwner.wsId, {
-      title: `G1-09 restricted ${stamp}`,
+      title: restrictedDocTitle,
       visibility: "restricted",
     });
     expect(restricted.status(), await restricted.text()).toBe(201);
-    const restrictedId = ((await restricted.json()) as { document: { id: string } }).document.id;
-    restrictedDocUrl = `/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents/${restrictedId}`;
+    restrictedDocId = ((await restricted.json()) as { document: { id: string } }).document.id;
+    restrictedDocUrl = `/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents/${restrictedDocId}`;
   } finally {
     await page.close();
   }
@@ -179,10 +182,15 @@ test("a plain member creates, types and reloads a page in the browser", async ({
   );
 });
 
-test("a workspace member without access sees the not-found screen, not the content", async ({ page }) => {
+test("a workspace member without access sees the locked card, not the content", async ({ page }) => {
   await loginViaUi(page, m.aOther.email);
   await page.goto(restrictedDocUrl);
-  await expect(page.getByText("Không tìm thấy tài liệu này")).toBeVisible({ timeout: 60_000 });
+  // A 404 reads as the neutral member card (W-DOC07, access addendum §3.4): a way to ask, nothing of the document.
+  await expect(page.getByRole("heading", { name: "Bạn chưa mở được tài liệu này" })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText("Tài liệu có thể không tồn tại, hoặc bạn chưa có quyền xem.")).toBeVisible();
+  await expect(page.getByText(restrictedDocTitle)).toHaveCount(0);
+  await expect(page.getByText(restrictedDocId)).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Nội dung tài liệu" })).toHaveCount(0);
 });
 
 test("the other organization's shell sends a foreign document URL to the picker", async ({ page }) => {

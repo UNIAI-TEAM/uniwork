@@ -6,6 +6,7 @@ import {
   isMentionHref,
   type OpenLinkNavigate,
 } from "./link-handler";
+import type { EditorLinkContext } from "../editor-link-context";
 
 const APP_ORIGIN = "https://app.uniwork.ai";
 const CURRENT_SLUG = "acme/eng";
@@ -274,5 +275,73 @@ describe("parseWorkspaceEntityLink", () => {
 
   it("returns null for a malformed percent-escape", () => {
     expect(parseWorkspaceEntityLink("/acme/eng/projects/%E0%A4%A")).toBeNull();
+  });
+});
+
+describe("openLink with an EditorLinkContext (DOC7-W03)", () => {
+  const taskCtx: EditorLinkContext = { kind: "task", id: "T1" };
+
+  it("tags an internal document path with ?from=task:<id>", () => {
+    openLink("/acme/eng/documents/D1", CURRENT_SLUG, APP_ORIGIN, "push", navigate, taskCtx);
+    expect(navigated).toEqual([{ path: "/acme/eng/documents/D1?from=task:T1", disposition: "push" }]);
+  });
+
+  it("tags an absolute URL on the app origin and keeps the other query and the hash", () => {
+    openLink(
+      `${APP_ORIGIN}/acme/eng/documents/D1?tab=a#h`,
+      CURRENT_SLUG,
+      APP_ORIGIN,
+      "push",
+      navigate,
+      taskCtx,
+    );
+    expect(navigated[0]?.path).toBe("/acme/eng/documents/D1?tab=a&from=task:T1#h");
+  });
+
+  it("tags the slug-less legacy form", () => {
+    openLink("/documents/D1", CURRENT_SLUG, APP_ORIGIN, "push", navigate, taskCtx);
+    expect(navigated[0]?.path).toBe("/documents/D1?from=task:T1");
+  });
+
+  it("tags a background-tab open too", () => {
+    openLink("/acme/eng/documents/D1", CURRENT_SLUG, APP_ORIGIN, "background-tab", navigate, taskCtx);
+    expect(navigated[0]).toEqual({ path: "/acme/eng/documents/D1?from=task:T1", disposition: "background-tab" });
+  });
+
+  it("never tags when no context is set", () => {
+    openLink("/acme/eng/documents/D1", CURRENT_SLUG, APP_ORIGIN, "push", navigate);
+    openLink("/acme/eng/documents/D1", CURRENT_SLUG, APP_ORIGIN, "push", navigate, null);
+    expect(navigated.map((n) => n.path)).toEqual(["/acme/eng/documents/D1", "/acme/eng/documents/D1"]);
+  });
+
+  it("never tags an external link, even one shaped like a document path", () => {
+    openLink("https://evil.example/acme/eng/documents/D1", CURRENT_SLUG, APP_ORIGIN, "push", navigate, taskCtx);
+    expect(navigated).toEqual([]);
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://evil.example/acme/eng/documents/D1",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it("leaves non-document internal links untouched", () => {
+    openLink("/acme/eng/tasks/UNI-0", CURRENT_SLUG, APP_ORIGIN, "push", navigate, taskCtx);
+    openLink("/acme/eng/documents", CURRENT_SLUG, APP_ORIGIN, "push", navigate, taskCtx);
+    openLink("/acme/eng/documents/D1/extra", CURRENT_SLUG, APP_ORIGIN, "push", navigate, taskCtx);
+    expect(navigated.map((n) => n.path)).toEqual([
+      "/acme/eng/tasks/UNI-0",
+      "/acme/eng/documents",
+      "/acme/eng/documents/D1/extra",
+    ]);
+  });
+
+  it("keeps a from the link already carries", () => {
+    openLink("/acme/eng/documents/D1?from=task:OLD", CURRENT_SLUG, APP_ORIGIN, "push", navigate, taskCtx);
+    expect(navigated[0]?.path).toBe("/acme/eng/documents/D1?from=task:OLD");
+  });
+
+  it("encodes an id that is not URL-safe and tags a meeting context the same way", () => {
+    openLink("/acme/eng/documents/D1", CURRENT_SLUG, APP_ORIGIN, "push", navigate, { kind: "meeting", id: "a b" });
+    expect(navigated[0]?.path).toBe("/acme/eng/documents/D1?from=meeting:a%20b");
   });
 });

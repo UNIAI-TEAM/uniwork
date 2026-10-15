@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
@@ -6,7 +6,7 @@ import type { DocumentAdminScopeFake } from "@uniwork/core/documents/doc05-fake"
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
-import { requestMock, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsFill, HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
@@ -71,12 +71,16 @@ function documentFixture(over: Record<string, unknown> = {}): Document {
   );
 }
 
-function renderMenu(doc: Document & DocumentAdminScopeFake = documentFixture(), over: { onArchived?: () => void } = {}) {
+function renderMenu(
+  doc: Document & DocumentAdminScopeFake = documentFixture(),
+  over: { onArchived?: () => void; nav?: ReturnType<typeof fakeNav> } = {},
+) {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
         <DocumentActionsMenu wsId={WS} doc={doc} onArchived={over.onArchived} />
       </WorkspaceProvider>,
+      over.nav,
     ),
   );
 }
@@ -248,3 +252,59 @@ describe("DocumentActionsMenu", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.copy") })).toBeNull();
   });
 });
+
+describe("DocumentActionsMenu ?access=requests (DOC7-W02)", () => {
+  const URL = "/acme/team/documents/d1?access=requests";
+  const request = {
+    id: "r1",
+    requester_id: "u3",
+    requester_name: "Chi",
+    requested_level: "view",
+    message: "",
+    source: null,
+    created_at: "2026-10-15T01:00:00Z",
+    expires_at: "2026-11-14T01:00:00Z",
+  };
+
+  beforeEach(() => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1/access-requests") return Promise.resolve({ requests: [request] });
+      if (path === "/api/v1/documents/d1/shares") {
+        return Promise.resolve({ my_level: "manage", acl_owner: null, shares: [], links: [] });
+      }
+      return Promise.resolve({});
+    });
+  });
+
+  it("opens Share at the requests section for a manager, focuses its heading, then drops the parameter", async () => {
+    const nav = fakeNav(URL);
+    renderMenu(documentFixture(), { nav });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    const heading = await within(dialog).findByRole("heading", {
+      name: t("documents.access_request.section_title", { count: 1 }),
+    });
+    await waitFor(() => expect(heading).toHaveFocus());
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1"));
+  });
+
+  it("opens for a break-glass admin (view + admin_scope)", async () => {
+    renderMenu({ ...documentFixture({ my_level: "view" }), admin_scope: true }, { nav: fakeNav(URL) });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    expect(await within(dialog).findByText("Chi")).toBeInTheDocument();
+  });
+
+  it("drops the parameter silently for someone who cannot administer", async () => {
+    const nav = fakeNav(URL);
+    renderMenu(documentFixture({ my_level: "edit" }), { nav });
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("drops the parameter without opening the dialog on an archived document", async () => {
+    const nav = fakeNav(URL);
+    renderMenu(documentFixture({ archived_at: "2026-09-27T03:00:00Z" }), { nav });
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
