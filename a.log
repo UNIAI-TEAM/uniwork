@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+df2fb7b0b677f298b1abdd8f68d2059843b4fb7d
+df2fb7b0 merge: fork main ea981e10a (G5-12 + G6-09c) into the G6-09a lane branch
+ea981e10 merge: G6-09c docs AI skill enforces Word protection (74c680866) into fork main (UNI-1374)
+74c68086 merge: fork main 0a622efed (web build stub hotfix for a0cffc387) into the lane branch
