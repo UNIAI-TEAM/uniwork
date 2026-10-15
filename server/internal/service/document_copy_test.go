@@ -198,3 +198,87 @@ func TestDocumentCopy(t *testing.T) {
 		})
 	})
 }
+
+// The half-copy cleanup of Save as a copy (G5-12): the desktop creates the
+// copy, commits the local bytes as version 2, and archives the copy when that
+// commit fails so server bytes never pass for "your version". The copy keeps
+// the source's ACL owner, so its creator often holds only edit; the archive
+// gate lets that creator trash the copy while it is still pristine, and
+// nobody else and nothing later.
+func TestDocumentCopyPristineArchive(t *testing.T) {
+	forEachDocStorageBackend(t, func(t *testing.T, env *docStorageEnv) {
+		ctx := context.Background()
+		member := human(env.tn.member)
+		aclOwner := human(env.tn.aclOwner)
+		creator := human(env.tn.creator)
+
+		// copyOf makes a workspace-visible source whose ACL owner is aclOwner
+		// and lets member copy it: member edits the copy, does not manage it.
+		copyOf := func(t *testing.T, name string) DocumentFileResult {
+			t.Helper()
+			src := env.createFile(t, aclOwner, name, []byte("# Nguon\n"))
+			copied, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{Consent: "copy", IdempotencyKey: util.NewID()})
+			mustf(t, err, "copy")
+			if copied.Access.Level != DocumentLevelEdit {
+				t.Fatalf("copier level on the copy = %s, want edit", copied.Access.Level)
+			}
+			return copied
+		}
+		archive := func(actor Actor, id string) error {
+			_, err := env.svc.ArchiveDocument(ctx, actor, id, ArchiveDocumentInput{IdempotencyKey: util.NewID()})
+			return err
+		}
+
+		t.Run("the creator archives a pristine copy", func(t *testing.T) {
+			copied := copyOf(t, "pristine.md")
+			if err := archive(member, copied.Document.ID); err != nil {
+				t.Fatalf("creator archive of a pristine copy = %v", err)
+			}
+			if d := env.doc(t, copied.Document.ID); !d.ArchivedAt.Valid || d.ArchivedBy.String != env.tn.member.ID {
+				t.Fatalf("copy after archive = archived %v by %q", d.ArchivedAt.Valid, d.ArchivedBy.String)
+			}
+			if n := env.countAudit(t, "document.archived", copied.Document.ID); n != 1 {
+				t.Fatalf("document.archived audit rows = %d, want 1", n)
+			}
+		})
+
+		t.Run("after a second version the manage gate holds", func(t *testing.T) {
+			copied := copyOf(t, "committed.md")
+			up := env.upload(t, member, copied.Document.ID, "committed.md", []byte("# Ban cua toi\n"))
+			_, err := env.commit(member, copied.Document.ID, up.UploadID, copied.Document.Revision, util.NewID())
+			mustf(t, err, "commit v2")
+			if err := archive(member, copied.Document.ID); !errors.Is(err, ErrForbidden) {
+				t.Fatalf("creator archive after v2 = %v, want ErrForbidden", err)
+			}
+		})
+
+		t.Run("another editor who did not create the copy is refused", func(t *testing.T) {
+			copied := copyOf(t, "other-editor.md")
+			if err := archive(creator, copied.Document.ID); !errors.Is(err, ErrForbidden) {
+				t.Fatalf("non-creator archive = %v, want ErrForbidden", err)
+			}
+		})
+
+		t.Run("a creator who lost edit on the copy is refused", func(t *testing.T) {
+			copied := copyOf(t, "lost-edit.md")
+			if _, err := env.f.pool.Exec(ctx,
+				`UPDATE documents SET visibility = 'restricted' WHERE id = $1`, copied.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := archive(member, copied.Document.ID); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("archive without edit = %v, want ErrNotFound", err)
+			}
+		})
+
+		t.Run("a converted copy keeps the manage gate", func(t *testing.T) {
+			copied := copyOf(t, "converted.md")
+			if _, err := env.f.pool.Exec(ctx,
+				`UPDATE documents SET conversion_reason = 'convert' WHERE id = $1`, copied.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := archive(member, copied.Document.ID); !errors.Is(err, ErrForbidden) {
+				t.Fatalf("archive of a converted copy = %v, want ErrForbidden", err)
+			}
+		})
+	})
+}
