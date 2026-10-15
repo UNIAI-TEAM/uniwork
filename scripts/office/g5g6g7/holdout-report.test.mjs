@@ -539,6 +539,17 @@ describe('measurement conditions (G712-3, G712-5, G712-8, G712-9)', () => {
     assert.equal(summarizeRun(run(1, flagged)).redactedAsks, 1);
   });
 
+  it('keeps the verdict when only base64_run / hex_run were redacted, and still blocks on a key (G712-26)', () => {
+    const softKinds = [{ kind: 'base64_run', count: 1 }, { kind: 'hex_run', count: 2 }];
+    const soft = bigSuite((a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, redactions: softKinds } : a));
+    const o = judge([run(1, soft, { redactions: [{ ask: 'HO-B-001/vi', kinds: softKinds }] }), run(2, bigSuite()), run(3, bigSuite())]);
+    assert.equal(o.status, 'PASS', o.blockers.join(' | '));
+    assert.equal(summarizeRun(run(1, soft)).redactedAsks, 1, 'the hit stays listed in the run');
+    const keyKinds = [{ kind: 'base64_run', count: 1 }, { kind: 'key', count: 1 }];
+    const key = bigSuite((a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, redactions: keyKinds } : a));
+    inconclusive([run(1, key, { redactions: [{ ask: 'HO-B-001/vi', kinds: keyKinds }] }), run(2, bigSuite()), run(3, bigSuite())], /redacted in run\(s\) 1; a flagged run cannot count as a pass/);
+  });
+
   it('prints every condition problem even without a signed file, and no verdict word', () => {
     const runs = make(cfg({ anchors: 'lenient' }), { tuple: { ...TUPLE, providers: ['fake'] } });
     const md = renderReport(buildReport(runs, { session: makeSession(runs) }));

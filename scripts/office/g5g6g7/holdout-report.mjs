@@ -380,6 +380,8 @@ export function checkRunSet(runs, session = null) {
 
 /** Facts and problems about HOW the runs were measured; a problem blocks a signed verdict. */
 // Without a recorded module list (an older run file) an ask's modules follow its group; a cross ask can use any module.
+// Redaction kinds whose shape can be a harmless string (a long identifier): listed in the run, never void it (G712-26).
+const SOFT_REDACTION_KINDS = new Set(['base64_run', 'hex_run']);
 const MODULE_GROUP = { sheets: 'xlsx', docs: 'docx', slides: 'other', pdf: 'other', markdown: 'other', html: 'other' };
 const modulesOfAsk = (ask) => ask.modules ?? (ask.group === 'cross' ? Object.keys(MODULE_GROUP) : Object.keys(MODULE_GROUP).filter((m) => MODULE_GROUP[m] === ask.group));
 
@@ -433,7 +435,9 @@ export function measurementConditions(runs, summaries) {
   else {
     nameOnly = Object.entries(surface).filter(([, v]) => v.source === 'name-only').map(([m]) => m);
   }
-  const flagged = runs.filter((r) => (r.redactions ?? []).length > 0 || r.asks.some((a) => (a.redactions ?? []).length > 0));
+  // base64_run / hex_run may be false positives (a long identifier); they stay listed in the run's `redactions` but do not void it (G712-26).
+  const voids = (hits) => (hits ?? []).some((h) => !SOFT_REDACTION_KINDS.has(h.kind));
+  const flagged = runs.filter((r) => (r.redactions ?? []).some((x) => voids(x.kinds)) || r.asks.some((a) => voids(a.redactions)));
   if (flagged.length > 0) problems.push(`secret-looking values were redacted in run(s) ${flagged.map((r) => r.runIndex).join(', ')}; a flagged run cannot count as a pass`);
   const nameOnlyText = nameOnlyGroups(runs, nameOnly).length > 0 ? `the tool surface of module(s) ${nameOnly.join(', ')} is name-only (no real schemas): the criteria its cases feed (${nameOnlyGroups(runs, nameOnly).join(', ')}) cannot be judged` : null;
   return { problems: [...scoped.all, ...scoped.latency, ...(nameOnlyText ? [nameOnlyText] : [])], scoped: { ...scoped, nameOnly: { modules: nameOnly, groups: nameOnlyGroups(runs, nameOnly), text: nameOnlyText } }, footerSha256: footer, policy: { threads: c.threads, numbers: c.numbers ?? 'strict', anchors: c.anchors ?? 'strict', computeByReply: c.computeByReply, maxRetries: c.maxRetries, answerProtocol: c.answerProtocol }, toolSurface: surface ?? null, harness: c.harness ?? null };

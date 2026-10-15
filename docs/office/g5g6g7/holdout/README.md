@@ -167,7 +167,9 @@ Runner **đọc ca lúc chạy** từ `cases/`; không câu hỏi, đáp án hay
 model có thể lặp lại giá trị tham chiếu, file kết quả mặc định nằm **ngoài repo** (`~/office-g5g6g7/reports/g6-ai_server/g712-runs/`);
 runner từ chối `--out` trong repo (kể cả khi đi qua symlink; báo cáo cũng vậy), và **che** (`[redacted:<loại>]`) mọi giá trị trông
 như bí mật ngay trong từng lượt hỏi thay vì bỏ cả lần chạy: lần chạy vẫn được ghi và đếm, nhưng bị đánh dấu `redactions` và
-không thể là kết luận đạt. Một lần gọi runner ghi **một thư mục phiên** `<out>/<sessionId>/` gồm `run-NN.json` và `manifest.json`
+không thể là kết luận đạt. Ngoại lệ: loại `base64_run` / `hex_run` (chuỗi dài trông như mã hóa, có thể chỉ là một định danh dài) vẫn được
+liệt kê trong `redactions` để người đọc xem, nhưng không làm mất hiệu lực lần chạy; các loại khoá, token, userinfo, host:port, IPv4
+vẫn làm mất hiệu lực. Đường dẫn, định danh CamelCase và số có dấu chấm một chữ số đầu (`2.100.100.100`) không bị coi là bí mật. Một lần gọi runner ghi **một thư mục phiên** `<out>/<sessionId>/` gồm `run-NN.json` và `manifest.json`
 (mã phiên, hash bộ ca, sha256 của từng file run); báo cáo chỉ tính đúng các lần chạy mà manifest liệt kê.
 
 ### Chạy trên bản giả (không cần model thật)
