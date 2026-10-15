@@ -26,7 +26,7 @@ import {
   SettingsValue,
 } from "./settings-layout";
 import { useAutoSave } from "./use-auto-save";
-import { WorkspaceIconField } from "./workspace-icon-field";
+import { WORKSPACE_ICON_TILE, WorkspaceIconField } from "./workspace-icon-field";
 import { WorkspaceSlugDialog } from "./workspace-slug-dialog";
 import { WorkspaceTaskPrefixDialog } from "./workspace-task-prefix-dialog";
 
@@ -43,6 +43,8 @@ function descriptionsEqual(left: string, right: string) {
 const MAX_NAME_LENGTH = 100;
 /** Mirrors maxWorkspaceDescriptionRunes in server/internal/service/workspace.go. */
 const MAX_DESCRIPTION_LENGTH = 500;
+// The counter appears only when the limit is close enough to matter.
+const COUNTER_FROM = 400;
 
 /** One indicator for the tab's autosaved fields: the busiest state wins. */
 function combinedStatus(...all: SettingsSaveStatus[]): SettingsSaveStatus {
@@ -172,10 +174,7 @@ export function WorkspaceTab() {
           {canEdit ? (
             <WorkspaceIconField workspace={workspace} />
           ) : (
-            <WorkspaceIcon
-              workspace={workspace}
-              className="size-10 rounded-lg bg-primary text-title font-semibold text-primary-foreground sm:ml-auto"
-            />
+            <WorkspaceIcon workspace={workspace} className={`${WORKSPACE_ICON_TILE} sm:ml-auto`} />
           )}
         </SettingsRow>
         <SettingsRow
@@ -225,9 +224,11 @@ export function WorkspaceTab() {
                 onChange={(e) => setDescription(e.target.value)}
                 onBlur={() => descriptionSave.flush()}
               />
-              <p className="text-right text-caption tabular-nums text-muted-foreground">
-                {t("workspace.about_count", { used: description.length, max: MAX_DESCRIPTION_LENGTH })}
-              </p>
+              {description.length >= COUNTER_FROM ? (
+                <p className="text-right text-caption tabular-nums text-muted-foreground">
+                  {t("workspace.about_count", { used: description.length, max: MAX_DESCRIPTION_LENGTH })}
+                </p>
+              ) : null}
             </div>
           ) : (
             <SettingsValue className="overflow-visible whitespace-pre-wrap text-clip break-words">
@@ -237,7 +238,8 @@ export function WorkspaceTab() {
         </SettingsRow>
         <SettingsRow label={t("workspace.url")} description={t("workspace.url_hint")} size="none">
           <div className="flex min-w-0 items-center gap-2 sm:justify-end">
-            <SettingsValue className="min-w-0 font-mono text-caption">{url}</SettingsValue>
+            {/* The path reads at a glance; Copy still hands over the full link. */}
+            <SettingsValue className="min-w-0 font-mono text-caption">{path}</SettingsValue>
             <Button
               type="button"
               variant="ghost"
