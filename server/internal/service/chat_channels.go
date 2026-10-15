@@ -46,7 +46,6 @@ type UpdateChannelInput struct {
 type ListChannelsInput struct {
 	Scope     string // mine | discoverable
 	ProjectID string
-	Query     string
 }
 
 func errChatChannelNameInvalid() error {
@@ -176,13 +175,12 @@ func (s *ChatService) ListChannels(ctx context.Context, userID, workspaceID stri
 		scope = "mine"
 	}
 	proj := optionalText(strings.TrimSpace(in.ProjectID))
-	q := optionalText(strings.TrimSpace(in.Query))
 	ws := pgtype.Text{String: workspaceID, Valid: true}
 
 	switch scope {
 	case "mine":
 		rows, err := s.q.ListChatChannelsMine(ctx, db.ListChatChannelsMineParams{
-			UserID: userID, WorkspaceID: ws, ProjectID: proj, SearchQ: q,
+			UserID: userID, WorkspaceID: ws, ProjectID: proj,
 		})
 		if err != nil {
 			return nil, err
@@ -194,7 +192,7 @@ func (s *ChatService) ListChannels(ctx context.Context, userID, workspaceID stri
 		return out, nil
 	case "discoverable":
 		rows, err := s.q.ListChatChannelsDiscoverable(ctx, db.ListChatChannelsDiscoverableParams{
-			WorkspaceID: ws, UserID: userID, ProjectID: proj, SearchQ: q,
+			WorkspaceID: ws, UserID: userID, ProjectID: proj,
 		})
 		if err != nil {
 			return nil, err

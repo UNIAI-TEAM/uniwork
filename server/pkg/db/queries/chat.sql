@@ -519,11 +519,6 @@ WHERE r.workspace_id = sqlc.arg(workspace_id)
   AND r.archived_at IS NULL
   AND mem.status IN ('invited', 'active')
   AND (sqlc.narg(project_id)::text IS NULL OR r.project_id = sqlc.narg(project_id))
-  AND (
-    sqlc.narg(search_q)::text IS NULL
-    OR r.name ILIKE '%' || sqlc.narg(search_q) || '%'
-    OR r.topic ILIKE '%' || sqlc.narg(search_q) || '%'
-  )
 ORDER BY r.is_default DESC, COALESCE(last_msg.created_at, r.updated_at) DESC;
 
 -- name: ListChatChannelsDiscoverable :many
@@ -556,11 +551,6 @@ WHERE r.workspace_id = sqlc.arg(workspace_id)
       AND mem.status IN ('invited', 'active')
   )
   AND (sqlc.narg(project_id)::text IS NULL OR r.project_id = sqlc.narg(project_id))
-  AND (
-    sqlc.narg(search_q)::text IS NULL
-    OR r.name ILIKE '%' || sqlc.narg(search_q) || '%'
-    OR r.topic ILIKE '%' || sqlc.narg(search_q) || '%'
-  )
 ORDER BY r.name ASC;
 
 -- name: ListChatChannelsByProject :many

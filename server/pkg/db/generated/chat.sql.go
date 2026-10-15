@@ -1161,11 +1161,6 @@ WHERE r.workspace_id = $1
       AND mem.status IN ('invited', 'active')
   )
   AND ($3::text IS NULL OR r.project_id = $3)
-  AND (
-    $4::text IS NULL
-    OR r.name ILIKE '%' || $4 || '%'
-    OR r.topic ILIKE '%' || $4 || '%'
-  )
 ORDER BY r.name ASC
 `
 
@@ -1173,7 +1168,6 @@ type ListChatChannelsDiscoverableParams struct {
 	WorkspaceID pgtype.Text `json:"workspace_id"`
 	UserID      string      `json:"user_id"`
 	ProjectID   pgtype.Text `json:"project_id"`
-	SearchQ     pgtype.Text `json:"search_q"`
 }
 
 type ListChatChannelsDiscoverableRow struct {
@@ -1196,12 +1190,7 @@ type ListChatChannelsDiscoverableRow struct {
 }
 
 func (q *Queries) ListChatChannelsDiscoverable(ctx context.Context, arg ListChatChannelsDiscoverableParams) ([]ListChatChannelsDiscoverableRow, error) {
-	rows, err := q.db.Query(ctx, listChatChannelsDiscoverable,
-		arg.WorkspaceID,
-		arg.UserID,
-		arg.ProjectID,
-		arg.SearchQ,
-	)
+	rows, err := q.db.Query(ctx, listChatChannelsDiscoverable, arg.WorkspaceID, arg.UserID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -1315,11 +1304,6 @@ WHERE r.workspace_id = $2
   AND r.archived_at IS NULL
   AND mem.status IN ('invited', 'active')
   AND ($3::text IS NULL OR r.project_id = $3)
-  AND (
-    $4::text IS NULL
-    OR r.name ILIKE '%' || $4 || '%'
-    OR r.topic ILIKE '%' || $4 || '%'
-  )
 ORDER BY r.is_default DESC, COALESCE(last_msg.created_at, r.updated_at) DESC
 `
 
@@ -1327,7 +1311,6 @@ type ListChatChannelsMineParams struct {
 	UserID      string      `json:"user_id"`
 	WorkspaceID pgtype.Text `json:"workspace_id"`
 	ProjectID   pgtype.Text `json:"project_id"`
-	SearchQ     pgtype.Text `json:"search_q"`
 }
 
 type ListChatChannelsMineRow struct {
@@ -1354,12 +1337,7 @@ type ListChatChannelsMineRow struct {
 }
 
 func (q *Queries) ListChatChannelsMine(ctx context.Context, arg ListChatChannelsMineParams) ([]ListChatChannelsMineRow, error) {
-	rows, err := q.db.Query(ctx, listChatChannelsMine,
-		arg.UserID,
-		arg.WorkspaceID,
-		arg.ProjectID,
-		arg.SearchQ,
-	)
+	rows, err := q.db.Query(ctx, listChatChannelsMine, arg.UserID, arg.WorkspaceID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
