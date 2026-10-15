@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HandHelping, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -31,6 +31,10 @@ export function EditRequestPrompt({ requesterName, onAccept, onDecline, onDismis
     if (focusOnMount) ref.current?.focus();
   }, [focusOnMount]);
   const title = t("documents.editLock.incomingTitle", { name: requesterName || t("documents.editLock.lostSomeone") });
+  // A live region mounted together with its text is not reliably announced: the region exists first,
+  // the sentence goes in on the next commit. The buttons stay outside it (a status region is re-read whole).
+  const [announced, setAnnounced] = useState("");
+  useEffect(() => setAnnounced(title), [title]);
   return (
     <section
       ref={ref}
@@ -43,6 +47,9 @@ export function EditRequestPrompt({ requesterName, onAccept, onDecline, onDismis
         <HandHelping aria-hidden className="mt-0.5 size-4 shrink-0" />
         <div className="min-w-0">
           <p className="text-body font-medium text-pretty">{title}</p>
+          <p role="status" aria-live="polite" className="sr-only">
+            {announced}
+          </p>
           {saveFailed ? (
             <p role="alert" className="mt-1 text-caption text-destructive">
               {t("documents.editLock.incomingSaveFailed")}
@@ -51,14 +58,14 @@ export function EditRequestPrompt({ requesterName, onAccept, onDecline, onDismis
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" disabled={pending} aria-busy={pending || undefined} onClick={onAccept}>
+        <Button type="button" size="sm" aria-disabled={pending || undefined} aria-busy={pending || undefined} onClick={onAccept}>
           {pending ? <Spinner data-icon="inline-start" /> : null}
           {t("documents.editLock.incomingAccept")}
         </Button>
-        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={onDecline}>
+        <Button type="button" size="sm" variant="outline" aria-disabled={pending || undefined} onClick={onDecline}>
           {t("documents.editLock.incomingDecline")}
         </Button>
-        <Button type="button" size="icon-sm" variant="ghost" disabled={pending} aria-label={t("common.close")} onClick={onDismiss}>
+        <Button type="button" size="icon-sm" variant="ghost" aria-disabled={pending || undefined} aria-label={t("common.close")} onClick={onDismiss}>
           <X aria-hidden />
         </Button>
       </div>

@@ -23,15 +23,17 @@ export interface DocumentEditLockBannerProps {
  * Why a document someone may edit is read-only right now, and the way on
  * (addendum §11.3): someone else is editing (take over / request), the same
  * person in another window (edit here), nobody any more (edit now), or the
- * request this user sent. One persistent polite status region: the sentence
- * inside changes, so each state is read once (a region mounted with its text
- * is not reliably announced).
+ * request this user sent. One persistent polite status region holds the
+ * sentence as text only (it changes, so each state is read once; a region
+ * mounted with its text is not reliably announced). The visible strip repeats
+ * it for sighted users, hidden from the accessibility tree, and the buttons
+ * sit outside the region so they are never re-read and keep focus.
  */
 export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRequest, onEditHere, onEditNow, pending = false }: DocumentEditLockBannerProps) {
   const { t, i18n } = useTranslation();
   const time = (iso: string | null | undefined) => formatLockTime(iso, i18n.language);
   const action = (label: string, run: () => void, variant: "default" | "outline" = "outline") => (
-    <Button key={label} type="button" size="sm" variant={variant} disabled={pending} aria-busy={pending || undefined} onClick={run}>
+    <Button key={label} type="button" size="sm" variant={variant} aria-disabled={pending || undefined} aria-busy={pending || undefined} onClick={run}>
       {label}
     </Button>
   );
@@ -93,10 +95,13 @@ export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRe
   }
 
   return (
-    <div role="status" aria-live="polite" data-testid="edit-lock-banner" data-state={view.kind}>
+    <div data-testid="edit-lock-banner" data-state={view.kind}>
+      <div role="status" aria-live="polite" className="sr-only" data-testid="edit-lock-banner-status">
+        {body}
+      </div>
       {body !== null ? (
         <Notice tone={tone} icon={icon} live="off" action={actions.length ? <div className="flex flex-wrap gap-2">{actions}</div> : undefined}>
-          {body}
+          <span aria-hidden="true">{body}</span>
         </Notice>
       ) : null}
     </div>

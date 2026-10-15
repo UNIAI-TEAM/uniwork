@@ -17,6 +17,7 @@ export function DocumentLeaveDialog({
   open,
   pending,
   caption,
+  failed = false,
   onStay,
   onDiscard,
   onSaveAndLeave,
@@ -26,6 +27,8 @@ export function DocumentLeaveDialog({
   pending: boolean;
   /** One line: the wait, the failure, or the plain unsaved remark. */
   caption: string;
+  /** The caption reports a failed save: announced assertively. */
+  failed?: boolean;
   onStay: () => void;
   onDiscard: () => void;
   onSaveAndLeave: () => void;
@@ -38,18 +41,21 @@ export function DocumentLeaveDialog({
           <DialogTitle>{t("documents.leave.title")}</DialogTitle>
           <DialogDescription>{t("documents.leave.description")}</DialogDescription>
         </DialogHeader>
-        <div className="flex items-center gap-2 text-caption text-muted-foreground">
+        <div
+          role={failed ? "alert" : "status"}
+          className={failed ? "flex items-center gap-2 text-caption text-destructive" : "flex items-center gap-2 text-caption text-muted-foreground"}
+        >
           <FileExclamationPoint aria-hidden className="size-4" />
           {caption}
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={pending} onClick={onStay}>
+          <Button type="button" variant="outline" aria-disabled={pending || undefined} onClick={onStay}>
             {t("documents.leave.stay")}
           </Button>
-          <Button type="button" variant="ghost" disabled={pending} onClick={onDiscard}>
+          <Button type="button" variant="ghost" aria-disabled={pending || undefined} onClick={onDiscard}>
             {t("documents.leave.discard")}
           </Button>
-          <Button type="button" disabled={pending} aria-busy={pending || undefined} onClick={onSaveAndLeave}>
+          <Button type="button" aria-disabled={pending || undefined} aria-busy={pending || undefined} onClick={onSaveAndLeave}>
             {pending ? t("documents.leave.waiting") : t("documents.leave.save_and_leave")}
           </Button>
         </DialogFooter>

@@ -67,7 +67,7 @@ describe("DocumentWorkspace edit lock", () => {
     expect(editor).toHaveTextContent("Nội dung A");
     expect(editor).toHaveAttribute("contenteditable", "false");
     expect(screen.queryByText(t("documents.save.readonly"))).toBeNull();
-    expect(screen.getByTestId("edit-lock-banner")).toBeEmptyDOMElement();
+    expect(screen.getByTestId("edit-lock-banner-status")).toBeEmptyDOMElement();
   });
 
   it("holding the lock: editable, and autosave sends edit_lock_id", async () => {
@@ -96,7 +96,7 @@ describe("DocumentWorkspace edit lock", () => {
     await waitFor(() => expect(banner).toHaveTextContent("An đang sửa từ"));
     expect(editor).toHaveAttribute("contenteditable", "false");
     expect(screen.getByRole("img", { name: "An đang sửa" })).toBeTruthy();
-    fireEvent.click(within(banner).getByRole("button", { name: "Yêu cầu quyền sửa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yêu cầu quyền sửa" }));
     await waitFor(() => expect(editLockRoute.mock.calls.some(([path, opts]) => String(path).endsWith("/edit-requests") && opts?.method === "POST")).toBe(true));
     expect(requestMock.mock.calls.some(([, opts]) => (opts as { method?: string } | undefined)?.method === "PATCH")).toBe(false);
   });
@@ -156,11 +156,11 @@ describe("DocumentWorkspace edit lock", () => {
     const banner = screen.getByTestId("edit-lock-banner");
     await waitFor(() => expect(banner).toHaveTextContent("Không còn ai sửa tài liệu này."));
     expect(editor).toHaveAttribute("contenteditable", "false");
-    fireEvent.click(within(banner).getByRole("button", { name: "Sửa ngay" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sửa ngay" }));
     await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "true"));
     expect(refetch).toHaveBeenCalled();
     expect(lockCalls("POST")).toHaveLength(2);
-    await waitFor(() => expect(banner).toBeEmptyDOMElement());
+    await waitFor(() => expect(screen.getByTestId("edit-lock-banner-status")).toBeEmptyDOMElement());
   });
 
   it("read-only -> mine (a take-over): rereads the document and adopts it before turning editable", async () => {
@@ -178,7 +178,7 @@ describe("DocumentWorkspace edit lock", () => {
     const banner = screen.getByTestId("edit-lock-banner");
     await waitFor(() => expect(banner).toHaveTextContent("An đang sửa từ"));
     expect(editor).toHaveTextContent("Nội dung A");
-    fireEvent.click(within(banner).getByRole("button", { name: "Lấy quyền sửa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lấy quyền sửa" }));
     const confirm = await screen.findByRole("alertdialog", { name: "Lấy quyền sửa từ An?" });
     fireEvent.click(within(confirm).getByRole("button", { name: "Vẫn lấy quyền sửa" }));
     await waitFor(() => expect(refetch).toHaveBeenCalled());
@@ -219,9 +219,9 @@ describe("DocumentWorkspace edit lock", () => {
     await findEditor();
     const banner = screen.getByTestId("edit-lock-banner");
     await waitFor(() => expect(banner).toHaveTextContent("An đang sửa từ"));
-    fireEvent.click(within(banner).getByRole("button", { name: "Yêu cầu quyền sửa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yêu cầu quyền sửa" }));
     // 601 s rounds up to 11 minutes; the request button goes away until then.
     await waitFor(() => expect(banner).toHaveTextContent("Bạn đã yêu cầu nhiều lần. Thử lại sau 11 phút."));
-    expect(within(banner).queryByRole("button", { name: "Yêu cầu quyền sửa" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Yêu cầu quyền sửa" })).toBeNull();
   });
 });

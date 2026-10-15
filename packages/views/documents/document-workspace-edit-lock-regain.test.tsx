@@ -93,7 +93,7 @@ describe("DocumentWorkspace edit lock: regaining after a 423", () => {
     // Past the quiet window: a kept draft must not go out while the lock is gone (nor mark the new lock lost later).
     await new Promise((resolve) => setTimeout(resolve, 2_600));
 
-    fireEvent.click(within(screen.getByTestId("edit-lock-banner")).getByRole("button", { name: "Sửa ở đây" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sửa ở đây" }));
     await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "true"));
     // The regained lock stays held, and the kept draft goes out under the NEW id.
     await waitFor(() => expect(patches.at(-1)).toMatchObject({ edit_lock_id: "lock-new" }), { timeout: 8_000 });

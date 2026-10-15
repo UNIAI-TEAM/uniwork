@@ -597,6 +597,7 @@ export function DocumentWorkspace({
       />
 
       <DocumentLeaveDialog open={leaveOpen} pending={leavePending} caption={leaveCaption}
+        failed={!leavePending && (state.phase === "unverifiable" || state.phase === "error" || metadataStatus.failed)}
         onStay={() => finishLeave(false)} onDiscard={() => finishLeave(true)} onSaveAndLeave={saveThenLeave} />
       <TakeOverDialog {...editLock.takeOverDialog} />
       <DocumentLockLostDialog {...editLock.lostDialog} />

@@ -34,7 +34,7 @@ function renderBanner(input: Partial<EditLockViewInput> & { session: Session }) 
   const handlers = { onTakeOver: vi.fn(), onRequest: vi.fn(), onCancelRequest: vi.fn(), onEditHere: vi.fn(), onEditNow: vi.fn() };
   const view = editLockBannerView({ lockState: undefined, showLost: false, notReleased: false, rateLimitedMinutes: null, ...input });
   render(<DocumentEditLockBanner view={view} {...handlers} />);
-  return { ...handlers, view, region: screen.getByTestId("edit-lock-banner") };
+  return { ...handlers, view, region: screen.getByTestId("edit-lock-banner-status") };
 }
 
 describe("DocumentEditLockBanner (addendum §11.3)", () => {
@@ -155,5 +155,46 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
   it("incoming request whose save failed: says nothing was handed over", () => {
     render(<EditRequestPrompt requesterName="Bình" onAccept={vi.fn()} onDecline={vi.fn()} onDismiss={vi.fn()} saveFailed />);
     expect(screen.getByRole("alert")).toHaveTextContent("Chưa lưu được nên chưa nhường quyền. Thử lại.");
+  });
+
+  // CFE-1-14: the live region holds the sentence only; the actions sit outside it and stay focusable while an action runs.
+  it("the polite status region carries text only: no button inside it", () => {
+    const { region } = renderBanner({ session: session("other"), lockState: r1() });
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toHaveAttribute("aria-live", "polite");
+    expect(region).toHaveTextContent("An đang sửa từ");
+    expect(region.querySelector("button")).toBeNull();
+    expect(screen.getByRole("button", { name: "Yêu cầu quyền sửa" })).toBeTruthy();
+  });
+
+  it("while an action is pending the buttons are aria-disabled (still focusable) and do nothing", () => {
+    const handlers = { onTakeOver: vi.fn(), onRequest: vi.fn(), onCancelRequest: vi.fn(), onEditHere: vi.fn(), onEditNow: vi.fn() };
+    const view = editLockBannerView({ session: session("other"), lockState: r1(), showLost: false, notReleased: false, rateLimitedMinutes: null });
+    render(<DocumentEditLockBanner view={view} {...handlers} pending />);
+    const button = screen.getByRole("button", { name: "Yêu cầu quyền sửa" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    button.focus();
+    expect(button).toHaveFocus();
+    fireEvent.click(button);
+    expect(handlers.onRequest).not.toHaveBeenCalled();
+  });
+
+  it("the holder's request prompt announces itself politely, text only, buttons outside", () => {
+    render(<EditRequestPrompt requesterName="Bình" onAccept={vi.fn()} onDecline={vi.fn()} onDismiss={vi.fn()} />);
+    const live = screen.getByRole("status");
+    expect(live).toHaveAttribute("aria-live", "polite");
+    expect(live).toHaveTextContent("Bình muốn sửa tài liệu này");
+    expect(live.querySelector("button")).toBeNull();
+  });
+
+  it("the prompt's buttons are aria-disabled while the answer is pending", () => {
+    const onDecline = vi.fn();
+    render(<EditRequestPrompt requesterName="Bình" onAccept={vi.fn()} onDecline={onDecline} onDismiss={vi.fn()} pending />);
+    const decline = screen.getByRole("button", { name: "Từ chối" });
+    expect(decline).toHaveAttribute("aria-disabled", "true");
+    expect(decline).not.toBeDisabled();
+    fireEvent.click(decline);
+    expect(onDecline).not.toHaveBeenCalled();
   });
 });
