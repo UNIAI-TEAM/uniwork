@@ -42,12 +42,17 @@ export function exitCodeFor(status) {
 
 /**
  * The row status from its steps: any FAIL -> FAIL; else any BLOCKED -> BLOCKED
- * with the blockers joined; else PASS; no steps -> FAIL.
+ * with the blockers joined; else PASS; no steps -> FAIL. A NOT_JUDGED step whose
+ * `cascadeFrom` names a failing step adds no reason; any other NOT_JUDGED is a FAIL.
  */
 export function decideFromSteps(steps = {}) {
   const entries = Object.entries(steps ?? {});
   if (entries.length === 0) return { status: "FAIL", reason: "no steps ran" };
-  const failed = entries.filter(([, s]) => s?.status !== "PASS" && s?.status !== "BLOCKED");
+  const failing = (s) => s?.status !== "PASS" && s?.status !== "BLOCKED" && s?.status !== "NOT_JUDGED";
+  // NOT_JUDGED: an earlier failing check removed this one's precondition; it adds no reason of its own,
+  // and one whose named source did not fail is a FAIL (never PASS or BLOCKED)
+  const cascaded = (s) => s?.status === "NOT_JUDGED" && Boolean(s.cascadeFrom && steps[s.cascadeFrom]) && failing(steps[s.cascadeFrom]);
+  const failed = entries.filter(([, s]) => failing(s) || (s?.status === "NOT_JUDGED" && !cascaded(s)));
   if (failed.length > 0) {
     return { status: "FAIL", reason: failed.map(([name, s]) => `${name}: ${s?.reason || s?.status || "no status"}`).join("; ") };
   }
