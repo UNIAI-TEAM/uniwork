@@ -349,11 +349,11 @@ const count = z.number().int().nonnegative();
 
 export const DocumentArchiveImpactSchema = z
   .object({
-    folders: count.optional(),
-    documents: count.optional(),
-    total: count.optional(),
-    max_nodes: count,
-    too_large: z.boolean().optional().default(false),
+      folders: count.optional(),
+      documents: count.optional(),
+      total: count.optional(),
+      max_nodes: count,
+      too_large: z.boolean().optional().default(false),
   })
   .transform((raw, ctx): DocumentArchiveImpact => {
     if (raw.too_large) return { too_large: true, max_nodes: raw.max_nodes };
@@ -428,8 +428,10 @@ export const DocumentLinkSchema = z.object({
 export type DocumentLink = z.infer<typeof DocumentLinkSchema>;
 
 /** The access overview: my level always; grants/links/acl-owner/break-glass at manage or admin scope. */
-export const DocumentAccessSchema = z.object({
-  my_level: z.string().optional().default(""),
+export const DocumentAccessSchema = z
+  .object({
+  my_level: z.string().optional(),
+  admin_scope: z.boolean().optional().catch(undefined),
   via: z.string().optional().default(""),
   acl_owner: DocumentPersonAccessSchema.nullable().optional(),
   shares: z.array(DocumentShareSchema).optional(),
@@ -447,7 +449,12 @@ export const DocumentAccessSchema = z.object({
       }
       return grants;
     }),
-});
+  })
+  // The level is how a real answer is told from a malformed one. It may be
+  // empty (an admin-only caller holds no level), but the key must be there
+  // unless the server says admin_scope; anything else degrades to null.
+  .refine((v) => v.my_level !== undefined || v.admin_scope === true)
+  .transform((v) => ({ ...v, my_level: v.my_level ?? "" }));
 export type DocumentAccess = Omit<z.infer<typeof DocumentAccessSchema>, "my_level" | "via"> & {
   my_level: DocumentAccessLevel;
   via: DocumentAccessVia;

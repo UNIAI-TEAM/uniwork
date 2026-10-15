@@ -8463,6 +8463,7 @@
       "via_link": "public link",
       "via_ai_context": "AI context",
       "level_view": "View",
+      "level_comment": "Comment",
       "level_edit": "Edit",
       "level_manage": "Manage",
       "inactive": "No longer effective",
@@ -8712,7 +8713,11 @@
       "ownerLabel": "Owner: {{owner}}",
       "updatedLabel": "Updated {{time}}",
       "submitFailed": "Could not open emergency access. Try again.",
-      "endAccessFailed": "Could not end emergency access. Try again."
+      "endAccessFailed": "Could not end emergency access. Try again.",
+      "ownerFallback": "a workspace member",
+      "grantedPending": "Emergency access was granted, but the document hasn't opened yet. Try again in a moment.",
+      "revokeFailed": "Could not revoke this emergency access. Try again.",
+      "noActiveGrants": "No one has emergency access right now."
     },
     "home": {
       "create_failed": "Could not create the document. Try again.",

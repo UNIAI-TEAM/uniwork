@@ -8458,6 +8458,7 @@
       "via_link": "liên kết công khai",
       "via_ai_context": "ngữ cảnh AI",
       "level_view": "Xem",
+      "level_comment": "Bình luận",
       "level_edit": "Sửa",
       "level_manage": "Quản lý",
       "inactive": "Không còn hiệu lực",
@@ -8707,7 +8708,11 @@
       "ownerLabel": "Chủ sở hữu: {{owner}}",
       "updatedLabel": "Cập nhật {{time}}",
       "submitFailed": "Không mở được truy cập khẩn cấp. Thử lại.",
-      "endAccessFailed": "Không kết thúc được truy cập khẩn cấp. Thử lại."
+      "endAccessFailed": "Không kết thúc được truy cập khẩn cấp. Thử lại.",
+      "ownerFallback": "một thành viên workspace",
+      "grantedPending": "Đã cấp truy cập khẩn cấp nhưng tài liệu chưa mở được. Thử lại sau giây lát.",
+      "revokeFailed": "Không thu hồi được truy cập khẩn cấp này. Thử lại.",
+      "noActiveGrants": "Hiện chưa ai có truy cập khẩn cấp."
     },
     "home": {
       "create_failed": "Không thể tạo tài liệu. Thử lại.",

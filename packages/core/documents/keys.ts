@@ -48,6 +48,9 @@ export const documentKeys = {
     [...documentKeys.workspace(wsId), "archive-impact", documentId] as const,
   shares: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "shares"] as const,
+  /** Metadata-only summary an admin-only caller reads (DOC-05); under detail so a detail invalidation refreshes it. */
+  adminSummary: (wsId: string, documentId: string) =>
+    [...documentKeys.detail(wsId, documentId), "admin-summary"] as const,
   accessLogs: (wsId: string, documentId: string, action: string = "") =>
     [...documentKeys.detail(wsId, documentId), "access-logs", action] as const,
   settings: (orgId: string) => [...documentKeys.all, "settings", orgId] as const,

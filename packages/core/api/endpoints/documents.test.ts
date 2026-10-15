@@ -686,7 +686,6 @@ describe("documents endpoints", () => {
       kind: "document_restricted",
       code: "document_restricted",
       canBreakGlass: true,
-      can_break_glass: true,
       status: 403,
       message: "restricted",
     });
@@ -702,7 +701,7 @@ describe("documents endpoints", () => {
       { can_break_glass: "true" },
       "permission",
     );
-    expect(parseDocumentAccessError(restrictedMalformed)?.canBreakGlass).toBe(false);
+    expect(parseDocumentAccessError(restrictedMalformed)).toMatchObject({ canBreakGlass: false });
     expect(canBreakGlassFromError(restrictedMalformed)).toBe(false);
 
     const selfShareRefused = new ApiError(
