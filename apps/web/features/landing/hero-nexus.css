@@ -67,9 +67,16 @@
 }
 @media (max-width: 767px) {
   .landing-site .landing-hero {
-    background-image: url("/landing/hero-backgrounds/ribbons-light-mobile.webp");
+    /* Show the complete mobile composition; soften the ribbon behind the header. */
+    background-image:
+      linear-gradient(to bottom, var(--background), transparent 160px),
+      url("/landing/hero-backgrounds/ribbons-light-mobile.webp");
+    background-size: 100% 100%;
+    background-position: center top;
   }
   .dark .landing-site .landing-hero {
-    background-image: url("/landing/hero-backgrounds/ribbons-dark-mobile.webp");
+    background-image:
+      linear-gradient(to bottom, var(--background), transparent 160px),
+      url("/landing/hero-backgrounds/ribbons-dark-mobile.webp");
   }
 }
