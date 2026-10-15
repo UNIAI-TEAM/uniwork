@@ -71,14 +71,16 @@ function fileForm(
   filename?: string,
 ): FormData {
   const form = new FormData();
+  // Text fields must precede "file": the server reads text fields only before
+  // the file part.
+  for (const [key, value] of Object.entries(fields ?? {})) {
+    if (value !== undefined) form.set(key, value);
+  }
   // A File carries its own name into the part; a bare Blob takes the name the
   // caller supplies. An unnamed part is sniffed by bytes alone, which turns a
   // markdown document into text/plain and fails the commit's format check.
   if (filename !== undefined) form.set("file", file, filename);
   else form.set("file", file);
-  for (const [key, value] of Object.entries(fields ?? {})) {
-    if (value !== undefined) form.set(key, value);
-  }
   return form;
 }
 

@@ -275,6 +275,114 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 	})
 }
 
+// documentArchiveImpactTx is the FD-04 test seam: it runs inside the impact
+// read transaction, after the subtree walk and before the bound check, the
+// manage gate and the count, so a test can read the transaction's own
+// isolation and access mode (SHOW transaction_isolation / transaction_read_only)
+// or commit a writer in between and pin that the numbers still describe the
+// one snapshot the walk opened. Never set in production.
+var documentArchiveImpactTx func(ctx context.Context, tx pgx.Tx)
+
+// DocumentArchiveImpact is what one ArchiveDocument of a subtree would move
+// (FD-04, addendum §3.4): the shape the delete dialog warns with.
+type DocumentArchiveImpact struct {
+	// Folders and Documents count the live subtree WITHOUT the root, by kind:
+	// a page inside a page counts as a document.
+	Folders   int
+	Documents int
+	// Total is the rows the archive would stamp, the root included.
+	Total int
+	// MaxNodes is the bound one archive accepts.
+	MaxNodes int
+	// TooLarge replaces the counts when the subtree passes the bound; the
+	// walk stopped after the bound, so no count is known and none is claimed.
+	TooLarge bool
+}
+
+// ArchiveImpact answers what ArchiveDocument would do to a subtree without
+// doing it. The checks run the archive command's own root gate (not found,
+// owned, then manage - the same order, so the read can never show counts for a
+// delete the command refuses), then the same bounded subtree walk, then the
+// same manage gate on every node of that id set, then the count. All three
+// steps after the root gate run in ONE REPEATABLE READ, read-only transaction:
+// under READ COMMITTED each statement takes its own snapshot, and the promise
+// that the ids, the access check and the numbers describe one moment would not
+// hold. Reading writes nothing - no audit row, no event.
+func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, documentID string) (DocumentArchiveImpact, error) {
+	if !validActor(actor) || documentID == "" {
+		return DocumentArchiveImpact{}, ErrNotFound
+	}
+	bound := s.archiveBound()
+	out := DocumentArchiveImpact{MaxNodes: bound}
+	// (1) the archive command's own root gate, in its order: an id the caller
+	// cannot see is not found, an owned root is refused with
+	// document_owned_by_work_product (so the dialog never shows counts for a
+	// delete the command refuses), and only then must manage be held.
+	doc, err := s.q.GetDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DocumentArchiveImpact{}, ErrNotFound
+	}
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	access, err := s.effectiveLevel(ctx, s.q, actor, doc)
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	if err := decideArchiveRootAccess(doc, access); err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	// (2) the same bounded walk as the archive command, one row past the
+	// bound: the walk stops early, so an oversized subtree is refused before
+	// any per-node work or count.
+	live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
+		MaxRows: int32(bound) + 1, MaxLevel: subtreeMaxLevel(),
+	})
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	if documentArchiveImpactTx != nil {
+		documentArchiveImpactTx(ctx, tx)
+	}
+	if len(live) > bound {
+		out.TooLarge = true
+		return out, nil
+	}
+	// The walk cannot sort (that would evaluate the whole CTE): sorting here
+	// keeps the gate's refusal order as stable as the command's.
+	sort.Strings(live)
+	// (3) the archive command's own gate on exactly this id set: one node the
+	// caller cannot manage refuses the whole read, and the body never carries
+	// a number.
+	if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	// (4) count on exactly that id set. page and file are both "documents" to
+	// the dialog; the root is counted only in the total.
+	rows, err := q.CountLiveDocumentSubtreeByKind(ctx, db.CountLiveDocumentSubtreeByKindParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, Ids: live, RootID: doc.ID,
+	})
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	for _, row := range rows {
+		if row.Kind == DocumentKindFolder {
+			out.Folders += int(row.N)
+			continue
+		}
+		out.Documents += int(row.N)
+	}
+	out.Total = out.Folders + out.Documents + 1
+	return out, nil
+}
+
 // RestoreDocument brings back exactly the batch the archive stamped. A node
 // whose parent stayed in the trash (or was purged) re-roots itself so it is
 // reachable again.
@@ -518,6 +626,25 @@ func (s *DocumentService) restoreNames(ctx context.Context, q *db.Queries, root 
 	return plan, nil
 }
 
+// decideArchiveRootAccess is the archive command's root decision, shared with
+// the archive-impact read so the two can never drift: a caller with nothing
+// readable is not found (never a confirmation of the id), an owned root is
+// refused with document_owned_by_work_product, and only then must manage be
+// held. The owned refusal sits between the two on purpose - an owned document
+// is not the public archive path's business whatever level the caller holds, so
+// the answer is 409 rather than the 403 a bare manage gate would give.
+func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
+	if access.Level == DocumentLevelNone {
+		// Nothing readable at all is not found - the owned refusal below
+		// must never confirm an id to a caller who cannot see it.
+		return ErrNotFound
+	}
+	if doc.OwnerKind.Valid {
+		return errDocumentOwned()
+	}
+	return decideDocumentAccess(doc, access, DocumentLevelManage)
+}
+
 // documentBatchLifecycle is the shared envelope of archive and restore: one
 // transaction holding the ledger claim, the workspace tree lock and the
 // document row lock, with the ACL evaluated under the row lock like every
@@ -587,15 +714,7 @@ func (s *DocumentService) documentBatchLifecycle(
 	if err != nil {
 		return DocumentArchiveResult{}, err
 	}
-	if access.Level == DocumentLevelNone {
-		// Nothing readable at all is not found - the owned refusal below
-		// must never confirm an id to a caller who cannot see it.
-		return DocumentArchiveResult{}, ErrNotFound
-	}
-	if doc.OwnerKind.Valid {
-		return DocumentArchiveResult{}, errDocumentOwned()
-	}
-	if err := decideDocumentAccess(doc, access, DocumentLevelManage); err != nil {
+	if err := decideArchiveRootAccess(doc, access); err != nil {
 		return DocumentArchiveResult{}, err
 	}
 	out, err := fn(q, doc, access)

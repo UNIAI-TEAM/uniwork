@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@uniwork/core/auth";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { useDocumentFavorites } from "@uniwork/core/documents/hooks-favorites";
@@ -20,12 +21,18 @@ import {
   indexTree,
   matchesChip,
   mergeNewestFirst,
+  readFolderSort,
+  sortFolderRows,
   sourceRow,
+  writeFolderSort,
   type FolderInfo,
+  type FolderSort,
   type LibraryRow,
   type TypeChip,
 } from "./library-rows";
 import { favoriteRow, knownDocuments } from "./starred-rows";
+
+const FOLDER_SORT_ROW_CAP = 1000;
 
 interface InfiniteLike<T> {
   data?: { pages: T[] };
@@ -91,6 +98,20 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const home = view.kind === "home";
   const sourceType = SOURCE_TYPES.has(chip) ? (chip as DocumentSourceType) : undefined;
   const sourcesWanted = chip !== "page" && ((home && !folderId) || view.kind === "sources");
+  const userId = useAuthStore((s) => s.user?.id ?? null);
+  const [lastUserId, setLastUserId] = useState<string | null>(userId);
+  const [sort, setSortState] = useState<FolderSort>(() => readFolderSort(userId));
+  if (userId !== lastUserId) {
+    setLastUserId(userId);
+    setSortState(readFolderSort(userId));
+  }
+  const setSort = useCallback(
+    (next: FolderSort) => {
+      setSortState(next);
+      writeFolderSort(userId, next);
+    },
+    [userId],
+  );
 
   const queryClient = useQueryClient();
   const tree = useDocumentTree(wsId, undefined, { enabled });
@@ -105,6 +126,23 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   // The starred view reads the workspace root list too (the home root's own
   // cache entry when it was open), so starred rows get dates and editors.
   const homeQuery = useDocumentList(wsId, listFilter, { enabled: enabled && home });
+  const folderLoadedCount = homeQuery.data?.pages.reduce((sum, page) => sum + page.documents.length, 0) ?? 0;
+  const lastFolderPageCount = homeQuery.data?.pages.at(-1)?.documents.length ?? 0;
+  const folderAutoPaging =
+    enabled &&
+    home &&
+    Boolean(folderId) &&
+    Boolean(homeQuery.hasNextPage) &&
+    !homeQuery.isError &&
+    lastFolderPageCount > 0 &&
+    folderLoadedCount < FOLDER_SORT_ROW_CAP;
+
+  useEffect(() => {
+    if (folderAutoPaging && !homeQuery.isFetchingNextPage) {
+      void homeQuery.fetchNextPage();
+    }
+  }, [folderAutoPaging, homeQuery]);
+
   const rootQuery = useDocumentList(wsId, {}, { enabled: enabled && view.kind === "starred" });
   const archivedQuery = useDocumentList(wsId, { archived: true }, { enabled: enabled && view.kind === "archived" });
   const recentQuery = useRecentDocuments(wsId, { enabled: enabled && view.kind === "recent" });
@@ -185,6 +223,18 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
       break;
     default: {
       const docs = documentState(homeQuery);
+      if (folderId) {
+        const directRows = docs.rows.filter(
+          (row) => row.type === "document" && (row.doc.parent_id === undefined || row.doc.parent_id === folderId),
+        );
+        state = {
+          ...docs,
+          rows: folderAutoPaging ? [] : sortFolderRows(directRows, sort),
+          loading: docs.loading || folderAutoPaging,
+          hasMore: !folderAutoPaging && docs.hasMore,
+        };
+        break;
+      }
       const merge = sourcesWanted && sourcesAvailable;
       state = merge
         ? {
@@ -211,5 +261,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     starredIds: new Set(starred.map((fav) => fav.document_id)),
     starredCount: favorites.data ? starred.length : null,
     sourcesAvailable,
+    sort,
+    setSort,
   };
 }

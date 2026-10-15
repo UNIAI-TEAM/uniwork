@@ -13,6 +13,10 @@ import { documentErrorMessage } from "./document-error-message";
 export const CREATE_TYPES = ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"] as const;
 export type CreateType = (typeof CREATE_TYPES)[number];
 
+/** What the "New" menu offers inside an open folder: folder first, then CREATE_TYPES (FD-D9). */
+export const CREATE_MENU_TYPES = ["folder", ...CREATE_TYPES] as const;
+export type CreateMenuType = (typeof CREATE_MENU_TYPES)[number];
+
 /**
  * Create one document of a type in the open folder with its default name and
  * open it — no name prompt (user decision 2026-10-12); renaming happens on the

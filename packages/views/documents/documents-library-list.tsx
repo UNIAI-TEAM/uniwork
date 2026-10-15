@@ -7,7 +7,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { CollectionPageState } from "../layout/collection-page";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import type { RowGroup } from "./library-rows";
+import { rowTypeKey, type RowGroup } from "./library-rows";
 
 export interface DocumentsLibraryListProps {
   groups: RowGroup[];
@@ -21,6 +21,8 @@ export interface DocumentsLibraryListProps {
   cardsShown?: boolean;
   /** Show the archive badge on every row (the archive tab). */
   archived?: boolean;
+  /** Show the Type column (`documents.home.columns.type`) when an open folder is displayed. */
+  showType?: boolean;
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
@@ -44,6 +46,7 @@ export function DocumentsLibraryList({
   filtered,
   cardsShown = false,
   archived = false,
+  showType = false,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -131,14 +134,15 @@ export function DocumentsLibraryList({
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.page.title")}>
           {/*
-            Below `md` only Name and Actions exist: the other four columns are
-            display:none, so the group header spans two columns there and six
-            from `md` (a colSpan wider than the visible columns would add
+            Below `md` only Name and Actions exist: the other columns are
+            display:none, so the group header spans two columns there and all
+            columns from `md` (a colSpan wider than the visible columns would add
             implicit columns that squeeze Name to nothing). Name takes what the
             fixed columns leave.
           */}
           <colgroup>
             <col />
+            {showType ? <col className="hidden w-36 md:table-column" /> : null}
             <col className="hidden w-28 md:table-column" />
             <col className="hidden w-36 md:table-column" />
             <col className="hidden w-24 md:table-column" />
@@ -148,6 +152,7 @@ export function DocumentsLibraryList({
           <thead className="hidden bg-muted/50 md:table-header-group">
             <tr className="border-b border-border text-caption text-muted-foreground">
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.name")}</th>
+              {showType ? <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.type")}</th> : null}
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.source")}</th>
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.editor")}</th>
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.updated")}</th>
@@ -163,11 +168,17 @@ export function DocumentsLibraryList({
                     {groupTitle(group)}
                     <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
                   </th>
-                  <th aria-hidden colSpan={4} className="hidden md:table-cell" />
+                  <th aria-hidden colSpan={showType ? 5 : 4} className="hidden md:table-cell" />
                 </tr>
               ) : null}
               {group.rows.map((row) => (
-                <LibraryRowView key={row.id} row={row} handlers={handlers} archived={archived} />
+                <LibraryRowView
+                  key={row.id}
+                  row={row}
+                  handlers={handlers}
+                  archived={archived}
+                  typeCell={showType ? t(rowTypeKey(row)) : undefined}
+                />
               ))}
             </tbody>
           ))}

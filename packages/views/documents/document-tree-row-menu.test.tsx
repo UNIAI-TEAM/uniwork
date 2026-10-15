@@ -130,6 +130,102 @@ describe("DocumentTreeRowMenu permissions", () => {
     expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
     manageRender.unmount();
   });
+
+  it("uses cached my_level=edit from list cache when detail query errors, and falls back to 'Mở' only when nothing is known (N1)", async () => {
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const { documentKeys } = await import("@uniwork/core/documents/keys");
+
+    requestMock.mockImplementation(() => Promise.reject(new ApiError("boom", "internal", 500)));
+
+    // 1. List cache knows my_level="edit" while detail errors -> 4 edit items shown
+    const cachedClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    cachedClient.setQueryData(documentKeys.list(WS), {
+      pages: [
+        {
+          documents: [
+            {
+              ...detailRow({ my_level: "edit" }),
+              updated_at: "2026-10-14T00:00:00Z",
+            },
+          ],
+          next_cursor: null,
+        },
+      ],
+      pageParams: [undefined],
+    });
+
+    const cachedRender = render(
+      <QueryClientProvider client={cachedClient}>
+        <DocumentTreeRowMenu wsId={WS} node={folderNode} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/documents/f1", expect.anything()));
+    expect(await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.new_subfolder") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.rename") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.delete") })).toBeNull();
+    cachedRender.unmount();
+
+    // 2. Nothing known in cache + detail errors -> only "Mở"
+    requestMock.mockClear();
+    const emptyClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={emptyClient}>
+        <DocumentTreeRowMenu wsId={WS} node={folderNode} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/documents/f1", expect.anything()));
+    expect(await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.new_subfolder") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.rename") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.delete") })).toBeNull();
+  });
+
+  it("does not retry 4xx detail errors when opening the row menu for the current folder (N2)", async () => {
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+
+    let detailCalls = 0;
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: forest });
+      if (path === "/api/v1/documents/f1") {
+        detailCalls += 1;
+        return Promise.reject(new ApiError("not found", "not_found", 404));
+      }
+      return Promise.resolve({});
+    });
+
+    const queryClientWithRetries = new QueryClient({
+      defaultOptions: {
+        queries: { retry: 3, retryDelay: 0 },
+        mutations: { retry: false },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClientWithRetries}>
+        <DocumentTree wsId={WS} folders currentId="f1" />
+      </QueryClientProvider>,
+    );
+
+    const row = await screen.findByRole("treeitem", { name: /Hợp đồng/ });
+    await waitFor(() => expect(detailCalls).toBe(1));
+
+    // Opening the row menu for the current folder triggers its detail observer; it must skip 4xx retries too.
+    detailCalls = 0;
+    fireEvent.contextMenu(row);
+    expect(await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") })).toBeInTheDocument();
+    await waitFor(() => expect(detailCalls).toBeGreaterThanOrEqual(1));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(detailCalls).toBe(1);
+  });
 });
 
 describe("DocumentTree row menu triggers and keyboard", () => {
@@ -303,19 +399,25 @@ describe("DocumentTree row menu dialogs and toasts", () => {
     fireEvent.contextMenu(row);
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") }));
     const moveDialog = await screen.findByRole("dialog");
-    expect(within(moveDialog).getByRole("heading", { name: t("documents.home.move.title") })).toBeInTheDocument();
-    fireEvent.click(within(moveDialog).getByRole("button", { name: "Tài chính" }));
+    expect(within(moveDialog).getByRole("heading", { name: t("documents.home.move.picker_title") })).toBeInTheDocument();
+    fireEvent.click(within(moveDialog).getByRole("treeitem", { name: "Tài chính" }));
     fireEvent.click(within(moveDialog).getByRole("button", { name: t("documents.home.move.submit") }));
     await waitFor(() => expect(moves).toEqual([{ parent_id: "f2", revision: "4" }]));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
+    const prev = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) =>
+      path === "/api/v1/documents/f1/archive-impact"
+        ? Promise.resolve({ folders: 0, documents: 0, total: 1, max_nodes: 1000, too_large: false })
+        : prev(path, opts),
+    );
     fireEvent.contextMenu(row);
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.delete") }));
     const archiveDialog = await screen.findByRole("alertdialog");
     expect(
-      within(archiveDialog).getByRole("heading", { name: t("documents.archive.archive_folder_title") }),
+      within(archiveDialog).getByRole("heading", { name: t("documents.archive.delete_title") }),
     ).toBeInTheDocument();
-    const confirmBtn = within(archiveDialog).getByRole("button", { name: t("documents.archive.archive_confirm") });
+    const confirmBtn = within(archiveDialog).getByRole("button", { name: t("documents.archive.delete_confirm") });
     await waitFor(() => expect(confirmBtn).toBeEnabled());
     fireEvent.click(confirmBtn);
     await waitFor(() => expect(archives).toEqual(["/api/v1/documents/f1/archive"]));

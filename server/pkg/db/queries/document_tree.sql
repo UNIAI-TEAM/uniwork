@@ -254,6 +254,24 @@ JOIN documents d ON d.id = sub.id
 WHERE d.archived_at IS NULL
 LIMIT sqlc.arg(max_rows);
 
+-- The live rows of the bounded id set the archive walk returned, counted by
+-- kind and WITHOUT the root: GET /documents/{documentID}/archive-impact
+-- answers folders/documents over the subtree and adds the root back in total
+-- only (FD-04, addendum §3.4). The caller hands the ids
+-- ListLiveDocumentSubtreeIDs read inside the same REPEATABLE READ, read-only
+-- transaction, so the id set, the manage gate and these counts all come from
+-- one snapshot; archived_at IS NULL repeats the archive command's own write
+-- predicate, so the count is exactly the rows it would stamp besides the root.
+-- name: CountLiveDocumentSubtreeByKind :many
+SELECT d.kind, count(*) AS n
+FROM documents d
+WHERE d.organization_id = sqlc.arg(organization_id)
+  AND d.workspace_id = sqlc.arg(workspace_id)
+  AND d.id = ANY(sqlc.arg(ids)::text[])
+  AND d.id <> sqlc.arg(root_id)
+  AND d.archived_at IS NULL
+GROUP BY d.kind;
+
 -- The live nodes of the bounded id set the archive walk returned that the
 -- actor does not hold manage on through a path plain SQL can read: a workspace
 -- owner/admin (is_ws_admin), the ACL owner (a workspace member only,

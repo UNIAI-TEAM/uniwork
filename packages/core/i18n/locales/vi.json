@@ -8679,7 +8679,7 @@
         "rename": "Đổi tên thư mục",
         "rename_label": "Tên thư mục",
         "rename_failed": "Không thể đổi tên thư mục. Thử lại.",
-        "create_title_root": "Thư mục mới ở Documents (gốc)",
+        "create_title_root": "Thư mục mới ở Tài liệu (gốc)",
         "create_sub_title": "Thư mục con mới trong {{parent}}",
         "create_title": "Thư mục mới",
         "name_placeholder": "Ví dụ: Hợp đồng 2026",
@@ -8693,6 +8693,14 @@
           "trashed": "Đã chuyển {{title}} vào thùng rác",
           "restored": "Đã khôi phục {{title}}"
         }
+      },
+      "rename": {
+        "title": "Đổi tên",
+        "label": "Tên tài liệu",
+        "name_placeholder": "Ví dụ: Kế hoạch 2026",
+        "name_empty": "Nhập tên tài liệu.",
+        "name_too_long": "Tên tài liệu tối đa {{max}} ký tự.",
+        "failed": "Không thể đổi tên tài liệu. Thử lại."
       },
       "greeting": {
         "morning": "Chào buổi sáng. Hôm nay bạn muốn tạo gì?",
@@ -8907,7 +8915,7 @@
         "moved": "Đã di chuyển.",
         "picker_title": "Di chuyển tới",
         "picker_label": "Chọn thư mục đích",
-        "root": "Documents (gốc)",
+        "root": "Tài liệu (gốc)",
         "reason_current": "Vị trí hiện tại",
         "reason_self": "Nằm trong chính nó",
         "reason_too_deep": "Quá sâu: tối đa {{max}} cấp",
@@ -8923,22 +8931,22 @@
       "folder_invalid": {
         "title": "Không mở được thư mục này",
         "description": "Thư mục không còn ở đây hoặc bạn không có quyền xem.",
-        "back": "Về Documents (gốc)"
+        "back": "Về Tài liệu (gốc)"
       },
       "breadcrumb_more": "Các cấp ẩn",
       "search": {
         "placeholder": "Tìm thư mục và tài liệu",
-        "label": "Tìm trong Documents",
+        "label": "Tìm trong Tài liệu",
         "clear": "Xóa ô tìm",
         "filter_label": "Lọc kết quả",
         "filter_all": "Tất cả",
         "filter_folder": "Thư mục",
         "filter_document": "Tài liệu",
         "path": "Đường dẫn: {{path}}",
-        "path_root": "Documents (gốc)",
+        "path_root": "Tài liệu (gốc)",
         "loading": "Đang tìm…",
         "empty_title": "Không tìm thấy kết quả",
-        "empty_description": "Thử tên khác hoặc đổi bộ lọc. Nhấn Esc để quay lại thư mục.",
+        "empty_description": "Thử tên khác hoặc đổi bộ lọc. Xóa ô tìm để quay lại thư mục.",
         "error_title": "Không tìm được",
         "error_description": "Kiểm tra kết nối rồi thử lại."
       }

@@ -201,6 +201,62 @@ func (q *Queries) ClearDocumentArchiveBatch(ctx context.Context, arg ClearDocume
 	return items, nil
 }
 
+const countLiveDocumentSubtreeByKind = `-- name: CountLiveDocumentSubtreeByKind :many
+SELECT d.kind, count(*) AS n
+FROM documents d
+WHERE d.organization_id = $1
+  AND d.workspace_id = $2
+  AND d.id = ANY($3::text[])
+  AND d.id <> $4
+  AND d.archived_at IS NULL
+GROUP BY d.kind
+`
+
+type CountLiveDocumentSubtreeByKindParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+	RootID         string   `json:"root_id"`
+}
+
+type CountLiveDocumentSubtreeByKindRow struct {
+	Kind string `json:"kind"`
+	N    int64  `json:"n"`
+}
+
+// The live rows of the bounded id set the archive walk returned, counted by
+// kind and WITHOUT the root: GET /documents/{documentID}/archive-impact
+// answers folders/documents over the subtree and adds the root back in total
+// only (FD-04, addendum §3.4). The caller hands the ids
+// ListLiveDocumentSubtreeIDs read inside the same REPEATABLE READ, read-only
+// transaction, so the id set, the manage gate and these counts all come from
+// one snapshot; archived_at IS NULL repeats the archive command's own write
+// predicate, so the count is exactly the rows it would stamp besides the root.
+func (q *Queries) CountLiveDocumentSubtreeByKind(ctx context.Context, arg CountLiveDocumentSubtreeByKindParams) ([]CountLiveDocumentSubtreeByKindRow, error) {
+	rows, err := q.db.Query(ctx, countLiveDocumentSubtreeByKind,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Ids,
+		arg.RootID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountLiveDocumentSubtreeByKindRow{}
+	for rows.Next() {
+		var i CountLiveDocumentSubtreeByKindRow
+		if err := rows.Scan(&i.Kind, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const detachDocumentToRoot = `-- name: DetachDocumentToRoot :one
 UPDATE documents
 SET parent_id = NULL,

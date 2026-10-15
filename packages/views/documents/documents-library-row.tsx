@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, MonitorUp, Star, StarOff } from "lucide-react";
+import { Archive, ArchiveRestore, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -52,11 +52,15 @@ export interface LibraryRowHandlers {
   onToggleStar?: (documentId: string, starred: boolean) => void;
   isStarred: (documentId: string) => boolean;
   /**
-   * Move to another folder and archive, for people who may change the open
-   * folder; absent hides both. The server still decides per document.
+   * Create subfolder, rename, move to another folder, and archive, for people
+   * who may change the open folder; absent hides them. The server still decides per document.
    */
+  onNewSubfolder?: (doc: DocumentSummaryRow) => void;
+  onRename?: (doc: DocumentSummaryRow) => void;
   onMove?: (doc: DocumentSummaryRow) => void;
   onArchive?: (doc: DocumentSummaryRow) => void;
+  /** Restore a trashed folder from the Archive scope (manage); absent hides it. */
+  onRestore?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
   desktopOpen?: LibraryDesktopOpen;
@@ -80,7 +84,17 @@ function initial(name: string): string {
   return name.trim().charAt(0).toUpperCase();
 }
 
-export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; handlers: LibraryRowHandlers; archived: boolean }) {
+export function LibraryRowView({
+  row,
+  handlers,
+  archived,
+  typeCell,
+}: {
+  row: LibraryRow;
+  handlers: LibraryRowHandlers;
+  archived: boolean;
+  typeCell?: ReactNode;
+}) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
   const title = rowTitle(row) || t("documents.detail.untitled");
@@ -109,14 +123,26 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
       : null;
   const level = rowLevel(doc);
 
+  // A trashed folder is not browsable: its primary action is Restore when the
+  // viewer may restore it, and without that the name is plain text, not a link.
+  const trashedFolder = Boolean(doc) && folder && archived;
+  const canRestore = Boolean(handlers.onRestore) && canArchiveRow(level);
+
   const primary = () => {
-    if (doc && folder) handlers.onFolder(doc.id);
+    if (doc && trashedFolder) {
+      if (canRestore) handlers.onRestore?.(doc);
+    } else if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id);
     else if (row.type === "source") handlers.onGoToSource(row);
   };
 
   const actions: RowAction[] = [];
-  if (doc && folder) {
+  // A trashed folder is not browsable: its menu offers Restore instead of Open.
+  if (doc && trashedFolder) {
+    if (canRestore) {
+      actions.push({ id: "restore", label: t("documents.actions.restore"), icon: ArchiveRestore, run: () => handlers.onRestore?.(doc) });
+    }
+  } else if (doc && folder) {
     actions.push({ id: "open-folder", label: t("documents.home.row.open_folder"), icon: FolderOpen, run: primary });
   } else if (doc) {
     actions.push({ id: "open", label: t("documents.home.row.open_web"), icon: ExternalLink, run: primary });
@@ -133,14 +159,25 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
       });
     }
   }
-  // Each command follows the level of THIS row (move: edit, archive: manage);
-  // the archive tab offers neither.
+  // Each command follows the level of THIS row (create subfolder / rename /
+  // move: edit, archive: manage); the archive tab offers none of them.
   if (doc && !archived) {
+    if (folder && handlers.onNewSubfolder && canMoveRow(level)) {
+      actions.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
+    }
+    if (handlers.onRename && canMoveRow(level)) {
+      actions.push({ id: "rename", label: t("documents.home.row.rename"), icon: Pencil, run: () => handlers.onRename?.(doc) });
+    }
     if (handlers.onMove && canMoveRow(level)) {
-      actions.push({ id: "move", label: t("documents.home.row.move"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
+      actions.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
     }
     if (handlers.onArchive && canArchiveRow(level)) {
-      actions.push({ id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) });
+      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words and icon.
+      actions.push(
+        folder
+          ? { id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) }
+          : { id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) },
+      );
     }
   }
   if (row.type === "source") {
@@ -169,6 +206,23 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
     </Button>
   ) : null;
 
+  const nameCell = (
+    <>
+      <DocumentTypeIcon format={folder ? "folder" : format} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="truncate text-body text-foreground">{title}</span>
+          {archived || doc?.archived_at ? (
+            <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
+          ) : null}
+        </span>
+        <span className="block truncate text-caption text-muted-foreground md:hidden">
+          {[editor, updated, size].filter(Boolean).join(" · ")}
+        </span>
+      </span>
+    </>
+  );
+
   return (
     <ContextMenu>
       <ContextMenuTrigger
@@ -177,21 +231,17 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
         className="group/row border-b border-border transition-colors last:border-b-0 hover:bg-accent/40"
       >
         <td className="px-3 py-2">
-          <button type="button" onClick={primary} className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">
-            <DocumentTypeIcon format={folder ? "folder" : format} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
-            <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-2">
-                <span className="truncate text-body text-foreground">{title}</span>
-                {archived || doc?.archived_at ? (
-                  <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
-                ) : null}
-              </span>
-              <span className="block truncate text-caption text-muted-foreground md:hidden">
-                {[editor, updated, size].filter(Boolean).join(" · ")}
-              </span>
-            </span>
-          </button>
+          {trashedFolder && !canRestore ? (
+            <div className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">{nameCell}</div>
+          ) : (
+            <button type="button" onClick={primary} className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">
+              {nameCell}
+            </button>
+          )}
         </td>
+        {typeCell !== undefined ? (
+          <td className="hidden px-3 py-2 text-caption text-muted-foreground md:table-cell">{typeCell}</td>
+        ) : null}
         <td className="hidden px-3 py-2 md:table-cell">
           <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
             <span aria-hidden className={cn("size-1.5 rounded-full", origin === "created" || origin === "documents" ? "bg-primary" : "bg-muted-foreground")} />
@@ -231,7 +281,7 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-52">
                   {actions.map((action) => (
-                    <DropdownMenuItem key={action.id} className="gap-2 px-2 py-2" onClick={action.run}>
+                    <DropdownMenuItem key={action.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={action.run}>
                       <action.icon aria-hidden className="size-3.5" />
                       {action.label}
                     </DropdownMenuItem>
@@ -244,7 +294,7 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-52">
         {actions.map((action) => (
-          <ContextMenuItem key={action.id} className="gap-2 px-2 py-2" onClick={action.run}>
+          <ContextMenuItem key={action.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={action.run}>
             <action.icon aria-hidden className="size-3.5" />
             {action.label}
           </ContextMenuItem>

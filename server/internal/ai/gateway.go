@@ -187,7 +187,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		return Response{}, err
 	}
 	creq := provider.CompletionRequest{
-		Model: model, System: system, MaxTokens: policy.MaxTokens, Temperature: policy.Temperature,
+		Model: model, System: system, MaxTokens: officeMaxTokens(req, policy), Temperature: policy.Temperature,
 		JSONSchema: prompt.OutputSchema,
 	}
 	creq.Messages = msgs
