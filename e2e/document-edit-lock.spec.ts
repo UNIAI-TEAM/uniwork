@@ -264,8 +264,11 @@ test("a manager takes over: A turns read-only and downloads the unsaved text", a
   const lost = a.page.getByRole("alertdialog", { name: "Bạn không còn quyền sửa" });
   await expect(lost).toBeVisible({ timeout: 60_000 });
   await expect(lost).toContainText(`${ownerName} đã lấy quyền sửa. Thay đổi chưa lưu của bạn vẫn ở đây.`);
-  await expectReadOnly(a.page, 30_000);
-  await expect(surface(a.page)).toContainText(unsaved.trim());
+  // The lost dialog is a modal alertdialog: the page behind it is aria-hidden,
+  // so the surface is read through the hidden tree while the dialog is open.
+  const behind = a.page.getByRole("textbox", { name: "Nội dung tài liệu", includeHidden: true });
+  await expect(behind).toHaveAttribute("contenteditable", "false", { timeout: 30_000 });
+  await expect(behind).toContainText(unsaved.trim());
 
   const downloading = a.page.waitForEvent("download");
   await lost.getByRole("button", { name: "Tải bản của tôi" }).click();
@@ -277,6 +280,11 @@ test("a manager takes over: A turns read-only and downloads the unsaved text", a
   expect(html).toContain('<meta charset="utf-8">');
   expect(html).toContain(unsaved.trim());
   expect(html).toContain("Bản đầu của bước bốn");
+
+  // The download closes the dialog: the read-only surface keeps the unsaved text in view.
+  await expect(lost).toBeHidden({ timeout: 30_000 });
+  await expectReadOnly(a.page, 30_000);
+  await expect(surface(a.page)).toContainText(unsaved.trim());
 });
 
 test("B requests: A saves and hands over, B edits", async ({ browser }) => {

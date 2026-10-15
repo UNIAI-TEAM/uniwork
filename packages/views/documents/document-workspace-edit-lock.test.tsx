@@ -120,6 +120,30 @@ describe("DocumentWorkspace edit lock", () => {
     expect(clicked.at(-1)?.download).toBe("Kế hoạch Q3 (bản của tôi).html");
   });
 
+  it("under the modal lost dialog the editor stays mounted, read-only, with the unsaved text; it is in view again after the download", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+      path === "/api/v1/documents/d1" && opts?.method === "PATCH" ? Promise.reject(locked()) : Promise.resolve({}));
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:copy"), revokeObjectURL: vi.fn() });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    renderPage();
+    const editor = await findEditor();
+    await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "true"));
+    pasteText("chưa lưu");
+    const dialog = await screen.findByRole("alertdialog", { name: "Bạn không còn quyền sửa" }, { timeout: 8_000 });
+    const name = t("documents.editor.aria_label");
+    // A modal alertdialog hides the page from the accessibility tree; the surface is still the same node.
+    await waitFor(() => expect(screen.queryByRole("textbox", { name })).toBeNull());
+    const behind = screen.getByRole("textbox", { name, hidden: true });
+    expect(behind).toBe(editor);
+    expect(behind).toHaveAttribute("contenteditable", "false");
+    expect(behind).toHaveTextContent("chưa lưu");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tải bản của tôi" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    const surface = await findEditor();
+    expect(surface).toHaveAttribute("contenteditable", "false");
+    expect(surface).toHaveTextContent("chưa lưu");
+  });
+
   it("'Edit now' once the lock came free acquires again without reloading the page", async () => {
     // A was editing when this tab opened (423) and has since closed: R1 reads no holder.
     let refused = false;
