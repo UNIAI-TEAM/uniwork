@@ -127,7 +127,7 @@ Lớp có sẵn: `conflict`, `gone` ("dừng thử lại và rời", `:24-25`), 
 | `offline_lease_revoked` | 403 | `permission` | Gia hạn hàng đã revoke, epoch cũ hoặc chữ ký hỏng (xoay `JWT_SECRET`); G5-D1 hàng 15 | G5-08s |
 | `offline_lease_device_required` | 403 | không lớp | Phiên web hoặc sid không có hàng `device_sessions` sống; không dùng `office_capability_off` vì flag vẫn bật; G5-D1 hàng 5 | G5-08s |
 | `offline_lease_limit_reached` | 409 | không lớp | Vượt 200 lease sống mỗi thiết bị; G5-D1 hàng 11 | G5-08s |
-| `document_archived` | 403 | không lớp | Gia hạn lease hoặc lưu/stage upload/commit/restore phiên bản tệp của tài liệu archived mà người gọi nhìn thấy (người không có quyền xem vẫn nhận `not_found`, không lộ tồn tại); G5-D1 hàng 14, G5-07 F6 | G5-08s, G5-07 |
+| `document_archived` | 403 | không lớp | Gia hạn lease hoặc lưu/stage upload/commit/restore phiên bản tệp của tài liệu archived, cho các route lưu phiên bản (`POST /documents/{id}/uploads`, `/versions/commit`, `/versions/{n}/restore` và `POST /office-frame/documents/{id}/uploads`, `/versions/commit`) chỉ khi người gọi có quyền sửa trở lên (người dưới quyền sửa, gồm chỉ-xem, hoặc không thấy tài liệu vẫn nhận `not_found`, không lộ tồn tại); chỉ người lưu được, người giữ lease hoặc manager mới nhận mã này; G5-D1 hàng 14, G5-07 F6 | G5-08s, G5-07 |
 | ~~`offline_lease_expired`~~ | — | — | **Server không phát** (G5-D1 hàng 15): gia hạn sau khi hết hạn được phép nếu quyền sống còn; `lease_expired` chỉ là lý do phía app (EXPERIENCE) | — |
 | `conversation_expired` | 409 | không lớp | Theo plan G6-03a | G6-D1 đã chốt (lô #2 ký 2026-10-13); G6-03a đăng ký |
 | `ai_tool_result_too_large` | 413 | không lớp | Tool result vượt trần 64 KiB/lần hoặc 256 KiB/request (A6; Q4) | G6-03a/G6-03b khi giao |
