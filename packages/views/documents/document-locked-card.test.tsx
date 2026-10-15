@@ -157,7 +157,7 @@ describe("DocumentLockedCard", () => {
     const onGrant = vi
       .fn()
       .mockRejectedValue(
-        new ApiError("invalid", "break_glass_reason_invalid", 422, undefined, fields, "validation"),
+        new ApiError("invalid", "break_glass_reason_invalid", 422, undefined, fields),
       );
     render(<DocumentLockedCard variant="admin" canBreakGlass onGrantBreakGlass={onGrant} />);
     fireEvent.change(screen.getByLabelText(t("documents.breakGlass.reasonLabel")), {

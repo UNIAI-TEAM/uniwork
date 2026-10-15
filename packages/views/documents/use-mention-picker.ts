@@ -127,7 +127,16 @@ export function useMentionPicker({
     if (people.length > 0) return people;
     if (!query.isSuccess) return [{ type: "message", id: `${listboxId}-searching`, key: "searching" }];
     return [{ type: "message", id: `${listboxId}-empty`, key: emptyKey(debounced !== "", includeNoAccess) }];
-  }, [candidates, debounced, listboxId, query.isError, query.isFetching, query.isSuccess, trigger]);
+  }, [
+    candidates,
+    debounced,
+    includeNoAccess,
+    listboxId,
+    query.isError,
+    query.isFetching,
+    query.isSuccess,
+    trigger,
+  ]);
 
   // The first selectable row is marked whenever the rows change.
   const selectable = rows.filter((row) => row.type !== "message");
