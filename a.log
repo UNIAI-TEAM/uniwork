@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -4; echo "SERVER_DIFF_FILES=$(git diff --name-only d3fa29ec5 HEAD -- server | wc -l)"
+61e9087bb59509a46205d62bfaabd050a02341a8
+72f7dcdda890d4d6e6f34cf17b9d8de59148ae00
+61e9087bb chore: merge the G5-G7 root (72f7dcdda) into card (a)
+72f7dcdda chore: merge W-DOC07 web access requests (8363703e2) into the G5-G7 root
+8363703e2 Merge origin/feature/UNI-923-office-g5-g6-g7 (f4329d09f) into W-DOC07
+410fd0557 fix(documents): keep the focus handoff from hanging when the list refetch fails
+SERVER_DIFF_FILES=0
