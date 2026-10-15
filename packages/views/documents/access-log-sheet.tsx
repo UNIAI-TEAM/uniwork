@@ -4,7 +4,7 @@ import { useState } from "react";
 import { RotateCcwClock, ListFilter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentAccessLogs } from "@uniwork/core/documents/hooks-sharing";
-import type { Document, DocumentAccessLogList } from "@uniwork/core/types/document";
+import type { DocumentAccessLogList } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Select,
@@ -22,6 +22,7 @@ import {
 } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import type { DocumentAdminRef } from "./document-admin-ref";
 import { formatWhen } from "./document-format";
 import { hasAdminScope } from "./document-locked-card";
 
@@ -29,7 +30,7 @@ export interface AccessLogSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wsId: string;
-  doc: Document;
+  doc: DocumentAdminRef;
 }
 
 const ACTIONS = ["", "view", "download", "export", "link_view"] as const;

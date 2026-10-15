@@ -13,7 +13,6 @@ import {
 import { useOrgMembers, useOrgWorkspaces } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
 import type {
-  Document,
   DocumentAccess,
   DocumentAccessLevel,
   DocumentAccessVia,
@@ -39,13 +38,15 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useNavigation } from "../navigation";
 import { ShareDialogBreakGlassSection, hasAdminScope, shareErrorMessage, useShareWorkspace } from "./share-dialog-break-glass";
+import type { DocumentAdminRef } from "./document-admin-ref";
 import { ShareLinksSection } from "./share-links-section";
 
 export interface ShareDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wsId: string;
-  doc: Document;
+  /** A `Document` or the narrow admin reference; never a made-up `Document`. */
+  doc: DocumentAdminRef;
   initialSection?: "break_glass";
 }
 
@@ -113,7 +114,6 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, initialSection }: S
   };
 
   const levelLabel = (value: string | null | undefined) => {
-    if (value === "comment") return t("documents.levels.comment");
     const key = `documents.share.level_${value ?? ""}`;
     const fallback = t("documents.share.level_view");
     return LEVELS.includes(value as DocumentAccessLevel) ? t(key) : fallback;
@@ -152,7 +152,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, initialSection }: S
   };
 
   const saveVisibility = async (next: "workspace" | "restricted") => {
-    if (update.isPending || next === doc.visibility) return;
+    if (update.isPending || next === doc.visibility || doc.revision === undefined) return;
     setVisibilityError(null);
     try {
       await update.mutateAsync({ patch: { visibility: next, revision: doc.revision } });
@@ -383,12 +383,14 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, initialSection }: S
                 ) : null}
               </section>
 
-              <VisibilitySection
-                doc={doc}
-                pending={update.isPending}
-                error={visibilityError}
-                onSave={(next) => void saveVisibility(next)}
-              />
+              {doc.revision !== undefined ? (
+                <VisibilitySection
+                  doc={doc}
+                  pending={update.isPending}
+                  error={visibilityError}
+                  onSave={(next) => void saveVisibility(next)}
+                />
+              ) : null}
 
               <ShareLinksSection
                 wsId={wsId}
@@ -410,7 +412,7 @@ function VisibilitySection({
   error,
   onSave,
 }: {
-  doc: Document;
+  doc: DocumentAdminRef;
   pending: boolean;
   error: string | null;
   onSave: (next: "workspace" | "restricted") => void;
