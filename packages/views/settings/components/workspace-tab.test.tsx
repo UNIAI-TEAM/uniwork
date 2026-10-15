@@ -104,7 +104,7 @@ describe("WorkspaceTab", () => {
   it("shows a member the description as text, without icon actions", async () => {
     renderAs("member", { ...workspace, description: "Nhóm làm sản phẩm" });
     expect(await screen.findByText("Nhóm làm sản phẩm")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Chọn emoji" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Đổi icon" })).not.toBeInTheDocument();
   });
 
   it("uploads an image icon and removes an emoji icon", async () => {
@@ -112,8 +112,29 @@ describe("WorkspaceTab", () => {
     const input = await screen.findByLabelText("Tải ảnh lên", { selector: "input" });
     fireEvent.change(input, { target: { files: [new File(["x"], "i.png", { type: "image/png" })] } });
     await waitFor(() => expect(callsWith("POST").map(([path]) => path)).toContain("/api/v1/workspaces/ws1/icon"));
-    fireEvent.click(screen.getByRole("button", { name: "Bỏ icon" }));
+    // One "Đổi icon" button holds every icon action, like the avatar row.
+    expect(screen.queryByRole("button", { name: "Bỏ icon" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Đổi icon" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bỏ icon" }));
     await waitFor(() => expect(callsWith("DELETE").map(([path]) => path)).toContain("/api/v1/workspaces/ws1/icon"));
+  });
+
+  it("shows the description counter only near the limit", async () => {
+    renderAs("admin");
+    const box = await screen.findByRole("textbox", { name: "Mô tả" });
+    fireEvent.change(box, { target: { value: "ngắn" } });
+    expect(screen.queryByText("4/500")).not.toBeInTheDocument();
+    fireEvent.change(box, { target: { value: "a".repeat(420) } });
+    expect(screen.getByText("420/500")).toBeInTheDocument();
+  });
+
+  it("shows the address as a path, the full link only when copied", async () => {
+    renderAs("admin");
+    expect(await screen.findByText("/acme/team")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Đổi địa chỉ" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Địa chỉ mới" }), { target: { value: " Doi-Moi " } });
+    expect(within(dialog).getByText("/acme/doi-moi")).toBeInTheDocument();
   });
 
   it("keeps the user's trailing space when the refetch returns the trimmed description", async () => {

@@ -3,7 +3,7 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Workspace } from "@uniwork/core/types";
-import { isReservedSlug } from "@uniwork/core/paths";
+import { isReservedSlug, paths } from "@uniwork/core/paths";
 import { usePatchWorkspace } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -87,7 +87,6 @@ export function WorkspaceSlugDialog({
               // Room for spaces around the slug, which are trimmed.
               maxLength={SLUG_MAX_LENGTH + 2}
               autoComplete="off"
-              className="font-mono"
               aria-label={t("workspace.url_new")}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? errorId : undefined}
@@ -96,6 +95,9 @@ export function WorkspaceSlugDialog({
                 setTaken(false);
               }}
             />
+            <p className="truncate font-mono text-caption text-muted-foreground">
+              {paths.workspace(workspace.organization_slug, valid ? next : current).root()}
+            </p>
             {error ? <SettingsFieldError id={errorId}>{error}</SettingsFieldError> : null}
           </div>
           <DialogFooter>
