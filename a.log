@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor origin/main HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+c5d9a2a8258701680d632cfeb7361191f78459bd
+a0cffc387e27f23586b9fa87e10f3f2bbb1efd98
+c5d9a2a8 merge: fork main a0cffc387 (G5-11 account switch lock) into the lane branch
+42bd4699 fix(ai): hide untrackable tools under tracked-changes protection, map edit none, share the forced-tracking rule (N6, UNI-1374)
+8e125891 test(ai): pin untrackable tools under tracked-changes protection, edit none, forced tracking, provider parity (N6, UNI-1374)
+2d2faea7 fix(ai): enforce Word document protection in the docs AI skill (N6, UNI-1374)
+11af5540 test(ai): pin Word protection in the docs AI skill per kind, live, provider-independent (N6, UNI-1374)
+a0cffc38 merge: fork main c05802537 (G6-05u UniWork AI panel UI) into the G5-11 lane (UNI-1358)
+59221db2 test(e2e): expect a keystore lock for a stored sign-in this computer cannot decrypt
+b05c9ad9 fix(shell): lock every account a switch passes through and count what it loses (UNI-1358)
+
+SYNCED_EXIT=0

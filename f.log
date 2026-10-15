@@ -1,0 +1,68 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/docs -- vitest run tests/docs-protection-ai.test.ts tests/uniwork-view-only-ai.test.ts tests/g6-12-ask-clarification.test.ts --reporter=verbose; rc=$?; echo; echo "DOCS_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ✓ tests/docs-protection-ai.test.ts > AI agent on a protected Word document > readOnly: only read tools, edits and comments refused 68ms
+ ✓ tests/docs-protection-ai.test.ts > AI agent on a protected Word document > forms: only read tools, edits and comments refused 18ms
+ ✓ tests/docs-protection-ai.test.ts > AI agent on a protected Word document > comments: read tools plus add/reply comment, body edits refused 14ms
+ ✓ tests/g6-12-ask-clarification.test.ts > ask_clarification tool (docs) > has html’s input schema and a docs-specific description 1ms
+ ✓ tests/g6-12-ask-clarification.test.ts > ask_clarification tool (docs) > blocks on the card and returns the answers, mutated: false 64ms
+ ✓ tests/g6-12-ask-clarification.test.ts > ask_clarification tool (docs) > returns the skipped result when the card is cancelled 21ms
+stderr | tests/g6-12-ask-clarification.test.ts > ClarifyCard (docs) > submits the picked option and skips on Skip
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/g6-12-ask-clarification.test.ts > ask_clarification tool (docs) > errors without a card host or without usable questions 16ms
+ ✓ tests/g6-12-ask-clarification.test.ts > ask_clarification tool (docs) > is offered by the skill when the panel hosts the card, also on a view-only document 14ms
+ ✓ tests/g6-12-ask-clarification.test.ts > ClarifyCard (docs) > submits the picked option and skips on Skip 28ms
+ ✓ tests/g6-12-ask-clarification.test.ts > ClarifyCard (docs) > has its strings in every locale 6ms
+ ✓ tests/docs-protection-ai.test.ts > AI agent on a protected Word document > trackedChanges: editing stays, accept/reject are hidden and refused 14ms
+ ✓ tests/docs-protection-ai.test.ts > AI agent on a protected Word document > trackedChanges: every write tool that cannot record a revision is hidden and refused 16ms
+ ✓ tests/docs-protection-ai.test.ts > AI agent on a protected Word document > refusal text uses plain words, not the camelCase kind 20ms
+ ✓ tests/docs-protection-ai.test.ts > AI agent on a protected Word document > BYOK and UniWork AI settings see the same tools under every protection 10ms
+ ✓ tests/docs-protection-ai.test.ts > AI agent on a protected Word document > is live: removing the protection brings every tool back on the next read 8ms
+ ✓ tests/docs-protection-ai.test.ts > AI agent on a protected Word document > an unprotected document keeps the full tool set and prompt 8ms
+ ✓ tests/docs-protection-ai.test.ts > AI agent on a protected Word document > view-only UniWork still wins over a lighter protection 9ms
+ ✓ tests/docs-protection-ai.test.ts > aiProtectionOf > maps the document state to one AI protection kind 0ms
+ ✓ tests/docs-protection-ai.test.ts > aiProtectionOf > a password-to-modify lock beats every restriction 0ms
+ ✓ tests/docs-protection-ai.test.ts > aiProtectionOf > edit="none" enforced stays unrestricted, like the app own reading 0ms
+ ✓ tests/docs-protection-ai.test.ts > aiProtectionOf > an enforced restriction of an unknown kind is treated as read only 0ms
+ ✓ tests/docs-protection-ai.test.ts > forced AI tracking > tracked-changes protection forces the AI author even with the toggle off 0ms
+ ✓ tests/docs-protection-ai.test.ts > forced AI tracking > without protection the panel toggle decides 0ms
+ ✓ tests/docs-protection-ai.test.ts > forced AI tracking > other protections never turn tracking on by themselves 0ms
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > shows the reason, drops the track-changes toggle and the edit starters for BYOK
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave switch > is hidden for a UniWork document, shown for a local file 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave switch > stays hidden where the platform has no local path to autosave to 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > keeps only read-only tools 62ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > refuses an edit tool call and leaves the document untouched 16ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > keeps generate_mindmap: it only returns a display payload 11ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > keeps the full tool set on an editable document 8ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > only allowlists tools that exist 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > shows the reason, drops the track-changes toggle and the edit starters for BYOK 37ms
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > replaces ai-readonly-notice above composer with ai-uniwork-view-only sub-line under composer when UniWork AI is selected
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > keeps the edit affordances on an editable document
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > replaces ai-readonly-notice above composer with ai-uniwork-view-only sub-line under composer when UniWork AI is selected 18ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > keeps the edit affordances on an editable document 12ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is English in en and Vietnamese in vi 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is translated in every shipped locale 0ms
+
+ Test Files  3 passed (3)
+      Tests  36 passed (36)
+   Start at  17:31:12
+   Duration  3.79s (transform 6.29s, setup 0ms, import 8.98s, tests 508ms, environment 1.08s)
+
+
+DOCS_TARGETED_EXIT=0
