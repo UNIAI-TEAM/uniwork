@@ -19,10 +19,11 @@
 // route rename fails here, not on a cloud VM.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -62,7 +63,7 @@ const ORG_SLUG = "o-g704";
 const V1_ID = "01JVER00000000000000000001";
 
 function sha256Of(bytes) {
-  return require("node:crypto").createHash("sha256").update(bytes).digest("hex");
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 /**
@@ -109,6 +110,9 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
     }
     if (method === "POST" && path === `/api/v1/documents/${DOC_ID}/shares`) {
       state.shareLevel = JSON.parse(init.body).level;
+      // the downgrade case: the app's own share drops to view, so the Save path
+      // (which asks for edit) is what the server refuses
+      if (state.shareLevel === "view") state.revoked = "downgrade";
       return json(201, { share: { id: "01JSHARE000000000000000001", level: state.shareLevel } });
     }
     if (method === "PATCH" && path === `/api/v1/documents/${DOC_ID}`) {
@@ -122,7 +126,7 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
       method === "POST" &&
       (path === `/api/v1/documents/${DOC_ID}/ai/uniwork/chat/completions` || path === `/api/v1/office-frame/documents/${DOC_ID}/ai/uniwork/chat/completions`)
     ) {
-      if (aiMode === "disabled") return json(503, { error: { code: "ai_disabled", message: "AI chua duoc cau hinh tren server" } });
+      if (aiMode === "disabled" && !state.revoked) return json(503, { error: { code: "ai_disabled", message: "AI chua duoc cau hinh tren server" } });
       if (state.revoked && !ignoreRevokeOnAiTurn) {
         const refused = refuse("ai");
         if (refused) return refused;
@@ -133,7 +137,7 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
       return json(200, { versions: state.versions.map((v) => ({ id: v.id, version: v.version, checksum_sha256: v.checksum_sha256, size_bytes: v.size_bytes })) });
     }
     if (method === "POST" && path === `/api/v1/documents/${DOC_ID}/uploads`) {
-      if (state.revoked) {
+      if (state.revoked && !allowSaveAfterRevoke) {
         const refused = refuse("save");
         if (refused) return refused;
       }
@@ -292,7 +296,7 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
     }
   });
 
-  it("remove records the 404 not_found a non-member gets by design", async () => {
+  it("remove answers 204 on the DELETE itself and records the 404 not_found the removed member gets next", async () => {
     const mock = createMockRevokeServer();
     const scratch = makeScratchRunDir();
     try {
@@ -336,7 +340,7 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
   });
 
   it("a version after the revoke is a FAIL (exit 1)", async () => {
-    const mock = createMockRevokeServer({ ignoreRevokeOnAiTurn: true, allowSaveAfterRevoke: true });
+    const mock = createMockRevokeServer({ allowSaveAfterRevoke: true });
     const scratch = makeScratchRunDir();
     try {
       const res = await runRevokeCase({ apiOrigin: "http://127.0.0.1:1", fetchImpl: mock.fetchImpl, runDir: scratch.dir, fixtureId: "fx-docx-report-vi", caseName: "remove", repoRoot: REPO_ROOT });
@@ -471,7 +475,8 @@ describe("G7-04 evidence.mjs run + verify", () => {
         ],
       );
       for (const line of lines) {
-        const artifact = readFileSync(join(REPO_ROOT, line.artifact), "utf8");
+        // the runner records an absolute artifact path when --out is absolute
+        const artifact = readFileSync(isAbsolute(line.artifact) ? line.artifact : join(REPO_ROOT, line.artifact), "utf8");
         assert.match(artifact, /versions before/);
         assert.match(artifact, /AI turn 2/);
       }
