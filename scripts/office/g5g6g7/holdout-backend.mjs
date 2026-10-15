@@ -1,8 +1,9 @@
 // Fixture-backed tool backend for the G7-12 holdout runner (UNI-1384).
 //
 // The façade only relays the tools the caller offers; the frame executes them against the open document. This module
-// is the frame's stand-in for the eval: it offers the genoffice tools of the modules of the case's fixtures (names
-// verified against docs/office/g5g6g7/genoffice-tools.md by holdout-run.test.mjs), answers their calls from the
+// is the frame's stand-in for the eval: it offers EVERY genoffice tool of the modules of the case's fixtures, the same
+// list for every case of a module whatever the case expects (names verified against docs/office/g5g6g7/genoffice-tools.md
+// by holdout-run.test.mjs; the case allowlist is only a grading oracle, never a filter), answers their calls from the
 // synthetic fixtures read at runtime, applies the case setup (overlay, removeCells, revokeAfterTool, serverVersionAhead,
 // viewer role) and counts the writes it let through. Nothing here names a case: every question, answer and marker stays
 // under docs/office/g5g6g7/holdout/.
@@ -12,12 +13,13 @@
 // formats of xlsx cells are not read (read_formats reports the cell type only), and docs/slides/pdf/markdown/html have no
 // compute tool, so the runner's adapter treats `compute` there as "the reply reported a figure".
 
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DOCS_TOOL_SCHEMAS, SHEETS_TOOL_SCHEMAS } from '../devset-run.mjs';
-import { readWorkbook, unzip } from './holdout-xlsx-truth.mjs';
+import { readStyleFormatKinds, readWorkbook, unzip } from './holdout-xlsx-truth.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 export const FIXTURES_DIR = path.join(repoRoot, 'docs/office/g5g6g7/fixtures');
@@ -86,31 +88,63 @@ const loose = (name, description) => ({
   function: { name, description, parameters: { type: 'object', properties: {}, additionalProperties: true } },
 });
 
+// Where each offered schema came from (file | devset | name-only), kept beside the schema, never inside it.
+const TOOL_ORIGIN = new WeakMap();
+const sha256Hex = (value) => createHash('sha256').update(value).digest('hex');
+
 /**
  * Tool schemas per module. sheets/docs reuse the dev set's schemas (the ones the frame sends); the other modules get
  * name-only schemas until the real ones are supplied with --tool-schemas (a real run needs them, see the report).
+ * Each tool remembers where its schema came from (file | devset | name-only) so the run can say which surface it used.
  */
 export function toolCatalogue(overrides = null) {
   const out = {};
   for (const [module, ops] of Object.entries(TOOL_OPS)) {
     const base = module === 'sheets' ? SHEETS_TOOL_SCHEMAS : module === 'docs' ? DOCS_TOOL_SCHEMAS : [];
-    const byName = new Map([...base, ...(overrides?.[module] ?? [])].map((t) => [t.function.name, t]));
-    out[module] = Object.keys(ops).map(
-      (name) => byName.get(name) ?? loose(name, `Tool ${name} of the ${module} module of the open document.`),
-    );
+    const fromDevset = new Map(base.map((t) => [t.function.name, t]));
+    const fromFile = new Map((overrides?.[module] ?? []).map((t) => [t.function.name, t]));
+    out[module] = Object.keys(ops).map((name) => {
+      const tool = fromFile.get(name) ?? fromDevset.get(name);
+      if (tool) {
+        TOOL_ORIGIN.set(tool, fromFile.has(name) ? 'file' : 'devset');
+        return tool;
+      }
+      const hollow = loose(name, `Tool ${name} of the ${module} module of the open document.`);
+      TOOL_ORIGIN.set(hollow, 'name-only');
+      return hollow;
+    });
   }
   return out;
 }
 
-/** Tools offered for a case: each fixture module's tools that serve an operation of the allowlist (first module wins a name). */
+/**
+ * What the model is offered per module and where the schemas came from: source is `file:<sha256 of the --tool-schemas
+ * file>` when any tool comes from it, `name-only` when any tool has only a name (the strictest wins), else `devset`.
+ */
+export function toolSurface(catalogue, { fileSha256 = null } = {}) {
+  const out = {};
+  for (const [module, tools] of Object.entries(catalogue)) {
+    const origins = tools.map((t) => TOOL_ORIGIN.get(t) ?? 'devset');
+    const source = origins.includes('name-only') ? 'name-only' : origins.includes('file') ? `file:${fileSha256 ?? 'unknown'}` : 'devset';
+    const names = tools.map((t) => t.function.name).sort();
+    const byName = [...tools].sort((a, b) => a.function.name.localeCompare(b.function.name));
+    out[module] = { source, tools: names, schemasSha256: sha256Hex(JSON.stringify(byName)) };
+  }
+  return out;
+}
+
+/**
+ * Tools offered for a case: every tool of each fixture module's catalogue (first module wins a name), the same list for
+ * every case of a module. The case's allowlist, refusal and write ceiling never shape it (G712-1): they only grade
+ * what the model did with the tools. A viewer gets the write tools too; the backend refuses them, as the frame would.
+ */
 export function offeredTools(caseDoc, catalogue = toolCatalogue()) {
-  const allowed = new Set(caseDoc.tools.allowed);
   const seen = new Set();
   const out = [];
   for (const module of modulesOfCase(caseDoc)) {
     for (const tool of catalogue[module]) {
       const name = tool.function.name;
-      if (seen.has(name) || !TOOL_OPS[module][name].some((op) => allowed.has(op))) continue;
+      if (seen.has(name)) continue;
       seen.add(name);
       out.push(tool);
     }
@@ -171,7 +205,7 @@ export function loadView(fixtureId, dir = FIXTURES_DIR) {
   const base = path.join(dir, fixtureId);
   const format = FIXTURE_FORMAT(fixtureId);
   const oracle = JSON.parse(fs.readFileSync(`${base}.oracle.json`, 'utf8'));
-  if (format === 'xlsx') return { format, workbook: { sheets: readWorkbook(`${base}.xlsx`) } };
+  if (format === 'xlsx') return { format, workbook: { sheets: readWorkbook(`${base}.xlsx`), formatKinds: readStyleFormatKinds(`${base}.xlsx`) } };
   if (format === 'docx') return { format, blocks: docxBlocks(`${base}.docx`) };
   if (format === 'pptx') return { format, slides: pptxSlides(`${base}.pptx`), titles: oracle.slides };
   if (format === 'pdf') return { format, pages: [{ page: 1, lines: [...(oracle.textLines ?? [])] }], pageCount: oracle.pageCount };
@@ -254,6 +288,16 @@ const usedRect = (sheet) => {
   return rect;
 };
 
+/** Number-format kind of a cell (percent|number|text|currency|date), as the #numberFormat probe of the cases names it. */
+function numberFormatOf(doc, cell) {
+  if (!cell) return null;
+  if (cell.t === 's' || cell.t === 'str') return 'text';
+  return doc.workbook.formatKinds?.[cell.s ?? 0] ?? 'number';
+}
+
+/** A tool argument the real tool would refuse; the backend answers `invalid_arguments` and the runner marks the ask. */
+class InvalidArguments extends Error {}
+
 const asNumber = (cell) => (cell && typeof cell.v === 'number' ? cell.v : null);
 
 function stats(values) {
@@ -285,12 +329,20 @@ function readTools(caseDoc, doc) {
     }
     const target = sheetOf(args);
     const rect = parseRange(args.range) ?? usedRect(target.sheet);
-    if (name === 'read_range' || name === 'read_formats' || name === 'read_sheet_features') {
+    if (name === 'read_formats') {
+      const rows = sheetRows(target.sheet, rect).map((row) => ({
+        ...row,
+        formats: Object.fromEntries(Object.keys(row.cells).map((ref) => [ref, numberFormatOf(doc, target.sheet.cells[ref])])),
+      }));
+      return { sheetName: target.name, range: args.range ?? null, hiddenRows: [...target.sheet.hiddenRows], rows };
+    }
+    if (name === 'read_range' || name === 'read_sheet_features') {
       return { sheetName: target.name, range: args.range ?? null, hiddenRows: [...target.sheet.hiddenRows], rows: sheetRows(target.sheet, rect) };
     }
     if (name === 'read_cells') {
+      if (!Array.isArray(args.addresses)) throw new InvalidArguments('addresses must be an array of cell references');
       const cells = {};
-      for (const ref of args.addresses ?? []) cells[ref] = cellText(target.sheet.cells[String(ref).toUpperCase()]);
+      for (const ref of args.addresses) cells[ref] = cellText(target.sheet.cells[String(ref).toUpperCase()]);
       return { sheetName: target.name, cells };
     }
     if (name === 'find_cells') {
@@ -360,9 +412,23 @@ function readTools(caseDoc, doc) {
   return doc.format === 'xlsx' ? xlsx : text;
 }
 
+/** Reads the JSON arguments of a tool call: an object, or an empty string for none; anything else is invalid. */
+function parseArguments(raw) {
+  let value = raw;
+  if (typeof raw === 'string') {
+    if (raw.trim() === '') return { ok: true, args: {} };
+    try { value = JSON.parse(raw); } catch { return { ok: false, reason: 'arguments are not valid JSON' }; }
+  }
+  if (value === undefined || value === null) return { ok: true, args: {} };
+  if (typeof value !== 'object' || Array.isArray(value)) return { ok: false, reason: 'arguments must be a JSON object' };
+  return { ok: true, args: value };
+}
+
 /**
  * One case's tool session. execute(name, args) answers a call; writes() is the number of writes let through;
- * denied() lists calls it refused (revoked access, viewer, stale version) so the runner can record them.
+ * denied() lists calls it refused (revoked access, viewer, stale version) so the runner can record them; writeLog()
+ * keeps the arguments of every write attempt (applied or refused) so an edit can be scored from what was proposed;
+ * invalid() lists calls whose arguments the real tool would refuse (answered `invalid_arguments`, never a crash).
  */
 export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = null } = {}) {
   const documents = caseDoc.fixtures.map((fixture, i) => {
@@ -375,34 +441,45 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = nul
   let calls = 0;
   let writes = 0;
   const denied = [];
+  const writeLog = [];
+  const invalid = [];
+  const refuseArguments = (name, reason) => {
+    invalid.push({ name, reason: String(reason).slice(0, 160) });
+    return { error: 'invalid_arguments', message: `The arguments of ${name} are not valid: ${String(reason).slice(0, 160)}` };
+  };
 
   return {
     modules: [...new Set(modules)],
     writes: () => writes,
     denied: () => [...denied],
+    writeLog: () => writeLog.map((entry) => ({ ...entry })),
+    invalid: () => [...invalid],
     execute(name, rawArgs) {
-      let args = {};
-      if (rawArgs && typeof rawArgs === 'object') args = rawArgs;
-      else if (typeof rawArgs === 'string' && rawArgs.trim()) {
-        try { args = JSON.parse(rawArgs); } catch { args = {}; }
-      }
       const target = documents.find((d) => TOOL_OPS[d.module][name]);
       if (!target) return { error: `unsupported tool ${name}` };
+      const parsed = parseArguments(rawArgs);
+      if (!parsed.ok) return refuseArguments(name, parsed.reason);
+      const { args } = parsed;
       const ops = TOOL_OPS[target.module][name];
       calls += 1;
       if (calls > revokeAfter) {
         denied.push({ name, reason: 'access_revoked' });
         return { error: 'permission_denied', message: 'Your access to this document was revoked.' };
       }
-      if (name === 'ask_clarification') return { status: 'clarification_requested', questions: args.questions ?? [] };
+      if (name === 'ask_clarification') return { status: 'clarification_requested', questions: Array.isArray(args.questions) ? args.questions : [] };
       const isWrite = ops.some((op) => WRITE_OPERATIONS.has(op)) && !(name === 'apply_ops' && args.dryRun === true);
       if (isWrite) {
-        if (target.role === 'viewer') { denied.push({ name, reason: 'viewer' }); return { error: 'permission_denied', message: 'This document is view-only.' }; }
-        if (caseDoc.setup?.serverVersionAhead) { denied.push({ name, reason: 'version_conflict' }); return { error: 'version_conflict', message: 'The server holds a newer version than the copy that is open.' }; }
+        if (target.role === 'viewer') { denied.push({ name, reason: 'viewer' }); writeLog.push({ name, applied: false, args }); return { error: 'permission_denied', message: 'This document is view-only.' }; }
+        if (caseDoc.setup?.serverVersionAhead) { denied.push({ name, reason: 'version_conflict' }); writeLog.push({ name, applied: false, args }); return { error: 'version_conflict', message: 'The server holds a newer version than the copy that is open.' }; }
         writes += 1;
+        writeLog.push({ name, applied: true, args });
         return { status: 'applied', note: 'Edit applied in the editor (not yet saved).' };
       }
-      return target.read(name, args);
+      try {
+        return target.read(name, args);
+      } catch (err) {
+        return refuseArguments(name, err?.message ?? err);
+      }
     },
   };
 }

@@ -9,7 +9,7 @@
 import http from 'node:http';
 
 import { ANSWER_MARKER } from './holdout-answer.mjs';
-import { modulesOfCase, opsOfTool } from './holdout-backend.mjs';
+import { WRITE_OPERATIONS, modulesOfCase, opsOfTool } from './holdout-backend.mjs';
 
 const json = (res, status, body, headers = {}) => {
   res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
@@ -45,6 +45,14 @@ export function toolsToCall(caseDoc, offered) {
   return names;
 }
 
+/** Arguments for a call of the reference model: a write carries the reference edits, so the edit is provable from them. */
+export function argumentsFor(caseDoc, name) {
+  const isWrite = opsOfTool(modulesOfCase(caseDoc), name)?.some((op) => WRITE_OPERATIONS.has(op));
+  if (!isWrite) return '{}';
+  const edits = caseDoc.referenceAnswer.structural.filter((s) => s.kind === 'cell').map(({ anchor, value }) => ({ anchor, value }));
+  return JSON.stringify({ note: 'reference edit', edits });
+}
+
 /** The reference model as a façade handler: (request, state) -> { content, toolCalls, status? }. */
 export function scriptedModel(cases) {
   const byQuery = new Map(cases.flatMap((c) => [[c.query.vi, c], [c.query.en, c]]));
@@ -56,7 +64,7 @@ export function scriptedModel(cases) {
       state.caseDoc = caseDoc;
       const names = toolsToCall(caseDoc, body.tools ?? []);
       if (names.length > 0) {
-        return { toolCalls: names.map((name, i) => ({ id: `call_${i}`, type: 'function', function: { name, arguments: '{}' } })) };
+        return { toolCalls: names.map((name, i) => ({ id: `call_${i}`, type: 'function', function: { name, arguments: argumentsFor(caseDoc, name) } })) };
       }
     }
     return { content: `${state.caseDoc.referenceAnswer.text}\n${referenceLine(state.caseDoc)}` };
