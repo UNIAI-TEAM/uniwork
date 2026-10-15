@@ -27,11 +27,13 @@ type Config struct {
 	DesktopAuthDeploymentIDs []string
 	DesktopAuthCodeTTL       time.Duration
 	DesktopAuthAttemptTTL    time.Duration
-	// DocumentCommitIntentClaimTTL and DocumentCommitIntentRetention are the
-	// G5-07 intent windows (service.DefaultCommitIntentClaimTTL / ...Retention
-	// are the same dev defaults; G5-D2 fixes production).
+	// DocumentCommitIntentClaimTTL, DocumentCommitIntentRetention and
+	// DocumentCommitIntentSweepTick are the G5-07 intent windows and sweep
+	// cadence (service.DefaultCommitIntentClaimTTL / ...Retention /
+	// commitIntentSweepTick are the same dev defaults; G5-D2 fixes production).
 	DocumentCommitIntentClaimTTL  time.Duration
 	DocumentCommitIntentRetention time.Duration
+	DocumentCommitIntentSweepTick time.Duration
 	FrontendOrigin                string
 	// PreviewOrigin is the separate, cookie-less origin used by isolated
 	// Markdown/HTML frames. It must never be the frontend origin.
@@ -259,6 +261,7 @@ func Load() (Config, error) {
 		DesktopAuthAttemptTTL:         parseDuration(os.Getenv("DESKTOP_AUTH_ATTEMPT_TTL"), 10*time.Minute),
 		DocumentCommitIntentClaimTTL:  parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_CLAIM_TTL"), 2*time.Minute),
 		DocumentCommitIntentRetention: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_RETENTION"), 7*24*time.Hour),
+		DocumentCommitIntentSweepTick: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_SWEEP_TICK"), 10*time.Minute),
 		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
 		PreviewOrigin:                 os.Getenv("PREVIEW_ORIGIN"),
 		PreviewCapabilitySecret:       os.Getenv("PREVIEW_CAPABILITY_SECRET"),
