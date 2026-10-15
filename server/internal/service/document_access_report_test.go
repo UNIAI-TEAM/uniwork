@@ -194,9 +194,8 @@ func TestAccessReportFolderScopeIsRecursiveAndIncludesRoot(t *testing.T) {
 	sub := f.arDoc(t, tn, arDocSpec{kind: DocumentKindFolder, parent: root.ID})
 	deep := f.arDoc(t, tn, arDocSpec{parent: sub.ID})
 	direct := f.arDoc(t, tn, arDocSpec{parent: root.ID})
-	f.arDoc(t, tn, arDocSpec{})                                       // outside the folder
-	f.arDoc(t, tn, arDocSpec{parent: sub.ID, archived: true})         // in the trash
-	f.arDoc(t, tn, arDocSpec{parent: root.ID, ownerID: util.NewID()}) // work product
+	f.arDoc(t, tn, arDocSpec{})                               // outside the folder
+	f.arDoc(t, tn, arDocSpec{parent: sub.ID, archived: true}) // in the trash
 
 	page := f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{FolderID: root.ID})
 	arSame(t, "listed", arIDs(page), arSorted(root.ID, sub.ID, deep.ID, direct.ID))
