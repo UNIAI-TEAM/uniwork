@@ -5,6 +5,10 @@ import {
   anchorLabel,
   anchorStateKey,
   anchorableFormat,
+  canCommentInPanel,
+  canResolveCommentThread,
+  formatMentionList,
+  resolveNoAccessMentionsForSend,
   findDeepLinkTarget,
   formatCollabTime,
   listSignature,
@@ -172,5 +176,53 @@ describe("replyTargetOf, findDeepLinkTarget, listSignature, formatCollabTime", (
     expect(formatCollabTime(new Date(2026, 9, 12, 15, 30).toISOString(), "en", now)).toBe("Oct 12, 3:30 PM");
     expect(formatCollabTime(new Date(2025, 9, 12, 15, 30).toISOString(), "vi", now)).toBe("12/10/2025 15:30");
     expect(formatCollabTime("nope", "vi", now)).toBe("");
+  });
+});
+
+describe("G8-18 / DOC-05 model rules", () => {
+  const root = (over: Record<string, unknown> = {}) => ({ author_id: "u1", author_kind: "human", deleted_at: null, ...over }) as Parameters<typeof canResolveCommentThread>[0]["root"];
+  const base = { canWrite: true, currentUserId: "u1" };
+
+  it("canCommentInPanel: comment, edit and manage write; view, none and an unknown level do not; a refusal wins", () => {
+    for (const level of ["comment", "edit", "manage"]) expect(canCommentInPanel({ my_level: level as never })).toBe(true);
+    for (const level of ["view", "", "owner"]) expect(canCommentInPanel({ my_level: level as never })).toBe(false);
+    expect(canCommentInPanel({ my_level: "manage" }, true)).toBe(false);
+    expect(canCommentInPanel(null)).toBe(false);
+  });
+
+  it("canResolveCommentThread: edit+ any thread; comment only the root author; reply authors and agents never", () => {
+    expect(canResolveCommentThread({ ...base, level: "edit", root: root({ author_id: "other" }) })).toBe(true);
+    expect(canResolveCommentThread({ ...base, level: "manage", root: root({ author_id: "other" }) })).toBe(true);
+    expect(canResolveCommentThread({ ...base, level: "comment", root: root() })).toBe(true);
+    expect(canResolveCommentThread({ ...base, level: "comment", root: root({ author_id: "other" }) })).toBe(false);
+    expect(canResolveCommentThread({ ...base, level: "comment", root: root({ author_kind: "agent" }) })).toBe(false);
+    expect(canResolveCommentThread({ ...base, level: "view", root: root() })).toBe(false);
+    expect(canResolveCommentThread({ ...base, level: "weird", root: root() })).toBe(false);
+    expect(canResolveCommentThread({ ...base, canWrite: false, level: "manage", root: root() })).toBe(false);
+    expect(canResolveCommentThread({ ...base, level: "manage", root: root({ deleted_at: "2026-10-13T00:00:00Z" }) })).toBe(false);
+  });
+
+  it("formatMentionList lists every name, locale-aware", () => {
+    expect(formatMentionList(["An"], "en")).toBe("An");
+    expect(formatMentionList(["An", "Bình"], "en")).toBe("An and Bình");
+    expect(formatMentionList(["An", "Bình", "Cường"], "en")).toBe("An, Bình, and Cường");
+    expect(formatMentionList(["An", "Bình", "Cường"], "vi")).toBe("An, Bình và Cường");
+    expect(formatMentionList([" ", ""], "en")).toBe("");
+  });
+
+  it("resolveNoAccessMentionsForSend warns only for picked can_view=false tokens still in the body and not yet shared", () => {
+    const U1 = "01J8X4USR0000000000000000A";
+    const U2 = "01J8X4USR0000000000000000B";
+    const body = `a [@An](mention://member/${U1}) b [@Bình](mention://member/${U2})`;
+    const picked = new Map([[U1, { user_id: U1, display_name: "An", can_view: false }]]);
+    const run = (over: object = {}) => resolveNoAccessMentionsForSend({ body, pickedCandidates: picked, sharedUserIds: new Set(), canShare: true, ...over });
+    expect(run()).toEqual([{ user_id: U1, display_name: "An", can_share: true }]);
+    expect(run({ sharedUserIds: new Set([U1]) })).toEqual([]);
+    expect(run({ canShare: false })[0]!.can_share).toBe(false);
+    expect(run({ body: "no mention" })).toEqual([]);
+    // Admin-scope callers cannot share with themselves (spec §3 can_share rule 4).
+    expect(run({ canShare: undefined, doc: { my_level: undefined, owner_kind: undefined, admin_scope: true }, currentUserId: U1 })[0]!.can_share).toBe(false);
+    // Work Product documents never share.
+    expect(run({ canShare: undefined, doc: { my_level: "manage", owner_kind: "task", admin_scope: undefined } })[0]!.can_share).toBe(false);
   });
 });
