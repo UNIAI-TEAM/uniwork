@@ -1,0 +1,7 @@
+$ node scripts/office/g5g6g7/fault/server-cases.mjs; echo "SERVER_CASES_PASS1_EXIT $?"; for f in .harness-run/fault/*/result.json; do echo "=== $f"; cat "$f"; echo; done; rm -rf .fault-pass1; cp -r .harness-run/fault .fault-pass1; true
+server-cases.mjs: register deviceA failed: status 200
+SERVER_CASES_PASS1_EXIT 1
+=== .harness-run/fault/*/result.json
+cat: '.harness-run/fault/*/result.json': No such file or directory
+
+cp: cannot stat '.harness-run/fault': No such file or directory

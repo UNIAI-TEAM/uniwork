@@ -1,0 +1,5 @@
+$ cd server && go test ./internal/config -run 'TestLoadDocumentCommitIntentSweepTick' && go test ./internal/service -run 'TestDocumentWorkersCommitIntentSweepTick|CommitIntent' && go test ./cmd/server -run 'TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters|TestMainPassesTheFullDocumentServiceOptions'; echo "TEST_GO_EXIT $?"; true
+ok  	github.com/unicomhub/uniwork/server/internal/config	0.004s
+ok  	github.com/unicomhub/uniwork/server/internal/service	3.905s
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.016s
+TEST_GO_EXIT 0

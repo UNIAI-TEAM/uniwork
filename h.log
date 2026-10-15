@@ -1,0 +1,72 @@
+$ for f in .harness-run/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 60 "$f"; }; done; true
+=== .harness-run/logs/lib.log
+=== .harness-run/logs/migrate.log
+02:52:18.026 INF migrate done component=server dir=up
+=== .harness-run/logs/server-build.log
+=== .harness-run/logs/server.log
+02:52:18.047 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+02:52:18.047 INF local storage adapter ready dir=/workspace/.harness-run/uploads
+02:52:18.047 INF metrics listening component=server addr=127.0.0.1:34435
+02:52:18.049 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/15 02:52:18 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+02:52:18.050 INF mail: log mode, messages are printed component=server
+02:52:18.050 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+02:52:18.630 INF listening component=server port=38011 swagger=http://localhost:38011/swagger/index.html
+02:52:18.630 INF mail: outbox worker started component=server tick=5s
+02:52:27.233 INF mail not configured, printing message component=server kind=verification_code to=fault-devicea-mv8y119d-3f2c20@uniwork.test subject="843916 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    843916\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+02:52:27.234 INF http request method=POST path=/api/v1/auth/register status=200 duration=62.629ms request_id=cursor/5PKq4rlUpH-000004 correlation_id=319ad1c19762129a54571787eea3c252 trace_id=319ad1c19762129a54571787eea3c252 span_id=e5ca680493e1bcd8
+02:52:27.392 INF mail not configured, printing message component=server kind=verification_code to=fault-devicea-mv8y11dv-d3da94@uniwork.test subject="435001 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    435001\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+02:52:27.392 INF http request method=POST path=/api/v1/auth/register status=200 duration=58.98ms request_id=cursor/5PKq4rlUpH-000006 correlation_id=752e1da4ab596dbd68e8f2acfddc17dd trace_id=752e1da4ab596dbd68e8f2acfddc17dd span_id=a2177b21e321cbd9
+=== .harness-run/logs/web.log
+
+> @uniwork/web@0.0.0 dev /workspace/apps/web
+> node scripts/office-frame-sync.mjs --ensure && sh -c 'next dev --port "${FRONTEND_PORT:-3000}"'
+
+office-frame: docs 46 files verified, installed at /workspace/apps/web/public/office-frame/docs/0.1.0-05fd209
+office-frame: pdf 229 files verified, installed at /workspace/apps/web/public/office-frame/pdf/0.1.0-05fd209
+office-frame: markdown 90 files verified, installed at /workspace/apps/web/public/office-frame/markdown/0.1.0-05fd209
+office-frame: html 7 files verified, installed at /workspace/apps/web/public/office-frame/html/0.1.0-05fd209
+office-frame: slides 19 files verified, installed at /workspace/apps/web/public/office-frame/slides/0.1.0-05fd209
+office-frame: sheets 219 files verified, installed at /workspace/apps/web/public/office-frame/sheets/0.1.0-05fd209
+▲ Next.js 16.3.8 (Turbopack)
+- Local:         http://localhost:34621
+- Network:       http://172.30.0.2:34621
+✓ Ready in 342ms
+✓ Running next.config.mjs took 114ms
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+✓ Generated AGENTS.md and CLAUDE.md for AI agents. Set `agentRules: false` in next.config to disable.
+○ Compiling /login ...
+⚠ ./apps/web/app/globals.css:11455:13
+Warning: Parsing CSS source code failed
+  [90m11453 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11454 |[0m }
+[33m[1m>[0m [90m11455 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11456 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11457 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11458 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11455:13
+  [90m11453 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11454 |[0m }
+[33m[1m>[0m [90m11455 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11456 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11457 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11458 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login 200 in 4.5s (next.js: 4.0s, application-code: 487ms)

@@ -1,0 +1,13 @@
+$ export AI_PROVIDER=fake AI_CONVERSATION_KEY=YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE= FF_OFFICE_AI_UNIWORK=true FF_OFFICE_AI_UNIWORK_DOCX=true; bash scripts/office/g5g6g7/harness/start.sh --skip-app; echo "HARNESS_START_EXIT $?"; true
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /workspace/.harness-run
+harness: D server  http://localhost:38011 (metrics 127.0.0.1:34435)
+harness: D web     http://localhost:34621
+harness: fork      0d03b18
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:38011 ...
+harness: HARNESS_SKIP_APP=1 — the fork is not cloned and the app is not started
+harness: up (server + web)
+HARNESS_START_EXIT 0
