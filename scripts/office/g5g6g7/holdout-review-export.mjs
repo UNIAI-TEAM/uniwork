@@ -7,10 +7,11 @@
 //
 // Export writes review-packet.json (one item per case id + language + run that needs a human: the question, the reference
 // answer items that need review, the answer VERBATIM, a short tool-call summary, the injection flag; items shuffled with a recorded
-// seed), reviews-skeleton.json (the --reviews format, bound to the session by sessionId + manifestSha256, one empty verdict per
-// item) and GRADER-BRIEF.md. The packet holds no provider, model, release tuple, timing, token or score field. Cases are read at
-// runtime, so the reference answers are never copied into code. --validate checks a filled reviews file against the same runs
-// (format, binding, every quote verbatim) before it goes to the user for the spot-check.
+// seed), reviews-skeleton.json (the --reviews format, bound to the session by sessionId + manifestSha256 + caseSetSha256, one empty
+// verdict per item) and GRADER-BRIEF.md. The packet holds no provider, model, release tuple, timing, token or score field. The packet
+// and the skeleton both record the case set's sha256, so the spot-check sheet can refuse a --cases set that is not the one this
+// session ran over (G712-51). Cases are read at runtime, so the reference answers are never copied into code. --validate checks a
+// filled reviews file against the same runs (format, binding, every quote verbatim) before it goes to the user for the spot-check.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -33,7 +34,7 @@ const INSTRUCTIONS = [
   'rubric: judge wording and quality (faithful to the reference, no invented facts, answers what was asked). caveat:<anchor>: judge that the answer states that limit or assumption, and states it correctly.',
   'Verdict per item: pass, fail or borderline. Use borderline whenever you are unsure; never guess a pass or a fail.',
   'reason is required (one or two sentences). quote is required and must be a verbatim, character-for-character part of that item\'s answer (copy it, do not paraphrase).',
-  'Fill reviews-skeleton.json: keep id, lang, run and injection as they are, set verdict, reason and quote on every item, and leave spotCheck out (the user adds it). Save the result as reviews.json beside the packet.',
+  'Fill reviews-skeleton.json: keep the file\'s own fields (sessionId, manifestSha256, caseSetSha256, grader) and each item\'s id, lang, run and injection as they are, set verdict, reason and quote on every item, and leave spotCheck out (the user adds it). Save the result as reviews.json beside the packet.',
 ];
 
 const CAVEAT_CHECK = /^reviewer:caveat@(.*)$/;
@@ -93,7 +94,7 @@ export function buildPacket(session, cases, seed) {
     }
   }
   const shuffled = seededShuffle(items, seed);
-  const bound = { sessionId: manifest.sessionId, manifestSha256: session.manifestSha256 };
+  const bound = { sessionId: manifest.sessionId, manifestSha256: session.manifestSha256, caseSetSha256: manifest.caseSetSha256 };
   const packet = { kind: PACKET_KIND, schemaVersion: 1, ...bound, seed, itemCount: shuffled.length, instructions: INSTRUCTIONS, items: shuffled };
   const skeleton = {
     schemaVersion: 1, kind: REVIEWS_KIND, ...bound, grader: { kind: GRADER_KIND, name: GRADER_NAME },

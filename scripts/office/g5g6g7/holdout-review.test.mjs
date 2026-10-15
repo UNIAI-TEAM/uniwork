@@ -129,9 +129,10 @@ describe('blinded export', () => {
       if (Array.isArray(value)) value.forEach((v) => walk(v, at));
       else if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) { assert.doesNotMatch(k, forbidden, `${at}.${k}`); walk(v, `${at}.${k}`); }
     };
-    const { sessionId, manifestSha256, ...rest } = packet;
-    // The binding fields of the packet itself are the one allowed hash; everything else is walked.
+    const { sessionId, manifestSha256, caseSetSha256, ...rest } = packet;
+    // The binding fields of the packet itself are the allowed hashes; everything else is walked.
     assert.ok(sessionId && /^[0-9a-f]{64}$/.test(manifestSha256));
+    assert.equal(caseSetSha256, CASE_SHA, 'the packet names the case set the session ran over (G712-51)');
     walk(rest, 'packet');
     for (const value of ['provider-secret-x', 'model-secret-x', 'prompt-secret@1', 'a'.repeat(40), '4321', 'ai_usage_events']) {
       assert.ok(!JSON.stringify(packet).includes(value) && !JSON.stringify(skeleton).includes(value), `${value} must not appear in the packet or the skeleton`);
@@ -153,6 +154,7 @@ describe('blinded export', () => {
     assert.equal(skeleton.kind, REVIEWS_KIND);
     assert.equal(skeleton.sessionId, packet.sessionId);
     assert.equal(skeleton.manifestSha256, base.session.manifestSha256);
+    assert.equal(skeleton.caseSetSha256, CASE_SHA, 'the skeleton names the case set the session ran over (G712-51)');
     assert.deepEqual(skeleton.grader, { kind: 'model-session', name: 'Opus 5.5 grader' });
     assert.deepEqual(skeleton.reviews.map(key), packet.items.map(key));
     for (const r of skeleton.reviews) assert.deepEqual([r.verdict, r.reason, r.quote], [null, '', '']);
@@ -362,6 +364,47 @@ describe('spot-check sheet', () => {
     assert.equal(res.status, 0, res.stderr);
     const skeletonOut = JSON.parse(fs.readFileSync(path.join(out, 'spotcheck-skeleton.json'), 'utf8'));
     assert.equal(skeletonOut.items.filter((i) => i.because.includes('injection')).length, injections.length, 'every injection item is listed as one, none drawn as a random pass');
+  });
+
+  it('refuses a --cases set that is not the one the reviews file (or the packet) names, so it cannot drop an injection item (G712-51)', () => {
+    const script = path.join(here, 'holdout-spotcheck.mjs');
+    const doc = mixed();
+    const marked = doc.reviews.filter((r) => r.injection === true);
+    assert.ok(marked.length > 0, 'the stub has injection items');
+    assert.equal(doc.caseSetSha256, CASE_SHA, 'the export recorded the case set in the reviews file');
+    const reviewsFile = path.join(tmpRoot, 'reviews-cases.json');
+    fs.writeFileSync(reviewsFile, JSON.stringify(doc));
+    // What an operator could pass instead of the session's case set: the same files without the cases the reviews file marks injection.
+    const foreign = path.join(tmpRoot, 'cases-foreign');
+    fs.mkdirSync(foreign, { recursive: true });
+    for (const name of fs.readdirSync(DEFAULT_CASES_DIR).sort()) {
+      if (!name.endsWith('.json')) continue;
+      const caseDoc = JSON.parse(fs.readFileSync(path.join(DEFAULT_CASES_DIR, name), 'utf8'));
+      fs.writeFileSync(path.join(foreign, name), JSON.stringify({ ...caseDoc, cases: caseDoc.cases.filter((c) => !marked.some((m) => m.id === c.id)) }));
+    }
+    const out = path.join(tmpRoot, 'spot-foreign-cases');
+    const wrong = spawnSync(process.execPath, [script, '--reviews', reviewsFile, '--seed', '7', '--cases', foreign, '--out', out], { encoding: 'utf8' });
+    assert.equal(wrong.status, 4, wrong.stdout + wrong.stderr);
+    assert.match(wrong.stderr, /caseSetSha256/);
+    assert.equal(fs.existsSync(out), false, 'no sheet is written from a case set the session did not run over');
+    // A reviews file from before the case set was recorded: the packet still names it, and a file that names neither is refused.
+    const { caseSetSha256, ...legacy } = doc;
+    const legacyFile = path.join(tmpRoot, 'reviews-legacy.json');
+    fs.writeFileSync(legacyFile, JSON.stringify(legacy));
+    const packetFile = path.join(tmpRoot, 'packet-cases.json');
+    fs.writeFileSync(packetFile, JSON.stringify(packet));
+    const viaPacket = spawnSync(process.execPath, [script, '--reviews', legacyFile, '--seed', '7', '--cases', foreign, '--packet', packetFile], { encoding: 'utf8' });
+    assert.equal(viaPacket.status, 4);
+    assert.match(viaPacket.stderr, /--packet names case set/);
+    const nameless = spawnSync(process.execPath, [script, '--reviews', legacyFile, '--seed', '7'], { encoding: 'utf8' });
+    assert.equal(nameless.status, 4);
+    assert.match(nameless.stderr, /caseSetSha256 is missing/);
+    // The right case set keeps every marked injection item on the sheet as injection.
+    const right = path.join(tmpRoot, 'spot-right-cases');
+    const ok = spawnSync(process.execPath, [script, '--reviews', reviewsFile, '--seed', '7', '--cases', DEFAULT_CASES_DIR, '--out', right], { encoding: 'utf8' });
+    assert.equal(ok.status, 0, ok.stderr);
+    const skeletonOut = JSON.parse(fs.readFileSync(path.join(right, 'spotcheck-skeleton.json'), 'utf8'));
+    for (const m of marked) assert.ok(skeletonOut.items.some((i) => i.id === m.id && i.lang === m.lang && i.run === m.run && i.because.includes('injection')), `${key(m)} stays on the sheet as injection`);
   });
 
   it('draws the same sample for the same seed and another for another seed', () => {

@@ -262,6 +262,8 @@ export function tupleConsistency(runs) {
  * Validates a reviews file: one verdict per case id and language (optionally per run). Two kinds of file: a human one
  * (pass|fail, a named reviewer, a date) and a model-graded one (a file-level `grader`; per item pass|fail|borderline, a
  * reason, a verbatim quote, the run, and an optional spotCheck by the user; G7-D1 D1.c amendment 2026-10-16).
+ * The export also records caseSetSha256 (the case set the session was run over); the spot-check sheet checks it against
+ * its --cases set, so a wrong set cannot drop an injection item (G712-51).
  */
 export function parseReviews(doc) {
   const problems = [];
@@ -270,6 +272,7 @@ export function parseReviews(doc) {
   if (doc.schemaVersion !== 1) problems.push('schemaVersion must be 1');
   if (typeof doc.sessionId !== 'string' || doc.sessionId.trim() === '') problems.push('sessionId is required (the session the reviews were made for)');
   if (typeof doc.manifestSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(doc.manifestSha256)) problems.push('manifestSha256 is required (the sha256 of the session manifest.json the reviews were made for)');
+  if (doc.caseSetSha256 !== undefined && (typeof doc.caseSetSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(doc.caseSetSha256))) problems.push('caseSetSha256, when present, must be the sha256 of the case set the session was run over');
   if (!Array.isArray(doc.reviews) || doc.reviews.length === 0) problems.push('reviews must be a non-empty array');
   const graded = doc.grader !== undefined;
   if (graded) validateGrader(doc.grader, problems);

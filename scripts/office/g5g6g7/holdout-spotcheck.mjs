@@ -10,7 +10,9 @@
 // optional note). --merge writes reviews-spot-checked.json: the reviews file with those spot-checks added (it never overwrites the
 // reviews file), validated by the same parser the report uses.
 // Which items are injection items comes from the case set (read at runtime, like the export): a grader file that dropped or
-// falsified the flag cannot push an injection item off the sheet (G712-29).
+// falsified the flag cannot push an injection item off the sheet (G712-29). The case set itself is checked: a --cases set whose
+// caseSetSha256 differs from the reviews file's (or the packet's) is refused, and so is a run nothing ties to a case set, so a
+// wrong case set cannot drop an injection item either (G712-51).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,7 +20,7 @@ import { pathToFileURL } from 'node:url';
 
 import { parseReviews } from './holdout-report.mjs';
 import { GRADING_WORDING, RANDOM_PASSES, SPOTCHECK_KIND, itemKey, parseSeed, pickSpotChecks, validateSpotCheck } from './holdout-review.mjs';
-import { DEFAULT_CASES_DIR, isInsideRepo } from './holdout-run.mjs';
+import { DEFAULT_CASES_DIR, caseSetSha256, isInsideRepo } from './holdout-run.mjs';
 import { loadCases } from './holdout-score.mjs';
 
 export const SHEET_FILE = 'spotcheck-sheet.md';
@@ -95,7 +97,9 @@ const HELP = `Usage: node scripts/office/g5g6g7/holdout-spotcheck.mjs --reviews 
        node scripts/office/g5g6g7/holdout-spotcheck.mjs --reviews <file> --merge <filled ${SKELETON_FILE}> --out <dir>
 Lists every fail, every borderline, every injection item and ${RANDOM_PASSES} random passes (from the seed) of a model-graded reviews file, and writes
 ${SHEET_FILE} + ${SKELETON_FILE} to fill in. --merge adds the filled spot-checks and writes ${MERGED_FILE}.
---cases      the case set the injection flag is read from (default ${DEFAULT_CASES_DIR}); the case set, not the reviews file, decides
+--cases      the case set the injection flag is read from (default ${DEFAULT_CASES_DIR}); the case set, not the reviews file, decides,
+             and it must be the case set the session ran over: caseSetSha256 is checked against the reviews file (or --packet), and a
+             set that differs — or that neither names — is refused (G712-51)
 `;
 
 export function parseArgs(argv) {
@@ -130,9 +134,16 @@ function main() {
     process.stdout.write(`${merged.reviews.filter((r) => r.spotCheck).length} spot-check(s) in ${path.join(args.out, MERGED_FILE)}\n`);
     return;
   }
-  const injectionIds = new Set(loadCases(args.cases).cases.filter((c) => c.category === 'injection').map((c) => c.id));
-  const list = spotCheckList(reviews, args.seed, injectionIds);
   const packet = args.packet ? JSON.parse(fs.readFileSync(args.packet, 'utf8')) : null;
+  const { cases } = loadCases(args.cases);
+  // G712-51: the sheet reads its injection flags from --cases, so that set must be the one the session ran over. The export
+  // records caseSetSha256 in the reviews skeleton and in the packet; a differing set — or a run nothing ties to a set — is
+  // refused, so a wrong case set can never drop an injection item.
+  const named = [['the reviews file', reviews.caseSetSha256], ['--packet', packet?.caseSetSha256]].filter(([, sha]) => sha !== undefined);
+  if (named.length === 0) throw new Error('neither the reviews file nor --packet names the case set (caseSetSha256 is missing from both): pass --packet <review-packet.json> or re-export the packet');
+  const caseSha = caseSetSha256(cases);
+  for (const [what, sha] of named) if (sha !== caseSha) throw new Error(`${what} names case set ${String(sha).slice(0, 12)} while --cases holds ${caseSha.slice(0, 12)} (caseSetSha256 differs): a wrong case set could drop an injection item (G712-51)`);
+  const list = spotCheckList(reviews, args.seed, new Set(cases.filter((c) => c.category === 'injection').map((c) => c.id)));
   const sheet = renderSheet(reviews, list, args.seed, packet);
   if (args.out) {
     fs.mkdirSync(args.out, { recursive: true });
