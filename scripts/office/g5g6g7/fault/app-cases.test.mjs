@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
+import { createServer as createTcpServer } from "node:net";
 import test from "node:test";
 import { appEnv } from "../harness/lib.mjs";
 import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
@@ -22,7 +23,7 @@ import {
   selectAppCases, statePath, syncRequests, syncStoreScopeDir, uploadPosts,
 } from "./app-cases-lib.mjs";
 import {
-  ACCESS_TOKEN_TTL_MS, TOKEN_RENEW_AFTER_MS, authedRequest, base32Decode, deviceBCommit, enrollTotp,
+  ACCESS_TOKEN_TTL_MS, TOKEN_RENEW_AFTER_MS, authedRequest, base32Decode, causeSuffix, dRequest, deviceBCommit, enrollTotp,
   expireStagedClaims, freshToken, login, psqlUrl, totpCode,
 } from "./app-tenant.mjs";
 import { buildIntentLogEntry, loadFaultCases } from "./server-cases-lib.mjs";
@@ -509,4 +510,18 @@ test("a run's evidence carries the full trace and every sync request; FAIL runs 
   assert.match(lines[3], /proxy t2 commit POST 200 key=k1 rule=lose-commit-answer/);
   assert.deepEqual(failEvidenceLines("FQ-22", runResult({ assertions: [{ name: "a", expected: 1, actual: 1, ok: true }], evidence })), []);
   assert.ok(caseResult({ id: "FQ-22", ac: [] }, [failed]).exits[0].evidence, "result.json keeps each exit evidence");
+});
+
+test("dRequest reports the fetch cause for a closed port without leaking the token", async () => {
+  const srv = createTcpServer();
+  await new Promise((resolve) => srv.listen(0, "127.0.0.1", resolve));
+  const { port } = srv.address();
+  await new Promise((resolve) => srv.close(resolve));
+  const res = await dRequest(`http://127.0.0.1:${port}`, "/api/v1/x?q=1", { method: "POST", token: "SECRET-TOKEN-VALUE", json: { password: "pw" } });
+  assert.equal(res.status, "unreachable");
+  assert.equal(res.cause?.code, "ECONNREFUSED");
+  assert.equal(res.origin, `127.0.0.1:${port}`);
+  const text = JSON.stringify(res).toLowerCase();
+  assert.ok(!text.includes("authorization") && !text.includes("secret-token") && !text.includes("q=1"));
+  assert.match(causeSuffix(res), /ECONNREFUSED/);
 });

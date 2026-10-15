@@ -33,7 +33,7 @@ import {
 } from "./app-cases-lib.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
-  clearSyncWrite, createFileDocument, enrollTotp, freshToken, grantPlatformAdmin, login, seedAppTenant, setSyncWrite,
+  causeSuffix, clearSyncWrite, createFileDocument, enrollTotp, freshToken, grantPlatformAdmin, login, seedAppTenant, setSyncWrite,
 } from "./app-tenant.mjs";
 import { caseExpect } from "./case-expect.mjs";
 import { EMPTY_SERVER_VERSIONS, collectServerVersions } from "./collect.mjs";
@@ -225,7 +225,7 @@ async function runOne({ row, run, runs, caseDir, shared }) {
   } catch (error) {
     outcome = error instanceof AppBlocked
       ? { documentId: null, assertions: [], blocker: error.message }
-      : { documentId: null, assertions: [{ name: "run_execution", expected: "no unhandled error", actual: error.message, ok: false }] };
+      : { documentId: null, assertions: [{ name: "run_execution", expected: "no unhandled error", actual: `${error.message}${causeSuffix(error)}`, ok: false }] };
   } finally {
     for (const session of sessions) await closeApp(session).catch(() => {});
     await fetch(`${proxy.origin}/__fault/rules`, { method: "DELETE" }).catch(() => {});

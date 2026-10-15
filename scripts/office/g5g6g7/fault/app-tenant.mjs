@@ -35,8 +35,39 @@ export async function dRequest(apiOrigin, path, { method = "GET", token, headers
     }
     return { status: res.status, body: parsed };
   } catch (error) {
-    return { status: "unreachable", body: null, error: error?.name ?? "error" };
+    return { status: "unreachable", body: null, method, origin: hostOf(apiOrigin), error: error?.name ?? "error", message: error?.message, cause: causeOf(error) };
   }
+}
+
+const scalar = (value) => (typeof value === "string" || typeof value === "number" ? value : undefined);
+
+function hostOf(apiOrigin) {
+  try {
+    return new URL(apiOrigin).host;
+  } catch {
+    return "invalid-origin";
+  }
+}
+
+/** One level of error.cause, strings and numbers only (a fetch failure hides ECONNREFUSED here). */
+function causeOf(error) {
+  const cause = error?.cause;
+  if (!cause || typeof cause !== "object") return undefined;
+  const out = {};
+  for (const key of ["name", "code", "message", "errno", "syscall", "address", "port"]) {
+    if (scalar(cause[key]) !== undefined) out[key] = cause[key];
+  }
+  return out;
+}
+
+/** " (<message>; cause <code|name>: <message> <address>:<port>)" for an unreachable result or an Error with a cause; "" otherwise. */
+export function causeSuffix(source) {
+  const message = source?.message;
+  const cause = source instanceof Error ? causeOf(source) : source?.cause;
+  if (!message && !cause) return "";
+  const where = cause?.address !== undefined || cause?.port !== undefined ? ` ${cause.address ?? ""}:${cause.port ?? ""}` : "";
+  const why = cause ? `; cause ${cause.code ?? cause.name ?? "error"}: ${cause.message ?? ""}${where}` : "";
+  return ` (${message ?? ""}${why})`;
 }
 
 // ---- held sessions --------------------------------------------------------------
@@ -81,7 +112,7 @@ async function must(step, apiOrigin, path, options, okStatuses = [200, 201, 202,
   const res = await authedRequest(apiOrigin, path, options);
   if (!okStatuses.includes(res.status)) {
     const code = res.body?.error?.code ?? res.body?.code ?? "";
-    throw new TenantError(`${step}: ${options?.method ?? "GET"} ${template} -> ${res.status}${code ? ` ${code}` : ""}`);
+    throw new TenantError(`${step}: ${options?.method ?? "GET"} ${template} -> ${res.status}${code ? ` ${code}` : ""}${res.status === "unreachable" ? causeSuffix(res) : ""}`);
   }
   return res.body;
 }
