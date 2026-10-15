@@ -305,6 +305,58 @@ func TestAppendMarkdownEdges(t *testing.T) {
 	}
 }
 
+// The editor leaves an empty paragraph after a page's last list, table,
+// heading, code block, quote or rule. An append goes where the content ends, so
+// the new blocks follow the last real one: no blank line between old and new,
+// and a page that was not lossy stays so. Blank paragraphs anywhere else are
+// the author's and stay.
+func TestAppendMarkdownDropsTheEditorsTrailingParagraph(t *testing.T) {
+	list := nodeJSON("bulletList", nodeJSON("listItem", paraJSON(textJSON("a"))))
+	types := func(raw json.RawMessage) []string {
+		var doc struct {
+			Content []struct{ Type string }
+		}
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			t.Fatal(err)
+		}
+		out := make([]string, len(doc.Content))
+		for i, n := range doc.Content {
+			out[i] = n.Type
+		}
+		return out
+	}
+	cases := []struct {
+		name     string
+		page     json.RawMessage
+		want     []string
+		wantLoss bool
+	}{
+		{"list then the placeholder", pageJSON(list, paraJSON()), []string{"bulletList", "paragraph"}, false},
+		{"two placeholders", pageJSON(paraJSON(textJSON("x")), list, paraJSON(), paraJSON()), []string{"paragraph", "bulletList", "paragraph"}, false},
+		{"the editor's blank page", pageJSON(paraJSON()), []string{"paragraph"}, false},
+		{"a doc of no blocks", json.RawMessage(`{"type":"doc"}`), []string{"paragraph"}, false},
+		{"a blank paragraph inside is the author's", pageJSON(paraJSON(textJSON("x")), paraJSON(), list, paraJSON()), []string{"paragraph", "paragraph", "bulletList", "paragraph"}, true},
+		{"no placeholder", pageJSON(list), []string{"bulletList", "paragraph"}, false},
+	}
+	for _, c := range cases {
+		got, err := AppendMarkdown(c.page, "mới")
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if ts := types(got); strings.Join(ts, ",") != strings.Join(c.want, ",") {
+			t.Errorf("%s: blocks %v, want %v\n%s", c.name, ts, c.want, got)
+		}
+		if _, lossy, err := PageToMarkdown(got); err != nil || lossy != c.wantLoss {
+			t.Errorf("%s: after the append lossy %v err %v, want lossy %v", c.name, lossy, err, c.wantLoss)
+		}
+	}
+	// Nothing to append leaves even the placeholder alone.
+	page := pageJSON(list, paraJSON())
+	if got, err := AppendMarkdown(page, " "); err != nil || !bytes.Equal(got, page) {
+		t.Errorf("append nothing: %s, %v", got, err)
+	}
+}
+
 // The page a caller already stored is not rewritten by an append: every old
 // node comes back byte for byte (mustSame canonicalises, so it cannot see this).
 func TestAppendMarkdownLeavesOldNodesByteForByte(t *testing.T) {

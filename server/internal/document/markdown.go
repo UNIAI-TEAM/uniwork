@@ -95,7 +95,9 @@ func AssetsOf(content json.RawMessage) map[string]bool {
 	return out
 }
 
-// AppendMarkdown adds the blocks of md after the page's own.
+// AppendMarkdown adds the blocks of md after the page's own. The empty
+// paragraphs the editor keeps at the very end of a page are not the page's own
+// (see trimTrailingBlank): the new blocks follow the last real one.
 func AppendMarkdown(content json.RawMessage, md string) (json.RawMessage, error) {
 	if strings.TrimSpace(md) == "" {
 		return content, nil // nothing to add: not even an empty paragraph
@@ -115,7 +117,7 @@ func AppendMarkdown(content json.RawMessage, md string) (json.RawMessage, error)
 		return nil, err
 	}
 	doc.Type = "doc"
-	doc.Content = append(doc.Content, more.Content...)
+	doc.Content = append(trimTrailingBlank(doc.Content), more.Content...)
 	raw, err := json.Marshal(doc)
 	if err != nil {
 		return nil, errInvalid("document exceeds depth limit")
@@ -616,11 +618,23 @@ func mergeText(nodes []pmNode) []pmNode {
 	return out
 }
 
+// trimTrailingBlank drops the empty paragraphs at the very end of a doc's
+// blocks. TipTap's TrailingNode stores one after a page's last list, table,
+// heading, code block, quote or rule so the cursor has somewhere to go: it is
+// the editor's placeholder, not content, and the editor puts it back when it
+// needs it. A blank paragraph with anything after it is the author's and stays.
+func trimTrailingBlank(blocks []pmNode) []pmNode {
+	for len(blocks) > 0 && blocks[len(blocks)-1].Type == "paragraph" && len(mergeText(blocks[len(blocks)-1].Content)) == 0 {
+		blocks = blocks[:len(blocks)-1]
+	}
+	return blocks
+}
+
 // canonicalPage is a page in one spelling: sanitized, marks sorted, text
-// runs merged, attrs holding their default dropped, a doc of no blocks one
-// empty paragraph (what MarkdownToPage gives for no text, and what the editor
-// shows for either). Two pages that read the same canonicalize to the same
-// bytes.
+// runs merged, attrs holding their default dropped, no empty paragraph at the
+// end of the doc (trimTrailingBlank), and a doc of no blocks one empty
+// paragraph (what MarkdownToPage gives for no text, and what the editor shows
+// for either). Two pages that read the same canonicalize to the same bytes.
 func canonicalPage(content json.RawMessage) ([]byte, error) {
 	clean, _, err := Sanitize(content)
 	if err != nil {
@@ -639,10 +653,10 @@ func canonicalBytes(content []byte) ([]byte, error) {
 	if err := dec.Decode(&doc); err != nil {
 		return nil, err
 	}
-	if len(doc.Content) == 0 {
+	canonicalNode(&doc)
+	if doc.Content = trimTrailingBlank(doc.Content); len(doc.Content) == 0 {
 		doc.Content = []pmNode{{Type: "paragraph"}}
 	}
-	canonicalNode(&doc)
 	return json.Marshal(doc)
 }
 

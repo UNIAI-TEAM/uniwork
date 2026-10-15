@@ -339,6 +339,54 @@ func TestPageToMarkdownMarksWhatItCannotCarry(t *testing.T) {
 	}
 }
 
+// TipTap's TrailingNode stores an empty paragraph after a page's last list,
+// table, heading, code block, quote or rule. That placeholder is the editor's,
+// not the author's: it is no reason to close replace. A blank paragraph
+// anywhere else still is.
+func TestPageToMarkdownIgnoresTheEditorsTrailingParagraph(t *testing.T) {
+	li := nodeJSON("listItem", paraJSON(textJSON("a")))
+	ti := `{"type":"taskItem","attrs":{"checked":false},"content":[` + paraJSON(textJSON("a")) + `]}`
+	table := nodeJSON("table", nodeJSON("tableRow", nodeJSON("tableHeader", paraJSON(textJSON("A")))), nodeJSON("tableRow", nodeJSON("tableCell", paraJSON(textJSON("1")))))
+	for name, last := range map[string]string{
+		"bullet list": nodeJSON("bulletList", li),
+		"ordered":     nodeJSON("orderedList", li),
+		"task list":   nodeJSON("taskList", ti),
+		"table":       table,
+		"heading":     `{"type":"heading","attrs":{"level":2},"content":[` + textJSON("H") + `]}`,
+		"code block":  `{"type":"codeBlock","content":[` + textJSON("x := 1") + `]}`,
+		"quote":       nodeJSON("blockquote", paraJSON(textJSON("q"))),
+		"rule":        `{"type":"horizontalRule"}`,
+	} {
+		plain := pageJSON(paraJSON(textJSON("đầu")), last)
+		wantMD, lossy, err := PageToMarkdown(plain)
+		if err != nil || lossy {
+			t.Fatalf("%s: the page without the placeholder: lossy %v err %v", name, lossy, err)
+		}
+		for _, page := range []json.RawMessage{
+			pageJSON(paraJSON(textJSON("đầu")), last, paraJSON()),
+			pageJSON(paraJSON(textJSON("đầu")), last, paraJSON(), paraJSON()),
+			pageJSON(paraJSON(textJSON("đầu")), last, `{"type":"paragraph","content":[`+textJSON("")+`]}`),
+		} {
+			md, lossy, err := PageToMarkdown(page)
+			if err != nil || lossy || md != wantMD {
+				t.Errorf("%s: md %q lossy %v err %v, want %q and not lossy", name, md, lossy, err, wantMD)
+			}
+			if _, same := checkRoundTrip(t, page); !same {
+				t.Errorf("%s: the independent read-back differs from %s", name, page)
+			}
+		}
+		// A blank paragraph with something after it is the author's: still lossy.
+		for _, page := range []json.RawMessage{
+			pageJSON(paraJSON(textJSON("đầu")), last, paraJSON(), paraJSON(textJSON("sau"))),
+			pageJSON(paraJSON(), last),
+		} {
+			if _, lossy, err := PageToMarkdown(page); err != nil || !lossy {
+				t.Errorf("%s: an interior blank paragraph must stay lossy (lossy %v err %v) in %s", name, lossy, err, page)
+			}
+		}
+	}
+}
+
 // An empty page is empty Markdown and not lossy: a new document holds no
 // blocks, and the reader gives a single empty paragraph for no text.
 func TestPageToMarkdownOfAnEmptyPage(t *testing.T) {

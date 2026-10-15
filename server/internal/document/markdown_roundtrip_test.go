@@ -347,6 +347,9 @@ func oracleOf(t *testing.T, raw json.RawMessage) string {
 	return oracleNode(doc, true)
 }
 
+// oracleBlank is how oracleNode spells an empty paragraph.
+const oracleBlank = "paragraph{}<>()"
+
 func oracleNode(n map[string]any, root bool) string {
 	typ, _ := n["type"].(string)
 	marks := oracleMarks(n["marks"])
@@ -380,6 +383,16 @@ func oracleNode(n map[string]any, root bool) string {
 		child, _ := c.(map[string]any)
 		parts[i] = oracleNode(child, false)
 	}
+	if root {
+		// The editor's placeholder: empty paragraphs at the very end of the doc are
+		// not part of what a page says, and no blocks at all read as one.
+		for len(parts) > 0 && parts[len(parts)-1] == oracleBlank {
+			parts = parts[:len(parts)-1]
+		}
+		if len(parts) == 0 {
+			parts = []string{oracleBlank}
+		}
+	}
 	// Text is quoted runes and a node is type{...}(...), so the parts need no separator
 	// and two runs of text read as one.
 	return typ + "{" + strings.Join(attrs, ",") + "}" + marks + "(" + strings.Join(parts, "") + ")"
@@ -412,6 +425,10 @@ func (g *pageGen) mutated() json.RawMessage {
 		panic(err)
 	}
 	g.mutate(doc)
+	if kids, ok := doc["content"].([]any); ok && g.r.IntN(4) == 0 {
+		// What TipTap's TrailingNode stores after a page's last non-paragraph block.
+		doc["content"] = append(kids, map[string]any{"type": "paragraph"})
+	}
 	raw, _ := json.Marshal(doc)
 	return raw
 }
