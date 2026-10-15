@@ -22,9 +22,10 @@ const (
 	// client must already be subscribed to the room to receive it.
 	ScopeChat Scope = "chat"
 	// ScopeRoom fans out to each member's own user scope, resolved at delivery
-	// time. Room membership events need this: a member who has just been added
-	// to a room is not subscribed to it yet, so ScopeChat would deliver the
-	// event to everyone except the person it is about.
+	// time, plus the user the row names in user_id. Room membership events need
+	// this: a member who has just been added to a room is not subscribed to it
+	// yet, so ScopeChat would deliver the event to everyone except the person
+	// it is about, and a removed member is no longer in the list at delivery.
 	ScopeRoom Scope = "room"
 	// ScopeOrganization fans out to everyone connected from anywhere in one
 	// organization. Directory and department changes belong to the company,
