@@ -10,19 +10,14 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@uniwork/ui/components/ui/select";
 import { WorkspaceMemberPickerList, WorkspaceMemberSearchField } from "../../chat/workspace-member-picker";
 import { filterWorkspaceMembers } from "../../chat/workspace-member-picker-utils";
-import { accessLevelLabel, accessVisibilityLabel, REPORT_LEVELS } from "./access-report-labels";
+import { accessLevelLabel, filterVisibilityLabel, REPORT_LEVELS } from "./access-report-labels";
 
 const ALL = "all";
 const VISIBILITIES = ["workspace", "restricted"] as const;
@@ -53,7 +48,7 @@ export function AccessReportFiltersBar({ wsId, filters, personName, onChange, on
 
   const visibilityItems = [
     { value: ALL, label: t("documents.accessReport.filter_all") },
-    ...VISIBILITIES.map((value) => ({ value, label: accessVisibilityLabel(t, value) })),
+    ...VISIBILITIES.map((value) => ({ value, label: filterVisibilityLabel(t, value) })),
   ];
 
   return (
@@ -88,22 +83,26 @@ export function AccessReportFiltersBar({ wsId, filters, personName, onChange, on
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Select
-        items={visibilityItems}
-        value={filters.visibility || ALL}
-        onValueChange={(next) => onChange({ ...filters, visibility: next === ALL ? undefined : String(next) })}
-      >
-        <SelectTrigger aria-label={t("documents.accessReport.filter_visibility")} className="w-auto min-w-40">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {visibilityItems.map((item) => (
-            <SelectItem key={item.value} value={item.value}>
-              {item.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<Button type="button" variant="toolbar" size="sm" className="gap-1" />}
+        >
+          {`${t("documents.accessReport.filter_visibility")}: ${visibilityItems.find((item) => item.value === (filters.visibility || ALL))?.label ?? ""}`}
+          <ChevronDown aria-hidden className="size-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-40">
+          <DropdownMenuRadioGroup
+            value={filters.visibility || ALL}
+            onValueChange={(next) => onChange({ ...filters, visibility: next === ALL ? undefined : String(next) })}
+          >
+            {visibilityItems.map((item) => (
+              <DropdownMenuRadioItem key={item.value} value={item.value} className="px-2 py-2 pointer-coarse:min-h-11">
+                {item.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {active ? (
         <Button type="button" variant="ghost" size="sm" onClick={onReset} className="gap-1">

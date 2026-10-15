@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
+import en from "@uniwork/core/i18n/locales/en.json";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
 import { AccessReportView } from "./access-report-view";
 
@@ -122,11 +124,17 @@ function reportCalls(): URL[] {
     .filter((url) => url.pathname === REPORT_PATH);
 }
 
-function renderView(url = `${BASE_URL}?folder=f1`) {
+function renderView(url = `${BASE_URL}?folder=f1`, documentHref?: (id: string) => string) {
   const nav = fakeNav(url);
   render(
     wrapWithNav(
-      <AccessReportView wsId={WS} workspaceName="Đội" workspaceSlug="doi" libraryHref="/acme/doi/documents" />,
+      <AccessReportView
+        wsId={WS}
+        workspaceName="Đội"
+        workspaceSlug="doi"
+        libraryHref="/acme/doi/documents"
+        documentHref={documentHref}
+      />,
       nav,
     ),
   );
@@ -529,7 +537,7 @@ describe("AccessReportView - layout", () => {
 
   it("a long name or title is truncated and carries a tooltip instead of widening the table", async () => {
     serve(wide);
-    renderView();
+    renderView(undefined, (id) => `/acme/doi/documents/${id}`);
     const table = await screen.findByRole("table", { name: longTitle });
     const link = screen.getByRole("group", { name: longTitle }).querySelector("h3 a");
     expect(link).toHaveAttribute("title", longTitle);
@@ -568,7 +576,7 @@ describe("AccessReportView - layout", () => {
 
   it("person-name buttons and document title links have a 24px desktop and 44px coarse-pointer hit area", async () => {
     serve(wide);
-    renderView();
+    renderView(undefined, (id) => `/acme/doi/documents/${id}`);
     const table = await screen.findByRole("table", { name: "Hợp đồng ABC" });
     const person = within(table).getByRole("button", { name: "Trần Bình" });
     const title = screen.getByRole("group", { name: "Hợp đồng ABC" }).querySelector("h3 a")!;
@@ -622,8 +630,11 @@ describe("AccessReportView - export labels and the empty note", () => {
   });
 
   it("the empty-file note says what the file keeps", () => {
-    expect(t("documents.accessReport.empty_export_note")).toBe(
+    expect(en.documents.accessReport.empty_export_note).toBe(
       "A file with no rows records the filter and time only in its name.",
+    );
+    expect(viLocale.documents.accessReport.empty_export_note).toBe(
+      "Tệp không có dòng nào chỉ ghi bộ lọc và thời điểm tạo trong tên tệp.",
     );
   });
 });
