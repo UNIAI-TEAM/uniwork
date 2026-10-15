@@ -244,7 +244,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
 
   const groups = groupRows(library.state.rows, view.kind === "home" && folderId ? "none" : groupBy, library.folderIndex);
   const scope: ScopeTab | null = view.kind === "home" || view.kind === "recent" || view.kind === "shared" || view.kind === "archived" ? view.kind : null;
-  const filtered = chip !== "all" && library.unfilteredCount > 0;
+  const accessFiltered = library.access !== "all";
+  const filtered = (chip !== "all" || accessFiltered) && library.unfilteredCount > 0;
   const state = library.state;
   const listLoading = state.loading || (Boolean(folderId) && folder.isPending);
   // The header and the active tab count the same thing: the rows this list
@@ -391,6 +392,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   onScope={(next) => goHome({ kind: next })}
                   chip={chip}
                   onChip={setChip}
+                  access={library.access}
+                  onAccess={library.setAccess}
                   groupBy={groupBy}
                   onGroupBy={setGroupBy}
                   sort={view.kind === "home" && folderId ? library.sort : null}
@@ -401,6 +404,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   loading={listLoading}
                   failure={state.failure}
                   filtered={filtered}
+                  accessFiltered={accessFiltered}
+                  typeFiltered={chip !== "all"}
                   cardsShown={canCreate && view.kind === "home"}
                   archived={view.kind === "archived"}
                   showType={view.kind === "home" && Boolean(folderId)}
@@ -408,7 +413,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   loadingMore={state.loadingMore}
                   onLoadMore={state.loadMore}
                   onRetry={state.refetch}
-                  onClearFilters={() => setChip("all")}
+                  onClearFilters={() => {
+                    setChip("all");
+                    library.setAccess("all");
+                  }}
                   handlers={handlers}
                   empty={emptyCopy}
                 />

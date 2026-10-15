@@ -789,6 +789,7 @@ func New(d Deps) http.Handler {
 		RestoreDocument:          h.restoreDocument,
 		ListDocumentShares:       h.listDocumentShares,
 		CreateDocumentShare:      h.createDocumentShare,
+		CreateDocumentShareBatch: h.createDocumentShareBatch,
 		RevokeDocumentShare:      h.revokeDocumentShare,
 		CreateDocumentLink:       h.createDocumentLink,
 		RevokeDocumentLink:       h.revokeDocumentLink,

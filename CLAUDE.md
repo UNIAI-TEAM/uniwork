@@ -349,6 +349,12 @@ Every command that changes business state writes an `audit_events` row and its
   cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
   `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
   `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
+- The signed-in desktop app uses the keys the person saved on UniWork only
+  through the BYOK proxy routes (ADR 0034, extending 0029): it never receives a
+  key, and its calls record the `office.byok_desktop` capability while web and
+  frame calls keep `office.byok`.
+  `TestAIBYOKDeviceSessionStreamsAndMetersDesktopCapability` and
+  `TestProxySurfaceCapability` hold it.
 - External AI clients (Claude, ChatGPT, Gemini) reach UniWork only through
   the MCP connector, with UniWork as their OAuth server (ADR 0031). They get
   opaque tokens (`uwm_at_`, `uwm_rt_`) that only `/mcp` accepts, and `/mcp`

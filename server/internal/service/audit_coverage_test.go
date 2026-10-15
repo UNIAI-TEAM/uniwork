@@ -1036,6 +1036,21 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
+			// ShareDocumentBatch (UNI-1641) writes its own row per user: the
+			// organization share above plus this one make two.
+			f.addMember(t)
+			if _, err := svc.ShareDocumentBatch(f.ctx, Human(f.owner.ID), docID, []string{f.member.ID}, DocumentLevelView); err != nil {
+				t.Fatal(err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, audit.ActionDocumentShared, docID,
+			).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if n != 2 {
+				t.Fatalf("document.shared rows after ShareDocument + ShareDocumentBatch = %d, want 2", n)
+			}
 		},
 		audit.ActionDocumentShareRevoked: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)

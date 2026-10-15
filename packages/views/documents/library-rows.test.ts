@@ -12,12 +12,15 @@ import {
   formatBytes,
   groupRows,
   indexTree,
+  matchesAccess,
   matchesChip,
   mergeNewestFirst,
   readFolderSort,
+  rowAccessLabelKey,
   rowOrigin,
   rowSizeBytes,
   rowTypeKey,
+  rowVisibilityLabelKey,
   sortFolderRows,
   sourceRow,
   writeFolderSort,
@@ -253,3 +256,36 @@ describe("library rows", () => {
   });
 });
 
+
+describe("access columns and filter (UNI-1642)", () => {
+  const lvl = (my_level: string | null | undefined, visibility = "workspace") =>
+    documentRow(doc({ my_level: my_level as DocumentSummaryRow["my_level"], visibility: visibility as DocumentSummaryRow["visibility"] }));
+
+  it("maps the viewer's level to the share dialog's words, comment included, and an unknown level to nothing", () => {
+    expect(rowAccessLabelKey(lvl("view"))).toBe("documents.home.access.view");
+    expect(rowAccessLabelKey(lvl("edit"))).toBe("documents.home.access.edit");
+    expect(rowAccessLabelKey(lvl("comment"))).toBe("documents.home.access.comment");
+    expect(rowAccessLabelKey(lvl("manage"))).toBe("documents.home.access.manage");
+    expect(rowAccessLabelKey(lvl("owner"))).toBeNull();
+    expect(rowAccessLabelKey(lvl(null))).toBeNull();
+    expect(rowAccessLabelKey(lvl(undefined))).toBeNull();
+    expect(rowAccessLabelKey(src())).toBeNull();
+  });
+
+  it("maps visibility and leaves an unknown value or a source row blank", () => {
+    expect(rowVisibilityLabelKey(lvl("view", "workspace"))).toBe("documents.home.visibility.workspace");
+    expect(rowVisibilityLabelKey(lvl("view", "restricted"))).toBe("documents.home.visibility.restricted");
+    expect(rowVisibilityLabelKey(lvl("view", "public"))).toBeNull();
+    expect(rowVisibilityLabelKey(lvl("view", ""))).toBeNull();
+    expect(rowVisibilityLabelKey(src())).toBeNull();
+  });
+
+  it("filters: manage = manage, edit = edit or manage, restricted = restricted, all = everything", () => {
+    const rows = [lvl("view"), lvl("edit"), lvl("manage"), lvl("comment"), lvl(undefined), lvl("manage", "restricted"), lvl("view", "restricted"), src()];
+    const pick = (f: Parameters<typeof matchesAccess>[1]) => rows.map((r) => matchesAccess(r, f));
+    expect(pick("all")).toEqual([true, true, true, true, true, true, true, true]);
+    expect(pick("manage")).toEqual([false, false, true, false, false, true, false, false]);
+    expect(pick("edit")).toEqual([false, true, true, false, false, true, false, false]);
+    expect(pick("restricted")).toEqual([false, false, false, false, false, true, true, false]);
+  });
+});

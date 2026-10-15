@@ -593,6 +593,7 @@ type Routes struct {
 	RestoreDocument          http.HandlerFunc
 	ListDocumentShares       http.HandlerFunc
 	CreateDocumentShare      http.HandlerFunc
+	CreateDocumentShareBatch http.HandlerFunc
 	RevokeDocumentShare      http.HandlerFunc
 	CreateDocumentLink       http.HandlerFunc
 	RevokeDocumentLink       http.HandlerFunc
