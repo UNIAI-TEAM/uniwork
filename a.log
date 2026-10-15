@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -5; git diff --stat 4042131b1 HEAD -- packages server | tail -3
+7505945b6785fc37397767a05d02e2e871bf2510
+7505945b6 fix(documents): keep the member-retry button focusable while it reloads
+a3233143d fix(documents): show the retry as busy while the first member page reloads
+1cbc08270 style(documents): drop the redundant text colour on the member error description
+371eb1733 chore: merge the G5-G7 root (8c8e040bd) into UNI-1778 before cloud tests
+55181aff1 test(documents): cover member loading errors in the share dialog
+ packages/views/documents/share-members-error.tsx   |  47 ++++
+ packages/views/documents/use-share-members.ts      |  37 +++-
+ 6 files changed, 336 insertions(+), 5 deletions(-)
