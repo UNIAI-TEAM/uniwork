@@ -7,7 +7,8 @@ markdown / html, đọc từ fork ở đúng rev của khối trích xuất tron
 tả lúc chạy từ mã sản phẩm (`opNames()`, `buildOpsGuide()`…): tệp giữ schema thật và phần chữ nguyên văn của mô tả, đặt
 `[generated at runtime]` ở chỗ mã chạy, nên holdout chạy các công cụ đó với mô tả rút gọn.
 
-Sinh lại (khi khối trích xuất đổi rev, cùng lúc với bảng; `FORK` là worktree fork có `--emit-schemas`):
+Sinh lại (khi khối trích xuất đổi rev, cùng lúc với bảng; `FORK` là worktree fork ở nhánh
+`feature/UNI-1374-g6-09-ai-edit-undo` — nơi có `--emit-schemas` cho tới khi extractor vào fork `main`):
 
 ```bash
 node "$FORK/scripts/genoffice-tools-extract.mjs" --repo "$FORK" --rev <rev trong header khối §3> \
