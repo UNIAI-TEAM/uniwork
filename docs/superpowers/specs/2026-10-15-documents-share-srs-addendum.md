@@ -216,17 +216,17 @@ SDI `UpdateDocumentAccessSDI{ items: [{ principal_type "user|workspace|organizat
 
 | Thẻ | Lane | Phạm vi chính | Phụ thuộc |
 | --- | --- | --- | --- |
-| **SH-S1** model + mặc định | server | migration `workspace_level`; resolver, `listRowAccess`, search/changes `member_visible` + mức; gốc rỗng → `restricted` (3 route tạo); gộp share trùng dòng gốc; `PATCH` visibility; audit/outbox `document.workspace_access_changed`; gộp S-DOC02 (trường `visibility` cho route tệp + capability) | DOC-05 (a) merged |
-| **SH-S2** lô + xem trước + nguồn | server | `PUT …/access` (+`dry_run`, preview, warnings, Q-S1), `GET …/share-candidates`, `sources`/`my_sources`/`home_workspace` trong `GET …/shares`, `shareDocumentInTx` (nếu S-DOC07 chưa tách), isolation, error_class | SH-S1; UNI-1641 (`applyDocumentShare`, `/shares/batch`) đã vào root |
-| **SH-S3** phạm vi + thông báo | server | `share_scope` trong `DocumentSummaryDTO`; kind `document_shared` đủ nơi | SH-S1 (song song SH-S2, khác file trừ catalogue/notification — merge tuần tự) |
-| **SH-W1** popup Chia sẻ | web | mục 5 (ba khu vực, tách file), endpoints + hooks + malformed test, locales vi/en, glossary | DOC-05 (b) và UNI-1641 (`share-people-picker.tsx`) đã vào root; hợp đồng SH-S2 (làm trên fake được) |
-| **SH-W2** huy hiệu phạm vi + W-DOC02 đảo | web | mục 7; công tắc "Chia sẻ với workspace" (mục 4) | SH-S1 (công tắc), SH-S3 (huy hiệu) |
-| **SH-W3** Inbox `document_shared` | web | renderer + test | SH-S3 |
-| **SH-S4** agent là đối tượng share | server | mục 6.6: `principal_type=agent`, resolver agent, kiểm người khởi chạy, loại đề xuất tài liệu (bình luận, sửa nội dung) trong `action_proposals` + thực thi bằng actor người xác nhận, test ADR 0010 (runtime không ghi nghiệp vụ, không đặt `accepted`) | hạ tầng `action_proposals` của agent runtime (ADR 0010; chưa có trong cây); SH-S2 |
-| **SH-W4** agent trong popup Chia sẻ + duyệt đề xuất | web | nhóm Agent trong picker, dòng agent (tối đa Chỉnh sửa), huy hiệu "{{count}} agent", hiện đề xuất của agent trong tài liệu với "Áp dụng"/"Bỏ qua" | SH-S4, SH-W1 |
-| **SH-E2E** | e2e | `e2e/documents-share.spec.ts` (cloud runner): AC01–AC20 luồng thật | tất cả |
+| **SH-S1** (UNI-1780) model + mặc định | server | migration `workspace_level`; resolver, `listRowAccess`, search/changes `member_visible` + mức; gốc rỗng → `restricted` (3 route tạo); gộp share trùng dòng gốc; `PATCH` visibility; audit/outbox `document.workspace_access_changed`; gộp S-DOC02 (trường `visibility` cho route tệp + capability) | DOC-05 (a) merged |
+| **SH-S2** (UNI-1781) lô + xem trước + nguồn | server | `PUT …/access` (+`dry_run`, preview, warnings, Q-S1), `GET …/share-candidates`, `sources`/`my_sources`/`home_workspace` trong `GET …/shares`, `shareDocumentInTx` (nếu S-DOC07 chưa tách), isolation, error_class | SH-S1; UNI-1641 (`applyDocumentShare`, `/shares/batch`) đã vào root |
+| **SH-S3** (UNI-1782) phạm vi + thông báo | server | `share_scope` trong `DocumentSummaryDTO`; kind `document_shared` đủ nơi | SH-S1 (song song SH-S2, khác file trừ catalogue/notification — merge tuần tự) |
+| **SH-W1** (UNI-1784) popup Chia sẻ | web | mục 5 (ba khu vực, tách file), endpoints + hooks + malformed test, locales vi/en, glossary | DOC-05 (b) và UNI-1641 (`share-people-picker.tsx`) đã vào root; hợp đồng SH-S2 (làm trên fake được) |
+| **SH-W2** (UNI-1785) huy hiệu phạm vi + W-DOC02 đảo | web | mục 7; công tắc "Chia sẻ với workspace" (mục 4) | SH-S1 (công tắc), SH-S3 (huy hiệu) |
+| **SH-W3** (UNI-1786) Inbox `document_shared` | web | renderer + test | SH-S3 |
+| **SH-S4** (UNI-1783) agent là đối tượng share | server | mục 6.6: `principal_type=agent`, resolver agent, kiểm người khởi chạy, loại đề xuất tài liệu (bình luận, sửa nội dung) trong `action_proposals` + thực thi bằng actor người xác nhận, test ADR 0010 (runtime không ghi nghiệp vụ, không đặt `accepted`) | hạ tầng `action_proposals` của agent runtime (ADR 0010; chưa có trong cây); SH-S2 |
+| **SH-W4** (UNI-1787) agent trong popup Chia sẻ + duyệt đề xuất | web | nhóm Agent trong picker, dòng agent (tối đa Chỉnh sửa), huy hiệu "{{count}} agent", hiện đề xuất của agent trong tài liệu với "Áp dụng"/"Bỏ qua" | SH-S4, SH-W1 |
+| **SH-E2E** (UNI-1788) | e2e | `e2e/documents-share.spec.ts` (cloud runner): AC01–AC20 luồng thật | tất cả |
 
-Thứ tự merge: DOC-05 (a)+(b) lockstep, UNI-1641 (batch share), UNI-1645 (khóa sửa) theo Run → SH-S1 → SH-S2 ∥ SH-S3 → SH-W1 ∥ SH-W2 → SH-W3 → SH-S4 → SH-W4 (chờ `action_proposals`) → SH-E2E; DOC-06/07 theo phụ lục truy cập, rebase sau SH-S2 khi chạm `document_shares.go`. Web làm song song trên fake nhưng chỉ merge sau thẻ server tương ứng. Issue UniAI cho các thẻ SH-* do người giữ issue tạo (sub-issue của UNI-923 hoặc issue mới theo `UNIAI_TRACKING.md`).
+Thứ tự merge: DOC-05 (a)+(b) lockstep, UNI-1641 (batch share), UNI-1645 (khóa sửa) theo Run → SH-S1 → SH-S2 ∥ SH-S3 → SH-W1 ∥ SH-W2 → SH-W3 → SH-S4 → SH-W4 (chờ `action_proposals`) → SH-E2E; DOC-06/07 theo phụ lục truy cập, rebase sau SH-S2 khi chạm `document_shares.go`. Web làm song song trên fake nhưng chỉ merge sau thẻ server tương ứng. Issue UniAI: sub-issue của UNI-923 (phase G5-G7), UNI-1780..UNI-1788, tạo 2026-10-15.
 
 ## 12. Nghiệm thu (SRS §13 → test)
 
