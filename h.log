@@ -1,0 +1,304 @@
+$ AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-sync-center-snapshot.test.ts tests/uniwork-sync-center-actions.test.ts tests/sync-center-model.test.ts tests/sync-center-pane-ui.test.ts tests/uniwork-docs-save-queue-wiring.test.ts tests/uniwork-docs-lock-open-route.test.ts tests/settings-sync-section.test.ts tests/uniwork-sync-center-wired.test.ts tests/uniwork-sync-queue-machine.test.ts tests/uniwork-sync-runtime.test.ts tests/uniwork-docs-conflict-dialog.test.ts tests/uniwork-docs-save-queue-wiring.test.ts tests/recent-files.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > the production wiring registers the 3 queue stores and dispatches on the poll 144ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC1: conflict on two devices opens the S5 view (no native box) and cancel closes it 129ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC3: overwrite supersedes the old intent and mints a new one on the new base 118ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > startup replays a stored intent exactly once and never lists the drafts folder 77ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > sign-out stops dispatch (no request after) and releases the lock 38ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > two windows of the same document -> the second is read-only through the service 45ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > a user pause survives a service restart (durable per account) 110ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC4: reload keep=draft keeps a draft of the latest local bytes (visible in drafts.list) and replaces the copy 101ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > cancel on a closed tab -> the snapshot becomes a kept draft 41ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC5: lost edit (!canEdit) refuses overwrite and save-copy; save-copy when canEdit replies save_copy_failed (pending G5-12) 150ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > Overwrite supersedes the pending intent before the new one 101ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > reopen with edit again clears a permission_revoked copy 39ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC6: drafts_full / store_full / keystore_locked -> keepDraft reflects it without mutating drafts, and reload keep=draft is refused while keep=discard succeeds 153ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > a connectivity change wakes a parked intent (setOnline) on the next poll 157ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC6 (store_full): keepDraft probes store_full without mutating the store 95ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > sync_write off -> paused_admin through the service 39ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-1: an inline 409 conflict leaves the record non-dispatchable (poll sends nothing) 38ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC7: offline overwrite queues paused_offline on the known head; offline reload without headOffline is refused 108ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G5-06 fix-C item 4 / AC-4: uploading at rest re-sends the same key, no lookup 54ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G5-06 fix-C item 4 / AC-4: committing at rest is settled by lookup 48ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC8: intent committing/reconciling refuses every action except cancel 100ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-4: teardownSaveQueue awaits the in-flight poll and nothing lands after it resolves 77ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-7: binding writes for one document serialize, so the later state wins 57ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > 409 on overwrite replies view with notice head_moved and refreshed server version 129ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > shows 3 skeleton rows on first load 28ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > has a polite live node from the start 6ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > opens on "Cần xử lý" when it has rows, else on "Đang chờ lưu" 41ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > names each tab with its count and labels the tabpanel by the tab 11ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-1: a poll during an in-flight inline save does not upload the same key twice 85ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-1: a settle left in flight is not sent after teardown resolves 69ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > in-place lock while open: revoked or deleted pushes locked view and refuses every action except cancel 141ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > tablist: roving tabindex, arrows wrap, Home/End 32ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > Tab walks the doc button then every row action in order 11ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > rows have a name of title + state and a text badge 12ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > renders each state with its actions 32ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > Gửi ngay offline stays in the Tab order, aria-disabled with its reason, and does not run 8ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > cancel: confirm in the row with focus on "Quay lại"; back keeps everything 15ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-2: a read-only window status does not rewrite the holder's binding.json 58ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > cancel: confirming calls cancelSave and announces the kept changes 23ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > cancel: an error keeps the row and announces it 15ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > stuck row: refusals of Bỏ lần lưu… leave the row as it was 30ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > stuck row: copy support code announces politely; download and recheck call main 23ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > stuck row without edit access has no download 6ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > FE-02: tab switch while open pushes conflictClosed once with the session id; an action answered after that returns {kind: "closed"} 161ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-3: an inline Save during the poll's tick is excluded (one writer) 109ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-1: the account-boundary wipe awaits teardownSaveQueue before the wipe 27ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > kept draft: Mở nháp opens read-only, Bỏ nháp… confirms first 27ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > failed row: Lưu lại calls saveAgain (not recheck) and a refusal is announced 14ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > blocked row: Bỏ nháp… confirms first, then calls discardDraft with the row id 15ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > lease_expired row: Kết nối lại only while the offline library is on 9ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > signed out: the count only, no document titles, Đăng nhập 3ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > store error: the message and Thử lại instead of the table 5ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > store newer: the S11 panel replaces the whole center 3ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > header: account, org, budget, Đăng xuất, pause and sync now 8ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > header offline: Đồng bộ ngay shown, aria-disabled with uwSyncNowOffline, does not run 10ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > W10: a stopped feed (resyncFailed) keeps Đồng bộ ngay usable while the header says offline 8ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > other organization line and status changes are announced 12ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > empty tabs say so 10ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-01a: cancelSave(path, true) (tab closed -> kept draft) ends the open session and pushes conflictClosed once with the session id 142ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > renders the en copy 8ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane > narrow (< 640px): first action stays, the rest go in the "…" menu 20ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane live announcements (FE-1, FE-5, FE-6, FE-9) > a new last-sync time alone is not announced again; a status change is read once 14ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane live announcements (FE-1, FE-5, FE-6, FE-9) > BE-2n-3: a session with no verdict yet shows the online line without a dangling time 7ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane live announcements (FE-1, FE-5, FE-6, FE-9) > a row the user did not act on that changes state is read once, politely 14ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane live announcements (FE-1, FE-5, FE-6, FE-9) > copy support leaves the row unmarked: its next real change is announced 16ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane live announcements (FE-1, FE-5, FE-6, FE-9) > a failed call leaves the row unmarked: its next real change is announced 16ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G8-12 comments seam on queue-settled saves > a parked Save that a later poll commits moves baseVersionId and pushes saved once 173ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane live announcements (FE-1, FE-5, FE-6, FE-9) > an ok state change is the user own: not announced, and the mark ends with the next snapshot 18ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane live announcements (FE-1, FE-5, FE-6, FE-9) > the same refusal twice in a row is announced twice 16ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane open confirm (FE-2, FE-4, FE-9) > a pushed snapshot that drops the confirmed action closes the confirm; nothing runs 17ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane open confirm (FE-2, FE-4, FE-9) > a confirm for a row that left and came back does not reappear 23ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane open confirm (FE-2, FE-4, FE-9) > an unrelated push keeps the confirm the user is reading 12ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane open confirm (FE-2, FE-4, FE-9) > Go pressed again while the call runs does not call twice or close the confirm early 17ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane open confirm (FE-2, FE-4, FE-9) > a call that settles does not close the confirm another row opened meanwhile 11ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-01b: confirmClose choosing "close" ends the open session and pushes conflictClosed once with the session id 89ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-04: does not push conflictClosed when the session is ended before conflictOpen is delivered 54ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G8-12 comments seam on queue-settled saves > a record left committing at rest that a lookup finds committed pushes saved once 93ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane open confirm (FE-2, FE-4, FE-9) > Escape closes the confirm without reaching the Settings dialog; focus returns to the trigger 10ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane open confirm (FE-2, FE-4, FE-9) > narrow: Back returns focus to the "…" trigger the confirm came from 13ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane open confirm (FE-2, FE-4, FE-9) > switching tabs closes the open confirm; it is not there when the tab comes back 11ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane per-row busy (FE-3) > while Lưu lại runs, the row other actions are aria-disabled and do nothing 8ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane per-row busy (FE-3) > another row is not held back by a busy row 9ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane foreign account and loading (FE-8, FE-11) > a blocked foreign_account row shows no title anywhere and no document button 5ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane foreign account and loading (FE-8, FE-11) > a row that becomes foreign_account loses its title from the page and the live text 6ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane foreign account and loading (FE-8, FE-11) > narrow: a foreign_account row has no "…" menu and still no title 4ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane foreign account and loading (FE-8, FE-11) > the loading skeleton has accessible loading text 1ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane visual review fixes (VIS-1..VIS-8) > VIS-3: the conflict row Mở để xử lý is the primary action, the other actions are not 8ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane visual review fixes (VIS-1..VIS-8) > VIS-1: the discard actions carry the danger class and the danger rule outranks .set-btn 5ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane visual review fixes (VIS-1..VIS-8) > VIS-2n: a long action wraps inside the fixed actions column instead of overrunning it 1ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane visual review fixes (VIS-1..VIS-8) > VIS-2 and VIS-6: fixed column widths, a status column that holds a pill, doc wider than details 1ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane visual review fixes (VIS-1..VIS-8) > VIS-5: Tài liệu / Trạng thái / Chi tiết are visible real column headers; Hành động stays screen-reader only 5ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane visual review fixes (VIS-1..VIS-8) > VIS-4: signed out is an informational line (neutral tone) with Đăng nhập as the primary button 2ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane visual review fixes (VIS-1..VIS-8) > VIS-8: a store error shows only the notice and Thử lại, no connected line or sync controls 3ms
+ ✓ tests/sync-center-pane-ui.test.ts > SyncCenterPane visual review fixes (VIS-1..VIS-8) > VIS-8: a snapshot that cannot be read leaves no header either 2ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G8-12 comments seam on queue-settled saves > a dispatched Save refused with 403 pushes nothing and caps the level at view 159ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-02/BE-302: reload keep=draft awaits the dirty module flush before keeping the draft or replacing the copy, without uploading 123ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-02/BE-302: reload keep=draft refuses with reload_failed when a dirty module does not write; keep=discard stays as-is without flushing 105ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 wired Sync Center facts: header account > maps the header account from the profile (display name, email) 3ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 wired Sync Center facts: header account > falls back to the email local part when the profile has no display name, and to nothing without an identity 0ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > syncNow runs sync when online and refuses with offline when disconnected 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > setSendingPaused pauses and resumes user sending 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > sendNow dispatches a single row immediately and refuses when offline or missing 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > cancelSave preserves the snapshot as a kept draft and removes the intent 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > discardSave converts reconciling_stuck to kept draft and refuses with draft_cap or store_full leaving intent untouched 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > recheck performs a commit lookup without re-uploading bytes 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > copySupportCode writes the stuck row support code to the clipboard 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > BE-10: copySupportCode refuses every row that is not reconciling-stuck 0ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > saveMyCopy uses default name "{title} (bản của tôi).{ext}" and guards on canEdit 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > openDocument, openDraft (read-only), discardDraft, and retryStore execute as specified 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > discardDraft drops a blocked intent for the access-lost reasons without keeping a draft 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > discardDraft refuses a blocked intent whose reason has no discard action and leaves it blocked 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > discardDraft never discards an intent that is not blocked, and reports an unknown row 0ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > BE-12: a kept-draft row whose draft is gone is not_found and never discards a blocked intent 0ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > BE-5: a blocked intent without a known cause is not discardable (recheck only) 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > saveAgain supersedes a failed intent, then mints a new one from the same snapshot 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > saveAgain refuses a row that is not failed or unknown, leaving the intent untouched 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > saveAgain reports store_full when the store takes no new intent and keeps the old failed intent 1ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > subscribe pushes a debounced fresh snapshot on state changes 26ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > pulls every (org, workspace) whose capability says sync_feed, and nothing else 25ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a crash mid-page keeps the cursor on the applied page; the replay is idempotent 18ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a full resync keeps drafts and evicts documents the snapshot no longer lists 22ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a torn page commit keeps the previous page whole: no orphan row (G504-be-2) 16ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a store_full page apply never moves the cursor, and the page is retried (G504-be-1) 15ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-402: the flush times out when the module never answers -> reload_failed, no upload, waiter cleared, a late hook takes the normal path 184ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > BE-11: snapshot rebuilds coalesce (one in flight, one queued behind it) 153ms
+ ✓ tests/uniwork-sync-center-actions.test.ts > G5-10 Sync Center actions and change notifications > registerSyncCenterIpc binds all Sync Center channels and forwards changed snapshots 25ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > another account or deployment never sees this stream 13ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a locked keychain or an off capability never asks the feed server 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a capability 401 is handed to the session 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > start polls on the injected schedule and stop cancels it 6ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > stop() ends the pass in flight and the next start runs at once (G504-be-7) 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the full resync keeps drafts through the real hasLocalDraft (wiring keepDraft) > keeps dirty, saving, intent-held and editor-dirty copies; evicts a clean unlisted one 16ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the full resync keeps drafts through the real hasLocalDraft (wiring keepDraft) > keeps a copy whose editor turns dirty while the intent store is answering (R5-be-1) 9ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > writes a record and reads it back without plaintext at rest 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > a sign-out locks every handle and wipes the scope 8ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > an account switch locks only the switched-out scope 9ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > counts the budget in encrypted bytes and refuses past it 7ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > writes a record and reads it back without plaintext at rest 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > a sign-out locks every handle and wipes the scope 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > an account switch locks only the switched-out scope 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > counts the budget in encrypted bytes and refuses past it 11ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > G506-be-3: only a failed feed round trip reports the queue offline > a pass with no org to feed (nothing attempted) reports no verdict 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > G506-be-3: only a failed feed round trip reports the queue offline > a failed feed round trip parks the queue offline 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces every document of a page the doc cache committed, exactly once 9ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces a document with two changes in one page exactly once 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces nothing when the cache refuses the page 2ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-402: Cancel while the flush waits -> closed, no draft kept, no reload, waiter cleared 141ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-402: S6 newer-dirty origin: flush ok keeps the editor bytes as the draft and reloads the server head 111ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-401: a user Save consumed as the flush leaves the chip honest when the dialog ends right after (no "saved" for an un-uploaded copy) 150ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-1: the runtime poll verdict reaches the wired sync center > an offline verdict shows the offline header and refuses syncNow / sendNow / recheck 6ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-1: the runtime poll verdict reaches the wired sync center > an online verdict sets lastSyncAt, and a pass with nothing to do changes nothing 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-1: the runtime poll verdict reaches the wired sync center > a real SyncRuntime pass tells its listener, which drives notePoll (the wiring line) 18ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-1: the runtime poll verdict reaches the wired sync center > wiring.ts hands the runtime verdict and the feed verdict to the sync center 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-2: a store_newer lock is the S11 header on the wired path > a store_newer lock outranks everything (status store_newer) 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-2: a store_newer lock is the S11 header on the wired path > a keystore_locked lock is not store_newer 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-7: the feed runtime verdict reaches header conditions 7 and 9 > a resync verdict reads resynced, a refused resync reads resync_failed 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-7: the feed runtime verdict reaches header conditions 7 and 9 > a real SyncRuntime reports resynced after a full resync and resyncFailed past the cap 17ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-3: a read-only draft preview never outlives its use > discarding the draft deletes its preview 4ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-3: a read-only draft preview never outlives its use > a closed preview window is swept on the next poll (after the grace), an open one is kept 2ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-3: a read-only draft preview never outlives its use > a preview whose window has not opened yet survives the grace period 2ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-3: a read-only draft preview never outlives its use > sign-out and a switch to another account delete every preview 4ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-3: a read-only draft preview never outlives its use > startup sweeps the previews a previous run left behind 3ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-4: cancelSave goes through the service and keeps an open window's work > an open document: service cancel with closed=false, no kept draft, the chip goes dirty 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-4: cancelSave goes through the service and keeps an open window's work > a closed document: service cancel with closed=true, the snapshot becomes a kept draft 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-4: cancelSave goes through the service and keeps an open window's work > a closed document at the draft cap is refused draft_cap and the intent stays as it was 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-4: cancelSave goes through the service and keeps an open window's work > a state that cannot be cancelled is busy, open or closed 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-5 / BE-6 on the wired path > a blocked intent without a known cause has no reason and is never discardable 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-5 / BE-6 on the wired path > a blocked intent the queue filed as forbidden reads permission_revoked (discardable) 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > RES-3: the lease manager produces lease_expired / clock_rollback on the wired path > a blocked intent whose lease expired reads lease_expired, libraryOff only when offline_library is off 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > RES-3: the lease manager produces lease_expired / clock_rollback on the wired path > a blocked intent behind a clock rollback reads clock_rollback (never libraryOff) 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > RES-3: the lease manager produces lease_expired / clock_rollback on the wired path > the queue's own known cause wins, a usable lease adds nothing, and a lease never changes the row state 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > RES-3: the lease manager produces lease_expired / clock_rollback on the wired path > wiring.ts hands the runtime lease manager to the sync center 0ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-2n-2: a read-only draft preview is not a recent file > the path a preview opens through is recognised, a normal document path is not 11ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-2n-2: a read-only draft preview is not a recent file > every recents write in the shell main process goes through the preview guard 2ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > BE-2n-3: no verdict yet is not a synced time > a signed-in session with no verdict has no sync time, and a no-verdict pass sets none 1ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > W10: "Đồng bộ ngay" restarts a feed stopped on refused resyncs, even offline > does not refuse as offline: it resets the refusal and backoff and runs a pass that recovers 13ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > W10: "Đồng bộ ngay" restarts a feed stopped on refused resyncs, even offline > a device that is really offline still gets the normal offline answer and line 10ms
+ ✓ tests/uniwork-sync-center-wired.test.ts > W10: "Đồng bộ ngay" restarts a feed stopped on refused resyncs, even offline > wiring.ts hands the runtime reset to the sync center 0ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-401: the waiter is one-shot: a second hook for the same path after the flush runs the normal save 105ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-403: a dialog aborted while drafts.keep runs does not reload the tab; the kept draft stays 112ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > save while an intent exists → no new intent, effect pendingNext (N+1 stays dirty) 2ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > save with no intent stores the snapshot, parked by the offline/capability/pause facts 1ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > dispatch picks a queued intent up as validating, and the phase reports walk it to committing 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > 409 base conflict → conflict with the SAME intent 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > lookup committed → committed (receipt kept) + effect cleanup(generation) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > a committed event keeps the receipt and cleans up the generation 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > lookup not_committed → queued with attempt+1 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > lookup not_committed with sync_write off → paused_admin, and offline → paused_offline 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > lookup unknown → reconciling-stuck (never queued) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > lookup in_flight keeps reconciling and backs off the next lookup 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > reconciling older than stuckAfterMs → stuck 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > a stuck tick every recheckMs → effect lookup only, never a new attempt 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > capability(false) → paused_admin from every non-terminal, non-reconciling waiting state 2ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > capability(true) resumes a paused_admin as queued (paused_user if the user is paused) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > offline + Ctrl/⌘+S with the capability past TTL → paused_offline, not paused_admin 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > pause → paused_user (durable); resume → queued; paused_user + coming online stays paused_user 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > cancel allowed only from queued / paused_* / failed / conflict → cancelled (cancelReason user) + effect keepDraft 1ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > discard on stuck → effect keepDraft then cancelled, refused anywhere else 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > supersede (Overwrite/Reload, or "Lưu lại" on failed) → cancelled (cancelReason superseded) BEFORE any new intent 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > abandon ("Bỏ nháp…" on a blocked row) → cancelled (cancelReason user), no draft effect; refused from every other state 1ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > tombstone / document_deleted → blocked, replay stops 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > 401 → blocked(session_expired); 403 by code → blocked with that code; other 403 → blocked(permission_revoked) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > capability_off → paused_admin (never blocked) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > quota → failed (and the other permanent errors too) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > a lost response after the commit started → reconciling, never failed 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > a transient failure before the commit retries queued with backoff, or waits the network offline 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > keystore lock while reconciling → stays reconciling 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > backoff: nextRetryAt jitters between half and the cap, and never passes backoffMaxMs 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > backoff: Retry-After is honoured but clamped to retryAfterClampMs 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > every event with no record is a no-op except save 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — header 10-priority table > resolves priority 1: store_newer over all other conditions 1ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — header 10-priority table > resolves priority 2: signed_out over session_expired and below 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — header 10-priority table > resolves priority 3: session_expired over admin_paused and below 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — header 10-priority table > resolves priority 4: admin_paused over offline and below 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — header 10-priority table > resolves priority 5: offline over paused and below 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — header 10-priority table > resolves priority 6: paused (user) over resync_failed and below 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — header 10-priority table > resolves priority 7: resync_failed over feed_off and below 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — header 10-priority table > resolves priority 8: feed_off over resynced and online 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — header 10-priority table > resolves priority 9: resynced over online 1ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — header 10-priority table > resolves priority 10: online when all higher conditions are inactive 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — tab split, defaultTab, org filter, 24h window, signed-out, storeError > splits rows across attention, pending, and recent tabs and computes defaultTab 2ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — tab split, defaultTab, org filter, 24h window, signed-out, storeError > filters tabs by active org and sets otherOrgHasIntents when another org has pending work 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — tab split, defaultTab, org filter, 24h window, signed-out, storeError > keeps only committed rows within the 24h recent window 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — tab split, defaultTab, org filter, 24h window, signed-out, storeError > exposes only signedOut.lockedCount and never leaks document titles when signed out 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — tab split, defaultTab, org filter, 24h window, signed-out, storeError > returns empty tabs and storeError=true when local store fails to open 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error session_expired to the blocked reason session_expired 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error not_signed_in to the blocked reason session_expired 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error wrong_deployment to the blocked reason session_expired 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error permission_revoked to the blocked reason permission_revoked 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error forbidden to the blocked reason permission_revoked 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error not_found to the blocked reason permission_revoked 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error document_deleted to the blocked reason document_deleted 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error deleted to the blocked reason document_deleted 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error organization_suspended to the blocked reason organization_suspended 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error member_deactivated to the blocked reason member_deactivated 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error keystore_locked to the blocked reason keystore_locked 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps the queue error store_full to the blocked reason store_full 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > maps a recorded document_archived error (server code of G5-08s, not a UniworkDocErrorCode yet) to document_archived 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > BE-5: an absent or unrecognised queue error has no reason and is never discardable 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > lets an explicit fact reason win over the queue error (document_archived, foreign_account, lease_expired, clock_rollback) 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > declares exactly the 13 blocked reasons of the spine, in the spine order 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > G5-10 buildSyncCenterSnapshot — blocked reasons follow the spine contract > marks libraryOff only on lease_expired while offline_library is off 0ms
+ ✓ tests/uniwork-sync-center-snapshot.test.ts > BE-10: the preload boundary validates the snapshot shape > accepts a built snapshot and refuses one the renderer model could not read 1ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > routeDocumentPath refuses a locked path before it routes to a module 3ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the UniWork service wiring passes the guard through and the shell hook exists 2ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the wiring refuses inside the service openPath and registers both invoke handlers 0ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the preload exposes the three lock methods on the shared channels 0ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the preload does not replay a held lock to a late subscriber (R1-be-1) 0ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the channel names match the lane contract exactly 0ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the preload exposes the lock list push and keeps keystore locks (R1-fe-1 BE) 0ms
+ ✓ tests/sync-center-model.test.ts > header status priority (Đầu trang S2) > takes the highest condition from the flags 1ms
+ ✓ tests/sync-center-model.test.ts > header status priority (Đầu trang S2) > keeps the session conditions main resolved above every flag 0ms
+ ✓ tests/sync-center-model.test.ts > header status priority (Đầu trang S2) > maps each status to its line and action 1ms
+ ✓ tests/sync-center-model.test.ts > header status priority (Đầu trang S2) > BE-2n-3: with no sync time yet the line never carries an empty {time} 0ms
+ ✓ tests/sync-center-model.test.ts > tabs > lists attention, pending, recent in order with their empty lines 0ms
+ ✓ tests/sync-center-model.test.ts > queue rows (badge, sub-line, actions) > queued: info badge, saved line, Gửi ngay · Hủy lần lưu… 1ms
+ ✓ tests/sync-center-model.test.ts > queue rows (badge, sub-line, actions) > queued offline: Gửi ngay stays, aria-disabled with the offline reason 0ms
+ ✓ tests/sync-center-model.test.ts > queue rows (badge, sub-line, actions) > paused rows only cancel 0ms
+ ✓ tests/sync-center-model.test.ts > queue rows (badge, sub-line, actions) > uploading and committing have no action 0ms
+ ✓ tests/sync-center-model.test.ts > queue rows (badge, sub-line, actions) > reconciling: Kiểm tra lại · Hướng dẫn 0ms
+ ✓ tests/sync-center-model.test.ts > queue rows (badge, sub-line, actions) > reconciling_stuck: three actions plus Bỏ lần lưu…, download only when canEdit 1ms
+ ✓ tests/sync-center-model.test.ts > queue rows (badge, sub-line, actions) > conflict: Mở để xử lý with the server version line 0ms
+ ✓ tests/sync-center-model.test.ts > queue rows (badge, sub-line, actions) > failed: Chi tiết · Lưu lại · Hủy lần lưu…, reason fragment by failedReason 0ms
+ ✓ tests/sync-center-model.test.ts > queue rows (badge, sub-line, actions) > committed / moved / archived: Mở 0ms
+ ✓ tests/sync-center-model.test.ts > queue rows (badge, sub-line, actions) > kept draft: Mở nháp · Bỏ nháp…; revoked: only Bỏ nháp…, not openable 0ms
+ ✓ tests/sync-center-model.test.ts > blocked reasons (Lý do bị chặn, 13 reasons) > covers the 13 reasons of the spine 0ms
+ ✓ tests/sync-center-model.test.ts > blocked reasons (Lý do bị chặn, 13 reasons) > maps badge, reason fragment and actions per reason 1ms
+ ✓ tests/sync-center-model.test.ts > blocked reasons (Lý do bị chặn, 13 reasons) > Bỏ nháp… on a blocked row needs the in-row confirm, for the four access-lost reasons only 1ms
+ ✓ tests/sync-center-model.test.ts > blocked reasons (Lý do bị chặn, 13 reasons) > lease_expired with the offline library off has no Kết nối lại; other rows keep theirs 0ms
+ ✓ tests/sync-center-model.test.ts > blocked reasons (Lý do bị chặn, 13 reasons) > never names the document of another account 0ms
+ ✓ tests/sync-center-model.test.ts > blocked reasons (Lý do bị chặn, 13 reasons) > an unknown reason still renders a blocked row with Kiểm tra lại 0ms
+ ✓ tests/sync-center-model.test.ts > copy and formatting > maps action refusals to their sentences 0ms
+ ✓ tests/sync-center-model.test.ts > copy and formatting > formats bytes 12ms
+ ✓ tests/sync-center-model.test.ts > copy and formatting > every key the model can return exists in vi and en 12ms
+ ✓ tests/recent-files.test.ts > matchesExtFamily > maps sidebar filter keys onto their extension families 1ms
+ ✓ tests/recent-files.test.ts > matchesExtFamily > still matches exact extensions and rejects outsiders 0ms
+ ✓ tests/recent-files.test.ts > sidebar filter families agree with the other two > matches the Home family for the text app 0ms
+ ✓ tests/recent-files.test.ts > sidebar filter families agree with the other two > matches the search family for the text app 0ms
+ ✓ tests/recent-files.test.ts > normalizeRecentQuery > defaults offset/limit and normalizes the extension key 1ms
+ ✓ tests/recent-files.test.ts > capStatPaths > leaves a list at the cap untouched 1ms
+ ✓ tests/recent-files.test.ts > capStatPaths > truncates past the cap, keeping the first paths in order 0ms
+ ✓ tests/recent-files.test.ts > starred and search lists follow the UniWork lookup like recents > hides another account copy and enriches a bound one in starred 1ms
+ ✓ tests/recent-files.test.ts > starred and search lists follow the UniWork lookup like recents > keeps starred untouched without a lookup 0ms
+ ✓ tests/recent-files.test.ts > starred and search lists follow the UniWork lookup like recents > filters and enriches search hits 0ms
+ ✓ tests/settings-sync-section.test.ts > Settings > Sync center > the nav entry shows the pane 51ms
+ ✓ tests/settings-sync-section.test.ts > Settings > Sync center > the account page links to the pane only while signed in 20ms
+ ✓ tests/settings-sync-section.test.ts > Settings > Sync center > Switch account goes to the account section 14ms
+ ✓ tests/settings-sync-section.test.ts > Settings > Sync center > Sign out and Sign in are the account own flows 9ms
+
+ Test Files  12 passed (12)
+      Tests  294 passed (294)
+   Start at  10:26:01
+   Duration  4.58s (transform 2.83s, setup 0ms, import 4.30s, tests 6.01s, environment 784ms)
+

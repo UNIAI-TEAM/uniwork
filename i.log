@@ -1,0 +1,40 @@
+$ AI_PROVIDER=fake npm run test -w @genoffice/i18n -- --reporter=verbose
+
+> @genoffice/i18n@0.1.0 test
+> vitest run --reporter=verbose
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/i18n
+
+ ✓ tests/i18n.test.ts > normalizeLang > maps zh variants to zh 1ms
+ ✓ tests/i18n.test.ts > normalizeLang > maps traditional-script zh variants to zh-TW 0ms
+ ✓ tests/i18n.test.ts > normalizeLang > maps ja/ko variants to ja/ko 0ms
+ ✓ tests/i18n.test.ts > normalizeLang > maps the newly added languages 1ms
+ ✓ tests/i18n.test.ts > normalizeLang > maps everything else (and missing) to en 0ms
+ ✓ tests/i18n.test.ts > normalizeLang > requires a BCP-47 boundary after the language code 0ms
+ ✓ tests/i18n.test.ts > isLang > accepts only supported languages 0ms
+ ✓ tests/i18n.test.ts > htmlLang > maps every supported language to a BCP-47 tag 2ms
+ ✓ tests/i18n.test.ts > format > fills placeholders and keeps unknown ones 0ms
+ ✓ tests/i18n.test.ts > format > leaves the placeholder in place for a nullish param value 0ms
+ ✓ tests/i18n.test.ts > format > does not leak prototype properties into placeholders 0ms
+ ✓ tests/i18n.test.ts > macShortcutsToWin > rewrites single-modifier chords 1ms
+ ✓ tests/i18n.test.ts > macShortcutsToWin > rewrites multi-modifier chords in Ctrl, Alt, Shift order 0ms
+ ✓ tests/i18n.test.ts > macShortcutsToWin > dedupes command and control into one Ctrl 0ms
+ ✓ tests/i18n.test.ts > macShortcutsToWin > handles function keys, arrows and named keys 0ms
+ ✓ tests/i18n.test.ts > macShortcutsToWin > keeps the Ctrl side of dual-platform listings 0ms
+ ✓ tests/i18n.test.ts > macShortcutsToWin > rewrites modifier+word combos and bare modifiers 0ms
+ ✓ tests/i18n.test.ts > macShortcutsToWin > keeps a chord embedded before non-Latin text intact 0ms
+ ✓ tests/i18n.test.ts > macShortcutsToWin > leaves strings without Mac symbols untouched 0ms
+ ✓ tests/i18n.test.ts > shortcut rewrite order > rewrites the template before interpolation so values keep their glyphs 0ms
+ ✓ tests/i18n.test.ts > createI18n > translates per language with interpolation 0ms
+ ✓ tests/i18n.test.ts > createI18n > falls back en -> zh -> key for a missing entry 0ms
+ ✓ tests/i18n.test.ts > isRtlLang > flags the right-to-left UI languages 0ms
+ ✓ tests/i18n.test.ts > isRtlLang > leaves left-to-right languages and junk alone 0ms
+ ✓ tests/i18n.test.ts > htmlDir > agrees with isRtlLang on every shipped language 0ms
+ ✓ tests/i18n.test.ts > htmlDir > maps the right-to-left languages and nothing else 0ms
+
+ Test Files  1 passed (1)
+      Tests  26 passed (26)
+   Start at  10:26:06
+   Duration  174ms (transform 56ms, setup 0ms, import 68ms, tests 11ms, environment 0ms)
+
