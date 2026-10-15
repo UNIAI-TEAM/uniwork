@@ -1,0 +1,12 @@
+$ pnpm knip; echo "KNIP_EXIT=$?"
+
+> uniwork@ knip /workspace
+> knip
+
+Unlisted dependencies (2)
+A  scripts/office/g5g6g7/harness/world.mjs:153:28
+M  scripts/office/g5g6g7/harness/world.mjs:157:28
+Unlisted binaries (1)
+awk  scripts/office/g5g6g7/g8-19/spec.test.mjs
+ ELIFECYCLE  Command failed with exit code 1.
+KNIP_EXIT=1

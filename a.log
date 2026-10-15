@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+7b1e1ea10d35f71b01e76d8504a4208d9d18ec4c
+7b1e1ea10 chore: merge G8-19 cross-host acceptance harness (1692ea7b4) into the G5-G7 root
+55ad94815 chore: merge UNI-1778 share dialog member-load error + retry (7505945b6) into the G5-G7 root
+0edcd2a6e docs(office): add threat T18, another UniWork account on the same OS user (G5-11 D1)

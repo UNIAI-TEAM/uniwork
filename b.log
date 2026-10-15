@@ -1,0 +1,5 @@
+$ node --test scripts/office/g5g6g7/*.test.mjs scripts/office/g5g6g7/g7-10/*.test.mjs scripts/office/g5g6g7/g8-19/*.test.mjs scripts/office/g5g6g7/harness/*.test.mjs  2>&1 | grep -E "^# (pass|fail)|^not ok" ; echo "G5G7_SCRIPTS_EXIT=${PIPESTATUS[0]}"
+not ok 98 - runG8A02 closed-panel Save that moves the anchor: that check PASS, the rest unchanged
+# pass 613
+# fail 1
+G5G7_SCRIPTS_EXIT=1
