@@ -116,3 +116,217 @@ func TestMigrationCommentLevelIsRightsNeutral(t *testing.T) {
 		t.Fatalf("shareLevelsFor(comment) = %v, want [comment edit manage]", got)
 	}
 }
+
+// DOC5-A01 (UNI-1413): four-level matrix (view < comment < edit < manage) across
+// document reads, comment write/edit/delete/reaction, thread root-author vs
+// reply-author resolve/reopen, body edits, ACL management, and list/tree/search
+// visibility for 'comment' shares.
+func TestDocumentLevelMatrix(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "doc5a01")
+
+	uView := f.user(t, "doc5a01", "uview")
+	uCommentRoot := f.user(t, "doc5a01", "ucommentroot")
+	uCommentReply := f.user(t, "doc5a01", "ucommentreply")
+	uEdit := f.user(t, "doc5a01", "uedit")
+	uManage := f.user(t, "doc5a01", "umanage")
+	uTarget := f.user(t, "doc5a01", "utarget")
+	for _, u := range []db.User{uView, uCommentRoot, uCommentReply, uEdit, uManage, uTarget} {
+		f.orgMember(t, tn.orgID, u.ID, OrgRoleMember)
+		f.wsMember(t, tn.wsA, u.ID, "member")
+	}
+
+	resDoc := f.doc(t, tn, docSpec{
+		ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+	})
+
+	f.share(t, resDoc, DocumentPrincipalUser, uView.ID, DocumentLevelView, tn.aclOwner.ID)
+	f.share(t, resDoc, DocumentPrincipalUser, uCommentRoot.ID, DocumentLevelComment, tn.aclOwner.ID)
+	f.share(t, resDoc, DocumentPrincipalUser, uCommentReply.ID, DocumentLevelComment, tn.aclOwner.ID)
+	f.share(t, resDoc, DocumentPrincipalUser, uEdit.ID, DocumentLevelEdit, tn.aclOwner.ID)
+	f.share(t, resDoc, DocumentPrincipalUser, uManage.ID, DocumentLevelManage, tn.aclOwner.ID)
+
+	// 1. Every level >= view reads document & comments.
+	for _, u := range []db.User{uView, uCommentRoot, uEdit, uManage} {
+		if _, err := f.svc.GetDocument(f.ctx, Human(u.ID), resDoc.ID); err != nil {
+			t.Fatalf("GetDocument(%s): %v", u.DisplayName, err)
+		}
+		if _, err := f.svc.DocumentComments(f.ctx, Human(u.ID), resDoc.ID, DocumentCommentListInput{}); err != nil {
+			t.Fatalf("DocumentComments(%s): %v", u.DisplayName, err)
+		}
+	}
+
+	// 2. Writing comments and reactions requires comment+: view is refused, comment/edit/manage succeed.
+	if _, err := f.svc.AddDocumentComment(f.ctx, Human(uView.ID), resDoc.ID, AddCommentInput{Body: "view cannot write"}, ""); err != ErrForbidden {
+		t.Fatalf("view AddDocumentComment = %v, want ErrForbidden", err)
+	}
+	rootThread, err := f.svc.AddDocumentComment(f.ctx, Human(uCommentRoot.ID), resDoc.ID, AddCommentInput{Body: "root by comment user"}, "")
+	if err != nil {
+		t.Fatalf("comment user AddDocumentComment (root): %v", err)
+	}
+	replyComment, err := f.svc.AddDocumentComment(f.ctx, Human(uCommentReply.ID), resDoc.ID, AddCommentInput{
+		Body:     "reply by second comment user",
+		ParentID: &rootThread.ID,
+	}, "")
+	if err != nil {
+		t.Fatalf("comment user AddDocumentComment (reply): %v", err)
+	}
+	editThread, err := f.svc.AddDocumentComment(f.ctx, Human(uEdit.ID), resDoc.ID, AddCommentInput{Body: "root by edit user"}, "")
+	if err != nil {
+		t.Fatalf("edit user AddDocumentComment: %v", err)
+	}
+
+	// Reactions: view refused, comment allowed.
+	if _, err := f.svc.AddDocumentCommentReaction(f.ctx, Human(uView.ID), rootThread.ID, "👍"); err != ErrForbidden {
+		t.Fatalf("view AddDocumentCommentReaction = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.AddDocumentCommentReaction(f.ctx, Human(uCommentReply.ID), rootThread.ID, "👍"); err != nil {
+		t.Fatalf("comment AddDocumentCommentReaction: %v", err)
+	}
+	if err := f.svc.RemoveDocumentCommentReaction(f.ctx, Human(uCommentReply.ID), rootThread.ID, "👍"); err != nil {
+		t.Fatalf("comment RemoveDocumentCommentReaction: %v", err)
+	}
+
+	// 3. Edit/delete own comment at comment+; edit/delete others' comment requires manage.
+	if _, err := f.svc.UpdateDocumentComment(f.ctx, Human(uCommentRoot.ID), rootThread.ID, UpdateCommentInput{Body: "root updated by author"}); err != nil {
+		t.Fatalf("comment author UpdateDocumentComment own: %v", err)
+	}
+	if _, err := f.svc.UpdateDocumentComment(f.ctx, Human(uCommentReply.ID), rootThread.ID, UpdateCommentInput{Body: "hijack"}); err != ErrForbidden {
+		t.Fatalf("comment peer UpdateDocumentComment other = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.UpdateDocumentComment(f.ctx, Human(uEdit.ID), rootThread.ID, UpdateCommentInput{Body: "hijack by edit"}); err != ErrForbidden {
+		t.Fatalf("edit peer UpdateDocumentComment other = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.UpdateDocumentComment(f.ctx, Human(uManage.ID), rootThread.ID, UpdateCommentInput{Body: "moderated by manage"}); err != nil {
+		t.Fatalf("manage UpdateDocumentComment other: %v", err)
+	}
+
+	// 4. Resolve / Unresolve thread:
+	// - view cannot resolve
+	// - comment-level reply author (uCommentReply) who is NOT root author cannot resolve rootThread or replyComment
+	// - comment-level root author (uCommentRoot) CAN resolve and unresolve their own thread
+	// - edit and manage CAN resolve and unresolve any thread
+	if _, err := f.svc.ResolveDocumentComment(f.ctx, Human(uView.ID), rootThread.ID); err != ErrForbidden {
+		t.Fatalf("view ResolveDocumentComment = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.ResolveDocumentComment(f.ctx, Human(uCommentReply.ID), rootThread.ID); err != ErrForbidden {
+		t.Fatalf("comment reply-author ResolveDocumentComment(root) = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.ResolveDocumentComment(f.ctx, Human(uCommentReply.ID), replyComment.ID); err != ErrForbidden {
+		t.Fatalf("comment reply-author ResolveDocumentComment(reply) = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.ResolveDocumentComment(f.ctx, Human(uCommentRoot.ID), editThread.ID); err != ErrForbidden {
+		t.Fatalf("comment user ResolveDocumentComment(other's thread) = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.ResolveDocumentComment(f.ctx, Human(uCommentRoot.ID), rootThread.ID); err != nil {
+		t.Fatalf("comment root-author ResolveDocumentComment(own thread): %v", err)
+	}
+	if _, err := f.svc.UnresolveDocumentComment(f.ctx, Human(uCommentRoot.ID), rootThread.ID); err != nil {
+		t.Fatalf("comment root-author UnresolveDocumentComment(own thread): %v", err)
+	}
+	if _, err := f.svc.ResolveDocumentComment(f.ctx, Human(uEdit.ID), rootThread.ID); err != nil {
+		t.Fatalf("edit ResolveDocumentComment(other's thread): %v", err)
+	}
+	if _, err := f.svc.UnresolveDocumentComment(f.ctx, Human(uManage.ID), rootThread.ID); err != nil {
+		t.Fatalf("manage UnresolveDocumentComment(other's thread): %v", err)
+	}
+
+	// Comment author deletes own comment; cannot delete others'.
+	ownTemp, err := f.svc.AddDocumentComment(f.ctx, Human(uCommentReply.ID), resDoc.ID, AddCommentInput{Body: "temp own comment"}, "")
+	if err != nil {
+		t.Fatalf("AddDocumentComment temp: %v", err)
+	}
+	if _, err := f.svc.DeleteDocumentComment(f.ctx, Human(uCommentReply.ID), rootThread.ID); err != ErrForbidden {
+		t.Fatalf("comment DeleteDocumentComment other = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.DeleteDocumentComment(f.ctx, Human(uCommentReply.ID), ownTemp.ID); err != nil {
+		t.Fatalf("comment DeleteDocumentComment own: %v", err)
+	}
+
+	// 5. Document body/title edit requires edit+; ACL share requires manage.
+	newTitle := "Renamed by comment"
+	if _, err := f.svc.UpdateDocument(f.ctx, Human(uCommentRoot.ID), resDoc.ID, UpdateDocumentInput{
+		Revision: resDoc.Revision,
+		Title:    &newTitle,
+	}); err != ErrForbidden {
+		t.Fatalf("comment UpdateDocument = %v, want ErrForbidden", err)
+	}
+	newTitleEdit := "Renamed by edit Matrix Spec Alpha"
+	updatedView, err := f.svc.UpdateDocument(f.ctx, Human(uEdit.ID), resDoc.ID, UpdateDocumentInput{
+		Revision: resDoc.Revision,
+		Title:    &newTitleEdit,
+	})
+	if err != nil {
+		t.Fatalf("edit UpdateDocument: %v", err)
+	}
+	if _, err := f.svc.ShareDocument(f.ctx, Human(uEdit.ID), resDoc.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser,
+		PrincipalID:   uTarget.ID,
+		Level:         DocumentLevelView,
+	}); err != ErrForbidden {
+		t.Fatalf("edit ShareDocument = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.ShareDocument(f.ctx, Human(uManage.ID), resDoc.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser,
+		PrincipalID:   uTarget.ID,
+		Level:         DocumentLevelView,
+	}); err != nil {
+		t.Fatalf("manage ShareDocument: %v", err)
+	}
+
+	// 6. A 'comment' share makes the restricted document visible in flat list,
+	// root tree listing, and search with Access.Level == DocumentLevelComment.
+	listPage, err := f.svc.ListDocuments(f.ctx, Human(uCommentRoot.ID), tn.wsA, ListDocumentsInput{})
+	if err != nil {
+		t.Fatalf("ListDocuments for comment share: %v", err)
+	}
+	var foundInList bool
+	for _, it := range listPage.Items {
+		if it.Document.ID == updatedView.Document.ID {
+			foundInList = true
+			if it.Access.Level != DocumentLevelComment {
+				t.Fatalf("ListDocuments Access.Level = %q, want %q", it.Access.Level, DocumentLevelComment)
+			}
+		}
+	}
+	if !foundInList {
+		t.Fatalf("ListDocuments for comment share did not include %s", resDoc.ID)
+	}
+
+	rootParent := ""
+	treePage, err := f.svc.ListDocuments(f.ctx, Human(uCommentRoot.ID), tn.wsA, ListDocumentsInput{ParentID: &rootParent})
+	if err != nil {
+		t.Fatalf("ListDocuments (tree root) for comment share: %v", err)
+	}
+	var foundInTree bool
+	for _, it := range treePage.Items {
+		if it.Document.ID == resDoc.ID {
+			foundInTree = true
+			if it.Access.Level != DocumentLevelComment {
+				t.Fatalf("ListDocuments (tree root) Access.Level = %q, want %q", it.Access.Level, DocumentLevelComment)
+			}
+		}
+	}
+	if !foundInTree {
+		t.Fatalf("ListDocuments (tree root) for comment share did not include %s", resDoc.ID)
+	}
+
+	searchPage, err := f.svc.ListDocuments(f.ctx, Human(uCommentRoot.ID), tn.wsA, ListDocumentsInput{
+		Query: "Alpha",
+	})
+	if err != nil {
+		t.Fatalf("ListDocuments (search) for comment share: %v", err)
+	}
+	var foundInSearch bool
+	for _, h := range searchPage.Items {
+		if h.Document.ID == resDoc.ID {
+			foundInSearch = true
+			if h.Access.Level != DocumentLevelComment {
+				t.Fatalf("ListDocuments (search) Access.Level = %q, want %q", h.Access.Level, DocumentLevelComment)
+			}
+		}
+	}
+	if !foundInSearch {
+		t.Fatalf("ListDocuments (search) for comment share did not include %s", resDoc.ID)
+	}
+}
