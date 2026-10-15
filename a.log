@@ -1,0 +1,4 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git merge-base --is-ancestor origin/main HEAD && echo SYNCED_OK
+59221db2ca9af1bf1bbc5389d8c95ac78d932ebb
+e704e935d63a0d912ff351f93f11daaccde252b2
+SYNCED_OK
