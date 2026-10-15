@@ -5,9 +5,23 @@ import { FolderOpen, Search, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
+import { libraryGroupSpans, libraryLadder, type LibraryColumnId } from "./library-columns";
 import { rowTypeKey, type RowGroup } from "./library-rows";
+
+const COLUMN_LABEL: Record<LibraryColumnId, string> = {
+  name: "documents.home.columns.name",
+  type: "documents.home.columns.type",
+  source: "documents.home.columns.source",
+  editor: "documents.home.columns.editor",
+  updated: "documents.home.columns.updated",
+  size: "documents.home.columns.size",
+  access: "documents.home.columns.my_access",
+  visibility: "documents.home.columns.visibility",
+  actions: "documents.home.columns.actions",
+};
 
 export interface DocumentsLibraryListProps {
   groups: RowGroup[];
@@ -143,39 +157,34 @@ export function DocumentsLibraryList({
     return "";
   };
 
+  const ladder = libraryLadder(showType);
+  const groupSpans = libraryGroupSpans(ladder);
+
   return (
-    <div className="flex flex-col">
+    <div className="@container/library flex flex-col">
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.page.title")}>
           {/*
-            Below `md` only Name and Actions exist: the other columns are
-            display:none, so the group header spans two columns there and all
-            columns from `md`, and My access + Visibility from `xl` (a colSpan
+            Every column but Name and Actions joins by the width of this list
+            (`@container/library`, see library-columns.ts), never the
+            viewport: the docs aside and the sidebar take ~500px of it. Name
+            takes what the fixed columns leave and never drops below 280px.
+            The group header spans exactly the columns on screen (a colSpan
             wider than the visible columns would add implicit columns that
-            squeeze Name to nothing). Name takes what the fixed columns leave.
+            squeeze Name to nothing).
           */}
           <colgroup>
-            <col />
-            {showType ? <col className="hidden w-36 md:table-column" /> : null}
-            <col className="hidden w-28 md:table-column" />
-            <col className="hidden w-36 md:table-column" />
-            <col className="hidden w-24 md:table-column" />
-            <col className="hidden w-24 md:table-column" />
-            <col className="hidden w-28 xl:table-column" />
-            <col className="hidden w-36 xl:table-column" />
-            <col className="w-14 md:w-24" />
+            {ladder.columns.map((column) => (
+              <col key={column.id} className={column.col || undefined} />
+            ))}
           </colgroup>
-          <thead className="hidden bg-muted/50 md:table-header-group">
+          <thead className={ladder.head}>
             <tr className="border-b border-border text-caption text-muted-foreground">
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.name")}</th>
-              {showType ? <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.type")}</th> : null}
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.source")}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.editor")}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.updated")}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.size")}</th>
-              <th scope="col" className="hidden px-3 py-2 font-medium xl:table-cell">{t("documents.home.columns.my_access")}</th>
-              <th scope="col" className="hidden px-3 py-2 font-medium xl:table-cell">{t("documents.home.columns.visibility")}</th>
-              <th scope="col" className="px-3 py-2"><span className="sr-only">{t("documents.home.columns.actions")}</span></th>
+              {ladder.columns.map((column) => (
+                <th key={column.id} scope="col" className={cn("px-3 py-2 font-medium", column.cell)}>
+                  {column.id === "actions" ? <span className="sr-only">{t(COLUMN_LABEL[column.id])}</span> : t(COLUMN_LABEL[column.id])}
+                </th>
+              ))}
             </tr>
           </thead>
           {groups.map((group) => (
@@ -186,8 +195,9 @@ export function DocumentsLibraryList({
                     {groupTitle(group)}
                     <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
                   </th>
-                  <th aria-hidden colSpan={showType ? 5 : 4} className="hidden md:table-cell" />
-                  <th aria-hidden colSpan={2} className="hidden xl:table-cell" />
+                  {groupSpans.map((spanner) => (
+                    <th key={spanner.cell} aria-hidden colSpan={spanner.span} className={spanner.cell} />
+                  ))}
                 </tr>
               ) : null}
               {group.rows.map((row) => (
@@ -196,6 +206,7 @@ export function DocumentsLibraryList({
                   row={row}
                   handlers={handlers}
                   archived={archived}
+                  ladder={ladder}
                   typeCell={showType ? t(rowTypeKey(row)) : undefined}
                 />
               ))}

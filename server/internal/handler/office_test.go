@@ -439,6 +439,22 @@ func TestOfficeBlankAndCopyRoutes(t *testing.T) {
 	}
 }
 
+// BE-12-201: a share editor with no seat in the source's workspace is told
+// so by code on the wire, in the permission class, not by the plain forbidden.
+func TestOfficeCopyWithoutWorkspaceSeatAnswersItsOwnCode(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	docID := w.createMarkdownFile(t, "# Nguon\n")
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/shares", w.token,
+		map[string]string{"principal_type": "user", "principal_id": w.outsider, "level": "edit"})
+	if res.StatusCode != 201 && res.StatusCode != 200 {
+		t.Fatalf("share = %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/copies", w.outsiderToken(t), map[string]string{"consent": "copy"})
+	if code, class := errCodeClass(out); res.StatusCode != 403 || code != "workspace_seat_required" || class != "permission" {
+		t.Fatalf("share editor copy = %d %v", res.StatusCode, out)
+	}
+}
+
 // The job SDO carries a convert job's target and change list, decoded from
 // the stored engine result; anything that does not decode is left out.
 func TestOfficeJobResultDTO(t *testing.T) {
