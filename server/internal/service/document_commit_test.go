@@ -265,9 +265,10 @@ func TestDocumentCommit(t *testing.T) {
 
 // TestArchivedDocumentCommitUploadRestore proves F6 (G5-07): on an archived
 // file document, commit, upload staging and file-version restore answer
-// 403 document_archived to any actor who can see the document (both its
-// manager and a non-manager workspace peer), while an actor who cannot see
-// the document still gets 404 not_found with no existence leak.
+// 403 document_archived to an actor who could save (its manager and a
+// non-manager workspace peer at edit), while an actor below edit - a view-only
+// share, or no level at all - gets 404 not_found with no existence leak
+// (BEF6-1: the same disclosure rule as the lease path).
 func TestArchivedDocumentCommitUploadRestore(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	ctx := context.Background()
@@ -323,4 +324,29 @@ func TestArchivedDocumentCommitUploadRestore(t *testing.T) {
 		Version: 1, BaseRevision: v2.Document.Revision, IdempotencyKey: util.NewID(),
 	})
 	wantNotFound(t, err)
+
+	// A view-only share learns nothing either: below edit the archived
+	// document is not_found on all three routes, while the manager of the
+	// same document still gets document_archived (the control).
+	viewDoc := env.createFile(t, manager, "archived-view.pdf", pdfBody("view-v1"))
+	if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, viewDoc.Document.ID); err != nil {
+		t.Fatal(err)
+	}
+	env.f.share(t, viewDoc.Document, DocumentPrincipalUser, env.tn.creator.ID, DocumentLevelView, env.tn.member.ID)
+	viewStaged := env.upload(t, manager, viewDoc.Document.ID, "archived-view-v2.pdf", pdfBody("view-v2"))
+	_, err = env.svc.ArchiveDocument(ctx, manager, viewDoc.Document.ID, ArchiveDocumentInput{})
+	mustf(t, err, "archive view-only document")
+	viewer := human(env.tn.creator)
+	_, err = env.commit(viewer, viewDoc.Document.ID, viewStaged.UploadID, viewDoc.Document.Revision, util.NewID())
+	wantNotFound(t, err)
+	_, err = env.svc.UploadDocumentFile(ctx, viewer, viewDoc.Document.ID, DocumentUploadInput{
+		Filename: "viewer.pdf", Body: bytes.NewReader(pdfBody("viewer")),
+	})
+	wantNotFound(t, err)
+	_, err = env.svc.RestoreFileVersion(ctx, viewer, viewDoc.Document.ID, RestoreFileVersionInput{
+		Version: 1, BaseRevision: viewDoc.Document.Revision, IdempotencyKey: util.NewID(),
+	})
+	wantNotFound(t, err)
+	_, err = env.commit(manager, viewDoc.Document.ID, viewStaged.UploadID, viewDoc.Document.Revision, util.NewID())
+	wantCode(t, err, "document_archived")
 }
