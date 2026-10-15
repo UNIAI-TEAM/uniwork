@@ -301,11 +301,13 @@ export function harnessPaths(runDir) {
     blockedFile: join(runDir, "blocked.json"),
     startStatus: join(runDir, "start-status.json"),
     docUser: join(runDir, "doc-user.json"),
+    appProxyState: join(runDir, "app-proxy.state"),
     serverCwd: serverCwd(runDir),
     evidenceFile: join(runDir, "evidence.jsonl"),
     logDir: join(runDir, "logs"),
     userDataDir: join(runDir, "userdata"),
     appSettings: join(runDir, "userdata", "app-settings.json"),
+    deploymentProfile: join(runDir, "userdata", "deployment-profile.json"),
   };
 }
 
@@ -589,6 +591,114 @@ function writePrivateFile(file, text) {
 }
 
 /**
+ * Sets whether the harness-local TCP proxy between the Electron app and the D
+ * server is online (`true`) or cut (`false`). Only the app's proxy link is
+ * affected; the D server itself stays reachable for the web UI and the test.
+ */
+export function setAppApiProxyOnline(runDir, online) {
+  const file = harnessPaths(runDir).appProxyState;
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, online ? "online\n" : "offline\n");
+}
+
+/** Whether the harness-local TCP proxy for `runDir` is currently online (default `true`). */
+export function isAppApiProxyOnline(runDir) {
+  const file = harnessPaths(runDir).appProxyState;
+  if (!existsSync(file)) return true;
+  try {
+    return readFileSync(file, "utf8").trim() !== "offline";
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Starts the harness-local TCP proxy that sits between the Electron app
+ * (`deployment-profile.json` `apiOrigin`) and the D server (`targetPort`).
+ * When `app-proxy.state` is set to `"offline"`, all active client/upstream
+ * sockets are immediately destroyed and new connections are reset on arrival,
+ * cutting the app's link to D without touching the D server for the web UI.
+ */
+export function startAppApiProxy({
+  runDir,
+  listenPort = 0,
+  targetPort,
+  targetHost = "127.0.0.1",
+  listenHost = "127.0.0.1",
+}) {
+  if (!runDir) throw new Error("startAppApiProxy needs runDir");
+  if (!Number.isInteger(Number(targetPort)) || Number(targetPort) <= 0) {
+    throw new Error(`startAppApiProxy needs a valid targetPort, got ${targetPort}`);
+  }
+  if (!existsSync(harnessPaths(runDir).appProxyState)) {
+    setAppApiProxyOnline(runDir, true);
+  }
+  const active = new Set();
+  const destroyAll = () => {
+    for (const sock of active) {
+      try {
+        sock.destroy();
+      } catch {
+        // ignore
+      }
+    }
+    active.clear();
+  };
+  const sweep = () => {
+    if (!isAppApiProxyOnline(runDir)) destroyAll();
+  };
+  const timer = setInterval(sweep, 25);
+  timer.unref();
+
+  const server = net.createServer((clientSocket) => {
+    if (!isAppApiProxyOnline(runDir)) {
+      clientSocket.destroy();
+      return;
+    }
+    const upstreamSocket = net.connect({ port: Number(targetPort), host: targetHost });
+    active.add(clientSocket);
+    active.add(upstreamSocket);
+    const cleanup = () => {
+      active.delete(clientSocket);
+      active.delete(upstreamSocket);
+    };
+    clientSocket.on("error", () => upstreamSocket.destroy());
+    upstreamSocket.on("error", () => clientSocket.destroy());
+    clientSocket.on("close", () => {
+      cleanup();
+      upstreamSocket.destroy();
+    });
+    upstreamSocket.on("close", () => {
+      cleanup();
+      clientSocket.destroy();
+    });
+    clientSocket.pipe(upstreamSocket);
+    upstreamSocket.pipe(clientSocket);
+  });
+
+  return new Promise((resolve, reject) => {
+    server.once("error", (err) => {
+      clearInterval(timer);
+      reject(err);
+    });
+    server.listen({ port: Number(listenPort), host: listenHost }, () => {
+      const addr = server.address();
+      const port = typeof addr === "object" && addr ? addr.port : Number(listenPort);
+      resolve({
+        server,
+        port,
+        close: () =>
+          new Promise((done) => {
+            clearInterval(timer);
+            destroyAll();
+            server.close(() => done());
+          }),
+      });
+    });
+  });
+}
+
+/**
  * Writes one run's files: `ports.env` (the ports, origins, SHAs and later the
  * display) and `server.env` (the server's environment, quoted so a URL with a
  * query still sources in bash). Called by start.sh as
@@ -597,7 +707,7 @@ function writePrivateFile(file, text) {
  * the test that pins them cannot drift apart.
  */
 export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "", uploadDir, dotenvPath } = {}) {
-  const [apiPort, webPort, metricsPort, previewPort] = await freePorts(4);
+  const [apiPort, webPort, metricsPort, previewPort, appProxyPort, appCdpPort] = await freePorts(6);
   const serverEnv = buildServerEnv({
     apiPort,
     webPort,
@@ -607,6 +717,7 @@ export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "
     redisUrl: process.env.REDIS_URL,
     uploadDir: uploadDir ?? join(runDir, "uploads"),
   });
+  const appApiOrigin = origin(appProxyPort);
   writeFileSync(
     join(runDir, "ports.env"),
     [
@@ -616,12 +727,31 @@ export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "
       `WEB_PORT=${webPort}`,
       `METRICS_PORT=${metricsPort}`,
       `PREVIEW_PORT=${previewPort}`,
+      `APP_PROXY_PORT=${appProxyPort}`,
+      `APP_CDP_PORT=${appCdpPort}`,
       `API_ORIGIN=${appOrigin(apiPort)}`,
+      `APP_API_ORIGIN=${appApiOrigin}`,
       `WEB_ORIGIN=${appOrigin(webPort)}`,
       `OFFICE_FORK_SHA=${forkSha}`,
       `D_SHA=${dSha}`,
       "",
     ].join("\n"),
+  );
+  setAppApiProxyOnline(runDir, true);
+  const paths = harnessPaths(runDir);
+  mkdirSync(paths.userDataDir, { recursive: true });
+  writeFileSync(
+    paths.deploymentProfile,
+    `${JSON.stringify(
+      {
+        deploymentId: HARNESS_DEPLOYMENT_ID,
+        apiOrigin: appApiOrigin,
+        clientId: DEV_CLIENT_ID,
+        channel: "dev",
+      },
+      null,
+      2,
+    )}\n`,
   );
   const quote = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
   writePrivateFile(
@@ -641,7 +771,17 @@ export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "
   if (dotenvPath && existsSync(dotenvPath)) {
     writePrivateFile(join(cwd, ".env"), serverDotEnv(readFileSync(dotenvPath, "utf8"), Object.keys(serverEnv)));
   }
-  return { apiPort, webPort, metricsPort, previewPort, apiOrigin: appOrigin(apiPort), webOrigin: appOrigin(webPort) };
+  return {
+    apiPort,
+    webPort,
+    metricsPort,
+    previewPort,
+    appProxyPort,
+    appCdpPort,
+    apiOrigin: appOrigin(apiPort),
+    appApiOrigin,
+    webOrigin: appOrigin(webPort),
+  };
 }
 
 // CLI: node lib.mjs --write <runDir> | node lib.mjs --fork-dir <cacheRoot> <sha>
@@ -652,6 +792,7 @@ function usage(reason) {
   console.error("usage: lib.mjs --write <runDir>");
   console.error("       lib.mjs --fork-dir <cacheRoot> <sha>");
   console.error("       lib.mjs --app-env <apiOrigin> <userDataDir>");
+  console.error("       lib.mjs --app-proxy <runDir> <listenPort> <targetPort>");
   process.exit(2);
 }
 
@@ -676,6 +817,13 @@ if (isMainModule()) {
     const [cacheRoot, sha] = rest;
     if (!cacheRoot || !sha) usage("--fork-dir needs a cache root and a fork SHA");
     process.stdout.write(`${forkCacheDir(cacheRoot, sha)}\n`);
+  } else if (mode === "--app-proxy") {
+    const [runDir, listenPort, targetPort] = rest;
+    if (!runDir || !listenPort || !targetPort) usage("--app-proxy needs <runDir> <listenPort> <targetPort>");
+    startAppApiProxy({ runDir, listenPort: Number(listenPort), targetPort: Number(targetPort) }).catch((error) => {
+      console.error(error.message);
+      process.exit(1);
+    });
   } else {
     usage(mode ? `unknown argument ${mode}` : "no mode given");
   }
