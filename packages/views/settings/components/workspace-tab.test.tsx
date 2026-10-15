@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -178,5 +179,54 @@ describe("WorkspaceTab", () => {
     renderAs("member", { ...workspace, task_prefix: "TASK" });
     expect(await screen.findByText("TASK")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Đổi tiền tố" })).not.toBeInTheDocument();
+  });
+
+  it("changes the address in a dialog, normalising what is typed", async () => {
+    renderAs("admin", workspace, { patch: { workspace: { ...workspace, slug: "doi-moi" } } });
+    fireEvent.click(await screen.findByRole("button", { name: "Đổi địa chỉ" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Địa chỉ mới" }), { target: { value: " Doi-Moi " } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Đổi địa chỉ" }));
+    await waitFor(() => expect(patchBodies()).toContainEqual({ slug: "doi-moi" }));
+  });
+
+  it("says the address is taken when the server answers 409", async () => {
+    renderAs("admin", workspace, { patchError: new ApiError("already exists", "conflict", 409) });
+    fireEvent.click(await screen.findByRole("button", { name: "Đổi địa chỉ" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Địa chỉ mới" }), { target: { value: "doi-khac" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Đổi địa chỉ" }));
+    expect(await within(dialog).findByText("Địa chỉ này đã được dùng trong tổ chức.")).toBeInTheDocument();
+  });
+
+  it("flags an address the server would refuse instead of sending it", async () => {
+    renderAs("admin");
+    fireEvent.click(await screen.findByRole("button", { name: "Đổi địa chỉ" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Địa chỉ mới" }), { target: { value: "a_b" } });
+    expect(within(dialog).getByText("Chỉ dùng a–z, 0–9 và dấu gạch ngang, 2–40 ký tự.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Đổi địa chỉ" })).toBeDisabled();
+    expect(patchBodies()).toHaveLength(0);
+  });
+
+  it("keeps what is typed in the address dialog when the workspace refetches", async () => {
+    const { rerender } = renderAs("admin");
+    fireEvent.click(await screen.findByRole("button", { name: "Đổi địa chỉ" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Địa chỉ mới" }), { target: { value: "dang-go" } });
+    rerender(
+      wrap(
+        <WorkspaceProvider workspace={{ ...workspace, slug: "team-2" }} user={user}>
+          <WorkspaceTab />
+        </WorkspaceProvider>,
+      ),
+    );
+    expect(within(await screen.findByRole("dialog")).getByRole("textbox", { name: "Địa chỉ mới" })).toHaveValue("dang-go");
+  });
+
+  it("does not offer a member the address change", async () => {
+    renderAs("member");
+    expect(await screen.findByText("/acme/team")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Đổi địa chỉ" })).not.toBeInTheDocument();
   });
 });

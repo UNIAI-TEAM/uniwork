@@ -32,7 +32,7 @@ export function useDashboardGuard(
   orgSlug: string,
   wsSlug: string,
 ): { user: User | null; workspace: Workspace | null; isLoading: boolean; block: OrganizationBlock } {
-  const { pathname, replace } = useNavigation();
+  const { pathname, searchParams, replace } = useNavigation();
   const { user, status } = useSession();
   const {
     data: workspace,
@@ -56,6 +56,16 @@ export function useDashboardGuard(
     // "this URL is not a workspace you can see".
     if (error || (!workspaceLoading && workspace === null)) replace(paths.workspaces());
   }, [status, user, error, workspace, workspaceLoading, replace, pathname]);
+
+  // An old slug resolves through its alias (spec 2026-10-14 §6.2): move the
+  // URL to the workspace's current slug, keeping the rest of the path and the
+  // query, so links and bookmarks from before a rename keep working.
+  const currentSlug = workspace?.slug;
+  useEffect(() => {
+    if (!currentSlug || currentSlug === wsSlug) return;
+    const query = searchParams.toString();
+    replace(withWorkspaceSlug(pathname, currentSlug) + (query ? `?${query}` : ""));
+  }, [currentSlug, wsSlug, pathname, searchParams, replace]);
 
   const ready = status === "authed" && !!user && pendingAuthStep(user) === null && !!workspace;
   const userId = ready ? user.id : null;
@@ -83,4 +93,12 @@ function blockFromError(error: unknown): OrganizationBlock {
   if (code === ORGANIZATION_SUSPENDED) return ORGANIZATION_SUSPENDED;
   if (code === MEMBER_DEACTIVATED) return MEMBER_DEACTIVATED;
   return null;
+}
+
+/** /{org}/{oldSlug}/rest → /{org}/{slug}/rest. */
+function withWorkspaceSlug(pathname: string, slug: string): string {
+  const parts = pathname.split("/");
+  if (parts.length < 3) return pathname;
+  parts[2] = encodeURIComponent(slug);
+  return parts.join("/");
 }

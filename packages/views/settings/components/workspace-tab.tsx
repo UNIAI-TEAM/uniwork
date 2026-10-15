@@ -27,6 +27,7 @@ import {
 } from "./settings-layout";
 import { useAutoSave } from "./use-auto-save";
 import { WorkspaceIconField } from "./workspace-icon-field";
+import { WorkspaceSlugDialog } from "./workspace-slug-dialog";
 import { WorkspaceTaskPrefixDialog } from "./workspace-task-prefix-dialog";
 
 function namesEqual(left: string, right: string) {
@@ -65,6 +66,7 @@ export function WorkspaceTab() {
   const savedDescription = workspace.description ?? "";
   const prefix = workspace.task_prefix ?? "";
   const [prefixOpen, setPrefixOpen] = useState(false);
+  const [slugOpen, setSlugOpen] = useState(false);
   const [name, setName] = useState(workspace.name);
   const [description, setDescription] = useState(savedDescription);
   const canEdit = canUpdateSettings.allowed;
@@ -246,6 +248,11 @@ export function WorkspaceTab() {
             >
               <Copy aria-hidden />
             </Button>
+            {canEdit ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => setSlugOpen(true)}>
+                {t("workspace.url_change")}
+              </Button>
+            ) : null}
           </div>
         </SettingsRow>
         {prefix ? (
@@ -268,6 +275,7 @@ export function WorkspaceTab() {
           <SettingsValue>{workspace.organization_name}</SettingsValue>
         </SettingsRow>
       </SettingsCard>
+      {canEdit ? <WorkspaceSlugDialog workspace={workspace} open={slugOpen} onOpenChange={setSlugOpen} /> : null}
       {canEdit ? <WorkspaceTaskPrefixDialog workspace={workspace} open={prefixOpen} onOpenChange={setPrefixOpen} /> : null}
     </SettingsTab>
   );
