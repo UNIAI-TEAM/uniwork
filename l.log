@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18510 13430; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18510/tcp 13430/tcp 2>/dev/null; sleep 1; for p in 18510 13430; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+2e76d5ca103cc89ed125ef6f827e51129285a33c
+2e76d5ca1 test(e2e): move through the FD-09 tree picker in the documents home spec
+9e8870420 fix(documents): drive every optional library column by the list container ladder
+4463994c8 test(e2e): name and confirm the new-folder dialog in the documents home spec
+93060bb3f fix(documents): size the library's extra columns by the main area, not the viewport
