@@ -31,6 +31,7 @@ describe("ConnectConsentView", () => {
     expect(screen.getByText("Verified")).toBeInTheDocument();
     expect(screen.getByText("claude.ai")).toBeInTheDocument();
     expect(screen.getByText("Projects and their tasks")).toBeInTheDocument();
+    expect(screen.getByText("Pages and text files you can see")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Allow" }));
     await waitFor(() => expect(onDecision).toHaveBeenCalledWith("approve", "o1", false));
   });
