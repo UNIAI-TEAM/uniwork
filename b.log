@@ -1,0 +1,22 @@
+$ RID=$(cat /tmp/g819-r3-rid); M=/tmp/$RID-markers.txt; R=/tmp/$RID-run; if [ "$(id -u)" -eq 0 ]; then S=""; elif sudo -n true 2>/dev/null; then S="sudo"; else S=""; fi; export DEBIAN_FRONTEND=noninteractive; $S apt-get update -q; $S apt-get install -y -q --no-install-recommends gnome-keyring dbus-x11 xvfb libsecret-tools; echo "G819_APT_EXIT $?" | tee -a $M; true
+Hit:1 http://security.ubuntu.com/ubuntu noble-security InRelease
+Hit:2 http://archive.ubuntu.com/ubuntu noble InRelease
+Get:3 http://archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+Hit:4 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+Hit:5 https://dl.google.com/linux/chrome-stable/deb stable InRelease
+Get:6 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [2,166 kB]
+Get:7 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [1,729 kB]
+Fetched 4,021 kB in 0s (8,742 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+gnome-keyring is already the newest version (46.1-2ubuntu0.2).
+dbus-x11 is already the newest version (1.14.10-4ubuntu4.1).
+xvfb is already the newest version (2:21.1.12-1ubuntu1.8).
+libsecret-tools is already the newest version (0.21.4-1build3).
+The following package was automatically installed and is no longer required:
+  libwayland-server0
+Use 'sudo apt autoremove' to remove it.
+0 upgraded, 0 newly installed, 0 to remove and 32 not upgraded.
+G819_APT_EXIT 0
