@@ -2974,6 +2974,356 @@ describe("G7-10 H1 bounded app CDP calls and loop watchdog (r6)", () => {
   });
 });
 
+describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () => {
+  const withCdpPort = (scratch, port = "19222") =>
+    writeFileSync(
+      join(scratch.dir, "ports.env"),
+      `${readFileSync(join(scratch.dir, "ports.env"), "utf8")}APP_CDP_PORT=${port}\n`,
+    );
+  const withAppPid = (scratch, pid) =>
+    writeFileSync(
+      join(scratch.dir, "pids"),
+      `server ${process.pid} 1\nweb ${process.pid} 2\napp ${pid} 0\n`,
+    );
 
+  it("H2(1): exports formatDocsTabReadyTimeoutReason ('docs tab not ready to close within <n> s') and waitForDocsTabReadyToClose", () => {
+    assert.equal(typeof tracerMod.formatDocsTabReadyTimeoutReason, "function");
+    assert.equal(
+      tracerMod.formatDocsTabReadyTimeoutReason(90_000),
+      "docs tab not ready to close within 90 s",
+    );
+    assert.equal(
+      tracerMod.formatDocsTabReadyTimeoutReason(60),
+      "docs tab not ready to close within 0.06 s",
+    );
+    assert.equal(typeof tracerMod.waitForDocsTabReadyToClose, "function");
+  });
 
+  it("H2(2): a fake docs target that becomes ready late -> closeOpenTabForPath waits for readiness before calling aiOfficeTabs.close and the step PASSes", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+    withCdpPort(scratch);
+    withAppPid(scratch, process.pid);
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.fetchImpl.allowRealAiUpstream = true;
+    const prevTimeout = process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+    process.env.HARNESS_APP_STEP_TIMEOUT_MS = "2000";
+    try {
+      let wcFilePath = "";
+      let docDir = "";
+      let tabOpen = true;
+      let docsProbeCount = 0;
+      let docsReady = false;
+      let closeCallCount = 0;
+      let readyWhenCloseCalled = false;
+      let probeCountWhenCloseCalled = 0;
+      let reportCloseCheckCalls = 0;
 
+      // Fake docs WebContentsView CDP target (genoffice-app://docs/index.html?mode=tab):
+      // First 3 probes simulate the docs renderer still booting (.start-booting / __genofficeControl not_ready);
+      // 4th probe onwards simulates App.tsx with doc !== null, editor mounted, and onCloseCheck registered.
+      const fakeDocsTarget = {
+        url: () => "genoffice-app://docs/index.html?mode=tab",
+        evaluate: async (fn, arg) => {
+          docsProbeCount += 1;
+          if (docsProbeCount >= 4) {
+            docsReady = true;
+          }
+          const prevWindow = globalThis.window;
+          const prevDocument = globalThis.document;
+          const prevLocation = globalThis.location;
+          try {
+            globalThis.location = { href: "genoffice-app://docs/index.html?mode=tab" };
+            globalThis.document = {
+              readyState: docsProbeCount === 1 ? "loading" : "complete",
+              querySelector: (sel) => (sel === ".start-booting" && !docsReady ? { tagName: "DIV" } : null),
+            };
+            globalThis.window = {
+              desktop: {
+                onCloseCheck: () => () => {},
+                reportCloseCheck: () => {
+                  reportCloseCheckCalls += 1;
+                },
+              },
+              __genofficeControl: () => (docsReady ? { status: "ok", result: {} } : { status: "not_ready" }),
+              __aidocs: docsReady ? { editor: { state: {} } } : { editor: null },
+            };
+            return await fn(arg);
+          } finally {
+            globalThis.window = prevWindow;
+            globalThis.document = prevDocument;
+            globalThis.location = prevLocation;
+          }
+        },
+      };
+
+      const fakeShellPage = {
+        url: () => "genoffice-app://shell/index.html",
+        evaluate: async (fn, arg) => {
+          const src = fn.toString();
+          if (src.includes("typeof window.aiOffice")) return true;
+          if (src.includes("accountStatus")) {
+            return { state: "signed-in", profile: { accountId: scratch.userId } };
+          }
+          if (src.includes("aiOfficeTabs")) {
+            const prevWindow = globalThis.window;
+            try {
+              globalThis.window = {
+                aiOfficeTabs: {
+                  list: async () =>
+                    tabOpen
+                      ? [{ id: "t1", kind: "docs", title: "report.docx", closable: true, active: true, filePath: wcFilePath }]
+                      : [],
+                  close: async () => {
+                    closeCallCount += 1;
+                    readyWhenCloseCalled = docsReady;
+                    probeCountWhenCloseCalled = docsProbeCount;
+                    if (!docsReady) {
+                      // Simulate fork performDocsClose (docs-main.ts:6361-6376) hanging on native dialog when closed before ready!
+                      return new Promise(() => {});
+                    }
+                    tabOpen = false;
+                  },
+                },
+              };
+              return await fn(arg);
+            } finally {
+              globalThis.window = prevWindow;
+            }
+          }
+          if (src.includes("uniworkSave")) {
+            const docId = mock.state.docId;
+            const v1Revision = mock.state.versions[0].revision;
+            const v2Bytes = readFileSync(wcFilePath);
+            const uploadForm = new FormData();
+            uploadForm.append("file", new Blob([v2Bytes]), "report.docx");
+            const upRes = await mock.fetchImpl(
+              `http://127.0.0.1:18080/api/v1/documents/${docId}/uploads`,
+              { method: "POST", headers: { Authorization: "Bearer tok-session-01" }, body: uploadForm },
+            );
+            const upData = await upRes.json();
+            await mock.fetchImpl(
+              `http://127.0.0.1:18080/api/v1/documents/${docId}/versions/commit`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer tok-session-01",
+                  "Content-Type": "application/json",
+                  "Idempotency-Key": `h2-late-ready-${docId}`,
+                },
+                body: JSON.stringify({ upload_id: upData.upload_id, base_revision: v1Revision }),
+              },
+            );
+            writeFileSync(
+              join(docDir, "binding.json"),
+              JSON.stringify({
+                schema: 2,
+                documentId: docId,
+                accountId: scratch.userId,
+                deploymentId: "default",
+                filename: "report.docx",
+                baseVersion: 2,
+                baseRevision: "2",
+                baseChecksum: sha256Hex(v2Bytes),
+                state: "saved",
+              }),
+            );
+            return { ok: true };
+          }
+          return null;
+        },
+      };
+
+      const res = await runTracerLoop({
+        loop: "2",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        cdpConnector: async () => ({
+          contexts: () => [{ pages: () => [fakeShellPage, fakeDocsTarget] }],
+          close: async () => {},
+        }),
+        deepLinkDeliverer: (_portsEnv, url) => {
+          if (!String(url).includes("/auth/callback")) {
+            const docId = mock.state.docId;
+            docDir = join(scratch.userData, "uniwork-documents", "default", scratch.userId, docId);
+            mkdirSync(docDir, { recursive: true });
+            wcFilePath = join(docDir, "report.docx");
+            writeFileSync(wcFilePath, Buffer.from("v1-docx-bytes"));
+            writeFileSync(
+              join(docDir, "binding.json"),
+              JSON.stringify({
+                schema: 2,
+                documentId: docId,
+                accountId: scratch.userId,
+                deploymentId: "default",
+                filename: "report.docx",
+                baseVersion: 1,
+                baseRevision: "1",
+                state: "ready",
+              }),
+            );
+          }
+          return { status: 0, error: null };
+        },
+      });
+
+      assert.equal(res.exitCode, 0, `late-ready docs target must PASS: ${res.reason}`);
+      assert.equal(res.status, "PASS");
+      assert.equal(res.steps.saveV2.status, "PASS");
+      assert.equal(closeCallCount, 1, "aiOfficeTabs.close must be called exactly once after readiness");
+      assert.equal(readyWhenCloseCalled, true, "aiOfficeTabs.close must never be called before docs target is ready");
+      assert.ok(probeCountWhenCloseCalled >= 4, `expected >= 4 readiness probes before close, got ${probeCountWhenCloseCalled}`);
+      assert.ok(reportCloseCheckCalls >= 1, "readiness probe flushes any pre-mount closeCheckWaiter via reportCloseCheck");
+    } finally {
+      if (prevTimeout === undefined) delete process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+      else process.env.HARNESS_APP_STEP_TIMEOUT_MS = prevTimeout;
+      scratch.cleanup();
+    }
+  });
+
+  it(
+    "H2(3): a docs target that is never ready FAILs within HARNESS_APP_STEP_TIMEOUT_MS with 'docs tab not ready to close within <n> s' (records targetUrl, elapsedMs, bindingState, redacted appLogTail, owner g5-client) and never calls aiOfficeTabs.close",
+    { timeout: 1500 },
+    async () => {
+      const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+      withCdpPort(scratch);
+      withAppPid(scratch, process.pid);
+      const mock = createMockDServer({ aiMode: "503-disabled" });
+
+      const logsDir = join(scratch.dir, "logs");
+      mkdirSync(logsDir, { recursive: true });
+      writeFileSync(
+        join(logsDir, "app.log"),
+        "DevTools listening on ws://127.0.0.1:19222/devtools/browser/abc\nrefresh_token=uwm_rt_01JSECRETTOKEN999999999999\n",
+      );
+
+      const prevTimeout = process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+      process.env.HARNESS_APP_STEP_TIMEOUT_MS = "60";
+      try {
+        let wcFilePath = "";
+        let closeCallCount = 0;
+
+        const neverReadyDocsTarget = {
+          url: () => "genoffice-app://docs/index.html?mode=tab",
+          evaluate: async (fn, arg) => {
+            const prevWindow = globalThis.window;
+            const prevDocument = globalThis.document;
+            const prevLocation = globalThis.location;
+            try {
+              globalThis.location = { href: "genoffice-app://docs/index.html?mode=tab" };
+              globalThis.document = {
+                readyState: "complete",
+                querySelector: (sel) => (sel === ".start-booting" ? { tagName: "DIV" } : null),
+              };
+              globalThis.window = {
+                desktop: {
+                  onCloseCheck: () => () => {},
+                  reportCloseCheck: () => {},
+                },
+                __genofficeControl: () => ({ status: "not_ready" }),
+                __aidocs: { editor: null },
+              };
+              return await fn(arg);
+            } finally {
+              globalThis.window = prevWindow;
+              globalThis.document = prevDocument;
+              globalThis.location = prevLocation;
+            }
+          },
+        };
+
+        const fakeShellPage = {
+          url: () => "genoffice-app://shell/index.html",
+          evaluate: async (fn, arg) => {
+            const src = fn.toString();
+            if (src.includes("typeof window.aiOffice")) return true;
+            if (src.includes("accountStatus")) {
+              return { state: "signed-in", profile: { accountId: scratch.userId } };
+            }
+            if (src.includes("aiOfficeTabs")) {
+              const prevWindow = globalThis.window;
+              try {
+                globalThis.window = {
+                  aiOfficeTabs: {
+                    list: async () => [
+                      { id: "t1", kind: "docs", title: "report.docx", closable: true, active: true, filePath: wcFilePath },
+                    ],
+                    close: async () => {
+                      closeCallCount += 1;
+                    },
+                  },
+                };
+                return await fn(arg);
+              } finally {
+                globalThis.window = prevWindow;
+              }
+            }
+            return null;
+          },
+        };
+
+        for (const loop of ["2", "3"]) {
+          const loopMock = createMockDServer({ aiMode: "503-disabled" });
+          const res = await runTracerLoop({
+            loop,
+            runDir: scratch.dir,
+            repoRoot: REPO_ROOT,
+            fetchImpl: loopMock.fetchImpl,
+            cdpConnector: async () => ({
+              contexts: () => [{ pages: () => [fakeShellPage, neverReadyDocsTarget] }],
+              close: async () => {},
+            }),
+            deepLinkDeliverer: (_portsEnv, url) => {
+              if (!String(url).includes("/auth/callback")) {
+                const docId = loopMock.state.docId;
+                const docDir = join(scratch.userData, "uniwork-documents", "default", scratch.userId, docId);
+                mkdirSync(docDir, { recursive: true });
+                wcFilePath = join(docDir, "report.docx");
+                writeFileSync(wcFilePath, Buffer.from("v1-docx-bytes"));
+                writeFileSync(
+                  join(docDir, "binding.json"),
+                  JSON.stringify({
+                    schema: 2,
+                    documentId: docId,
+                    accountId: scratch.userId,
+                    deploymentId: "default",
+                    filename: "report.docx",
+                    baseVersion: 1,
+                    baseRevision: "1",
+                    state: "ready",
+                  }),
+                );
+              }
+              return { status: 0, error: null };
+            },
+          });
+
+          assert.equal(closeCallCount, 0, `loop ${loop}: aiOfficeTabs.close must NEVER be called when docs target is not ready`);
+          assert.equal(res.exitCode, 1, `loop ${loop}: must exit 1 (FAIL), never 77`);
+          assert.equal(res.status, "FAIL");
+          assert.equal(res.reason, "docs tab not ready to close within 0.06 s");
+          assert.equal(res.owner, "g5-client", `loop ${loop}: owner must be g5-client candidate`);
+          assert.equal(res.targetUrl, "genoffice-app://docs/index.html?mode=tab");
+          assert.equal(typeof res.elapsedMs, "number");
+          assert.ok(res.elapsedMs >= 50, `expected elapsedMs >= 50, got ${res.elapsedMs}`);
+          assert.equal(res.bindingState, "ready");
+          assert.equal(res.binding?.baseVersion, 1);
+          assert.ok(Array.isArray(res.appLogTail));
+          assert.equal(res.appLogTail.length, 2);
+          assert.match(res.appLogTail[0], /DevTools listening on <url>/);
+          assert.match(res.appLogTail[1], /refresh_token=<redacted>/);
+          assert.ok(!JSON.stringify(res).includes("uwm_rt_01JSECRETTOKEN"));
+
+          const failedStep = loop === "2" ? res.steps.saveV2 : res.steps.appOfflineSave;
+          assert.equal(failedStep.status, "FAIL");
+          assert.equal(failedStep.reason, "docs tab not ready to close within 0.06 s");
+          assert.equal(failedStep.targetUrl, "genoffice-app://docs/index.html?mode=tab");
+        }
+      } finally {
+        if (prevTimeout === undefined) delete process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+        else process.env.HARNESS_APP_STEP_TIMEOUT_MS = prevTimeout;
+        scratch.cleanup();
+      }
+    },
+  );
+});

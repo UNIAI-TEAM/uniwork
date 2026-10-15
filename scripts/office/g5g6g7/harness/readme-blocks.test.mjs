@@ -89,3 +89,8 @@ test("the README documents HARNESS_APP_STEP_TIMEOUT_MS (90000) and HARNESS_LOOP_
   assert.match(README, /HARNESS_LOOP_TIMEOUT_MS/, "the per-loop watchdog knob is in the README");
   assert.match(README, /600000/, "the default 600000 ms is documented");
 });
+
+test("the README documents the docs tab close-readiness wait before aiOfficeTabs.close (r7 H2)", () => {
+  assert.match(README, /docs tab not ready to close within/, "the README names the docs tab close-readiness timeout reason");
+  assert.match(README, /onCloseCheck|__genofficeControl/, "the README names the docs renderer readiness signal waited on before aiOfficeTabs.close");
+});
