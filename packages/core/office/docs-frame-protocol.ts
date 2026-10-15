@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at 63e768f5aed347e4fa48310a0cdaaf2d4adf7a3b
-// (fork lane feature/UNI-1413-g8-18-mention-editor on fork main 451e4f610: the G8-08 comments protocol with the OQ-C2 anchor rules
+// web/docs/protocol/types.ts at 039c2223511bc389a8b311782a834b7636c6fad4
+// (fork lane feature/UNI-1413-g8-18-fork-fix at 039c22235: the G8-08 comments protocol with the OQ-C2 anchor rules
 // on X-02 r2b, G5-03w doc.blocked, and G8-18 / DOC-05: comment level, comments.shareView, mentions without access).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
@@ -1483,12 +1483,7 @@ function isCommentAnchor(x: unknown): x is CommentAnchor {
 }
 
 function isCommentMentionWithoutAccess(x: unknown): x is CommentMentionWithoutAccess {
-  return (
-    isObj(x) &&
-    isNonEmptyStr(x.user_id) &&
-    isOpt(x.display_name, isStr) &&
-    isBool(x.can_share)
-  )
+  return isObj(x) && isNonEmptyStr(x.user_id) && isOpt(x.display_name, isStr) && isBool(x.can_share)
 }
 
 function isDocumentComment(x: unknown): x is DocumentComment {
