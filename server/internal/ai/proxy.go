@@ -28,9 +28,31 @@ import (
 // translates a body; it only reads the model name and the usage block for
 // the meter row.
 
-// CapOfficeBYOK is the usage-row capability of a proxied call. It has no
-// model policy: the person picks the model and pays the vendor (credits 0).
-const CapOfficeBYOK Capability = "office.byok"
+// CapOfficeBYOK is the usage-row capability of a proxied call from the web
+// host or web frame; CapOfficeBYOKDesktop is the same call from a native
+// desktop device session (G6-05k, ADR 0034). Neither has a model policy: the
+// person picks the model and pays the vendor (credits 0).
+const (
+	CapOfficeBYOK        Capability = "office.byok"
+	CapOfficeBYOKDesktop Capability = "office.byok_desktop"
+)
+
+// ProxySurface names the client surface a proxied call came from (G6-05k,
+// ADR 0034). The zero value and ProxySurfaceWeb record CapOfficeBYOK;
+// ProxySurfaceDesktop records CapOfficeBYOKDesktop.
+type ProxySurface string
+
+const (
+	ProxySurfaceWeb     ProxySurface = "web"
+	ProxySurfaceDesktop ProxySurface = "desktop"
+)
+
+func proxyCapability(surface ProxySurface) Capability {
+	if surface == ProxySurfaceDesktop {
+		return CapOfficeBYOKDesktop
+	}
+	return CapOfficeBYOK
+}
 
 // ProxyOp is the route the client called; each one belongs to one protocol.
 type ProxyOp string
@@ -47,6 +69,7 @@ type ProxyRequest struct {
 	OrganizationID string
 	Credential     BYOKCredential
 	Op             ProxyOp
+	Surface        ProxySurface
 	// Body is the vendor body for chat/messages, and the
 	// {model, stream, request} wrapper for generate. Ignored for models.
 	Body json.RawMessage
@@ -121,11 +144,12 @@ func (g *Gateway) Proxy(ctx context.Context, req ProxyRequest) (*ProxyStream, er
 	out.Provider, out.BaseURL, out.APIKey = p, req.Credential.BaseURL, req.Credential.APIKey
 	out.Header = req.Header
 
+	cap := proxyCapability(req.Surface)
 	var rowID string
 	if req.Op != ProxyModels {
 		row, err := g.q.AiInsertUsageEvent(ctx, db.AiInsertUsageEventParams{
 			ID: util.NewID(), OrganizationID: req.OrganizationID, ActorID: req.Actor.ID, ActorKind: actorKind(req.Actor),
-			Capability: string(CapOfficeBYOK), PromptID: "", Provider: p.ID, Model: model, Status: "pending",
+			Capability: string(cap), PromptID: "", Provider: p.ID, Model: model, Status: "pending",
 			CorrelationID: audit.CorrelationID(ctx),
 		})
 		if err != nil {
@@ -147,7 +171,7 @@ func (g *Gateway) Proxy(ctx context.Context, req ProxyRequest) (*ProxyStream, er
 		if ferr != nil {
 			g.log.Warn("ai: byok usage finish", "usage_event_id", rowID, "err", ferr)
 		}
-		g.observe(CapOfficeBYOK, status, latency)
+		g.observe(cap, status, latency)
 	}
 
 	res, err := g.byok.Do(ctx, out)
