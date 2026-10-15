@@ -12,6 +12,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/util"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // docs wires a DocumentService into the world once: pages need nothing more,
@@ -26,7 +27,31 @@ func (x *mcpToolWorld) docs(t *testing.T) *DocumentService {
 	docs.SetEntitlements(NewEntitlementService(x.tools.ask.pool, x.tools.q))
 	docs.store.spoolDir = t.TempDir()
 	x.tools.SetDocuments(docs)
+	x.flags = &mcpFlagFake{}
+	x.tools.SetFlags(x.flags)
 	return docs
+}
+
+// mcpFlagFake is the flag evaluator of the connector's tools: a flag reads as
+// the registry default it is asked with unless an organization is set, and
+// every evaluation is kept to show who it was asked for.
+type mcpFlagFake struct {
+	byOrg map[string]bool
+	asked []mcpFlagAsk
+}
+
+type mcpFlagAsk struct {
+	key, user, org string
+	def            bool
+}
+
+func (f *mcpFlagFake) IsEnabled(ctx context.Context, key string, def bool) bool {
+	ec := featureflag.EvalContextFrom(ctx)
+	f.asked = append(f.asked, mcpFlagAsk{key, ec.UserID, ec.OrganizationID, def})
+	if v, ok := f.byOrg[ec.OrganizationID]; ok {
+		return v
+	}
+	return def
 }
 
 // withDocs wires a DocumentService into the world and creates one page.
@@ -280,8 +305,9 @@ func TestMcpDocumentLookupStaysInTheGrantAndTheWorkspace(t *testing.T) {
 	}
 }
 
-// Documents keep their own permission ladder: a restricted page is the
-// person's to read only when it was shared with them.
+// Documents keep their own permission ladder: a restricted page or folder is
+// the person's to read only when it was shared with them, and then in get,
+// list and search alike.
 func TestMcpDocumentsKeepTheirOwnPermissions(t *testing.T) {
 	x := newMcpToolWorld(t)
 	ctx := context.Background()
@@ -290,21 +316,47 @@ func TestMcpDocumentsKeepTheirOwnPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The control: the creator reads both.
-	if d := x.getDoc(t, secret.Document.ID); d.Title != "Kế hoạch riêng tư" {
-		t.Fatalf("creator reads %+v", d)
+	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Kế hoạch nội bộ", Visibility: documentVisibilityRestricted})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The control: the creator reads all three.
+	for _, id := range []string{open.Document.ID, secret.Document.ID, folder.Document.ID} {
+		if d := x.getDoc(t, id); d.ID != id {
+			t.Fatalf("creator reads %+v", d)
+		}
 	}
 	member := x.member(t)
-	list, err := x.docList(t, member, "")
-	if err != nil || len(list.Documents) != 1 || list.Documents[0].ID != open.Document.ID {
-		t.Fatalf("member's list = %+v, %v; want only the open page", list, err)
+	only := func(label string, want ...string) {
+		t.Helper()
+		list, err := x.docList(t, member, "")
+		if err != nil || !sameIDs(docIDs(list), want...) {
+			t.Errorf("%s: member's list = %v, %v; want %v", label, docIDs(list), err, want)
+		}
+		if found := x.searchIDs(t, member, "Kế hoạch"); !sameIDs(found, want...) {
+			t.Errorf("%s: member's search = %v; want %v", label, found, want)
+		}
 	}
-	if ids := x.searchIDs(t, member, "Kế hoạch"); len(ids) != 1 || ids[0] != open.Document.ID {
-		t.Fatalf("member's search = %v; want only the open page", ids)
-	}
+	only("before the share", open.Document.ID)
 	_, unknown := x.tools.document(ctx, member, x.w.ID, util.NewID())
-	if _, err := x.tools.document(ctx, member, x.w.ID, secret.Document.ID); !errors.Is(err, ErrNotFound) || err.Error() != unknown.Error() {
-		t.Fatalf("member reads a restricted page: %v, want %v", err, unknown)
+	for _, id := range []string{secret.Document.ID, folder.Document.ID} {
+		if _, err := x.tools.document(ctx, member, x.w.ID, id); !errors.Is(err, ErrNotFound) || err.Error() != unknown.Error() {
+			t.Errorf("member reads a restricted document: %v, want %v", err, unknown)
+		}
+	}
+
+	// Shared with the member, both come in: get, list and search.
+	for _, id := range []string{secret.Document.ID, folder.Document.ID} {
+		if _, err := docs.ShareDocument(ctx, Human(x.ua.ID), id, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: member.UserID, Level: DocumentLevelView}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	only("after the share", open.Document.ID, secret.Document.ID, folder.Document.ID)
+	for _, id := range []string{secret.Document.ID, folder.Document.ID} {
+		raw, err := callMcpTool(t, x.tools, member, "get_document", `{"workspace_id":"`+x.w.ID+`","document_id":"`+id+`"}`)
+		if err != nil || !strings.Contains(string(raw), id) {
+			t.Errorf("member reads the shared document %s: %s (%v)", id, raw, err)
+		}
 	}
 }
 
@@ -523,4 +575,119 @@ func TestMcpDocumentReadsWriteOnlyTheAccessLog(t *testing.T) {
 	if n := count(logs, x.w.OrganizationID, file, DocumentAccessDownload); n != 1 {
 		t.Errorf("file: %d download rows in the access log, want 1", n)
 	}
+}
+
+// accessLogs counts the document's rows in the access log.
+func (x *mcpToolWorld) accessLogs(t *testing.T, documentID string) (n int) {
+	t.Helper()
+	if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT count(*) FROM document_access_logs WHERE document_id = $1`, documentID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// A call that answers "not found" for a document leaves no view of it in the
+// access log, even when the person could read it: one of a sibling workspace,
+// and one in the trash that the person may restore. The control is the same
+// person reading it through the service, which does log; it comes last because
+// the log coalesces a repeat read within five minutes.
+func TestMcpRefusedDocumentReadsLeaveNoAccessLog(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	docs := x.docs(t)
+	sibling, err := x.tools.ws.CreateInOrg(ctx, x.ua.ID, x.w.OrganizationID, "WS khác", "ws-khac")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inSibling, err := docs.CreatePage(ctx, Human(x.ua.ID), sibling.Workspace.ID, CreatePageInput{Title: "Ở workspace khác", Content: json.RawMessage(mcpTestPage)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, trashed := x.withDocs(t, "Trong thùng rác", mcpTestPage)
+	if _, err := docs.ArchiveDocument(ctx, Human(x.ua.ID), trashed.Document.ID, ArchiveDocumentInput{}); err != nil {
+		t.Fatal(err)
+	}
+	for name, id := range map[string]string{"sibling workspace": inSibling.Document.ID, "trash": trashed.Document.ID} {
+		before := x.accessLogs(t, id)
+		if _, err := x.tools.document(ctx, x.p, x.w.ID, id); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("%s: %v, want ErrNotFound", name, err)
+		}
+		if _, err := callMcpTool(t, x.tools, x.p, "get_document", `{"workspace_id":"`+x.w.ID+`","document_id":"`+id+`"}`); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("%s through the tool: %v, want ErrNotFound", name, err)
+		}
+		if after := x.accessLogs(t, id); after != before {
+			t.Errorf("%s: a refused read left %d access-log rows", name, after-before)
+		}
+		if _, err := docs.GetDocument(ctx, Human(x.ua.ID), id); err != nil {
+			t.Fatalf("control, %s read through the service: %v", name, err)
+		}
+		if after := x.accessLogs(t, id); after != before+1 {
+			t.Errorf("control, %s: the service logged %d rows, want 1", name, after-before)
+		}
+	}
+}
+
+// The documents flag is the kill switch of every REST document route. The
+// connector asks it for the grant's organization and the person, and answers
+// documents_unavailable (search: no documents) where it is off, whatever the
+// document ladder would allow.
+func TestMcpDocumentsFollowTheDocumentsFlag(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	_, page := x.withDocs(t, "Kế hoạch doanh thu", mcpTestPage)
+	getArgs := `{"workspace_id":"` + x.w.ID + `","document_id":"` + page.Document.ID + `"}`
+	listArgs := `{"workspace_id":"` + x.w.ID + `"}`
+	unavailable := func(label string) {
+		t.Helper()
+		for tool, args := range map[string]string{"get_document": getArgs, "list_documents": listArgs} {
+			_, err := callMcpTool(t, x.tools, x.p, tool, args)
+			var te McpToolError
+			if !errors.As(err, &te) || te.Code != "documents_unavailable" {
+				t.Errorf("%s: %s = %v, want documents_unavailable", label, tool, err)
+			}
+		}
+		if _, err := x.tools.document(ctx, x.p, x.w.ID, page.Document.ID); !errors.Is(err, errMcpDocumentsUnavailable) {
+			t.Errorf("%s: document() = %v, want documents_unavailable", label, err)
+		}
+		if ids := x.searchIDs(t, x.p, "doanh thu"); len(ids) != 0 {
+			t.Errorf("%s: search found %v, want no documents", label, ids)
+		}
+	}
+
+	// On (the registry default): everything works, and the flag was asked for
+	// this person and this organization with the registry default.
+	x.flags.asked = nil
+	if d := x.getDoc(t, page.Document.ID); d.Title != "Kế hoạch doanh thu" {
+		t.Fatalf("flag on: %+v", d)
+	}
+	if list, err := x.docList(t, x.p, ""); err != nil || len(list.Documents) != 1 {
+		t.Fatalf("flag on: list = %+v, %v", list, err)
+	}
+	if ids := x.searchIDs(t, x.p, "doanh thu"); len(ids) != 1 || ids[0] != page.Document.ID {
+		t.Fatalf("flag on: search = %v", ids)
+	}
+	if len(x.flags.asked) == 0 {
+		t.Fatal("the flag was never asked")
+	}
+	for _, a := range x.flags.asked {
+		if a.key != "documents" || a.user != x.ua.ID || a.org != x.w.OrganizationID || !a.def {
+			t.Errorf("flag asked as %+v, want documents for %s in %s with the registry default on", a, x.ua.ID, x.w.OrganizationID)
+		}
+	}
+
+	// Off for this organization only: another organization's setting does not matter.
+	x.flags.byOrg = map[string]bool{"01OTHERORGANIZATION00000": false}
+	if d := x.getDoc(t, page.Document.ID); d.Title != "Kế hoạch doanh thu" {
+		t.Fatalf("flag off for another organization: %+v", d)
+	}
+	x.flags.byOrg = map[string]bool{x.w.OrganizationID: false}
+	unavailable("flag off for the organization")
+
+	// Back on; and a service with no evaluator wired reads as off, not as the default.
+	x.flags.byOrg = map[string]bool{x.w.OrganizationID: true}
+	if d := x.getDoc(t, page.Document.ID); d.Title != "Kế hoạch doanh thu" {
+		t.Fatalf("flag back on: %+v", d)
+	}
+	x.tools.SetFlags(nil)
+	unavailable("no flag evaluator")
 }

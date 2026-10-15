@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/document"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -76,9 +77,9 @@ func TestMCPToolCatalogue(t *testing.T) {
 		"list_members":   {"query", "truncated"},
 		"update_task":    {"revision_conflict", "add_label_ids and remove_label_ids", "too long", strconv.Itoa(mcpMaxItemRunes)},
 		"add_comment":    {"assignee", "creator", "earlier commenters", "@"},
-		"search":         {"documents", "whole query", "most recently updated first", "excerpt", "get_document", "Chat is not searched"},
-		"list_documents": {"top level", "order of the document tree", "next_cursor", "cursor", "doc_kind", "revision", "get_document", "trash", strconv.Itoa(mcpMaxList)},
-		"get_document":   {"Markdown", "revision", "lossy", "blank paragraph", "merged table cell", "appended to", "never replaced", "truncated", "cut page cannot be replaced", strconv.Itoa(mcpMaxItemRunes), "text file", "filename and mime_type", "folder", "parent_id"},
+		"search":         {"documents", "page text and file names", "whole query", "most recently updated first", "excerpt", "get_document", "Chat is not searched"},
+		"list_documents": {"top level", "order of the document tree", "siblings by position, then id", "next_cursor", "cursor", "doc_kind", "revision", "get_document", "trash", strconv.Itoa(mcpMaxList)},
+		"get_document":   {"Markdown", "revision", "lossy", "blank paragraph", "merged table cell", "appended to", "never replaced", "more than " + strconv.Itoa(document.MaxMarkdownRunes) + " characters", "truncated", "cut page cannot be replaced", strconv.Itoa(mcpMaxItemRunes), "text file", "filename and mime_type", "folder", "parent_id"},
 		"get_task":       {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
 		"get_project":    {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count", "and status to narrow"},
 		"list_projects":  {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
@@ -202,6 +203,7 @@ type mcpToolWorld struct {
 	meetingID string
 	projectID string
 	docID     string
+	flags     *mcpFlagFake
 }
 
 func newMcpToolWorld(t *testing.T) *mcpToolWorld {

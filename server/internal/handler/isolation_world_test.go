@@ -188,6 +188,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.McpAuth.SetFlags(mcpTestFlags(true))
 	d.McpTools = service.NewMcpToolService(q, d.AskUNI, d.Home, d.Workspaces, d.Cfg.FrontendOrigin)
 	d.McpTools.SetDocuments(docs)
+	d.McpTools.SetFlags(mcpTestFlags(true))
 	preview, err := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
 		Documents: docs, Origin: isoPreviewOrigin, Secret: "isolation-matrix-preview-secret-0123456789",
 		TTL: 5 * time.Minute, MaxBytes: 1 << 20,

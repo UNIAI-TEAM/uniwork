@@ -28,6 +28,7 @@ type McpToolService struct {
 	home     *HomeService
 	ws       *WorkspaceService
 	docs     *DocumentService // nil until SetDocuments; the document tools then say so
+	flags    McpFlags         // nil until SetFlags; the documents flag then reads as off
 	frontend string
 }
 
@@ -357,7 +358,7 @@ func McpTools(s *McpToolService) ai.Registry {
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.MyWork(ctx, p, a.WorkspaceID)
 			}),
-		tool("search", "Search UniWork", "Tasks and meetings in one workspace matching a keyword query, then up to "+strconv.Itoa(mcpSearchDocuments)+" documents the user may read (pages, files, folders) whose title or text holds the whole query, most recently updated first; a page's excerpt is the start of its text, and call get_document for the rest. Chat is not searched.", mcpSchemaSearch, []string{"workspace_id", "query"},
+		tool("search", "Search UniWork", "Tasks and meetings in one workspace matching a keyword query, then up to "+strconv.Itoa(mcpSearchDocuments)+" documents the user may read, found by page text and file names (a page's title counts as its text; the whole query as one phrase), most recently updated first; a page's excerpt is the start of its text, a file has none, and call get_document for the rest. Chat is not searched.", mcpSchemaSearch, []string{"workspace_id", "query"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.Search(ctx, p, a.WorkspaceID, a.Query)
 			}),

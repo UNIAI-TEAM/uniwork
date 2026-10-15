@@ -15,7 +15,9 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/document"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // The document tools of the MCP connector (spec 2026-10-14 §5.4). Documents
@@ -55,11 +57,37 @@ type McpDocumentList struct {
 	NextCursor string        `json:"next_cursor,omitempty"`
 }
 
-var errMcpDocumentsUnavailable = McpToolError{Code: "documents_unavailable", Msg: "documents are not available on this server"}
+var errMcpDocumentsUnavailable = McpToolError{Code: "documents_unavailable", Msg: "documents are not available"}
+
+// mcpDocumentsFlag is the kill switch every REST document route sits behind.
+const mcpDocumentsFlag = "documents"
 
 // SetDocuments wires documents into the connector's tools (Phase 4 of the
 // write spec); without it the document tools answer documents_unavailable.
 func (s *McpToolService) SetDocuments(d *DocumentService) { s.docs = d }
+
+// SetFlags wires the feature-flag evaluator. The documents flag is its only
+// reader here; without it documents read as off (fail closed, as in
+// McpAuthService).
+func (s *McpToolService) SetFlags(f McpFlags) { s.flags = f }
+
+// documentsOn says whether the person may use documents through the connector:
+// DocumentService is wired and the `documents` flag is on for the grant's
+// organization and the person, as the REST routes evaluate it (overrides
+// included). Every document tool, and the document half of search, asks it
+// first, so a tool added later that reaches documents through document()
+// inherits it.
+func (s *McpToolService) documentsOn(ctx context.Context, p McpPrincipal) bool {
+	if s.docs == nil || s.flags == nil {
+		return false
+	}
+	def := false
+	if f, ok := featureflags.Lookup(mcpDocumentsFlag); ok {
+		def = f.Default
+	}
+	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: p.UserID, OrganizationID: p.OrganizationID})
+	return s.flags.IsEnabled(ctx, mcpDocumentsFlag, def)
+}
 
 func (s *McpToolService) docOf(base string, d db.Document) McpDocument {
 	url := s.frontend + base + "/documents/" + d.ID
@@ -78,7 +106,7 @@ func (s *McpToolService) docOf(base string, d db.Document) McpDocument {
 // that reaches a document can forget to; a document of another workspace, or
 // one in the trash, reads as absent, as does one the person may not read.
 func (s *McpToolService) document(ctx context.Context, p McpPrincipal, workspaceID, documentID string) (DocumentView, error) {
-	if s.docs == nil {
+	if !s.documentsOn(ctx, p) {
 		return DocumentView{}, errMcpDocumentsUnavailable
 	}
 	if err := s.inGrant(ctx, p, workspaceID); err != nil {
@@ -200,7 +228,7 @@ type mcpListDocumentsIn struct {
 }
 
 func (s *McpToolService) ListDocuments(ctx context.Context, p McpPrincipal, in mcpListDocumentsIn) (McpDocumentList, error) {
-	if s.docs == nil {
+	if !s.documentsOn(ctx, p) {
 		return McpDocumentList{}, errMcpDocumentsUnavailable
 	}
 	if _, err := mcpID("parent_id", in.ParentID); err != nil {
@@ -235,9 +263,9 @@ const mcpSearchDocuments = 10
 
 // searchDocuments is the document half of search: the documents the person may
 // read whose title or text holds the query, newest first, each with the start
-// of its text. Without DocumentService there are none.
+// of its text. Where documents are not available there are none, silently.
 func (s *McpToolService) searchDocuments(ctx context.Context, p McpPrincipal, workspaceID, query string) ([]McpItem, error) {
-	if s.docs == nil {
+	if !s.documentsOn(ctx, p) {
 		return nil, nil
 	}
 	page, err := s.docs.ListDocuments(ctx, Human(p.UserID), workspaceID, ListDocumentsInput{Query: query, Limit: mcpSearchDocuments})
@@ -264,11 +292,11 @@ var (
 
 func mcpDocumentTools(s *McpToolService) []ai.Tool {
 	return []ai.Tool{
-		mcpReadTool("list_documents", "List documents", "Pages, files and folders under one folder or page of the workspace (the top level when parent_id is omitted) that the user may read, in the order of the document tree, "+strconv.Itoa(mcpMaxList)+" at a time; a next_cursor in the answer is the cursor to pass for the next page. Each row has its doc_kind and revision, no content: call get_document for that. Documents in the trash are not listed.", mcpSchemaListDocuments,
+		mcpReadTool("list_documents", "List documents", "Pages, files and folders under one folder or page of the workspace (the top level when parent_id is omitted) that the user may read, in the order of the document tree (siblings by position, then id), "+strconv.Itoa(mcpMaxList)+" at a time; a next_cursor in the answer is the cursor to pass for the next page. Each row has its doc_kind and revision, no content: call get_document for that. Documents in the trash are not listed.", mcpSchemaListDocuments,
 			func(ctx context.Context, p McpPrincipal, in mcpListDocumentsIn) (any, error) {
 				return s.ListDocuments(ctx, p, in)
 			}),
-		mcpReadTool("get_document", "Get document", "One document the user may read. A page comes as Markdown in content, with its revision. lossy true means the page holds something Markdown cannot carry back exactly (a blank paragraph, a merged table cell, formatting Markdown cannot express, or more than 50000 characters), so it can only be appended to, never replaced. content is cut at "+strconv.Itoa(mcpMaxItemRunes)+" characters and truncated says so; a cut page cannot be replaced either. A text file (md, html, txt) comes as text, cut the same way; any other file comes as filename and mime_type only, with a note saying why. A folder has no content: list_documents with its id as parent_id shows what is in it.", mcpSchemaDocument,
+		mcpReadTool("get_document", "Get document", "One document the user may read. A page comes as Markdown in content, with its revision. lossy true means the page holds something Markdown cannot carry back exactly (a blank paragraph, a merged table cell, formatting Markdown cannot express, or more than "+strconv.Itoa(document.MaxMarkdownRunes)+" characters), so it can only be appended to, never replaced. content is cut at "+strconv.Itoa(mcpMaxItemRunes)+" characters and truncated says so; a cut page cannot be replaced either. A text file (md, html, txt) comes as text, cut the same way; any other file comes as filename and mime_type only, with a note saying why. A folder has no content: list_documents with its id as parent_id shows what is in it.", mcpSchemaDocument,
 			func(ctx context.Context, p McpPrincipal, in mcpDocumentRef) (any, error) {
 				return s.GetDocument(ctx, p, in)
 			}),
