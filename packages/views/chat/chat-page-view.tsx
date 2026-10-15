@@ -101,7 +101,6 @@ export function ChatPageView({
   const sendRoomMessage = useSendChatRoomMessage(workspaceId);
   const sendVoiceMessage = useSendChatVoiceMessage(workspaceId);
   const sendFileMessage = useSendChatFileMessage(workspaceId);
-  useChatSendOutboxFlush(workspaceId, currentUserId);
   const pendingOutboxCount = useChatSendOutboxCount(workspaceId, currentUserId);
 
   const { workspaceRoom, contacts: roomContacts, groups, channels } = useMemo(
@@ -133,6 +132,11 @@ export function ChatPageView({
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const onOutboxDropped = useCallback(
+    (count: number) => setConnectError(t("chat.send_outbox_dropped", { count })),
+    [t],
+  );
+  useChatSendOutboxFlush(workspaceId, currentUserId, onOutboxDropped);
 
   const currentMember = useCurrentMember(workspaceId);
 

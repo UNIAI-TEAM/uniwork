@@ -3938,6 +3938,8 @@
     "ws_disconnected": "Mất kết nối. Tin nhắn mới có thể đến chậm.",
     "send_outbox_pending_one": "{{count}} tin nhắn đang chờ gửi",
     "send_outbox_pending_other": "{{count}} tin nhắn đang chờ gửi",
+    "send_outbox_dropped_one": "{{count}} tin nhắn chờ gửi không gửi được và đã bị bỏ khỏi hàng chờ.",
+    "send_outbox_dropped_other": "{{count}} tin nhắn chờ gửi không gửi được và đã bị bỏ khỏi hàng chờ.",
     "send_queued_offline": "Tin nhắn đã được lưu và sẽ gửi khi có mạng.",
     "send_rate_limited": "Bạn đang gửi quá nhanh. Tin chưa được gửi, chờ một chút rồi gửi lại.",
     "message_sending": "Đang gửi…",
