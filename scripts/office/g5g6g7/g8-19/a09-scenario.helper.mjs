@@ -14,7 +14,9 @@ export const A09_ORG_ERROR = "member_deactivated";
  *   faults: choiceNotShown, orgCallsBeforeChoice (number | null), forgetsOrg,
  *   createAddsNothing, createMakesCopy, extraWorkingCopy, renameNotReflected,
  *   webRenameNeverArrives, archiveNotReflected, restoreNotReflected,
- *   propertiesVersionOff, sharedMissing, deactivatedStillWorks
+ *   propertiesVersionOff, sharedMissing, deactivatedStillWorks,
+ *   statusByPathGone (the app renames the working copy on a web rename, so uniworkDocStatus(old path) is null;
+ *   the title is then only in binding.json, as the real service writes it)
  */
 export function a09Scenario(fake, { stamp = "t1", viewerKey = "M", userDataDir, faults = {} } = {}) {
   const { world, script } = fake;
@@ -84,6 +86,14 @@ export function a09Scenario(fake, { stamp = "t1", viewerKey = "M", userDataDir, 
     return { loggedIn: true, state: "signed-in", needsOrgChoice: false, org: { id: orgId }, orgs };
   });
 
+  // the app's binding.json of the opened document carries its title (BindingStore.write on a rename)
+  function writeBindings() {
+    for (const dir of state.bindingDirs ?? []) {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "binding.json"), JSON.stringify({ documentId: newId, state: "clean", title: state.appTitle }));
+    }
+  }
+
   // ---- library ---------------------------------------------------------------
   const aiOffice = (name, answer) => script.respond(`app.aiOffice.${name}`, answer);
   aiOffice("uniworkListWorkspaces", () =>
@@ -143,10 +153,12 @@ export function a09Scenario(fake, { stamp = "t1", viewerKey = "M", userDataDir, 
       for (const key of dirs) {
         const dir = join(userDataDir, "uniwork-documents", "harness", viewer.id, key);
         mkdirSync(dir, { recursive: true });
-        writeFileSync(join(dir, "binding.json"), JSON.stringify({ documentId: id, state: "clean" }));
+        writeFileSync(join(dir, "binding.json"), JSON.stringify({ documentId: id, state: "clean", title: state.docs.get(id)?.title ?? null }));
       }
     }
     state.appTitle = state.docs.get(id)?.title ?? null;
+    state.bindingDirs = userDataDir ? [join(userDataDir, "uniwork-documents", "harness", viewer.id, id)] : [];
+    writeBindings();
     return ok({ path: `/fake/${id}.docx` });
   });
   aiOffice("uniworkRenameDocument", (call) => {
@@ -166,11 +178,15 @@ export function a09Scenario(fake, { stamp = "t1", viewerKey = "M", userDataDir, 
     if (!faults.restoreNotReflected) d.archived_at = null;
     return ok(summary({ ...d, archived_at: null }));
   });
-  aiOffice("uniworkDocStatus", (call) => ({ path: call.args[0], documentId: newId, title: state.appTitle, state: "ready" }));
+  aiOffice("uniworkDocStatus", (call) => (state.webRenamed && faults.statusByPathGone ? null : { path: call.args[0], documentId: newId, title: state.appTitle, state: "ready" }));
   script.respond("app.focus", () => {
     state.focusCount += 1;
     // the desktop picks a web rename up on a focus (onUniworkDocRenamed)
-    if (!faults.webRenameNeverArrives && state.focusCount >= 2) state.appTitle = state.docs.get(newId)?.title ?? state.appTitle;
+    if (!faults.webRenameNeverArrives && state.focusCount >= 2) {
+      state.appTitle = state.docs.get(newId)?.title ?? state.appTitle;
+      state.webRenamed = true;
+      writeBindings();
+    }
     return { activated: true, pages: 1 };
   });
 

@@ -11,7 +11,7 @@ import { afterEach, beforeEach, test } from "node:test";
 
 import { a09Scenario } from "./a09-scenario.helper.mjs";
 import { createFakeWorld } from "./fake-world.mjs";
-import { countWorkingCopies, decideG8A09Docs, runLibrary } from "./library.mjs";
+import { countWorkingCopies, decideG8A09Docs, readWorkingCopyTitle, runLibrary } from "./library.mjs";
 import { rowArtifactPath, runRowModule } from "./run-row.mjs";
 
 const goodDocs = (over = {}) => ({
@@ -116,6 +116,18 @@ test("countWorkingCopies: counts the directories of one document across accounts
   assert.equal(countWorkingCopies(join(dir, "nowhere"), "doc-a"), 0);
 });
 
+test("readWorkingCopyTitle: the title in the document's binding.json, null when there is none or no title", () => {
+  assert.equal(readWorkingCopyTitle(dir, "doc-a"), null);
+  copy("acc-1", "doc-a", { documentId: "doc-a", title: "Old" });
+  copy("acc-1", "doc-b", { documentId: "doc-b", title: "Other" });
+  assert.equal(readWorkingCopyTitle(dir, "doc-a"), "Old");
+  copy("acc-1", "doc-a", { documentId: "doc-a", title: "New" });
+  assert.equal(readWorkingCopyTitle(dir, "doc-a"), "New", "the binding is rewritten on a rename");
+  copy("acc-1", "doc-c", { documentId: "doc-c" });
+  assert.equal(readWorkingCopyTitle(dir, "doc-c"), null);
+  assert.equal(readWorkingCopyTitle(join(dir, "nowhere"), "doc-a"), null);
+});
+
 // ---- the flow ------------------------------------------------------------------
 
 let runDir;
@@ -172,6 +184,14 @@ test("runLibrary: the web rename uses PATCH /documents/{id} with the revision re
   assert.equal(patch.args.body.revision, "1");
   assert.equal(patch.args.body.title, "G8-A09 t1 web");
   assert.ok(fake.calls.app.filter((c) => c.key === "focus").length >= 2, "focus is repeated while the title is old");
+});
+
+test("runLibrary: a web rename is read from binding.json when the app moved the working copy and uniworkDocStatus(old path) is null -> PASS", async () => {
+  const { exit, artifact, sc } = await run({ faults: { statusByPathGone: true } });
+  assert.equal(artifact.status, "PASS", artifact.reason);
+  assert.equal(exit, 0);
+  assert.equal(artifact.steps.webRename.details.titleSource, "binding.json");
+  assert.equal(sc.state.docs.get("doc-new").title, sc.names.web);
 });
 
 test("runLibrary: create that adds no document -> FAIL naming createdPlusOne", async () => {
