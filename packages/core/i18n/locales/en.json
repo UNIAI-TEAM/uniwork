@@ -9382,7 +9382,7 @@
         "download_failed": "Download failed. Please try again.",
         "downloading": "Preparing…",
         "title": "Get UniWork Office for desktop",
-        "not_installed": "The desktop app didn't respond. Install the right version, then select Open again.",
+        "not_installed": "The desktop app didn't respond. If UniWork Office already opened, you can close this dialog. If not, install the right version, then select Open again.",
         "expired": "That desktop handoff expired. Try opening it again.",
         "error": "The desktop handoff did not complete. Your editor and draft are unchanged.",
         "unavailable": "Install link unavailable",
