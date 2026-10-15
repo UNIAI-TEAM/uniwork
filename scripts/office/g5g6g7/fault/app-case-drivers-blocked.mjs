@@ -290,7 +290,10 @@ async function fq53(ctx) {
   const scope = syncStoreScopeDir(session.userDataDir, "default", ctx.tenant.app.userId);
   const filler = join(scope, "g7-03a-fault-filler.bin");
   mkdirSync(scope, { recursive: true });
-  // sparse: the store's budget counts each file's size (fork store/layer.ts dirBytes)
+  // sparse: the store's budget counts each file's size across the account's
+  // scope (fork store/layer.ts dirBytes :220, the write gate :353), so the
+  // filler only has to be SYNC_STORE_BUDGET_BYTES large, not to hold bytes
+  // (G5-11 raised the budget to 1 GiB: the constant is the fork's, lib above)
   const fd = openSync(filler, "w");
   ftruncateSync(fd, SYNC_STORE_BUDGET_BYTES);
   closeSync(fd);

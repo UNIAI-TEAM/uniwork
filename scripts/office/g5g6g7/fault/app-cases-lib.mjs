@@ -392,8 +392,13 @@ export function syncStoreScopeDir(userDataDir, deploymentId, accountId) {
   return join(userDataDir, "uniwork-sync", "store", deploymentId, accountId);
 }
 
-/** The fork's store budget (wiring.ts SYNC_STORE_BUDGET_BYTES). */
-export const SYNC_STORE_BUDGET_BYTES = 256 * 1024 * 1024;
+/**
+ * The fork's store budget (wiring.ts SYNC_STORE_BUDGET_BYTES): 1 GiB per account
+ * (G5-11/fork 53ea00672 raised the G5-04 256 MiB; EXPERIENCE › Lý do bị chặn
+ * `store_full` "1 GiB mỗi tài khoản, queue + nháp"). A case that fills the store
+ * must fill THIS much, or the write is not refused.
+ */
+export const SYNC_STORE_BUDGET_BYTES = 1024 * 1024 * 1024;
 
 /**
  * The extra environment of an app launch for a fault case: the proxy as the
