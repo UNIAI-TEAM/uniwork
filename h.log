@@ -1,0 +1,9 @@
+$ pnpm knip; echo "KNIP_EXIT=$?"
+
+> uniwork@ knip /workspace
+> knip
+
+Unused files (1)
+apps/web/platform/feature-metadata.ts
+ ELIFECYCLE  Command failed with exit code 1.
+KNIP_EXIT=1

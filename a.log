@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+1ecc8c941a858ec6896488c9a2c0df5e8511d5c9
+1ecc8c941 test(office): late hand-off closes the installer dialog
+5320c074f fix(office): stop the installer dialog when UniWork Office already opened
+bd5ae8f0f Merge pull request #300 from UNIAI-TEAM/feature/UNI-1647-sua-thong-tin-workspace

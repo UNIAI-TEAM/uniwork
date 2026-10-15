@@ -1,0 +1,14 @@
+$ pnpm --filter @uniwork/core lint && pnpm --filter @uniwork/views lint && pnpm --filter @uniwork/web lint; echo "LINT_EXIT=$?"
+
+> @uniwork/core@0.0.0 lint /workspace/packages/core
+> eslint . --max-warnings 0
+
+
+> @uniwork/views@0.0.0 lint /workspace/packages/views
+> eslint . --max-warnings 0
+
+
+> @uniwork/web@0.0.0 lint /workspace/apps/web
+> eslint . --max-warnings 0
+
+LINT_EXIT=0
