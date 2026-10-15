@@ -1,0 +1,13 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18520 FRONTEND_ORIGIN=http://localhost:13440 API_PUBLIC_URL=http://localhost:18520 PREVIEW_ORIGIN=http://localhost:13441 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18520 NEXT_PUBLIC_WS_URL=ws://localhost:18520 NEXT_PUBLIC_APP_URL=http://localhost:13440 E2E_BASE_URL=http://localhost:13440 E2E_API_URL=http://localhost:18520 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-comments.spec.ts --reporter=list > /tmp/wdoc07r3-documents-comments.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/wdoc07r3-documents-comments.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/wdoc07r3-documents-comments.log && echo "skipped: documents-comments has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/wdoc07r3-documents-comments.log || { echo "no passing test matched documents-comments"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_DOCUMENTS_COMMENTS_EXIT=$rc"
+
+Running 1 test using 1 worker
+
+(node:63378) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63378) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-comments.spec.ts:90:1 › discussion panel posts, replies, edits, resolves, reopens and survives a reload (8.5s)
+
+  1 passed (9.5s)
+
+E2E_DOCUMENTS_COMMENTS_EXIT=0

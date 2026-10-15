@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+8363703e252bf40a115dd9fdde1396ad5c2d7100
+8363703e2 Merge origin/feature/UNI-923-office-g5-g6-g7 (f4329d09f) into W-DOC07
+410fd0557 fix(documents): keep the focus handoff from hanging when the list refetch fails
+2a6984e1b fix(documents): word the device note as an earlier request and align the admin Back button
+f4329d09f chore: merge root e2e documents fix (2e76d5ca1) into the G5-G7 root
+7a23171eb chore: merge G5-12 save-as-copy server (0a79bfe06) into the G5-G7 root
+2e76d5ca1 test(e2e): move through the FD-09 tree picker in the documents home spec
+9e8870420 fix(documents): drive every optional library column by the list container ladder
+3565580f1 Merge origin/feature/UNI-923-office-g5-g6-g7 (49f578729) into W-DOC07

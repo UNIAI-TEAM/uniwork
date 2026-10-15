@@ -1,0 +1,7 @@
+$ pnpm --filter @uniwork/web typecheck; rc=$?; echo; echo "WEB_TC_EXIT=$rc"
+
+> @uniwork/web@0.0.0 typecheck /workspace/apps/web
+> tsc --noEmit
+
+
+WEB_TC_EXIT=0
