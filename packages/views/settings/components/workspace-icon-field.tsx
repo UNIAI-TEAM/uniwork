@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageUp, Trash2 } from "lucide-react";
+import { Camera, ImageUp, Trash2 } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -25,8 +25,9 @@ const MAX_ICON_BYTES = 2 * 1024 * 1024;
 export const WORKSPACE_ICON_TILE = "size-10 rounded-lg bg-muted text-title font-semibold text-foreground";
 
 /**
- * Preview plus one "Đổi icon" button whose popover holds the three icon
- * actions (spec §6.4), the same shape as the avatar row on the profile tab.
+ * The icon itself is the button: clicking it opens a popover holding the
+ * three icon actions (spec §6.4). The camera badge says it can be changed,
+ * as on the profile avatar.
  */
 export function WorkspaceIconField({ workspace }: { workspace: Workspace }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings" });
@@ -68,11 +69,24 @@ export function WorkspaceIconField({ workspace }: { workspace: Workspace }) {
   };
 
   return (
-    <div className="flex items-center gap-3 sm:justify-end">
-      <WorkspaceIcon workspace={workspace} className={WORKSPACE_ICON_TILE} />
+    <div className="flex items-center sm:justify-end">
       <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger render={<Button type="button" variant="outline" size="sm" disabled={busy} />}>
-          {t("workspace.icon_change")}
+        <PopoverTrigger
+          disabled={busy}
+          aria-label={t("workspace.icon_change")}
+          title={t("workspace.icon_change")}
+          className="group relative shrink-0 cursor-pointer rounded-lg disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <WorkspaceIcon
+            workspace={workspace}
+            className={`${WORKSPACE_ICON_TILE} transition-colors group-hover:bg-surface-hover`}
+          />
+          <span
+            aria-hidden
+            className="absolute -right-1 -bottom-1 flex size-5 items-center justify-center rounded-full border-2 border-card bg-muted text-muted-foreground"
+          >
+            <Camera className="size-3" />
+          </span>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-auto p-0">
           <Suspense fallback={<div className="h-80 w-72" aria-hidden />}>
