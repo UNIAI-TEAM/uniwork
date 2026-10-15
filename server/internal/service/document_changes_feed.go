@@ -85,11 +85,13 @@ import (
 //     through any other path now. A caller who still reads another way gets the
 //     upsert, never a removal.
 //   - visibility demotion: the REAL command is a PATCH through UpdateDocument
-//     with Visibility set, which writes document.updated with a
-//     changes.visibility {from,to} diff (document_pages.go, audit.Diff); a
-//     document.settings_changed row is the arm the document-level settings
-//     command would write and is kept harmlessly. The prior visibility comes
-//     from the audit row (metadata.visibility, or changes.visibility.from). A
+//     with Visibility set. Since SH-S1 it writes document.workspace_access_changed
+//     with a changes.visibility {from,to} diff (the home row turning on or
+//     off); rows a pre-SH-S1 binary wrote carry the same diff on
+//     document.updated, and both are read the same way. A document.settings_changed
+//     row is the arm the document-level settings command would write and is
+//     kept harmlessly. The prior visibility comes from the audit row
+//     (metadata.visibility, or changes.visibility.from). A
 //     member the prior visibility admitted and the current one refuses gets the
 //     removal. A document.updated row WITHOUT a visibility diff (a title, icon
 //     or content edit) is NOT a removal basis and is ignored - never 410; a
@@ -189,6 +191,8 @@ var feedDocumentActions = map[string]bool{
 	"document.shared":           true,
 	"document.share_revoked":    true,
 	"document.settings_changed": true,
+	// SH-S1: the home row turned on, off, or changed level.
+	"document.workspace_access_changed": true,
 }
 
 // feedGrantActions are the actions that can make a document readable to
@@ -394,6 +398,7 @@ func (s *DocumentChangesService) feedRows(ctx context.Context, q *db.Queries, cs
 			Kind: d.Kind, Revision: d.Revision, CurrentVersion: d.CurrentVersion,
 			FileVersionID: d.FileVersionID, ArchivedAt: d.ArchivedAt,
 			OwnerID: d.OwnerID, Visibility: d.Visibility, AclOwnerID: d.AclOwnerID,
+			WorkspaceLevel: d.WorkspaceLevel,
 		}
 	}
 	// The snapshot evidence is consulted only for the two kinds whose removing
@@ -588,6 +593,20 @@ func removalByAudit(c *feedCandidate, scope documentListScope, userID string) (r
 			if !ok {
 				// A visibility change whose prior value is missing: the removal
 				// may be due and cannot be proven either way -> 410.
+				return false, true
+			}
+			if scope.memberVisible && prior != documentVisibilityRestricted {
+				return true, false
+			}
+		case "document.workspace_access_changed":
+			// SH-S1: the home row changed - visibility on or off the workspace
+			// (the level may have moved with it). A caller the prior visibility
+			// admitted and the current one refuses gets the removal, exactly as
+			// the document.updated visibility diff answers above; a level move
+			// alone leaves a reader reading (the upsert branch above already
+			// caught it), so only the visibility off switch removes.
+			prior, ok := feedPriorVisibility(c, i)
+			if !ok {
 				return false, true
 			}
 			if scope.memberVisible && prior != documentVisibilityRestricted {

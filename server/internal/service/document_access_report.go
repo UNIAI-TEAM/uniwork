@@ -374,7 +374,8 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 func accessReportCandidate(r db.ListDocumentAccessReportSubtreeCandidatesRow) db.Document {
 	return db.Document{
 		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID, ParentID: r.ParentID,
-		Kind: r.Kind, Title: r.Title, Visibility: r.Visibility, OwnerKind: r.OwnerKind, OwnerID: r.OwnerID,
+		Kind: r.Kind, Title: r.Title, Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
+		OwnerKind: r.OwnerKind, OwnerID: r.OwnerID,
 		AclOwnerID: r.AclOwnerID, ArchivedAt: r.ArchivedAt, UpdatedAt: r.UpdatedAt,
 	}
 }

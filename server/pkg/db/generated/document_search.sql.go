@@ -195,6 +195,7 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 const listDocumentAncestors = `-- name: ListDocumentAncestors :many
 WITH RECURSIVE anc AS (
   SELECT d.id, d.parent_id, d.title, d.visibility, d.acl_owner_id, d.owner_kind, d.archived_at,
+         d.workspace_level,
          1 AS lvl, ARRAY[d.id]::text[] AS visited
   FROM documents d
   WHERE d.organization_id = $1
@@ -202,6 +203,7 @@ WITH RECURSIVE anc AS (
     AND d.id = ANY($3::text[])
   UNION ALL
   SELECT p.id, p.parent_id, p.title, p.visibility, p.acl_owner_id, p.owner_kind, p.archived_at,
+         p.workspace_level,
          anc.lvl + 1, anc.visited || p.id
   FROM documents p
   JOIN anc ON p.id = anc.parent_id
@@ -210,7 +212,7 @@ WITH RECURSIVE anc AS (
     AND anc.lvl < $4::int
     AND NOT (p.id = ANY(anc.visited))
 )
-SELECT DISTINCT id, parent_id, title, visibility, acl_owner_id, owner_kind, archived_at
+SELECT DISTINCT id, parent_id, title, visibility, acl_owner_id, owner_kind, archived_at, workspace_level
 FROM anc
 `
 
@@ -222,13 +224,14 @@ type ListDocumentAncestorsParams struct {
 }
 
 type ListDocumentAncestorsRow struct {
-	ID         string             `json:"id"`
-	ParentID   pgtype.Text        `json:"parent_id"`
-	Title      string             `json:"title"`
-	Visibility string             `json:"visibility"`
-	AclOwnerID pgtype.Text        `json:"acl_owner_id"`
-	OwnerKind  pgtype.Text        `json:"owner_kind"`
-	ArchivedAt pgtype.Timestamptz `json:"archived_at"`
+	ID             string             `json:"id"`
+	ParentID       pgtype.Text        `json:"parent_id"`
+	Title          string             `json:"title"`
+	Visibility     string             `json:"visibility"`
+	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
+	OwnerKind      pgtype.Text        `json:"owner_kind"`
+	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+	WorkspaceLevel string             `json:"workspace_level"`
 }
 
 // Ancestor chain for a page of list results (E6/FD-05, UNI-1465). Both the
@@ -257,6 +260,7 @@ func (q *Queries) ListDocumentAncestors(ctx context.Context, arg ListDocumentAnc
 			&i.AclOwnerID,
 			&i.OwnerKind,
 			&i.ArchivedAt,
+			&i.WorkspaceLevel,
 		); err != nil {
 			return nil, err
 		}
@@ -277,16 +281,17 @@ WHERE d.organization_id = $1
   AND d.archived_at IS NULL
   AND d.parent_id IS NOT DISTINCT FROM $3
   AND ($4
-       OR ($5 AND d.visibility = 'workspace')
-       OR ($6 AND d.acl_owner_id = $7)
-       OR ($8 AND EXISTS (
+       OR ($5 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($6::text[]))
+       OR ($7 AND d.acl_owner_id = $8)
+       OR ($9 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($9::text[])
-              AND ((s.principal_type = 'user' AND s.principal_id = $7)
+              AND s.level = ANY($6::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $8)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($10::text[]))))))
@@ -299,14 +304,14 @@ WHERE d.organization_id = $1
        OR (NOT $17::boolean
            AND (NOT $4::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $8)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $7)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $8)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
                                  AND rs.principal_id = ANY($10::text[]))))
@@ -315,21 +320,21 @@ WHERE d.organization_id = $1
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $7
+                        AND g.actor_id = $8
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $16::text || '%' ESCAPE '\')
        OR (($17::boolean OR NOT (NOT $4::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $8)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $7)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $8)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
                                  AND rs.principal_id = ANY($10::text[]))))
@@ -338,7 +343,7 @@ WHERE d.organization_id = $1
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $7
+                        AND g.actor_id = $8
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
@@ -355,10 +360,10 @@ type ListDocumentsByParentPageParams struct {
 	ParentID        pgtype.Text        `json:"parent_id"`
 	SeeAll          interface{}        `json:"see_all"`
 	MemberVisible   interface{}        `json:"member_visible"`
+	ShareLevels     []string           `json:"share_levels"`
 	AclOwner        interface{}        `json:"acl_owner"`
 	ActorID         pgtype.Text        `json:"actor_id"`
 	AllowShares     interface{}        `json:"allow_shares"`
-	ShareLevels     []string           `json:"share_levels"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
 	ExcludeKind     pgtype.Text        `json:"exclude_kind"`
@@ -381,10 +386,10 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 		arg.ParentID,
 		arg.SeeAll,
 		arg.MemberVisible,
+		arg.ShareLevels,
 		arg.AclOwner,
 		arg.ActorID,
 		arg.AllowShares,
-		arg.ShareLevels,
 		arg.ShareWorkspaces,
 		arg.Kind,
 		arg.ExcludeKind,
@@ -490,15 +495,16 @@ WHERE d.organization_id = $5
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   AND ($2
-       OR ($7 AND d.visibility = 'workspace')
-       OR ($8 AND d.acl_owner_id = $3)
-       OR ($9 AND EXISTS (
+       OR ($7 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($8::text[]))
+       OR ($9 AND d.acl_owner_id = $3)
+       OR ($10 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($10::text[])
+              AND s.level = ANY($8::text[])
               AND ((s.principal_type = 'user' AND s.principal_id = $3)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
@@ -570,9 +576,9 @@ type ListDocumentsPageParams struct {
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	MemberVisible   interface{}        `json:"member_visible"`
+	ShareLevels     []string           `json:"share_levels"`
 	AclOwner        interface{}        `json:"acl_owner"`
 	AllowShares     interface{}        `json:"allow_shares"`
-	ShareLevels     []string           `json:"share_levels"`
 	Kind            pgtype.Text        `json:"kind"`
 	ExcludeKind     pgtype.Text        `json:"exclude_kind"`
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
@@ -639,7 +645,9 @@ type ListDocumentsPageRow struct {
 // DocumentService.resolveLevel:
 //
 //	ws_member + (ws admin | acl_owner)  -> manage  (passed as see_all)
-//	ws_member + visibility='workspace'  -> member_visible
+//	ws_member + visibility='workspace'  -> member_visible at the row's
+//	  workspace_level, and only while that level is in share_levels (the
+//	  minimum the caller asks for; min=view matches every home row)
 //	a live document_shares row at >= min_level reaching the actor: user
 //	  principal, a workspace principal the actor is a member of, or an
 //	  organization principal on the document's org
@@ -673,9 +681,9 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.MemberVisible,
+		arg.ShareLevels,
 		arg.AclOwner,
 		arg.AllowShares,
-		arg.ShareLevels,
 		arg.Kind,
 		arg.ExcludeKind,
 		arg.UpdatedBy,
@@ -762,9 +770,10 @@ WHERE d.organization_id = $1
               AND a.document_id = d.id
               AND a.actor_id = $3))
   AND ($4
-       OR ($5 AND d.visibility = 'workspace')
-       OR ($6 AND d.acl_owner_id = $3)
-       OR ($7 AND EXISTS (
+       OR ($5 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($6::text[]))
+       OR ($7 AND d.acl_owner_id = $3)
+       OR ($8 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
@@ -773,11 +782,11 @@ WHERE d.organization_id = $1
               AND ((s.principal_type = 'user' AND s.principal_id = $3)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($8::text[]))))))
-  AND ($9::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($9, $10::text))
+                       AND s.principal_id = ANY($9::text[]))))))
+  AND ($10::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($10, $11::text))
 ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $11
+LIMIT $12
 `
 
 type ListRecentDocumentsPageParams struct {
@@ -786,6 +795,7 @@ type ListRecentDocumentsPageParams struct {
 	ActorID         string             `json:"actor_id"`
 	SeeAll          interface{}        `json:"see_all"`
 	MemberVisible   interface{}        `json:"member_visible"`
+	ShareLevels     []string           `json:"share_levels"`
 	AclOwner        interface{}        `json:"acl_owner"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
@@ -803,6 +813,7 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 		arg.ActorID,
 		arg.SeeAll,
 		arg.MemberVisible,
+		arg.ShareLevels,
 		arg.AclOwner,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
@@ -878,18 +889,19 @@ WHERE d.organization_id = $1
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   AND ($3
-       OR ($4 AND d.visibility = 'workspace')
-       OR ($5 AND d.acl_owner_id = $6)
-       OR ($7 AND EXISTS (
+       OR ($4 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($5::text[]))
+       OR ($6 AND d.acl_owner_id = $7)
+       OR ($8 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND ((s.principal_type = 'user' AND s.principal_id = $6)
+              AND ((s.principal_type = 'user' AND s.principal_id = $7)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($8::text[]))))))
+                       AND s.principal_id = ANY($9::text[]))))))
 ORDER BY d.position, d.id
 `
 
@@ -898,6 +910,7 @@ type ListTreeDocumentsParams struct {
 	WorkspaceID     string      `json:"workspace_id"`
 	SeeAll          interface{} `json:"see_all"`
 	MemberVisible   interface{} `json:"member_visible"`
+	ShareLevels     []string    `json:"share_levels"`
 	AclOwner        interface{} `json:"acl_owner"`
 	ActorID         pgtype.Text `json:"actor_id"`
 	AllowShares     interface{} `json:"allow_shares"`
@@ -912,6 +925,7 @@ func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsPa
 		arg.WorkspaceID,
 		arg.SeeAll,
 		arg.MemberVisible,
+		arg.ShareLevels,
 		arg.AclOwner,
 		arg.ActorID,
 		arg.AllowShares,

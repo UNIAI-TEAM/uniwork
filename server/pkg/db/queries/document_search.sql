@@ -7,7 +7,9 @@
 -- The shared permission predicate, inlined in each query, mirrors
 -- DocumentService.resolveLevel:
 --   ws_member + (ws admin | acl_owner)  -> manage  (passed as see_all)
---   ws_member + visibility='workspace'  -> member_visible
+--   ws_member + visibility='workspace'  -> member_visible at the row's
+--     workspace_level, and only while that level is in share_levels (the
+--     minimum the caller asks for; min=view matches every home row)
 --   a live document_shares row at >= min_level reaching the actor: user
 --     principal, a workspace principal the actor is a member of, or an
 --     organization principal on the document's org
@@ -64,7 +66,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   AND (sqlc.arg(see_all)
-       OR (sqlc.arg(member_visible) AND d.visibility = 'workspace')
+       OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
        OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
@@ -146,7 +149,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   AND d.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
   AND (sqlc.arg(see_all)
-       OR (sqlc.arg(member_visible) AND d.visibility = 'workspace')
+       OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
        OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
@@ -304,6 +308,7 @@ LIMIT sqlc.arg(page_limit);
 -- name: ListDocumentAncestors :many
 WITH RECURSIVE anc AS (
   SELECT d.id, d.parent_id, d.title, d.visibility, d.acl_owner_id, d.owner_kind, d.archived_at,
+         d.workspace_level,
          1 AS lvl, ARRAY[d.id]::text[] AS visited
   FROM documents d
   WHERE d.organization_id = sqlc.arg(organization_id)
@@ -311,6 +316,7 @@ WITH RECURSIVE anc AS (
     AND d.id = ANY(sqlc.arg(ids)::text[])
   UNION ALL
   SELECT p.id, p.parent_id, p.title, p.visibility, p.acl_owner_id, p.owner_kind, p.archived_at,
+         p.workspace_level,
          anc.lvl + 1, anc.visited || p.id
   FROM documents p
   JOIN anc ON p.id = anc.parent_id
@@ -319,7 +325,7 @@ WITH RECURSIVE anc AS (
     AND anc.lvl < sqlc.arg(max_level)::int
     AND NOT (p.id = ANY(anc.visited))
 )
-SELECT DISTINCT id, parent_id, title, visibility, acl_owner_id, owner_kind, archived_at
+SELECT DISTINCT id, parent_id, title, visibility, acl_owner_id, owner_kind, archived_at, workspace_level
 FROM anc;
 
 -- Every visible live document of one workspace in tree order - the
@@ -332,7 +338,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   AND (sqlc.arg(see_all)
-       OR (sqlc.arg(member_visible) AND d.visibility = 'workspace')
+       OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
        OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
@@ -363,7 +370,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
               AND a.document_id = d.id
               AND a.actor_id = sqlc.arg(actor_id)))
   AND (sqlc.arg(see_all)
-       OR (sqlc.arg(member_visible) AND d.visibility = 'workspace')
+       OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
        OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
