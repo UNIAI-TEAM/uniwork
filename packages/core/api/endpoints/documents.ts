@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   DocumentAssetSchema,
   DocumentDownloadSchema,
@@ -5,11 +6,24 @@ import {
   DocumentUploadSchema,
   type Document,
   type DocumentAsset,
+  type DocumentCommentKind,
   type DocumentDownload,
   type DocumentUpload,
   type DocumentVisibility,
 } from "../../types/document";
-import { request, requestBlob } from "../http";
+import {
+  DocumentAdminSummarySchema,
+  DocumentBreakGlassGrantEnvelopeSchema,
+  DocumentBreakGlassGrantSchema,
+  DocumentCommentEnvelopeSchema,
+  MentionCandidateSchema,
+  type DocumentAccessError,
+  type DocumentAdminSummary,
+  type DocumentBreakGlassGrant,
+  type DocumentComment,
+  type MentionCandidate,
+} from "../../types/document-access";
+import { ApiError, request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
 
 // Documents endpoints (C-01 §5 + §14; UNI-679, G1-05a). The transport returns
@@ -247,3 +261,273 @@ export async function downloadDocumentFile(
 ): Promise<Blob> {
   return requestBlob(documentDownloadPath(documentId, version), { signal });
 }
+
+// ---- G8-18 (UNI-1413): comment create/update + mention candidates ----------
+
+export interface CreateDocumentCommentBody {
+  body: string;
+  parent_id?: string;
+  kind?: DocumentCommentKind;
+  anchor?: Record<string, unknown>;
+  base_version_id?: string;
+}
+
+export interface UpdateDocumentCommentBody {
+  body: string;
+}
+
+export interface DocumentCommentRequestOpts {
+  idempotencyKey?: string;
+  signal?: AbortSignal;
+}
+
+/** POST /api/v1/documents/{documentID}/comments — create a comment or reply,
+ *  including `mentions_without_access` when mentioned people cannot view (G8-18). */
+export async function createDocumentComment(
+  documentId: string,
+  body: CreateDocumentCommentBody,
+  opts?: DocumentCommentRequestOpts,
+): Promise<DocumentComment | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/comments`, {
+    method: "POST",
+    body,
+    headers: idempotencyHeaders(opts),
+    signal: opts?.signal,
+  });
+  return (
+    parseWithFallback<{ comment: DocumentComment } | null>(raw, DocumentCommentEnvelopeSchema, null, {
+      endpoint: "POST /api/v1/documents/{id}/comments",
+    })?.comment ?? null
+  );
+}
+
+/** PATCH /api/v1/documents/{documentID}/comments/{commentID} — edit a comment,
+ *  including `mentions_without_access` when newly mentioned people cannot view (G8-18). */
+export async function updateDocumentComment(
+  documentId: string,
+  commentId: string,
+  body: UpdateDocumentCommentBody,
+  opts?: { signal?: AbortSignal },
+): Promise<DocumentComment | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/comments/${enc(commentId)}`, {
+    method: "PATCH",
+    body,
+    signal: opts?.signal,
+  });
+  return (
+    parseWithFallback<{ comment: DocumentComment } | null>(raw, DocumentCommentEnvelopeSchema, null, {
+      endpoint: "PATCH /api/v1/documents/{id}/comments/{commentId}",
+    })?.comment ?? null
+  );
+}
+
+export interface MentionCandidateQuery {
+  /** Search term over display name and email (accent-folded). */
+  q?: string;
+  /** Page size; clamped to [1, 50] with a default of 20. */
+  limit?: number;
+  /** Pass `"no_access"` to include workspace members who cannot view yet (`can_view: false`). */
+  include?: "no_access";
+}
+
+const MentionCandidateListResponseSchema = z.object({
+  candidates: z.array(z.unknown()).transform((rows): MentionCandidate[] => {
+    const out: MentionCandidate[] = [];
+    for (const row of rows) {
+      const parsed = MentionCandidateSchema.safeParse(row);
+      if (parsed.success) out.push(parsed.data);
+    }
+    return out;
+  }),
+});
+
+/** GET /api/v1/documents/{documentID}/mention-candidates — picker candidates,
+ *  with optional `include=no_access` and tolerant `can_view` parsing (G8-18). */
+export async function listDocumentMentionCandidates(
+  documentId: string,
+  query?: MentionCandidateQuery,
+  signal?: AbortSignal,
+): Promise<MentionCandidate[]> {
+  const params = new URLSearchParams();
+  const q = query?.q?.trim();
+  if (q) params.set("q", q);
+  if (query?.limit !== undefined) params.set("limit", String(query.limit));
+  if (query?.include === "no_access") params.set("include", "no_access");
+  const search = params.toString();
+  const raw = await request(
+    `/api/v1/documents/${enc(documentId)}/mention-candidates${search ? `?${search}` : ""}`,
+    { signal },
+  );
+  return parseWithFallback<{ candidates: MentionCandidate[] }>(
+    raw,
+    MentionCandidateListResponseSchema,
+    { candidates: [] },
+    { endpoint: "GET /api/v1/documents/{id}/mention-candidates" },
+  ).candidates;
+}
+
+// ---- DOC-05 (UNI-1628): break-glass + admin-summary + typed errors ---------
+
+export interface BreakGlassDocumentBody {
+  /** Audited emergency-access reason (10–500 runes after trim). */
+  reason: string;
+}
+
+const BreakGlassGrantResponseSchema = z.union([
+  DocumentBreakGlassGrantEnvelopeSchema.transform((v) => v.grant),
+  DocumentBreakGlassGrantSchema,
+]);
+
+const BreakGlassStatusResponseSchema = z.object({ status: z.string() });
+
+function resolveSignal(opts?: { signal?: AbortSignal } | AbortSignal): AbortSignal | undefined {
+  if (!opts) return undefined;
+  return "aborted" in opts ? opts : opts.signal;
+}
+
+/** POST /api/v1/documents/{documentID}/break-glass — open a 24h read-only grant (DOC-05). */
+export async function createDocumentBreakGlass(
+  documentId: string,
+  body: BreakGlassDocumentBody | string,
+  opts?: DocumentRequestOpts,
+): Promise<DocumentBreakGlassGrant | null> {
+  const payload: BreakGlassDocumentBody = typeof body === "string" ? { reason: body } : body;
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/break-glass`, {
+    method: "POST",
+    body: payload,
+    headers: idempotencyHeaders(opts),
+    signal: opts?.signal,
+  });
+  return parseWithFallback<DocumentBreakGlassGrant | null>(
+    raw,
+    BreakGlassGrantResponseSchema,
+    null,
+    { endpoint: "POST /api/v1/documents/{id}/break-glass" },
+  );
+}
+
+/** DELETE /api/v1/documents/{documentID}/break-glass/{grantID} — revoke a live grant (DOC-05). */
+export async function revokeDocumentBreakGlass(
+  documentId: string,
+  grantId: string,
+  opts?: DocumentRequestOpts | AbortSignal,
+): Promise<boolean> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/break-glass/${enc(grantId)}`, {
+    method: "DELETE",
+    signal: resolveSignal(opts),
+  });
+  return (
+    parseWithFallback<{ status: string }>(
+      raw,
+      BreakGlassStatusResponseSchema,
+      { status: "" },
+      { endpoint: "DELETE /api/v1/documents/{id}/break-glass/{grantId}" },
+    ).status === "ok"
+  );
+}
+
+/** GET /api/v1/documents/{documentID}/admin-summary — metadata-only summary (DOC-05). */
+export async function getDocumentAdminSummary(
+  documentId: string,
+  opts?: { signal?: AbortSignal } | AbortSignal,
+): Promise<DocumentAdminSummary | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/admin-summary`, {
+    signal: resolveSignal(opts),
+  });
+  return parseWithFallback<DocumentAdminSummary | null>(raw, DocumentAdminSummarySchema, null, {
+    endpoint: "GET /api/v1/documents/{id}/admin-summary",
+  });
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function extractRawError(err: unknown): {
+  code: string;
+  message: string;
+  status: number;
+  fields: Record<string, unknown> | undefined;
+} | null {
+  if (err instanceof ApiError) {
+    return {
+      code: typeof err.code === "string" ? err.code : "",
+      message: typeof err.message === "string" ? err.message : "",
+      status: typeof err.status === "number" ? err.status : 0,
+      fields: isPlainRecord(err.fields) ? err.fields : undefined,
+    };
+  }
+  if (!isPlainRecord(err)) return null;
+  const inner = isPlainRecord(err.error) ? err.error : err;
+  const code = typeof inner.code === "string" ? inner.code : "";
+  if (!code) return null;
+  const message = typeof inner.message === "string" ? inner.message : "";
+  const status =
+    typeof inner.status === "number" ? inner.status : typeof err.status === "number" ? err.status : 0;
+  const rawFields = inner.fields ?? err.fields;
+  return { code, message, status, fields: isPlainRecord(rawFields) ? rawFields : undefined };
+}
+
+/** Parse a failed documents call into a typed DOC-05 error so views can switch on `kind`/`code`. */
+export function parseDocumentAccessError(err: unknown): DocumentAccessError | null {
+  const extracted = extractRawError(err);
+  if (!extracted) return null;
+  switch (extracted.code) {
+    case "document_restricted": {
+      const canBreakGlass = extracted.fields?.can_break_glass === true;
+      return {
+        kind: "document_restricted",
+        code: "document_restricted",
+        canBreakGlass,
+        can_break_glass: canBreakGlass,
+        status: extracted.status || 403,
+        message: extracted.message,
+      };
+    }
+    case "break_glass_required":
+      return {
+        kind: "break_glass_required",
+        code: "break_glass_required",
+        status: extracted.status || 403,
+        message: extracted.message,
+      };
+    case "break_glass_reason_invalid": {
+      const { min: rawMin, max: rawMax, length: rawLength } = extracted.fields ?? {};
+      const min = typeof rawMin === "number" && Number.isFinite(rawMin) && rawMin > 0 ? rawMin : 10;
+      const max = typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : 500;
+      const length =
+        typeof rawLength === "number" && Number.isFinite(rawLength) && rawLength >= 0
+          ? rawLength
+          : undefined;
+      return {
+        kind: "break_glass_reason_invalid",
+        code: "break_glass_reason_invalid",
+        min,
+        max,
+        ...(length !== undefined ? { length } : {}),
+        status: extracted.status || 422,
+        message: extracted.message,
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+export function isDocumentRestrictedError(err: unknown): boolean {
+  return parseDocumentAccessError(err)?.code === "document_restricted";
+}
+
+export function canBreakGlassFromError(err: unknown): boolean {
+  const parsed = parseDocumentAccessError(err);
+  return parsed?.code === "document_restricted" && parsed.can_break_glass;
+}
+
+export function isBreakGlassRequiredError(err: unknown): boolean {
+  return parseDocumentAccessError(err)?.code === "break_glass_required";
+}
+
+export function isBreakGlassReasonInvalidError(err: unknown): boolean {
+  return parseDocumentAccessError(err)?.code === "break_glass_reason_invalid";
+}
+
