@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -401,4 +402,241 @@ describe("DocumentDetailView", () => {
 
     expect(await screen.findByRole("button", { name: t("documents.comments.title") })).toBeInTheDocument();
   });
+
+  it("renders DocumentLockedCard on 403 document_restricted (initial load and rollout cut) without leaking content", async () => {
+    let locked = false;
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") {
+        if (locked) {
+          return Promise.reject(
+            new ApiError(
+              "restricted",
+              "document_restricted",
+              403,
+              undefined,
+              { can_break_glass: true },
+              "permission",
+            ),
+          );
+        }
+        return Promise.resolve({ document: pageDocument({ title: "Tài liệu Hạn chế", content_text: "BÍ MẬT" }) });
+      }
+      if (path === "/api/v1/documents/d1/admin-summary") {
+        return Promise.resolve({
+          document: {
+            id: "d1",
+            title: "Tài liệu Hạn chế",
+            visibility: "restricted",
+            size_bytes: 4096,
+            updated_at: "2026-10-14T10:00:00Z",
+          },
+          acl_owner: { user_id: "Nguyễn Chủ Sở Hữu", level: "manage" },
+          my_level: "manage",
+          admin_scope: true,
+          my_grant: null,
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    function RolloutCutTrigger() {
+      const qc = useQueryClient();
+      return (
+        <button type="button" onClick={() => void qc.invalidateQueries({ queryKey: ["documents"] })}>
+          invalidate-docs
+        </button>
+      );
+    }
+
+    render(
+      withFlag(
+        <>
+          <RolloutCutTrigger />
+          <DocumentDetailView wsId={WS} documentId="d1" libraryHref={LIBRARY} onBackToList={vi.fn()} />
+        </>,
+      ),
+    );
+    const surface = await findEditor();
+    expect(surface).toHaveTextContent("Nội dung A");
+
+    // Simulate rollout cut / revoked grant while tab is open
+    locked = true;
+    fireEvent.click(screen.getByRole("button", { name: "invalidate-docs" }));
+
+    expect(await screen.findByTestId("document-locked-card")).toBeInTheDocument();
+    expect(screen.getByText(t("documents.breakGlass.lockedTitle"))).toBeInTheDocument();
+    expect(screen.queryByText("Nội dung A")).toBeNull();
+    expect(screen.queryByText("BÍ MẬT")).toBeNull();
+    expect(screen.getByLabelText(t("documents.breakGlass.reasonLabel"))).toBeInTheDocument();
+  });
+
+  it("hides the break-glass form on 403 document_restricted when can_break_glass is false", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") {
+        return Promise.reject(
+          new ApiError(
+            "restricted",
+            "document_restricted",
+            403,
+            undefined,
+            { can_break_glass: false },
+            "permission",
+          ),
+        );
+      }
+      if (path === "/api/v1/documents/d1/admin-summary") {
+        return Promise.resolve({
+          document: { id: "d1", title: "Tài liệu Khóa", visibility: "restricted", size_bytes: 512 },
+          acl_owner: null,
+          my_level: "manage",
+          admin_scope: true,
+          my_grant: null,
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    renderView("d1");
+    expect(await screen.findByTestId("document-locked-card")).toBeInTheDocument();
+    expect(screen.queryByLabelText(t("documents.breakGlass.reasonLabel"))).toBeNull();
+    expect(screen.queryByRole("button", { name: t("documents.breakGlass.confirmButton") })).toBeNull();
+  });
+
+  it("grants break-glass to transition into read-only view with 24h banner, and revokes on End access", async () => {
+    let hasGrant = false;
+    const deletedPaths: string[] = [];
+    const futureIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
+      if (path === "/api/v1/documents/d1" && !opts?.method) {
+        if (!hasGrant) {
+          return Promise.reject(
+            new ApiError(
+              "restricted",
+              "document_restricted",
+              403,
+              undefined,
+              { can_break_glass: true },
+              "permission",
+            ),
+          );
+        }
+        return Promise.resolve({
+          document: pageDocument({
+            my_level: "view",
+            via: "break_glass",
+            break_glass_expires_at: futureIso,
+          } as any),
+        });
+      }
+      if (path === "/api/v1/documents/d1/admin-summary") {
+        return Promise.resolve({
+          document: { id: "d1", title: "Kế hoạch Q3", visibility: "restricted", size_bytes: 1024 },
+          acl_owner: { user_id: "u1", level: "manage" },
+          my_level: "manage",
+          admin_scope: true,
+          my_grant: hasGrant
+            ? {
+                id: "bg-77",
+                document_id: "d1",
+                actor_id: "admin-1",
+                actor_name: "Admin",
+                level: "view",
+                reason: "Kiểm tra sự cố hệ thống khẩn cấp",
+                granted_at: "2026-10-14T10:00:00Z",
+                expires_at: futureIso,
+              }
+            : null,
+        });
+      }
+      if (path === "/api/v1/documents/d1/break-glass" && opts?.method === "POST") {
+        hasGrant = true;
+        return Promise.resolve({
+          grant: {
+            id: "bg-77",
+            document_id: "d1",
+            actor_id: "admin-1",
+            actor_name: "Admin",
+            level: "view",
+            reason: opts.body.reason,
+            granted_at: "2026-10-14T10:00:00Z",
+            expires_at: futureIso,
+          },
+        });
+      }
+      if (path === "/api/v1/documents/d1/break-glass/bg-77" && opts?.method === "DELETE") {
+        hasGrant = false;
+        deletedPaths.push(path);
+        return Promise.resolve({ status: "ok" });
+      }
+      return Promise.resolve({ versions: [], next_cursor: null, favorites: [] });
+    });
+
+    renderView("d1");
+    expect(await screen.findByTestId("document-locked-card")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(t("documents.breakGlass.reasonLabel")), {
+      target: { value: "Kiểm tra sự cố hệ thống khẩn cấp" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.breakGlass.confirmButton") }));
+
+    expect(await screen.findByTestId("break-glass-active-banner")).toBeInTheDocument();
+    const surface = await findEditor();
+    expect(surface).toHaveAttribute("contenteditable", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.breakGlass.endAccessButton") }));
+    await waitFor(() => expect(deletedPaths).toContain("/api/v1/documents/d1/break-glass/bg-77"));
+    expect(await screen.findByTestId("document-locked-card")).toBeInTheDocument();
+    expect(screen.getByTestId("break-glass-expired-banner")).toBeInTheDocument();
+  });
+
+  it("opens the access panel on the break-glass section when ?access=break_glass is in the URL", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/documents/d1" && !opts?.method) {
+        return Promise.resolve({ document: pageDocument({ my_level: "manage" }) });
+      }
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
+        return Promise.resolve({
+          document_id: "d1",
+          visibility: "restricted",
+          my_level: "manage",
+          acl_owner: { user_id: "u1", level: "manage" },
+          shares: [],
+          break_glass: [
+            {
+              id: "bg-1",
+              document_id: "d1",
+              actor_id: "u9",
+              actor_name: "Lê Quản Trị",
+              level: "view",
+              reason: "Rà soát quyền truy cập theo yêu cầu",
+              granted_at: "2026-10-14T09:00:00Z",
+              expires_at: "2026-10-15T09:00:00Z",
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ versions: [], next_cursor: null, favorites: [], members: [], workspaces: [] });
+    });
+
+    const nav = fakeNav("/acme/doi/documents/d1");
+    nav.searchParams = new URLSearchParams("access=break_glass");
+    render(
+      withFlag(
+        <DocumentDetailView
+          wsId={WS}
+          documentId="d1"
+          libraryHref={LIBRARY}
+          onBackToList={vi.fn()}
+        />,
+        true,
+        nav,
+      ),
+    );
+
+    const section = await screen.findByTestId("share-break-glass-section");
+    expect(section).toHaveTextContent(t("documents.breakGlass.accessPanelSection"));
+    expect(section).toHaveTextContent("Lê Quản Trị");
+  });
 });
+
