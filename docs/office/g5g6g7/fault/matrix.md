@@ -229,7 +229,7 @@ ghi kỳ vọng theo spec/EXPERIENCE, không theo hành vi hiện tại. OQ-F4, 
   versionDelta vẫn 1, nhưng EXPERIENCE (`committing → reconciling → committed`, đúng 1 POST, ≥1 lookup) không đạt.
   Không do runner: rule `lose-commit-answer` bắt POST commit #1 của đúng tài liệu, version 2 của server có
   `created_at` trùng giây intent `queued` (commit đầu đã vào), POST thứ hai là gửi lại sau ~52 s. FQ-22 giữ kỳ vọng,
-  ghi "predicted FAIL OQ-F11"; lối ra `reconciling → committed` của FQ-40 dùng cùng rule nên cùng nguyên nhân và được tag "predicted FAIL OQ-F11" như FQ-22 (Advisor, qa-fault_local:10); runner app báo `predicted` ở cấp ca chỉ khi mọi lối ra FAIL đều có tag.
+  ghi "predicted FAIL OQ-F11"; lối ra `reconciling → committed` của FQ-40 dùng cùng rule nên cùng nguyên nhân và được tag "predicted FAIL OQ-F11" như FQ-22 (Advisor, qa-fault_local:10); runner app báo `predicted` ở cấp ca chỉ khi mọi lối ra FAIL đều có tag; ghi chú "predicted FAIL" ở cấp hàng chỉ tag lối ra duy nhất của hàng một lối ra, hàng nhiều lối ra chỉ tag theo từng lối ra (`predicted` của exit hoặc nhãn `document_archived`); lần chạy FAIL không có assertion nào là FAIL hạ tầng (`infraFailure`), không bao giờ `predicted`.
   Finding sản phẩm cho owner G5-06, lead chuyển Advisor.
 
 ## 6. Kỳ vọng máy đọc (`expect`)

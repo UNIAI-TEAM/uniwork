@@ -259,10 +259,13 @@ export const INFRA_ASSERTIONS = Object.freeze(["run_execution", "harness_started
 
 /**
  * Why a run failed without reaching a product assertion: every failing
- * assertion is a runner/infra one (`INFRA_ASSERTIONS`). null when any product
- * assertion failed, or when nothing failed (review r2 R2-1).
+ * assertion is a runner/infra one (`INFRA_ASSERTIONS`), or when there is no
+ * assertion at all (a run that proved nothing is not a product FAIL; review r4
+ * R4-2). null when any product assertion failed, or when nothing failed (review
+ * r2 R2-1).
  */
 export function infraFailureOf(assertions = []) {
+  if (assertions.length === 0) return "no assertion ran: the run produced no evidence";
   const failed = assertions.filter((a) => a.ok !== true);
   if (failed.length === 0 || !failed.every((a) => INFRA_ASSERTIONS.includes(a.name))) return null;
   return failed.map((a) => `${a.name}: ${a.actual}`).join("; ");
@@ -363,11 +366,14 @@ export function predictedTag(row) {
 
 /**
  * The predicted FAIL of one run: the exit's own `predicted` (FQ-40's
- * `reconciling -> committed`: OQ-F11), else the row's note tag, else OQ-F6 on the
- * document_archived exits. A tag on one exit never covers the row's other exits.
+ * `reconciling -> committed`: OQ-F11), else the row's note tag for a single-exit
+ * row only, else OQ-F6 on the document_archived exits. A tag on one exit never
+ * covers the row's other exits, so a multi-exit row's note tags none of them
+ * (review r4 R4-1): N-1 would otherwise stop blocking after any FAIL of that row.
  */
 export function predictedFor(row, run) {
-  return run?.exit?.predicted ?? predictedTag(row) ?? (/document_archived/.test(String(run?.label)) ? "OQ-F6" : null);
+  const rowTag = expandExits(row).length === 1 ? predictedTag(row) : null;
+  return run?.exit?.predicted ?? rowTag ?? (/document_archived/.test(String(run?.label)) ? "OQ-F6" : null);
 }
 
 // ---- app plumbing (pure parts) -----------------------------------------------

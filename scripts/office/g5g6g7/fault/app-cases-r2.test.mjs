@@ -51,7 +51,7 @@ test("R2-1: a run with both a product and an infra failure is a product FAIL (th
   const harness = runResult({ assertions: [{ name: "harness_started", expected: "start.sh up", actual: "start.sh failed", ok: false }], predicted: "F4" });
   assert.deepEqual([harness.result, harness.predicted, harness.infraFailure], ["FAIL", undefined, "harness_started: start.sh failed"]);
   assert.equal(infraFailureOf([{ name: "x", ok: true }]), null, "nothing failed");
-  assert.equal(infraFailureOf([]), null);
+  assert.match(infraFailureOf([]), /no assertion/, "a run that proved nothing is infra (review r4 R4-2)");
 });
 
 test("R2-1: an unpredicted infra FAIL does not hide another run's predicted FAIL tag, nor the reverse", () => {
