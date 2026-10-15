@@ -291,14 +291,14 @@ func (s *ChatService) SendThreadReply(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID, threadRootID)
 	s.publishChatRoomEvent(ctx, room.ID, Event{
 		Type: "chat.thread.replied",
 		Payload: map[string]string{
 			"room_id": room.ID, "thread_root_id": threadRootID, "message_id": msg.ID,
 		},
 	})
-	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentions.Recipients)
+	s.publishMentionNotifications(ctx, room, userID, msg.ID, threadRootID, mentions.Recipients)
 	s.notifyThreadFollowers(ctx, room, userID, threadRootID, msg.ID)
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
 }

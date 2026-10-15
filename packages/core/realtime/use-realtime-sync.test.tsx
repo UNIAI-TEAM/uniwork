@@ -3,6 +3,7 @@ import { renderHook, act } from "@testing-library/react";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import * as authApi from "../api/endpoints/auth";
 import * as chatApi from "../api/endpoints/chat";
+import type { ChatRoomRecord } from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
@@ -659,6 +660,43 @@ describe("useRealtimeSync", () => {
       JSON.stringify(chatKeys.voiceRecordings("ws1", "dm1")),
     ]);
     expect(timelineRows(qc, "dm1")).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  // UNI-1693: the sidebar counts only the main timeline (thread_root_id IS NULL).
+  it("does not count a default-channel thread reply as unread or as a mention", async () => {
+    vi.useFakeTimers();
+    setSessionUser({
+      id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "2026-01-01T00:00:00Z",
+      email_verified_at: "2026-01-01T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
+    });
+    const { qc, client } = setup();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "ws-room", kind: "channel", is_default: true, name: "General", workspace_id: "ws1",
+        member_user_ids: [], unread_count: 0, mention_unread_count: 0,
+      },
+    ]);
+    const counts = () => {
+      const room = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0];
+      return [room?.unread_count, room?.mention_unread_count];
+    };
+    const emitBoth = async (payload: Record<string, string>) => {
+      client.emit({ type: "chat.message.created", payload });
+      client.emit({ type: "chat.mention.created", payload });
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+        await Promise.resolve();
+      });
+    };
+
+    await emitBoth({ room_id: "ws-room", message_id: "r1", sender_id: "u2", thread_root_id: "root1" });
+    expect(counts()).toEqual([0, 0]);
+
+    // A main-timeline message from the same sender still counts.
+    await emitBoth({ room_id: "ws-room", message_id: "m2", sender_id: "u2" });
+    expect(counts()).toEqual([1, 1]);
+    resetAuthStoreForTests();
     vi.useRealTimers();
   });
 

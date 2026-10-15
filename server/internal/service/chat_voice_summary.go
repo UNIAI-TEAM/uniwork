@@ -280,7 +280,7 @@ func (s *ChatService) postVoiceCallSummaryMessage(
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID, "")
 	return nil
 }
 

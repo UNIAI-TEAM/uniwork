@@ -140,7 +140,7 @@ func (s *ChatService) sendChatMedia(
 			LastReadAt: pgtype.Timestamptz{Time: msg.CreatedAt.Time, Valid: true},
 		})
 		_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-		s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
+		s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID, "")
 	}
 	return s.signChatMediaRow(ctx, room, chatMessageRowFromDB(msg, user.DisplayName)), nil
 }

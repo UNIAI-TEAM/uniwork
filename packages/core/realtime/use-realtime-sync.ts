@@ -364,7 +364,9 @@ function handleChatRealtimeEvent(
     case "chat.message.updated":
     case "chat.thread.replied": {
       if (roomId && messageId) {
-        chatScheduler.scheduleUpsert(roomId, messageId, type === "chat.message.created", payload.sender_id);
+        // A thread reply is not unread on the main timeline: the sidebar counts thread_root_id IS NULL.
+        const created = type === "chat.message.created" && !payload.thread_root_id;
+        chatScheduler.scheduleUpsert(roomId, messageId, created, payload.sender_id);
         return true;
       }
       return false;
@@ -378,7 +380,7 @@ function handleChatRealtimeEvent(
     }
     case "chat.mention.created": {
       if (roomId) {
-        chatScheduler.scheduleMention(roomId, payload.sender_id ?? "");
+        if (!payload.thread_root_id) chatScheduler.scheduleMention(roomId, payload.sender_id ?? "");
         if (messageId) chatScheduler.scheduleUpsert(roomId, messageId);
         return true;
       }

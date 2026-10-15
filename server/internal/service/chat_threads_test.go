@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 	"time"
@@ -574,5 +575,50 @@ func TestListThreadMessagesPagesOlderReplies(t *testing.T) {
 		if seen[m.ID] != 1 {
 			t.Fatalf("reply #%d seen %d times, want once", i+1, seen[m.ID])
 		}
+	}
+}
+
+// UNI-1693: the default channel has no chat.room.activity, so a client counts
+// its unread and mentions from these frames; a thread reply must say it is one.
+func TestThreadReplyFramesNameTheirRoot(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mention := SendChatMessageInput{Body: "[@B](mention://member/" + ub.ID + ") xem giup"}
+	rootIDs := func(from int) map[string]string {
+		got := map[string]string{}
+		for _, ev := range pub.events[from:] {
+			if ev.Type == "chat.message.created" || ev.Type == "chat.mention.created" {
+				id, ok := ev.Payload["thread_root_id"]
+				if !ok {
+					id = "<absent>"
+				}
+				got[ev.Type] = id
+			}
+		}
+		return got
+	}
+
+	from := len(pub.events)
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, mention)
+	if err != nil {
+		t.Fatalf("root: %v", err)
+	}
+	if got, want := rootIDs(from), map[string]string{"chat.message.created": "<absent>", "chat.mention.created": "<absent>"}; !maps.Equal(got, want) {
+		t.Fatalf("main-timeline frames: got %v want %v", got, want)
+	}
+
+	from = len(pub.events)
+	if _, err := s.SendThreadReply(ctx, ua.ID, w.ID, room.RoomID, root.ID, mention); err != nil {
+		t.Fatalf("reply: %v", err)
+	}
+	if got, want := rootIDs(from), map[string]string{"chat.message.created": root.ID, "chat.mention.created": root.ID}; !maps.Equal(got, want) {
+		t.Fatalf("thread reply frames: got %v want %v", got, want)
 	}
 }
