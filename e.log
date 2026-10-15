@@ -1,0 +1,3 @@
+$ cd server && go test -count=1 ./internal/ -run 'Arch|Test' 2>&1 | tail -5; echo "ARCH_EXIT=${PIPESTATUS[0]}"; cd ..
+ok  	github.com/unicomhub/uniwork/server/internal	1.165s
+ARCH_EXIT=0

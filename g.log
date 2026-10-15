@@ -1,0 +1,9 @@
+$ pnpm knip; echo "KNIP_EXIT=$?"
+
+> uniwork@ knip /workspace
+> knip
+
+Unlisted binaries (1)
+go  scripts/office/devset-run.mjs
+ ELIFECYCLE  Command failed with exit code 1.
+KNIP_EXIT=1

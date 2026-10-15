@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+b96f39ff1e51334152719fd3bda6cbed2c3f01d4
+b96f39ff1 chore: merge G8-18 + DOC-05 permission levels addendum (UNI-1413) into the G5-G7 root
+4be251800 chore: merge G6-08 dev set + pack @2 (UNI-1373) into the G5-G7 root
+44a4ec993 docs(office): record G6-08 dev-set evidence on rows G6-A01 and G6-A02
