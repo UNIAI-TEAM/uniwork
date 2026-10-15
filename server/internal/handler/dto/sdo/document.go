@@ -390,8 +390,20 @@ type DocumentCommentDTO struct {
 }
 
 // DocumentCommentSDO wraps one comment (create, patch, resolve, reopen).
+// MentionsWithoutAccess rides only on create and patch (G8-18): the people the
+// comment named who cannot read the document, stored without a notification.
 type DocumentCommentSDO struct {
-	Comment DocumentCommentDTO `json:"comment"`
+	Comment               DocumentCommentDTO        `json:"comment"`
+	MentionsWithoutAccess []MentionWithoutAccessDTO `json:"mentions_without_access,omitempty" description:"Người được nhắc nhưng chưa xem được tài liệu (không được thông báo); vắng mặt khi mọi người được nhắc đều đọc được"`
+}
+
+// MentionWithoutAccessDTO is one such person (G8-18). display_name is absent
+// for an id outside the organization; can_share says whether the caller may
+// share view access with them from the comment.
+type MentionWithoutAccessDTO struct {
+	UserID      string `json:"user_id" description:"ULID người được nhắc" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	DisplayName string `json:"display_name,omitempty" description:"Tên hiển thị; vắng mặt với id ngoài tổ chức" example:"Nguyễn An"`
+	CanShare    bool   `json:"can_share" description:"Người gọi có thể chia sẻ quyền Xem cho người này ngay từ bình luận" example:"true"`
 }
 
 // DocumentCommentMentionDTO is one name-table entry for the mention chips of

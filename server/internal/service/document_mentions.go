@@ -409,3 +409,38 @@ func (s *DocumentService) syncDocumentCommentMentions(ctx context.Context, q *db
 	}
 	return nil
 }
+
+// MentionWithoutAccess is one person a comment named who cannot read the
+// document (G8-18): the mention was stored as no_access, never notified and
+// never turned into a grant. DisplayName is empty for an id outside the
+// organization. CanShare tells the author whether offering them view access
+// from the comment is possible.
+type MentionWithoutAccess struct {
+	UserID      string
+	DisplayName string
+	CanShare    bool
+}
+
+// CommentMentionsWithoutAccess lists the no_access mentions the create/edit
+// transaction of one comment stored, for the answer of POST/PATCH comments.
+// It reads the durable rows, so a replayed create answers what is stored now.
+// Phase A: CanShare is false until the administer gate (DOC-05) lands; see
+// the G8-18 report.
+func (s *DocumentService) CommentMentionsWithoutAccess(ctx context.Context, actor Actor, documentID, commentID string) ([]MentionWithoutAccess, error) {
+	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelComment)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListNoAccessDocumentCommentMentions(ctx, db.ListNoAccessDocumentCommentMentionsParams{
+		CommentID: commentID, DocumentID: doc.ID,
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MentionWithoutAccess, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, MentionWithoutAccess{UserID: r.UserID, DisplayName: r.DisplayName})
+	}
+	return out, nil
+}
