@@ -8,6 +8,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
 import { DocumentTypeIcon, documentIconFormat } from "./document-type-icon";
+import { RestrictedBadge } from "./documents-restricted-badge";
 import {
   DOCUMENT_SEARCH_FILTERS,
   type DocumentSearchFilter,
@@ -212,6 +213,7 @@ export function DocumentsSearchResults({
                           {t("documents.home.search.path", { path: full })}
                         </span>
                       </span>
+                      {item.visibility === "restricted" ? <RestrictedBadge /> : null}
                     </button>
                   </li>
                 );

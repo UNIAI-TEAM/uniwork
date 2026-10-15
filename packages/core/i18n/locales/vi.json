@@ -8171,7 +8171,8 @@
       "load_more": "Tải thêm",
       "loading_more": "Đang tải thêm…",
       "clear_filters": "Bỏ bộ lọc",
-      "archived_badge": "Đã lưu trữ"
+      "archived_badge": "Đã lưu trữ",
+      "restricted_badge": "Hạn chế"
     },
     "tree": {
       "aria_label": "Cây tài liệu",
@@ -8480,7 +8481,7 @@
       "visibility_workspace": "Cả workspace",
       "visibility_workspace_hint": "Mọi thành viên workspace xem được tài liệu.",
       "visibility_restricted": "Hạn chế",
-      "visibility_restricted_hint": "Chỉ người được chia sẻ và người quản lý xem được.",
+      "visibility_restricted_hint": "Chỉ chủ sở hữu và người được chia sẻ xem được.",
       "visibility_save": "Lưu chế độ hiển thị",
       "visibility_saving": "Đang lưu…",
       "visibility_failed": "Không đổi được chế độ hiển thị.",
@@ -8776,7 +8777,12 @@
         },
         "folder": {
           "menu": "Thư mục"
-        }
+        },
+        "created_restricted": "Đã tạo ở chế độ Hạn chế",
+        "restricted_inherited": "Thư mục này đang Hạn chế nên tài liệu mới cũng Hạn chế",
+        "restricted_toggle": "Hạn chế",
+        "restricted_toggle_hint": "Tài liệu mới chỉ chủ sở hữu và người được chia sẻ xem được",
+        "share_action": "Chia sẻ"
       },
       "sidebar": {
         "label": "Điều hướng tài liệu",

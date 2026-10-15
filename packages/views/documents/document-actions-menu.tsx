@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArchiveRestore,
   Copy,
@@ -64,7 +64,7 @@ export function DocumentActionsMenu({
   onArchived,
 }: DocumentActionsMenuProps) {
   const { t } = useTranslation();
-  const { push } = useNavigation();
+  const { push, replace, pathname, searchParams } = useNavigation();
   const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
   const canManage = doc.my_level === "manage";
   const owned = !!doc.owner_kind;
@@ -74,6 +74,21 @@ export function DocumentActionsMenu({
   const folded = useHeaderActionsSlotFilled();
   const comments = useDocumentCommentsChrome();
   const commentsEnabled = useFlag("documents", false);
+
+  // "Share" on the "Created as restricted" toast lands here as `?share=1`: open
+  // the dialog for a manager, then drop the parameter so a reload or a copied
+  // URL does not open it again. Without manage the parameter is dropped silently.
+  const shareRequested = searchParams.get("share") === "1";
+  useEffect(() => {
+    if (!shareRequested) return;
+    if (canManage && !owned && !archived) setPanel("share");
+    const rest = new URLSearchParams(searchParams);
+    rest.delete("share");
+    const query = rest.toString();
+    replace(query ? `${pathname}?${query}` : pathname);
+    // Runs once per appearance of the parameter; the replace removes it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareRequested]);
 
   const items: { id: Exclude<PanelId, null>; label: string; icon: typeof RotateCcwClock; destructive?: boolean }[] = [];
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });

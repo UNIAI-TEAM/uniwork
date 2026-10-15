@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronDown, Plus, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
@@ -13,6 +14,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DocumentTypeIcon } from "./document-type-icon";
+import { RestrictedMenuItem, RestrictedToggle } from "./documents-restricted-toggle";
 import { CREATE_MENU_TYPES, CREATE_TYPES, type CreateMenuType, type CreateType } from "./documents-create";
 
 /** Which greeting the hour gets: morning until 11, afternoon until 18, evening after. */
@@ -61,10 +63,15 @@ export function DocumentsGreeting({ name, folderTitle, readOnly = false, now }: 
 export interface CreateChoicesProps {
   pending: boolean;
   unavailable: ReadonlySet<CreateType>;
-  onCreate: (type: CreateType) => void;
+  /** `restricted` is true only when the user switched "Restricted" on (never when it is inherited). */
+  onCreate: (type: CreateType, restricted: boolean) => void;
   onUpload: () => void;
   /** Present when a folder is open: adds "Mới → Thư mục" to the New menu (FD-D9). */
-  onNewFolder?: () => void;
+  onNewFolder?: (restricted: boolean) => void;
+  /** The server declares `documents.create_visibility`: only then can a file be created restricted. */
+  filesRestrictable: boolean;
+  /** The open folder is restricted: the switch shows on and locked, and nothing is sent. */
+  parentRestricted: boolean;
 }
 
 function cardTitle(type: CreateType, t: (key: string) => string): string {
@@ -75,60 +82,78 @@ function cardTitle(type: CreateType, t: (key: string) => string): string {
  * The create cards: one per type plus "Upload file". On a phone they are one
  * horizontal strip (390 px design); from `sm` up a grid of four columns.
  */
-export function CreateCards({ pending, unavailable, onCreate, onUpload }: CreateChoicesProps) {
+export function CreateCards({ pending, unavailable, onCreate, onUpload, filesRestrictable, parentRestricted }: CreateChoicesProps) {
   const { t } = useTranslation();
+  const [pressed, setPressed] = useState(false);
+  const restricted = pressed && !parentRestricted;
+  // An older server would drop the field and make a workspace-wide file: block, never guess.
+  const filesBlocked = restricted && !filesRestrictable;
   const card =
     "group flex min-h-24 w-36 shrink-0 flex-col items-start gap-2 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/40 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 sm:w-auto sm:p-4";
   return (
-    <ul
-      aria-label={t("documents.home.create.label")}
-      className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4"
-    >
-      {CREATE_TYPES.map((type) => {
-        const off = unavailable.has(type);
-        return (
-          <li key={type} className="flex">
-            <button
-              type="button"
-              className={cn(card, "w-36 sm:w-full")}
-              aria-disabled={pending || off || undefined}
-              onClick={() => {
-                if (pending || off) return;
-                onCreate(type);
-              }}
-            >
-              <DocumentTypeIcon format={type} className="size-8" decorative />
-              <span className="flex items-center gap-1.5 text-body font-medium text-foreground">
-                {cardTitle(type, t)}
-                {type === "page" ? null : (
-                  <Badge variant="secondary" className="px-1.5 text-caption">
-                    {t("documents.home.create.ai_badge")}
-                  </Badge>
-                )}
-              </span>
-              <span className="text-caption text-muted-foreground">
-                {off ? t("documents.home.create.unavailable_hint") : t(`documents.home.create.${type}.hint`)}
-              </span>
-            </button>
-          </li>
-        );
-      })}
-      <li className="flex">
-        <button type="button" className={cn(card, "w-36 sm:w-full")} onClick={onUpload}>
-          <span className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <Upload aria-hidden className="size-4" />
-          </span>
-          <span className="text-body font-medium text-foreground">{t("documents.home.create.upload.card")}</span>
-          <span className="text-caption text-muted-foreground">{t("documents.home.create.upload.hint")}</span>
-        </button>
-      </li>
-    </ul>
+    <div className="flex flex-col gap-3">
+      <RestrictedToggle pressed={pressed} locked={parentRestricted} onPressedChange={setPressed} />
+      <ul
+        aria-label={t("documents.home.create.label")}
+        className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4"
+      >
+        {CREATE_TYPES.map((type) => {
+          const off = unavailable.has(type) || (type !== "page" && filesBlocked);
+          return (
+            <li key={type} className="flex">
+              <button
+                type="button"
+                className={cn(card, "w-36 sm:w-full")}
+                aria-disabled={pending || off || undefined}
+                onClick={() => {
+                  if (pending || off) return;
+                  onCreate(type, restricted);
+                }}
+              >
+                <DocumentTypeIcon format={type} className="size-8" decorative />
+                <span className="flex items-center gap-1.5 text-body font-medium text-foreground">
+                  {cardTitle(type, t)}
+                  {type === "page" ? null : (
+                    <Badge variant="secondary" className="px-1.5 text-caption">
+                      {t("documents.home.create.ai_badge")}
+                    </Badge>
+                  )}
+                </span>
+                <span className="text-caption text-muted-foreground">
+                  {off ? t("documents.home.create.unavailable_hint") : t(`documents.home.create.${type}.hint`)}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+        <li className="flex">
+          <button type="button" className={cn(card, "w-36 sm:w-full")} onClick={onUpload}>
+            <span className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
+              <Upload aria-hidden className="size-4" />
+            </span>
+            <span className="text-body font-medium text-foreground">{t("documents.home.create.upload.card")}</span>
+            <span className="text-caption text-muted-foreground">{t("documents.home.create.upload.hint")}</span>
+          </button>
+        </li>
+      </ul>
+    </div>
   );
 }
 
 /** The header "New ▾" button with the same list as the cards, plus Folder inside an open folder. */
-export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFolder }: CreateChoicesProps) {
+export function CreateMenu({
+  pending,
+  unavailable,
+  onCreate,
+  onUpload,
+  onNewFolder,
+  filesRestrictable,
+  parentRestricted,
+}: CreateChoicesProps) {
   const { t } = useTranslation();
+  const [pressed, setPressed] = useState(false);
+  const restricted = pressed && !parentRestricted;
+  const filesBlocked = restricted && !filesRestrictable;
   const menuTypes: readonly CreateMenuType[] = onNewFolder ? CREATE_MENU_TYPES : CREATE_TYPES;
   return (
     <>
@@ -136,7 +161,12 @@ export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFold
         <Upload aria-hidden className="size-3.5" />
         {t("documents.home.create.upload.card")}
       </Button>
-      <DropdownMenu>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          // The signed default is workspace: every opening starts from "off".
+          if (open) setPressed(false);
+        }}
+      >
         <DropdownMenuTrigger
           render={<Button type="button" size="sm" aria-disabled={pending || undefined} />}
         >
@@ -145,13 +175,15 @@ export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFold
           <ChevronDown aria-hidden className="size-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-60">
+          <RestrictedMenuItem pressed={pressed} locked={parentRestricted} onPressedChange={setPressed} />
+          <DropdownMenuSeparator />
           {menuTypes.map((type) =>
             type === "folder" ? (
               <div key={type}>
                 <DropdownMenuItem
                   className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
                   disabled={pending}
-                  onClick={() => onNewFolder?.()}
+                  onClick={() => onNewFolder?.(restricted)}
                 >
                   <DocumentTypeIcon format="folder" className="size-4" decorative />
                   <span className="flex-1">{t("documents.home.create.folder.menu")}</span>
@@ -162,8 +194,8 @@ export function CreateMenu({ pending, unavailable, onCreate, onUpload, onNewFold
               <div key={type}>
                 <DropdownMenuItem
                   className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-                  disabled={pending || unavailable.has(type)}
-                  onClick={() => onCreate(type)}
+                  disabled={pending || unavailable.has(type) || (type !== "page" && filesBlocked)}
+                  onClick={() => onCreate(type, restricted)}
                 >
                   <DocumentTypeIcon format={type} className="size-4" decorative />
                   <span className="flex-1">{t(`documents.home.create.${type}.menu`)}</span>

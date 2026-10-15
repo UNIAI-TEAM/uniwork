@@ -22,6 +22,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
+import { RestrictedBadge } from "./documents-restricted-badge";
 import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkLabelKey } from "./source-links";
 import {
@@ -212,6 +213,7 @@ export function LibraryRowView({
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="truncate text-body text-foreground">{title}</span>
+          {doc?.visibility === "restricted" ? <RestrictedBadge /> : null}
           {archived || doc?.archived_at ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}

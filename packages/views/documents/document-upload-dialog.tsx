@@ -15,6 +15,7 @@ import {
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { RestrictedToggle } from "./documents-restricted-toggle";
 
 export interface DocumentUploadDialogProps {
   open: boolean;
@@ -27,7 +28,12 @@ export interface DocumentUploadDialogProps {
   pending?: boolean;
   /** A failed attempt, shown in place so the picked file is not lost. */
   error?: string | null;
-  onSubmit: (file: File) => void;
+  /** `restricted` is true only when the user switched "Restricted" on (DOC-02). */
+  onSubmit: (file: File, restricted: boolean) => void;
+  /** Show the "Restricted" switch: a new file document only, and only when the server supports it. */
+  restrictable?: boolean;
+  /** The target folder is restricted: the switch shows on and locked, nothing is sent. */
+  parentRestricted?: boolean;
 }
 
 /**
@@ -45,14 +51,18 @@ export function DocumentUploadDialog({
   pending = false,
   error,
   onSubmit,
+  restrictable = false,
+  parentRestricted = false,
 }: DocumentUploadDialogProps) {
   const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [inputKey, setInputKey] = useState(0);
+  const [restricted, setRestricted] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setFile(null);
+      setRestricted(false);
       // Remount the input so picking the same file again still fires a change.
       setInputKey((key) => key + 1);
     }
@@ -70,7 +80,7 @@ export function DocumentUploadDialog({
           onSubmit={(event) => {
             event.preventDefault();
             if (!file || pending) return;
-            onSubmit(file);
+            onSubmit(file, restrictable && restricted && !parentRestricted);
           }}
         >
           <div className="flex flex-col gap-1.5">
@@ -94,6 +104,9 @@ export function DocumentUploadDialog({
               <p className="text-caption text-muted-foreground">{hint}</p>
             ) : null}
           </div>
+          {restrictable ? (
+            <RestrictedToggle pressed={restricted} locked={parentRestricted} onPressedChange={setRestricted} />
+          ) : null}
           {error ? (
             <p role="alert" className="text-caption text-destructive">
               {error}

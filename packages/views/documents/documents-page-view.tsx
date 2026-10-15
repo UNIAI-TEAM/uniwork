@@ -20,7 +20,7 @@ import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
-import { useCreateOfType } from "./documents-create";
+import { toastCreatedRestricted, useCreateOfType } from "./documents-create";
 import { CreateCards, CreateMenu, DocumentsGreeting } from "./documents-home-create";
 import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library-row";
@@ -33,6 +33,7 @@ import { useDocumentsLibrary } from "./use-documents-library";
 import { documentErrorMessage } from "./document-error-message";
 import { useDropUpload } from "./use-drop-upload";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
+import { useFilesRestrictable } from "./use-restricted-create";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchBox } from "./documents-search-box";
 import { DocumentsSearchResults } from "./documents-search-results";
@@ -129,7 +130,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   });
   const renameFolder = useUpdateDocument(wsId, folderId ?? "");
   const createFile = useCreateDocumentFile(wsId);
-  const creator = useCreateOfType(wsId, onOpen);
+  const openShare = (documentId: string) => push(`${wsPaths.document(documentId)}?share=1`);
+  const creator = useCreateOfType(wsId, onOpen, openShare);
+  const filesRestrictable = useFilesRestrictable();
   const downloadSource = useDownloadDocumentSource(wsId);
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
@@ -154,6 +157,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     (folderDoc !== null &&
       canEditDocument(folderDoc, { userId: context?.user.id ?? userId, orgRole: null, wsRole: null }).allowed);
   const parentForCreate = view.kind === "home" ? folderId : null;
+  // A restricted folder passes its visibility to what is created in it: the switch is locked on, nothing is sent.
+  const parentRestricted = parentForCreate !== null && folderDoc?.visibility === "restricted";
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: folderDoc?.title });
   // Move and archive sit on the rows of this workspace's own lists for
@@ -182,12 +187,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     }
   };
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = async (file: File, restricted: boolean) => {
     setUploadError(null);
+    const meta = { ...(parentForCreate ? { parent_id: parentForCreate } : {}), ...(restricted ? { visibility: "restricted" as const } : {}) };
     try {
-      const doc = await createFile.mutateAsync({ file, meta: parentForCreate ? { parent_id: parentForCreate } : undefined });
+      const doc = await createFile.mutateAsync({ file, meta: Object.keys(meta).length > 0 ? meta : undefined });
       setUploadOpen(false);
       onOpen(doc.id);
+      if (restricted) toastCreatedRestricted(t, openShare, doc.id);
     } catch (error) {
       setUploadError(documentErrorMessage(error, t, "documents.page.upload_failed"));
     }
@@ -258,7 +265,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
           description: canCreate ? t("documents.home.empty.description") : t("documents.home.empty.view_only"),
           actions:
             folderId && canCreate ? (
-              <Button type="button" variant="outline" size="sm" onClick={rowDialogs.onCreateFolder}>
+              <Button type="button" variant="outline" size="sm" onClick={() => rowDialogs.onCreateFolder()}>
                 <FolderPlus aria-hidden className="size-3.5" />
                 {t("documents.home.folders.create_title")}
               </Button>
@@ -284,9 +291,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const createProps = {
     pending: creator.pending,
     unavailable: creator.unavailable,
-    onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
+    onCreate: (type: Parameters<typeof creator.create>[0], restricted: boolean) => void creator.create(type, parentForCreate, restricted),
     onUpload: () => setUploadOpen(true),
-    onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
+    onNewFolder: parentForCreate ? (restricted: boolean) => rowDialogs.onCreateFolder(restricted ? "restricted" : undefined) : undefined,
+    filesRestrictable,
+    parentRestricted,
   };
 
   return (
@@ -439,7 +448,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         hint={t("documents.upload.size_hint")}
         pending={createFile.isPending}
         error={uploadError}
-        onSubmit={(file) => void uploadFile(file)}
+        onSubmit={(file, restricted) => void uploadFile(file, restricted)}
+        restrictable={filesRestrictable}
+        parentRestricted={parentRestricted}
       />
 
       {rowDialogs.dialogs}

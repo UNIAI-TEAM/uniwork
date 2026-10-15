@@ -9,6 +9,7 @@ import { DOCUMENT_TITLE_MAX, FOLDER_TITLE_MAX } from "@uniwork/core/documents/fo
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import { useCreateFolder } from "@uniwork/core/documents/hooks-library";
 import { documentKeys } from "@uniwork/core/documents/keys";
+import type { DocumentVisibility } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -41,6 +42,8 @@ export interface FolderNameDialogProps {
   wsId?: string;
   /** Parent folder ID for create mode (`null` or omitted = root). */
   parentId?: string | null;
+  /** Create mode: "restricted" when the user switched it on in the New menu (DOC-02); omitted = inherit. */
+  visibility?: DocumentVisibility;
   /** Target folder or document ID for rename mode. */
   folderId?: string;
   /** Target item kind in rename mode (`"folder"` max 255, document kinds max 500 per FD-D3). */
@@ -71,6 +74,7 @@ export function FolderNameDialog({
   initialName = "",
   wsId = "",
   parentId = null,
+  visibility,
   folderId = "",
   kind = "folder",
   revision: initialRevision,
@@ -167,10 +171,15 @@ export function FolderNameDialog({
         const created = await createFolder.mutateAsync({
           title: trimmed,
           ...(parentId ? { parentId } : {}),
+          ...(visibility ? { visibility } : {}),
           idempotencyKey: keyRef.current.key,
         });
         keyRef.current = null;
-        toast.success(t("documents.home.folders.toast.created", { title: created.title }));
+        toast.success(
+          visibility === "restricted"
+            ? t("documents.home.create.created_restricted")
+            : t("documents.home.folders.toast.created", { title: created.title }),
+        );
         onOpenChange(false);
         onSuccess?.({ id: created.id, title: created.title });
       } else {

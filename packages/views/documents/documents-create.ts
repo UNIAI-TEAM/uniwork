@@ -18,13 +18,26 @@ export const CREATE_MENU_TYPES = ["folder", ...CREATE_TYPES] as const;
 export type CreateMenuType = (typeof CREATE_MENU_TYPES)[number];
 
 /**
+ * "Created as restricted" with a Share action (DOC-02). The toast lives in the
+ * app layer and survives the navigation into the new document; Share goes to
+ * the document with `?share=1`, which its actions menu turns into the dialog.
+ */
+export function toastCreatedRestricted(t: (key: string) => string, onShare?: (documentId: string) => void, documentId?: string) {
+  const share = onShare && documentId ? () => onShare(documentId) : null;
+  toast.success(
+    t("documents.home.create.created_restricted"),
+    share ? { action: { label: t("documents.home.create.share_action"), onClick: share } } : undefined,
+  );
+}
+
+/**
  * Create one document of a type in the open folder with its default name and
  * open it — no name prompt (user decision 2026-10-12); renaming happens on the
  * document's breadcrumb. A page keeps today's "New page" flow; the six file
  * types go through the blank-file route. Create awaits the server, never an
  * optimistic row (CLAUDE.md § State Rules: create navigates).
  */
-export function useCreateOfType(wsId: string, onOpen: (documentId: string) => void) {
+export function useCreateOfType(wsId: string, onOpen: (documentId: string) => void, onShare?: (documentId: string) => void) {
   const { t } = useTranslation();
   const createPage = useCreateDocument(wsId);
   const createBlank = useCreateBlankFile(wsId);
@@ -36,23 +49,30 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
   const folderKeyRef = useRef<{ title: string; parentId: string | null; key: string } | null>(null);
   const [unavailable, setUnavailable] = useState<ReadonlySet<CreateType>>(new Set());
 
-  const create = async (type: CreateType, parentId: string | null) => {
+  // `restricted` is only true when the user switched it on; inside a restricted
+  // folder the server inherits, so nothing is sent (DOC-02).
+  const create = async (type: CreateType, parentId: string | null, restricted = false) => {
+    const visibility = restricted ? ({ visibility: "restricted" } as const) : {};
     try {
       if (type === "page") {
         const doc = await createPage.mutateAsync({
           title: t("documents.page.new_page"),
           ...(parentId ? { parent_id: parentId } : {}),
+          ...visibility,
         });
         onOpen(doc.id);
+        if (restricted) toastCreatedRestricted(t, onShare, doc.id);
         return;
       }
       const doc = await createBlank.mutateAsync({
         format: type satisfies BlankDocumentFormat,
         title: t(`documents.home.default_names.${type}`),
         ...(parentId ? { parentId } : {}),
+        ...visibility,
         idempotencyKey: createSafeId(),
       });
       onOpen(doc.id);
+      if (restricted) toastCreatedRestricted(t, onShare, doc.id);
     } catch (error) {
       if (type !== "page" && isEndpointMissing(error)) {
         setUnavailable((prev) => new Set(prev).add(type));

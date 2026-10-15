@@ -8176,7 +8176,8 @@
       "load_more": "Load more",
       "loading_more": "Loading more…",
       "clear_filters": "Clear filters",
-      "archived_badge": "Archived"
+      "archived_badge": "Archived",
+      "restricted_badge": "Restricted"
     },
     "tree": {
       "aria_label": "Document tree",
@@ -8485,7 +8486,7 @@
       "visibility_workspace": "Whole workspace",
       "visibility_workspace_hint": "Every workspace member can read the document.",
       "visibility_restricted": "Restricted",
-      "visibility_restricted_hint": "Only shared people and managers can read it.",
+      "visibility_restricted_hint": "Only the owner and people it's shared with can read it.",
       "visibility_save": "Save visibility",
       "visibility_saving": "Saving…",
       "visibility_failed": "Could not change the visibility.",
@@ -8781,7 +8782,12 @@
         },
         "folder": {
           "menu": "Folder"
-        }
+        },
+        "created_restricted": "Created as restricted",
+        "restricted_inherited": "This folder is restricted, so new documents are too",
+        "restricted_toggle": "Restricted",
+        "restricted_toggle_hint": "New documents are visible only to the owner and people it's shared with",
+        "share_action": "Share"
       },
       "sidebar": {
         "label": "Documents navigation",

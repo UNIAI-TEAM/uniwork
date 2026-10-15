@@ -5,7 +5,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
-import { requestMock, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsFill, HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
@@ -213,5 +213,48 @@ describe("DocumentActionsMenu", () => {
 
     await openMenu();
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.copy") })).toBeNull();
+  });
+});
+
+describe("DocumentActionsMenu ?share=1 (DOC2-W03)", () => {
+  function renderAt(url: string, doc = documentFixture()) {
+    const adapter = fakeNav(url);
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <DocumentActionsMenu wsId={WS} doc={doc} />
+        </WorkspaceProvider>,
+        adapter,
+      ),
+    );
+    return adapter;
+  }
+
+  it("opens the Share dialog for a manager, then replaces the address without the parameter", async () => {
+    const adapter = renderAt("/acme/team/documents/d1?share=1&tab=a");
+
+    expect(await screen.findByRole("dialog", { name: t("documents.share.title") })).toBeInTheDocument();
+    await waitFor(() => expect(adapter.replace).toHaveBeenCalledWith("/acme/team/documents/d1?tab=a"));
+  });
+
+  it("drops the bare parameter from the address", async () => {
+    const adapter = renderAt("/acme/team/documents/d1?share=1");
+
+    await waitFor(() => expect(adapter.replace).toHaveBeenCalledWith("/acme/team/documents/d1"));
+    expect(await screen.findByRole("dialog", { name: t("documents.share.title") })).toBeInTheDocument();
+  });
+
+  it("without manage it ignores the parameter silently but still cleans the address", async () => {
+    const adapter = renderAt("/acme/team/documents/d1?share=1", documentFixture({ my_level: "edit" }));
+
+    await waitFor(() => expect(adapter.replace).toHaveBeenCalledWith("/acme/team/documents/d1"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("does nothing without the parameter", () => {
+    const adapter = renderAt("/acme/team/documents/d1");
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(adapter.replace).not.toHaveBeenCalled();
   });
 });

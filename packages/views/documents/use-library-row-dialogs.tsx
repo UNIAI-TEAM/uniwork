@@ -8,7 +8,7 @@ import { useMoveDocument } from "@uniwork/core/documents/hooks-collections";
 import { useSaveSourceToFolder } from "@uniwork/core/documents/hooks-library";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import { createSafeId } from "@uniwork/core/utils";
-import type { DocumentTreeNode } from "@uniwork/core/types/document";
+import type { DocumentTreeNode, DocumentVisibility } from "@uniwork/core/types/document";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
 import { findTreeNode, loadMoveRevision } from "./document-tree-model";
@@ -19,12 +19,13 @@ import type { DocumentSummaryRow } from "./library-rows";
 type SourceRow = { type: "source"; id: string; source: DocumentSourceFile };
 
 type NameDialogState =
-  | { mode: "create"; parentId: string | null; parentTitle?: string }
+  | { mode: "create"; parentId: string | null; parentTitle?: string; visibility?: DocumentVisibility }
   | { mode: "rename"; doc: DocumentSummaryRow };
 
 export interface LibraryRowDialogs {
   onSaveSource: (row: SourceRow) => void;
-  onCreateFolder: () => void;
+  /** "New -> Folder"; `visibility` is "restricted" only when the user switched it on (DOC-02). */
+  onCreateFolder: (visibility?: DocumentVisibility) => void;
   onNewSubfolder: (doc: DocumentSummaryRow) => void;
   onRename: (doc: DocumentSummaryRow) => void;
   onMove: (doc: DocumentSummaryRow) => void;
@@ -105,6 +106,7 @@ export function useLibraryRowDialogs({
         mode={naming?.mode ?? "create"}
         parentId={naming?.mode === "create" ? naming.parentId : null}
         parentTitle={naming?.mode === "create" ? naming.parentTitle : undefined}
+        visibility={naming?.mode === "create" ? naming.visibility : undefined}
         folderId={naming?.mode === "rename" ? naming.doc.id : ""}
         initialName={naming?.mode === "rename" ? naming.doc.title : ""}
         kind={naming?.mode === "rename" ? naming.doc.kind : "folder"}
@@ -186,7 +188,7 @@ export function useLibraryRowDialogs({
       setError(null);
       setSaving(row);
     },
-    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle }),
+    onCreateFolder: (visibility) => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle, visibility }),
     onNewSubfolder: (doc) => setNaming({ mode: "create", parentId: doc.id, parentTitle: doc.title }),
     onRename: (doc) => setNaming({ mode: "rename", doc }),
     onMove: (doc) => {
