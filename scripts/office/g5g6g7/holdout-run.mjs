@@ -281,11 +281,13 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   }
   renewals.push(...(mount.renewals ?? []));
   // A fresh frame token for the SAME mounted document (the fixture is uploaded again only when the document is gone);
-  // the renewal is noted on the ask and its own time never lands in a call's latency.
+  // the renewal is noted on the ask and its own time never lands in a call's latency. A mount that joined a renewal
+  // already in flight for this document minted no token, so it is not noted: the frame count follows the tokens
+  // actually minted, not the asks that asked for one (G712-60).
   const remount = async () => {
     const t0 = performance.now();
     const next = await session.mount(fixtureId, { fresh: true });
-    note('frame', t0);
+    if (next.minted) note('frame', t0);
     renewals.push(...(next.renewals ?? []));
     return next;
   };
@@ -645,7 +647,8 @@ export function refreshCookieOf(header) {
  * /api/v1/auth/refresh when the sign-in's refresh cookie is held, else POST /api/v1/auth/login - before use when the
  * access token is older than SESSION_RENEW_AFTER_MS and once more when the answer is a 401 of class session; a second
  * 401 stays the caller's failure, as before. A fresh mount mints a new frame token for the SAME document and re-uploads
- * the fixture only when the document is gone (404). Every mount reports the renewals it caused as [{ kind, ms }].
+ * the fixture only when the document is gone (404). Every mount reports the renewals it caused as [{ kind, ms }] and
+ * whether this call minted the frame token itself (`minted`), so two asks sharing one renewal count it once (G712-60).
  */
 export async function createServerSession({
   serverUrl, dbUrl, sql = execPsql, fixturesRel = FIXTURES_REL, password = `Holdout-${Date.now()}-Pw!`,
@@ -770,17 +773,20 @@ export async function createServerSession({
   };
   return {
     orgId: session.orgId,
+    // `minted` says this call minted a frame token itself; a call that read the cache or joined a mount already in
+    // flight minted nothing, so the frame-renewal count stays the tokens minted (G712-60). `renewals` carries the
+    // session renewals the mount caused, reported by the call that ran it.
     async mount(fixtureId, { fresh = false } = {}) {
       const cached = mounts.get(fixtureId);
-      if (!fresh && cached) return { ...cached, renewals: [] };
+      if (!fresh && cached) return { ...cached, renewals: [], minted: false };
       // One mount per fixture at a time: two lanes that start together must not upload the same fixture twice. The ask
       // that started the mount reports the renewals it caused; an ask that joined a shared mount reports none.
       const pending = inflight.get(fixtureId);
-      if (pending) return { ...(await pending.mount), renewals: [] };
+      if (pending) return { ...(await pending.mount), renewals: [], minted: false };
       const renewals = [];
       const started = { mount: mountFixture(fixtureId, renewals).finally(() => inflight.delete(fixtureId)) };
       inflight.set(fixtureId, started);
-      return { ...(await started.mount), renewals };
+      return { ...(await started.mount), renewals, minted: true };
     },
   };
 }

@@ -1057,6 +1057,34 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
     assert.equal(facade.stats.mints, 3, 'the mount mint, then one renewal per ask');
   });
 
+  it('counts a frame renewal once per token minted when two asks share a fixture (G712-60)', async () => {
+    const byFixture = new Map();
+    for (const c of cases) byFixture.set(c.fixtures[0].id, [...(byFixture.get(c.fixtures[0].id) ?? []), c]);
+    const shared = [...byFixture.values()].find((group) => group.length >= 2)[0];
+    const dir = path.join(tmpRoot, 'renew-shared');
+    // Both asks of the one case 401 on their first call, so both renew the frame token at once; the held-back mint keeps
+    // the second renewal inside the first one's window, where it joins and mints nothing.
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i < 2 ? { status: 401 } : null) }, mintDelayMs: 20 });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 2, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [shared.id], sessionId: 's-renew-shared', opts: { sleep: noSleep },
+      });
+      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
+      assert.equal(doc.status, 'completed');
+      assert.deepEqual(doc.asks.filter((a) => a.errored).map((a) => `${a.id}/${a.lang}: ${a.error}`), []);
+      assert.equal(doc.asks.length, 2, 'one case, two languages, one fixture');
+      assert.equal(facade.stats.uploads, 1, 'the fixture is uploaded once: a renewal mints for the document that still exists');
+      assert.equal(facade.stats.mints - facade.stats.uploads, 1, 'exactly one frame token was renewed');
+      assert.equal(doc.renewals.frame, 1, 'the printed count is the tokens minted, not the asks that asked for one');
+      assert.equal(doc.asks.flatMap((a) => a.renewals).filter((r) => r.kind === 'frame').length, doc.renewals.frame, 'the frame notes equal the run summary');
+      assert.ok(doc.asks.every((a) => a.calls.some((c) => c.renewed === 'frame')), 'both asks recorded the renewal action');
+    } finally {
+      await facade.close();
+    }
+  });
+
   it('renews through POST /api/v1/auth/login when the sign-in left no refresh cookie', async () => {
     const dir = path.join(tmpRoot, 'renew-login');
     const facade = await startStubFacade({ model: scriptedModel(cases), sessionExpiresAfterCalls: 1, setRefreshCookie: false });

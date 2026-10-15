@@ -86,10 +86,11 @@ export function scriptedModel(cases) {
  * behave like the D server past a credential's window: an access token that has served that many calls, or a frame token
  * that has served that many chat calls, answers 401 with error_class session until it is renewed. `setRefreshCookie:
  * false` models a sign-in that left no refresh cookie, so the runner has to renew through POST /api/v1/auth/login.
- * Returns { url, requests, stats, close }.
+ * `mintDelayMs` holds a frame-token answer back, so a test can widen the window in which a second ask's renewal joins
+ * the first one's mint (G712-60). Returns { url, requests, stats, close }.
  */
 export async function startStubFacade({
-  model, hooks = {}, model_name = 'stub-model', delayMs = 0,
+  model, hooks = {}, model_name = 'stub-model', delayMs = 0, mintDelayMs = 0,
   sessionExpiresAfterCalls = Infinity, frameExpiresAfterCalls = Infinity, setRefreshCookie = true,
 }) {
   const requests = [];
@@ -147,7 +148,8 @@ export async function startStubFacade({
         serial += 1;
         const token = `stub-frame-${mint[1]}-${serial}`;
         frames.set(token, { doc: mint[1], uses: 0 });
-        return json(res, 200, { token });
+        const send = () => json(res, 200, { token });
+        return mintDelayMs > 0 ? setTimeout(send, mintDelayMs) : send();
       }
       const chat = /\/office-frame\/documents\/([^/]+)\/ai\/uniwork\/chat\/completions$/.exec(url);
       if (!chat) return json(res, 404, { error: 'not found' });
