@@ -108,13 +108,14 @@ func (s *ChatService) ListThreadMessages(
 	for i := len(rows) - 1; i >= 0; i-- {
 		out = append(out, chatMessageRowFromThreadListRow(rows[i], userID))
 	}
-	unread, err := s.threadUnreadForViewer(ctx, userID, threadRootID)
+	unread, following, err := s.threadViewerState(ctx, userID, threadRootID)
 	if err != nil {
 		return nil, err
 	}
 	for i := range out {
 		if out[i].ID == threadRootID {
 			out[i].ThreadUnread = unread
+			out[i].ThreadFollowing = following
 		}
 	}
 	s.signChatMedia(ctx, room, out)
@@ -323,20 +324,17 @@ func (s *ChatService) UnfollowThread(ctx context.Context, userID, workspaceID, t
 
 // MarkThreadRead updates last_read_at for the caller on a thread.
 func (s *ChatService) MarkThreadRead(ctx context.Context, userID, workspaceID, threadRootID string) error {
-	room, root, err := s.loadThreadRootAcrossRooms(ctx, userID, workspaceID, threadRootID)
+	_, root, err := s.loadThreadRootAcrossRooms(ctx, userID, workspaceID, threadRootID)
 	if err != nil {
 		return err
 	}
-	orgID := room.OrganizationID
-	anchorWS := roomAnchorWorkspaceID(room)
+	// Reading is not following (UNI-1682): the UPDATE below touches only an
+	// existing follower row, so a reader who never followed gets no notifications.
 	// Prefer at least last_reply_at: Go's clock can lag Postgres, and writing a
 	// stale "now" would move last_read backwards and leave the thread unread.
 	readAt := time.Now().UTC()
 	if root.LastReplyAt.Valid && root.LastReplyAt.Time.After(readAt) {
 		readAt = root.LastReplyAt.Time
-	}
-	if err := s.ensureThreadFollowerTx(ctx, s.q, orgID, anchorWS, room.ID, root.ID, userID, chatThreadFollowManual, &readAt); err != nil {
-		return err
 	}
 	if err := s.q.MarkChatThreadRead(ctx, db.MarkChatThreadReadParams{
 		ThreadRootID: root.ID,
@@ -446,27 +444,30 @@ func (s *ChatService) ensureThreadFollowerTx(
 	})
 }
 
-func (s *ChatService) threadUnreadForViewer(ctx context.Context, userID, threadRootID string) (bool, error) {
+// threadViewerState says whether the viewer has unread replies in the thread
+// and whether they follow it (a follower row that is not muted).
+func (s *ChatService) threadViewerState(ctx context.Context, userID, threadRootID string) (unread, following bool, err error) {
 	f, err := s.q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{
 		ThreadRootID: threadRootID, UserID: userID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
+		return false, false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
+	following = !f.Muted
 	root, err := s.q.GetChatMessageByID(ctx, threadRootID)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	if !root.LastReplyAt.Valid {
-		return false, nil
+		return false, following, nil
 	}
 	if !f.LastReadAt.Valid {
-		return true, nil
+		return true, following, nil
 	}
-	return root.LastReplyAt.Time.After(f.LastReadAt.Time), nil
+	return root.LastReplyAt.Time.After(f.LastReadAt.Time), following, nil
 }
 
 func (s *ChatService) notifyThreadFollowers(

@@ -83,6 +83,7 @@ type ChatMessageRow struct {
 	ReplyCount        int
 	LastReplyAt       *time.Time
 	ThreadUnread      bool
+	ThreadFollowing   bool // viewer follows the thread and has not muted it; set on the root by ListThreadMessages
 	CreatedAt         time.Time
 	Reactions         map[string]int
 	MyReactions       []string // emojis the viewer reacted with; empty without a viewer

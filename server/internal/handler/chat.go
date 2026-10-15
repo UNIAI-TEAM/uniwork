@@ -47,6 +47,9 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.ThreadUnread {
 		out.ThreadUnread = true
 	}
+	if m.ThreadFollowing {
+		out.ThreadFollowing = true
+	}
 	if len(m.Reactions) > 0 {
 		out.Reactions = m.Reactions
 	}

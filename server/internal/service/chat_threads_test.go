@@ -2,7 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestChatThreadReplyStaysOffMainTimeline(t *testing.T) {
@@ -198,5 +204,74 @@ func TestBoolFromDriver(t *testing.T) {
 		if got := boolFromDriver(c.in); got != c.want {
 			t.Fatalf("boolFromDriver(%v)=%v want %v", c.in, got, c.want)
 		}
+	}
+}
+
+// Opening a thread marks it read but does not follow it: only the root's
+// author, repliers, mentioned members and a manual Follow are followers, so a
+// reader is not notified of every later reply (UNI-1682).
+func TestOpeningAThreadDoesNotFollowIt(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := chatTestUser(t, q, w, "thread-reader-c@example.com")
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "Lich nghi le"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SendThreadReply(ctx, ub.ID, w.ID, room.RoomID, root.ID, SendChatMessageInput{Body: "ok"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.MarkThreadRead(ctx, uc.ID, w.ID, root.ID); err != nil {
+		t.Fatalf("mark read: %v", err)
+	}
+	if _, err := q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{
+		ThreadRootID: root.ID, UserID: uc.ID,
+	}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("reader became a follower: err=%v", err)
+	}
+	reply, err := s.SendThreadReply(ctx, ub.ID, w.ID, room.RoomID, root.ID, SendChatMessageInput{Body: "chot truoc thu 6"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chatNotifyRecipients(t, s, "chat.thread.reply_received", reply.ID); slices.Contains(got, uc.ID) {
+		t.Fatalf("reader notified of a reply: %v", got)
+	}
+
+	following := func() bool {
+		t.Helper()
+		thread, err := s.ListThreadMessages(ctx, uc.ID, w.ID, room.RoomID, root.ID, ListChatMessagesInput{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range thread {
+			if m.ID == root.ID {
+				return m.ThreadFollowing
+			}
+		}
+		t.Fatal("root missing from thread")
+		return false
+	}
+	if following() {
+		t.Fatal("following before Follow")
+	}
+	if err := s.FollowThread(ctx, uc.ID, w.ID, root.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !following() {
+		t.Fatal("not following after Follow")
+	}
+	if err := s.UnfollowThread(ctx, uc.ID, w.ID, root.ID); err != nil {
+		t.Fatal(err)
+	}
+	if following() {
+		t.Fatal("still following after Unfollow")
 	}
 }
