@@ -12,6 +12,7 @@ import { B7_ANCHOR, WEB_FRAME_PIN_BLOCKER, WEB_FRAME_PIN_OWNER, exitCodeFor } fr
 import {
   EDIT_DRIVERS,
   FIXTURE_FORMAT,
+  PANEL_OPENERS,
   anchorForFixture,
   anchorMatches,
   PURGED_CASE_NOTE,
@@ -19,6 +20,7 @@ import {
   decideWebToDesktop,
   expectedAfterShift,
   framePinBlock,
+  pageAction,
   readFramePin,
   runG8A02,
 } from "./anchors.mjs";
@@ -185,11 +187,55 @@ test("EDIT_DRIVERS: every format has a shift and a remove plan driven through pr
     assert.match(d.cites.join(" "), /\.tsx?:\d+/, `${format} cites a fork file:line`);
   }
   const xlsx = EDIT_DRIVERS.xlsx.shift;
-  assert.deepEqual(xlsx[0], { type: "control", req: { cmd: "goto", target: { kind: "range", sheet: "Doanh thu Q2", range: "A7" } } });
-  assert.equal(xlsx[1].type, "click");
-  assert.match("Insert row", new RegExp(xlsx[1].name));
-  assert.match("Chèn hàng", new RegExp(xlsx[1].name));
+  // the panel opener leaves Review active: Insert row lives on Home (fork ExcelShell.tsx:3985-3995)
+  assert.deepEqual(xlsx[0], { type: "click", selector: ".ribbon-tab", name: "^(Home|Trang đầu)$", unlessActive: true });
+  assert.deepEqual(xlsx[1], { type: "control", req: { cmd: "goto", target: { kind: "range", sheet: "Doanh thu Q2", range: "A7" } } });
+  assert.equal(xlsx[2].type, "click");
+  assert.match("Insert row", new RegExp(xlsx[2].name));
+  assert.match("Chèn hàng", new RegExp(xlsx[2].name));
+  assert.deepEqual(EDIT_DRIVERS.xlsx.remove[0], xlsx[0], "the remove plan goes back to Home too");
+  for (const plan of [EDIT_DRIVERS.pdf.prepare, EDIT_DRIVERS.pdf.shift, EDIT_DRIVERS.pdf.remove]) {
+    for (const a of plan.filter((x) => x.selector === ".ribbon-tab")) assert.equal(a.unlessActive, true, "a second press on the active tab collapses the ribbon");
+  }
   assert.ok(Array.isArray(EDIT_DRIVERS.pdf.prepare), "pdf needs pages before it can move or lose one");
+});
+
+test("PANEL_OPENERS: per editor the ribbon tab + the control that opens the server comments panel, en and vi labels, citing the fork", () => {
+  const labels = {
+    docx: { tab: ["Review", "Xem lại"], button: ["Show Comments", "Hiện nhận xét"] },
+    xlsx: { tab: ["Review", "Xem lại"], button: ["🗨Show Comments", "Show Comments", "Hiện nhận xét"] },
+    pptx: { tab: ["Review", "Xem lại"], button: ["Comments Pane", "Ngăn nhận xét (3)"] },
+    pdf: { tab: ["Annotate", "Chú thích"], button: [] },
+  };
+  for (const [format, want] of Object.entries(labels)) {
+    const o = PANEL_OPENERS[format];
+    assert.ok(o, format);
+    assert.match(o.cites.join(" "), /\.tsx?:\d+/, `${format} cites a fork file:line`);
+    const [tab, button] = o.plan;
+    assert.equal(o.plan.length, 2, format);
+    assert.deepEqual([tab.type, tab.selector, tab.unlessActive], ["click", ".ribbon-tab", true], format);
+    for (const l of want.tab) assert.match(l, new RegExp(tab.name), `${format} tab ${l}`);
+    assert.equal(button.type, "click");
+    for (const l of want.button) assert.match(l, new RegExp(button.name), `${format} button ${l}`);
+  }
+  assert.equal(PANEL_OPENERS.pdf.plan[1].selector, "#pdf-server-comments-toggle");
+  assert.doesNotMatch("Comments", new RegExp(PANEL_OPENERS.docx.plan[1].name), "r1 looked for a bare Comments button that no editor has");
+});
+
+test("pageAction click unlessActive: an active ribbon tab is not pressed again (that collapses the ribbon)", async () => {
+  const saved = globalThis.document;
+  const el = (cls) => ({ clicked: 0, textContent: "Home", disabled: false, classList: { contains: (c) => cls.includes(c) }, getAttribute: () => null, click() { this.clicked += 1; } });
+  try {
+    for (const [cls, want] of [[["ribbon-tab", "active"], 0], [["ribbon-tab"], 1]]) {
+      const tab = el(cls);
+      globalThis.document = { querySelectorAll: () => [tab] };
+      const res = await pageAction({ type: "click", selector: ".ribbon-tab", name: "^Home$", unlessActive: true, settleMs: 0 });
+      assert.equal(res.status, "ok");
+      assert.equal(tab.clicked, want, cls.join(" "));
+    }
+  } finally {
+    globalThis.document = saved;
+  }
 });
 
 // ---- the flow against the fake -------------------------------------------------
@@ -235,7 +281,10 @@ function scriptXlsxServer(fake) {
     state.comment = { id: "c1", body: input.body };
     return { ok: true, value: { comment: { id: "c1", anchor: input.anchor, anchor_state: "exact", anchor_version_id: input.baseVersionId } } };
   });
-  fake.script.respond("app.evalBounded", () => ({ status: "ok" }));
+  // the editor's own comments panel lists the root once the comment exists
+  fake.script.respond("app.evalBounded", (call) =>
+    call.args[2] === "probe:listed" ? { panels: 1, commentIds: state.comment && !state.unlisted ? ["c1"] : [] } : { status: "ok" },
+  );
   fake.script.respond("app.save", () => {
     state.saves += 1;
     state.head = `ver-${state.saves + 1}`;
@@ -413,4 +462,41 @@ test("runG8A02: an app that cannot be driven is FAIL (never BLOCKED)", async () 
   const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
   assert.equal(record.status, "FAIL");
   assert.match(record.reason, /could not connect|no CDP/);
+});
+
+test("runG8A02 opens the editor's comments panel and waits until the editor lists the comment before the shift edit", async () => {
+  const fake = createFakeWorld();
+  scriptXlsxServer(fake);
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  assert.equal(record.steps["editor-lists"]?.status, "PASS", JSON.stringify(record.steps));
+  assert.equal(record.details.editorLists.listed, true);
+  const evals = fake.calls.app.filter((c) => c.key === "evalBounded").map((c) => c.args[2]);
+  const opened = evals.indexOf("edit:click:1");
+  const listed = evals.indexOf("probe:listed");
+  const inserted = evals.findIndex((l, i) => i > listed && l.startsWith("edit:"));
+  assert.ok(opened >= 0 && listed > opened && inserted > listed, `opener, then the listing, then the edit: ${evals.join(",")}`);
+  const actions = fake.calls.app.filter((c) => c.key === "evalBounded").map((c) => c.args[1]);
+  assert.deepEqual(actions.slice(0, PANEL_OPENERS.xlsx.plan.length), PANEL_OPENERS.xlsx.plan);
+});
+
+test("runG8A02: an editor that never lists the comment is FAIL at editor-lists and drives no edit", async () => {
+  const fake = createFakeWorld();
+  const state = scriptXlsxServer(fake);
+  state.unlisted = true;
+  let t = 0;
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 5_000), framePin: { gitSha: "05fd209" } });
+  assert.equal(record.status, "FAIL");
+  assert.match(record.reason, /^editor-lists: .*did not list comment c1/);
+  assert.equal(fake.calls.app.filter((c) => c.key === "save").length, 0, "no Save without a tracked anchor");
+});
+
+test("decideG8A02 remove: the kept-version rule speaks only about a lost row (an exact row already fails on its state)", () => {
+  const rec = passingRecord();
+  rec.remove.row = { ...rec.remove.row, anchor_state: "exact", anchor_version_id: "ver-3" };
+  const reason = decideG8A02(rec).steps["check:remove-lost"].reason;
+  assert.match(reason, /anchor_state exact, want lost/);
+  assert.doesNotMatch(reason, /keep its last version/);
+  const lostMoved = passingRecord();
+  lostMoved.remove.row.anchor_version_id = "ver-3";
+  assert.match(decideG8A02(lostMoved).steps["check:remove-lost"].reason, /keep its last version ver-2, got ver-3/);
 });
