@@ -25,7 +25,7 @@ import (
 // here, in DOC-005's order:
 //
 //  1. session     - the handler (token_expired / unauthorized)
-//  2. tombstone   - document_deleted (410); a stranger still gets not_found
+//  2. tombstone   - document_archived (403); a stranger still gets not_found
 //  3. idempotency - idempotency_key_reuse | idempotency_payload_mismatch |
 //     idempotency_in_flight, or the stored answer replayed. The fingerprint
 //     binds the verified checksum, so the upload is resolved (not claimed)
@@ -165,7 +165,7 @@ func commitFingerprint(documentID string, base int64, checksum string, e Documen
 // preflightDocument is steps 2 of the order: the row, its tenant, and the
 // tombstone. It reads outside any transaction; the mutation decides again.
 // A document the actor cannot see at all is not_found (no existence leak);
-// an archived one the actor can see is document_deleted.
+// an archived one the actor can see is document_archived.
 func (s *DocumentService) preflightDocument(ctx context.Context, actor Actor, documentID string) (db.Document, DocumentAccess, error) {
 	if !validActor(actor) || documentID == "" {
 		return db.Document{}, DocumentAccess{}, ErrNotFound
@@ -185,7 +185,7 @@ func (s *DocumentService) preflightDocument(ctx context.Context, actor Actor, do
 		return db.Document{}, DocumentAccess{}, ErrNotFound
 	}
 	if doc.ArchivedAt.Valid {
-		return db.Document{}, DocumentAccess{}, errDocumentDeleted()
+		return db.Document{}, DocumentAccess{}, documentArchived()
 	}
 	if err := refuseFolder(doc); err != nil {
 		return db.Document{}, DocumentAccess{}, err
@@ -340,7 +340,7 @@ func (s *DocumentService) commitClaimedFileVersion(
 	replayed := false
 	err = s.withDocumentMutation(ctx, actor, doc.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, access DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
-			return errDocumentDeleted()
+			return documentArchived()
 		}
 		replay, commit, err := BeginIdempotent(ctx, q, locked.OrganizationID, locked.WorkspaceID, idempotencyScopeDocumentVersionCommit, in.IdempotencyKey, actor.ID, opts)
 		if err != nil {
@@ -522,7 +522,7 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 	var res DocumentFileResult
 	err = s.withDocumentMutation(ctx, actor, doc.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, access DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
-			return errDocumentDeleted()
+			return documentArchived()
 		}
 		replay, commit, err := BeginIdempotent(ctx, q, locked.OrganizationID, locked.WorkspaceID, idempotencyScopeDocumentVersionRestore, in.IdempotencyKey, actor.ID, opts)
 		if err != nil {

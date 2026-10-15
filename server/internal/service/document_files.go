@@ -122,15 +122,12 @@ func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, d
 	if err != nil {
 		return DocumentUpload{}, err
 	}
-	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelEdit)
+	doc, access, err := s.preflightDocument(ctx, actor, documentID)
 	if err != nil {
 		return DocumentUpload{}, err
 	}
-	if err := refuseFolder(doc); err != nil {
+	if err := decideDocumentAccess(doc, access, DocumentLevelEdit); err != nil {
 		return DocumentUpload{}, err
-	}
-	if doc.Kind != DocumentKindFile {
-		return DocumentUpload{}, Invalid("chỉ tài liệu file nhận phiên bản tải lên")
 	}
 	up, _, err := s.uploadChecked(ctx, fs, actor, files.DocumentFile, documentScope(doc.OrganizationID, doc.WorkspaceID),
 		fileUploadKey("documents.upload", doc.ID, in.IdempotencyKey), in)
