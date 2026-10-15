@@ -702,8 +702,9 @@ type uniworkModuleTools struct {
 // sha256 d0ef92a89cf178086768295c885448087af0ba05463748197fc9785428982fac):
 // every editor_write=yes row, plus the four group-B rows the document lists
 // as writing files or creating versions (create_document in docs, sheets and
-// pdf, save_style_template in slides). G6-01/G6-12 replace the contents when
-// the mechanical table lands; the mechanism and its tests stay.
+// pdf, save_style_template in slides), minus the five slides rows G6-09a
+// removes below. G6-01/G6-12 replace the contents when the mechanical table
+// lands; the mechanism and its tests stay.
 //
 // G6-09a (N1) takes the five slides tools the client never offers under
 // UniWork AI out of the table again — generate_deck, regenerate_slide,
@@ -713,12 +714,12 @@ type uniworkModuleTools struct {
 // purpose: create_document (docs, sheets, pdf) and the pdf file-level page
 // tools (insert_blank_page, set_page_size, crop_pages, replace_pages,
 // extract_pages, split_pdf, split_pages, merge_pages). The clients hide those
-// only for a UniWork-bound document (policy Q3, Q4); a local file the user
-// opens under UniWork AI keeps them, and this table is keyed by module alone,
-// so removing them would also cut that legitimate path. The pdf text / image
-// edit tools stay too: the client hides them by the host capability, which the
-// server cannot read. Enforcing the bound-only hides here needs the turn's
-// document scope handed to UniworkModuleAllowlist (a follow-up).
+// only for a UniWork-bound document (policy Q3, Q4), but the table is keyed by
+// module alone and carries no document scope; R1 (the local-file route) is
+// viewOnly today, so the bound-only hides need the turn's document scope
+// plumbed in — a g6-ai_server follow-up (the Advisor relayed it), not this
+// lane's. The pdf text / image edit tools stay too: the client hides them by
+// the host capability, which the server cannot read.
 var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 	"docs": {
 		Read: []string{
