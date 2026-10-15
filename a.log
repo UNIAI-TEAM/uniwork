@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4; git merge-base --is-ancestor 7d665a54 HEAD && echo main-synced
+1e5f8dfe07ff34cf4eb29c41c55d69c8df59516f
+7d665a54241c48f803cd24746bf81771d17e0741
+1e5f8dfe style(uniwork-sync): format the offline lease files with Prettier
+25283364 merge: fork main 7d665a54 into the G5-08c lane (UNI-1353)
+3af78891 test(uniwork-sync): drive the lease boundary through the production wiring
+7f2808aa test(uniwork-sync): pin the lease generation guards and the store-unavailable mapping
+main-synced

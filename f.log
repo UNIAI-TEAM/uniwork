@@ -1,0 +1,346 @@
+$ export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null 2>&1 && (nvm install 22 >/dev/null 2>&1; nvm use 22 >/dev/null 2>&1) && echo "NODE22_VIA=nvm" || echo "NODE22_VIA=none"; echo "BASELINE_NODE=$(node -v)"; cd /tmp && rm -rf uw-main-e2e && git clone -q https://github.com/UNIAI-TEAM/uniwork-office uw-main-e2e && cd uw-main-e2e && git checkout -q 7d665a54 && echo "BASELINE_SHA=$(git rev-parse HEAD)" && git status --short | head -3 && NODE_ENV= npm ci --include=dev --no-audit --no-fund >/tmp/uw-main-e2e-npm.log 2>&1; echo "BASELINE_NPM_EXIT=$?"; npm run build:all >/tmp/uw-main-e2e-build.log 2>&1; echo "BASELINE_BUILD_EXIT=$?"; npm run fixtures >/tmp/uw-main-e2e-fixtures.log 2>&1; echo "BASELINE_FIXTURES_EXIT=$?"; if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 >/dev/null; fi; DEBUG= xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts e2e/docs-visual.spec.ts e2e/docs-spell-suggestions.spec.ts --reporter=list; rc=$?; echo "BASELINE_NODE=$(node -v) BASELINE_E2E_EXIT=$rc"; tail -n 30 /tmp/uw-main-e2e-build.log | grep -iE "error|fail" | head -5; true
+NODE22_VIA=nvm
+BASELINE_NODE=v22.23.3
+BASELINE_SHA=7d665a54241c48f803cd24746bf81771d17e0741
+BASELINE_NPM_EXIT=0
+BASELINE_BUILD_EXIT=0
+BASELINE_FIXTURES_EXIT=0
+
+Running 6 tests using 1 worker
+
+(node:31231) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (21.3s)
+(node:31331) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (retry #1) (21.4s)
+(node:31429) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 e2e/docs-visual.spec.ts:63:9 › docs visual regression › kitchen-sink renders pixel-identical pages (4.0s)
+(node:31527) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  4 e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-inline renders pixel-identical pages (4.4s)
+(node:31622) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  5 e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-float renders pixel-identical pages (3.5s)
+(node:31716) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  6 e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-pct renders pixel-identical pages (3.6s)
+(node:31815) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  7 e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-page-anchor renders pixel-identical pages (3.5s)
+
+
+  1) e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+
+    Error: squiggle gone after Add to Dictionary
+
+    squiggle gone after Add to Dictionary
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 34
+
+    Call Log:
+    - Timeout 15000ms exceeded while waiting on the predicate
+
+      176 |         message: 'squiggle gone after Add to Dictionary',
+      177 |       })
+    > 178 |       .toBe(0)
+          |        ^
+      179 |     // the other misspelling keeps its marker: the dictionary changed, not the checker
+      180 |     expect(await redUnder(editor, targetRect!)).toBeGreaterThan(0)
+      181 |
+        at /tmp/uw-main-e2e/e2e/docs-spell-suggestions.spec.ts:178:8
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: squiggle gone after Add to Dictionary
+
+    squiggle gone after Add to Dictionary
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 31
+
+    Call Log:
+    - Timeout 15000ms exceeded while waiting on the predicate
+
+      176 |         message: 'squiggle gone after Add to Dictionary',
+      177 |       })
+    > 178 |       .toBe(0)
+          |        ^
+      179 |     // the other misspelling keeps its marker: the dictionary changed, not the checker
+      180 |     expect(await redUnder(editor, targetRect!)).toBeGreaterThan(0)
+      181 |
+        at /tmp/uw-main-e2e/e2e/docs-spell-suggestions.spec.ts:178:8
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one-retry1/error-context.md
+
+  2) e2e/docs-visual.spec.ts:63:9 › docs visual regression › kitchen-sink renders pixel-identical pages 
+
+    Error: expect(locator).toHaveScreenshot(expected) failed
+
+    Locator: locator('.doc-page').first()
+      5260 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: kitchen-sink-p1.png
+
+    Call log:
+      - Expect "toHaveScreenshot(kitchen-sink-p1.png)" with timeout 15000ms
+        - verifying given screenshot expectation
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - 5260 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - captured a stable screenshot
+      - 5260 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      90 |           await pageEl.scrollIntoViewIfNeeded()
+      91 |           expect(Math.round((await pageEl.boundingBox())?.height ?? 0)).toBe(1123)
+    > 92 |           await expect(pageEl).toHaveScreenshot(`${doc.name}-p${i + 1}.png`, {
+         |                                ^
+      93 |             maxDiffPixels: 0,
+      94 |             animations: 'disabled',
+      95 |           })
+        at /tmp/uw-main-e2e/e2e/docs-visual.spec.ts:92:32
+
+    attachment #1: kitchen-sink-p1 (image/png) ─────────────────────────────────────────────────────
+    Expected: e2e/visual-baselines/kitchen-sink-p1.png
+    Received: e2e/test-results/docs-visual-docs-visual-re-bf7e6-nders-pixel-identical-pages/kitchen-sink-p1-actual.png
+    Diff:     e2e/test-results/docs-visual-docs-visual-re-bf7e6-nders-pixel-identical-pages/kitchen-sink-p1-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/test-results/docs-visual-docs-visual-re-bf7e6-nders-pixel-identical-pages/error-context.md
+
+  3) e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-inline renders pixel-identical pages 
+
+    Error: expect(locator).toHaveScreenshot(expected) failed
+
+    Locator: locator('.doc-page').first()
+      5020 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: captable-inline-p1.png
+
+    Call log:
+      - Expect "toHaveScreenshot(captable-inline-p1.png)" with timeout 15000ms
+        - verifying given screenshot expectation
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - 5020 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - captured a stable screenshot
+      - 5020 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      90 |           await pageEl.scrollIntoViewIfNeeded()
+      91 |           expect(Math.round((await pageEl.boundingBox())?.height ?? 0)).toBe(1123)
+    > 92 |           await expect(pageEl).toHaveScreenshot(`${doc.name}-p${i + 1}.png`, {
+         |                                ^
+      93 |             maxDiffPixels: 0,
+      94 |             animations: 'disabled',
+      95 |           })
+        at /tmp/uw-main-e2e/e2e/docs-visual.spec.ts:92:32
+
+    attachment #1: captable-inline-p1 (image/png) ──────────────────────────────────────────────────
+    Expected: e2e/visual-baselines/captable-inline-p1.png
+    Received: e2e/test-results/docs-visual-docs-visual-re-07956-nders-pixel-identical-pages/captable-inline-p1-actual.png
+    Diff:     e2e/test-results/docs-visual-docs-visual-re-07956-nders-pixel-identical-pages/captable-inline-p1-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/test-results/docs-visual-docs-visual-re-07956-nders-pixel-identical-pages/error-context.md
+
+  4) e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-float renders pixel-identical pages 
+
+    Error: expect(locator).toHaveScreenshot(expected) failed
+
+    Locator: locator('.doc-page').first()
+      6341 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: captable-float-p1.png
+
+    Call log:
+      - Expect "toHaveScreenshot(captable-float-p1.png)" with timeout 15000ms
+        - verifying given screenshot expectation
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - 6341 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - captured a stable screenshot
+      - 6341 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      90 |           await pageEl.scrollIntoViewIfNeeded()
+      91 |           expect(Math.round((await pageEl.boundingBox())?.height ?? 0)).toBe(1123)
+    > 92 |           await expect(pageEl).toHaveScreenshot(`${doc.name}-p${i + 1}.png`, {
+         |                                ^
+      93 |             maxDiffPixels: 0,
+      94 |             animations: 'disabled',
+      95 |           })
+        at /tmp/uw-main-e2e/e2e/docs-visual.spec.ts:92:32
+
+    attachment #1: captable-float-p1 (image/png) ───────────────────────────────────────────────────
+    Expected: e2e/visual-baselines/captable-float-p1.png
+    Received: e2e/test-results/docs-visual-docs-visual-re-840b7-nders-pixel-identical-pages/captable-float-p1-actual.png
+    Diff:     e2e/test-results/docs-visual-docs-visual-re-840b7-nders-pixel-identical-pages/captable-float-p1-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/test-results/docs-visual-docs-visual-re-840b7-nders-pixel-identical-pages/error-context.md
+
+  5) e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-pct renders pixel-identical pages 
+
+    Error: expect(locator).toHaveScreenshot(expected) failed
+
+    Locator: locator('.doc-page').first()
+      2310 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: captable-pct-p1.png
+
+    Call log:
+      - Expect "toHaveScreenshot(captable-pct-p1.png)" with timeout 15000ms
+        - verifying given screenshot expectation
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - 2310 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - captured a stable screenshot
+      - 2310 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      90 |           await pageEl.scrollIntoViewIfNeeded()
+      91 |           expect(Math.round((await pageEl.boundingBox())?.height ?? 0)).toBe(1123)
+    > 92 |           await expect(pageEl).toHaveScreenshot(`${doc.name}-p${i + 1}.png`, {
+         |                                ^
+      93 |             maxDiffPixels: 0,
+      94 |             animations: 'disabled',
+      95 |           })
+        at /tmp/uw-main-e2e/e2e/docs-visual.spec.ts:92:32
+
+    attachment #1: captable-pct-p1 (image/png) ─────────────────────────────────────────────────────
+    Expected: e2e/visual-baselines/captable-pct-p1.png
+    Received: e2e/test-results/docs-visual-docs-visual-re-219e1-nders-pixel-identical-pages/captable-pct-p1-actual.png
+    Diff:     e2e/test-results/docs-visual-docs-visual-re-219e1-nders-pixel-identical-pages/captable-pct-p1-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/test-results/docs-visual-docs-visual-re-219e1-nders-pixel-identical-pages/error-context.md
+
+  6) e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-page-anchor renders pixel-identical pages 
+
+    Error: expect(locator).toHaveScreenshot(expected) failed
+
+    Locator: locator('.doc-page').first()
+      5689 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: captable-page-anchor-p1.png
+
+    Call log:
+      - Expect "toHaveScreenshot(captable-page-anchor-p1.png)" with timeout 15000ms
+        - verifying given screenshot expectation
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - 5689 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - captured a stable screenshot
+      - 5689 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      90 |           await pageEl.scrollIntoViewIfNeeded()
+      91 |           expect(Math.round((await pageEl.boundingBox())?.height ?? 0)).toBe(1123)
+    > 92 |           await expect(pageEl).toHaveScreenshot(`${doc.name}-p${i + 1}.png`, {
+         |                                ^
+      93 |             maxDiffPixels: 0,
+      94 |             animations: 'disabled',
+      95 |           })
+        at /tmp/uw-main-e2e/e2e/docs-visual.spec.ts:92:32
+
+    attachment #1: captable-page-anchor-p1 (image/png) ─────────────────────────────────────────────
+    Expected: e2e/visual-baselines/captable-page-anchor-p1.png
+    Received: e2e/test-results/docs-visual-docs-visual-re-25200-nders-pixel-identical-pages/captable-page-anchor-p1-actual.png
+    Diff:     e2e/test-results/docs-visual-docs-visual-re-25200-nders-pixel-identical-pages/captable-page-anchor-p1-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/test-results/docs-visual-docs-visual-re-25200-nders-pixel-identical-pages/error-context.md
+
+  6 failed
+    e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+    e2e/docs-visual.spec.ts:63:9 › docs visual regression › kitchen-sink renders pixel-identical pages 
+    e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-inline renders pixel-identical pages 
+    e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-float renders pixel-identical pages 
+    e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-pct renders pixel-identical pages 
+    e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-page-anchor renders pixel-identical pages 
+BASELINE_NODE=v22.23.3 BASELINE_E2E_EXIT=1
