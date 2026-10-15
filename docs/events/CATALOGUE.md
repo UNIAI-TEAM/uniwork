@@ -159,6 +159,10 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.comment_anchors_updated` | 1 | `document_id`, `workspace_id`, `version_id` | — | workspace | outbox |
 | `document.favorited` | 1 | `document_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `document.unfavorited` | 1 | `document_id`, `user_id`, `workspace_id` | — | user | outbox |
+| `document.lock_changed` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.lock_taken_over` | 1 | `document_id`, `workspace_id`, `user_id` | — | user | outbox |
+| `document.edit_requested` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
+| `document.edit_request_answered` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
 | `document.updated` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.moved` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.archived` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
