@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo; echo "INSTALL_EXIT=$rc"
+2a738ede8630273c5efd7642ce92e4dbf7dfc58d
+2a738ede8 docs(office): say how the holdout runner survives the token windows
+5f82896c5 feat(office): count holdout token renewals in the run summary and the report
+596b39b3a fix(office): renew the holdout runner's session and frame tokens mid-run
+9175ac77c Merge root feature/UNI-923-office-g5-g6-g7 @ f4329d09f into G7-12
+5fec6df00 docs(office): holdout README for the G712-50 unit and the G712-51 case-set check
+2ff9b7ef8 fix(office): refuse a holdout spot-check --cases set that is not the session's
+
+INSTALL_EXIT=0
