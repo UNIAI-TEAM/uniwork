@@ -78,6 +78,8 @@ export const K = {
   collabMentionCount: `${C}.collabMentionCount`,
   collabMentionNoMatch: `${C}.collabMentionNoMatch`,
   collabMentionNoCandidates: `${C}.collabMentionNoCandidates`,
+  collabMentionNoMatchMembers: `${C}.collabMentionNoMatchMembers`,
+  collabMentionNoCandidatesMembers: `${C}.collabMentionNoCandidatesMembers`,
   collabMentionError: `${C}.collabMentionError`,
   collabMentionNoAccessBadge: `${C}.collabMentionNoAccessBadge`,
   collabMentionWarnTitle: `${C}.collabMentionWarnTitle`,

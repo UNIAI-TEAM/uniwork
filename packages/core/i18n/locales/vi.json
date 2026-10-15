@@ -8659,6 +8659,8 @@
       "collabMentionCount": "Kết quả: {{count}}",
       "collabMentionNoMatch": "Không có ai khớp “{{query}}” trong số người xem được tài liệu này.",
       "collabMentionNoCandidates": "Chưa có ai khác xem được tài liệu này.",
+      "collabMentionNoMatchMembers": "Không có ai khớp “{{query}}”.",
+      "collabMentionNoCandidatesMembers": "Không còn ai khác trong không gian làm việc để nhắc tên.",
       "collabMentionError": "Không tải được danh sách người.",
       "collabMentionNoAccessBadge": "Chưa xem được",
       "collabMentionWarnTitle": "Người được nhắc chưa có quyền xem",

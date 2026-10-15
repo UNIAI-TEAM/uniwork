@@ -6,7 +6,6 @@ import {
   DocumentUploadSchema,
   type Document,
   type DocumentAsset,
-  type DocumentCommentKind,
   type DocumentDownload,
   type DocumentUpload,
   type DocumentVisibility,
@@ -15,13 +14,9 @@ import {
   DocumentAdminSummarySchema,
   DocumentBreakGlassGrantEnvelopeSchema,
   DocumentBreakGlassGrantSchema,
-  DocumentCommentEnvelopeSchema,
-  MentionCandidateSchema,
   type DocumentAccessError,
   type DocumentAdminSummary,
   type DocumentBreakGlassGrant,
-  type DocumentComment,
-  type MentionCandidate,
 } from "../../types/document-access";
 import { ApiError, request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
@@ -260,110 +255,6 @@ export async function downloadDocumentFile(
   signal?: AbortSignal,
 ): Promise<Blob> {
   return requestBlob(documentDownloadPath(documentId, version), { signal });
-}
-
-// ---- G8-18 (UNI-1413): comment create/update + mention candidates ----------
-
-export interface CreateDocumentCommentBody {
-  body: string;
-  parent_id?: string;
-  kind?: DocumentCommentKind;
-  anchor?: Record<string, unknown>;
-  base_version_id?: string;
-}
-
-export interface UpdateDocumentCommentBody {
-  body: string;
-}
-
-export interface DocumentCommentRequestOpts {
-  idempotencyKey?: string;
-  signal?: AbortSignal;
-}
-
-/** POST /api/v1/documents/{documentID}/comments — create a comment or reply,
- *  including `mentions_without_access` when mentioned people cannot view (G8-18). */
-export async function createDocumentComment(
-  documentId: string,
-  body: CreateDocumentCommentBody,
-  opts?: DocumentCommentRequestOpts,
-): Promise<DocumentComment | null> {
-  const raw = await request(`/api/v1/documents/${enc(documentId)}/comments`, {
-    method: "POST",
-    body,
-    headers: idempotencyHeaders(opts),
-    signal: opts?.signal,
-  });
-  return (
-    parseWithFallback<{ comment: DocumentComment } | null>(raw, DocumentCommentEnvelopeSchema, null, {
-      endpoint: "POST /api/v1/documents/{id}/comments",
-    })?.comment ?? null
-  );
-}
-
-/** PATCH /api/v1/documents/{documentID}/comments/{commentID} — edit a comment,
- *  including `mentions_without_access` when newly mentioned people cannot view (G8-18). */
-export async function updateDocumentComment(
-  documentId: string,
-  commentId: string,
-  body: UpdateDocumentCommentBody,
-  opts?: { signal?: AbortSignal },
-): Promise<DocumentComment | null> {
-  const raw = await request(`/api/v1/documents/${enc(documentId)}/comments/${enc(commentId)}`, {
-    method: "PATCH",
-    body,
-    signal: opts?.signal,
-  });
-  return (
-    parseWithFallback<{ comment: DocumentComment } | null>(raw, DocumentCommentEnvelopeSchema, null, {
-      endpoint: "PATCH /api/v1/documents/{id}/comments/{commentId}",
-    })?.comment ?? null
-  );
-}
-
-export interface MentionCandidateQuery {
-  /** Search term over display name and email (accent-folded). */
-  q?: string;
-  /** Page size; clamped to [1, 50] with a default of 20. */
-  limit?: number;
-  /** Pass `"no_access"` to include workspace members who cannot view yet (`can_view: false`). */
-  include?: "no_access";
-}
-
-const MentionCandidateListResponseSchema = z.object({
-  candidates: z.array(z.unknown()).transform((rows): MentionCandidate[] => {
-    const out: MentionCandidate[] = [];
-    for (const row of rows) {
-      const parsed = MentionCandidateSchema.safeParse(row);
-      if (parsed.success) out.push(parsed.data);
-    }
-    return out;
-  }),
-});
-
-/** GET /api/v1/documents/{documentID}/mention-candidates — picker candidates,
- *  with optional `include=no_access` and tolerant `can_view` parsing (G8-18). */
-export async function listDocumentMentionCandidates(
-  documentId: string,
-  query?: MentionCandidateQuery,
-  signal?: AbortSignal,
-): Promise<MentionCandidate[]> {
-  const params = new URLSearchParams();
-  const q = query?.q?.trim();
-  if (q) params.set("q", q);
-  if (query?.limit !== undefined) params.set("limit", String(query.limit));
-  if (query?.include === "no_access") params.set("include", "no_access");
-  const search = params.toString();
-  const raw = await request(
-    `/api/v1/documents/${enc(documentId)}/mention-candidates${search ? `?${search}` : ""}`,
-    { signal },
-  );
-  return parseWithFallback<{ candidates: MentionCandidate[] }>(
-    raw,
-    MentionCandidateListResponseSchema,
-    { candidates: [] },
-    { endpoint: "GET /api/v1/documents/{id}/mention-candidates" },
-  ).candidates;
 }
 
 // ---- DOC-05 (UNI-1628): break-glass + admin-summary + typed errors ---------

@@ -8664,6 +8664,8 @@
       "collabMentionCount": "Results: {{count}}",
       "collabMentionNoMatch": "No one with access to this document matches “{{query}}”.",
       "collabMentionNoCandidates": "No one else has access to this document yet.",
+      "collabMentionNoMatchMembers": "No one matches “{{query}}”.",
+      "collabMentionNoCandidatesMembers": "There is no one else in this workspace to mention.",
       "collabMentionError": "Couldn’t load people.",
       "collabMentionNoAccessBadge": "Can't view",
       "collabMentionWarnTitle": "Mentioned people can't view this document",

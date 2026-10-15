@@ -44,6 +44,8 @@ export function PickerOption({
       searching: K.collabMentionSearching,
       noMatch: K.collabMentionNoMatch,
       noCandidates: K.collabMentionNoCandidates,
+      noMatchMembers: K.collabMentionNoMatchMembers,
+      noCandidatesMembers: K.collabMentionNoCandidatesMembers,
       error: K.collabMentionError,
     }[row.key];
     return (

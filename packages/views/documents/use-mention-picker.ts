@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { listDocumentMentionCandidates } from "@uniwork/core/api/endpoints/documents";
+import { listDocumentMentionCandidates } from "@uniwork/core/api/endpoints/document-comments";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import type { MentionCandidate } from "@uniwork/core/types/document-access";
 import { extractMentionTokens } from "./document-comments-model";
@@ -31,10 +31,19 @@ function triggerAt(text: string, caret: number): { start: number; query: string 
   return { start: caret - (match[2]?.length ?? 0) - 1, query: match[2] ?? "" };
 }
 
+/**
+ * The empty-list message. When the picker also lists people without access (`include=no_access`),
+ * an empty answer means no one in the workspace, so the copy must not say "with access".
+ */
+function emptyKey(searching: boolean, includeNoAccess: boolean) {
+  if (includeNoAccess) return searching ? ("noMatchMembers" as const) : ("noCandidatesMembers" as const);
+  return searching ? ("noMatch" as const) : ("noCandidates" as const);
+}
+
 /** One row of the listbox: a person, a message the user cannot pick, or Retry. */
 export type PickerRow =
   | { type: "person"; id: string; candidate: MentionCandidate }
-  | { type: "message"; id: string; key: "searching" | "noMatch" | "noCandidates" | "error" }
+  | { type: "message"; id: string; key: "searching" | "noMatch" | "noCandidates" | "noMatchMembers" | "noCandidatesMembers" | "error" }
   | { type: "retry"; id: string };
 
 interface Options {
@@ -117,7 +126,7 @@ export function useMentionPicker({
     }
     if (people.length > 0) return people;
     if (!query.isSuccess) return [{ type: "message", id: `${listboxId}-searching`, key: "searching" }];
-    return [{ type: "message", id: `${listboxId}-empty`, key: debounced ? "noMatch" : "noCandidates" }];
+    return [{ type: "message", id: `${listboxId}-empty`, key: emptyKey(debounced !== "", includeNoAccess) }];
   }, [candidates, debounced, listboxId, query.isError, query.isFetching, query.isSuccess, trigger]);
 
   // The first selectable row is marked whenever the rows change.

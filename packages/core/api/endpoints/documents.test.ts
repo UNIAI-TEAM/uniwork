@@ -7,7 +7,6 @@ import {
   canBreakGlassFromError,
   createDocument,
   createDocumentBreakGlass,
-  createDocumentComment,
   createDocumentFile,
   documentAssetPath,
   documentDownloadPath,
@@ -19,11 +18,9 @@ import {
   isBreakGlassReasonInvalidError,
   isBreakGlassRequiredError,
   isDocumentRestrictedError,
-  listDocumentMentionCandidates,
   parseDocumentAccessError,
   patchDocument,
   revokeDocumentBreakGlass,
-  updateDocumentComment,
   uploadDocumentAsset,
   uploadDocumentFile,
 } from "./documents";
@@ -375,147 +372,6 @@ describe("documents endpoints", () => {
     );
     const out = await listDocumentVersions("d1");
     expect(out.versions[0]?.reason).toBe("future_reason");
-  });
-
-  // ---- G8-18: mentions_without_access + mention-candidates can_view ------
-
-  it("createDocumentComment and updateDocumentComment parse mentions_without_access", async () => {
-    const commentWithMentions = {
-      id: "c1",
-      document_id: "d1",
-      author_id: "u1",
-      author_kind: "human",
-      body: "Xem giúp [@Bình](mention://member/u2) và [@Chi](mention://member/u3)",
-      type: "discussion",
-      kind: "discussion",
-      revision: 1,
-      created_at: "2026-10-15T01:00:00Z",
-      updated_at: "2026-10-15T01:00:00Z",
-      mentions_without_access: [
-        { user_id: "u2", display_name: "Trần Bình", can_share: true },
-        { user_id: "u3", can_share: false },
-      ],
-    };
-    vi.mocked(fetch).mockResolvedValueOnce(json({ comment: commentWithMentions }, 201));
-    const created = await createDocumentComment(
-      "d1",
-      { body: commentWithMentions.body },
-      { idempotencyKey: "k-c1" },
-    );
-    expect(created?.id).toBe("c1");
-    expect(created?.mentions_without_access).toEqual([
-      { user_id: "u2", display_name: "Trần Bình", can_share: true },
-      { user_id: "u3", can_share: false },
-    ]);
-
-    vi.mocked(fetch).mockResolvedValueOnce(
-      json({
-        comment: {
-          ...commentWithMentions,
-          revision: 2,
-          mentions_without_access: [{ user_id: "u2", display_name: "Trần Bình", can_share: false }],
-        },
-      }),
-    );
-    const updated = await updateDocumentComment("d1", "c1", { body: "Cập nhật" });
-    expect(updated?.revision).toBe(2);
-    expect(updated?.mentions_without_access).toEqual([
-      { user_id: "u2", display_name: "Trần Bình", can_share: false },
-    ]);
-  });
-
-  it("degrades malformed mentions_without_access without dropping the comment", async () => {
-    const baseComment = {
-      id: "c1",
-      document_id: "d1",
-      body: "Nội dung bình luận",
-      revision: 1,
-    };
-
-    // Non-array mentions_without_access degrades to [] while preserving the comment.
-    for (const badField of ["not-an-array", 42, { user_id: "u2" }, true]) {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        json({ comment: { ...baseComment, mentions_without_access: badField } }),
-      );
-      const out = await createDocumentComment("d1", { body: "Nội dung bình luận" });
-      expect(out?.id).toBe("c1");
-      expect(out?.mentions_without_access).toEqual([]);
-    }
-
-    // Malformed items inside mentions_without_access are dropped; valid items and
-    // items with a non-string display_name degrade gracefully.
-    vi.mocked(fetch).mockResolvedValueOnce(
-      json({
-        comment: {
-          ...baseComment,
-          mentions_without_access: [
-            { nope: true },
-            { user_id: "", can_share: true },
-            { user_id: "u2", can_share: "yes" },
-            { user_id: "u3", display_name: 12345, can_share: true },
-            { user_id: "u4", display_name: "Lê Dung", can_share: false },
-          ],
-        },
-      }),
-    );
-    const partial = await updateDocumentComment("d1", "c1", { body: "Nội dung bình luận" });
-    expect(partial?.id).toBe("c1");
-    expect(partial?.mentions_without_access).toEqual([
-      { user_id: "u3", can_share: true },
-      { user_id: "u4", display_name: "Lê Dung", can_share: false },
-    ]);
-  });
-
-  it("listDocumentMentionCandidates sends include=no_access and parses can_view", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      json({
-        candidates: [
-          { user_id: "u1", display_name: "Nguyễn An", can_view: true },
-          { user_id: "u2", display_name: "Trần Bình", can_view: false },
-          { user_id: "u3", display_name: "Lê Chi" },
-        ],
-      }),
-    );
-    const out = await listDocumentMentionCandidates("d1", {
-      q: "  an ",
-      limit: 15,
-      include: "no_access",
-    });
-    const [url] = vi.mocked(fetch).mock.calls[0]!;
-    expect(String(url)).toBe(
-      "http://api.test/api/v1/documents/d1/mention-candidates?q=an&limit=15&include=no_access",
-    );
-    expect(out).toEqual([
-      { user_id: "u1", display_name: "Nguyễn An", can_view: true },
-      { user_id: "u2", display_name: "Trần Bình", can_view: false },
-      { user_id: "u3", display_name: "Lê Chi", can_view: undefined },
-    ]);
-  });
-
-  it("degrades malformed can_view and malformed mention candidate rows safely", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      json({
-        candidates: [
-          { user_id: "u1", display_name: "An", can_view: "not-a-bool" },
-          { user_id: "", display_name: "Empty id", can_view: false },
-          { nope: true },
-          null,
-          { user_id: "u2", display_name: null, can_view: false },
-        ],
-      }),
-    );
-    const out = await listDocumentMentionCandidates("d1", { include: "no_access" });
-    expect(out).toEqual([
-      { user_id: "u1", display_name: "An", can_view: undefined },
-      { user_id: "u2", display_name: "", can_view: false },
-    ]);
-
-    for (const body of malformedBodies) {
-      vi.mocked(fetch).mockResolvedValueOnce(json(body));
-      await expect(
-        listDocumentMentionCandidates("d1", { include: "no_access" }),
-      ).resolves.toEqual([]);
-    }
   });
 
   // ---- DOC-05: break-glass + admin-summary + typed errors ----------------
