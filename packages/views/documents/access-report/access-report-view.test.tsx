@@ -146,9 +146,9 @@ describe("AccessReportView - report", () => {
     renderView();
 
     expect(await screen.findByRole("heading", { level: 1, name: t("documents.accessReport.title") })).toBeInTheDocument();
-    expect(screen.getByText(t("documents.accessReport.scope_folder", { path: "Hợp đồng" }))).toBeInTheDocument();
+    expect(await screen.findByText(t("documents.accessReport.scope_folder", { path: "Hợp đồng" }))).toBeInTheDocument();
 
-    const group = screen.getByRole("table", { name: "Hợp đồng ABC" });
+    const group = await screen.findByRole("table", { name: "Hợp đồng ABC" });
     expect(within(group).getAllByRole("row")).toHaveLength(3); // header + owner + workspace share
     const ownerLine = within(group).getAllByRole("row")[1]!;
     expect(within(ownerLine).getAllByRole("cell")[2]).toHaveTextContent(t("documents.accessReport.level_manage"));
