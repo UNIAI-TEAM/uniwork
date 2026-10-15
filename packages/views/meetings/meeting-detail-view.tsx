@@ -179,6 +179,7 @@ export function MeetingDetailView({
                 icon={RotateCcw}
                 label={t("meetings.restore")}
                 variant="outline"
+                aria-disabled={restore.isPending || undefined}
                 onClick={() =>
                   restore.mutate(
                     { meetingId, version: meeting.version },
