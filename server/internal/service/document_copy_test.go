@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -163,6 +164,36 @@ func TestDocumentCopy(t *testing.T) {
 			outsider := human(env.tn.outsider)
 			if _, err := env.svc.CopyDocument(ctx, outsider, src.Document.ID, CopyDocumentInput{Consent: "copy", IdempotencyKey: util.NewID()}); err == nil {
 				t.Fatal("a view-only member copied a restricted document")
+			}
+		})
+
+		// A copy is a create in the source's workspace: edit on the source
+		// through a share is not a seat in that workspace, so a share editor
+		// outside it is refused like CreateFileDocument refuses them (G5-12).
+		t.Run("a share editor outside the workspace cannot create the copy there", func(t *testing.T) {
+			src := env.createFile(t, member, "share-editor.md", []byte("# Chia se sua\n"))
+			if _, err := env.f.pool.Exec(ctx,
+				`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`,
+				src.Document.ID, env.tn.member.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.svc.ShareDocument(ctx, member, src.Document.ID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID, Level: DocumentLevelEdit,
+			}); err != nil {
+				t.Fatalf("share: %v", err)
+			}
+			outsider := human(env.tn.outsider)
+			// The share is real: the outsider may edit the source itself.
+			if _, _, err := env.svc.authorizeDocument(ctx, outsider, src.Document.ID, DocumentLevelEdit); err != nil {
+				t.Fatalf("share editor lost edit on the source: %v", err)
+			}
+			before := copyDocCount(t, env)
+			_, err := env.svc.CopyDocument(ctx, outsider, src.Document.ID, CopyDocumentInput{Consent: "copy", IdempotencyKey: util.NewID()})
+			if !errors.Is(err, ErrForbidden) {
+				t.Fatalf("share editor copy into a workspace they are not in = %v, want ErrForbidden", err)
+			}
+			if after := copyDocCount(t, env); after != before {
+				t.Fatal("a refused copy still wrote a document")
 			}
 		})
 	})

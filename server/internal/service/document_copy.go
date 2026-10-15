@@ -93,6 +93,12 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 	if src.OwnerID.Valid {
 		return DocumentFileResult{}, errOwnerRequiresCopy()
 	}
+	// The copy is a create in the source's workspace, so it needs the seat
+	// every create needs (CreateFileDocument, CreatePage): edit through a
+	// share is not one (G5-12).
+	if _, err := s.ws.RequireMember(ctx, src.WorkspaceID, actor.ID); err != nil {
+		return DocumentFileResult{}, err
+	}
 	if strings.TrimSpace(in.JobID) != "" {
 		in.JobID = strings.TrimSpace(in.JobID)
 		return s.acceptConversion(ctx, fs, actor, src, access, in)
@@ -145,6 +151,11 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 		}
 		if replay != nil {
 			res, err = replayWithAccess(replay.Body, lockedAccess)
+			return err
+		}
+		// Membership again, through the transaction: a removal that
+		// committed since the pre-flight wins.
+		if _, err := s.ws.RequireMemberQ(ctx, q, locked.WorkspaceID, actor.ID); err != nil {
 			return err
 		}
 		if locked.FileVersionID.String != current.ID {
