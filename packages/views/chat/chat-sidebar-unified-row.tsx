@@ -31,7 +31,6 @@ function DmPresenceAvatar({
   userId: string;
   label: string;
   memberAvatarByUserId: MemberAvatarUrlMap;
-  typingNameByUserId: Record<string, string>;
 }) {
   const online = usePresenceStore((state) => selectIsUserOnline(state, userId));
   return (

@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
 import { directRoomId, groupSharedItemsByMonth, groupsInCommon, sharedItemsFromMessages } from "./chat-person-shared";
 
+function file(
+  partial: Pick<NonNullable<ChatMessageRecord["file"]>, "filename" | "content_type" | "size_bytes"> &
+    Partial<NonNullable<ChatMessageRecord["file"]>>,
+): NonNullable<ChatMessageRecord["file"]> {
+  return { url: "", download_url: "", thumb_url: "", url_expires_at: "", ...partial };
+}
+
 function message(partial: Partial<ChatMessageRecord> & Pick<ChatMessageRecord, "id" | "body">): ChatMessageRecord {
   return {
     room_id: "room",
@@ -26,19 +33,19 @@ describe("sharedItemsFromMessages", () => {
         id: "p1",
         kind: "file",
         body: "a.jpg",
-        file: { filename: "a.jpg", content_type: "image/jpeg", size_bytes: 1, url: "https://files/a.jpg", thumb_url: "https://files/a-thumb.jpg" },
+        file: file({ filename: "a.jpg", content_type: "image/jpeg", size_bytes: 1, url: "https://files/a.jpg", thumb_url: "https://files/a-thumb.jpg" }),
       }),
       message({
         id: "g1",
         kind: "file",
         body: "b.gif",
-        file: { filename: "b.gif", content_type: "image/gif", size_bytes: 1, url: "https://files/b.gif" },
+        file: file({ filename: "b.gif", content_type: "image/gif", size_bytes: 1, url: "https://files/b.gif" }),
       }),
       message({
         id: "f1",
         kind: "file",
         body: "note.pdf",
-        file: { filename: "note.pdf", content_type: "application/pdf", size_bytes: 1, download_url: "https://files/note.pdf" },
+        file: file({ filename: "note.pdf", content_type: "application/pdf", size_bytes: 1, download_url: "https://files/note.pdf" }),
       }),
       message({ id: "m1", body: "![gif:vỗ tay](https://media.example/v.gif)" }),
       message({ id: "m2", body: "![sticker:ăn mừng](https://media.example/s.webp)" }),
@@ -46,7 +53,7 @@ describe("sharedItemsFromMessages", () => {
         id: "v1",
         kind: "file",
         body: "clip.mp4",
-        file: { filename: "clip.mp4", content_type: "video/mp4", size_bytes: 1, url: "https://files/clip.mp4" },
+        file: file({ filename: "clip.mp4", content_type: "video/mp4", size_bytes: 1, url: "https://files/clip.mp4" }),
       }),
       message({ id: "m3", body: "xem https://uniwork.vn/docs nhé" }),
     ]);
@@ -65,14 +72,14 @@ describe("sharedItemsFromMessages", () => {
         sender_id: "u2",
         kind: "file",
         body: "a.jpg",
-        file: { filename: "a.jpg", content_type: "image/jpeg", size_bytes: 1 },
+        file: file({ filename: "a.jpg", content_type: "image/jpeg", size_bytes: 1 }),
       }),
       message({
         id: "theirs",
         sender_id: "u9",
         kind: "file",
         body: "b.jpg",
-        file: { filename: "b.jpg", content_type: "image/jpeg", size_bytes: 1 },
+        file: file({ filename: "b.jpg", content_type: "image/jpeg", size_bytes: 1 }),
       }),
     ];
     expect(sharedItemsFromMessages(messages, "u2").photo.map((item) => item.id)).toEqual(["mine"]);

@@ -211,6 +211,7 @@ export function PersonSharedSection({
       <SharedRows
         counts={{
           photo: shared.photo.length,
+          video: shared.video.length,
           file: shared.file.length,
           link: shared.link.length,
           gif: shared.gif.length,
