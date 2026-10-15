@@ -165,6 +165,36 @@ export const keyTagsOf = (entries) => [...new Set(entries.map((e) => e.keyTag).f
 /** True when the upstream server answered (not dropped / reset / synthetic / held-only). */
 export const reachedUpstream = (entry) => Number.isInteger(entry?.status);
 
+/**
+ * Every sync request of the document in log order (uploads, commit POSTs,
+ * commit lookups), each reduced to what a FAIL needs to be read without the
+ * raw log: kind, ts, method, status, keyTag, ruleId.
+ */
+export function syncRequests(log, documentId = null) {
+  const kindOf = (e) => (UPLOAD_PATH.test(e.path) ? "upload" : e.method === "GET" ? "lookup" : "commit");
+  return log
+    .filter((e) => forDoc(e, documentId) && (
+      (e.method === "POST" && (COMMIT_PATH.test(e.path) || UPLOAD_PATH.test(e.path))) || (e.method === "GET" && COMMIT_PATH.test(e.path))))
+    .map((e) => ({ kind: kindOf(e), ts: e.ts ?? null, method: e.method, status: e.status ?? null, keyTag: e.keyTag ?? null, ruleId: e.ruleId ?? null }));
+}
+
+/** The evidence a run's result carries: the full intent trace and the sync requests of its document. */
+export const runEvidenceOf = (traceLines, log, documentId) => ({
+  documentId: documentId ?? null,
+  trace: traceLines.map((l) => ({ ts: l.ts, intentId: l.intentId, from: l.from ?? null, to: l.to, ...(l.code ? { code: l.code } : {}), ...(l.httpStatus ? { httpStatus: l.httpStatus } : {}) })),
+  requests: documentId ? syncRequests(log, documentId) : [],
+});
+
+/** Printable lines of a FAIL run's evidence (empty for any other result). */
+export function failEvidenceLines(caseId, run) {
+  if (run?.result !== "FAIL" || !run.evidence) return [];
+  const head = `${caseId}${run.label ? ` [${run.label}]` : ""}`;
+  return [
+    ...run.evidence.trace.map((l) => `  ${head} trace ${l.ts} ${l.from ?? "∅"} -> ${l.to}${l.code ? ` code=${l.code}` : ""}${l.httpStatus ? ` http=${l.httpStatus}` : ""}`),
+    ...run.evidence.requests.map((r) => `  ${head} proxy ${r.ts} ${r.kind} ${r.method} ${r.status ?? "-"} key=${r.keyTag ?? "-"} rule=${r.ruleId ?? "-"}`),
+  ];
+}
+
 // ---- results ----------------------------------------------------------------
 
 /** One run per exit of a multi-exit row; a row without `exits` is one run. */
@@ -174,7 +204,7 @@ export function expandExits(row) {
 }
 
 /** Result of one run: BLOCKED when a blocker is named, else PASS only when every assertion holds. */
-export function runResult({ label = null, assertions = [], blocker = null, predicted = null }) {
+export function runResult({ label = null, assertions = [], blocker = null, predicted = null, evidence = null }) {
   const result = blocker ? "BLOCKED" : assertions.length > 0 && assertions.every((a) => a.ok === true) ? "PASS" : "FAIL";
   return {
     label,
@@ -182,6 +212,7 @@ export function runResult({ label = null, assertions = [], blocker = null, predi
     assertions,
     ...(blocker ? { blocker: String(blocker) } : {}),
     ...(predicted && result === "FAIL" ? { predicted } : {}),
+    ...(evidence ? { evidence } : {}),
   };
 }
 

@@ -1,4 +1,4 @@
-/* global process, fetch, FormData, Blob, AbortSignal */
+/* global process, fetch, FormData, Blob, AbortSignal, Buffer */
 // The D server side of the app-layer fault runner (UNI-1380, WI-4): the
 // accounts, the tenant, device B's commits and the real server conditions
 // (revoke, archive, deactivate, suspend, flag override) a case sets and lifts.
@@ -39,9 +39,46 @@ export async function dRequest(apiOrigin, path, { method = "GET", token, headers
   }
 }
 
+// ---- held sessions --------------------------------------------------------------
+// The server's access token lives 15 minutes and is not configurable
+// (`AccessTokenTTL`, server/internal/config/config.go:255), while one app run
+// takes ~30 minutes. Every runner-held account (owner, app, foreign) is
+// therefore renewed by signing in again: before a request once its token is
+// TOKEN_RENEW_AFTER_MS old, and once more on a 401. The refresh route reads an
+// HttpOnly cookie, so a fresh sign-in is the simpler equal path.
+export const ACCESS_TOKEN_TTL_MS = 15 * 60_000;
+export const TOKEN_RENEW_AFTER_MS = 10 * 60_000;
+
+const canRenew = (account) => Boolean(account?.password && account?.email);
+
+function holdToken(account, token, now) {
+  account.token = token;
+  account.tokenAt = now;
+}
+
+/**
+ * A request as a runner-held `account`: renewed first when its token is old,
+ * and on a 401 renewed ONCE and retried ONCE (a second 401 is returned as is,
+ * never looped). An account without a password (a test stub) is never renewed.
+ */
+export async function authedRequest(apiOrigin, path, { as: account, ...options } = {}, { now = Date.now, renew = login } = {}) {
+  if (!account) return dRequest(apiOrigin, path, options);
+  if (canRenew(account) && now() - (account.tokenAt ?? 0) >= TOKEN_RENEW_AFTER_MS) await renew(apiOrigin, account, { now });
+  const first = await dRequest(apiOrigin, path, { ...options, token: account.token });
+  if (first.status !== 401 || !canRenew(account)) return first;
+  await renew(apiOrigin, account, { now });
+  return dRequest(apiOrigin, path, { ...options, token: account.token });
+}
+
+/** The account's bearer token, renewed first when it is old (for helpers that take a raw token). */
+export async function freshToken(apiOrigin, account, { now = Date.now, renew = login } = {}) {
+  if (canRenew(account) && now() - (account.tokenAt ?? 0) >= TOKEN_RENEW_AFTER_MS) await renew(apiOrigin, account, { now });
+  return account.token;
+}
+
 /** Throws a TenantError naming the step, method, path template and status. */
 async function must(step, apiOrigin, path, options, okStatuses = [200, 201, 202, 204], template = path) {
-  const res = await dRequest(apiOrigin, path, options);
+  const res = await authedRequest(apiOrigin, path, options);
   if (!okStatuses.includes(res.status)) {
     const code = res.body?.error?.code ?? res.body?.code ?? "";
     throw new TenantError(`${step}: ${options?.method ?? "GET"} ${template} -> ${res.status}${code ? ` ${code}` : ""}`);
@@ -62,27 +99,86 @@ export async function seedAccount(apiOrigin, tag, { verificationCode = "123456" 
   const userId = reg?.user?.id;
   if (!token || !userId) throw new TenantError(`register ${tag}: no access token or user id in the answer`);
   await must("verify email", apiOrigin, "/api/v1/me/email/verify", { method: "POST", token, json: { code: verificationCode } });
-  const account = { tag, email, userId, token };
+  const account = { tag, email, userId, token, tokenAt: Date.now() };
   // the password stays in memory for re-login, never in the object's JSON
   Object.defineProperty(account, "password", { value: password, enumerable: false });
   return account;
 }
 
-export async function login(apiOrigin, account) {
+/**
+ * Signs `account` in again. An account with MFA on answers `{mfa_required,
+ * mfa_token}` (handler/identity.go:44); the second step sends the TOTP code the
+ * runner computes from the secret it enrolled (`totpSecret`, never printed).
+ */
+export async function login(apiOrigin, account, { now = Date.now } = {}) {
   const res = await must("login", apiOrigin, "/api/v1/auth/login", { method: "POST", json: { email: account.email, password: account.password } });
-  account.token = res?.access_token ?? account.token;
+  let session = res;
+  if (res?.mfa_required) {
+    if (!account.totpSecret) throw new TenantError("login: MFA required but the runner holds no TOTP secret for the account");
+    session = await must("login mfa", apiOrigin, "/api/v1/auth/mfa/verify", {
+      method: "POST", json: { mfa_token: res.mfa_token, code: totpCode(account.totpSecret, now()) },
+    });
+  }
+  if (!session?.access_token) throw new TenantError("login: no access token in the answer");
+  holdToken(account, session.access_token, now());
   return account.token;
+}
+
+// ---- TOTP (RFC 6238 SHA-1, 6 digits, 30 s: server/internal/auth/totp.go) ----------
+
+const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+export function base32Decode(text) {
+  const clean = String(text ?? "").toUpperCase().replace(/[\s=]/g, "");
+  let bits = 0;
+  let value = 0;
+  const out = [];
+  for (const ch of clean) {
+    const idx = B32.indexOf(ch);
+    if (idx < 0) throw new TenantError("totp: bad base32 secret");
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(out);
+}
+
+/** The 6-digit TOTP code for a base32 secret at `nowMs`. */
+export function totpCode(secret, nowMs = Date.now(), digits = 6) {
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(nowMs / 30_000)));
+  const sum = crypto.createHmac("sha1", base32Decode(secret)).update(counter).digest();
+  const offset = sum[sum.length - 1] & 0x0f;
+  const code = (sum.readUInt32BE(offset) & 0x7fffffff) % 10 ** digits;
+  return String(code).padStart(digits, "0");
+}
+
+/**
+ * Turns MFA on for `account` through the product's own enrolment
+ * (`POST /me/mfa/setup` then `/me/mfa/confirm`, service/mfa.go): a platform
+ * role holder without MFA is refused every admin route with 403 mfa_required
+ * (middleware/platform_role.go:36). The secret stays in memory only.
+ */
+export async function enrollTotp(apiOrigin, account, { now = Date.now } = {}) {
+  if (account.totpSecret) return;
+  const setup = await must("mfa setup", apiOrigin, "/api/v1/me/mfa/setup", { method: "POST", as: account, json: {} });
+  if (!setup?.secret) throw new TenantError("mfa setup: no secret in the answer");
+  await must("mfa confirm", apiOrigin, "/api/v1/me/mfa/confirm", { method: "POST", as: account, json: { code: totpCode(setup.secret, now()) } });
+  Object.defineProperty(account, "totpSecret", { value: setup.secret, enumerable: false, configurable: true });
 }
 
 /** An organization + workspace owned by `owner`. */
 export async function seedOrgWorkspace(apiOrigin, owner, label) {
   const slug = `${label}-${Date.now().toString(36)}-${crypto.randomBytes(2).toString("hex")}`.toLowerCase();
   const org = await must("create organization", apiOrigin, "/api/v1/orgs", {
-    method: "POST", token: owner.token, json: { name: `G7-03a ${label}`, slug: `o-${slug}` },
+    method: "POST", as: owner, json: { name: `G7-03a ${label}`, slug: `o-${slug}` },
   });
   const orgId = org?.organization?.id;
   const ws = await must("create workspace", apiOrigin, `/api/v1/orgs/${orgId}/workspaces`, {
-    method: "POST", token: owner.token, json: { name: `G7-03a ${label}`, slug: `w-${slug}` },
+    method: "POST", as: owner, json: { name: `G7-03a ${label}`, slug: `w-${slug}` },
   }, undefined, "/api/v1/orgs/{org}/workspaces");
   return { orgId, orgSlug: org?.organization?.slug, workspaceId: ws?.workspace?.id };
 }
@@ -90,13 +186,13 @@ export async function seedOrgWorkspace(apiOrigin, owner, label) {
 /** Invites `member` into the workspace and accepts as them (also re-adds after a removal). */
 export async function addWorkspaceMember(apiOrigin, tenant, member, role = "member") {
   await must("invite member", apiOrigin, `/api/v1/workspaces/${tenant.workspaceId}/invitations`, {
-    method: "POST", token: tenant.owner.token, json: { emails: [member.email], role },
+    method: "POST", as: tenant.owner, json: { emails: [member.email], role },
   }, undefined, "/api/v1/workspaces/{workspaceID}/invitations");
-  const mine = await must("list my invitations", apiOrigin, "/api/v1/me/invitations", { token: member.token });
+  const mine = await must("list my invitations", apiOrigin, "/api/v1/me/invitations", { as: member });
   const pending = (mine?.invitations ?? []).find((inv) => inv.workspace?.id === tenant.workspaceId);
   if (!pending?.token) return false;
   await must("accept invitation", apiOrigin, `/api/v1/invitations/${pending.token}/accept`, {
-    method: "POST", token: member.token, json: {},
+    method: "POST", as: member, json: {},
   }, undefined, "/api/v1/invitations/{token}/accept");
   return true;
 }
@@ -123,7 +219,7 @@ export async function createFileDocument(tenant, fixture, title) {
   form.set("file", new Blob([fixture.bytes], { type: fixture.mime || "application/octet-stream" }), basename(fixture.path));
   form.set("title", title);
   const created = await must("create file document", tenant.apiOrigin, `/api/v1/workspaces/${tenant.workspaceId}/documents/files`, {
-    method: "POST", token: tenant.owner.token, form,
+    method: "POST", as: tenant.owner, form,
   }, undefined, "/api/v1/workspaces/{workspaceID}/documents/files");
   const doc = created?.document;
   if (!doc?.id) throw new TenantError("create file document: no document in the answer");
@@ -131,7 +227,7 @@ export async function createFileDocument(tenant, fixture, title) {
 }
 
 export async function headRevision(tenant, documentId) {
-  const res = await must("read document", tenant.apiOrigin, `/api/v1/documents/${documentId}`, { token: tenant.owner.token },
+  const res = await must("read document", tenant.apiOrigin, `/api/v1/documents/${documentId}`, { as: tenant.owner },
     undefined, "/api/v1/documents/{documentID}");
   return String(res?.document?.revision ?? "");
 }
@@ -143,11 +239,11 @@ export async function deviceBCommit(tenant, documentId, fixture) {
   form.set("file", new Blob([fixture.bytes], { type: fixture.mime || "application/octet-stream" }), basename(fixture.path));
   const upKey = `g7-03a-b-up-${crypto.randomUUID()}`;
   const up = await must("device B upload", tenant.apiOrigin, `/api/v1/documents/${documentId}/uploads`, {
-    method: "POST", token: tenant.owner.token, headers: { "Idempotency-Key": upKey }, form,
+    method: "POST", as: tenant.owner, headers: { "Idempotency-Key": upKey }, form,
   }, undefined, "/api/v1/documents/{documentID}/uploads");
-  const commit = await dRequest(tenant.apiOrigin, `/api/v1/documents/${documentId}/versions/commit`, {
+  const commit = await authedRequest(tenant.apiOrigin, `/api/v1/documents/${documentId}/versions/commit`, {
     method: "POST",
-    token: tenant.owner.token,
+    as: tenant.owner,
     headers: { "Idempotency-Key": `g7-03a-b-commit-${crypto.randomUUID()}` },
     json: { upload_id: up?.upload_id, base_revision: String(base) },
   });
@@ -158,20 +254,20 @@ export async function deviceBCommit(tenant, documentId, fixture) {
 
 export const removeAppFromWorkspace = (tenant) =>
   must("remove member", tenant.apiOrigin, `/api/v1/workspaces/${tenant.workspaceId}/members/${tenant.app.userId}`,
-    { method: "DELETE", token: tenant.owner.token }, undefined, "/api/v1/workspaces/{workspaceID}/members/{userID}");
+    { method: "DELETE", as: tenant.owner }, undefined, "/api/v1/workspaces/{workspaceID}/members/{userID}");
 export const readdAppToWorkspace = (tenant) => addWorkspaceMember(tenant.apiOrigin, tenant, tenant.app);
 export const archiveDocument = (tenant, documentId) =>
   must("archive document", tenant.apiOrigin, `/api/v1/documents/${documentId}/archive`,
-    { method: "POST", token: tenant.owner.token }, undefined, "/api/v1/documents/{documentID}/archive");
+    { method: "POST", as: tenant.owner }, undefined, "/api/v1/documents/{documentID}/archive");
 export const restoreDocument = (tenant, documentId) =>
   must("restore document", tenant.apiOrigin, `/api/v1/documents/${documentId}/restore`,
-    { method: "POST", token: tenant.owner.token }, undefined, "/api/v1/documents/{documentID}/restore");
+    { method: "POST", as: tenant.owner }, undefined, "/api/v1/documents/{documentID}/restore");
 export const deactivateApp = (tenant) =>
   must("deactivate member", tenant.apiOrigin, `/api/v1/orgs/${tenant.orgId}/members/${tenant.app.userId}/deactivate`,
-    { method: "POST", token: tenant.owner.token }, undefined, "/api/v1/orgs/{org}/members/{userID}/deactivate");
+    { method: "POST", as: tenant.owner }, undefined, "/api/v1/orgs/{org}/members/{userID}/deactivate");
 export const reactivateApp = (tenant) =>
   must("reactivate member", tenant.apiOrigin, `/api/v1/orgs/${tenant.orgId}/members/${tenant.app.userId}/reactivate`,
-    { method: "POST", token: tenant.owner.token }, undefined, "/api/v1/orgs/{org}/members/{userID}/reactivate");
+    { method: "POST", as: tenant.owner }, undefined, "/api/v1/orgs/{org}/members/{userID}/reactivate");
 
 const ADMIN_REASON = "G7-03a fault runner (UNI-1380) test condition";
 
@@ -195,37 +291,62 @@ export function grantPlatformAdmin({ repoRoot, databaseUrl, email }) {
 
 export const suspendOrg = (tenant) =>
   must("suspend organization", tenant.apiOrigin, `/api/v1/admin/organizations/${tenant.orgId}/suspend`,
-    { method: "POST", token: tenant.owner.token, json: { reason: ADMIN_REASON } }, undefined, "/api/v1/admin/organizations/{orgID}/suspend");
+    { method: "POST", as: tenant.owner, json: { reason: ADMIN_REASON } }, undefined, "/api/v1/admin/organizations/{orgID}/suspend");
 export const unsuspendOrg = (tenant) =>
   must("unsuspend organization", tenant.apiOrigin, `/api/v1/admin/organizations/${tenant.orgId}/unsuspend`,
-    { method: "POST", token: tenant.owner.token, json: { reason: ADMIN_REASON } }, undefined, "/api/v1/admin/organizations/{orgID}/unsuspend");
+    { method: "POST", as: tenant.owner, json: { reason: ADMIN_REASON } }, undefined, "/api/v1/admin/organizations/{orgID}/unsuspend");
 export const setSyncWrite = (tenant, enabled) =>
   must("office_sync_write override", tenant.apiOrigin, "/api/v1/admin/flags/office_sync_write/overrides", {
-    method: "PUT", token: tenant.owner.token,
+    method: "PUT", as: tenant.owner,
     json: { scope_type: "organization", scope_id: tenant.orgId, enabled, reason: ADMIN_REASON },
   }, undefined, "/api/v1/admin/flags/{key}/overrides");
 export const clearSyncWrite = (tenant) =>
   must("office_sync_write override delete", tenant.apiOrigin, "/api/v1/admin/flags/office_sync_write/overrides", {
-    method: "DELETE", token: tenant.owner.token,
+    method: "DELETE", as: tenant.owner,
     json: { scope_type: "organization", scope_id: tenant.orgId, reason: ADMIN_REASON },
   }, [200, 204, 404], "/api/v1/admin/flags/{key}/overrides");
 
 /**
  * FQ-24's test setup (OQ-F3, agreed by the lead): expires the upload claims the
  * app staged in this run's organization, in the run's own database, through
- * psql. Returns `{rows}` or `{blocker}` when psql is missing.
+ * psql (table and columns: server/migrations/951_file_upload_sessions.up.sql).
+ * Returns `{rows}` (>= 1) or `{blocker}`: a setup that did not age a claim
+ * (no psql, a psql error, 0 rows) is BLOCKED, never a product FAIL. r4 read
+ * `undefined` here because `-q` drops the `UPDATE n` tag; the count now comes
+ * from a CTE.
  */
-export function expireStagedClaims({ databaseUrl, orgId }) {
+export function expireStagedClaims({ databaseUrl, orgId }, { run = spawnSync } = {}) {
   if (!databaseUrl) return { blocker: "no DATABASE_URL in the run's server.env" };
-  if (!/^[0-9A-Za-z]+$/.test(orgId)) return { blocker: "organization id is not a ULID" };
-  const sql = `UPDATE file_upload_sessions SET claim_expires_at = clock_timestamp() - interval '1 second' `
-    + `WHERE organization_id = '${orgId}' AND status = 'staged' AND claim_expires_at IS NOT NULL`;
-  const res = spawnSync("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1", "-qAt", "-c", sql], { encoding: "utf8", timeout: 60_000 });
+  if (!/^[0-9A-Za-z]+$/.test(String(orgId ?? ""))) return { blocker: "organization id is not a ULID" };
+  const sql = "WITH aged AS (UPDATE file_upload_sessions SET claim_expires_at = clock_timestamp() - interval '1 second' "
+    + `WHERE organization_id = '${orgId}' AND status = 'staged' AND claim_expires_at IS NOT NULL RETURNING 1) `
+    + "SELECT count(*) FROM aged";
+  const res = run("psql", [psqlUrl(databaseUrl), "-v", "ON_ERROR_STOP=1", "-qAt", "-c", sql], { encoding: "utf8", timeout: 60_000 });
   if (res.error?.code === "ENOENT") return { blocker: "psql is not on PATH (FQ-24 expires the upload claim in the run's database)" };
-  if (res.status !== 0) return { error: `psql exited ${res.status}` };
-  const match = /UPDATE (\d+)/.exec(res.stdout ?? "");
-  return { rows: match ? Number(match[1]) : null };
+  if (res.error || res.status !== 0) {
+    const detail = redactUrls(String(res.stderr ?? res.error?.message ?? "").trim().split(/\r?\n/)[0] ?? "");
+    return { blocker: `setup claim_expired_in_run_db: psql exited ${res.status ?? res.error?.code ?? "?"}${detail ? `: ${detail}` : ""}` };
+  }
+  const last = String(res.stdout ?? "").trim().split(/\r?\n/).at(-1);
+  const rows = /^\d+$/.test(last) ? Number(last) : null;
+  if (rows === null) return { blocker: "setup claim_expired_in_run_db: psql printed no row count" };
+  if (rows < 1) return { blocker: `setup claim_expired_in_run_db: 0 staged upload claims of organization ${orgId} to age` };
+  return { rows };
 }
+
+/** libpq refuses pgx-only URI parameters (pool_max_conns, …) that server.env may carry. */
+export function psqlUrl(databaseUrl) {
+  try {
+    const url = new URL(databaseUrl);
+    for (const key of [...url.searchParams.keys()]) if (/^pool_/.test(key)) url.searchParams.delete(key);
+    return url.toString();
+  } catch {
+    return databaseUrl;
+  }
+}
+
+/** Removes the credentials of any connection URL from a message. */
+export const redactUrls = (text) => String(text).replace(/([a-z][a-z0-9+.-]*:\/\/)[^@\s/]+@/gi, "$1<redacted>@");
 
 // ---- desktop sign-in (consent approved by the account, straight to D) -------------
 
@@ -235,9 +356,9 @@ export function expireStagedClaims({ databaseUrl, orgId }) {
  */
 export async function approveDesktopAttempt(apiOrigin, account, attemptId) {
   const consent = await must("desktop consent", apiOrigin, `/api/v1/auth/desktop/authorize?attempt_id=${encodeURIComponent(attemptId)}`,
-    { token: account.token }, undefined, "/api/v1/auth/desktop/authorize");
+    { as: account }, undefined, "/api/v1/auth/desktop/authorize");
   const result = await must("desktop approve", apiOrigin, "/api/v1/auth/desktop/authorize", {
-    method: "POST", token: account.token, json: { attempt_id: attemptId, csrf_token: consent?.csrf_token, decision: "approve" },
+    method: "POST", as: account, json: { attempt_id: attemptId, csrf_token: consent?.csrf_token, decision: "approve" },
   });
   if (!result?.callback_url) throw new TenantError("desktop approve: no callback URL in the answer");
   return result.callback_url;

@@ -27,11 +27,13 @@ import { DEFAULT_FORK_SHA, harnessPaths, isMainModule, readStartStatus, startGat
 import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
 import { BLOCKED_DRIVERS, EXTRA_EXITS } from "./app-case-drivers-blocked.mjs";
 import {
-  BLOCKED_EXIT_CODE, blockedCase, caseResult, envFileValue, expandExits, filterTrace, parseProxyLog, parseTraceText,
-  predictedTag, runExitCode, runResult, selectAppCases,
+  BLOCKED_EXIT_CODE, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
+  parseTraceText, predictedTag, runEvidenceOf, runExitCode, runResult, selectAppCases,
 } from "./app-cases-lib.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
-import { clearSyncWrite, createFileDocument, grantPlatformAdmin, login, seedAppTenant, setSyncWrite } from "./app-tenant.mjs";
+import {
+  clearSyncWrite, createFileDocument, enrollTotp, freshToken, grantPlatformAdmin, login, seedAppTenant, setSyncWrite,
+} from "./app-tenant.mjs";
 import { collectServerVersions } from "./collect.mjs";
 import { startFaultProxy } from "./proxy.mjs";
 import { validateRules } from "./rules.mjs";
@@ -156,13 +158,14 @@ async function runOne({ row, run, runs, caseDir, shared }) {
     return filterTrace(parseTraceText(raw).lines, docId);
   };
   const proxyLogRaw = async () => (await fetch(`${proxy.origin}/__fault/log`)).text();
+  const ownerToken = () => freshToken(tenant.apiOrigin, tenant.owner);
   const ctx = {
     row, run, tenant, fixture, kind: kindOf(fixture), marker: `G703A${row.id.replace("-", "")}X${run.index}`,
     databaseUrl, sleep, waitFor, sha256File,
     now: () => new Date().toISOString(),
     newDocument: async () => {
       const doc = await createFileDocument(tenant, fixture, `${row.id} run ${run.index}`);
-      docs.set(doc.id, await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: tenant.owner.token, documentId: doc.id }));
+      docs.set(doc.id, await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: doc.id }));
       return doc;
     },
     launch: async ({ stuckAfterMs, recheckMs, requireSignIn = true } = {}) => {
@@ -204,11 +207,11 @@ async function runOne({ row, run, runs, caseDir, shared }) {
         && (!wanted || wanted.includes(l.to)) && (!from || l.from === from)) ?? null, timeout, 500);
     },
     versionDelta: async (docId) => {
-      const after = await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: tenant.owner.token, documentId: docId });
+      const after = await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: docId });
       return after.versions.length - (docs.get(docId)?.versions.length ?? 0);
     },
     newestVersion: async (docId) => {
-      const after = await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: tenant.owner.token, documentId: docId });
+      const after = await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: docId });
       return [...after.versions].sort((a, b) => Number(b.version) - Number(a.version))[0] ?? null;
     },
     ensureAdmin: () => shared.ensureAdmin(),
@@ -226,15 +229,17 @@ async function runOne({ row, run, runs, caseDir, shared }) {
     for (const session of sessions) await closeApp(session).catch(() => {});
     await fetch(`${proxy.origin}/__fault/rules`, { method: "DELETE" }).catch(() => {});
   }
-  const result = runResult({ label: run.label, assertions: outcome.assertions, blocker: outcome.blocker, predicted: predictedFor(row, run.label) });
   const docId = outcome.documentId ?? [...docs.keys()][0] ?? null;
   const traceLines = docId ? readTrace(docId) : [];
+  const proxyRaw = await proxyLogRaw().catch(() => "");
+  const evidence = runEvidenceOf(traceLines, parseProxyLog(proxyRaw), docId);
+  const result = runResult({ label: run.label, assertions: outcome.assertions, blocker: outcome.blocker, predicted: predictedFor(row, run.label), evidence });
   writeFileSync(join(runDirOut, "intent-log.jsonl"), traceLines.map((l) => JSON.stringify(l)).join("\n") + (traceLines.length ? "\n" : ""));
-  writeFileSync(join(runDirOut, "proxy-log.jsonl"), await proxyLogRaw().catch(() => ""));
+  writeFileSync(join(runDirOut, "proxy-log.jsonl"), proxyRaw);
   if (docId) {
     writeJson(join(runDirOut, "server-versions.before.json"), docs.get(docId) ?? null);
     writeJson(join(runDirOut, "server-versions.json"),
-      await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: tenant.owner.token, documentId: docId }).catch((e) => ({ error: e.message })));
+      await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: docId }).catch((e) => ({ error: e.message })));
   } else writeJson(join(runDirOut, "server-versions.json"), { documentId: null, versions: [] });
   if (runs > 1) writeJson(join(runDirOut, "result.json"), { case: row.id, exit: run.index, ...result });
   return result;
@@ -270,7 +275,17 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
       ensureAdmin: async () => {
         if (admin === undefined) {
           admin = grantPlatformAdmin({ repoRoot: REPO_ROOT, databaseUrl: serverEnv.DATABASE_URL, email: tenant.owner.email });
-          if (!admin) await login(ports.API_ORIGIN, tenant.owner);
+          // a platform role without MFA is refused every admin route (403
+          // mfa_required): enrol TOTP through the product's own API, then sign in
+          // again with the second factor
+          if (!admin) {
+            try {
+              await enrollTotp(ports.API_ORIGIN, tenant.owner);
+              await login(ports.API_ORIGIN, tenant.owner);
+            } catch (error) {
+              admin = `platform admin MFA enrolment: ${error.message}`;
+            }
+          }
         }
         return admin;
       },
@@ -286,6 +301,8 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
       }
       const result = finishCase(row, caseResult(row, runResults), caseDir, runDir, forkSha);
       process.stdout.write(`${row.id}: ${result.result}${result.predicted ? ` (predicted ${result.predicted})` : ""}\n`);
+      // a FAIL is read from the log: its full trace and sync requests, not a truncated dump
+      for (const run of runResults) for (const text of failEvidenceLines(row.id, run)) process.stdout.write(`${text}\n`);
       results.push(result);
     }
     return { results, blockedResults, exitCode: runExitCode(results) };

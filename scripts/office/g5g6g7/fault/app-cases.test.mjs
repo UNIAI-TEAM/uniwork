@@ -13,11 +13,14 @@ import { parseAppCasesArgs } from "./app-cases.mjs";
 import {
   BLOCKED_EXIT_CODE, assertEntersWithCode, assertNeverState, assertStatePath, attemptIdFromAuthorizationUrl,
   blockedCase, caseResult, commitLookups, commitPosts, descendantPids, documentWrites, envFileValue, expandExits,
-  faultAppExtraEnv, filterTrace, intentIdsOf, keyTagsOf, lastEntry, logSince, matchStatePath, parseProxyLog,
-  parseTraceText, predictedTag, reachedUpstream, runExitCode, runResult, selectAppCases, statePath,
-  syncStoreScopeDir, uploadPosts,
+  failEvidenceLines, faultAppExtraEnv, filterTrace, intentIdsOf, keyTagsOf, lastEntry, logSince, matchStatePath,
+  parseProxyLog, parseTraceText, predictedTag, reachedUpstream, runEvidenceOf, runExitCode, runResult,
+  selectAppCases, statePath, syncRequests, syncStoreScopeDir, uploadPosts,
 } from "./app-cases-lib.mjs";
-import { deviceBCommit } from "./app-tenant.mjs";
+import {
+  ACCESS_TOKEN_TTL_MS, TOKEN_RENEW_AFTER_MS, authedRequest, base32Decode, deviceBCommit, enrollTotp,
+  expireStagedClaims, freshToken, login, psqlUrl, totpCode,
+} from "./app-tenant.mjs";
 import { loadFaultCases } from "./server-cases-lib.mjs";
 
 const DOC = "01JDOCAAAAAAAAAAAAAAAAAAAA";
@@ -243,4 +246,155 @@ test("deviceBCommit sends base_revision as a decimal string, like CommitDocument
   } finally {
     server.close();
   }
+});
+
+// ---- FIX-4: held sessions, admin MFA, FQ-22 evidence, FQ-24 setup -------------------
+
+/** A stub D server: `handler(req, body)` -> [status, json]; records every request. */
+async function stubServer(handler) {
+  const seen = [];
+  const server = createServer((req, res) => {
+    let raw = "";
+    req.on("data", (c) => { raw += c; });
+    req.on("end", () => {
+      const body = raw ? JSON.parse(raw) : null;
+      seen.push({ method: req.method, url: req.url, auth: req.headers.authorization ?? null, body });
+      const [status, json] = handler(req, body);
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(JSON.stringify(json));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  return { origin: `http://127.0.0.1:${server.address().port}`, seen, close: () => server.close() };
+}
+
+const heldAccount = (token, tokenAt) => {
+  const account = { email: "a@example.com", token, tokenAt };
+  Object.defineProperty(account, "password", { value: "pw", enumerable: false });
+  return account;
+};
+
+test("authedRequest renews an expired session once on a 401 and retries once", async () => {
+  const srv = await stubServer((req) => (req.headers.authorization === "Bearer new" ? [200, { ok: true }] : [401, { error: { code: "unauthorized" } }]));
+  try {
+    const account = heldAccount("old", Date.now());
+    let renewals = 0;
+    const renew = async (_origin, acc) => { renewals += 1; acc.token = "new"; acc.tokenAt = Date.now(); };
+    const res = await authedRequest(srv.origin, "/api/v1/x", { as: account }, { renew });
+    assert.equal(res.status, 200);
+    assert.equal(renewals, 1);
+    assert.deepEqual(srv.seen.map((r) => r.auth), ["Bearer old", "Bearer new"]);
+  } finally {
+    srv.close();
+  }
+});
+
+test("authedRequest never loops: a second 401 is returned after one renewal", async () => {
+  const srv = await stubServer(() => [401, { error: { code: "unauthorized" } }]);
+  try {
+    const account = heldAccount("old", Date.now());
+    let renewals = 0;
+    const renew = async (_origin, acc) => { renewals += 1; acc.token = `t${renewals}`; acc.tokenAt = Date.now(); };
+    const res = await authedRequest(srv.origin, "/api/v1/x", { as: account }, { renew });
+    assert.equal(res.status, 401);
+    assert.equal(renewals, 1);
+    assert.equal(srv.seen.length, 2);
+  } finally {
+    srv.close();
+  }
+});
+
+test("a session older than the renew window is renewed before the request; a stub without password never is", async () => {
+  const srv = await stubServer(() => [200, {}]);
+  try {
+    let renewals = 0;
+    const renew = async (_origin, acc) => { renewals += 1; acc.token = "fresh"; acc.tokenAt = 0; };
+    const now = () => 1_000_000_000;
+    const account = heldAccount("stale", now() - TOKEN_RENEW_AFTER_MS);
+    await authedRequest(srv.origin, "/api/v1/x", { as: account }, { renew, now });
+    assert.equal(renewals, 1);
+    assert.equal(srv.seen[0].auth, "Bearer fresh");
+    assert.ok(TOKEN_RENEW_AFTER_MS < ACCESS_TOKEN_TTL_MS);
+    assert.equal(await freshToken(srv.origin, heldAccount("young", now() - 1_000), { renew, now }), "young");
+    await authedRequest(srv.origin, "/api/v1/x", { as: { token: "t" } }, { renew, now });
+    assert.equal(renewals, 1);
+  } finally {
+    srv.close();
+  }
+});
+
+test("totpCode matches the RFC 6238 SHA-1 vectors", () => {
+  const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"; // base32("12345678901234567890")
+  assert.equal(base32Decode(secret).toString(), "12345678901234567890");
+  assert.equal(totpCode(secret, 59_000, 8), "94287082");
+  assert.equal(totpCode(secret, 1111111109_000, 8), "07081804");
+  assert.equal(totpCode(secret, 59_000), "287082");
+  assert.throws(() => base32Decode("01!"), /bad base32/);
+});
+
+test("login completes the MFA step with the enrolled secret; enrollTotp confirms with a live code", async () => {
+  const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+  const now = () => 59_000;
+  const srv = await stubServer((req) => {
+    if (req.url === "/api/v1/me/mfa/setup") return [200, { secret, otpauth_url: "otpauth://x" }];
+    if (req.url === "/api/v1/me/mfa/confirm") return [200, { recovery_codes: [] }];
+    if (req.url === "/api/v1/auth/login") return [200, { mfa_required: true, mfa_token: "m1" }];
+    if (req.url === "/api/v1/auth/mfa/verify") return [200, { access_token: "after-mfa" }];
+    return [404, {}];
+  });
+  try {
+    const account = heldAccount("t0", Date.now());
+    await enrollTotp(srv.origin, account, { now });
+    assert.equal(JSON.stringify(account).includes(secret), false, "the secret never lands in the account JSON");
+    await login(srv.origin, account, { now });
+    assert.equal(account.token, "after-mfa");
+    const confirm = srv.seen.find((r) => r.url === "/api/v1/me/mfa/confirm");
+    const verify = srv.seen.find((r) => r.url === "/api/v1/auth/mfa/verify");
+    assert.equal(confirm.body.code, "287082");
+    assert.deepEqual(verify.body, { mfa_token: "m1", code: "287082" });
+    await assert.rejects(login(srv.origin, heldAccount("t", 0)), /no TOTP secret/);
+  } finally {
+    srv.close();
+  }
+});
+
+test("expireStagedClaims reports the aged row count and BLOCKS a setup that aged nothing", () => {
+  const ok = (stdout) => () => ({ status: 0, stdout, stderr: "" });
+  const args = { databaseUrl: "postgres://u:secret@h:5432/db?sslmode=disable&pool_max_conns=4", orgId: "01JORGAAAAAAAAAAAAAAAAAAAA" };
+  let argv;
+  assert.deepEqual(expireStagedClaims(args, { run: (_cmd, a) => { argv = a; return { status: 0, stdout: "1\n" }; } }), { rows: 1 });
+  assert.equal(argv[0], "postgres://u:secret@h:5432/db?sslmode=disable");
+  assert.match(argv.at(-1), /WITH aged AS \(UPDATE file_upload_sessions .* RETURNING 1\) SELECT count\(\*\) FROM aged/);
+  assert.match(expireStagedClaims(args, { run: ok("0\n") }).blocker, /0 staged upload claims/);
+  assert.match(expireStagedClaims(args, { run: ok("") }).blocker, /no row count/);
+  const failed = expireStagedClaims(args, { run: () => ({ status: 2, stdout: "", stderr: "psql: error: connection to postgres://u:secret@h/db failed\nmore" }) });
+  assert.equal(failed.blocker, "setup claim_expired_in_run_db: psql exited 2: psql: error: connection to postgres://<redacted>@h/db failed");
+  assert.match(expireStagedClaims(args, { run: () => ({ error: { code: "ENOENT" } }) }).blocker, /psql is not on PATH/);
+  assert.match(expireStagedClaims({ ...args, orgId: "x'; drop" }).blocker, /not a ULID/);
+  assert.equal(psqlUrl("not a url"), "not a url");
+});
+
+test("a run's evidence carries the full trace and every sync request; FAIL runs print them", () => {
+  const log = parseProxyLog([
+    JSON.stringify({ ts: "t1", method: "POST", path: `/api/v1/documents/${DOC}/uploads`, status: 201, keyTag: "k1", ruleId: null }),
+    JSON.stringify({ ts: "t2", method: "POST", path: `/api/v1/documents/${DOC}/versions/commit`, status: 200, keyTag: "k1", ruleId: "lose-commit-answer" }),
+    JSON.stringify({ ts: "t3", method: "GET", path: `/api/v1/documents/${DOC}/versions/commit`, status: 200, keyTag: "k1", ruleId: null }),
+    JSON.stringify({ ts: "t4", method: "GET", path: `/api/v1/documents/${DOC}`, status: 200 }),
+    JSON.stringify({ ts: "t5", method: "POST", path: `/api/v1/documents/${OTHER}/versions/commit`, status: 200, keyTag: "k9" }),
+  ].join("\n"));
+  const reqs = syncRequests(log, DOC);
+  assert.deepEqual(reqs.map((r) => `${r.kind}:${r.status}:${r.keyTag}:${r.ruleId}`), ["upload:201:k1:null", "commit:200:k1:lose-commit-answer", "lookup:200:k1:null"]);
+  const trace = [{ ts: "a", intentId: "i1", from: null, to: "queued" }, { ts: "b", intentId: "i1", from: "queued", to: "paused_offline", code: "network" }];
+  const evidence = runEvidenceOf(trace, log, DOC);
+  assert.equal(evidence.trace.length, 2);
+  assert.equal(evidence.trace[1].code, "network");
+  assert.deepEqual(runEvidenceOf(trace, log, null).requests, []);
+  const failed = runResult({ label: "x", assertions: [{ name: "a", expected: 1, actual: 2, ok: false }], evidence });
+  assert.equal(failed.evidence, evidence);
+  const lines = failEvidenceLines("FQ-22", failed);
+  assert.equal(lines.length, 5);
+  assert.match(lines[1], /FQ-22 \[x\] trace b queued -> paused_offline code=network/);
+  assert.match(lines[3], /proxy t2 commit POST 200 key=k1 rule=lose-commit-answer/);
+  assert.deepEqual(failEvidenceLines("FQ-22", runResult({ assertions: [{ name: "a", expected: 1, actual: 1, ok: true }], evidence })), []);
+  assert.ok(caseResult({ id: "FQ-22", ac: [] }, [failed]).exits[0].evidence, "result.json keeps each exit evidence");
 });

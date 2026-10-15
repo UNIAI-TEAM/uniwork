@@ -145,6 +145,7 @@ async function fq24(ctx) {
   const held = await ctx.waitHeld("hold-before-commit", 60_000);
   if (!held) return { documentId: doc.id, assertions: [assertion("commit_held", "held", "never", false)] };
   const expired = expireStagedClaims({ databaseUrl: ctx.databaseUrl, orgId: ctx.tenant.orgId });
+  // a setup that did not age a claim proves nothing about F4: BLOCKED, not FAIL
   if (expired.blocker) {
     await ctx.release("hold-before-commit");
     return { documentId: doc.id, assertions: [], blocker: expired.blocker };
@@ -158,7 +159,7 @@ async function fq24(ctx) {
   return {
     documentId: doc.id,
     assertions: [
-      assertion("claim_expired_in_run_db", ">= 1 row", expired.rows ?? expired.error, (expired.rows ?? 0) >= 1),
+      assertion("claim_expired_in_run_db", ">= 1 row", expired.rows, expired.rows >= 1),
       assertion("first_commit_409_upload_invalid", 409, posts[0]?.status ?? null, posts[0]?.status === 409),
       oneIntent(lines),
       assertStatePath("client_path", lines, ["*", "reconciling", "queued", "*", "committed"]),
