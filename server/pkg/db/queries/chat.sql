@@ -329,6 +329,20 @@ UPDATE chat_room_members
 SET send_restricted = $3, updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 
+-- name: CarryOverChatRoomMemberSendRestricted :exec
+-- tenant: parent room_id
+-- A self-join keeps the read-only mark of the user's latest 'left' row, so
+-- leaving and joining again does not lift a moderator's restriction.
+UPDATE chat_room_members m
+SET send_restricted = true, updated_at = now()
+WHERE m.room_id = $1 AND m.user_id = $2 AND m.status = 'active'
+  AND (
+    SELECT l.send_restricted FROM chat_room_members l
+    WHERE l.room_id = $1 AND l.user_id = $2 AND l.status = 'left'
+    ORDER BY l.left_at DESC NULLS LAST, l.created_at DESC
+    LIMIT 1
+  );
+
 -- name: UpdateChatRoomMemberRole :exec
 -- tenant: parent room_id
 UPDATE chat_room_members

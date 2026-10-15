@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"testing"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestChatChannelsCreateJoinDiscover(t *testing.T) {
@@ -238,5 +240,56 @@ func TestJoinPublicChannelAfterLeavingTwice(t *testing.T) {
 	if n := count(`SELECT count(*) FROM audit_events WHERE action = 'chat.room.member_added' AND resource_id = $1
 		AND metadata::jsonb->>'member_id' = $2 AND metadata::jsonb->>'via' = 'join'`); n != 1 {
 		t.Fatalf("join audit rows = %d, want 1", n)
+	}
+}
+
+func TestJoinChannelKeepsSendRestriction(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "ops-readonly", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	restrict := func(on bool) {
+		t.Helper()
+		if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+			RoomID: ch.ID, UserID: ub.ID, SendRestricted: on,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	leaveAndJoin := func() bool {
+		t.Helper()
+		if err := s.LeaveChatRoom(ctx, ub.ID, w.ID, ch.ID); err != nil {
+			t.Fatalf("leave: %v", err)
+		}
+		if _, err := s.JoinChannel(ctx, ub.ID, w.ID, ch.ID); err != nil {
+			t.Fatalf("join: %v", err)
+		}
+		m, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: ch.ID, UserID: ub.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m.SendRestricted
+	}
+
+	// A read-only member cannot lift the mark by leaving and joining again.
+	restrict(true)
+	if !leaveAndJoin() {
+		t.Fatal("rejoin cleared send_restricted")
+	}
+	// Two 'left' rows now exist; only the latest one decides.
+	restrict(false)
+	if leaveAndJoin() {
+		t.Fatal("rejoin took send_restricted from an older left row")
+	}
+	restrict(true)
+	if !leaveAndJoin() {
+		t.Fatal("rejoin ignored the latest left row's send_restricted")
 	}
 }

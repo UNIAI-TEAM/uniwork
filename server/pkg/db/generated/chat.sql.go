@@ -101,6 +101,31 @@ func (q *Queries) BumpChatThreadReplyStats(ctx context.Context, arg BumpChatThre
 	return i, err
 }
 
+const carryOverChatRoomMemberSendRestricted = `-- name: CarryOverChatRoomMemberSendRestricted :exec
+UPDATE chat_room_members m
+SET send_restricted = true, updated_at = now()
+WHERE m.room_id = $1 AND m.user_id = $2 AND m.status = 'active'
+  AND (
+    SELECT l.send_restricted FROM chat_room_members l
+    WHERE l.room_id = $1 AND l.user_id = $2 AND l.status = 'left'
+    ORDER BY l.left_at DESC NULLS LAST, l.created_at DESC
+    LIMIT 1
+  )
+`
+
+type CarryOverChatRoomMemberSendRestrictedParams struct {
+	RoomID string `json:"room_id"`
+	UserID string `json:"user_id"`
+}
+
+// tenant: parent room_id
+// A self-join keeps the read-only mark of the user's latest 'left' row, so
+// leaving and joining again does not lift a moderator's restriction.
+func (q *Queries) CarryOverChatRoomMemberSendRestricted(ctx context.Context, arg CarryOverChatRoomMemberSendRestrictedParams) error {
+	_, err := q.db.Exec(ctx, carryOverChatRoomMemberSendRestricted, arg.RoomID, arg.UserID)
+	return err
+}
+
 const createChatFileMessage = `-- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,

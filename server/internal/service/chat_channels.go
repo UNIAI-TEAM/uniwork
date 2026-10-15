@@ -371,6 +371,11 @@ func (s *ChatService) JoinChannel(ctx context.Context, userID, workspaceID, room
 	if !added { // a concurrent join already added the row
 		return s.channelSummaryFromRoom(ctx, userID, room, 0)
 	}
+	if err := q.CarryOverChatRoomMemberSendRestricted(ctx, db.CarryOverChatRoomMemberSendRestrictedParams{
+		RoomID: roomID, UserID: userID,
+	}); err != nil {
+		return ChatRoomSummary{}, err
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID,
 		Actor:        audit.User(userID),
