@@ -623,3 +623,14 @@ test("runG8A02 closed-panel Save that moves the anchor: that check PASS, the res
   assert.equal(record.steps["check:closed-panel-save"].status, "PASS", JSON.stringify(record.details.closedPanel));
   assert.equal(record.status, "BLOCKED", "only R1 is left");
 });
+
+test("runG8A02 asks for the editor page that shows each document by path (two documents of one kind are open)", async () => {
+  const fake = createFakeWorld();
+  scriptXlsxServer(fake);
+  await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  const asked = fake.calls.app.filter((c) => c.key === "editorPage").map((c) => c.args);
+  assert.deepEqual(asked, [
+    ["sheets", { path: CLOSED_PATH, documentId: CLOSED_DOC }],
+    ["sheets", { path: "/wc/doc.xlsx", documentId: "doc-1" }],
+  ]);
+});

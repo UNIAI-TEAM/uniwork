@@ -18,6 +18,7 @@ import {
   mentionBody,
   mentionToken,
   normalizeRowText,
+  openOnDesktop,
   rowsForComment,
   runInbox,
   titleKeyFor,
@@ -325,4 +326,14 @@ test("runInbox G8-A06: the REST comments carry anchor + base_version_id; a serve
   const reason = artifact("G8-A06").reason;
   assert.match(reason, /400 anchor_version_invalid: phiên bản neo không hợp lệ/);
   assert.doesNotMatch(reason, /object Object/);
+});
+
+test("openOnDesktop asks the app for the editor page that shows the opened path (harness §14), never the first page of the kind", async () => {
+  const fake = createFakeWorld();
+  fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
+  fake.script.respond("app.openByTicket", (call) => ({ path: "/wc/second.docx", documentId: call.args[1]?.documentId, kind: "docs" }));
+  const ctrl = await fake.app.connectApp({});
+  const opened = await openOnDesktop(ctrl, fake.world, "A", "doc-2", "docx");
+  assert.equal(opened.path, "/wc/second.docx");
+  assert.deepEqual(fake.calls.app.filter((c) => c.key === "editorPage").map((c) => c.args), [["docs", { path: "/wc/second.docx", documentId: "doc-2" }]]);
 });
