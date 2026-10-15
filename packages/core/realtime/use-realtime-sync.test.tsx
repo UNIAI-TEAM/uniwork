@@ -1158,7 +1158,6 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["documents", "ws1"]),
         JSON.stringify(["chat", "room-members", "ws1"]),
         JSON.stringify(["chat", "follow-ups", "ws1"]),
-        JSON.stringify(["chat", "room-message-links", "ws1"]),
         JSON.stringify(["chat", "followed-threads", "ws1"]),
         JSON.stringify(["chat", "channels", "ws1"]),
         JSON.stringify(["chat", "project-channels", "ws1"]),

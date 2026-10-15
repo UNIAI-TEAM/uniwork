@@ -22,11 +22,11 @@ export function allWorkspaceKeys(wsId: string) {
     taskKeys.projects(wsId),
     chatKeys.rooms(wsId),
     chatKeys.room(wsId),
-    // Open room timelines refresh their newest page instead (refreshLoadedRoomTimelines).
+    // Open room timelines refresh their newest page and room task links are
+    // emptied instead (refreshLoadedRoomTimelines).
     // Roots, not the builders: those append filters and would miss variants.
     ["chat", "room-members", wsId],
     chatKeys.followUps(wsId),
-    chatKeys.roomMessageLinksRoot(wsId),
     ["chat", "followed-threads", wsId],
     ["chat", "channels", wsId],
     ["chat", "project-channels", wsId],

@@ -239,9 +239,14 @@ export function catchUpOnChatSubscribeAck(
  * After a reconnect: a shown timeline refreshes its newest page, one nobody
  * shows is marked stale. A read `after` the newest message would miss the
  * edits, deletes and reactions made to loaded ones while the socket was down
- * (UNI-1662); older pages are dropped as on reopening the room.
+ * (UNI-1662); older pages are dropped as on reopening the room. Room link
+ * caches are emptied too: they only fetch ids they lack, so invalidating them
+ * would hand back the same stale links.
  */
 export function refreshLoadedRoomTimelines(qc: QueryClient, wsId: string): void {
+  qc.setQueriesData<Map<string, unknown[]>>({ queryKey: chatKeys.roomMessageLinksRoot(wsId) }, (links) =>
+    links?.size ? new Map() : links,
+  );
   for (const [queryKey, data] of qc.getQueriesData({ queryKey: chatKeys.roomMessagesRoot(wsId) })) {
     const roomId = queryKey[3];
     if (data === undefined || typeof roomId !== "string" || !roomId) continue;
