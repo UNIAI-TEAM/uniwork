@@ -154,7 +154,7 @@ export interface OfficeFrameClient {
   content(downloadUrl: string, signal?: AbortSignal): Promise<Blob>;
   upload(documentId: string, file: Blob, filename: string, idempotencyKey?: string): Promise<OfficeFrameUpload | null>;
   /** Save. A stale base rejects with ApiError status 409 code document_version_conflict. */
-  commit(documentId: string, body: { upload_id: string; base_revision: string }, idempotencyKey?: string): Promise<OfficeFrameDocument | null>;
+  commit(documentId: string, body: { upload_id: string; base_revision: string; edit_lock_id?: string }, idempotencyKey?: string): Promise<OfficeFrameDocument | null>;
   recents(documentId: string, limit?: number): Promise<OfficeFrameRecents>;
   uploadAsset(documentId: string, file: Blob, filename: string, idempotencyKey?: string): Promise<OfficeFrameAsset | null>;
   signAssets(documentId: string, assetIds: string[]): Promise<OfficeFrameAssetUrls>;

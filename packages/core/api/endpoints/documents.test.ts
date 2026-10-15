@@ -226,6 +226,13 @@ describe("documents endpoints", () => {
     await restoreDocumentVersion("d1", 1, { baseRevision: "43" });
     const [, initWithBase] = vi.mocked(fetch).mock.calls[1]!;
     expect(JSON.parse(String(initWithBase?.body))).toEqual({ base_revision: "43" });
+    // UNI-1645: a restore replaces content, so it carries the edit lock.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ revision: "45" }), version: versionBody({ reason: "restore" }) }),
+    );
+    await restoreDocumentVersion("d1", 1, { editLockId: "lock-1" });
+    const [, initWithLock] = vi.mocked(fetch).mock.calls[2]!;
+    expect(JSON.parse(String(initWithLock?.body))).toEqual({ edit_lock_id: "lock-1" });
   });
 
   it("getDocumentDownloadMeta requests meta=1 and keeps version", async () => {

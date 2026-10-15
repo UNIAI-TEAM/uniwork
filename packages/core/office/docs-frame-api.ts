@@ -40,6 +40,10 @@ export interface DocsFrameCall {
   documentId: string;
   token: string;
   signal: AbortSignal;
+  /** The host's live edit lock on this document (UNI-1645), acquired with the
+   *  session through R2 — never through the frame token. A save commits with
+   *  it; absent means the host holds no lock. */
+  editLockId?: string;
 }
 
 /**
@@ -237,7 +241,7 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       const upload = await client.upload(payload.fileId, new Blob([payload.data], { type: mimeType }), current.file.filename, `${key}:upload`);
       if (!upload) throw malformed("office-frame upload");
       try {
-        const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision }, `${key}:commit`);
+        const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision, ...(call.editLockId ? { edit_lock_id: call.editLockId } : {}) }, `${key}:commit`);
         if (!doc) throw malformed("office-frame commit");
         return { ok: true, file: fileMeta(doc), versionId: doc.file.version_id };
       } catch (error) {

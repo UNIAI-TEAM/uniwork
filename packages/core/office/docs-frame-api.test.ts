@@ -99,6 +99,17 @@ describe("createDocsFrameApi", () => {
     expect(header(commit!.init, "Idempotency-Key")).toMatch(/:commit$/);
   });
 
+  it("commits with the host's edit lock id when the call carries one (UNI-1645)", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    await createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, { ...call(), editLockId: "lock-1" });
+    const commit = calls.find((c) => c.path.endsWith("/versions/commit"));
+    expect(JSON.parse(String(commit?.init.body))).toEqual({ upload_id: "up-1", base_revision: "7", edit_lock_id: "lock-1" });
+  });
+
   it("refuses a save with no etag instead of rebasing onto the newest revision", async () => {
     const { fetch, calls } = fakeFetch({});
     await expect(createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4) }, call())).rejects.toMatchObject({ code: "malformed" });
