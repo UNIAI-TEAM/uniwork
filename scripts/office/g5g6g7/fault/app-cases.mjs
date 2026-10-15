@@ -31,6 +31,7 @@ import {
   BLOCKED_EXIT_CODE, appTraceArtifacts, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
   parseTraceText, predictedFor, runEvidenceOf, runExitCode, runResult, selectAppCases,
 } from "./app-cases-lib.mjs";
+import { guardCaseResult, harnessDownReason } from "./app-process-guard.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
   causeSuffix, clearSyncWrite, createFileDocument, enrollTotp, freshToken, grantPlatformAdmin, login, runnerApiOrigin, seedAppTenant, setSyncWrite,
@@ -121,6 +122,30 @@ function emitEvidence(row, caseDir, runDir, forkSha, env = process.env) {
   }
 }
 
+/**
+ * The harness guard (FIX-6): probes the D server's /healthz; null while it is
+ * up, else the BLOCKED reason with what server.log and the pids file say.
+ */
+async function harnessDown(runnerApi, runDir) {
+  const paths = harnessPaths(runDir);
+  let probe;
+  try {
+    const res = await fetch(`${runnerApi}/healthz`, { signal: AbortSignal.timeout(5_000) });
+    probe = { ok: res.ok, status: res.ok ? null : res.status };
+  } catch (error) {
+    probe = { ok: false, error: `${error.message}${causeSuffix(error)}` };
+  }
+  if (probe.ok) return null;
+  const serverLog = join(paths.logDir, "server.log");
+  let serverLogText = "";
+  try {
+    serverLogText = existsSync(serverLog) ? readFileSync(serverLog, "utf8") : "";
+  } catch {
+    // the reason still names the failed probe
+  }
+  return harnessDownReason({ ...probe, serverLogText, pidFilePresent: existsSync(paths.pidFile) });
+}
+
 function verifyRecorded({ caseId, runDir }) {
   const file = join(runDir, "fault", String(caseId ?? ""), "result.json");
   if (!existsSync(file)) {
@@ -172,7 +197,7 @@ async function runOne({ row, run, runs, caseDir, shared }) {
     launch: async ({ stuckAfterMs, recheckMs, requireSignIn = true } = {}) => {
       const session = await launchApp({
         playwright, ports, proxyOrigin: proxy.origin, userDataDir: join(appDir, "userdata"), traceFile,
-        stuckAfterMs, recheckMs, logFile: join(appDir, "app.log"),
+        stuckAfterMs, recheckMs, logFile: join(appDir, "app.log"), harnessPidFile: harnessPaths(runDir).pidFile,
       });
       sessions.push(session);
       if (!requireSignIn) return session;
@@ -297,15 +322,29 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
       },
     };
     const results = [];
+    let downReason = null;
     for (const row of runnable) {
       const caseDir = join(runDir, "fault", row.id);
+      // the guard before the case: a dead harness server makes this and every later row BLOCKED, never a FAIL
+      downReason = downReason ?? (await harnessDown(runnerApi, runDir));
+      if (downReason) {
+        const result = finishCase(row, blockedCase(row, downReason), caseDir, runDir, forkSha);
+        process.stdout.write(`${row.id}: BLOCKED — ${downReason}\n`);
+        results.push(result);
+        continue;
+      }
       const runs = [...expandExits(row), ...(EXTRA_EXITS[row.id] ?? []).map((exit, i) => ({ index: (row.exits?.length ?? 0) + i + 1, label: exit.exit, exit }))];
       const runResults = [];
       for (const run of runs) {
+        // a multi-exit row stops at the first exit that would start against a dead server
+        if (run !== runs[0] && (await harnessDown(runnerApi, runDir))) break;
         process.stdout.write(`${row.id}${runs.length > 1 ? ` [${run.index}/${runs.length}] ${run.label}` : ""}: running\n`);
         runResults.push(await runOne({ row, run, runs: runs.length, caseDir, shared }));
       }
-      const result = finishCase(row, caseResult(row, runResults), caseDir, runDir, forkSha);
+      // the guard after the case: a server that died during it leaves no FAIL to read
+      downReason = await harnessDown(runnerApi, runDir);
+      const result = finishCase(row, guardCaseResult(caseResult(row, runResults), downReason, { complete: runResults.length === runs.length }), caseDir, runDir, forkSha);
+      if (downReason) process.stdout.write(`HARNESS_DOWN after ${row.id}: ${downReason}; no further app row runs\n`);
       process.stdout.write(`${row.id}: ${result.result}${result.predicted ? ` (predicted ${result.predicted})` : ""}\n`);
       // a FAIL is read from the log: its full trace and sync requests, not a truncated dump
       for (const run of runResults) for (const text of failEvidenceLines(row.id, run)) process.stdout.write(`${text}\n`);

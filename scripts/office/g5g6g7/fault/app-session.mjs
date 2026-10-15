@@ -13,13 +13,16 @@
 // the real way, as a second instance with the URL in argv.
 //
 // Nothing here kills by name: a crash kills exactly the process tree of the
-// Electron this module launched (its pid and every descendant of it).
+// Electron this module launched (its pid and every descendant of it), only while
+// that pid is still this runner's own child, and never a pid or process group
+// the harness recorded in its pids file (app-process-guard.mjs, FIX-6).
 
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { appEnv } from "../harness/lib.mjs";
-import { attemptIdFromAuthorizationUrl, descendantPids, faultAppExtraEnv } from "./app-cases-lib.mjs";
+import { attemptIdFromAuthorizationUrl, faultAppExtraEnv } from "./app-cases-lib.mjs";
+import { crashTargets, harnessPidsFromFile, ownGroupTarget } from "./app-process-guard.mjs";
 import { approveDesktopAttempt } from "./app-tenant.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -42,7 +45,7 @@ export async function waitFor(probe, timeoutMs, intervalMs = 250) {
  * Launches the fork app. `ports` is the harness run's ports.env (Electron
  * binary, app dir, display); `options.extra` adds env to the fault env.
  */
-export async function launchApp({ playwright, ports, proxyOrigin, userDataDir, traceFile, stuckAfterMs, recheckMs, logFile }) {
+export async function launchApp({ playwright, ports, proxyOrigin, userDataDir, traceFile, stuckAfterMs, recheckMs, logFile, harnessPidFile = null }) {
   mkdirSync(userDataDir, { recursive: true });
   const settings = join(userDataDir, "app-settings.json");
   if (!existsSync(settings)) writeFileSync(settings, JSON.stringify({ onboardingSeen: true }));
@@ -76,7 +79,8 @@ export async function launchApp({ playwright, ports, proxyOrigin, userDataDir, t
     60_000,
   );
   if (!ready) throw new Error("the app's shell window never exposed window.aiOffice");
-  return { app, shell, pid: proc.pid, env, ports, userDataDir };
+  // the pid Playwright spawned from this process: the only root a crash may signal
+  return { app, shell, pid: proc.pid, runnerPid: process.pid, harnessPidFile, env, ports, userDataDir };
 }
 
 /** The shell's account status (`{loggedIn, state, ...}`), or null when the call fails. */
@@ -94,8 +98,10 @@ export function handoffUrl(session, url, timeoutMs = 30_000) {
       stdio: "ignore",
     });
     const timer = setTimeout(() => {
+      // the group of the instance spawned here (detached: its own group), never another
+      const group = ownGroupTarget(child.pid);
       try {
-        process.kill(-child.pid, "SIGKILL");
+        if (group !== null) process.kill(group, "SIGKILL");
       } catch {
         // already gone
       }
@@ -250,12 +256,24 @@ export async function save(session, doc) {
   await doc.editor.keyboard.press("ControlOrMeta+s");
 }
 
-/** Crash: SIGKILL the Electron this module launched and every descendant of it. */
+/** The harness's recorded pids (server, web, app, handoff): fenced off from every crash. */
+function harnessPids(session) {
+  try {
+    return session.harnessPidFile && existsSync(session.harnessPidFile) ? harnessPidsFromFile(readFileSync(session.harnessPidFile, "utf8")) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Crash: SIGKILL the Electron this module launched and every descendant of it,
+ * nothing else (crashTargets: still our child, no harness pid or group).
+ */
 export function crash(session) {
   if (session.dead) return 0;
   session.dead = true;
-  const ps = spawnSync("ps", ["-eo", "pid=,ppid="], { encoding: "utf8" });
-  const pids = [...descendantPids(ps.stdout ?? "", session.pid).reverse(), session.pid];
+  const ps = spawnSync("ps", ["-eo", "pid=,ppid=,pgid="], { encoding: "utf8" });
+  const pids = crashTargets(ps.stdout ?? "", { root: session.pid, runnerPid: session.runnerPid ?? process.pid, protectedPids: harnessPids(session) });
   for (const pid of pids) {
     try {
       process.kill(pid, "SIGKILL");
