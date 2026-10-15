@@ -212,9 +212,14 @@ func errDocumentLocked(live db.DocumentEditLock, holderName string, heldByMe boo
 
 // errEditLockLost is 409 edit_lock_lost: the tenure the caller named ended or
 // is not theirs. by_id/by_name name the new holder only for a take-over or a
-// handover (contract §11).
+// handover (contract §11). A live tenure of another account has no end
+// reason, so the answer carries no reason and no holder: clients show their
+// generic dialog.
 func errEditLockLost(reason, byID, byName string) error {
-	fields := map[string]any{"reason": reason}
+	fields := map[string]any{}
+	if reason != "" {
+		fields["reason"] = reason
+	}
 	if byID != "" && (reason == DocumentEditEndTakenOver || reason == DocumentEditEndHandedOver) {
 		fields["by_id"], fields["by_name"] = byID, byName
 	}

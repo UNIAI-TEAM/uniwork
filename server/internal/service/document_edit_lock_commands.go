@@ -425,6 +425,68 @@ func (s *DocumentService) lostAnswer(ctx context.Context, q *db.Queries, lock db
 	return errEditLockLost(reason, next.UserID, name)
 }
 
+// foreignLostAnswer is edit_lock_lost for an R3 that named a tenure of
+// another account. A tenure that ended or ran out answers exactly as a lost
+// tenure of the caller does. A live tenure has no end reason: the answer
+// names taken_over or handed_over, with the live holder, only when the chain
+// of previous_lock_id links shows this tenure replaced one of the caller's;
+// a caller who never held the document gets no reason and no holder, so the
+// client shows its generic dialog (contract §11) and the live holder stays
+// private.
+func (s *DocumentService) foreignLostAnswer(ctx context.Context, actor Actor, lock db.DocumentEditLock) error {
+	now, err := editLockClock(ctx, s.q)
+	if err != nil {
+		return err
+	}
+	if !editLockLive(lock, now) {
+		return s.lostAnswer(ctx, s.q, lock)
+	}
+	reason, err := s.replacedCallerReason(ctx, actor.ID, lock)
+	if err != nil {
+		return err
+	}
+	if reason == "" {
+		return errEditLockLost("", "", "")
+	}
+	name, err := userDisplayName(ctx, s.q, lock.UserID)
+	if err != nil {
+		return err
+	}
+	return errEditLockLost(reason, lock.UserID, name)
+}
+
+// editLockPredecessorWalkMax bounds the previous_lock_id walk: a tenure chain
+// is a short history of take-overs and handovers, not a graph to traverse
+// without end.
+const editLockPredecessorWalkMax = 8
+
+// replacedCallerReason follows the chain of tenures that leads to lock and
+// returns the end reason of the caller's own tenure in it (taken_over or
+// handed_over). An empty reason means the chain does not show the tenure
+// replaced one of the caller's.
+func (s *DocumentService) replacedCallerReason(ctx context.Context, actorID string, lock db.DocumentEditLock) (string, error) {
+	prev := lock.PreviousLockID
+	for hops := 0; prev.Valid && hops < editLockPredecessorWalkMax; hops++ {
+		row, err := s.q.GetDocumentEditLock(ctx, db.GetDocumentEditLockParams{
+			ID: prev.String, OrganizationID: lock.OrganizationID, DocumentID: lock.DocumentID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", nil
+		}
+		if err != nil {
+			return "", err
+		}
+		if row.UserID == actorID {
+			if row.EndReason.Valid && (row.EndReason.String == DocumentEditEndTakenOver || row.EndReason.String == DocumentEditEndHandedOver) {
+				return row.EndReason.String, nil
+			}
+			return "", nil
+		}
+		prev = row.PreviousLockID
+	}
+	return "", nil
+}
+
 // HeartbeatDocumentEditLock is R3. The level is recomputed every call (edge
 // 3): a caller the document gate now refuses, or who fell below edit, loses
 // the tenure (access_lost, or the closed tenant's own reason) and gets the
@@ -466,7 +528,7 @@ func (s *DocumentService) HeartbeatDocumentEditLock(ctx context.Context, actor A
 	if lock.UserID != actor.ID {
 		// Not the caller's tenure (contract §3 R3): lost, never 404, so a
 		// stale editor of another account learns the same as a stale holder.
-		return DocumentEditHeartbeat{}, s.lostAnswer(ctx, s.q, lock)
+		return DocumentEditHeartbeat{}, s.foreignLostAnswer(ctx, actor, lock)
 	}
 	beat, err := s.q.HeartbeatDocumentEditLock(ctx, db.HeartbeatDocumentEditLockParams{
 		TtlMs: s.EditLockConfig().TTL.Milliseconds(), ID: lock.ID, OrganizationID: lock.OrganizationID,
