@@ -275,7 +275,12 @@ async function runOne({ row, run, runs, caseDir, shared }) {
   return result;
 }
 
-export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_CASES_PATH } = {}) {
+/**
+ * `deps` lets a test stand in for what needs a live stack (Playwright, the
+ * /healthz probes, the tenant seed); the run itself uses the real ones.
+ */
+export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_CASES_PATH, deps = {} } = {}) {
+  const { loadPlaywright: load = loadPlaywright, preconditions: precheck = preconditions, harnessDown: probe = harnessDown, seedAppTenant: seed = seedAppTenant } = deps;
   const { runnable, blocked } = selectAppCases(loadFaultCases(casesPath), { caseId });
   const ports = readEnvFile(harnessPaths(runDir).envFile);
   const serverEnv = readEnvFile(join(runDir, "server.env"));
@@ -290,8 +295,8 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
     const results = runnable.map((row) => finishCase(row, caseResult(row, [failed]), join(runDir, "fault", row.id), runDir, forkSha));
     return { results, blockedResults, exitCode: runExitCode(results) };
   }
-  const playwright = loadPlaywright();
-  const blocker = await preconditions({ runDir, ports, playwright });
+  const playwright = load();
+  const blocker = await precheck({ runDir, ports, playwright });
   if (blocker) {
     const results = runnable.map((row) => finishCase(row, blockedCase(row, blocker), join(runDir, "fault", row.id), runDir, forkSha));
     return { results, blockedResults, exitCode: runExitCode(results) };
@@ -302,8 +307,8 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
   try {
     // review r2b FIX-6-4: a server already dead at seeding is BLOCKED rows with the guard's reason, not a rejection
     const seeded = await seedBehindGuard({
-      probe: () => harnessDown(runnerApi, runDir),
-      seed: () => seedAppTenant(runnerApi, { verificationCode: serverEnv.DEV_VERIFICATION_CODE || "123456" }),
+      probe: () => probe(runnerApi, runDir),
+      seed: () => seed(runnerApi, { verificationCode: serverEnv.DEV_VERIFICATION_CODE || "123456" }),
     });
     if (seeded.downReason) {
       const results = runnable.map((row) => finishCase(row, blockedCase(row, seeded.downReason), join(runDir, "fault", row.id), runDir, forkSha));
@@ -337,7 +342,7 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
     for (const row of runnable) {
       const caseDir = join(runDir, "fault", row.id);
       // the guard before the case: a dead harness server makes this and every later row BLOCKED, never a FAIL
-      downReason = downReason ?? (await harnessDown(runnerApi, runDir));
+      downReason = downReason ?? (await probe(runnerApi, runDir));
       if (downReason) {
         const result = finishCase(row, blockedCase(row, downReason), caseDir, runDir, forkSha);
         process.stdout.write(`${row.id}: BLOCKED — ${downReason}\n`);
@@ -348,7 +353,7 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
       const runResults = [];
       for (const run of runs) {
         // a multi-exit row stops at the first exit that would start against a dead server
-        if (run !== runs[0] && (await harnessDown(runnerApi, runDir))) break;
+        if (run !== runs[0] && (await probe(runnerApi, runDir))) break;
         // N-1: an exit after a FAILed one would start on a state the failure may have polluted
         const skipped = blockedAfterFailure(run, runResults);
         if (skipped) {
@@ -360,7 +365,7 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
         runResults.push(await runOne({ row, run, runs: runs.length, caseDir, shared }));
       }
       // the guard after the case: a server that died during it leaves no FAIL to read
-      downReason = await harnessDown(runnerApi, runDir);
+      downReason = await probe(runnerApi, runDir);
       const result = finishCase(row, guardCaseResult(caseResult(row, runResults), downReason, { complete: runResults.length === runs.length }), caseDir, runDir, forkSha);
       if (downReason) process.stdout.write(`HARNESS_DOWN after ${row.id}: ${downReason}; no further app row runs\n`);
       process.stdout.write(`${row.id}: ${result.result}${result.predicted ? ` (predicted ${result.predicted})` : ""}${result.infraFailure ? ` (infra: ${result.infraFailure})` : ""}\n`);
