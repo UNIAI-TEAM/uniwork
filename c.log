@@ -1,0 +1,56 @@
+$ pnpm --filter @uniwork/core test; echo "CORE_TEST_EXIT=$?"
+
+> @uniwork/core@0.0.0 test /workspace/packages/core
+> vitest run --coverage
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+      Coverage enabled with v8
+
+ ❯ api/endpoints/documents-sharing.test.ts (46 tests | 3 failed) 42ms
+     × getDocumentShares degrades 0 9ms
+     × getDocumentShares degrades 1 1ms
+     × getDocumentShares degrades 2 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  api/endpoints/documents-sharing.test.ts > documents-sharing endpoints > getDocumentShares degrades 0
+ FAIL  api/endpoints/documents-sharing.test.ts > documents-sharing endpoints > getDocumentShares degrades 1
+ FAIL  api/endpoints/documents-sharing.test.ts > documents-sharing endpoints > getDocumentShares degrades 2
+AssertionError: expected { my_level: '', via: '' } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "my_level": "",
+  "via": "",
+}
+
+ ❯ api/endpoints/documents-sharing.test.ts:170:42
+    168|   it.each(malformedBodies)("getDocumentShares degrades %#", async (bod…
+    169|     vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    170|     await expect(getDocumentShares("d1")).resolves.toBeNull();
+       |                                          ^
+    171|   });
+    172|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+
+ Test Files  1 failed | 239 passed (240)
+      Tests  3 failed | 2339 passed (2342)
+   Start at  05:23:34
+   Duration  63.04s (transform 4.61s, setup 35.17s, import 22.27s, tests 19.62s, environment 68.97s)
+
+/workspace/packages/core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/core@0.0.0 test: `vitest run --coverage`
+Exit status 1
+CORE_TEST_EXIT=1

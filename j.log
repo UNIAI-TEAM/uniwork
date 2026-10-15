@@ -1,0 +1,9 @@
+$ pnpm knip; echo "KNIP_EXIT=$?"
+
+> uniwork@ knip /workspace
+> knip
+
+Unlisted dependencies (1)
+i18next  packages/views/documents/share-dialog-break-glass.tsx:4:32
+ ELIFECYCLE  Command failed with exit code 1.
+KNIP_EXIT=1

@@ -1,0 +1,11 @@
+$ pnpm --filter @uniwork/core typecheck; echo "CORE_TC_EXIT=$?"
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
+api/endpoints/documents.test.ts(705,59): error TS2339: Property 'canBreakGlass' does not exist on type 'DocumentAccessError'.
+  Property 'canBreakGlass' does not exist on type 'BreakGlassRequiredError'.
+/workspace/packages/core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/core@0.0.0 typecheck: `tsc --noEmit`
+Exit status 2
+CORE_TC_EXIT=2

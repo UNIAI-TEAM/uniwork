@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+d57e59ff3540d44961aa4fb0c751ea8faab8ee5c
+d57e59ff3 Merge branch 'feature/UNI-1413-g8-18-mention-web' into feature/UNI-1413-g8-18-doc-05-web
+9cba05f56 test(office): pin the G8-18 / DOC-05 frame protocol and host handlers
+afdc3eba8 feat(office): host side of comments.shareView, comment level and no-access mentions
