@@ -182,6 +182,10 @@ func documentResourceURL(ctx context.Context, q *db.Queries, origin string, n db
 			link += "&kind=discussion"
 		}
 	}
+	// The holder's request opens the editor with the answer prompt.
+	if rid := params["request_id"]; rid != "" && n.Kind == KindDocumentEditRequested {
+		link += "?edit_request=" + url.QueryEscape(rid)
+	}
 	return link, nil
 }
 
