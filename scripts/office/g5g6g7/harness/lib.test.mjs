@@ -19,6 +19,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
 const START_SH = join(HERE, "start.sh");
 const STOP_SH = join(HERE, "stop.sh");
+const STALE_NEXT = join(HERE, "stale-next.mjs");
 
 // Every temp dir this file creates goes through tmpDir(), and every one of
 // them is removed by the hook below: `afterEach` so a test cannot leave its
@@ -390,6 +391,9 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
   // start.sh stops a previous start's process groups through stop.sh (G2), so the
   // fake stack carries the real one too.
   copyFileSync(STOP_SH, join(harness, "stop.sh"));
+  // and the stale next dev scan it runs before the web starts (G8-19 B1)
+  copyFileSync(STALE_NEXT, join(harness, "stale-next.mjs"));
+  mkdirSync(join(root, "apps", "web"), { recursive: true });
   if (lib) writeFileSync(join(harness, "lib.mjs"), lib);
   else copyFileSync(LIB, join(harness, "lib.mjs"));
 
@@ -569,6 +573,79 @@ test("start.sh reaches up through the real lib.mjs fork-dir call (fake stack)", 
       assert.match(ports, new RegExp(`^${key}=`, "m"), `ports.env is missing ${key}`);
     }
     assert.match(ports, /^HARNESS_DEPLOYMENT_ID=default$/m);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+/** A stand-in for a next dev left over from an earlier round: argv has next + dev, cwd is `cwd`. */
+function spawnLeftoverNextDev(cwd) {
+  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", "next", "dev"], { cwd, stdio: "ignore", detached: true });
+  child.unref();
+  return child.pid;
+}
+const pidAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return !readFileSync(`/proc/${pid}/stat`, "utf8").includes(") Z ");
+  } catch {
+    return false;
+  }
+};
+
+test("start.sh stops a stale next dev of THIS checkout before the web starts and leaves another checkout's alone (G8-19 B1)", () => {
+  const stack = mkFakeStack();
+  const otherDir = tmpDir("harness-other-web-");
+  const mine = spawnLeftoverNextDev(join(stack.root, "apps", "web"));
+  const theirs = spawnLeftoverNextDev(otherDir);
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const line = `harness: stopped stale next dev pid ${mine} (cwd ${realpathSync(join(stack.root, "apps", "web"))})`;
+    assert.ok(result.stdout.includes(line), result.stdout);
+    assert.ok(readFileSync(join(stack.runDir, "logs", "web.log"), "utf8").includes(line), "the line is in the run log too");
+    assert.ok(result.stdout.indexOf(line) < result.stdout.indexOf("harness: starting the D web"), "stopped before the web starts");
+    assert.equal(pidAlive(mine), false, "this checkout's next dev is gone");
+    assert.equal(pidAlive(theirs), true, "another checkout's next dev is untouched");
+    assert.ok(!result.stdout.includes(`pid ${theirs}`));
+  } finally {
+    for (const pid of [mine, theirs]) {
+      try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ }
+    }
+    stopFakeStack(stack);
+  }
+});
+
+test("start.sh fails once, naming the lock and the pids, when web.log says another next dev is running (G8-19 B1)", () => {
+  const stack = mkFakeStack();
+  const holder = spawnLeftoverNextDev(tmpDir("harness-other-web-"));
+  try {
+    // a web that dies with Next's lock message; an old web.log line must not count for this start
+    mkdirSync(join(stack.runDir, "logs"), { recursive: true });
+    writeFileSync(
+      join(stack.bin, "pnpm"),
+      `#!/usr/bin/env bash\ncase "$*" in *@uniwork/web*) echo "Another next dev server is already running." ;; esac\nsleep 600\n`,
+    );
+    // and a web that never answers /login, as a next dev that exited on the lock would not
+    writeFileSync(join(stack.bin, "curl"), `#!/usr/bin/env bash\nfor a in "$@"; do case "$a" in */login) exit 7 ;; esac; done\nexit 0\n`);
+    const result = runStart(stack);
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /FAILED: the D web could not start: the Next dev lock is held/);
+    assert.match(result.stderr, new RegExp(`${holder} other `));
+    assert.equal(JSON.parse(readFileSync(join(stack.runDir, "start-status.json"), "utf8")).state, "failed");
+  } finally {
+    try { process.kill(holder, "SIGKILL"); } catch { /* already gone */ }
+    stopFakeStack(stack);
+  }
+});
+
+test("an earlier start's lock message in web.log does not fail a start whose web comes up (G8-19 B1)", () => {
+  const stack = mkFakeStack();
+  try {
+    mkdirSync(join(stack.runDir, "logs"), { recursive: true });
+    writeFileSync(join(stack.runDir, "logs", "web.log"), "Another next dev server is already running.\n");
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   } finally {
     stopFakeStack(stack);
   }

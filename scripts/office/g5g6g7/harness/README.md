@@ -84,6 +84,18 @@ and the exact command in `start.sh`'s output.
   a precondition start.sh itself reported as missing (**blocked**) makes them
   BLOCKED (77). Cloud round 4 had start.sh exit 1 and both later steps record
   BLOCKED, which read as "the VM cannot do it" for a harness bug.
+* Before the D web starts, `start.sh` stops a **stale `next dev` of this checkout**
+  (G8-19 B1). A warm VM can still run one from an earlier round; it holds the
+  Next dev lock and the new one prints `Another next dev server is already
+  running` and exits. `stale-next.mjs --stop <checkout>/apps/web` scans
+  `/proc/<pid>` (never `pkill`/`pgrep` by name) for a `next` + `dev` command line
+  (or a retitled `next-server`) whose `cwd` resolves to this checkout's
+  `apps/web`, sends TERM, waits at most 10 s, then KILLs that PID, and prints
+  `harness: stopped stale next dev pid N (cwd ...)` to stdout and `logs/web.log`.
+  A next dev of another checkout or lane on the same VM is never touched. If
+  `web.log` still shows the lock message after the start, the start FAILs once
+  naming the lock and the next dev PIDs seen (`stale-next.mjs --list`); it never
+  loops. Only the lines this start wrote count, not an earlier start's.
 * The D server runs in a directory of its own, three levels deep in the run dir
   (`server-cwd/a/b/c`), with a copy of the VM's `.env` that lacks every key the
   run sets. The server reads a local `.env` for any key that is **empty or

@@ -411,6 +411,27 @@ curl -sf "$API_ORIGIN/readyz" > "$RUN_DIR/logs/readyz.json" \
 # ---- D web -------------------------------------------------------------------
 # NEXT_PUBLIC_API_URL is inlined by the web build, so it goes on the command
 # line; it is the same origin the specs use (e2e/api-url.ts asserts this).
+#
+# A warm VM may still run a next dev from an earlier round; it holds the Next dev
+# lock and the new one would print "Another next dev server is already running"
+# and exit. stale-next.mjs stops the ones whose cwd is THIS checkout's apps/web
+# (a /proc scan, never a process by name; another checkout's dev server stays),
+# TERM then KILL after at most 10 s, one line per pid on stdout and in web.log.
+WEB_DIR="$REPO_ROOT/apps/web"
+WEB_LOG="$RUN_DIR/logs/web.log"
+touch "$WEB_LOG"
+node "$HERE/stale-next.mjs" --stop "$WEB_DIR" 2>> "$LOG_DIR/lib.log" | tee -a "$WEB_LOG" \
+  || fail "could not stop a stale next dev of this checkout (see $LOG_DIR/lib.log)"
+# Only what this start appends counts: an earlier start's web.log may already hold the message.
+WEB_LOG_START="$(wc -c < "$WEB_LOG")"
+web_lock_held() { # the Next dev lock message in what this start wrote to web.log
+  tail -c "+$((WEB_LOG_START + 1))" "$WEB_LOG" 2> /dev/null | grep -q "Another next dev server is already running"
+}
+fail_web_lock() {
+  local seen
+  seen="$(node "$HERE/stale-next.mjs" --list "$WEB_DIR" 2> /dev/null | tr '\n' ';' || true)"
+  fail "the D web could not start: the Next dev lock is held (web.log: 'Another next dev server is already running') by a next dev this start could not stop; next dev processes seen (pid ours|other cwd): ${seen:-none}; stop the holder by PID and rerun (see $WEB_LOG)"
+}
 echo "harness: starting the D web with NEXT_PUBLIC_API_URL=$API_ORIGIN ..."
 setsid env \
   NEXT_PUBLIC_API_URL="$API_ORIGIN" \
@@ -419,13 +440,18 @@ setsid env \
   E2E_BASE_URL="$WEB_ORIGIN" \
   FRONTEND_PORT="$WEB_PORT" \
   PORT="$API_PORT" \
-  pnpm --filter @uniwork/web dev >> "$RUN_DIR/logs/web.log" 2>&1 &
+  pnpm --filter @uniwork/web dev >> "$WEB_LOG" 2>&1 &
 WEB_PID=$!
 echo "web $WEB_PID $WEB_PORT" >> "$RUN_DIR/pids"
 
 for i in $(seq 1 180); do
+  # the lock message is checked first and never retried: a held lock does not clear by waiting
+  web_lock_held && fail_web_lock
   curl -sf -o /dev/null "$WEB_ORIGIN/login" && break
-  kill -0 "$WEB_PID" 2>/dev/null || fail "the D web died while starting (see $RUN_DIR/logs/web.log)"
+  if ! kill -0 "$WEB_PID" 2>/dev/null; then
+    web_lock_held && fail_web_lock
+    fail "the D web died while starting (see $RUN_DIR/logs/web.log)"
+  fi
   [ "$i" -lt 180 ] || fail "the D web did not answer in 180s (see $RUN_DIR/logs/web.log)"
   sleep 1
 done
