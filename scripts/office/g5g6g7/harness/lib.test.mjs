@@ -13,11 +13,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { verify } from "../evidence.mjs";
 import { bashSyntaxError, shBlocks } from "./readme-sh-blocks.mjs";
 import { routeCatalogue, routeMatches } from "./server-contract.helper.mjs";
-import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, appOrigin, loopbackOriginsIn, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isAppApiProxyOnline, isMainModule, appOrigin, loopbackOriginsIn, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, setAppApiProxyOnline, startAppApiProxy, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
 const START_SH = join(HERE, "start.sh");
+const STOP_SH = join(HERE, "stop.sh");
 
 // Every temp dir this file creates goes through tmpDir(), and every one of
 // them is removed by the hook below: `afterEach` so a test cannot leave its
@@ -373,7 +374,7 @@ function LOADER_SERVER(root, readyFile) {
  * on the path start.sh execs, pnpm/electron sleep) — this is the "dry-run with a
  * fake server/web" the fix asks for, not a stand-in for the real stack.
  */
-function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false, loaderServer = false } = {}) {
+function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false, loaderServer = false, electronBody } = {}) {
   const root = tmpDir("harness-start-");
   const bin = join(root, "bin");
   const harness = join(root, "scripts", "office", "g5g6g7", "harness");
@@ -386,6 +387,9 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
     mkdirSync(dir, { recursive: true });
   }
   copyFileSync(START_SH, join(harness, "start.sh"));
+  // start.sh stops a previous start's process groups through stop.sh (G2), so the
+  // fake stack carries the real one too.
+  copyFileSync(STOP_SH, join(harness, "stop.sh"));
   if (lib) writeFileSync(join(harness, "lib.mjs"), lib);
   else copyFileSync(LIB, join(harness, "lib.mjs"));
 
@@ -444,7 +448,7 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
     'exec "$@"',
     "",
   ].join("\n"));
-  shim("fake-electron", `#!/usr/bin/env bash\nenv > ${JSON.stringify(join(root, "electron-env"))}\nprintf '%s\\n' "$@" > ${JSON.stringify(join(root, "electron-argv"))}\nsleep 600\n`);
+  shim("fake-electron", electronBody ?? `#!/usr/bin/env bash\nenv > ${JSON.stringify(join(root, "electron-env"))}\nprintf '%s\\n' "$@" > ${JSON.stringify(join(root, "electron-argv"))}\nsleep 600\n`);
   // Records its argv (the install strategy is asserted from it) and answers with
   // npmExit, so a failing install is exercised without a real npm. `ci
   // --ignore-scripts` on a clean tree leaves the two things start.sh then probes
@@ -519,6 +523,9 @@ function runStart(stack, extraEnv = {}) {
       HARNESS_RUN_DIR: stack.runDir,
       OFFICE_FORK_CACHE: stack.cacheDir,
       NVM_DIR: stack.nvmDir,
+      // The app-liveness settle start.sh waits before it calls the run up; the
+      // stub app answers at once, so the tests shorten it (production default 2).
+      HARNESS_APP_SETTLE_SECONDS: "1",
       ...extraEnv,
     },
   });
@@ -932,6 +939,102 @@ test("a failed start is recorded as failed, a missing precondition as blocked", 
     assert.match(status.reason, /no network to /);
   } finally {
     stopFakeStack(noNetwork);
+  }
+});
+
+// ---- ADDENDUM r5 G2: a warm run dir must not be handed to a second start -----
+// The r3 cloud round ran twice on one run dir (HARNESS_RUN_DIR=/tmp/g7-10-run-r3):
+// the first attempt's harness was never stopped, its app stayed alive, and the
+// rerun's app shared the same userData and single-instance lock. The second app
+// lost the lock to the stale one and quit, and the loops read a missing app as
+// BLOCKED. start.sh now stops the process groups the run dir's own PID file
+// records (the stop.sh logic, never a process by name) before it starts anything,
+// hands the app a userData of its own per start, and refuses to call the run "up"
+// for an app that is already gone.
+
+/** A sleeping process in its own group (`start.sh`/`stop.sh` signal the group). */
+function spawnSleepGroup() {
+  const child = spawn("sleep", ["600"], { detached: true, stdio: "ignore" });
+  child.unref();
+  return child.pid;
+}
+
+function killGroup(pid) {
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    // already gone
+  }
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // already gone
+  }
+}
+
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
+}
+
+/** A killed child is reaped by Node a moment later; give the pid time to go. */
+async function waitForGone(pid) {
+  for (let i = 0; i < 40 && processAlive(pid); i += 1) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+test("start.sh stops the process groups a previous start of the same run dir recorded, then starts the app on a userData of its own (ADDENDUM r5 G2)", async () => {
+  const stack = mkFakeStack();
+  const stalePid = spawnSleepGroup();
+  const bystanderPid = spawnSleepGroup();
+  try {
+    mkdirSync(stack.runDir, { recursive: true });
+    writeFileSync(join(stack.runDir, "pids"), `server 999999 1\napp ${stalePid} 0\n`);
+    mkdirSync(join(stack.runDir, "userdata", "uniwork-auth"), { recursive: true });
+    writeFileSync(join(stack.runDir, "userdata", "uniwork-auth", "session.bin"), "stale-session");
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /stopping the process groups/);
+    await waitForGone(stalePid);
+    assert.equal(processAlive(stalePid), false, "the recorded stale group must be stopped");
+    assert.equal(processAlive(bystanderPid), true, "a process the run's own PID file does not name must not be touched");
+    // The app's userData is per start: the previous start's session.bin must not
+    // be the session the new app comes up with.
+    assert.ok(
+      !existsSync(join(stack.runDir, "userdata", "uniwork-auth", "session.bin")),
+      "the new app must not inherit the previous start's session.bin",
+    );
+    const moved = readdirSync(stack.runDir).filter((name) => name.startsWith("userdata.previous-"));
+    assert.equal(moved.length, 1, `the previous userdata is kept aside: ${readdirSync(stack.runDir).join(", ")}`);
+    assert.ok(
+      existsSync(join(stack.runDir, moved[0], "uniwork-auth", "session.bin")),
+      "the previous start's userdata stays readable for the round's artifacts",
+    );
+    assert.match(result.stdout, /userdata\.previous-/);
+  } finally {
+    killGroup(stalePid);
+    killGroup(bystanderPid);
+    stopFakeStack(stack);
+  }
+});
+
+test("start.sh FAILs instead of reporting 'up' when the app it started is already gone (ADDENDUM r5 G2)", () => {
+  // The dev build quits quietly when it loses Electron's single-instance lock, and
+  // the display file start.sh waits for is written before Electron even starts, so
+  // "the wrapper ran" is not evidence of an app.
+  const stack = mkFakeStack({ electronBody: "#!/usr/bin/env bash\nexit 7\n" });
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 1, `expected FAILED (1), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /the Electron app exited while starting/);
+    assert.equal(readStartStatus(stack.runDir).state, "failed");
+  } finally {
+    stopFakeStack(stack);
   }
 });
 
@@ -1783,6 +1886,83 @@ test("document-step's precondition BLOCKED line (no D server up) carries its fix
   assert.match(line.fixtureSha256, /^[0-9a-f]{64}$/);
   assert.match(readFileSync(line.artifact, "utf8"), /BLOCKED: no D server on/);
   assert.deepEqual(verifyLine(line), []);
+});
+
+test("writeRunEnv allocates distinct APP_PROXY_PORT and APP_CDP_PORT and writes deployment-profile.json for the app proxy (G710-L2)", async () => {
+  const runDir = tmpDir("harness-app-proxy-env-");
+  const previous = { DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL };
+  process.env.DATABASE_URL = "postgres://u:p@localhost:5432/db?sslmode=disable";
+  process.env.REDIS_URL = "redis://localhost:6379/0";
+  try {
+    const ports = await writeRunEnv(runDir, { forkSha: "0d03b18", dSha: "deadbeef" });
+    assert.ok(ports.appProxyPort > 0 && ports.appCdpPort > 0);
+    assert.equal(
+      new Set([ports.apiPort, ports.webPort, ports.metricsPort, ports.previewPort, ports.appProxyPort, ports.appCdpPort]).size,
+      6,
+    );
+    const portsText = readFileSync(join(runDir, "ports.env"), "utf8");
+    assert.match(portsText, new RegExp(`^APP_PROXY_PORT=${ports.appProxyPort}$`, "m"));
+    assert.match(portsText, new RegExp(`^APP_CDP_PORT=${ports.appCdpPort}$`, "m"));
+    assert.match(portsText, new RegExp(`^APP_API_ORIGIN=http://127\\.0\\.0\\.1:${ports.appProxyPort}$`, "m"));
+    assert.equal(isAppApiProxyOnline(runDir), true);
+    const profile = JSON.parse(readFileSync(harnessPaths(runDir).deploymentProfile, "utf8"));
+    assert.deepEqual(profile, {
+      deploymentId: "default",
+      apiOrigin: `http://127.0.0.1:${ports.appProxyPort}`,
+      clientId: DEV_CLIENT_ID,
+      channel: "dev",
+    });
+  } finally {
+    if (previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.DATABASE_URL;
+    if (previous.REDIS_URL === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = previous.REDIS_URL;
+  }
+});
+
+test("startAppApiProxy cuts only the app's proxy link while the D server stays reachable to the web and test (G710-L2)", async () => {
+  const runDir = tmpDir("harness-proxy-cut-");
+  const upstream = createHttpServer((req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ok: true, path: req.url }));
+  });
+  await new Promise((r) => upstream.listen(0, "127.0.0.1", r));
+  const targetPort = upstream.address().port;
+  const proxy = await startAppApiProxy({ runDir, listenPort: 0, targetPort });
+  try {
+    // 1. Online: both proxy (app) and direct target (web/test) answer 200
+    const resOnline = await fetch(`http://127.0.0.1:${proxy.port}/healthz`);
+    assert.equal(resOnline.status, 200);
+    // 2. Cut the app proxy: proxy rejects immediately while targetPort still answers 200
+    setAppApiProxyOnline(runDir, false);
+    assert.equal(isAppApiProxyOnline(runDir), false);
+    await assert.rejects(() => fetch(`http://127.0.0.1:${proxy.port}/healthz`));
+    const directWhileCut = await fetch(`http://127.0.0.1:${targetPort}/healthz`);
+    assert.equal(directWhileCut.status, 200);
+    // 3. Resume the app proxy: proxy answers 200 again
+    setAppApiProxyOnline(runDir, true);
+    assert.equal(isAppApiProxyOnline(runDir), true);
+    const resResumed = await fetch(`http://127.0.0.1:${proxy.port}/healthz`);
+    assert.equal(resResumed.status, 200);
+  } finally {
+    await proxy.close();
+    await new Promise((r) => upstream.close(r));
+  }
+});
+
+test("start.sh passes --remote-debugging-port before the shell app dir so the running Electron app can be driven headlessly (G710-L1)", async () => {
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const argvFile = join(stack.root, "electron-argv");
+    for (let i = 0; i < 40 && !existsSync(argvFile); i += 1) await new Promise((r) => setTimeout(r, 100));
+    const argv = readFileSync(argvFile, "utf8").split("\n").filter(Boolean);
+    const cdpArg = argv.find((a) => a.startsWith("--remote-debugging-port="));
+    assert.ok(cdpArg, `expected --remote-debugging-port in argv: ${argv.join(" ")}`);
+    assert.match(cdpArg, /^--remote-debugging-port=[1-9]\d*$/);
+    assert.ok(argv.indexOf(cdpArg) < argv.length - 1, "the CDP flag comes before the app dir");
+  } finally {
+    stopFakeStack(stack);
+  }
 });
 
 // Contract section 6: every mkdtemp dir of this file goes through tmpDir() and
