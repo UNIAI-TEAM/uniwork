@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -50,6 +51,40 @@ func TestSignalVoiceAndTyping(t *testing.T) {
 	}
 	if pub.events[len(pub.events)-1].Type != "chat.voice.hangup" {
 		t.Fatalf("voice hangup publish: %+v", pub.events)
+	}
+}
+
+// The actor's other tabs ring too, so an answer or a decline in one tab must
+// reach the rest of them, not only the peer and the open room.
+func TestVoiceSignalReachesTheActorsOtherTabs(t *testing.T) {
+	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deliverChatEvents(t, pool, q, s, pub)
+
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-tabs"); err != nil {
+		t.Fatalf("voice invite: %v", err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-tabs"); err != nil {
+		t.Fatalf("voice accept: %v", err)
+	}
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "call-tabs"); err != nil {
+		t.Fatalf("voice hangup: %v", err)
+	}
+
+	for _, typ := range []string{"chat.voice.accept", "chat.voice.hangup"} {
+		got := pub.sentTo(typ)
+		for _, want := range []string{"user:" + ua.ID, "user:" + ub.ID} {
+			if !slices.Contains(got, want) {
+				t.Errorf("%s went to %v, want %s among them", typ, got, want)
+			}
+		}
 	}
 }
 

@@ -490,6 +490,8 @@ func (s *ChatService) publishVoiceRoomSignal(ctx context.Context, room db.ChatRo
 		if targetUserID := strings.TrimSpace(ev.Payload["target_user_id"]); targetUserID != "" {
 			s.pub.SendToUser(ctx, targetUserID, ev)
 		}
+		// The actor's other tabs ring too; an answer or a decline here stops them.
+		s.pub.SendToUser(ctx, actorID, ev)
 	} else if voiceCallMultiPartyKind(room.Kind) {
 		s.publishChatRoomMembersEvent(ctx, room.ID, ev)
 	}
