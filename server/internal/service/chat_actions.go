@@ -49,6 +49,9 @@ func (s *ChatService) EditChatMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
+	if err := s.updateCopiedComment(ctx, userID, updated); err != nil {
+		return ChatMessageRow{}, err
+	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
 	u, err := s.q.GetUserByID(ctx, updated.SenderID)
 	if err != nil {
@@ -93,6 +96,9 @@ func (s *ChatService) DeleteChatMessage(
 			return err
 		}
 	}
+	if err := deleteCommentCopiedFromMessage(ctx, q, userID, deleted.ID); err != nil {
+		return err
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: room.OrganizationID,
 		WorkspaceID:    anchorWS,
@@ -113,6 +119,20 @@ func (s *ChatService) DeleteChatMessage(
 		s.publishChatMessageUpdated(ctx, room, deleted.ThreadRootID.String)
 	}
 	return nil
+}
+
+// updateCopiedComment carries an edit onto the task comment copied from the
+// message, with its audit row and task.comment_updated in one transaction.
+func (s *ChatService) updateCopiedComment(ctx context.Context, userID string, msg db.ChatMessage) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := updateCommentCopiedFromMessage(ctx, s.q.WithTx(tx), userID, msg); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.ChatRoom, messageID string) {

@@ -35,7 +35,7 @@ func NewChatTaskSyncConsumer(pool *pgxpool.Pool, q *db.Queries, chat *ChatServic
 func (*ChatTaskSyncConsumer) Name() string { return "chat_task_sync" }
 
 func (*ChatTaskSyncConsumer) Topics() []string {
-	return []string{"chat.thread.reply_linked", "task.comment_added"}
+	return []string{"chat.thread.reply_linked", "task.comment_added", "task.comment_updated", "task.comment_deleted"}
 }
 
 func (c *ChatTaskSyncConsumer) Handle(ctx context.Context, ev outbox.Row) error {
@@ -50,6 +50,8 @@ func (c *ChatTaskSyncConsumer) Handle(ctx context.Context, ev outbox.Row) error 
 		return c.syncChatToTask(ctx, payload)
 	case "task.comment_added":
 		return c.syncTaskToChat(ctx, payload)
+	case "task.comment_updated", "task.comment_deleted":
+		return c.syncCommentChangeToChat(ctx, ev.Topic == "task.comment_deleted", payload)
 	default:
 		return nil
 	}
@@ -201,6 +203,124 @@ func (c *ChatTaskSyncConsumer) syncTaskToChat(ctx context.Context, payload map[s
 		c.chat.publishCreatedChatMessage(ctx, db.ChatRoom{ID: link.RoomID, WorkspaceID: pgtype.Text{String: anchorWS, Valid: true}}, msg.ID, msg.SenderID)
 	}
 	return nil
+}
+
+// syncCommentChangeToChat carries a task comment's edit or delete onto the
+// thread reply mirrored from it. A comment copied from chat has no mirror,
+// so this never loops back; a replay finds the reply already in step.
+func (c *ChatTaskSyncConsumer) syncCommentChangeToChat(ctx context.Context, deleted bool, payload map[string]string) error {
+	commentID := strings.TrimSpace(payload["comment_id"])
+	if commentID == "" {
+		return nil
+	}
+	msg, err := c.q.GetChatMessageByMirroredComment(ctx, pgtype.Text{String: commentID, Valid: true})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	room, err := c.q.GetChatRoomByID(ctx, msg.RoomID)
+	if err != nil {
+		return err
+	}
+	if deleted {
+		return c.deleteMirroredReply(ctx, room, msg)
+	}
+	comment, err := c.q.GetTaskCommentByID(ctx, commentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // deleted since; its own event removes the reply
+	}
+	if err != nil {
+		return err
+	}
+	if comment.Body == msg.Body {
+		return nil
+	}
+	if _, err := c.q.UpdateChatMessageBody(ctx, db.UpdateChatMessageBodyParams{
+		ID: msg.ID, RoomID: msg.RoomID, WorkspaceID: msg.WorkspaceID, Body: comment.Body, SenderID: msg.SenderID,
+	}); errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if c.chat != nil {
+		c.chat.publishChatMessageUpdated(ctx, room, msg.ID)
+	}
+	return nil
+}
+
+func (c *ChatTaskSyncConsumer) deleteMirroredReply(ctx context.Context, room db.ChatRoom, msg db.ChatMessage) error {
+	tx, err := c.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := c.q.WithTx(tx)
+	if _, err := q.SoftDeleteChatMessage(ctx, db.SoftDeleteChatMessageParams{
+		ID: msg.ID, RoomID: msg.RoomID, WorkspaceID: msg.WorkspaceID, SenderID: msg.SenderID,
+	}); errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if msg.ThreadRootID.Valid {
+		if err := q.DropChatThreadReplyStats(ctx, db.DropChatThreadReplyStatsParams{
+			ThreadRootID: msg.ThreadRootID, RoomID: msg.RoomID, WorkspaceID: msg.WorkspaceID,
+		}); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if c.chat != nil {
+		c.chat.publishChatMessageDeleted(ctx, room, msg.ID)
+		if msg.ThreadRootID.Valid {
+			c.chat.publishChatMessageUpdated(ctx, room, msg.ThreadRootID.String)
+		}
+	}
+	return nil
+}
+
+// updateCommentCopiedFromMessage rewrites the task comment copied from an
+// edited thread reply; its task.comment_updated finds no mirror, so no loop.
+func updateCommentCopiedFromMessage(ctx context.Context, q *db.Queries, userID string, msg db.ChatMessage) error {
+	c, err := q.GetTaskCommentByChatMessageID(ctx, pgtype.Text{String: msg.ID, Valid: true})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	ref := taskCommentRefFor(c)
+	if _, err := q.UpdateTaskCommentBody(ctx, db.UpdateTaskCommentBodyParams{
+		ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID, Body: msg.Body,
+	}); err != nil {
+		return err
+	}
+	v := taskCommentAdapter{}.verbs()
+	return recordCommentAudit(ctx, q, Human(userID), ref, v, v.updated, c.ID, map[string]any{"via": "chat"})
+}
+
+// deleteCommentCopiedFromMessage removes the task comment copied from a
+// deleted thread reply, in the delete's transaction.
+func deleteCommentCopiedFromMessage(ctx context.Context, q *db.Queries, userID, messageID string) error {
+	c, err := q.GetTaskCommentByChatMessageID(ctx, pgtype.Text{String: messageID, Valid: true})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	ref := taskCommentRefFor(c)
+	if err := q.DeleteTaskComment(ctx, db.DeleteTaskCommentParams{
+		ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+	}); err != nil {
+		return err
+	}
+	v := taskCommentAdapter{}.verbs()
+	return recordCommentAudit(ctx, q, Human(userID), ref, v, v.deleted, c.ID, map[string]any{"via": "chat"})
 }
 
 func (c *ChatTaskSyncConsumer) dropLinkAndNotify(ctx context.Context, link db.ChatThreadTaskLink, body string) error {

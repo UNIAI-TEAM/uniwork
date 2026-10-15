@@ -128,6 +128,109 @@ func TestChatTaskSyncBidirectionalNoLoop(t *testing.T) {
 	}
 }
 
+// TestChatTaskSyncPropagatesEditAndDelete: an edit or delete on either side
+// of a linked thread reaches the copy on the other side (UNI-1685).
+func TestChatTaskSyncPropagatesEditAndDelete(t *testing.T) {
+	s, tasks, q, ua, w, pool := chatWithTasks(t)
+	ctx := context.Background()
+	consumer := NewChatTaskSyncConsumer(pool, q, s, tasks)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{Name: "sync-edits", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "linked edits"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SyncThreadTask(ctx, ua.ID, w.ID, root.ID, SyncThreadTaskInput{
+		TaskID: task.ID, Direction: "both",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	handleTwice := func(topic string, payload map[string]string) {
+		t.Helper()
+		ev := outbox.Row{Topic: topic, Payload: mustJSON(payload)}
+		for i := 0; i < 2; i++ {
+			if err := consumer.Handle(ctx, ev); err != nil {
+				t.Fatalf("%s run %d: %v", topic, i+1, err)
+			}
+		}
+	}
+
+	// (a) chat → task.
+	reply, err := s.SendThreadReply(ctx, ua.ID, w.ID, ch.ID, root.ID, SendChatMessageInput{Body: "wifi abc123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handleTwice("chat.thread.reply_linked", map[string]string{
+		"thread_root_id": root.ID, "message_id": reply.ID, "task_id": task.ID,
+	})
+	copied, err := q.GetTaskCommentByChatMessageID(ctx, optText(&reply.ID))
+	if err != nil {
+		t.Fatalf("comment copied from the reply: %v", err)
+	}
+	if _, err := s.EditChatMessage(ctx, ua.ID, w.ID, ch.ID, reply.ID, "wifi changed"); err != nil {
+		t.Fatal(err)
+	}
+	if c, err := q.GetTaskCommentByID(ctx, copied.ID); err != nil || c.Body != "wifi changed" {
+		t.Fatalf("copied comment after edit = %q, %v; want the new body", c.Body, err)
+	}
+	if err := s.DeleteChatMessage(ctx, ua.ID, w.ID, ch.ID, reply.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.GetTaskCommentByID(ctx, copied.ID); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("copied comment after delete: err=%v, want gone", err)
+	}
+	deletedEvents := 0
+	for _, p := range outboxPayloads(t, pool, "task.comment_deleted") {
+		if p["comment_id"] == copied.ID && p["task_id"] == task.ID {
+			deletedEvents++
+		}
+	}
+	if deletedEvents != 1 {
+		t.Fatalf("task.comment_deleted rows for the copy = %d, want 1", deletedEvents)
+	}
+
+	// (b) task → chat.
+	comment, err := tasks.AddCommentSuite(ctx, Human(ua.ID), task.ID, AddCommentInput{Body: "deadline friday"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	commentEv := map[string]string{"task_id": task.ID, "comment_id": comment.ID, "workspace_id": w.ID}
+	handleTwice("task.comment_added", commentEv)
+	mirror, err := q.GetChatMessageByMirroredComment(ctx, optText(&comment.ID))
+	if err != nil {
+		t.Fatalf("message mirrored from the comment: %v", err)
+	}
+	if _, err := tasks.UpdateComment(ctx, Human(ua.ID), comment.ID, UpdateCommentInput{Body: "deadline thursday"}); err != nil {
+		t.Fatal(err)
+	}
+	handleTwice("task.comment_updated", commentEv)
+	if m, err := q.GetChatMessageByID(ctx, mirror.ID); err != nil || m.Body != "deadline thursday" {
+		t.Fatalf("mirrored message after comment edit = %q, %v; want the new body", m.Body, err)
+	}
+	if err := tasks.DeleteComment(ctx, Human(ua.ID), comment.ID); err != nil {
+		t.Fatal(err)
+	}
+	handleTwice("task.comment_deleted", commentEv)
+	var softDeleted bool
+	if err := pool.QueryRow(ctx, `SELECT deleted_at IS NOT NULL FROM chat_messages WHERE id = $1`, mirror.ID).Scan(&softDeleted); err != nil || !softDeleted {
+		t.Fatalf("mirrored message after comment delete: deleted=%v err=%v; want soft-deleted", softDeleted, err)
+	}
+	rootRow, err := q.GetChatMessageByID(ctx, root.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rootRow.ReplyCount != 0 {
+		t.Fatalf("root reply_count = %d, want 0 once both replies are gone", rootRow.ReplyCount)
+	}
+}
+
 func mustJSON(m map[string]string) string {
 	b, err := json.Marshal(m)
 	if err != nil {
