@@ -183,4 +183,64 @@ describe("useDocumentEditLock (UNI-1645)", () => {
     expect(JSON.parse(String(answer?.init.body))).toEqual({ decision: "decline", lock_id: "L1" });
     expect(calls.some((c) => c.key === "DELETE /api/v1/documents/d1/edit-requests/r1")).toBe(true);
   });
+  describe("another holder's lease runs out", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true, advanceTimeDelta: 20 });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    // Mounts as a second editor against a held lock and waits until the
+    // phase-change refetches have settled, so later GETs are the deadline's.
+    async function mountOther(over: Record<string, unknown>) {
+      const calls = routes({
+        [`GET ${BASE}`]: [() => json(r1({ lock: summary(over) }))],
+        [`POST ${BASE}`]: [locked],
+      });
+      const { wrapper } = setup();
+      const view = renderHook(() => useDocumentEditLock("w1", "d1", { canEdit: true, client: "web_page" }), { wrapper });
+      await waitFor(() => expect(view.result.current.state.phase).toBe("other"));
+      await waitFor(() => expect(view.result.current.lockState.data?.lock?.holder_name).toBe("Bình"));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      const reads = () => calls.filter((c) => c.key === `GET ${BASE}`).length;
+      return { ...view, reads, baseline: reads() };
+    }
+
+    it("rereads R1 once, with grace, when expires_at passes", async () => {
+      // server_time 03:12:00, expires_at 03:14:00: 120 s + 2 s grace.
+      const { reads, baseline } = await mountOther({});
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120_000);
+      });
+      expect(reads()).toBe(baseline);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+      await waitFor(() => expect(reads()).toBe(baseline + 1));
+    });
+
+    it("waits for an offline hold that outlasts expires_at", async () => {
+      const { reads, baseline } = await mountOther({ offline_hold_until: "2026-10-15T03:20:00Z" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200_000);
+      });
+      expect(reads()).toBe(baseline);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(285_000);
+      });
+      await waitFor(() => expect(reads()).toBe(baseline + 1));
+    });
+
+    it("clears the timer on unmount", async () => {
+      const { reads, baseline, unmount } = await mountOther({});
+      unmount();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300_000);
+      });
+      expect(reads()).toBe(baseline);
+    });
+  });
 });

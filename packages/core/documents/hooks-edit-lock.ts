@@ -11,6 +11,7 @@ import {
   releaseDocumentEditLock,
   takeOverDocumentEditLock,
   type DocumentEditLockClient,
+  type DocumentEditLockSummary,
 } from "../api/endpoints/documents-edit-lock";
 import { EditLockSession, type EditLockSessionState } from "./edit-lock-session";
 import { documentKeys } from "./keys";
@@ -35,6 +36,30 @@ const IDLE: EditLockSessionState = {
 
 const noopSubscribe = () => () => undefined;
 const idleSnapshot = () => IDLE;
+
+/** Slack after the server's deadline before R1 is read again. */
+const REREAD_GRACE_MS = 2000;
+/** Already past the deadline yet still reported held (sweeper not run): wait before the next read. */
+const REREAD_RETRY_MS = 5000;
+/** setTimeout overflows past 2^31 - 1 ms. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+/** The later of expires_at and offline_hold_until of someone else's lock. */
+function otherHolderDeadline(lock: DocumentEditLockSummary | null | undefined): string | null {
+  if (!lock || lock.held_by_me) return null;
+  const expires = Date.parse(lock.expires_at);
+  const hold = lock.offline_hold_until ? Date.parse(lock.offline_hold_until) : Number.NaN;
+  if (Number.isNaN(expires)) return Number.isNaN(hold) ? null : (lock.offline_hold_until ?? null);
+  return !Number.isNaN(hold) && hold > expires ? (lock.offline_hold_until ?? null) : lock.expires_at;
+}
+
+/** Time left from the server's own clock (deadline - server_time) plus grace; the
+ *  timer itself runs on the local monotonic clock. Null when a time is unreadable. */
+function rereadDelayMs(deadline: string, serverTime: string): number | null {
+  const left = Date.parse(deadline) - Date.parse(serverTime);
+  if (Number.isNaN(left)) return null;
+  return Math.min(left <= 0 ? REREAD_RETRY_MS : left + REREAD_GRACE_MS, MAX_TIMER_MS);
+}
 
 export interface UseDocumentEditLockOptions {
   /** my_level is edit or manage; below that no lock is requested at all. */
@@ -113,6 +138,23 @@ export function useDocumentEditLock(wsId: string, documentId: string, opts: UseD
     if (phase === "mine" && !summary?.held_by_me) session.wake();
     else if (phase === "other" && summary?.reserved && summary.held_by_me) void session.acquire();
   }, [session, lockState.data, summary]);
+
+  // Another holder's lease: reread R1 once when it runs out, so a dead tab's
+  // lock reaches this user without waiting for the sweeper's frame. One timer,
+  // re-armed by every R1 read (dataUpdatedAt), cleared on unmount / phase change.
+  const serverTime = lockState.data?.server_time;
+  const otherUntil = otherHolderDeadline(summary);
+  const readAt = lockState.dataUpdatedAt;
+  const otherPhase = state.phase === "other";
+  useEffect(() => {
+    if (!otherPhase || !otherUntil || !serverTime) return;
+    const delay = rereadDelayMs(otherUntil, serverTime);
+    if (delay === null) return;
+    const timer = setTimeout(() => {
+      void qc.invalidateQueries({ queryKey: documentKeys.editLock(wsId, documentId) });
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [qc, wsId, documentId, otherPhase, otherUntil, serverTime, readAt]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: documentKeys.editLock(wsId, documentId) });
 
