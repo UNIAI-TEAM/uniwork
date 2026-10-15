@@ -1,0 +1,385 @@
+// Fixture-backed tool backend for the G7-12 holdout runner (UNI-1384).
+//
+// The façade only relays the tools the caller offers; the frame executes them against the open document. This module
+// is the frame's stand-in for the eval: it offers the genoffice tools of the case's module (names verified against
+// docs/office/g5g6g7/genoffice-tools.md by holdout-run.test.mjs), answers their calls from the synthetic fixture read
+// at runtime, applies the case setup (overlay, removeCells, revokeAfterTool, serverVersionAhead, viewer role) and counts
+// the writes it let through. Nothing here names a case: every question, answer and marker stays under
+// docs/office/g5g6g7/holdout/.
+//
+// What it does NOT do (known v1 limits, listed in the G7-12 report): a write is counted but not applied to the view,
+// number formats of xlsx cells are not read (read_formats reports the cell type only), and only fixtures[0] is the open
+// document - further fixtures of a case are other documents the session cannot reach.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { DOCS_TOOL_SCHEMAS, SHEETS_TOOL_SCHEMAS } from '../devset-run.mjs';
+import { readWorkbook, unzip } from './holdout-xlsx-truth.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+export const FIXTURES_DIR = path.join(repoRoot, 'docs/office/g5g6g7/fixtures');
+export const WRITE_OPERATIONS = new Set(['write_range', 'edit_paragraph']);
+
+// genoffice tool (per module) -> the abstract operation(s) of the holdout cases. A tool that is not listed here is
+// never offered, and a call to it is reported to the scorer under its own name, so it counts as outside the allowlist.
+export const TOOL_OPS = {
+  sheets: {
+    get_workbook_context: ['read_sheet_list'],
+    read_range: ['read_range'],
+    read_cells: ['read_range'],
+    read_formats: ['read_range'],
+    read_sheet_features: ['read_range'],
+    find_cells: ['read_range'],
+    trace_precedents: ['read_range'],
+    aggregate_range: ['compute'],
+    summarize_range: ['compute'],
+    ask_clarification: ['ask_clarification'],
+    propose_operations: ['write_range'],
+  },
+  docs: {
+    get_document_context: ['read_document'],
+    read_blocks: ['read_document', 'read_table'],
+    replace_selection: ['edit_paragraph'],
+    replace_blocks: ['edit_paragraph'],
+    apply_ops: ['edit_paragraph'],
+    ask_clarification: ['ask_clarification'],
+  },
+  slides: { read_slide: ['read_slide'], apply_ops: ['edit_paragraph'], ask_clarification: ['ask_clarification'] },
+  pdf: {
+    read_pages: ['read_page'],
+    search_text: ['read_page'],
+    get_outline: ['read_page'],
+    edit_text: ['edit_paragraph'],
+    edit_block: ['edit_paragraph'],
+    ask_clarification: ['ask_clarification'],
+  },
+  markdown: {
+    get_document_context: ['read_document'],
+    read_blocks: ['read_document'],
+    read_frontmatter: ['read_document'],
+    apply_ops: ['edit_paragraph'],
+    ask_clarification: ['ask_clarification'],
+  },
+  html: {
+    get_outline: ['read_document'],
+    read_source: ['read_document'],
+    apply_ops: ['edit_paragraph'],
+    ask_clarification: ['ask_clarification'],
+  },
+};
+
+const MODULE_OF_FORMAT = { xlsx: 'sheets', docx: 'docs', pptx: 'slides', pdf: 'pdf', md: 'markdown', html: 'html' };
+const FIXTURE_FORMAT = (id) => /^fx-([a-z]+)-/.exec(id)?.[1] ?? '';
+
+/** The genoffice module a case runs in: its first fixture is the open document (cross cases follow it too). */
+export function moduleOfCase(caseDoc) {
+  const format = FIXTURE_FORMAT(caseDoc.fixtures?.[0]?.id ?? '') || caseDoc.format;
+  return MODULE_OF_FORMAT[format] ?? 'docs';
+}
+
+const loose = (name, description) => ({
+  type: 'function',
+  function: { name, description, parameters: { type: 'object', properties: {}, additionalProperties: true } },
+});
+
+/**
+ * Tool schemas per module. sheets/docs reuse the dev set's schemas (the ones the frame sends); the other modules get
+ * name-only schemas until the real ones are supplied with --tool-schemas (a real run needs them, see the report).
+ */
+export function toolCatalogue(overrides = null) {
+  const out = {};
+  for (const [module, ops] of Object.entries(TOOL_OPS)) {
+    const base = module === 'sheets' ? SHEETS_TOOL_SCHEMAS : module === 'docs' ? DOCS_TOOL_SCHEMAS : [];
+    const byName = new Map([...base, ...(overrides?.[module] ?? [])].map((t) => [t.function.name, t]));
+    out[module] = Object.keys(ops).map(
+      (name) => byName.get(name) ?? loose(name, `Tool ${name} of the ${module} module of the open document.`),
+    );
+  }
+  return out;
+}
+
+/** The tools offered for a case: the module's tools with at least one operation in the case's allowlist. */
+export function offeredTools(caseDoc, catalogue = toolCatalogue()) {
+  const module = moduleOfCase(caseDoc);
+  const allowed = new Set(caseDoc.tools.allowed);
+  return catalogue[module].filter((tool) => TOOL_OPS[module][tool.function.name].some((op) => allowed.has(op)));
+}
+
+/** Abstract operations of one tool call, or null when the tool is not mapped (reported by its own name). */
+export function opsOfTool(module, name) {
+  return TOOL_OPS[module]?.[name] ?? null;
+}
+
+// ---- fixture views ----
+
+const unesc = (s) =>
+  s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+const textOf = (xml, tag) =>
+  unesc([...xml.matchAll(new RegExp(`<${tag}[^>]*>(.*?)</${tag}>`, 'gs'))].map((m) => m[1]).join(''));
+
+function docxBlocks(file) {
+  const xml = unzip(fs.readFileSync(file)).get('word/document.xml').toString('utf8');
+  const blocks = [];
+  for (const m of xml.matchAll(/<w:tbl>.*?<\/w:tbl>|<w:p[ >].*?<\/w:p>/gs)) {
+    if (m[0].startsWith('<w:tbl>')) {
+      const rows = [...m[0].matchAll(/<w:tr>.*?<\/w:tr>/gs)].map((r) =>
+        [...r[0].matchAll(/<w:tc>.*?<\/w:tc>/gs)].map((c) => textOf(c[0], 'w:t')),
+      );
+      blocks.push({ index: blocks.length, style: 'Table', rows });
+    } else {
+      const style = /<w:pStyle w:val="([^"]+)"/.exec(m[0])?.[1] ?? 'Normal';
+      blocks.push({ index: blocks.length, style, text: textOf(m[0], 'w:t') });
+    }
+  }
+  return blocks;
+}
+
+function pptxSlides(file) {
+  const zip = unzip(fs.readFileSync(file));
+  const names = [...zip.keys()].filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n));
+  names.sort((a, b) => Number(/(\d+)\.xml$/.exec(a)[1]) - Number(/(\d+)\.xml$/.exec(b)[1]));
+  return names.map((name, i) => {
+    const xml = zip.get(name).toString('utf8');
+    const texts = [...xml.matchAll(/<a:p>.*?<\/a:p>/gs)].map((p) => textOf(p[0], 'a:t')).filter(Boolean);
+    return { index: i + 1, texts };
+  });
+}
+
+/** Loads the open document of a case as a plain view; every read tool answers from it. */
+export function loadView(fixtureId, dir = FIXTURES_DIR) {
+  const base = path.join(dir, fixtureId);
+  const format = FIXTURE_FORMAT(fixtureId);
+  const oracle = JSON.parse(fs.readFileSync(`${base}.oracle.json`, 'utf8'));
+  if (format === 'xlsx') return { format, workbook: { sheets: readWorkbook(`${base}.xlsx`) } };
+  if (format === 'docx') return { format, blocks: docxBlocks(`${base}.docx`) };
+  if (format === 'pptx') return { format, slides: pptxSlides(`${base}.pptx`), titles: oracle.slides };
+  if (format === 'pdf') return { format, pages: [{ page: 1, lines: [...(oracle.textLines ?? [])] }], pageCount: oracle.pageCount };
+  const ext = format === 'md' ? 'md' : 'html';
+  return { format, lines: fs.readFileSync(`${base}.${ext}`, 'utf8').split('\n') };
+}
+
+const colNum = (letters) => [...letters].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0);
+const colName = (n) => {
+  let s = '';
+  for (let v = n; v > 0; v = Math.floor((v - 1) / 26)) s = String.fromCharCode(65 + ((v - 1) % 26)) + s;
+  return s;
+};
+const splitCell = (ref) => {
+  const m = /^([A-Z]+)(\d+)$/.exec(ref);
+  return m ? { col: colNum(m[1]), row: Number(m[2]) } : null;
+};
+const parseRange = (range) => {
+  const part = String(range ?? '').split('!').pop().replace(/\$/g, '').toUpperCase();
+  const [a, b = a] = part.split(':');
+  const s = splitCell(a);
+  const e = splitCell(b);
+  return s && e ? { c1: Math.min(s.col, e.col), c2: Math.max(s.col, e.col), r1: Math.min(s.row, e.row), r2: Math.max(s.row, e.row) } : null;
+};
+
+/** Applies the setup of a case to a COPY of the view (the fixture on disk is never touched). */
+function applySetup(view, setup = {}) {
+  const warnings = [];
+  if (view.format === 'xlsx') {
+    for (const entry of setup.overlay ?? []) {
+      const sheet = view.workbook.sheets[entry.sheet];
+      if (!sheet || !entry.cell) { warnings.push(`overlay ${entry.op}: no sheet/cell`); continue; }
+      if (entry.op === 'set_cell') sheet.cells[entry.cell] = { v: entry.value, f: null, t: 'str' };
+      else if (entry.op === 'clear_cell') delete sheet.cells[entry.cell];
+    }
+    for (const ref of setup.removeCells ?? []) {
+      const [sheetName, cell] = ref.split('!');
+      delete view.workbook.sheets[sheetName]?.cells[cell];
+    }
+    return warnings;
+  }
+  for (const entry of setup.overlay ?? []) {
+    if (entry.op !== 'insert_after') { warnings.push(`overlay ${entry.op}: not supported for ${view.format}`); continue; }
+    const head = String(entry.anchor).split('/')[0];
+    if (view.blocks) {
+      const at = view.blocks.findIndex((b) => b.text?.startsWith(head));
+      view.blocks.splice(at < 0 ? view.blocks.length : at + 1, 0, { index: 0, style: 'Normal', text: entry.value });
+      view.blocks.forEach((b, i) => { b.index = i; });
+    } else if (view.slides) {
+      const slide = view.slides[Math.max(0, (Number(/slide (\d+)/.exec(entry.anchor)?.[1]) || 1) - 1)];
+      slide.texts.push(entry.value);
+    } else if (view.pages) view.pages[0].lines.push(entry.value);
+    else view.lines.push(entry.value);
+  }
+  return warnings;
+}
+
+const cellText = (cell) => {
+  if (!cell) return null;
+  const shown = cell.v === null ? '' : String(cell.v);
+  return cell.f ? `${shown} [formula =${cell.f}]` : shown;
+};
+
+function sheetRows(sheet, rect) {
+  const rows = new Map();
+  for (const [ref, cell] of Object.entries(sheet.cells)) {
+    const at = splitCell(ref);
+    if (!at || at.row < rect.r1 || at.row > rect.r2 || at.col < rect.c1 || at.col > rect.c2) continue;
+    if (!rows.has(at.row)) rows.set(at.row, { row: at.row, hidden: sheet.hiddenRows.has(at.row), cells: {} });
+    rows.get(at.row).cells[ref] = cellText(cell);
+  }
+  return [...rows.values()].sort((a, b) => a.row - b.row);
+}
+
+const usedRect = (sheet) => {
+  const rect = { c1: 1, c2: 1, r1: 1, r2: 1 };
+  for (const ref of Object.keys(sheet.cells)) {
+    const at = splitCell(ref);
+    if (at) { rect.c2 = Math.max(rect.c2, at.col); rect.r2 = Math.max(rect.r2, at.row); }
+  }
+  return rect;
+};
+
+const asNumber = (cell) => (cell && typeof cell.v === 'number' ? cell.v : null);
+
+function stats(values) {
+  if (values.length === 0) return { count: 0, sum: 0, average: null, min: null, max: null };
+  const sum = values.reduce((a, b) => a + b, 0);
+  return { count: values.length, sum, average: sum / values.length, min: Math.min(...values), max: Math.max(...values) };
+}
+
+/**
+ * One case's tool session. execute(name, args) answers a call; writes() is the number of writes let through;
+ * denied() lists calls it refused (revoked access, viewer, stale version) so the runner can record them.
+ */
+export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, view = null } = {}) {
+  const module = moduleOfCase(caseDoc);
+  const open = caseDoc.fixtures[0];
+  const doc = view ?? loadView(open.id, fixturesDir);
+  const setupWarnings = applySetup(doc, caseDoc.setup);
+  const role = open.role ?? caseDoc.role;
+  const revokeAfter = caseDoc.setup?.revokeAfterTool ?? Infinity;
+  let calls = 0;
+  let writes = 0;
+  const denied = [];
+
+  const sheetOf = (args) => {
+    if (doc.format !== 'xlsx') return null;
+    const names = Object.keys(doc.workbook.sheets);
+    const wanted = String(args.sheetId ?? caseDoc.setup?.activeSheet ?? names[0]);
+    const byIndex = /^sheet-(\d+)$/.exec(wanted);
+    const name = names.includes(wanted) ? wanted : names[byIndex ? Number(byIndex[1]) - 1 : 0] ?? names[0];
+    return { name, sheet: doc.workbook.sheets[name] };
+  };
+
+  function xlsxTool(name, args) {
+    if (name === 'get_workbook_context') {
+      return {
+        activeSheetName: caseDoc.setup?.activeSheet ?? Object.keys(doc.workbook.sheets)[0],
+        selection: caseDoc.setup?.selection ?? null,
+        sheets: Object.entries(doc.workbook.sheets).map(([sheetName, sheet], i) => {
+          const rect = usedRect(sheet);
+          return { id: `sheet-${i + 1}`, name: sheetName, dataRange: `A1:${colName(rect.c2)}${rect.r2}`, hiddenRows: [...sheet.hiddenRows] };
+        }),
+      };
+    }
+    const target = sheetOf(args);
+    const rect = parseRange(args.range) ?? usedRect(target.sheet);
+    if (name === 'read_range' || name === 'read_formats' || name === 'read_sheet_features') {
+      return { sheetName: target.name, range: args.range ?? null, hiddenRows: [...target.sheet.hiddenRows], rows: sheetRows(target.sheet, rect) };
+    }
+    if (name === 'read_cells') {
+      const cells = {};
+      for (const ref of args.addresses ?? []) cells[ref] = cellText(target.sheet.cells[String(ref).toUpperCase()]);
+      return { sheetName: target.name, cells };
+    }
+    if (name === 'find_cells') {
+      const query = String(args.query ?? '').toLowerCase();
+      const hits = Object.entries(target.sheet.cells)
+        .filter(([, cell]) => (args.errors_only ? /^#/.test(String(cell.v)) : query && String(cell.v).toLowerCase().includes(query)))
+        .map(([ref, cell]) => ({ ref, value: cellText(cell) }));
+      return { sheetName: target.name, hits };
+    }
+    if (name === 'trace_precedents') {
+      const cell = target.sheet.cells[String(args.address ?? '').toUpperCase()];
+      return { sheetName: target.name, address: args.address, formula: cell?.f ?? null, value: cell?.v ?? null };
+    }
+    if (name === 'aggregate_range' || name === 'summarize_range') {
+      const values = [];
+      const groups = new Map();
+      const valueCol = args.valueColumn ? colNum(String(args.valueColumn).toUpperCase()) : null;
+      const groupCol = args.groupByColumn ? colNum(String(args.groupByColumn).toUpperCase()) : null;
+      for (const [ref, cell] of Object.entries(target.sheet.cells)) {
+        const at = splitCell(ref);
+        if (!at || at.row < rect.r1 || at.row > rect.r2 || at.col < rect.c1 || at.col > rect.c2) continue;
+        if (args.skipHiddenRows && target.sheet.hiddenRows.has(at.row)) continue;
+        const n = asNumber(cell);
+        if (n === null || (valueCol && at.col !== valueCol)) continue;
+        values.push(n);
+        if (groupCol) {
+          const key = String(target.sheet.cells[`${colName(groupCol)}${at.row}`]?.v ?? '');
+          groups.set(key, [...(groups.get(key) ?? []), n]);
+        }
+      }
+      const out = { sheetName: target.name, range: args.range ?? null, skipHiddenRows: Boolean(args.skipHiddenRows), ...stats(values) };
+      if (groupCol) out.groups = Object.fromEntries([...groups].map(([key, v]) => [key, stats(v)]));
+      return out;
+    }
+    return { error: `unsupported tool ${name}` };
+  }
+
+  function textTool(name, args) {
+    if (doc.format === 'docx') {
+      if (name === 'get_document_context') return { paragraphCount: doc.blocks.length, blocks: doc.blocks.map((b) => ({ index: b.index, style: b.style, preview: b.text ?? '[table]' })) };
+      if (name === 'read_blocks') {
+        const start = Math.max(0, Number(args.startBlockIndex ?? 0));
+        const end = Math.min(doc.blocks.length - 1, Number(args.endBlockIndex ?? doc.blocks.length - 1));
+        return { startBlockIndex: start, endBlockIndex: end, blocks: doc.blocks.slice(start, end + 1) };
+      }
+    }
+    if (doc.format === 'pptx' && name === 'read_slide') {
+      const wanted = args.slideIndex ?? args.index ?? args.slide;
+      const slides = wanted ? doc.slides.filter((s) => s.index === Number(wanted)) : doc.slides;
+      return { slideCount: doc.slides.length, slides: slides.length ? slides : doc.slides };
+    }
+    if (doc.format === 'pdf') {
+      if (name === 'search_text') {
+        const query = String(args.query ?? args.text ?? '').toLowerCase();
+        return { pageCount: doc.pageCount, hits: doc.pages.flatMap((p) => p.lines.filter((l) => query && l.toLowerCase().includes(query)).map((line) => ({ page: p.page, line }))) };
+      }
+      return { pageCount: doc.pageCount, pages: doc.pages };
+    }
+    if (doc.format === 'md' || doc.format === 'html') {
+      if (name === 'read_frontmatter') return { frontmatter: doc.lines[0] === '---' ? doc.lines.slice(1, doc.lines.indexOf('---', 1)) : [] };
+      const from = Number(args.startBlockIndex ?? 0);
+      return { lineCount: doc.lines.length, lines: doc.lines.slice(from), text: doc.lines.slice(from).join('\n') };
+    }
+    return { error: `unsupported tool ${name}` };
+  }
+
+  return {
+    module,
+    setupWarnings,
+    writes: () => writes,
+    denied: () => [...denied],
+    execute(name, rawArgs) {
+      let args = {};
+      if (rawArgs && typeof rawArgs === 'object') args = rawArgs;
+      else if (typeof rawArgs === 'string' && rawArgs.trim()) {
+        try { args = JSON.parse(rawArgs); } catch { args = {}; }
+      }
+      const ops = opsOfTool(module, name);
+      if (!ops) return { error: `unsupported tool ${name}` };
+      calls += 1;
+      if (calls > revokeAfter) {
+        denied.push({ name, reason: 'access_revoked' });
+        return { error: 'permission_denied', message: 'Your access to this document was revoked.' };
+      }
+      if (name === 'ask_clarification') return { status: 'clarification_requested', questions: args.questions ?? [] };
+      const isWrite = ops.some((op) => WRITE_OPERATIONS.has(op)) && !(name === 'apply_ops' && args.dryRun === true);
+      if (isWrite) {
+        if (role === 'viewer') { denied.push({ name, reason: 'viewer' }); return { error: 'permission_denied', message: 'This document is view-only.' }; }
+        if (caseDoc.setup?.serverVersionAhead) { denied.push({ name, reason: 'version_conflict' }); return { error: 'version_conflict', message: 'The server holds a newer version than the copy that is open.' }; }
+        writes += 1;
+        return { status: 'applied', note: 'Edit applied in the editor (not yet saved).' };
+      }
+      return doc.format === 'xlsx' ? xlsxTool(name, args) : textTool(name, args);
+    },
+  };
+}

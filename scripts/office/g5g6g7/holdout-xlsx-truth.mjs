@@ -21,7 +21,7 @@ const ORACLE = 'docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.oracle.json';
 const MANIFEST = 'docs/office/g5g6g7/fixtures/manifest.json';
 const CASES = 'docs/office/g5g6g7/holdout/cases/xlsx.json';
 
-function unzip(buf) {
+export function unzip(buf) {
   let eocd = buf.length - 22;
   while (eocd >= 0 && buf.readUInt32LE(eocd) !== 0x06054b50) eocd -= 1;
   if (eocd < 0) throw new Error('not a zip file');
