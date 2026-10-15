@@ -711,7 +711,7 @@
         ],
         "proxyLog": "mọi POST commit cùng keyTag; không request ghi nào trước khi xóa rule"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -760,7 +760,7 @@
         ],
         "proxyLog": "uploads và commit cùng keyTag của intent"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -809,7 +809,7 @@
         ],
         "proxyLog": "đúng 1 POST commit; ≥1 GET versions/commit cùng keyTag; không POST commit với keyTag khác"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -861,7 +861,7 @@
         ],
         "proxyLog": "1 POST commit"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-10",
       "serverOnly": false,
       "artifacts": [
@@ -917,7 +917,7 @@
         "proxyLog": "không POST commit nào với payload cũ sau khi upload lại"
       },
       "notes": "fault claim_expires_at là setup test trên DB riêng của run (lead đồng ý, OQ-F3); predicted FAIL F4",
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -974,7 +974,7 @@
         ],
         "proxyLog": "đúng 1 POST commit từ app cho intent này (không retry tự động)"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -1014,7 +1014,7 @@
         ],
         "proxyLog": "Ghi đè: GET head trước POST commit; keyTag mới"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-09",
       "serverOnly": false,
       "artifacts": [
@@ -1055,7 +1055,7 @@
         ],
         "proxyLog": "không POST uploads/commit nào trong lượt AI"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
       "serverOnly": false,
       "artifacts": [
@@ -1116,7 +1116,7 @@
         ],
         "proxyLog": "không GET download version của B trong lượt AI"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
       "serverOnly": false,
       "artifacts": [
@@ -1171,7 +1171,7 @@
         ],
         "proxyLog": "GET nội dung version của B chỉ xuất hiện sau khi request AI trả lời"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
       "serverOnly": false,
       "artifacts": [
@@ -1224,7 +1224,7 @@
         ],
         "proxyLog": "đúng 1 POST commit trong cả ca"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
       "serverOnly": false,
       "artifacts": [
@@ -1274,7 +1274,7 @@
         ],
         "proxyLog": "POST uploads chỉ sau khi request AI của bước hiện tại trả lời"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
       "serverOnly": false,
       "artifacts": [
@@ -1314,7 +1314,7 @@
         ],
         "proxyLog": "không POST commit"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
       "serverOnly": false,
       "artifacts": [
@@ -1402,7 +1402,7 @@
         "proxyLog": "không POST commit với keyTag mới ở mọi lối ra"
       },
       "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9)",
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -1456,7 +1456,7 @@
         "proxyLog": "sau 410: 0 POST commit (xem OQ-F1)"
       },
       "notes": "giữ EXPERIENCE: không gửi lại khi unknown (OQ-F1, câu hỏi cho owner G5-06)",
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -1473,7 +1473,7 @@
         "G5-A06"
       ],
       "fixture": "fx-xlsx-revenue-xyz",
-      "dependency": "F-clock",
+      "dependency": "none",
       "scenario": "reconciling → reconciling-stuck sau 1 giờ đối soát không có kết quả xác định",
       "source": "EXPERIENCE Queue rows › reconciling (\"đã 1 giờ … → reconciling-stuck\"); fork QUEUE_LIMITS.stuckAfterMs",
       "exits": [
@@ -1483,6 +1483,18 @@
         }
       ],
       "proxyRules": [
+        {
+          "id": "drop-commit",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "drop_request"
+          },
+          "once": true
+        },
         {
           "id": "always-in-flight",
           "match": {
@@ -1501,7 +1513,7 @@
       "faults": [
         {
           "kind": "clock",
-          "step": "cần núm thời gian cho QUEUE_LIMITS (OQ-F5)"
+          "step": "UNIWORK_SYNC_TEST_STUCK_AFTER_MS=20000 (fork test hook, OQ-F5) thay cho 1 giờ"
         }
       ],
       "expect": {
@@ -1514,8 +1526,8 @@
         "proxyLog": "0 POST commit sau lần đầu"
       },
       "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9)",
-      "clientAssertions": "pending F-trace",
-      "status": "pending F-clock",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
+      "status": "ready",
       "serverOnly": false,
       "artifacts": [
         "intent-log.jsonl",
@@ -1626,7 +1638,7 @@
         "proxyLog": "0 POST commit sau lối ra blocked"
       },
       "notes": "lối ra document_archived lệch ở fork (OQ-F6)",
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -1710,7 +1722,7 @@
         ],
         "proxyLog": "0 POST commit sau khi vào stuck"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -1782,7 +1794,7 @@
         ],
         "proxyLog": "0 POST commit"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-10",
       "serverOnly": false,
       "artifacts": [
@@ -1845,7 +1857,7 @@
         "proxyLog": "0 GET download version của B trước khi intent ra khỏi reconciling"
       },
       "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9)",
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-09",
       "serverOnly": false,
       "artifacts": [
@@ -1909,7 +1921,7 @@
         "proxyLog": "không POST commit nào khi đang blocked; cùng keyTag trước và sau"
       },
       "notes": "lối ra document_archived lệch ở server (OQ-F6)",
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -1978,7 +1990,7 @@
         ],
         "proxyLog": "cùng keyTag trước và sau đăng nhập lại"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -2020,7 +2032,7 @@
         ],
         "proxyLog": "0 POST commit"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-10",
       "serverOnly": false,
       "artifacts": [
@@ -2062,7 +2074,7 @@
         ],
         "proxyLog": "0 POST khi đầy"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
       "artifacts": [
@@ -2104,7 +2116,7 @@
         ],
         "proxyLog": "0 POST từ bản cũ"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G7-05",
       "serverOnly": false,
       "artifacts": [
@@ -2151,7 +2163,7 @@
         ],
         "proxyLog": "0 POST commit"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-10",
       "serverOnly": false,
       "artifacts": [
@@ -2202,7 +2214,7 @@
         "store": "trạng thái store trước/sau + ảnh S3/S11",
         "proxyLog": "không request ghi ngoài chính sách"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-05",
       "serverOnly": false,
       "artifacts": [
@@ -2240,7 +2252,7 @@
         "store": "trạng thái store trước/sau + ảnh S3/S11",
         "proxyLog": "không request ghi ngoài chính sách"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-05",
       "serverOnly": false,
       "artifacts": [
@@ -2278,7 +2290,7 @@
         "store": "trạng thái store trước/sau + ảnh S3/S11",
         "proxyLog": "không request ghi ngoài chính sách"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-05",
       "serverOnly": false,
       "artifacts": [
@@ -2316,7 +2328,7 @@
         "store": "trạng thái store trước/sau + ảnh S3/S11",
         "proxyLog": "không request ghi ngoài chính sách"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-08c",
       "serverOnly": false,
       "artifacts": [
@@ -2354,7 +2366,7 @@
         "store": "trạng thái store trước/sau + ảnh S3/S11",
         "proxyLog": "không request ghi ngoài chính sách"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-08c",
       "serverOnly": false,
       "artifacts": [
@@ -2392,7 +2404,7 @@
         "store": "trạng thái store trước/sau + ảnh S3/S11",
         "proxyLog": "không request ghi ngoài chính sách"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-08c",
       "serverOnly": false,
       "artifacts": [
@@ -2430,7 +2442,7 @@
         "store": "trạng thái store trước/sau + ảnh S3/S11",
         "proxyLog": "không request ghi ngoài chính sách"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-11",
       "serverOnly": false,
       "artifacts": [
@@ -2468,7 +2480,7 @@
         "store": "trạng thái store trước/sau + ảnh S3/S11",
         "proxyLog": "không request ghi ngoài chính sách"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-11",
       "serverOnly": false,
       "artifacts": [
@@ -2506,7 +2518,7 @@
         "store": "trạng thái store trước/sau + ảnh S3/S11",
         "proxyLog": "không request ghi ngoài chính sách"
       },
-      "clientAssertions": "pending F-trace",
+      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-08c",
       "serverOnly": false,
       "artifacts": [

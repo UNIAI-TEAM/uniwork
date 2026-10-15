@@ -1,0 +1,217 @@
+// Pure parts of the G7-03a app-layer fault runner (UNI-1380, WI-4): row
+// selection, trace parsing and filtering, transition assertions, proxy-log
+// helpers, aggregation and the app plumbing that needs no Electron or server.
+// Run: node --test scripts/office/g5g6g7/fault/app-cases.test.mjs
+import assert from "node:assert/strict";
+import { join } from "node:path";
+import test from "node:test";
+import { appEnv } from "../harness/lib.mjs";
+import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
+import { BLOCKED_DRIVERS, EXTRA_EXITS, reasonOf } from "./app-case-drivers-blocked.mjs";
+import { parseAppCasesArgs } from "./app-cases.mjs";
+import {
+  BLOCKED_EXIT_CODE, assertEntersWithCode, assertNeverState, assertStatePath, attemptIdFromAuthorizationUrl,
+  blockedCase, caseResult, commitLookups, commitPosts, descendantPids, documentWrites, envFileValue, expandExits,
+  faultAppExtraEnv, filterTrace, intentIdsOf, keyTagsOf, lastEntry, logSince, matchStatePath, parseProxyLog,
+  parseTraceText, predictedTag, reachedUpstream, runExitCode, runResult, selectAppCases, statePath,
+  syncStoreScopeDir, uploadPosts,
+} from "./app-cases-lib.mjs";
+import { loadFaultCases } from "./server-cases-lib.mjs";
+
+const DOC = "01JDOCAAAAAAAAAAAAAAAAAAAA";
+const OTHER = "01JDOCBBBBBBBBBBBBBBBBBBBB";
+const line = (ts, intentId, documentId, from, to, extra = {}) => JSON.stringify({ ts, intentId, documentId, from, to, ...extra });
+
+const TRACE = [
+  line("2026-10-15T01:00:00.000Z", "i1", DOC, null, "queued"),
+  line("2026-10-15T01:00:01.000Z", "i1", DOC, "queued", "paused_offline", { code: "network" }),
+  "{torn line",
+  line("2026-10-15T01:00:02.000Z", "i9", OTHER, null, "queued"),
+  JSON.stringify({ ts: "x", intentId: "i1", documentId: DOC, from: "queued", to: "not-a-state" }),
+  line("2026-10-15T01:00:03.000Z", "i1", DOC, "paused_offline", "validating", { secret: "dropped" }),
+  line("2026-10-15T01:00:04.000Z", "i1", DOC, "validating", "uploading"),
+  line("2026-10-15T01:00:05.000Z", "i1", DOC, "uploading", "committing"),
+  line("2026-10-15T01:00:06.000Z", "i1", DOC, "committing", "committed", { httpStatus: 200 }),
+].join("\n");
+
+test("selectAppCases runs the ready app rows and reports pending ones with their dependency", () => {
+  const doc = loadFaultCases();
+  const { runnable, blocked } = selectAppCases(doc);
+  assert.ok(runnable.length > 0 && runnable.every((r) => r.layer === "app" && r.status === "ready"));
+  assert.ok(blocked.every(({ row, reason }) => row.layer === "app" && reason === row.status && reason.startsWith("pending ")));
+  assert.equal(runnable.length + blocked.length, doc.cases.filter((r) => r.layer === "app").length);
+  assert.ok(!blocked.some(({ row }) => /F-trace|F-clock/.test(row.status)), "F-trace / F-clock rows are ready now");
+  assert.deepEqual(selectAppCases(doc, { caseId: "FQ-23" }).runnable, []);
+  assert.equal(selectAppCases(doc, { caseId: "FQ-23" }).blocked[0].reason, "pending G5-10");
+  assert.throws(() => selectAppCases(doc, { caseId: "FQ-01" }), /unknown app fault case/);
+});
+
+test("every ready app row has a driver and every driver serves a ready row", () => {
+  const ready = selectAppCases(loadFaultCases()).runnable.map((r) => r.id).sort();
+  assert.deepEqual(Object.keys({ ...QUEUE_DRIVERS, ...BLOCKED_DRIVERS }).sort(), ready);
+});
+
+test("the client assertions of every app row read the trace hook", () => {
+  for (const row of loadFaultCases().cases.filter((r) => r.layer === "app")) {
+    assert.match(row.clientAssertions, /UNIWORK_SYNC_TRACE_FILE/, row.id);
+  }
+});
+
+test("FQ-42 drops the first commit so the intent reconciles, then the lookup only says in_flight", () => {
+  const row = loadFaultCases().cases.find((r) => r.id === "FQ-42");
+  assert.equal(row.status, "ready");
+  assert.equal(row.dependency, "none");
+  assert.deepEqual(row.proxyRules.map((r) => `${r.id}:${r.action.type}`), ["drop-commit:drop_request", "always-in-flight:status"]);
+});
+
+test("parseTraceText keeps allow-listed keys and counts torn or foreign lines", () => {
+  const { lines, rejected } = parseTraceText(TRACE);
+  assert.equal(rejected, 2);
+  assert.equal(lines.length, 7);
+  assert.equal(lines[3].secret, undefined);
+  assert.equal(lines[0].from, null);
+  assert.deepEqual(parseTraceText("").lines, []);
+});
+
+test("filterTrace keeps one document, in order, optionally since a timestamp", () => {
+  const { lines } = parseTraceText(TRACE);
+  assert.equal(filterTrace(lines, DOC).length, 6);
+  assert.deepEqual(filterTrace(lines, OTHER).map((l) => l.intentId), ["i9"]);
+  assert.equal(filterTrace(lines, DOC, { sinceTs: "2026-10-15T01:00:04.000Z" }).length, 3);
+  assert.deepEqual(intentIdsOf(lines), ["i1", "i9"]);
+});
+
+test("statePath and matchStatePath: adjacency, '*' gaps and 'a|b' alternation", () => {
+  const lines = filterTrace(parseTraceText(TRACE).lines, DOC);
+  const path = statePath(lines);
+  assert.deepEqual(path, ["queued", "paused_offline", "validating", "uploading", "committing", "committed"]);
+  assert.ok(matchStatePath(path, ["*", "paused_offline", "*", "committing", "committed"]));
+  assert.ok(matchStatePath(path, ["queued|paused_offline", "*", "committed"]));
+  assert.ok(!matchStatePath(path, ["*", "paused_offline", "committing", "*"]), "no gap without '*'");
+  assert.ok(!matchStatePath(path, ["*", "reconciling", "*"]));
+  assert.ok(matchStatePath([], ["*"]));
+  assert.deepEqual(statePath([{ intentId: "x", from: "reconciling", to: "reconciling" }]), ["reconciling"]);
+});
+
+test("transition assertions report the expected and the actual path", () => {
+  const lines = filterTrace(parseTraceText(TRACE).lines, DOC);
+  const ok = assertStatePath("client_path", lines, ["*", "uploading", "committing", "committed"]);
+  assert.equal(ok.ok, true);
+  const bad = assertStatePath("client_path", lines, ["*", "reconciling", "committed"]);
+  assert.equal(bad.ok, false);
+  assert.match(bad.actual, /queued → paused_offline/);
+  assert.equal(assertStatePath("x", [], ["committed"]).actual, "(no transition)");
+  assert.equal(assertNeverState("n", lines, ["failed", "conflict"]).ok, true);
+  assert.equal(assertNeverState("n", lines, ["committed"]).ok, false);
+  const blocked = [{ intentId: "i", documentId: DOC, from: "reconciling", to: "blocked", code: "member_deactivated" }];
+  assert.equal(assertEntersWithCode("r", blocked, "blocked", "member_deactivated").ok, true);
+  assert.equal(assertEntersWithCode("r", blocked, "blocked", "permission_revoked").ok, false);
+  assert.equal(assertEntersWithCode("r", lines, "blocked", "x").actual, "(never entered)");
+  assert.equal(lastEntry(lines, "uploading").ts, "2026-10-15T01:00:04.000Z");
+  assert.equal(lastEntry(lines, "blocked"), null);
+});
+
+test("proxy log helpers split commit, lookup and upload traffic per document", () => {
+  const log = parseProxyLog([
+    { ts: "2026-10-15T01:00:00.000Z", method: "POST", path: `/api/v1/documents/${DOC}/uploads`, status: 201, keyTag: "aaa" },
+    { ts: "2026-10-15T01:00:01.000Z", method: "POST", path: `/api/v1/documents/${DOC}/versions/commit`, status: "dropped", keyTag: "aaa" },
+    { ts: "2026-10-15T01:00:02.000Z", method: "GET", path: `/api/v1/documents/${DOC}/versions/commit`, status: 200, keyTag: "aaa" },
+    { ts: "2026-10-15T01:00:03.000Z", method: "POST", path: `/api/v1/documents/${OTHER}/versions/commit`, status: 200, keyTag: "bbb" },
+    { ts: "2026-10-15T01:00:04.000Z", method: "GET", path: `/api/v1/documents/${DOC}/versions`, status: 200, keyTag: null },
+  ].map((e) => JSON.stringify(e)).join("\n") + "\nnot json\n");
+  assert.equal(log.length, 5);
+  assert.equal(commitPosts(log).length, 2);
+  assert.equal(commitPosts(log, DOC).length, 1);
+  assert.equal(commitLookups(log, DOC).length, 1);
+  assert.equal(uploadPosts(log, DOC).length, 1);
+  assert.equal(documentWrites(log, DOC).length, 2);
+  assert.deepEqual(keyTagsOf([...commitPosts(log, DOC), ...uploadPosts(log, DOC)]), ["aaa"]);
+  assert.equal(logSince(log, "2026-10-15T01:00:02.000Z").length, 3);
+  assert.equal(reachedUpstream(commitPosts(log, DOC)[0]), false);
+  assert.equal(reachedUpstream(commitLookups(log, DOC)[0]), true);
+});
+
+test("expandExits runs each exit once; a row without exits is one run", () => {
+  const rows = loadFaultCases().cases;
+  assert.deepEqual(expandExits(rows.find((r) => r.id === "FQ-22")).map((r) => r.index), [0]);
+  const fq43 = expandExits(rows.find((r) => r.id === "FQ-43"));
+  assert.equal(fq43.length, 6);
+  assert.deepEqual(fq43.map((r) => reasonOf(r.label)), ["session_expired", "organization_suspended", "member_deactivated", "document_archived", "permission_revoked", "document_deleted"]);
+  assert.equal(EXTRA_EXITS["FQ-43"].length, 3);
+  assert.ok(EXTRA_EXITS["FQ-43"].every((e) => e.real && reasonOf(e.exit)));
+  assert.deepEqual(expandExits(rows.find((r) => r.id === "FQ-50")).map((r) => reasonOf(r.label)), ["permission_revoked", "document_deleted", "document_archived", "organization_suspended", "member_deactivated"]);
+  assert.deepEqual(expandExits(rows.find((r) => r.id === "FQ-51")).map((r) => reasonOf(r.label)), ["session_expired", "signed_out", "foreign_account"]);
+});
+
+test("runResult and caseResult: FAIL wins, PASS needs every run, a blocked run is never a PASS", () => {
+  const pass = runResult({ label: "a", assertions: [{ name: "x", ok: true }] });
+  const fail = runResult({ label: "b", assertions: [{ name: "x", ok: false }], predicted: "OQ-F6" });
+  const blocked = runResult({ label: "c", assertions: [{ name: "x", ok: true }], blocker: "no admin" });
+  assert.equal(pass.result, "PASS");
+  assert.equal(fail.result, "FAIL");
+  assert.equal(fail.predicted, "OQ-F6");
+  assert.equal(pass.predicted, undefined);
+  assert.equal(runResult({ assertions: [] }).result, "FAIL", "no assertion is not a pass");
+  assert.equal(blocked.result, "BLOCKED");
+  const row = { id: "FQ-50", ac: ["G5-A08"], fixture: "fx-xlsx-revenue-xyz" };
+  assert.equal(caseResult(row, [pass, pass]).result, "PASS");
+  assert.equal(caseResult(row, [pass, blocked]).result, "BLOCKED");
+  const mixed = caseResult(row, [pass, blocked, fail]);
+  assert.equal(mixed.result, "FAIL");
+  assert.equal(mixed.predicted, "OQ-F6");
+  assert.equal(mixed.blocker, "c: no admin");
+  assert.deepEqual(mixed.exits.map((e) => e.n), [1, 2, 3]);
+  assert.equal(mixed.assertions[0].exit, "a");
+  assert.equal(caseResult(row, [pass]).exits[0].n, 0);
+  assert.equal(caseResult(row, []).result, "BLOCKED");
+  const pending = blockedCase({ ...row, scenario: "s" }, "pending G5-10");
+  assert.equal(pending.result, "BLOCKED");
+  assert.equal(pending.blocker, "s: pending G5-10");
+});
+
+test("runExitCode: ready rows decide; nothing ready ran is BLOCKED (77)", () => {
+  assert.equal(runExitCode([{ result: "PASS" }, { result: "PASS" }]), 0);
+  assert.equal(runExitCode([{ result: "PASS" }, { result: "FAIL" }]), 1);
+  assert.equal(runExitCode([{ result: "PASS" }, { result: "BLOCKED" }]), BLOCKED_EXIT_CODE);
+  assert.equal(runExitCode([]), BLOCKED_EXIT_CODE);
+});
+
+test("predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL", () => {
+  assert.equal(predictedTag(loadFaultCases().cases.find((r) => r.id === "FQ-24")), "F4");
+  assert.equal(predictedTag({ notes: "nothing" }), null);
+  assert.equal(predictedTag({}), null);
+});
+
+test("app plumbing: attempt id, store scope, fault env through appEnv, env files, process tree", () => {
+  assert.equal(attemptIdFromAuthorizationUrl("http://127.0.0.1:3001/auth/desktop/authorize?attempt_id=01JATTEMPT"), "01JATTEMPT");
+  assert.equal(attemptIdFromAuthorizationUrl("not a url"), null);
+  assert.equal(attemptIdFromAuthorizationUrl("http://h/x"), null);
+  assert.equal(syncStoreScopeDir("/u", "default", "01JUSER"), join("/u", "uniwork-sync", "store", "default", "01JUSER"));
+  const extra = faultAppExtraEnv({ traceFile: "/r/trace.jsonl", stuckAfterMs: 20000, display: ":99", xauthority: "/r/xa" });
+  assert.equal(extra.UNIWORK_SYNC_TRACE_FILE, "/r/trace.jsonl");
+  assert.equal(extra.UNIWORK_SYNC_TEST_STUCK_AFTER_MS, "20000");
+  assert.equal(extra.UNIWORK_SYNC_TEST_RECHECK_MS, undefined);
+  assert.equal(extra.UNIWORK_AUTH_E2E_NO_BROWSER, "1");
+  const env = appEnv({ source: { PATH: "/bin", DATABASE_URL: "postgres://x", JWT_SECRET: "s" }, apiOrigin: "http://127.0.0.1:5555", userDataDir: "/u", extra });
+  assert.equal(env.UNIWORK_API_ORIGIN, "http://127.0.0.1:5555");
+  assert.equal(env.DATABASE_URL, undefined);
+  assert.equal(env.JWT_SECRET, undefined);
+  assert.equal(env.DISPLAY, ":99");
+  const text = "# c\nDATABASE_URL='postgres://u:p@h/db?sslmode=disable'\nA=b\nQ='it'\\''s'\n";
+  assert.equal(envFileValue(text, "DATABASE_URL"), "postgres://u:p@h/db?sslmode=disable");
+  assert.equal(envFileValue(text, "A"), "b");
+  assert.equal(envFileValue(text, "Q"), "it's");
+  assert.equal(envFileValue(text, "MISSING"), "");
+  const ps = "  10     1\n  11    10\n  12    11\n  13    10\n  20     1\n";
+  assert.deepEqual(descendantPids(ps, 10).sort(), [11, 12, 13]);
+  assert.deepEqual(descendantPids(ps, 20), []);
+});
+
+test("parseAppCasesArgs reads --case, --run-dir, --cases-file and --verify-result", () => {
+  const args = parseAppCasesArgs(["--case", "FQ-22", "--run-dir=/tmp/run", "--verify-result"], {});
+  assert.equal(args.caseId, "FQ-22");
+  assert.match(args.runDir.replace(/\\/g, "/"), /\/tmp\/run$/);
+  assert.equal(args.verifyResult, true);
+  assert.match(parseAppCasesArgs([], { HARNESS_RUN_DIR: "/x/run" }).runDir.replace(/\\/g, "/"), /\/x\/run$/);
+  assert.throws(() => parseAppCasesArgs(["--nope"], {}), /unknown argument/);
+});
