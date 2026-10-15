@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1380-g7-03a-fixtures; git log --oneline -3
+695421c051997c6eb373f889ce4a3ed85990388d
+695421c051997c6eb373f889ce4a3ed85990388d
+695421c0 chore(sync): merge fork main 947f68e01 (G5-11f keystore-locked escape) into the G7-03a fixtures
+947f68e0 merge: G5-11f f6 BE review d1 lows (plannedRamOnly per scope, run rejections observed) into the G5-11f lane (UNI-1358)
+8d4a8b58 fix(shell): key the planned RAM-only keys per scope (d1-3)
