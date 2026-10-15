@@ -1,0 +1,1701 @@
+{
+  "date": "2026-10-14",
+  "promptId": "office_uniwork_ai@2",
+  "resolvedModel": "gpt-6-luna",
+  "serverSha": "9a6aadeb2",
+  "panelProofs": [
+    {
+      "caseId": "DV-DOCX-001",
+      "module": "docs",
+      "lang": "vi",
+      "prompt": "Đoạn văn đang chọn là đoạn số 4 ('Giai đoạn đầu áp dụng thử nghiệm cho 150 nhân viên vận hành tại kho Đà Nẵng trong vòng 6 tuần trước khi mở rộng toàn quốc.'). Hãy sửa riêng đoạn đang chọn để nâng số lượng lên 250 nhân viên vận hành và thời gian lên 8 tuần; giữ nguyên tất cả các đoạn còn lại.",
+      "facadeRouteCalled": true,
+      "facadeCallsCount": 2,
+      "paths": [
+        "/api/v1/office-frame/documents/01M4YCZ3T5HYBTX2CYQE8N1NYN/ai/uniwork/chat/completions"
+      ],
+      "allAuthBearer": true,
+      "toolCalls": [
+        "replace_selection"
+      ],
+      "writes": 1,
+      "outsideAllowlist": [],
+      "editSource": "editor",
+      "score": 1,
+      "passed": true,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 1 tool call(s) within docs allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: replace_selection"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=1, expected=1"
+        },
+        {
+          "id": "token:250",
+          "passed": true,
+          "detail": "found \"250\""
+        },
+        {
+          "id": "token:8 tuần",
+          "passed": true,
+          "detail": "found \"8 tuần\""
+        },
+        {
+          "id": "docx_target_block:4",
+          "passed": true,
+          "detail": "block 4 updated as required"
+        },
+        {
+          "id": "docx_other_paragraphs_unchanged",
+          "passed": true,
+          "detail": "all non-target paragraphs unchanged"
+        }
+      ],
+      "endToEndMs": 15722.3,
+      "answerExcerpt": "Đã sửa đoạn trong mục “2. Phạm vi áp dụng”: “Giai đoạn đầu áp dụng thử nghiệm cho 150 nhân viên vận hành tại kho Đà Nẵng trong vòng 6 tuần trước khi mở rộng toàn quốc.” thành “Giai đoạn đầu áp dụng thử nghiệm cho 250 nhân viên vận hành tại kho Đà Nẵng trong vòng 8 tuần trước khi mở rộng toàn quốc.” Các đoạn còn lại không thay đổi. Thay đổi chưa được lưu."
+    },
+    {
+      "caseId": "DV-DOCX-002",
+      "module": "docs",
+      "lang": "en",
+      "prompt": "The currently selected paragraph is block 4 ('Giai đoạn đầu áp dụng thử nghiệm cho 150 nhân viên vận hành tại kho Đà Nẵng trong vòng 6 tuần trước khi mở rộng toàn quốc.'). Edit only this selected paragraph in Vietnamese to change '150 nhân viên vận hành' to '250 nhân viên vận hành' and '6 tuần' to '8 tuần', keeping all other paragraphs unchanged.",
+      "facadeRouteCalled": true,
+      "facadeCallsCount": 3,
+      "paths": [
+        "/api/v1/office-frame/documents/01M4YCZ3T5HYBTX2CYQE8N1NYN/ai/uniwork/chat/completions"
+      ],
+      "allAuthBearer": true,
+      "toolCalls": [
+        "get_document_context",
+        "replace_selection"
+      ],
+      "writes": 1,
+      "outsideAllowlist": [],
+      "editSource": "editor",
+      "score": 1,
+      "passed": true,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within docs allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_document_context, replace_selection"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=1, expected=1"
+        },
+        {
+          "id": "token:250",
+          "passed": true,
+          "detail": "found \"250\""
+        },
+        {
+          "id": "token:8 tuần",
+          "passed": true,
+          "detail": "found \"8 tuần\""
+        },
+        {
+          "id": "docx_target_block:4",
+          "passed": true,
+          "detail": "block 4 updated as required"
+        },
+        {
+          "id": "docx_other_paragraphs_unchanged",
+          "passed": true,
+          "detail": "all non-target paragraphs unchanged"
+        }
+      ],
+      "endToEndMs": 11185,
+      "answerExcerpt": "Đã chỉnh sửa trong đoạn được chọn của block 4:\n\n- “150 nhân viên vận hành” → “250 nhân viên vận hành”\n- “6 tuần” → “8 tuần”\n\nCác đoạn khác không thay đổi. Thay đổi chưa được lưu."
+    },
+    {
+      "caseId": "DV-XLSX-001",
+      "module": "sheets",
+      "lang": "vi",
+      "prompt": "Trên trang tính 'Bán hàng T1', hãy tính tổng doanh thu ròng theo công thức X * (1 - Z) * Y cho các phiếu từ BH-101 đến BH-106 (chuẩn hóa cột Z gồm 5%, số 10 nghĩa là 10%, 10% và ô trống), nêu rõ cả tổng các dòng đang hiển thị và tổng tính cả dòng ẩn BH-105.",
+      "facadeRouteCalled": true,
+      "facadeCallsCount": 5,
+      "paths": [
+        "/api/v1/office-frame/documents/01M4YCZ3QWPTRAJ7R300WEYXSX/ai/uniwork/chat/completions"
+      ],
+      "allAuthBearer": true,
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range",
+        "read_sheet_features",
+        "find_cells"
+      ],
+      "writes": 0,
+      "outsideAllowlist": [],
+      "editSource": "no-document-mutation",
+      "score": 1,
+      "passed": true,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 4 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range, read_sheet_features, find_cells"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:visible_net_total",
+          "passed": true,
+          "detail": "found 51300"
+        },
+        {
+          "id": "num:all_rows_net_total",
+          "passed": true,
+          "detail": "found 61020"
+        },
+        {
+          "id": "num:hidden_row_bh105_net",
+          "passed": true,
+          "detail": "found 9720"
+        },
+        {
+          "id": "token:BH-105",
+          "passed": true,
+          "detail": "found \"BH-105\""
+        }
+      ],
+      "endToEndMs": 71853.2,
+      "answerExcerpt": "Tổng doanh thu ròng theo công thức **X × (1 − Z) × Y**:\n\n- **Các dòng đang hiển thị:** 51300\n- **Tính cả dòng ẩn BH-105:** 61020\n- **BH-105** đóng góp 9720.\n\nPhạm vi: trang tính `Bán hàng T1`, các phiếu BH-101 đến BH-106. Đã chuẩn hóa Z theo yêu cầu: 5% giữ nguyên, số 10 tính là 10%, 10% giữ nguyên và ô trống tính là 0%. Dòng 6 (BH-105) bị ẩn; dòng tổng ở hàng 8–9 không tính lại vào kết quả. Không"
+    },
+    {
+      "caseId": "DV-XLSX-002",
+      "module": "sheets",
+      "lang": "en",
+      "prompt": "On sheet 'Bán hàng T1', compute the total net revenue using X * (1 - Z) * Y across orders BH-101 through BH-106 (normalizing column Z stored as 5%, plain number 10 meaning 10%, 10%, and blank), and report both the visible-only total and the total including hidden row BH-105.",
+      "facadeRouteCalled": true,
+      "facadeCallsCount": 2,
+      "paths": [
+        "/api/v1/office-frame/documents/01M4YCZ3QWPTRAJ7R300WEYXSX/ai/uniwork/chat/completions"
+      ],
+      "allAuthBearer": true,
+      "toolCalls": [
+        "get_workbook_context"
+      ],
+      "writes": 0,
+      "outsideAllowlist": [],
+      "editSource": "no-document-mutation",
+      "score": 0.4286,
+      "passed": false,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 1 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:visible_net_total",
+          "passed": false,
+          "detail": "missing expected number 51300 (visible_net_total)"
+        },
+        {
+          "id": "num:all_rows_net_total",
+          "passed": false,
+          "detail": "missing expected number 61020 (all_rows_net_total)"
+        },
+        {
+          "id": "num:hidden_row_bh105_net",
+          "passed": false,
+          "detail": "missing expected number 9720 (hidden_row_bh105_net)"
+        },
+        {
+          "id": "token:BH-105",
+          "passed": false,
+          "detail": "missing token \"BH-105\""
+        }
+      ],
+      "endToEndMs": 57912.3,
+      "answerExcerpt": "Error: UniWork AI 暂时没有响应。你的文档和“保存”仍可正常使用。"
+    }
+  ],
+  "total": 20,
+  "passed": 17,
+  "accuracy": 0.85,
+  "byLang": {
+    "vi": {
+      "total": 10,
+      "passed": 8,
+      "accuracy": 0.8
+    },
+    "en": {
+      "total": 10,
+      "passed": 9,
+      "accuracy": 0.9
+    }
+  },
+  "byFormat": {
+    "xlsx": {
+      "total": 16,
+      "passed": 13,
+      "accuracy": 0.8125
+    },
+    "docx": {
+      "total": 4,
+      "passed": 4,
+      "accuracy": 1
+    }
+  },
+  "outsideAllowlistTotal": 0,
+  "latenciesMs": {
+    "model": {
+      "p50": 8710.2,
+      "p95": 13599.4
+    },
+    "tool": {
+      "p50": 0.1,
+      "p95": 0.4
+    },
+    "endToEnd": {
+      "p50": 8710.8,
+      "p95": 13600
+    }
+  },
+  "cases": [
+    {
+      "id": "DV-XLSX-001",
+      "pairId": "PAIR-XLSX-01",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "whole_range",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:visible_net_total",
+          "passed": true,
+          "detail": "found 51300"
+        },
+        {
+          "id": "num:all_rows_net_total",
+          "passed": true,
+          "detail": "found 61020"
+        },
+        {
+          "id": "num:hidden_row_bh105_net",
+          "passed": true,
+          "detail": "found 9720"
+        },
+        {
+          "id": "token:BH-105",
+          "passed": true,
+          "detail": "found \"BH-105\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 12571.9,
+        "tool": 0.4,
+        "endToEnd": 12572.8
+      },
+      "answerExcerpt": "Tổng doanh thu ròng:\n\n- **Chỉ các dòng đang hiển thị:** **51.300**\n- **Tính cả dòng ẩn BH-105:** **61.020**\n- **Doanh thu ròng của BH-105:** **9.720**\n\nPhạm vi: trang tính **“Bán hàng T1”**, các phiếu **BH-101 đến BH-106** tại **A2:G7**. Cột Z được chuẩn hóa theo công thức trong trang tính: `5%` và `10%` dạng phần trăm giữ nguyên, số `10` được hiểu là `10%`, ô trống là `0%`. Dòng 6 (**BH-105**) đa"
+    },
+    {
+      "id": "DV-XLSX-002",
+      "pairId": "PAIR-XLSX-01",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "whole_range",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:visible_net_total",
+          "passed": true,
+          "detail": "found 51300"
+        },
+        {
+          "id": "num:all_rows_net_total",
+          "passed": true,
+          "detail": "found 61020"
+        },
+        {
+          "id": "num:hidden_row_bh105_net",
+          "passed": true,
+          "detail": "found 9720"
+        },
+        {
+          "id": "token:BH-105",
+          "passed": true,
+          "detail": "found \"BH-105\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 13900.7,
+        "tool": 0,
+        "endToEnd": 13901.1
+      },
+      "answerExcerpt": "**Visible-only total net revenue: 51,300.** Including hidden order **BH-105: 61,020**.\n\nScope: “Bán hàng T1”, orders BH-101–BH-106 in rows 2:7, using `Số lượng (X)` × (1 − `Chiết khấu (Z)`) × `Đơn giá (Y)`. The plain number 10 was treated as 10%, and blanks as 0%. Hidden row 6 (BH-105, 9,720) is excluded from the visible-only total and included in the all-orders total. Total rows 8–9 were not coun"
+    },
+    {
+      "id": "DV-XLSX-003",
+      "pairId": "PAIR-XLSX-02",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "sheet_range_types_filters",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": false,
+      "score": 0.8889,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:f3_stored_plain",
+          "passed": true,
+          "detail": "found 10"
+        },
+        {
+          "id": "num:g8_sum_all",
+          "passed": true,
+          "detail": "found 61020"
+        },
+        {
+          "id": "num:g9_subtotal_visible",
+          "passed": true,
+          "detail": "found 51300"
+        },
+        {
+          "id": "token:BH-102",
+          "passed": true,
+          "detail": "found \"BH-102\""
+        },
+        {
+          "id": "token:BH-105",
+          "passed": false,
+          "detail": "missing token \"BH-105\""
+        },
+        {
+          "id": "token:SUBTOTAL",
+          "passed": true,
+          "detail": "found \"SUBTOTAL\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 8403.1,
+        "tool": 0,
+        "endToEnd": 8403.4
+      },
+      "answerExcerpt": "Cột `Chiết khấu (Z)` tại F2:F6 lưu không đồng nhất:\n\n- F2 và F4 lưu dưới dạng phần trăm: lần lượt là 5% (giá trị thô 0,05) và 10% (0,1).\n- F3 của BH-102 lưu số `10` với định dạng `General`, không phải ô phần trăm. Công thức doanh thu kiểm tra nếu giá trị lớn hơn 1 thì chia cho 100, nên diễn giải `10` là 10%.\n- F5 để trống.\n- F6 lưu 10% dưới dạng phần trăm; hàng này đang bị ẩn.\n\nHai dòng tổng khác "
+    },
+    {
+      "id": "DV-XLSX-004",
+      "pairId": "PAIR-XLSX-02",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "sheet_range_types_filters",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:f3_stored_plain",
+          "passed": true,
+          "detail": "found 10"
+        },
+        {
+          "id": "num:g8_sum_all",
+          "passed": true,
+          "detail": "found 61020"
+        },
+        {
+          "id": "num:g9_subtotal_visible",
+          "passed": true,
+          "detail": "found 51300"
+        },
+        {
+          "id": "token:BH-102",
+          "passed": true,
+          "detail": "found \"BH-102\""
+        },
+        {
+          "id": "token:BH-105",
+          "passed": true,
+          "detail": "found \"BH-105\""
+        },
+        {
+          "id": "token:SUBTOTAL",
+          "passed": true,
+          "detail": "found \"SUBTOTAL\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 12624,
+        "tool": 0,
+        "endToEnd": 12624.4
+      },
+      "answerExcerpt": "Result: On sheet `'Bán hàng T1'`, discount values in `F2:F6` use mixed storage:\n\n- `F2` (`BH-101`): true percentage, raw value `0.05`, formatted `5%`.\n- `F3` (`BH-102`): plain number, raw value `10`, General format. It represents `10%`, not a 10× discount. The revenue formula handles this by converting values greater than `1` with `F3/100`.\n- `F4` (`BH-103`): true percentage, raw value `0.1`, form"
+    },
+    {
+      "id": "DV-XLSX-005",
+      "pairId": "PAIR-XLSX-03",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "error_cell",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": false,
+      "score": 0.9412,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 3 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range, aggregate_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:valid_unit_after_sum",
+          "passed": false,
+          "detail": "missing expected number 5070 (valid_unit_after_sum)"
+        },
+        {
+          "id": "num:valid_unit_after_avg",
+          "passed": true,
+          "detail": "found 1014"
+        },
+        {
+          "id": "token:BH-106",
+          "passed": true,
+          "detail": "found \"BH-106\""
+        },
+        {
+          "id": "token:#DIV/0!",
+          "passed": true,
+          "detail": "found \"#DIV/0!\""
+        },
+        {
+          "id": "token:#N/A",
+          "passed": true,
+          "detail": "found \"#N/A\""
+        },
+        {
+          "id": "forbid_token:845",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"845\""
+        },
+        {
+          "id": "forbid_token:h7 = 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"h7 = 0\""
+        },
+        {
+          "id": "forbid_token:i7 = 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"i7 = 0\""
+        },
+        {
+          "id": "forbid_token:h7: 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"h7: 0\""
+        },
+        {
+          "id": "forbid_token:i7: 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"i7: 0\""
+        },
+        {
+          "id": "forbid_token:trung bình là 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"trung bình là 0\""
+        },
+        {
+          "id": "forbid_token:trung bình cộng là 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"trung bình cộng là 0\""
+        },
+        {
+          "id": "forbid_token:kết quả: 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"kết quả: 0\""
+        },
+        {
+          "id": "forbid_token:kết quả là 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"kết quả là 0\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range",
+        "aggregate_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 8710.2,
+        "tool": 0.1,
+        "endToEnd": 8710.8
+      },
+      "answerExcerpt": "Kết quả: Dòng BH-106 (dòng 7) có lỗi **#DIV/0!** tại H7 và **#N/A** tại I7. Trung bình cộng “Đơn giá sau CK” trong H2:H6 là **1014**.\n\nPhạm vi: trang tính “Bán hàng T1”, H2:H7. Trung bình tính từ 5 ô số H2:H6, **bao gồm dòng 6 đang ẩn**; không thay ô lỗi bằng 0. Không làm tròn thêm."
+    },
+    {
+      "id": "DV-XLSX-006",
+      "pairId": "PAIR-XLSX-03",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "error_cell",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": false,
+      "score": 0.9412,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:valid_unit_after_sum",
+          "passed": false,
+          "detail": "missing expected number 5070 (valid_unit_after_sum)"
+        },
+        {
+          "id": "num:valid_unit_after_avg",
+          "passed": true,
+          "detail": "found 1014"
+        },
+        {
+          "id": "token:BH-106",
+          "passed": true,
+          "detail": "found \"BH-106\""
+        },
+        {
+          "id": "token:#DIV/0!",
+          "passed": true,
+          "detail": "found \"#DIV/0!\""
+        },
+        {
+          "id": "token:#N/A",
+          "passed": true,
+          "detail": "found \"#N/A\""
+        },
+        {
+          "id": "forbid_token:845",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"845\""
+        },
+        {
+          "id": "forbid_token:h7 = 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"h7 = 0\""
+        },
+        {
+          "id": "forbid_token:i7 = 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"i7 = 0\""
+        },
+        {
+          "id": "forbid_token:h7: 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"h7: 0\""
+        },
+        {
+          "id": "forbid_token:i7: 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"i7: 0\""
+        },
+        {
+          "id": "forbid_token:average is 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"average is 0\""
+        },
+        {
+          "id": "forbid_token:average = 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"average = 0\""
+        },
+        {
+          "id": "forbid_token:result: 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"result: 0\""
+        },
+        {
+          "id": "forbid_token:result is 0",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"result is 0\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 6984.8,
+        "tool": 0,
+        "endToEnd": 6985.1
+      },
+      "answerExcerpt": "BH-106: H7 là `#DIV/0!`; I7 là `#N/A`. Trung bình `Đơn giá sau CK` trong H2:H6 là **1014**.\n\nPhạm vi: sheet `Bán hàng T1`, H2:H7 và hàng 7. Đã tính đủ 5 ô hợp lệ H2:H6; hàng 6 bị ẩn nhưng vẫn được tính theo phạm vi bạn chỉ định. Không làm tròn; không tính các hàng tổng."
+    },
+    {
+      "id": "DV-XLSX-007",
+      "pairId": "PAIR-XLSX-04",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "stale_cache",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:stale_cached_d2",
+          "passed": true,
+          "detail": "found 99999"
+        },
+        {
+          "id": "num:true_product_bc",
+          "passed": true,
+          "detail": "found 10000"
+        },
+        {
+          "id": "token:LEGACYCACHE",
+          "passed": true,
+          "detail": "found \"LEGACYCACHE\""
+        },
+        {
+          "id": "any:cache",
+          "passed": true,
+          "detail": "matched one of [cache | bộ nhớ đệm | chưa được tính lại | not recalculated | #name?]"
+        },
+        {
+          "id": "forbid_token:99999",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"99999\""
+        },
+        {
+          "id": "forbid_token:99.999",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"99.999\""
+        },
+        {
+          "id": "forbid_token:99,999",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"99,999\""
+        },
+        {
+          "id": "forbid_token:88888",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"88888\""
+        },
+        {
+          "id": "forbid_token:88.888",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"88.888\""
+        },
+        {
+          "id": "forbid_token:88,888",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"88,888\""
+        },
+        {
+          "id": "forbid_token:d2 = 99999",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"d2 = 99999\""
+        },
+        {
+          "id": "forbid_token:d3 = 88888",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"d3 = 88888\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 10805.6,
+        "tool": 0,
+        "endToEnd": 10805.9
+      },
+      "answerExcerpt": "Kết quả: Không được dùng giá trị cache cũ `99999` hoặc `88888` làm kết quả chính thức vì đó là các giá trị đã lưu nhưng **chưa được tính lại**.\n\n- `D2 =LEGACYCACHE(B2,C2)`: cache cũ là `99999`, nhưng hàm `LEGACYCACHE` không được bộ tính hỗ trợ nên công thức trả về `#NAME?`. Tích thực tế `B2*C2 = 2500*4 = 10000`.\n- `D3 =B3*C3`: cache cũ trong tệp là `88888`, nhưng sau khi tính lại công thức cho kết"
+    },
+    {
+      "id": "DV-XLSX-008",
+      "pairId": "PAIR-XLSX-04",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "stale_cache",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:stale_cached_d2",
+          "passed": true,
+          "detail": "found 99999"
+        },
+        {
+          "id": "num:true_product_bc",
+          "passed": true,
+          "detail": "found 10000"
+        },
+        {
+          "id": "token:LEGACYCACHE",
+          "passed": true,
+          "detail": "found \"LEGACYCACHE\""
+        },
+        {
+          "id": "any:cached",
+          "passed": true,
+          "detail": "matched one of [cached | stale | not recalculated | #name? | unverified]"
+        },
+        {
+          "id": "forbid_token:99999",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"99999\""
+        },
+        {
+          "id": "forbid_token:99,999",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"99,999\""
+        },
+        {
+          "id": "forbid_token:99.999",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"99.999\""
+        },
+        {
+          "id": "forbid_token:88888",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"88888\""
+        },
+        {
+          "id": "forbid_token:88,888",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"88,888\""
+        },
+        {
+          "id": "forbid_token:88.888",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"88.888\""
+        },
+        {
+          "id": "forbid_token:d2 = 99999",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"d2 = 99999\""
+        },
+        {
+          "id": "forbid_token:d3 = 88888",
+          "passed": true,
+          "detail": "conclusion cleanly omitted \"d3 = 88888\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 7484,
+        "tool": 0,
+        "endToEnd": 7484.4
+      },
+      "answerExcerpt": "The cached values **99999** in D2 and **88888** in D3 are not verified results. D2’s `LEGACYCACHE` function is unsupported, so it was not recalculated and returns `#NAME?`. D3’s formula `=B3*C3` was recalculated, giving **10000**; its old cache is stale. The product **B*C** is **2500 × 4 = 10000** for both rows.\n\nScope: sheet “Kiểm toán,” cells D2:D3 and inputs B2:C3. This reflects the current edi"
+    },
+    {
+      "id": "DV-XLSX-009",
+      "pairId": "PAIR-XLSX-05",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "unsupported_formula",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_cells"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "token:FILTERXML",
+          "passed": true,
+          "detail": "found \"FILTERXML\""
+        },
+        {
+          "id": "token:#NAME?",
+          "passed": true,
+          "detail": "found \"#NAME?\""
+        },
+        {
+          "id": "any:không được hỗ trợ",
+          "passed": true,
+          "detail": "matched one of [không được hỗ trợ | không hỗ trợ | unsupported | not supported]"
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_cells"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 4844.1,
+        "tool": 0.1,
+        "endToEnd": 4844.4
+      },
+      "answerExcerpt": "Ô D4 trên trang tính “Kiểm toán” chứa công thức `=FILTERXML(B4,\"//tygia\")`. Trạng thái là `#NAME?`; bộ máy công thức hiện tại không thể tính giá trị vì hàm `FILTERXML` không được hỗ trợ. Giá trị chưa được tính lại."
+    },
+    {
+      "id": "DV-XLSX-010",
+      "pairId": "PAIR-XLSX-05",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "unsupported_formula",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_cells"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "token:FILTERXML",
+          "passed": true,
+          "detail": "found \"FILTERXML\""
+        },
+        {
+          "id": "token:#NAME?",
+          "passed": true,
+          "detail": "found \"#NAME?\""
+        },
+        {
+          "id": "any:unsupported",
+          "passed": true,
+          "detail": "matched one of [unsupported | not supported | cannot calculate | does not support]"
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_cells"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 7280.7,
+        "tool": 0,
+        "endToEnd": 7280.9
+      },
+      "answerExcerpt": "D4 contains the exact formula `=FILTERXML(B4,\"//tygia\")`.\n\n- **Error status:** `#NAME?`\n- **Why it cannot be evaluated:** The formula engine does not support the `FILTERXML` function, so the formula is marked **NOT RECALCULATED**.\n\nScope: sheet `\"Kiểm toán\"`, cell `D4` only. No changes were made."
+    },
+    {
+      "id": "DV-XLSX-011",
+      "pairId": "PAIR-XLSX-06",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "locale_rounding",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:b6_numeric_only",
+          "passed": true,
+          "detail": "found 800"
+        },
+        {
+          "id": "num:d5_rounded_int",
+          "passed": true,
+          "detail": "found 3201"
+        },
+        {
+          "id": "num:d6_rounded_int",
+          "passed": true,
+          "detail": "found 1450"
+        },
+        {
+          "id": "num:sum_d5_d6_rounded",
+          "passed": true,
+          "detail": "found 4651"
+        },
+        {
+          "id": "token:1.250,5",
+          "passed": true,
+          "detail": "found \"1.250,5\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 10005,
+        "tool": 0,
+        "endToEnd": 10005.3
+      },
+      "answerExcerpt": "Kết quả: B5 không được tính vào tổng số học vì ô này đang lưu dưới dạng văn bản locale `\"1.250,5\"`, không phải số. Vì vậy, tổng số các giá trị số trong B5:B6 là **800** (chỉ gồm B6).\n\nÁp dụng quy tắc ở E5:E6 — làm tròn đến hàng đơn vị: D5 **3201**, D6 **1450**. Tổng giá trị D5 và D6 là **4651**; làm tròn tổng cũng được **4651**.\n\nPhạm vi: trang tính “Kiểm toán”, B5:B6 và D5:D6. Không có hàng ẩn; k"
+    },
+    {
+      "id": "DV-XLSX-012",
+      "pairId": "PAIR-XLSX-06",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "locale_rounding",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 3 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range, aggregate_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:b6_numeric_only",
+          "passed": true,
+          "detail": "found 800"
+        },
+        {
+          "id": "num:d5_rounded_int",
+          "passed": true,
+          "detail": "found 3201"
+        },
+        {
+          "id": "num:d6_rounded_int",
+          "passed": true,
+          "detail": "found 1450"
+        },
+        {
+          "id": "num:sum_d5_d6_rounded",
+          "passed": true,
+          "detail": "found 4651"
+        },
+        {
+          "id": "token:1.250,5",
+          "passed": true,
+          "detail": "found \"1.250,5\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range",
+        "aggregate_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 13328,
+        "tool": 0.1,
+        "endToEnd": 13328.4
+      },
+      "answerExcerpt": "B5 is stored as text (`\"1.250,5\"`), not as a numeric value. Because numeric aggregation does not parse or convert locale-formatted text, B5 is skipped. Only numeric cell B6 is included, giving a count of 1 and a sum of 800.\n\nUsing column E’s rule to round column D to 0 decimal places:\n\n- D5: 3200.756 → 3201\n- D6: 1450.244 → 1450\n- Sum: 4651\n\nScope: `Kiểm toán!B5:B6` and `D5:E6`; no hidden rows or "
+    },
+    {
+      "id": "DV-XLSX-013",
+      "pairId": "PAIR-XLSX-07",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "ambiguity",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 4 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range, read_range, ask_clarification"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "any:chiết khấu",
+          "passed": true,
+          "detail": "matched one of [chiết khấu | phiếu nào | dòng tổng | g8 | g9 | subtotal | làm rõ | xác nhận]"
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range",
+        "read_range",
+        "ask_clarification"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 13599.4,
+        "tool": 0.1,
+        "endToEnd": 13600
+      },
+      "answerExcerpt": "Trong bảng, F3 của phiếu BH-102 là số 10 dạng số thường, nhưng công thức đang hiểu là 10%; các mức khác là 5%, 10% hoặc để trống. Bạn muốn xử lý chiết khấu thế nào?: Chỉ chuẩn hóa F3 thành định dạng 10% (giữ nguyên giá trị chiết khấu) / Có phiếu/mức chiết khấu khác cần sửa; tôi sẽ cung cấp mã phiếu và mức đúng; Hai dòng cuối không cùng phạm vi: dòng 8 “Tổng cộng” tính cả dòng ẩn 6, dòng 9 “Tổng dò"
+    },
+    {
+      "id": "DV-XLSX-014",
+      "pairId": "PAIR-XLSX-07",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "ambiguity",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 4 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range, read_range, ask_clarification"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "any:discount",
+          "passed": true,
+          "detail": "matched one of [discount | which | total row | g8 | g9 | subtotal | clarif | specify]"
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range",
+        "read_range",
+        "ask_clarification"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 12278.9,
+        "tool": 0.1,
+        "endToEnd": 12279.4
+      },
+      "answerExcerpt": "For order BH-102, F3 is stored as plain number 10 while the other rates use percentage format; the formula treats it as 10%. What should I change it to?: Normalize F3 to 10% (same effective rate) / Use a different discount rate (I’ll specify it); There are two total rows: row 8 “Tổng cộng” includes hidden row 6, and row 9 “Tổng dòng hiển thị” excludes it. Which row should be deleted?: Delete row 9"
+    },
+    {
+      "id": "DV-XLSX-015",
+      "pairId": "PAIR-XLSX-08",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "whole_range",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 4 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_sheet_features, read_range, summarize_range"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:mien_bac_total",
+          "passed": true,
+          "detail": "found 23400"
+        },
+        {
+          "id": "num:mien_trung_visible",
+          "passed": true,
+          "detail": "found 14400"
+        },
+        {
+          "id": "num:mien_trung_with_hidden",
+          "passed": true,
+          "detail": "found 24120"
+        },
+        {
+          "id": "num:mien_nam_total",
+          "passed": true,
+          "detail": "found 13500"
+        },
+        {
+          "id": "token:Miền Bắc",
+          "passed": true,
+          "detail": "found \"Miền Bắc\""
+        },
+        {
+          "id": "token:Miền Trung",
+          "passed": true,
+          "detail": "found \"Miền Trung\""
+        },
+        {
+          "id": "token:Miền Nam",
+          "passed": true,
+          "detail": "found \"Miền Nam\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_sheet_features",
+        "read_range",
+        "summarize_range"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 12767.4,
+        "tool": 0.1,
+        "endToEnd": 12768
+      },
+      "answerExcerpt": "Tổng doanh thu ròng theo chi nhánh:\n\n| Chi nhánh | Chỉ tính dòng hiển thị | Tính cả dòng ẩn BH-105 |\n|---|---:|---:|\n| Miền Bắc | 23.400 | 23.400 |\n| Miền Trung | 14.400 | 24.120 |\n| Miền Nam | 13.500 | 13.500 |\n\nPhạm vi: trang tính `Bán hàng T1`, dữ liệu các dòng 2–7, cột `Chi nhánh` và `Doanh thu ròng`. Miền Trung khi tính cả dòng ẩn cộng thêm BH-105 (9.720). Đã bỏ qua các dòng tổng 8–9 để tránh"
+    },
+    {
+      "id": "DV-XLSX-016",
+      "pairId": "PAIR-XLSX-08",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "whole_range",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 3 tool call(s) within sheets allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_workbook_context, read_range, read_sheet_features"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=0, expected=0"
+        },
+        {
+          "id": "num:mien_bac_total",
+          "passed": true,
+          "detail": "found 23400"
+        },
+        {
+          "id": "num:mien_trung_visible",
+          "passed": true,
+          "detail": "found 14400"
+        },
+        {
+          "id": "num:mien_trung_with_hidden",
+          "passed": true,
+          "detail": "found 24120"
+        },
+        {
+          "id": "num:mien_nam_total",
+          "passed": true,
+          "detail": "found 13500"
+        },
+        {
+          "id": "token:Miền Bắc",
+          "passed": true,
+          "detail": "found \"Miền Bắc\""
+        },
+        {
+          "id": "token:Miền Trung",
+          "passed": true,
+          "detail": "found \"Miền Trung\""
+        },
+        {
+          "id": "token:Miền Nam",
+          "passed": true,
+          "detail": "found \"Miền Nam\""
+        }
+      ],
+      "toolCalls": [
+        "get_workbook_context",
+        "read_range",
+        "read_sheet_features"
+      ],
+      "outsideAllowlist": [],
+      "writes": 0,
+      "latenciesMs": {
+        "model": 12210.3,
+        "tool": 0.1,
+        "endToEnd": 12210.8
+      },
+      "answerExcerpt": "**Doanh thu ròng theo chi nhánh** trên sheet `Bán hàng T1`:\n\n| Chi nhánh | Chỉ tính dòng hiển thị | Có tính dòng ẩn `BH-105` |\n|---|---:|---:|\n| Miền Bắc | 23400 | 23400 |\n| Miền Trung | 14400 | 24120 |\n| Miền Nam | 13500 | 13500 |\n\nPhạm vi dữ liệu: `Bán hàng T1!G2:G7`, phân nhóm theo `B2:B7`. Dòng ẩn 6 (`BH-105`, Miền Trung) có doanh thu ròng 9720; dòng này bị loại khỏi cột hiển thị và được cộng "
+    },
+    {
+      "id": "DV-DOCX-001",
+      "pairId": "PAIR-DOCX-01",
+      "lang": "vi",
+      "format": "docx",
+      "category": "docx_selected_paragraph_edit",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within docs allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_document_context, replace_selection"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=1, expected=1"
+        },
+        {
+          "id": "token:250",
+          "passed": true,
+          "detail": "found \"250\""
+        },
+        {
+          "id": "token:8 tuần",
+          "passed": true,
+          "detail": "found \"8 tuần\""
+        },
+        {
+          "id": "docx_target_block:4",
+          "passed": true,
+          "detail": "block 4 updated as required"
+        },
+        {
+          "id": "docx_other_paragraphs_unchanged",
+          "passed": true,
+          "detail": "all non-target paragraphs unchanged"
+        }
+      ],
+      "toolCalls": [
+        "get_document_context",
+        "replace_selection"
+      ],
+      "outsideAllowlist": [],
+      "writes": 1,
+      "latenciesMs": {
+        "model": 6191.5,
+        "tool": 0.4,
+        "endToEnd": 6192.1
+      },
+      "answerExcerpt": "Đã chỉnh sửa trong tài liệu, tại đoạn số 4:\n\n- “150 nhân viên vận hành” → “250 nhân viên vận hành”\n- “6 tuần” → “8 tuần”\n\nCác đoạn còn lại được giữ nguyên. Thay đổi chưa được lưu."
+    },
+    {
+      "id": "DV-DOCX-002",
+      "pairId": "PAIR-DOCX-01",
+      "lang": "en",
+      "format": "docx",
+      "category": "docx_selected_paragraph_edit",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within docs allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_document_context, replace_selection"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=1, expected=1"
+        },
+        {
+          "id": "token:250",
+          "passed": true,
+          "detail": "found \"250\""
+        },
+        {
+          "id": "token:8 tuần",
+          "passed": true,
+          "detail": "found \"8 tuần\""
+        },
+        {
+          "id": "docx_target_block:4",
+          "passed": true,
+          "detail": "block 4 updated as required"
+        },
+        {
+          "id": "docx_other_paragraphs_unchanged",
+          "passed": true,
+          "detail": "all non-target paragraphs unchanged"
+        }
+      ],
+      "toolCalls": [
+        "get_document_context",
+        "replace_selection"
+      ],
+      "outsideAllowlist": [],
+      "writes": 1,
+      "latenciesMs": {
+        "model": 4485.6,
+        "tool": 0.2,
+        "endToEnd": 4486.1
+      },
+      "answerExcerpt": "Đã sửa đoạn được chọn trong mục **“2. Phạm vi áp dụng”**. Đổi “150 nhân viên vận hành” thành “250 nhân viên vận hành” và “6 tuần” thành “8 tuần”. Các phần khác không thay đổi. Thay đổi này chưa được lưu."
+    },
+    {
+      "id": "DV-DOCX-003",
+      "pairId": "PAIR-DOCX-02",
+      "lang": "vi",
+      "format": "docx",
+      "category": "docx_selected_paragraph_edit",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within docs allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_document_context, replace_selection"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=1, expected=1"
+        },
+        {
+          "id": "token:25 tháng 11",
+          "passed": true,
+          "detail": "found \"25 tháng 11\""
+        },
+        {
+          "id": "token:ba buổi tập huấn",
+          "passed": true,
+          "detail": "found \"ba buổi tập huấn\""
+        },
+        {
+          "id": "docx_target_block:6",
+          "passed": true,
+          "detail": "block 6 updated as required"
+        },
+        {
+          "id": "docx_other_paragraphs_unchanged",
+          "passed": true,
+          "detail": "all non-target paragraphs unchanged"
+        }
+      ],
+      "toolCalls": [
+        "get_document_context",
+        "replace_selection"
+      ],
+      "outsideAllowlist": [],
+      "writes": 1,
+      "latenciesMs": {
+        "model": 4624.8,
+        "tool": 0.8,
+        "endToEnd": 4625.8
+      },
+      "answerExcerpt": "Đã sửa riêng đoạn 6 dưới tiêu đề “3. Kế hoạch bàn giao”. Đổi “ngày 20 tháng 11” thành “ngày 25 tháng 11” và “hai buổi tập huấn” thành “ba buổi tập huấn”. Các đoạn khác không thay đổi. Thay đổi hiện chưa được lưu."
+    },
+    {
+      "id": "DV-DOCX-004",
+      "pairId": "PAIR-DOCX-02",
+      "lang": "en",
+      "format": "docx",
+      "category": "docx_selected_paragraph_edit",
+      "promptId": "office_uniwork_ai@2",
+      "resolvedModel": "gpt-6-luna",
+      "passed": true,
+      "score": 1,
+      "checks": [
+        {
+          "id": "allowlist",
+          "passed": true,
+          "detail": "all 2 tool call(s) within docs allowlist"
+        },
+        {
+          "id": "required_tools",
+          "passed": true,
+          "detail": "required tool(s) called: get_document_context, replace_selection"
+        },
+        {
+          "id": "writes",
+          "passed": true,
+          "detail": "writes=1, expected=1"
+        },
+        {
+          "id": "token:25 tháng 11",
+          "passed": true,
+          "detail": "found \"25 tháng 11\""
+        },
+        {
+          "id": "token:ba buổi tập huấn",
+          "passed": true,
+          "detail": "found \"ba buổi tập huấn\""
+        },
+        {
+          "id": "docx_target_block:6",
+          "passed": true,
+          "detail": "block 6 updated as required"
+        },
+        {
+          "id": "docx_other_paragraphs_unchanged",
+          "passed": true,
+          "detail": "all non-target paragraphs unchanged"
+        }
+      ],
+      "toolCalls": [
+        "get_document_context",
+        "replace_selection"
+      ],
+      "outsideAllowlist": [],
+      "writes": 1,
+      "latenciesMs": {
+        "model": 5972,
+        "tool": 0.1,
+        "endToEnd": 5972.3
+      },
+      "answerExcerpt": "Đã chỉnh sửa trong tài liệu, tại block 6 dưới tiêu đề “3. Kế hoạch bàn giao”.\n\n- Trước: “ngày 20 tháng 11” → Sau: “ngày 25 tháng 11”\n- Trước: “hai buổi tập huấn” → Sau: “ba buổi tập huấn”\n\nCác block khác không bị thay đổi. Thay đổi chưa được lưu."
+    }
+  ]
+}

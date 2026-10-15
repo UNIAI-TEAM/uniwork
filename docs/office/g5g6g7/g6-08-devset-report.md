@@ -44,6 +44,62 @@ Runner ghi JSON **chỉ khi** không có giá trị giống bí mật (`scanForS
 ## 3. Kết quả đo lường (tính từ `devset/runs/*.json`)
 
 <!-- devset-run-tables:begin -->
+- **@1**: `office_uniwork_ai@1` dựng từ server ở commit `4df589a37`, mô hình phân giải `gpt-6-luna`, ngày `2026-10-14` (tệp `run-v1-4df589a37.json`).
+- **@2**: `office_uniwork_ai@2` dựng từ server ở commit `9a6aadeb2`, mô hình phân giải `gpt-6-luna`, ngày `2026-10-14` (tệp `run-v2-9a6aadeb2.json`).
+
+### Độ chính xác
+
+| Chỉ số | `@1` | `@2` | Thay đổi |
+| --- | ---: | ---: | ---: |
+| Số ca đạt / tổng | 16 / 20 | **17 / 20** | +1 ca |
+| Độ chính xác tổng | 80,0% | **85,0%** | +5 điểm % |
+| Tiếng Việt (`vi`) | 7 / 10 (70,0%) | **8 / 10 (80,0%)** | +10 điểm % |
+| Tiếng Anh (`en`) | 9 / 10 (90,0%) | **9 / 10 (90,0%)** | — điểm % |
+| Bảng tính (`xlsx`) | 13 / 16 (81,3%) | **13 / 16 (81,3%)** | — điểm % |
+| Tài liệu chữ (`docx`) | 3 / 4 (75,0%) | **4 / 4 (100,0%)** | +25 điểm % |
+| Lệnh gọi ngoài allowlist | 0 | **0** | — |
+
+### Độ trễ (p50 / p95, ms)
+
+| Thành phần | `@1` p50 | `@1` p95 | `@2` p50 | `@2` p95 |
+| --- | ---: | ---: | ---: | ---: |
+| model | 10.169,6 | 18.331 | **8.710,2** | **13.599,4** |
+| tool | 0,1 | 0,5 | **0,1** | **0,4** |
+| endToEnd | 10.169,9 | 18.331,6 | **8.710,8** | **13.600** |
+
+### Từng ca
+
+| Mã ca | Ngôn ngữ | Định dạng | Nhóm | Công cụ đã gọi (`@2`) | Ngoài allowlist | Điểm `@1` | `@1` | Điểm `@2` | `@2` | Độ trễ `@2` model / tool / e2e (ms) |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | --- | ---: |
+| `DV-XLSX-001` | `vi` | `xlsx` | `whole_range` | `get_workbook_context`, `read_range` | 0 | 1 | PASS | 1 | PASS | 12.571,9 / 0,4 / 12.572,8 |
+| `DV-XLSX-002` | `en` | `xlsx` | `whole_range` | `get_workbook_context`, `read_range` | 0 | 1 | PASS | 1 | PASS | 13.900,7 / 0 / 13.901,1 |
+| `DV-XLSX-003` | `vi` | `xlsx` | `sheet_range_types_filters` | `get_workbook_context`, `read_range` | 0 | 0,9 | FAIL | 0,9 | FAIL | 8.403,1 / 0 / 8.403,4 |
+| `DV-XLSX-004` | `en` | `xlsx` | `sheet_range_types_filters` | `get_workbook_context`, `read_range` | 0 | 1 | PASS | 1 | PASS | 12.624 / 0 / 12.624,4 |
+| `DV-XLSX-005` | `vi` | `xlsx` | `error_cell` | `get_workbook_context`, `read_range`, `aggregate_range` | 0 | 0,9 | FAIL | 0,9 | FAIL | 8.710,2 / 0,1 / 8.710,8 |
+| `DV-XLSX-006` | `en` | `xlsx` | `error_cell` | `get_workbook_context`, `read_range` | 0 | 0,9 | FAIL | 0,9 | FAIL | 6.984,8 / 0 / 6.985,1 |
+| `DV-XLSX-007` | `vi` | `xlsx` | `stale_cache` | `get_workbook_context`, `read_range` | 0 | 1 | PASS | 1 | PASS | 10.805,6 / 0 / 10.805,9 |
+| `DV-XLSX-008` | `en` | `xlsx` | `stale_cache` | `get_workbook_context`, `read_range` | 0 | 1 | PASS | 1 | PASS | 7.484 / 0 / 7.484,4 |
+| `DV-XLSX-009` | `vi` | `xlsx` | `unsupported_formula` | `get_workbook_context`, `read_cells` | 0 | 1 | PASS | 1 | PASS | 4.844,1 / 0,1 / 4.844,4 |
+| `DV-XLSX-010` | `en` | `xlsx` | `unsupported_formula` | `get_workbook_context`, `read_cells` | 0 | 1 | PASS | 1 | PASS | 7.280,7 / 0 / 7.280,9 |
+| `DV-XLSX-011` | `vi` | `xlsx` | `locale_rounding` | `get_workbook_context`, `read_range` | 0 | 1 | PASS | 1 | PASS | 10.005 / 0 / 10.005,3 |
+| `DV-XLSX-012` | `en` | `xlsx` | `locale_rounding` | `get_workbook_context`, `read_range`, `aggregate_range` | 0 | 1 | PASS | 1 | PASS | 13.328 / 0,1 / 13.328,4 |
+| `DV-XLSX-013` | `vi` | `xlsx` | `ambiguity` | `get_workbook_context`, `read_range`, `read_range`, `ask_clarification` | 0 | 1 | PASS | 1 | PASS | 13.599,4 / 0,1 / 13.600 |
+| `DV-XLSX-014` | `en` | `xlsx` | `ambiguity` | `get_workbook_context`, `read_range`, `read_range`, `ask_clarification` | 0 | 1 | PASS | 1 | PASS | 12.278,9 / 0,1 / 12.279,4 |
+| `DV-XLSX-015` | `vi` | `xlsx` | `whole_range` | `get_workbook_context`, `read_sheet_features`, `read_range`, `summarize_range` | 0 | 1 | PASS | 1 | PASS | 12.767,4 / 0,1 / 12.768 |
+| `DV-XLSX-016` | `en` | `xlsx` | `whole_range` | `get_workbook_context`, `read_range`, `read_sheet_features` | 0 | 1 | PASS | 1 | PASS | 12.210,3 / 0,1 / 12.210,8 |
+| `DV-DOCX-001` | `vi` | `docx` | `docx_selected_paragraph_edit` | `get_document_context`, `replace_selection` | 0 | 1 | PASS | 1 | PASS | 6.191,5 / 0,4 / 6.192,1 |
+| `DV-DOCX-002` | `en` | `docx` | `docx_selected_paragraph_edit` | `get_document_context`, `replace_selection` | 0 | 1 | PASS | 1 | PASS | 4.485,6 / 0,2 / 4.486,1 |
+| `DV-DOCX-003` | `vi` | `docx` | `docx_selected_paragraph_edit` | `get_document_context`, `replace_selection` | 0 | 0,9 | FAIL | 1 | PASS | 4.624,8 / 0,8 / 4.625,8 |
+| `DV-DOCX-004` | `en` | `docx` | `docx_selected_paragraph_edit` | `get_document_context`, `replace_selection` | 0 | 1 | PASS | 1 | PASS | 5.972 / 0,1 / 5.972,3 |
+
+### Chạy qua giao diện bảng điều khiển (Playwright, prompt của chính ca)
+
+| Ca | Phân hệ | Ngôn ngữ | Số vòng gọi façade | Bearer `frame_token` | Công cụ đã gọi | Điểm | Kết quả | Đầu-cuối (ms) |
+| --- | --- | --- | ---: | --- | --- | ---: | --- | ---: |
+| `DV-DOCX-001` | `docs` | `vi` | 2 | Có | `replace_selection` | 1 | PASS | 15.722,3 |
+| `DV-DOCX-002` | `docs` | `en` | 3 | Có | `get_document_context`, `replace_selection` | 1 | PASS | 11.185 |
+| `DV-XLSX-001` | `sheets` | `vi` | 5 | Có | `get_workbook_context`, `read_range`, `read_sheet_features`, `find_cells` | 1 | PASS | 71.853,2 |
+| `DV-XLSX-002` | `sheets` | `en` | 2 | Có | `get_workbook_context` | 0,4 | FAIL | 57.912,3 |
 <!-- devset-run-tables:end -->
 
 ## 4. Kiểm chứng giao diện bảng điều khiển
