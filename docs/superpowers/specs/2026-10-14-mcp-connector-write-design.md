@@ -310,7 +310,7 @@ Tài liệu do Work Product sở hữu không xuất hiện trong `search`/`list
 | `update_project` | `update_project` với giá trị cũ |
 | `schedule_meeting` | `cancel_meeting` |
 | `update_meeting` | `update_meeting` với giá trị cũ |
-| `invite_to_meeting` | Host gỡ người dự trên UI |
+| `invite_to_meeting` | Host gỡ người dự trên UI, chỉ với người có kết quả `invited` (người `already_attending` đã dự từ trước, vẫn được báo lại) |
 | `cancel_meeting` | `restore_meeting` |
 | `restore_meeting` | `cancel_meeting` |
 | `create_document` | Người dùng đưa vào thùng rác trên UI (khôi phục được) |

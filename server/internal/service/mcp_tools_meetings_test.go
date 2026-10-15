@@ -184,6 +184,35 @@ func TestMcpListMeetingsOrderStatusAndHost(t *testing.T) {
 	}
 }
 
+// "Today" is the person's own day: a meeting that starts just after local
+// midnight is today's, one just before it is an earlier day's, and today's come
+// first. In UTC, where both fall on the same day, the order would be the clock's.
+func TestMcpListMeetingsOrdersAroundTheUsersToday(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	zone := "Pacific/Kiritimati" // UTC+14, no daylight saving
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		t.Skipf("no tzdata for %s: %v", zone, err)
+	}
+	if _, err := x.tools.ask.pool.Exec(ctx, `UPDATE users SET timezone = $1 WHERE id = $2`, zone, x.ua.ID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().In(loc)
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	before := x.meeting(t, x.ua.ID, x.w.ID, "Trước nửa đêm", "")
+	after := x.meeting(t, x.ua.ID, x.w.ID, "Sau nửa đêm", "")
+	for id, start := range map[string]time.Time{before.ID: midnight.Add(-30 * time.Minute), after.ID: midnight.Add(30 * time.Minute)} {
+		if _, err := x.tools.ask.pool.Exec(ctx, `UPDATE meetings SET starts_at = $1, ends_at = $2 WHERE id = $3`, start, start.Add(time.Hour), id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	from, to := aroundNow()
+	if got, want := meetingTitles(x.meetingList(t, from, to, "")), []string{"Sau nửa đêm", "Trước nửa đêm"}; !slices.Equal(got, want) {
+		t.Fatalf("order for a user in %s = %v, want %v", zone, got, want)
+	}
+}
+
 func TestMcpListMeetingsStopsAtTheCapAndSaysSo(t *testing.T) {
 	x := newMcpToolWorld(t)
 	for i := range mcpMaxList + 1 {
@@ -503,7 +532,7 @@ func TestMcpScheduleMeeting(t *testing.T) {
 		!strings.Contains(fmt.Sprint(item["url"]), "/meetings/"+id) || len(res.Changes) != 0 || res.Note != "" {
 		t.Fatalf("schedule_meeting = %s", raw)
 	}
-	onlyKeys(t, "schedule_meeting item", item, "kind", "id", "workspace_id", "title", "excerpt", "url", "status", "starts_at", "revision", "ends_at", "timezone", "host_user_id", "project_id")
+	onlyKeys(t, "schedule_meeting item", item, "kind", "id", "workspace_id", "title", "excerpt", "url", "status", "starts_at", "revision", "ends_at", "timezone", "host_user_id", "project_id", "attendees")
 	if row.Description != "Chương trình: báo giá" || row.HostUserID != x.ua.ID || row.CreatedBy != x.ua.ID || row.CreatedByKind != "human" || row.Status != MeetingScheduled {
 		t.Fatalf("stored meeting = %+v", row)
 	}
@@ -660,8 +689,43 @@ func TestMcpScheduleMeetingAddsAttendeesWithoutNotifyingThem(t *testing.T) {
 	if err != nil || len(got.Attendees) != 2 || got.Attendees[0].UserID != x.ua.ID || got.Attendees[1].UserID != x.ub.ID || got.Attendees[1].Role != RoleAttendee {
 		t.Fatalf("attendees = %+v (%v), want the host and ub once each", got.Attendees, err)
 	}
+	// The result itself names who was added, as get_meeting would.
+	var scheduled struct {
+		Item McpMeeting `json:"item"`
+	}
+	if err := json.Unmarshal(raw, &scheduled); err != nil || !slices.Equal(scheduled.Item.Attendees, got.Attendees) || scheduled.Item.AttendeesTruncated {
+		t.Errorf("schedule_meeting attendees = %+v (%v), want %+v", scheduled.Item.Attendees, err, got.Attendees)
+	}
 	if n := x.meetingEvents(t, "participant.invited", id); n != 0 {
 		t.Errorf("scheduling put %d participant.invited rows on the outbox; the tool descriptions say it notifies nobody", n)
+	}
+	// The flow the description recommends: invite_to_meeting notifies them. They
+	// were on the meeting already, so each reads already_attending (the undo of an
+	// invite removes people it added), and the notification still goes out.
+	out := x.invite(t, x.p, id, x.ub.ID)
+	if len(out.Item.Invites) != 1 || out.Item.Invites[0] != (McpInviteOutcome{x.ub.ID, "already_attending"}) || len(out.Item.Meeting.Attendees) != 2 {
+		t.Fatalf("invite after schedule = %+v", out)
+	}
+	if n := x.meetingEvents(t, "participant.invited", id); n != 1 {
+		t.Errorf("%d participant.invited rows after the invite, want 1", n)
+	}
+}
+
+// The meeting is made before its attendees are read back, so a read that fails
+// is a note and not an error: a model that read "failed" would schedule a
+// second meeting.
+func TestMcpScheduledItemNamesAReadThatFailed(t *testing.T) {
+	x := newMcpToolWorld(t)
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Đọc lại", "")
+	item, note := x.tools.scheduledItem(context.Background(), x.p, "/org-alpha/alpha", m)
+	if note != "" || len(item.Attendees) != 1 || item.ID != m.ID {
+		t.Fatalf("scheduledItem = %+v, %q; want the host and no note", item, note)
+	}
+	gone := m
+	gone.ID = util.NewID()
+	item, note = x.tools.scheduledItem(context.Background(), x.p, "/org-alpha/alpha", gone)
+	if item.ID != gone.ID || item.Attendees != nil || !strings.Contains(note, "scheduled") || !strings.Contains(note, "could not be read back") || !strings.Contains(note, "call get_meeting") {
+		t.Errorf("a failed read-back = %+v, %q; want the meeting without attendees and a note", item, note)
 	}
 }
 
@@ -884,6 +948,74 @@ func TestMcpUpdateMeetingDescriptionUndo(t *testing.T) {
 	}
 }
 
+// The tool puts a title back only if it could: the web stores any length, and
+// changes cuts from far above the tool's own cap, so a title the tool could not
+// send again is never replaced here.
+func TestMcpUpdateMeetingTitleUndo(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Tên ngắn", "")
+	setTitle := func(title string) {
+		t.Helper()
+		if _, err := x.tools.ask.pool.Exec(ctx, `UPDATE meetings SET title = $1 WHERE id = $2`, title, m.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A title at the cap is replaced, and from holds all of it: the undo.
+	atCap := strings.Repeat("ạ", mcpMaxMeetingTitleRunes)
+	setTitle(atCap)
+	raw, err := x.callJSON(t, x.p, "update_meeting", x.updateArgs(t, m.ID, map[string]any{"title": "Tên mới"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, _ := writeResult(t, raw); len(res.Changes) != 1 || res.Changes[0].From != atCap {
+		t.Fatalf("title change = %s, want from to hold the whole title", raw)
+	}
+	// One rune over, the stored title is too long to put back from changes.
+	setTitle(strings.Repeat("ạ", mcpMaxMeetingTitleRunes+1))
+	version := x.meetingRow(t, m.ID).Version
+	var bad McpInvalidArgs
+	if _, err := x.callJSON(t, x.p, "update_meeting", x.updateArgs(t, m.ID, map[string]any{"title": "Tên mới", "description": "Mô tả"})); !errors.As(err, &bad) ||
+		!strings.Contains(bad.Msg, "title is too long to change safely here") || !strings.Contains(bad.Msg, "edit it in UniWork") {
+		t.Fatalf("replacing a title over the limit: %v, want invalid arguments", err)
+	}
+	if got := x.meetingRow(t, m.ID); got.Version != version || got.Description != "" {
+		t.Fatalf("a refused title change wrote: version %d (was %d), description %q", got.Version, version, got.Description)
+	}
+	// A call that leaves the long title alone still works.
+	if _, err := x.callJSON(t, x.p, "update_meeting", x.updateArgs(t, m.ID, map[string]any{"description": "Mô tả"})); err != nil {
+		t.Fatalf("a call that leaves the long title alone: %v", err)
+	}
+	if got := x.meetingRow(t, m.ID); utf8.RuneCountInString(got.Title) != mcpMaxMeetingTitleRunes+1 || got.Description != "Mô tả" {
+		t.Fatalf("stored meeting = %d-rune title, description %q", utf8.RuneCountInString(got.Title), got.Description)
+	}
+}
+
+// A stored zone the tool would refuse to send back is not replaced here.
+func TestMcpUpdateMeetingTimezoneUndo(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Múi giờ", "")
+	for _, stored := range []string{"Nowhere/Land", "Local"} {
+		if _, err := x.tools.ask.pool.Exec(ctx, `UPDATE meetings SET timezone = $1 WHERE id = $2`, stored, m.ID); err != nil {
+			t.Fatal(err)
+		}
+		version := x.meetingRow(t, m.ID).Version
+		var bad McpInvalidArgs
+		if _, err := x.callJSON(t, x.p, "update_meeting", x.updateArgs(t, m.ID, map[string]any{"timezone": "Asia/Tokyo"})); !errors.As(err, &bad) ||
+			!strings.Contains(bad.Msg, "timezone") || !strings.Contains(bad.Msg, "edit it in UniWork") {
+			t.Fatalf("stored zone %q: %v, want invalid arguments naming the timezone", stored, err)
+		}
+		if got := x.meetingRow(t, m.ID); got.Version != version || got.Timezone != stored {
+			t.Fatalf("stored zone %q: a refused change wrote (%d, %q)", stored, got.Version, got.Timezone)
+		}
+		// A call that leaves the zone alone still works.
+		if _, err := x.callJSON(t, x.p, "update_meeting", x.updateArgs(t, m.ID, map[string]any{"title": "Đổi " + stored})); err != nil {
+			t.Fatalf("stored zone %q, a call that leaves it alone: %v", stored, err)
+		}
+	}
+}
+
 // project_id null takes the meeting out of its project, and changes carries
 // that as null, so sending from back is the undo.
 func TestMcpUpdateMeetingProject(t *testing.T) {
@@ -1075,12 +1207,21 @@ func TestMcpInviteToMeeting(t *testing.T) {
 	if n := x.meetingEvents(t, "participant.invited", m.ID); n != 1 {
 		t.Fatalf("%d participant.invited rows, want 1", n)
 	}
-	// Inviting someone already on the meeting is not refused, and notifies again.
-	if out := x.invite(t, x.p, m.ID, x.ub.ID); len(out.Item.Invites) != 1 || out.Item.Invites[0].Result != "invited" || len(out.Item.Meeting.Attendees) != 2 {
+	// Inviting someone already on the meeting is not refused and notifies again,
+	// but it adds nobody: the result says so, because the undo (the host removes
+	// the person) applies only to a person this call added.
+	if out := x.invite(t, x.p, m.ID, x.ub.ID); len(out.Item.Invites) != 1 || out.Item.Invites[0] != (McpInviteOutcome{x.ub.ID, "already_attending"}) || len(out.Item.Meeting.Attendees) != 2 {
 		t.Fatalf("a second invite = %+v", out)
 	}
 	if n := x.meetingEvents(t, "participant.invited", m.ID); n != 2 {
 		t.Fatalf("%d participant.invited rows after a second invite, want 2", n)
+	}
+	// In one call each person has their own result: the host is on the meeting
+	// from the start, the unknown id is refused.
+	out = x.invite(t, x.p, m.ID, x.ua.ID, ghost, x.ub.ID)
+	if len(out.Item.Invites) != 3 || out.Item.Invites[0] != (McpInviteOutcome{x.ua.ID, "already_attending"}) || out.Item.Invites[1].UserID != ghost || out.Item.Invites[1].Result == "invited" || out.Item.Invites[1].Result == "already_attending" ||
+		out.Item.Invites[2] != (McpInviteOutcome{x.ub.ID, "already_attending"}) {
+		t.Fatalf("a mixed invite = %+v", out.Item.Invites)
 	}
 }
 

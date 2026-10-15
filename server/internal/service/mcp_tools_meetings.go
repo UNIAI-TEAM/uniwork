@@ -214,8 +214,16 @@ func (s *McpToolService) ListMeetings(ctx context.Context, p McpPrincipal, in mc
 	if err := s.inGrant(ctx, p, in.WorkspaceID); err != nil {
 		return McpMeetingList{}, err
 	}
-	// "starts_at" is the screen's calendar order, around today in UTC here.
-	f := MeetingListFilter{Status: in.Status, From: &from, To: &to, Limit: mcpMaxList, Sort: "starts_at", Location: time.UTC}
+	// "starts_at" is the screen's calendar order, around the person's own today.
+	tz, err := s.timezoneOf(ctx, p.UserID, "")
+	if err != nil {
+		return McpMeetingList{}, err
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return McpMeetingList{}, err
+	}
+	f := MeetingListFilter{Status: in.Status, From: &from, To: &to, Limit: mcpMaxList, Sort: "starts_at", Location: loc}
 	if in.HostedByMe {
 		f.HostUserID = p.UserID
 	}
@@ -359,7 +367,21 @@ func (s *McpToolService) ScheduleMeeting(ctx context.Context, p McpPrincipal, in
 	if err != nil {
 		return McpWriteResult{}, err
 	}
-	return McpWriteResult{Item: s.meetingOf(base, m), Revision: int64(m.Version)}, nil
+	item, note := s.scheduledItem(ctx, p, base, m)
+	return McpWriteResult{Item: item, Revision: int64(m.Version), Note: note}, nil
+}
+
+// scheduledItem is the meeting just made, with the attendees read back as
+// invite_to_meeting does. The meeting exists already, so a failed read is named
+// in the note, never returned: a model that read "failed" would schedule twice.
+func (s *McpToolService) scheduledItem(ctx context.Context, p McpPrincipal, base string, m db.Meeting) (McpMeeting, string) {
+	item := s.meetingOf(base, m)
+	var err error
+	if item.Attendees, item.AttendeesTruncated, err = s.attendees(ctx, p, m.ID); err != nil {
+		item.Attendees, item.AttendeesTruncated = nil, false
+		return item, "the meeting was scheduled, but its attendees could not be read back; call get_meeting for them"
+	}
+	return item, ""
 }
 
 type mcpUpdateMeetingIn struct {
@@ -465,6 +487,16 @@ func (s *McpToolService) UpdateMeeting(ctx context.Context, p McpPrincipal, in m
 	if err := mcpDescriptionUndoable(in.Description, before.Description); err != nil {
 		return McpWriteResult{}, err
 	}
+	// The same for a title and a zone: the tool refuses to send back a title over
+	// its cap or a zone that is not an IANA one, so it does not replace either.
+	if in.Title.Set && utf8.RuneCountInString(before.Title) > mcpMaxMeetingTitleRunes {
+		return McpWriteResult{}, McpInvalidArgs{Msg: "the meeting's title is too long to change safely here; edit it in UniWork"}
+	}
+	if in.Timezone.Set {
+		if _, err := mcpZone(before.Timezone); err != nil {
+			return McpWriteResult{}, McpInvalidArgs{Msg: "the meeting's timezone is not an IANA zone this tool could send back, so it is not changed here; edit it in UniWork"}
+		}
+	}
 	// Read before the write: a failure after it would read as a failed update.
 	base, err := s.ask.base(ctx, in.WorkspaceID)
 	if err != nil {
@@ -497,8 +529,9 @@ type mcpInviteIn struct {
 	UserIDs     []string `json:"user_ids"`
 }
 
-// McpInviteOutcome is one person of an invite_to_meeting call: "invited", or
-// why not.
+// McpInviteOutcome is one person of an invite_to_meeting call: "invited",
+// "already_attending" (on the meeting before the call, notified again), or why
+// not.
 type McpInviteOutcome struct {
 	UserID string `json:"user_id"`
 	Result string `json:"result"`
@@ -531,7 +564,8 @@ func mcpCallRefusal(err error) bool {
 
 // InviteToMeeting invites each person in turn, as the service does for one:
 // each person invited is notified (participant.invited, ruleParticipantInvited),
-// one already on the meeting again. A refusal about one person is that person's
+// one already on the meeting again, and that one reads already_attending, not
+// invited, since the undo of an invite removes only a person it added. A refusal about one person is that person's
 // result and does not stop the others; one about the whole call fails the call
 // at the first person, before anyone is invited.
 func (s *McpToolService) InviteToMeeting(ctx context.Context, p McpPrincipal, in mcpInviteIn) (McpWriteResult, error) {
@@ -552,6 +586,19 @@ func (s *McpToolService) InviteToMeeting(ctx context.Context, p McpPrincipal, in
 	if err != nil {
 		return McpWriteResult{}, err
 	}
+	// Who is on the meeting now, before the invitations change it: inviting one
+	// of them adds nobody, so their result is not "invited", and undoing the
+	// invite must not remove them.
+	rows, err := s.ask.meetings.ListParticipants(ctx, p.UserID, "", m.ID)
+	if err != nil {
+		return McpWriteResult{}, hidden(err)
+	}
+	attending := map[string]bool{}
+	for _, r := range rows {
+		if r.Status == ParticipantActive && r.UserID.Valid {
+			attending[r.UserID.String] = true
+		}
+	}
 	outcomes := make([]McpInviteOutcome, 0, len(ids))
 	for i, id := range ids {
 		result := "invited"
@@ -560,6 +607,8 @@ func (s *McpToolService) InviteToMeeting(ctx context.Context, p McpPrincipal, in
 				return McpWriteResult{}, mcpMapError(err)
 			}
 			result = mcpInviteRefusal(err)
+		} else if attending[id] {
+			result = "already_attending"
 		}
 		outcomes = append(outcomes, McpInviteOutcome{UserID: id, Result: result})
 	}
@@ -671,19 +720,19 @@ var (
 
 func mcpMeetingTools(s *McpToolService) []ai.Tool {
 	return []ai.Tool{
-		mcpReadTool("list_meetings", "List meetings", "Meetings of one workspace that start between from and to (ISO 8601 with a timezone offset, at most 92 days apart), each with its revision. Ordered like the meetings screen: those starting today (UTC) or later first, soonest first, then earlier days, most recent day first, each day by start time. Cancelled ones are included with status CANCELED unless status narrows the list; MISSED is a scheduled meeting whose time passed without it starting, and its status reads MISSED. hosted_by_me keeps only the meetings the user hosts. At most "+strconv.Itoa(mcpMaxList)+"; truncated says more matched, and then narrowing from and to shows the rest. Attendees come with get_meeting.", mcpSchemaListMeetings,
+		mcpReadTool("list_meetings", "List meetings", "Meetings of one workspace that start between from and to (ISO 8601 with a timezone offset, at most 92 days apart), each with its revision. Ordered like the meetings screen: those starting today in the user's timezone or later first, soonest first, then earlier days, most recent day first, each day by start time. Cancelled ones are included with status CANCELED unless status narrows the list; MISSED is a scheduled meeting whose time passed without it starting, and its status reads MISSED. hosted_by_me keeps only the meetings the user hosts. Each row's excerpt is the start of the description, and get_meeting has the whole description. At most "+strconv.Itoa(mcpMaxList)+"; truncated says more matched, and then narrowing from and to shows the rest. Attendees come with get_meeting.", mcpSchemaListMeetings,
 			func(ctx context.Context, p McpPrincipal, in mcpListMeetingsIn) (any, error) {
 				return s.ListMeetings(ctx, p, in)
 			}),
-		mcpWriteTool("schedule_meeting", "Schedule meeting", "Schedules a meeting in the workspace with the user as its host. Everyone in the workspace sees it. starts_at and ends_at are ISO 8601 with a timezone offset, e.g. 2026-10-15T10:00:00+07:00; timezone is the zone the meeting is set in, and defaults to the user's own, else Asia/Ho_Chi_Minh. People in attendee_ids (user_id values from list_members, at most "+strconv.Itoa(mcpMaxAttendees)+", each added once) are added to the meeting but are not notified: call invite_to_meeting to notify them. Someone who is not a member of the workspace refuses the whole call. The description holds at most "+strconv.Itoa(mcpMaxItemRunes)+" characters.", "cancel_meeting", false, mcpSchemaScheduleMeeting,
+		mcpWriteTool("schedule_meeting", "Schedule meeting", "Schedules a meeting in the workspace with the user as its host. Everyone in the workspace sees it. starts_at and ends_at are ISO 8601 with a timezone offset, e.g. 2026-10-15T10:00:00+07:00; timezone is the zone the meeting is set in, and defaults to the user's own, else Asia/Ho_Chi_Minh. People in attendee_ids (user_id values from list_members, at most "+strconv.Itoa(mcpMaxAttendees)+", each added once) are added to the meeting but are not notified: call invite_to_meeting to notify them. Someone who is not a member of the workspace refuses the whole call. The meeting comes back with its attendees. The description holds at most "+strconv.Itoa(mcpMaxItemRunes)+" characters.", "cancel_meeting", false, mcpSchemaScheduleMeeting,
 			func(ctx context.Context, p McpPrincipal, in mcpScheduleMeetingIn) (any, error) {
 				return s.ScheduleMeeting(ctx, p, in)
 			}),
-		mcpWriteTool("update_meeting", "Update meeting", "Changes one meeting as the user: omitted fields stay as they are, and null clears project_id. revision must be the one you read with get_meeting or list_meetings; if the meeting changed since, nothing is written and the call fails with revision_conflict. Only its host or a workspace owner or admin may change it (not_meeting_host otherwise); a meeting that ended or was cancelled cannot be changed (invalid_meeting_state), and times cannot change once it has started. Everyone in the workspace sees the change. Attendees are not notified of it, so if the time moved the user has to tell them. timezone is the zone the meeting is set in; it does not move starts_at. A description longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters is too long to replace here; edit it in UniWork.", "call update_meeting again with the from values in changes", true, mcpSchemaUpdateMeeting,
+		mcpWriteTool("update_meeting", "Update meeting", "Changes one meeting as the user: omitted fields stay as they are, and null clears project_id. revision must be the one you read with get_meeting or list_meetings; if the meeting changed since, nothing is written and the call fails with revision_conflict. Only its host or a workspace owner or admin may change it (not_meeting_host otherwise); a meeting that ended or was cancelled cannot be changed (invalid_meeting_state), and times cannot change once it has started. Everyone in the workspace sees the change. Attendees are not notified of it, so if the time moved the user has to tell them. timezone is the zone the meeting is set in; it does not move starts_at. A title longer than "+strconv.Itoa(mcpMaxMeetingTitleRunes)+" characters or a description longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters is too long to replace here, and a stored timezone that is not an IANA zone cannot be replaced here; edit those in UniWork.", "call update_meeting again with the from values in changes", true, mcpSchemaUpdateMeeting,
 			func(ctx context.Context, p McpPrincipal, in mcpUpdateMeetingIn) (any, error) {
 				return s.UpdateMeeting(ctx, p, in)
 			}),
-		mcpWriteTool("invite_to_meeting", "Invite to meeting", "Invites workspace members to a meeting, by user_id from list_members (1-"+strconv.Itoa(mcpMaxInvites)+" per call, each once). Each person invited gets an in-app notification, unless they turned that kind off; someone already on the meeting is notified again. Only the meeting's host or a workspace owner or admin may invite, and only to a scheduled or in-progress meeting. invites holds the outcome for each person: invited, or why not. Someone who is not a member of the workspace, or was removed from the meeting earlier (participant_removed, cannot be invited again), is refused, and one refusal does not stop the others. A refusal that covers everyone (not_meeting_host, invalid_meeting_state, or a meeting that is gone) fails as a whole: the call returns that error and nobody is invited. The meeting comes back with its attendees and its revision.", "the host removes the person from the meeting in UniWork", false, mcpSchemaInviteToMeeting,
+		mcpWriteTool("invite_to_meeting", "Invite to meeting", "Invites workspace members to a meeting, by user_id from list_members (1-"+strconv.Itoa(mcpMaxInvites)+" per call, each once). Each person invited gets an in-app notification, unless they turned that kind off; someone already on the meeting is notified again and reported as already_attending, and the undo applies only to results that read invited. Only the meeting's host or a workspace owner or admin may invite, and only to a scheduled or in-progress meeting. invites holds the outcome for each person: invited, already_attending, or why not. Someone who is not a member of the workspace, or was removed from the meeting earlier (participant_removed, cannot be invited again), is refused, and one refusal does not stop the others. A refusal that covers everyone (not_meeting_host, invalid_meeting_state, or a meeting that is gone) fails as a whole: the call returns that error and nobody is invited. The meeting comes back with its attendees and its revision.", "for each person whose result reads invited, the host removes them from the meeting in UniWork; someone who read already_attending was on the meeting before and stays", false, mcpSchemaInviteToMeeting,
 			func(ctx context.Context, p McpPrincipal, in mcpInviteIn) (any, error) {
 				return s.InviteToMeeting(ctx, p, in)
 			}),
@@ -691,7 +740,7 @@ func mcpMeetingTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpCancelMeetingIn) (any, error) {
 				return s.CancelMeeting(ctx, p, in)
 			}),
-		mcpWriteTool("restore_meeting", "Restore meeting", "Brings a cancelled meeting back to scheduled as the user, only while its end time is still ahead: a meeting that is not cancelled, or whose end has passed, fails with invalid_meeting_state. Only its host or a workspace owner or admin may (not_meeting_host otherwise). revision must be the one cancel_meeting returned, or get_meeting shows now; if the meeting changed since, nothing is written and the call fails with revision_conflict. Everyone in the workspace sees it as scheduled again. Attendees are not notified, and the reason given for the cancellation is cleared.", "cancel_meeting", false, mcpSchemaRestoreMeeting,
+		mcpWriteTool("restore_meeting", "Restore meeting", "Brings a cancelled meeting back to scheduled as the user, only while its end time is still ahead: a meeting that is not cancelled, or whose end has passed, fails with invalid_meeting_state. Only its host or a workspace owner or admin may (not_meeting_host otherwise). revision must be the one cancel_meeting returned, or get_meeting shows now; if the meeting changed since, nothing is written and the call fails with revision_conflict. Everyone in the workspace sees it as scheduled again. Attendees are not notified, and the reason given for the cancellation is cleared; join requests that were pending when it was cancelled stay expired.", "cancel_meeting", false, mcpSchemaRestoreMeeting,
 			func(ctx context.Context, p McpPrincipal, in mcpRestoreMeetingIn) (any, error) {
 				return s.RestoreMeeting(ctx, p, in)
 			}),

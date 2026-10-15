@@ -458,8 +458,11 @@ func TestIsolationMCP(t *testing.T) {
 			t.Fatalf("%s invite_to_meeting by B on B's meeting: %d %s", label, status, raw)
 		}
 		invites := invited.Result.StructuredContent.Item.Invites
-		if len(invites) != 4 || invites[0].Result != "invited" || invites[1].Result == "invited" || invites[1].Result != invites[2].Result || invites[1].Result != invites[3].Result {
-			t.Errorf("%s invite_to_meeting outcomes = %+v, want B's peer invited and the rest refused in one answer", label, invites)
+		// The world seeds B's peer as an attendee of B's meeting, so the invitation
+		// goes through and reads already_attending; A's people, who are not on it
+		// and not in B's workspace, read as an id nobody has.
+		if len(invites) != 4 || invites[0].Result != "already_attending" || invites[1].Result == "invited" || invites[1].Result == "already_attending" || invites[1].Result != invites[2].Result || invites[1].Result != invites[3].Result {
+			t.Errorf("%s invite_to_meeting outcomes = %+v, want B's peer already_attending and the rest refused in one answer", label, invites)
 		}
 		reqJSON, _ := json.Marshal(inviteArgs)
 		if leak := a.leakIn(raw, string(reqJSON)); leak != "" {
@@ -548,9 +551,11 @@ func TestIsolationMCP(t *testing.T) {
 				t.Errorf("A's own %s %v through MCP: %d %s", at.tool, args, status, raw)
 				continue
 			}
+			// The world seeds A's peer as an attendee of A's meeting: the
+			// invitation goes through and reads already_attending, not a refusal.
 			if at.tool == "invite_to_meeting" {
 				for _, in := range done.Result.StructuredContent.Item.Invites {
-					if in.Result != "invited" {
+					if in.Result != "invited" && in.Result != "already_attending" {
 						t.Errorf("A's own %s %v refused %s: %s", at.tool, args, in.UserID, in.Result)
 					}
 				}
@@ -583,8 +588,9 @@ func TestIsolationMCP(t *testing.T) {
 			}
 		}
 		// The digest sees these writes, so "unchanged" in refused means something.
-		if changed := isoDiff(written, w.tenantDigest(t, a)); !slices.Contains(changed, "tasks") || !slices.Contains(changed, "task_comments") || !slices.Contains(changed, "projects") {
-			t.Errorf("A's own writes changed the digest of %v only, want tasks, task_comments and projects among them", changed)
+		if changed := isoDiff(written, w.tenantDigest(t, a)); !slices.Contains(changed, "tasks") || !slices.Contains(changed, "task_comments") || !slices.Contains(changed, "projects") ||
+			!slices.Contains(changed, "meetings") || !slices.Contains(changed, "meeting_participants") {
+			t.Errorf("A's own writes changed the digest of %v only, want tasks, task_comments, projects, meetings and meeting_participants among them", changed)
 		}
 	})
 
