@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -5; git merge-base --is-ancestor 71a2a227 HEAD && echo main-merged-ok
+b1b9302fe2c460479da0038d62e10d525b931497
+5fbb71a20f2441b5e37d63aaf733b817e7c7463a
+b1b9302f fix(shell): the no-seat Download step names its action in the heading and drops the create-copy body (G5-12)
+d5f794b7 test(e2e): d3c no-seat shows the reason and downloads the local version; d3d a lost commit answer keeps the copy; the stub archive refuses a non-pristine copy (G5-12, BE-12F-03)
+cc8e0012 test(shell): pin the cheap BE-12F lows: copyTitleFor boundaries, bad upload checksum, source read failure, unreadable file (G5-12, BE-12F-04, BE-12F-05)
+e0101d66 fix(shell): look up the copy's commit before archiving, and never archive under another account (G5-12, BE-12F-01, BE-12F-02)
+fdc17644 test(shell): pin the G5-12 no-seat and Download my version flow in main and the dialog (G5-12)
+main-merged-ok
