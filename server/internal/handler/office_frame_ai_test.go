@@ -166,6 +166,10 @@ func TestOfficeFrameAIHappyPath(t *testing.T) {
 	if w.vendorAuth != "Bearer "+frameAIKey {
 		t.Fatalf("vendor saw Authorization %q, want the stored key", w.vendorAuth)
 	}
+	var byokCap string
+	if err := testPool.QueryRow(context.Background(), `SELECT capability FROM ai_usage_events WHERE organization_id = $1`, w.orgID).Scan(&byokCap); err != nil || byokCap != string(ai.CapOfficeBYOK) {
+		t.Fatalf("frame BYOK usage capability = %q (%v), want %q (never %q)", byokCap, err, ai.CapOfficeBYOK, ai.CapOfficeBYOKDesktop)
+	}
 	code, body = rawCall(t, w.srv, "GET", w.path(w.docID, "/byok/openai/models"), w.token, "")
 	if code != http.StatusOK || !strings.Contains(body, "gpt-frame") {
 		t.Fatalf("models = %d %s", code, body)
@@ -450,10 +454,32 @@ func TestOfficeFrameUniworkAINeedsAConfiguredGateway(t *testing.T) {
 				t.Fatalf("grant %v, want uniwork_ai=false", got)
 			}
 			code, body := rawCall(t, w.srv, "GET", w.path(w.docID, "/cloud"), w.token, "")
-			if code != http.StatusOK || !strings.Contains(body, `"chat":false`) {
-				t.Fatalf("cloud status = %d %s, want chat=false", code, body)
+			if code != http.StatusOK || !strings.Contains(body, `"chat":false`) || !strings.Contains(body, `"uniwork_model":""`) {
+				t.Fatalf("cloud status = %d %s, want chat=false and an empty uniwork_model", code, body)
 			}
 		})
+	}
+}
+
+// G6-05m: the frame's cloud status carries the same uniwork_model as the
+// session route: "" while UniWork AI is off for the caller, the Gateway's
+// policy model once it is on.
+func TestOfficeFrameCloudStatusCarriesTheUniworkModel(t *testing.T) {
+	w := newFrameAIWorld(t)
+	status := func() string {
+		t.Helper()
+		code, body := rawCall(t, w.srv, "GET", w.path(w.docID, "/cloud"), w.token, "")
+		if code != http.StatusOK {
+			t.Fatalf("cloud status = %d %s", code, body)
+		}
+		return body
+	}
+	if body := status(); !strings.Contains(body, `"uniwork_model":""`) {
+		t.Fatalf("UniWork AI off: %s, want an empty uniwork_model", body)
+	}
+	enableUniworkAI(t, "docx")
+	if body := status(); !strings.Contains(body, `"uniwork_model":"fake"`) {
+		t.Fatalf("UniWork AI on: %s, want the Gateway's policy model", body)
 	}
 }
 

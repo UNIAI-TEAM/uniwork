@@ -294,6 +294,19 @@ export async function requestText(path: string): Promise<string> {
  * the bearer token, so callers create a short-lived object URL from this blob.
  */
 export async function requestBlob(path: string, opts: Pick<RequestOpts, "signal"> = {}): Promise<Blob> {
+  return (await requestDownload(path, opts)).blob;
+}
+
+/**
+ * `requestBlob` for a file the user saves: the bytes plus the name the server
+ * gave them. `filename` is null when the response carries none, or when the
+ * browser may not read `Content-Disposition` (a cross-origin API that does not
+ * expose it), so the caller names the file itself.
+ */
+export async function requestDownload(
+  path: string,
+  opts: Pick<RequestOpts, "signal"> = {},
+): Promise<{ blob: Blob; filename: string | null }> {
   let res = await rawFetch(path, opts);
   if (res.status === 401 && getAccessToken()) {
     const refreshed = await refreshSession();
@@ -306,7 +319,26 @@ export async function requestBlob(path: string, opts: Pick<RequestOpts, "signal"
   // readable bytes / .text(), which breaks authenticated media object URLs in tests.
   const type = res.headers.get("Content-Type") ?? "";
   const buffer = await res.arrayBuffer();
-  return new Blob([buffer], { type });
+  return {
+    blob: new Blob([buffer], { type }),
+    filename: dispositionFilename(res.headers.get("Content-Disposition")),
+  };
+}
+
+/** The file name in a Content-Disposition value (`filename*` first, then plain), or null. */
+function dispositionFilename(value: string | null): string | null {
+  if (!value) return null;
+  const star = /filename\*\s*=\s*[^']*'[^']*'([^;]+)/i.exec(value);
+  if (star?.[1]) {
+    try {
+      return decodeURIComponent(star[1].trim());
+    } catch {
+      /* a malformed escape: fall back to the plain form */
+    }
+  }
+  const plain = /filename\s*=\s*(?:"([^"]*)"|([^;]+))/i.exec(value);
+  const name = (plain?.[1] ?? plain?.[2] ?? "").trim();
+  return name === "" ? null : name;
 }
 
 // Refresh tokens rotate: two refreshes racing (StrictMode double mount,

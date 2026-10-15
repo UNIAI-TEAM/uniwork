@@ -19,6 +19,7 @@ import { moduleTone } from "../layout/module-tones";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
+import { AccessReportMenu } from "./access-report/access-report-menu";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { useCreateOfType } from "./documents-create";
 import { CreateCards, CreateMenu, DocumentsGreeting } from "./documents-home-create";
@@ -310,6 +311,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
               />
               <div className="flex shrink-0 items-center gap-2">
                 {officeHome ? <OfficeHomeLaunch {...officeHome} /> : null}
+                <AccessReportMenu onOpen={() => push(wsPaths.documentsAccessReport())} />
                 {canCreate ? <CreateMenu {...createProps} /> : null}
               </div>
             </>
