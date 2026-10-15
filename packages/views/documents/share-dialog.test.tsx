@@ -108,6 +108,14 @@ const membersPayload = {
   next_cursor: "",
 };
 
+const threeMembersPayload = {
+  members: [
+    ...membersPayload.members,
+    { user_id: "u4", email: "dung@acme.vn", display_name: "Dũng", role: "member", created_at: "" },
+  ],
+  next_cursor: "",
+};
+
 const workspacesPayload = {
   workspaces: [
     { id: "w2", slug: "design", name: "Design", organization_id: ORG, organization_slug: "acme", organization_name: "Acme" },
@@ -139,6 +147,10 @@ function serve(over: Options = {}) {
           created_at: "2026-09-28T03:00:00Z",
         },
       });
+    }
+    if (path === "/api/v1/documents/d1/shares/batch" && opts?.method === "POST") {
+      if (over.shareFails) return Promise.reject(new Error("share failed"));
+      return Promise.resolve({ shares: [] });
     }
     if (path.startsWith("/api/v1/documents/d1/shares/") && opts?.method === "DELETE") {
       return Promise.resolve({});
@@ -189,6 +201,19 @@ async function pickOption(label: string, option: string | RegExp) {
   fireEvent.pointerUp(item, { pointerType: "mouse" });
   fireEvent.click(item);
   await waitFor(() => expect(screen.queryAllByRole("option")).toHaveLength(0));
+}
+
+/** Search the people picker by name and pick the match. */
+async function pickPerson(name: string) {
+  const input = screen.getByRole("combobox", { name: t("documents.share.principal_placeholder") });
+  // Base UI opens the list from the keyboard (ArrowDown), not from a bare
+  // change event, so the helper drives it the way a keyboard user would.
+  input.focus();
+  fireEvent.keyDown(input, { key: "ArrowDown" });
+  fireEvent.change(input, { target: { value: name } });
+  const item = await screen.findByRole("option", { name: new RegExp(name) });
+  fireEvent.click(item);
+  await screen.findByRole("button", { name: t("documents.share.people_remove", { name }) });
 }
 
 beforeEach(() => {
@@ -284,16 +309,104 @@ describe("ShareDialog", () => {
     expect(posts[0]).toEqual({ principal_type: "workspace", principal_id: "w2", level: "edit" });
   });
 
-  it("keeps the picked principal and shows the message when the grant fails", async () => {
+  it("keeps the picked people and shows the message when the batch fails", async () => {
     serve({ shareFails: true });
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(t("documents.share.principal_placeholder"), /Bình/);
+    await pickPerson("Bình");
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("share failed");
+    expect(screen.getByRole("button", { name: t("documents.share.people_remove", { name: "Bình" }) })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeEnabled();
+  });
+
+  it("shares three people at one level with ONE batch POST and lists the three grants", async () => {
+    const posts: { path: string; body: any }[] = [];
+    let granted: unknown[] = [];
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
+        return Promise.resolve({ ...accessPayload, shares: granted });
+      }
+      if (opts?.method === "POST") {
+        posts.push({ path, body: opts.body });
+        granted = opts.body.principal_ids.map((id: string, i: number) => ({
+          id: `s${i + 10}`,
+          principal_type: "user",
+          principal_id: id,
+          level: opts.body.level,
+          active: true,
+        }));
+        return Promise.resolve({ shares: granted });
+      }
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(threeMembersPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickPerson("Bình");
+    await pickPerson("Chi");
+    await pickPerson("Dũng");
+    expect(screen.getByText(t("documents.share.people_selected", { count: 3 }))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
+
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toEqual({
+      path: "/api/v1/documents/d1/shares/batch",
+      body: { principal_ids: ["u2", "u3", "u4"], level: "view" },
+    });
+    const access = screen.getByRole("region", { name: t("documents.share.access_title") });
+    for (const name of ["Bình", "Chi", "Dũng"]) {
+      expect(
+        await within(access).findByRole("button", { name: `${t("documents.share.revoke")} ${name}` }),
+      ).toBeInTheDocument();
+    }
+    // Success clears the selection for the next batch.
+    expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeDisabled();
+  });
+
+  it("names the refused person on a 422 principal_not_in_organization and lists nothing new", async () => {
+    const { ApiError } = await import("@uniwork/core/api");
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
+      if (path === "/api/v1/documents/d1/shares/batch" && opts?.method === "POST") {
+        return Promise.reject(
+          new ApiError("not in organization", "principal_not_in_organization", 422, undefined, {
+            principal_ids: ["u3"],
+          }),
+        );
+      }
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(threeMembersPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickPerson("Bình");
+    await pickPerson("Chi");
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(t("documents.share.people_not_in_org", { count: 1, names: "Chi" }));
+    expect(alert).not.toHaveTextContent("Bình");
+    const access = screen.getByRole("region", { name: t("documents.share.access_title") });
+    expect(within(access).queryByRole("button", { name: `${t("documents.share.revoke")} Chi` })).toBeNull();
+    // The selection stays so the refused person can be removed.
+    expect(screen.getByRole("button", { name: t("documents.share.people_remove", { name: "Chi" }) })).toBeInTheDocument();
+  });
+
+  it("removes a picked person with the chip's own button", async () => {
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickPerson("Chi");
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.people_remove", { name: "Chi" }) }));
+
+    expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeDisabled();
   });
 
   it("revokes one grant without touching the others", async () => {
