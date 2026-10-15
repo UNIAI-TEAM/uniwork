@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo; echo "INSTALL_EXIT=$rc"
+6aaecb18cec6bcd41d3c29668036f86510754f00
+6aaecb18c docs(office): holdout README describes the graded review flow
+b179c6a85 test(office): holdout review export, graded reviews and spot-check on a stub session
+f9abc82f2 feat(office): blinded review export and spot-check sheet for the holdout grader
+c0f18702d feat(office): holdout reviews accept a model-graded file with spot-checks
+83b1753cb feat(office): holdout report judges each criterion on its own run set
+d2efea0e0 feat(office): ship the signed G7-D1 holdout thresholds file
+
+INSTALL_EXIT=0
