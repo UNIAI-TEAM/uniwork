@@ -30,6 +30,7 @@ import {
 } from "@uniwork/core/chat";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
 import { refreshRoomTimelineOnOpen } from "@uniwork/core/chat/room-timeline";
+import { resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useChatRoomScopes } from "@uniwork/core/realtime";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
@@ -48,6 +49,7 @@ import {
 } from "./chat-member-avatar";
 import { buildChatNameContext, chatHeaderTitle, workspaceRoomTitle } from "./chat-page-utils";
 import { buildChatMentionCandidates } from "./chat-mention-utils";
+import { applyKnownPeopleToRoomPreviews } from "./chat-sidebar-preview";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageAuthLoading } from "./chat-page-auth-loading";
 import { ChatPageContent } from "./chat-page-content";
@@ -111,7 +113,7 @@ export function ChatPageView({
   const workspaceRoomName = workspaceRoomTitle(workspaceRoom?.name, workspaceName, t("chat.workspace_room"));
   const unreadByRoomId = useMemo(() => unreadMapFromRooms(rooms), [rooms]);
   const mentionUnreadByRoomId = useMemo(() => mentionUnreadMapFromRooms(rooms), [rooms]);
-  const roomPreviewsByRoomId = useMemo(() => roomPreviewMapFromRooms(rooms), [rooms]);
+  const rawRoomPreviews = useMemo(() => roomPreviewMapFromRooms(rooms), [rooms]);
   const unreadBadgesReady = roomsLoaded;
 
   const [target, setTarget] = useState<ChatSidebarTarget>({ kind: "workspace" });
@@ -282,9 +284,14 @@ export function ChatPageView({
         currentUserId,
         workspaceMembers,
         groupMemberProfiles,
-        memberDisplayLabel,
+        (member) => resolveChatNicknameForUser(nicknamesByUserId, member.user_id) || memberDisplayLabel(member),
+        target.kind === "group"
+          ? activeGroup?.member_user_ids
+          : target.kind === "channel"
+            ? activeChannel?.member_user_ids
+            : undefined,
       ),
-    [currentUserId, groupMemberProfiles, target.kind, workspaceMembers],
+    [activeChannel, activeGroup, currentUserId, groupMemberProfiles, nicknamesByUserId, target.kind, workspaceMembers],
   );
   const mentionAllLabel = t("chat.mention_all");
   // The draft lives in the composer's store, keyed by conversation: typing
@@ -367,6 +374,10 @@ export function ChatPageView({
         authUser?.avatar_url,
       ),
     [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId, authUser?.avatar_url, authUser?.id],
+  );
+  const roomPreviewsByRoomId = useMemo(
+    () => applyKnownPeopleToRoomPreviews(rawRoomPreviews, nameContext),
+    [nameContext, rawRoomPreviews],
   );
 
   const { startCall, acceptCall, declineCall, inCall } = useChatVoiceCall();

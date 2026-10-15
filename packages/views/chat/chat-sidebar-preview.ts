@@ -101,6 +101,65 @@ export function formatChatSidebarTime(
   return sidebarTimeFormatter(options.locale, "date").format(date);
 }
 
+function sameUserId(left: string, right: string): boolean {
+  return left.trim().toUpperCase() === right.trim().toUpperCase();
+}
+
+/** A display name that is the person's id is not a name. */
+function humanLabel(label: string, userId: string): string {
+  const name = label.trim();
+  if (!name || sameUserId(name, userId)) return "";
+  return name;
+}
+
+/**
+ * The room list's last-message name is the account's display name, which can
+ * be empty. The sidebar then printed the user id. Fill that gap from the
+ * names the chat page already knows, and rewrite a mention whose stored
+ * label is that id.
+ */
+export function applyKnownPeopleToRoomPreviews(
+  previews: Record<string, ChatRoomPreview>,
+  people: ReadonlyArray<{ user_id: string; display_name: string }>,
+): Record<string, ChatRoomPreview> {
+  const names = new Map<string, string>();
+  for (const person of people) {
+    const name = humanLabel(person.display_name, person.user_id);
+    if (!person.user_id.trim() || !name) continue;
+    names.set(person.user_id.trim().toUpperCase(), name);
+  }
+  if (names.size === 0) return previews;
+
+  const out: Record<string, ChatRoomPreview> = {};
+  for (const [roomId, preview] of Object.entries(previews)) {
+    const known = names.get(preview.senderId.trim().toUpperCase());
+    out[roomId] = {
+      ...preview,
+      senderName: known || preview.senderName,
+      body: rewriteMentionIds(preview.body, names),
+    };
+  }
+  return out;
+}
+
+function rewriteMentionIds(body: string, names: ReadonlyMap<string, string>): string {
+  const withTokens = body.replace(
+    /\[@([^\]]*)\]\(mention:\/\/member\/([^)]+)\)/g,
+    (token, label: string, id: string) => {
+      const known = names.get(id.trim().toUpperCase());
+      if (!known || humanLabel(label, id)) return token;
+      return `[@${known}](mention://member/${id})`;
+    },
+  );
+  return withTokens.replace(
+    /(^|[^\w[])@([0-9A-HJKMNP-TV-Z]{26})\b/gi,
+    (token, prefix: string, id: string) => {
+      const known = names.get(id.toUpperCase());
+      return known ? `${prefix}@${known}` : token;
+    },
+  );
+}
+
 export function compareRoomPreviewRecency(
   left?: ChatRoomPreview | null,
   right?: ChatRoomPreview | null,

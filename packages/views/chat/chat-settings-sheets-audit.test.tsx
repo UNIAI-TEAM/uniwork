@@ -190,7 +190,7 @@ describe("WorkspaceSettingsSheet", () => {
     state.members = { data: [member("self", "Tôi", "admin"), member("u2", "Binh")], isPending: false, isError: false, refetch: vi.fn() };
     renderWorkspaceSheet(wsMembers(["self", "u2"]));
     fireEvent.click(screen.getByRole("button", { name: /Thành viên workspace/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Binh/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Thao tác.*Binh/ }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Xóa Binh khỏi workspace" }));
     const dialog = screen.getByRole("alertdialog");
     expect(dialog).toHaveTextContent("mất quyền vào workspace Nhóm Sản phẩm");

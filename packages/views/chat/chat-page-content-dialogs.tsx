@@ -8,6 +8,7 @@ import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
 import { ChatCreatePostDialog } from "./chat-create-post-dialog";
 import { DmSettingsSheet } from "./dm-settings-sheet";
 import { GroupSettingsSheet } from "./group-settings-sheet";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { WorkspaceSettingsSheet } from "./workspace-settings-sheet";
 import type { ChatPageContentProps } from "./chat-page-content-props";
 
@@ -114,6 +115,19 @@ export function ChatPageContentDialogs({
   createPostOpen,
   onCreatePostOpenChange,
 }: ChatPageContentDialogsProps) {
+  const messageMember = (member: ChatMemberMessageTarget) => {
+    setTarget({
+      kind: "dm",
+      contact: {
+        user_id: member.user_id,
+        email: member.email,
+        display_name: member.display_name.trim() || member.email,
+      },
+    });
+    onWorkspaceSettingsOpenChange(false);
+    onGroupSettingsOpenChange(false);
+    onChannelSettingsOpenChange(false);
+  };
   return (
     <>
       {activeRoomId ? (
@@ -162,6 +176,7 @@ export function ChatPageContentDialogs({
           currentUserId={currentUserId}
           youLabel={t("chat.you")}
           onOpenSearch={() => onMessageSearchOpenChange(true)}
+          onMessage={messageMember}
         />
       ) : null}
       {target.kind === "group" && activeGroup ? (
@@ -181,6 +196,7 @@ export function ChatPageContentDialogs({
             leaveDisabled={!activeRoomId}
             onLeave={onLeaveGroup}
             onOpenSearch={() => onMessageSearchOpenChange(true)}
+            onMessage={messageMember}
           />
           <AddGroupMembersDialog
             open={addMembersOpen}
@@ -237,6 +253,7 @@ export function ChatPageContentDialogs({
             leaving={leavingConversation}
             leaveDisabled={!activeRoomId}
             onOpenSearch={() => onMessageSearchOpenChange(true)}
+            onMessage={messageMember}
           />
           {!activeChannel.is_default ? (
             <AddGroupMembersDialog

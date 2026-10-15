@@ -20,7 +20,7 @@ describe("buildChatNameContext", () => {
       [{ user_id: "u1", display_name: "Tran Hoang Long", email: "long@example.com" }],
     );
 
-    expect(context).toEqual([{ user_id: "u1", display_name: "Tran Hoang Long" }]);
+    expect(context).toEqual([{ user_id: "u1", display_name: "Tran Hoang Long", email: "long@example.com" }]);
   });
 
   it("prefers contact labels over workspace member entries", () => {
@@ -33,7 +33,7 @@ describe("buildChatNameContext", () => {
       [{ user_id: "u1", display_name: "Tran Hoang Long", email: "long@example.com" }],
     );
 
-    expect(context).toEqual([{ user_id: "u1", display_name: "Long (DM)" }]);
+    expect(context).toEqual([{ user_id: "u1", display_name: "Long (DM)", email: "long@example.com" }]);
   });
 
   it("prefers nickname over contact display name", () => {
@@ -47,7 +47,7 @@ describe("buildChatNameContext", () => {
       { u1: "Long bạn thân" },
     );
 
-    expect(context).toEqual([{ user_id: "u1", display_name: "Long bạn thân" }]);
+    expect(context).toEqual([{ user_id: "u1", display_name: "Long bạn thân", email: "long@example.com" }]);
   });
 
   it("falls back to email local part when workspace display name is empty", () => {
@@ -59,7 +59,7 @@ describe("buildChatNameContext", () => {
       [{ user_id: "u2", display_name: "  ", email: "alice@example.com" }],
     );
 
-    expect(context).toEqual([{ user_id: "u2", display_name: "alice" }]);
+    expect(context).toEqual([{ user_id: "u2", display_name: "alice", email: "alice@example.com" }]);
   });
 
   it("includes active group member profiles", () => {
@@ -79,7 +79,7 @@ describe("buildChatNameContext", () => {
       [],
     );
 
-    expect(context).toEqual([{ user_id: "u3", display_name: "Bob" }]);
+    expect(context).toEqual([{ user_id: "u3", display_name: "Bob", email: "bob@example.com" }]);
   });
 
   it("resolves group members from contacts and nicknames when profile missing", () => {
@@ -93,7 +93,7 @@ describe("buildChatNameContext", () => {
     const context = buildChatNameContext(contacts, null, group, {}, [], {
       u4: "Tư",
     });
-    expect(context).toEqual([{ user_id: "u4", display_name: "Tư" }]);
+    expect(context).toEqual([{ user_id: "u4", display_name: "Tư", email: "four@example.com" }]);
 
     const withProfileNick = buildChatNameContext(
       [],
@@ -103,7 +103,7 @@ describe("buildChatNameContext", () => {
       [],
       { u6: "Sáu" },
     );
-    expect(withProfileNick).toEqual([{ user_id: "u6", display_name: "Sáu" }]);
+    expect(withProfileNick).toEqual([{ user_id: "u6", display_name: "Sáu", email: "six@example.com" }]);
   });
 
   it("includes active contact and falls back to user_id for blank workspace labels", () => {
@@ -116,7 +116,7 @@ describe("buildChatNameContext", () => {
       [{ user_id: "u10", display_name: "  ", email: "  " }],
     );
     expect(context).toEqual([
-      { user_id: "u9", display_name: "Active" },
+      { user_id: "u9", display_name: "Active", email: "a@x.com" },
       { user_id: "u10", display_name: "u10" },
     ]);
   });

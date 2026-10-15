@@ -38,6 +38,7 @@ import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
 import { ChatRoomRenameDialog } from "./chat-room-rename-dialog";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { WorkspaceRoomMemberList } from "./workspace-room-member-list";
 import { ChatConversationToolbar } from "./chat-conversation-toolbar";
 import { ChatRoomMark } from "./chat-room-mark";
@@ -52,6 +53,7 @@ export function WorkspaceSettingsSheet({
   currentUserId,
   youLabel,
   onOpenSearch,
+  onMessage,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +64,7 @@ export function WorkspaceSettingsSheet({
   currentUserId: string;
   youLabel: string;
   onOpenSearch?: () => void;
+  onMessage?: (member: ChatMemberMessageTarget) => void;
 }) {
   const { t } = useTranslation();
   const {
@@ -161,6 +164,7 @@ export function WorkspaceSettingsSheet({
                 currentUserId={currentUserId}
                 youLabel={youLabel}
                 isModerator={isModerator}
+                onMessage={onMessage}
               />
             )}
             <p className="px-4 pt-1 text-caption text-muted-foreground">{t("chat.workspace_room_moderation_hint")}</p>

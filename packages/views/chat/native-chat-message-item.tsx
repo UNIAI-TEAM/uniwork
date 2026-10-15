@@ -202,6 +202,7 @@ function MessageBody({
     onCreateTask: live ? actions.onCreateTask : undefined,
     onLinkTask: live ? actions.onLinkTask : undefined,
     onFollowUp: live ? actions.onFollowUp : undefined,
+    nameContext,
   };
 
   if (message.kind === "voice" && message.voice) {
