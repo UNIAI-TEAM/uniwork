@@ -37,7 +37,7 @@ function fakeTransport() {
   return transport;
 }
 
-function setup(over: { transport?: ReturnType<typeof fakeTransport>; canReclaim?: () => boolean } = {}) {
+function setup(over: { transport?: ReturnType<typeof fakeTransport>; canReclaim?: () => boolean | Promise<boolean> } = {}) {
   const transport = over.transport ?? fakeTransport();
   let wake: () => void = () => undefined;
   const session = new EditLockSession({
@@ -419,6 +419,88 @@ describe("EditLockSession review fixes (CFE-1-6, CFE-1-7)", () => {
     expect(session.getState().phase).toBe("other");
     expect(heldEditLockId("d1")).toBeUndefined();
     expect(heldEditLocks()).toEqual([]);
+  });
+});
+
+describe("EditLockSession review fixes (CFE-1-8, CFE-1-9, CFE-1-10)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-15T03:12:00Z"));
+  });
+  afterEach(async () => {
+    vi.useRealTimers();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+    await releaseHeldEditLocks(0);
+    vi.unstubAllGlobals();
+  });
+
+  it("CFE-1-8: the TTL runs from when R2 was sent, not when it answered", async () => {
+    let grant: (value: DocumentEditLock) => void = () => undefined;
+    const transport = fakeTransport();
+    transport.acquire.mockImplementationOnce(() => new Promise((resolve) => (grant = resolve)));
+    transport.heartbeat.mockRejectedValue(offline());
+    const { session } = setup({ transport });
+    session.start();
+    await vi.advanceTimersByTimeAsync(100_000);
+    grant(lock());
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(session.getState().phase).toBe("mine");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(session.getState()).toMatchObject({ phase: "lost", lostReason: "expired" });
+  });
+
+  it("CFE-1-8: a heartbeat stamps the deadline from its send time", async () => {
+    let answer: (value: ReturnType<typeof beat>) => void = () => undefined;
+    const transport = fakeTransport();
+    transport.heartbeat.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    transport.heartbeat.mockRejectedValue(offline());
+    const { session } = setup({ transport });
+    session.start();
+    await flush();
+    await vi.advanceTimersByTimeAsync(30_000); // beat sent at t=30 s
+    await vi.advanceTimersByTimeAsync(60_000);
+    answer(beat());
+    await vi.advanceTimersByTimeAsync(59_999); // t=149.999 s
+    expect(session.getState().phase).toBe("mine");
+    await vi.advanceTimersByTimeAsync(1); // 30 s + 120 s
+    expect(session.getState()).toMatchObject({ phase: "lost", lostReason: "expired" });
+  });
+
+  it.each([400, 409, 410, 413, 422])("CFE-1-9: R2 %i is a terminal error, never retried", async (status) => {
+    const transport = fakeTransport();
+    transport.acquire.mockRejectedValue(new ApiError("no", "refused", status));
+    const { session } = setup({ transport });
+    session.start();
+    await flush();
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(transport.acquire).toHaveBeenCalledTimes(1);
+    expect(session.getState()).toMatchObject({ phase: "error", errorCode: "refused" });
+  });
+
+  it("CFE-1-9: R2 429 waits retry_after_s before retrying", async () => {
+    const transport = fakeTransport();
+    transport.acquire.mockRejectedValueOnce(new ApiError("slow", "rate_limited", 429, undefined, { retry_after_s: 7 }));
+    const { session } = setup({ transport });
+    session.start();
+    await flush();
+    await vi.advanceTimersByTimeAsync(6_999);
+    expect(transport.acquire).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(transport.acquire).toHaveBeenCalledTimes(2);
+    expect(session.getState().phase).toBe("mine");
+  });
+
+  it("CFE-1-10: a canReclaim rejection is swallowed and the lock stays lost", async () => {
+    const transport = fakeTransport();
+    transport.heartbeat.mockRejectedValueOnce(lost("expired"));
+    const { session, wake } = setup({ transport, canReclaim: () => Promise.reject(new Error("boom")) });
+    session.start();
+    await flush();
+    vi.setSystemTime(Date.now() + 5 * 60_000);
+    wake();
+    await flush();
+    expect(session.getState()).toMatchObject({ phase: "lost", lostReason: "expired", baseChanged: true });
+    expect(transport.acquire).toHaveBeenCalledTimes(1);
   });
 });
 

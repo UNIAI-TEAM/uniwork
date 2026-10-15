@@ -148,6 +148,13 @@ function holderFrom(fields: Record<string, unknown> | undefined): EditLockHolder
 const refused = (err: unknown, ...statuses: number[]): err is ApiError =>
   err instanceof ApiError && statuses.includes(err.status);
 
+/** How long a 429 asked to wait (`fields.retry_after_s`, else Retry-After); undefined otherwise. */
+function retryAfterMs(err: unknown): number | undefined {
+  if (!(err instanceof ApiError) || err.status !== 429) return undefined;
+  const seconds = Number(err.fields?.retry_after_s ?? err.retryAfterSeconds);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined;
+}
+
 export class EditLockSession {
   readonly editorId: string;
   private state: EditLockSessionState = {
@@ -215,6 +222,8 @@ export class EditLockSession {
     this.slowTimer = setTimeout(() => {
       if (op === this.op && this.state.phase === "acquiring") this.setState({ slow: true });
     }, SLOW_ACQUIRE_MS);
+    // The server's TTL starts when it handled the request, so count from the send.
+    const sentAt = this.now();
     try {
       const lock = await this.opts.transport.acquire({
         editor_id: this.editorId,
@@ -230,7 +239,7 @@ export class EditLockSession {
         this.failAcquire(null, true);
         return;
       }
-      this.grant(lock);
+      this.grant(lock, sentAt);
     } catch (err) {
       if (op !== this.op || this.disposed) return;
       if (err instanceof ApiError && err.code === "document_locked") {
@@ -238,7 +247,8 @@ export class EditLockSession {
         this.setState({ phase: "other", holder: holderFrom(err.fields), slow: false });
         return;
       }
-      this.failAcquire(err instanceof ApiError ? err.code : null, !refused(err, 401, 403, 404));
+      const retryable = !refused(err, 400, 401, 403, 404, 409, 410, 413, 422);
+      this.failAcquire(err instanceof ApiError ? err.code : null, retryable, retryAfterMs(err));
     }
   }
 
@@ -251,7 +261,7 @@ export class EditLockSession {
   adopt(lock: DocumentEditLock): void {
     if (this.disposed) return;
     this.op++;
-    this.grant(lock);
+    this.grant(lock, this.now());
   }
 
   /**
@@ -310,25 +320,25 @@ export class EditLockSession {
     this.listeners.clear();
   }
 
-  private grant(lock: DocumentEditLock): void {
+  private grant(lock: DocumentEditLock, sentAt: number): void {
     this.lastLock = lock;
     this.heartbeatMs = lock.heartbeat_interval_ms || DEFAULT_HEARTBEAT_MS;
     this.ttlMs = lock.ttl_ms || DEFAULT_TTL_MS;
-    this.lastOk = this.now();
+    this.lastOk = sentAt;
     registerHeldEditLock(this.opts.documentId, lock.lock_id);
     this.clearTimers();
     this.setState({ phase: "mine", lock, holder: null, lostReason: null, lostBy: null, baseChanged: false, errorCode: null, slow: false });
     this.schedule();
   }
 
-  private failAcquire(code: string | null, retryable: boolean): void {
+  private failAcquire(code: string | null, retryable: boolean, waitMs?: number): void {
     this.clearTimers();
     this.setState({ phase: "error", errorCode: code, slow: false });
     if (retryable) {
       this.retryTimer = setTimeout(() => {
         this.retryTimer = undefined;
         if (this.state.phase === "error") void this.acquire();
-      }, this.heartbeatMs);
+      }, waitMs ?? this.heartbeatMs);
     }
   }
 
@@ -351,11 +361,12 @@ export class EditLockSession {
     if (this.disposed || this.state.phase !== "mine" || !lock || this.beating) return;
     if (this.expireIfDue()) return;
     this.beating = true;
+    const sentAt = this.now();
     try {
       const hb = await this.opts.transport.heartbeat(lock.lock_id);
       if (!this.holds(lock)) return;
       if (hb && hb.lock_id === lock.lock_id) {
-        this.lastOk = this.now();
+        this.lastOk = sentAt;
         this.setState({ lock: { ...lock, expires_at: hb.expires_at, offline_hold_until: hb.offline_hold_until ?? null } });
       }
     } catch (err) {
@@ -409,11 +420,12 @@ export class EditLockSession {
     const op = this.op;
     try {
       let expired = false;
+      const sentAt = this.now();
       try {
         const hb = await this.opts.transport.heartbeat(old.lock_id);
         if (op !== this.op || this.state.phase !== "lost") return;
         if (hb && hb.lock_id === old.lock_id) {
-          this.grant({ ...old, expires_at: hb.expires_at, offline_hold_until: hb.offline_hold_until ?? null });
+          this.grant({ ...old, expires_at: hb.expires_at, offline_hold_until: hb.offline_hold_until ?? null }, sentAt);
           return;
         }
       } catch (err) {
@@ -431,7 +443,8 @@ export class EditLockSession {
         }
       }
       if (!expired) return;
-      const unchanged = await (this.opts.canReclaim?.() ?? true);
+      // A throwing host check is "cannot tell": the conflict path, not a crash.
+      const unchanged = await (async () => this.opts.canReclaim?.() ?? true)().catch(() => false);
       if (op !== this.op || this.state.phase !== "lost") return;
       if (!unchanged) {
         this.setState({ baseChanged: true });
