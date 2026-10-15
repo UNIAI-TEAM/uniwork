@@ -189,15 +189,19 @@ type DocumentSummaryDTO struct {
 	Snippet        *string `json:"snippet,omitempty" description:"Đoạn khớp ≤ 160 ký tự khi tìm bằng q" example:"…kế hoạch quý 4 gồm ba mốc…"`
 	MyLevel        *string `json:"my_level,omitempty" description:"view, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view" example:"view"`
 	Via            *string `json:"via,omitempty" description:"member, share, link hoặc ai_context" example:"share"`
-	OwnerKind      *string `json:"owner_kind,omitempty" example:"work_product"`
-	OwnerID        *string `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
-	ArchivedAt     *string `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
-	CreatedBy      string  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	CreatedByKind  string  `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
-	UpdatedBy      string  `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UpdatedByKind  string  `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
-	CreatedAt      string  `json:"created_at" example:"2026-09-27T09:00:00Z"`
-	UpdatedAt      string  `json:"updated_at" example:"2026-09-27T09:00:00Z"`
+	// EditLock is who is editing this row's document right now (UNI-1645
+	// §3.2); absent when nobody holds the lock. A list row never carries
+	// lock_id, whatever the viewer's level (C2-1 is R1 only).
+	EditLock      *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`
+	OwnerKind     *string                     `json:"owner_kind,omitempty" example:"work_product"`
+	OwnerID       *string                     `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
+	ArchivedAt    *string                     `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	CreatedBy     string                      `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedByKind string                      `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
+	UpdatedBy     string                      `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedByKind string                      `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
+	CreatedAt     string                      `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	UpdatedAt     string                      `json:"updated_at" example:"2026-09-27T09:00:00Z"`
 	// Path rides only on a search (q) result row (E6/FD-05, UNI-1465).
 	Path []DocumentPathItemSDO `json:"path,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha trực tiếp; cắt ở tổ tiên đầu tiên người gọi không đọc được; chỉ có trên dòng kết quả tìm bằng q" example:"[{\"id\":\"01J8X4DOC0N1P2Q3R4S5T6U7W9\",\"title\":\"Tài liệu nội bộ\"}]"`
 }
@@ -221,6 +225,9 @@ type DocumentTreeNodeDTO struct {
 	Kind     string                `json:"kind" description:"page, file hoặc folder" example:"page"`
 	Position float64               `json:"position" description:"Thứ tự giữa các sibling" example:"0"`
 	Children []DocumentTreeNodeDTO `json:"children" description:"Con đã sắp theo position; rỗng khi hết cấp 5"`
+	// EditLock is who is editing this node's document right now (UNI-1645
+	// §3.2); absent when nobody holds the lock. Never carries lock_id.
+	EditLock *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`
 }
 
 // DocumentTreeSDO is GET /workspaces/{ws}/documents/tree.

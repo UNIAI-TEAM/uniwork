@@ -344,6 +344,10 @@ type DocumentTreeNode struct {
 	Kind     string             `json:"kind"`
 	Position float64            `json:"position"`
 	Children []DocumentTreeNode `json:"children"`
+	// EditLock is who is editing this node's document right now, when a live
+	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
+	// carries the tenure id.
+	EditLock *DocumentEditLockSummary `json:"edit_lock,omitempty"`
 }
 
 // DocumentTree returns the visible subtree under rootID ("" = the roots) as
@@ -388,6 +392,7 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 			}
 		}
 	}
+	var nodes []DocumentTreeNode
 	if rootID == "" {
 		var roots []db.Document
 		for _, d := range rows {
@@ -398,12 +403,14 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 				roots = append(roots, d)
 			}
 		}
-		return buildTreeNodes(roots, children, 1), nil
+		nodes = buildTreeNodes(roots, children, 1)
+	} else {
+		if _, ok := byID[rootID]; !ok {
+			return nil, ErrNotFound
+		}
+		nodes = buildTreeNodes(children[rootID], children, 1)
 	}
-	if _, ok := byID[rootID]; !ok {
-		return nil, ErrNotFound
-	}
-	return buildTreeNodes(children[rootID], children, 1), nil
+	return nodes, s.attachTreeEditLocks(ctx, actor, scope.organizationID, nodes)
 }
 
 func buildTreeNodes(docs []db.Document, children map[string][]db.Document, depth int) []DocumentTreeNode {

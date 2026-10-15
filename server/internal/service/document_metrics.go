@@ -38,6 +38,10 @@ const (
 	documentOutcomeError       = "error"
 )
 
+// documentOutcomeLocked is a save refused by the edit lock (423
+// document_locked, UNI-1645): not a lost base race, never a conflict.
+const documentOutcomeLocked = "locked"
+
 // documentConflictCodes are the two answers that mean "another save moved the
 // base first" (C-01 §7 matrix "hai save cùng base"). Other conflict-class
 // refusals (upload_already_committed, engine_incompatible, ...) are still
@@ -107,6 +111,8 @@ func documentSaveResult(err error) (outcome, conflictCode string) {
 			return documentOutcomeGone, ""
 		case "storage_unavailable":
 			return documentOutcomeUnavailable, ""
+		case "document_locked":
+			return documentOutcomeLocked, ""
 		}
 	}
 	var ve ValidationError

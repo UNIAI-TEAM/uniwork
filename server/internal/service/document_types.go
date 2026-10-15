@@ -143,6 +143,10 @@ type DocumentService struct {
 	// store is the G1-03 write side's own state (document_files.go):
 	// validation limits, spool directory, test seam.
 	store documentStore
+
+	// editLock is the edit lock timing (UNI-1645, document_edit_lock.go);
+	// zero fields read as the addendum §7 defaults.
+	editLock DocumentEditLockConfig
 }
 
 func NewDocumentService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *DocumentService {

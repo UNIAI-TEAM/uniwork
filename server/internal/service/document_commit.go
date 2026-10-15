@@ -73,6 +73,11 @@ type CommitFileVersionInput struct {
 	// caller office_sync_write gates (G5-07). A browser session and the web
 	// frame leave it false and keep saving while the flag is off.
 	Sync bool
+	// EditLockID is the caller's edit lock tenure (UNI-1645 §2); empty means
+	// "not holding a lock". Frame is set by the web frame's commit route, so
+	// a 423 is counted under route frame_commit rather than commit.
+	EditLockID string
+	Frame      bool
 }
 
 func errDocumentDeleted() error {
@@ -257,6 +262,11 @@ func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, do
 	started := time.Now()
 	res, err := s.commitFileVersion(ctx, actor, documentID, in)
 	s.recordDocumentSave(documentMetricKindFile, err, time.Since(started))
+	route := DocumentEditLockRouteCommit
+	if in.Frame {
+		route = DocumentEditLockRouteFrameCommit
+	}
+	s.countEditLockRefused(route, err)
 	return res, err
 }
 
@@ -382,6 +392,12 @@ func (s *DocumentService) commitClaimedFileVersion(
 				return s.markCommitIntentCommitted(ctx, q, locked, *claim, res)
 			}
 			return nil
+		}
+		// The edit lock (UNI-1645 §2) after a replay - the write already
+		// happened - and before the fence and every base check, so a locked
+		// caller gets 423 rather than a version conflict (contract §4).
+		if err := s.checkDocumentEditLock(ctx, q, actor, locked, in.EditLockID); err != nil {
+			return err
 		}
 		// The fence: this attempt commits only while it still holds a live
 		// claim; the row stays locked until the transaction ends.
@@ -516,6 +532,7 @@ type RestoreFileVersionInput struct {
 	Version        int32
 	BaseRevision   int64
 	IdempotencyKey string
+	EditLockID     string
 }
 
 // RestoreFileVersion appends a restore version pointing back at the earlier
@@ -554,6 +571,9 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 		}
 		if replay != nil {
 			res, err = replayWithAccess(replay.Body, access)
+			return err
+		}
+		if err := s.checkDocumentEditLock(ctx, q, actor, locked, in.EditLockID); err != nil {
 			return err
 		}
 		if !contentBaseCurrent(locked, in.BaseRevision) {

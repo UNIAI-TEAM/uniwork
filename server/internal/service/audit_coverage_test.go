@@ -1109,6 +1109,78 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-1645: the document edit lock commands (addendum §5.1).
+		audit.ActionDocumentEditLockAcquired: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditLockReleased: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			l, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.ReleaseDocumentEditLock(f.ctx, Human(f.owner.ID), docID, l.Lock.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditLockTakenOver: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			f.addMember(t)
+			l, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.member.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-member-editor", Client: DocumentEditClientWebPage})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.TakeOverDocumentEditLock(f.ctx, Human(f.owner.ID), docID, TakeOverDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage, ExpectedLockID: l.Lock.ID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditHoldStarted: func(t *testing.T, f *auditFixture) {
+			svc, docID, lockID, sid := f.documentEditHold(t)
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditHoldRenewed: func(t *testing.T, f *auditFixture) {
+			svc, docID, lockID, sid := f.documentEditHold(t)
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+			// The first hold ends at now + HOLD_MAX; a shorter first hold leaves
+			// the renewal room to extend it.
+			if _, err := f.pool.Exec(f.ctx, `UPDATE document_edit_locks SET offline_hold_until = now() + interval '1 hour' WHERE id = $1`, lockID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditHoldEnded: func(t *testing.T, f *auditFixture) {
+			svc, docID, lockID, sid := f.documentEditHold(t)
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ClearDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditRequestCreated: func(t *testing.T, f *auditFixture) {
+			f.documentEditRequest(t)
+		},
+		audit.ActionDocumentEditRequestAnswered: func(t *testing.T, f *auditFixture) {
+			svc, docID, req := f.documentEditRequest(t)
+			if _, err := svc.AnswerDocumentEditRequest(f.ctx, Human(f.owner.ID), docID, req.Request.ID, AnswerDocumentEditRequestInput{Decision: "decline", LockID: req.Request.LockID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditRequestCanceled: func(t *testing.T, f *auditFixture) {
+			svc, docID, req := f.documentEditRequest(t)
+			if err := svc.CancelDocumentEditRequest(f.ctx, Human(f.member.ID), docID, req.Request.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// G1-04b (UNI-678): the tree and lifecycle commands.
 		audit.ActionDocumentMoved: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
@@ -1569,6 +1641,15 @@ func auditActions() []string {
 		audit.ActionDocumentLinkRevoked,
 		audit.ActionDocumentSettingsChanged,
 		audit.ActionDocumentUpdated,
+		audit.ActionDocumentEditLockAcquired,
+		audit.ActionDocumentEditLockReleased,
+		audit.ActionDocumentEditLockTakenOver,
+		audit.ActionDocumentEditHoldStarted,
+		audit.ActionDocumentEditHoldRenewed,
+		audit.ActionDocumentEditHoldEnded,
+		audit.ActionDocumentEditRequestCreated,
+		audit.ActionDocumentEditRequestAnswered,
+		audit.ActionDocumentEditRequestCanceled,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
 		audit.ActionDocumentCommitIntentRenewed,
@@ -1833,6 +1914,35 @@ func (f *auditFixture) wrote(t *testing.T, action string) bool {
 
 // document wires a DocumentService on the fixture's gates and inserts one
 // workspace-visible page the organization owner manages (ACL owner).
+// documentEditHold is a document with the owner's edit lock acquired from a
+// live desktop device session (R6 needs one).
+func (f *auditFixture) documentEditHold(t *testing.T) (*DocumentService, string, string, string) {
+	t.Helper()
+	svc, docID := f.document(t)
+	sid := insertEditLockDeviceSession(t, f.ctx, f.pool, f.owner.ID)
+	l, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientDesktop, SessionID: sid})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, docID, l.Lock.ID, sid
+}
+
+// documentEditRequest is a document the owner holds and the member asked
+// to edit (R8).
+func (f *auditFixture) documentEditRequest(t *testing.T) (*DocumentService, string, DocumentEditRequestView) {
+	t.Helper()
+	svc, docID := f.document(t)
+	f.addMember(t)
+	if _, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage}); err != nil {
+		t.Fatal(err)
+	}
+	req, err := svc.CreateDocumentEditRequest(f.ctx, Human(f.member.ID), docID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, docID, req
+}
+
 func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
 	t.Helper()
 	w := f.build(t)
