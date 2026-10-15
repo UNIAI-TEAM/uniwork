@@ -1,0 +1,62 @@
+$ node --test scripts/*.test.mjs 2>&1 | tail -60; echo "AFTER_SCRIPTS_ALL_EXIT=${PIPESTATUS[0]}"; true
+  ...
+# Subtest: Tasks parity manifest pins and classifies the complete baseline
+ok 112 - Tasks parity manifest pins and classifies the complete baseline
+  ---
+  duration_ms: 15.520318
+  ...
+# Subtest: Task parity generator emits a byte-stable manifest from a fixed Git fixture
+ok 113 - Task parity generator emits a byte-stable manifest from a fixed Git fixture
+  ---
+  duration_ms: 24694.17963
+  ...
+# Subtest: slice-1 verification overlay marks only owned capability entries
+ok 114 - slice-1 verification overlay marks only owned capability entries
+  ---
+  duration_ms: 0.791556
+  ...
+# Subtest: slice-2 verification overlay marks only owned API entries
+ok 115 - slice-2 verification overlay marks only owned API entries
+  ---
+  duration_ms: 0.496363
+  ...
+# Subtest: slice-3 verification overlay marks only owned UI entries
+ok 116 - slice-3 verification overlay marks only owned UI entries
+  ---
+  duration_ms: 1.925639
+  ...
+# Subtest: slice-4 verification overlay marks only owned projects entries
+ok 117 - slice-4 verification overlay marks only owned projects entries
+  ---
+  duration_ms: 1.348005
+  ...
+# Subtest: slice-5 verification overlay marks only owned detail entries
+ok 118 - slice-5 verification overlay marks only owned detail entries
+  ---
+  duration_ms: 0.692777
+  ...
+# Subtest: slice-6 verification overlay marks only owned agent-integration entries
+ok 119 - slice-6 verification overlay marks only owned agent-integration entries
+  ---
+  duration_ms: 0.717431
+  ...
+# Subtest: collection UI has no source brand or Issue domain
+ok 120 - collection UI has no source brand or Issue domain
+  ---
+  duration_ms: 37.339291
+  ...
+# Subtest: parity flag identifier is gone from apps, packages, and server
+ok 121 - parity flag identifier is gone from apps, packages, and server
+  ---
+  duration_ms: 45.824708
+  ...
+1..121
+# tests 121
+# suites 0
+# pass 121
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 120624.343462
+AFTER_SCRIPTS_ALL_EXIT=0

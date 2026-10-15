@@ -1,0 +1,11 @@
+$ pnpm --filter @uniwork/web typecheck 2>&1 | tail -30; echo "AFTER_WEB_TYPECHECK_EXIT=${PIPESTATUS[0]}"; pnpm --filter @uniwork/core typecheck 2>&1 | tail -20; echo "AFTER_CORE_TYPECHECK_EXIT=${PIPESTATUS[0]}"; true
+
+> @uniwork/web@0.0.0 typecheck /workspace/apps/web
+> tsc --noEmit
+
+AFTER_WEB_TYPECHECK_EXIT=0
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
+AFTER_CORE_TYPECHECK_EXIT=0

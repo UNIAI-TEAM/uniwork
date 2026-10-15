@@ -1,0 +1,22 @@
+$ node --test scripts/no-plan-literal.test.mjs 2>&1 | tail -25; echo "AFTER_PLAN_LITERAL_EXIT=${PIPESTATUS[0]}"; pnpm knip 2>&1 | tail -40; echo "AFTER_KNIP_EXIT=${PIPESTATUS[0]}"; true
+TAP version 13
+# Subtest: no plan code literal outside the billing package
+ok 1 - no plan code literal outside the billing package
+  ---
+  duration_ms: 181.374957
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 219.672525
+AFTER_PLAN_LITERAL_EXIT=0
+
+> uniwork@ knip /workspace
+> knip
+
+AFTER_KNIP_EXIT=0
