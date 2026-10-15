@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execPsql, parseUniworkFacadeResponse, uploadFixtureAndMintFrameToken } from '../devset-run.mjs';
 import { scanForSecrets } from '../devset.mjs';
 import { deriveAnswer, reportingFooter } from './holdout-answer.mjs';
-import { createBackend, moduleOfCase, offeredTools, toolCatalogue } from './holdout-backend.mjs';
+import { createBackend, modulesOfCase, offeredTools, toolCatalogue, unobtainableOps } from './holdout-backend.mjs';
 import { readPin, resolveDSha } from './evidence.mjs';
 import { loadCases, score } from './holdout-score.mjs';
 
@@ -136,10 +136,13 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   const record = {
     id: caseDoc.id, lang, format: caseDoc.format, group: groupOf(caseDoc), category: caseDoc.category,
     oracleType: caseDoc.oracle.type, calls: [], toolCalls: [], dropped: [],
+    expects: { numeric: caseDoc.expected.numeric.length, writes: caseDoc.expected.writes, mustNotContain: caseDoc.expected.mustNotContain.length },
     counts: { rateLimited: 0, serverErrors: 0, retries: 0, remounts: 0 }, modelTurns: 0, error: null,
   };
   const backend = (opts.backendFactory ?? createBackend)(caseDoc, { fixturesDir: opts.fixturesDir });
   const tools = offeredTools(caseDoc, catalogue);
+  const offeredNames = new Set(tools.map((t) => t.function.name));
+  record.unobtainableOps = unobtainableOps(caseDoc, tools);
   const fixtureId = caseDoc.fixtures[0].id;
   let mount = await session.mount(fixtureId);
   const remount = () => session.mount(fixtureId, { fresh: true });
@@ -177,6 +180,12 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
     const results = [];
     for (const tc of parsed.toolCalls) {
       const name = tc.function?.name ?? '';
+      if (!offeredNames.has(name)) {
+        // The façade drops a tool the caller did not offer; one that still arrives is reported, never executed.
+        record.toolCalls.push({ name, offered: false, write: false, denied: null });
+        results.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ error: `unknown tool ${name}` }) });
+        continue;
+      }
       const writesBefore = backend.writes();
       const deniedBefore = backend.denied().length;
       const result = backend.execute(name, tc.function?.arguments ?? '{}');
@@ -196,8 +205,8 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   record.denied = backend.denied();
   const { answer, adapter } = deriveAnswer(
     caseDoc,
-    { reply, calls: record.toolCalls, writes: backend.writes(), dropped: record.dropped, module: moduleOfCase(caseDoc) },
-    { numbers: opts.numbers },
+    { reply, calls: record.toolCalls, writes: backend.writes(), dropped: record.dropped, modules: modulesOfCase(caseDoc) },
+    { numbers: opts.numbers, computeByReply: opts.computeByReply },
   );
   record.adapter = adapter;
   record.answer = answer;
@@ -268,7 +277,7 @@ export async function runHoldout({
   cases, runs = 3, threads = 2, outDir, transport, session, usageReader = null, redis = 'unknown', serverSha = '',
   onlyIds = null, limit = 0, opts = {}, log = () => {}, now = () => new Date(),
 }) {
-  const options = { maxRetries: 3, retryWaitCapMs: 10000, numbers: 'strict', ...opts };
+  const options = { maxRetries: 3, retryWaitCapMs: 10000, numbers: 'strict', computeByReply: true, ...opts };
   const catalogue = options.catalogue ?? toolCatalogue(options.toolSchemas ?? null);
   const partial = Boolean(onlyIds) || limit > 0;
   const shaFromCheckout = serverSha === '';
@@ -295,7 +304,7 @@ export async function runHoldout({
       schemaVersion: 1, kind: RUN_KIND, runIndex: n, runsPlanned: runs, status, reason, partial, startedAt, finishedAt: now().toISOString(),
       tuple: buildTuple({ dSha, dirty, shaSource: shaFromCheckout ? 'checkout HEAD' : '--server-sha', pin: readPin(), redis, asks, rows }),
       config: {
-        threads, answerProtocol: 'v1', numbers: options.numbers, maxRetries: options.maxRetries, langs: LANGS, casesRead: cases.length,
+        threads, answerProtocol: 'v1', numbers: options.numbers, computeByReply: options.computeByReply, maxRetries: options.maxRetries, langs: LANGS, casesRead: cases.length,
         tools: 'genoffice tools of the case module, filtered by the case allowlist',
       },
       asks: asks.map(({ calls, ...rest }) => ({ ...rest, calls })),
@@ -413,6 +422,7 @@ export function parseArgs(argv) {
     else if (flag === '--redis') args.redis = need(i++);
     else if (flag === '--server-sha') args.serverSha = need(i++);
     else if (flag === '--numbers') args.numbers = need(i++);
+    else if (flag === '--compute-by-reply') args.computeByReply = need(i++);
     else if (flag === '--max-retries') args.maxRetries = Number(need(i++));
     else if (flag === '--tool-schemas') args.toolSchemas = path.resolve(need(i++));
     else if (flag === '--only') args.only = need(i++).split(',').filter(Boolean);
@@ -426,6 +436,7 @@ export function parseArgs(argv) {
   if (![1, 2].includes(args.threads)) throw new Error('--threads must be 1 or 2 (the sign-off profile is at most 2 concurrent threads)');
   if (!['on', 'off', 'unknown'].includes(args.redis)) throw new Error('--redis must be on, off or unknown');
   if (!['strict', 'lenient'].includes(args.numbers)) throw new Error('--numbers must be strict or lenient');
+  if (args.computeByReply !== undefined && !['on', 'off'].includes(args.computeByReply)) throw new Error('--compute-by-reply must be on or off');
   if (!args.serverUrl) throw new Error('--server-url is required');
   const rel = path.relative(repoRoot, args.out);
   if (!args.allowInRepo && rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel)) {
@@ -435,7 +446,7 @@ export function parseArgs(argv) {
 }
 
 const HELP = `Usage: node scripts/office/g5g6g7/holdout-run.mjs --server-url <origin> [--db-url <postgres-url>] [--runs 3] [--threads 1|2]
-  [--out <dir>] [--redis on|off] [--server-sha <sha>] [--numbers strict|lenient] [--max-retries 3] [--tool-schemas <file>]
+  [--out <dir>] [--redis on|off] [--server-sha <sha>] [--numbers strict|lenient] [--compute-by-reply on|off] [--max-retries 3] [--tool-schemas <file>]
   [--only HO-ID,HO-ID] [--limit N] [--allow-in-repo]
 Writes run-NN.json into --out (default outside the repo). --only/--limit make a partial run, which the report never counts as complete.
 Read the result with: node scripts/office/g5g6g7/holdout-report.mjs --runs <dir>
@@ -449,7 +460,7 @@ async function main() {
   const files = await runHoldout({
     cases, runs: args.runs, threads: args.threads, outDir: args.out, transport: httpTransport(args.serverUrl), session,
     usageReader: createUsageReader({ dbUrl: args.dbUrl }), redis: args.redis, serverSha: args.serverSha ?? '', onlyIds: args.only ?? null, limit: args.limit ?? 0,
-    opts: { numbers: args.numbers, maxRetries: args.maxRetries, toolSchemas: args.toolSchemas ? JSON.parse(fs.readFileSync(args.toolSchemas, 'utf8')) : null },
+    opts: { numbers: args.numbers, computeByReply: args.computeByReply !== 'off', maxRetries: args.maxRetries, toolSchemas: args.toolSchemas ? JSON.parse(fs.readFileSync(args.toolSchemas, 'utf8')) : null },
     log: (line) => process.stdout.write(`${line}\n`),
   });
   process.stdout.write(`${files.length} run file(s) written; read them with holdout-report.mjs --runs ${args.out}\n`);

@@ -13,7 +13,9 @@
 //   - clarification / refusal / not_found / caveat items are observed behaviour: ask_clarification was called, the line
 //     says refused / not_found, or it lists a caveat. They carry a neutral value, never the case's reference text;
 //   - writes come from the backend (calls it let through), tools.used from the mapped operations of the calls, plus the
-//     raw name of any tool that is not mapped or was dropped by the façade (the scorer fails a name outside the list).
+//     raw name of any tool that is not mapped or was dropped by the façade (the scorer fails a name outside the list);
+//     `refuse` counts as used only when the case's allowlist has it (a refusal is a reply, not a call), and in a module
+//     with no compute tool (everything but sheets) `compute` counts as used when the reply reported a figure.
 // A reply without the line (or with an invalid one) reports nothing, so the scorer fails it closed; `reportStatus`
 // keeps that protocol failure apart from a wrong answer.
 
@@ -88,23 +90,24 @@ function matchNumbers(expected, figures) {
 
 /**
  * deriveAnswer(caseDoc, ask) -> { answer, adapter }.
- * ask = { reply, calls: [{name, dropped?}], writes, dropped: [name], module }
+ * ask = { reply, calls: [{name}], writes, dropped: [name], modules: [module of every fixture] }
  */
-export function deriveAnswer(caseDoc, ask, { numbers = 'strict' } = {}) {
+export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply = true } = {}) {
   const parsed = parseReport(ask.reply);
   const report = parsed.report ?? {};
   const used = new Set();
   for (const call of ask.calls) {
-    const ops = opsOfTool(ask.module, call.name);
+    const ops = opsOfTool(ask.modules, call.name);
     if (!ops) { used.add(call.name); continue; }
     // A tool that serves several operations counts under those the case allows; outside all of them it counts as is.
     const inside = ops.filter((op) => caseDoc.tools.allowed.includes(op));
     (inside.length > 0 ? inside : ops).forEach((op) => used.add(op));
   }
   for (const name of ask.dropped ?? []) used.add(name);
-  if (report.refused === true) used.add('refuse');
-
   const figures = Array.isArray(report.numbers) ? report.numbers : [];
+  if (report.refused === true && caseDoc.tools.allowed.includes('refuse')) used.add('refuse');
+  const hasComputeTool = ask.modules.includes('sheets');
+  if (computeByReply && !hasComputeTool && figures.length > 0 && caseDoc.tools.allowed.includes('compute')) used.add('compute');
   const { numeric, extras } = matchNumbers(caseDoc.expected.numeric, figures);
   const strictExtras = numbers === 'strict' ? extras : [];
   strictExtras.forEach((value, i) => { numeric[`extra_figure_${i + 1}`] = value; });

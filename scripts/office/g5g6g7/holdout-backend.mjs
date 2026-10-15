@@ -1,15 +1,16 @@
 // Fixture-backed tool backend for the G7-12 holdout runner (UNI-1384).
 //
 // The façade only relays the tools the caller offers; the frame executes them against the open document. This module
-// is the frame's stand-in for the eval: it offers the genoffice tools of the case's module (names verified against
-// docs/office/g5g6g7/genoffice-tools.md by holdout-run.test.mjs), answers their calls from the synthetic fixture read
-// at runtime, applies the case setup (overlay, removeCells, revokeAfterTool, serverVersionAhead, viewer role) and counts
-// the writes it let through. Nothing here names a case: every question, answer and marker stays under
-// docs/office/g5g6g7/holdout/.
+// is the frame's stand-in for the eval: it offers the genoffice tools of the modules of the case's fixtures (names
+// verified against docs/office/g5g6g7/genoffice-tools.md by holdout-run.test.mjs), answers their calls from the
+// synthetic fixtures read at runtime, applies the case setup (overlay, removeCells, revokeAfterTool, serverVersionAhead,
+// viewer role) and counts the writes it let through. Nothing here names a case: every question, answer and marker stays
+// under docs/office/g5g6g7/holdout/.
 //
-// What it does NOT do (known v1 limits, listed in the G7-12 report): a write is counted but not applied to the view,
-// number formats of xlsx cells are not read (read_formats reports the cell type only), and only fixtures[0] is the open
-// document - further fixtures of a case are other documents the session cannot reach.
+// Multi-document cases (several fixtures) open every fixture; a tool name that two modules share goes to the first
+// fixture's module. Known v1 limits, listed in the G7-12 report: a write is counted but not applied to the view, number
+// formats of xlsx cells are not read (read_formats reports the cell type only), and docs/slides/pdf/markdown/html have no
+// compute tool, so the runner's adapter treats `compute` there as "the reply reported a figure".
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -57,14 +58,14 @@ export const TOOL_OPS = {
   },
   markdown: {
     get_document_context: ['read_document'],
-    read_blocks: ['read_document'],
+    read_blocks: ['read_document', 'read_table'],
     read_frontmatter: ['read_document'],
     apply_ops: ['edit_paragraph'],
     ask_clarification: ['ask_clarification'],
   },
   html: {
     get_outline: ['read_document'],
-    read_source: ['read_document'],
+    read_source: ['read_document', 'read_table'],
     apply_ops: ['edit_paragraph'],
     ask_clarification: ['ask_clarification'],
   },
@@ -73,11 +74,12 @@ export const TOOL_OPS = {
 const MODULE_OF_FORMAT = { xlsx: 'sheets', docx: 'docs', pptx: 'slides', pdf: 'pdf', md: 'markdown', html: 'html' };
 const FIXTURE_FORMAT = (id) => /^fx-([a-z]+)-/.exec(id)?.[1] ?? '';
 
-/** The genoffice module a case runs in: its first fixture is the open document (cross cases follow it too). */
-export function moduleOfCase(caseDoc) {
-  const format = FIXTURE_FORMAT(caseDoc.fixtures?.[0]?.id ?? '') || caseDoc.format;
-  return MODULE_OF_FORMAT[format] ?? 'docs';
+/** The genoffice module of every fixture of a case, in order and without repeats (the first is the open document). */
+export function modulesOfCase(caseDoc) {
+  const modules = caseDoc.fixtures.map((f) => MODULE_OF_FORMAT[FIXTURE_FORMAT(f.id)] ?? 'docs');
+  return [...new Set(modules)];
 }
+export const moduleOfCase = (caseDoc) => modulesOfCase(caseDoc)[0];
 
 const loose = (name, description) => ({
   type: 'function',
@@ -100,16 +102,33 @@ export function toolCatalogue(overrides = null) {
   return out;
 }
 
-/** The tools offered for a case: the module's tools with at least one operation in the case's allowlist. */
+/** Tools offered for a case: each fixture module's tools that serve an operation of the allowlist (first module wins a name). */
 export function offeredTools(caseDoc, catalogue = toolCatalogue()) {
-  const module = moduleOfCase(caseDoc);
   const allowed = new Set(caseDoc.tools.allowed);
-  return catalogue[module].filter((tool) => TOOL_OPS[module][tool.function.name].some((op) => allowed.has(op)));
+  const seen = new Set();
+  const out = [];
+  for (const module of modulesOfCase(caseDoc)) {
+    for (const tool of catalogue[module]) {
+      const name = tool.function.name;
+      if (seen.has(name) || !TOOL_OPS[module][name].some((op) => allowed.has(op))) continue;
+      seen.add(name);
+      out.push(tool);
+    }
+  }
+  return out;
 }
 
-/** Abstract operations of one tool call, or null when the tool is not mapped (reported by its own name). */
-export function opsOfTool(module, name) {
-  return TOOL_OPS[module]?.[name] ?? null;
+/** Abstract operations of one tool across the modules of a case, or null when no module maps it (reported by its own name). */
+export function opsOfTool(modules, name) {
+  for (const module of [].concat(modules)) if (TOOL_OPS[module]?.[name]) return TOOL_OPS[module][name];
+  return null;
+}
+
+/** Operations no offered tool can serve (the adapter handles `refuse` and, outside sheets, `compute`). */
+export function unobtainableOps(caseDoc, tools) {
+  const modules = modulesOfCase(caseDoc);
+  const served = new Set(tools.flatMap((t) => opsOfTool(modules, t.function.name) ?? []));
+  return caseDoc.tools.required.filter((op) => !served.has(op) && op !== 'refuse' && op !== 'compute');
 }
 
 // ---- fixture views ----
@@ -147,7 +166,7 @@ function pptxSlides(file) {
   });
 }
 
-/** Loads the open document of a case as a plain view; every read tool answers from it. */
+/** Loads one fixture as a plain view; every read tool answers from it. */
 export function loadView(fixtureId, dir = FIXTURES_DIR) {
   const base = path.join(dir, fixtureId);
   const format = FIXTURE_FORMAT(fixtureId);
@@ -178,13 +197,13 @@ const parseRange = (range) => {
   return s && e ? { c1: Math.min(s.col, e.col), c2: Math.max(s.col, e.col), r1: Math.min(s.row, e.row), r2: Math.max(s.row, e.row) } : null;
 };
 
-/** Applies the setup of a case to a COPY of the view (the fixture on disk is never touched). */
-function applySetup(view, setup = {}) {
-  const warnings = [];
+/** Applies the setup entries that name this fixture to the (freshly loaded) view; the fixture on disk is never touched. */
+function applySetup(view, fixtureId, setup = {}) {
+  const mine = (setup.overlay ?? []).filter((entry) => entry.fixtureId === fixtureId);
   if (view.format === 'xlsx') {
-    for (const entry of setup.overlay ?? []) {
+    for (const entry of mine) {
       const sheet = view.workbook.sheets[entry.sheet];
-      if (!sheet || !entry.cell) { warnings.push(`overlay ${entry.op}: no sheet/cell`); continue; }
+      if (!sheet || !entry.cell) continue;
       if (entry.op === 'set_cell') sheet.cells[entry.cell] = { v: entry.value, f: null, t: 'str' };
       else if (entry.op === 'clear_cell') delete sheet.cells[entry.cell];
     }
@@ -192,10 +211,10 @@ function applySetup(view, setup = {}) {
       const [sheetName, cell] = ref.split('!');
       delete view.workbook.sheets[sheetName]?.cells[cell];
     }
-    return warnings;
+    return;
   }
-  for (const entry of setup.overlay ?? []) {
-    if (entry.op !== 'insert_after') { warnings.push(`overlay ${entry.op}: not supported for ${view.format}`); continue; }
+  for (const entry of mine) {
+    if (entry.op !== 'insert_after') continue;
     const head = String(entry.anchor).split('/')[0];
     if (view.blocks) {
       const at = view.blocks.findIndex((b) => b.text?.startsWith(head));
@@ -207,7 +226,6 @@ function applySetup(view, setup = {}) {
     } else if (view.pages) view.pages[0].lines.push(entry.value);
     else view.lines.push(entry.value);
   }
-  return warnings;
 }
 
 const cellText = (cell) => {
@@ -244,31 +262,17 @@ function stats(values) {
   return { count: values.length, sum, average: sum / values.length, min: Math.min(...values), max: Math.max(...values) };
 }
 
-/**
- * One case's tool session. execute(name, args) answers a call; writes() is the number of writes let through;
- * denied() lists calls it refused (revoked access, viewer, stale version) so the runner can record them.
- */
-export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, view = null } = {}) {
-  const module = moduleOfCase(caseDoc);
-  const open = caseDoc.fixtures[0];
-  const doc = view ?? loadView(open.id, fixturesDir);
-  const setupWarnings = applySetup(doc, caseDoc.setup);
-  const role = open.role ?? caseDoc.role;
-  const revokeAfter = caseDoc.setup?.revokeAfterTool ?? Infinity;
-  let calls = 0;
-  let writes = 0;
-  const denied = [];
-
-  const sheetOf = (args) => {
-    if (doc.format !== 'xlsx') return null;
+/** The read tools of one open document: (name, args) -> result. */
+function readTools(caseDoc, doc) {
+  function sheetOf(args) {
     const names = Object.keys(doc.workbook.sheets);
     const wanted = String(args.sheetId ?? caseDoc.setup?.activeSheet ?? names[0]);
     const byIndex = /^sheet-(\d+)$/.exec(wanted);
     const name = names.includes(wanted) ? wanted : names[byIndex ? Number(byIndex[1]) - 1 : 0] ?? names[0];
     return { name, sheet: doc.workbook.sheets[name] };
-  };
+  }
 
-  function xlsxTool(name, args) {
+  function xlsx(name, args) {
     if (name === 'get_workbook_context') {
       return {
         activeSheetName: caseDoc.setup?.activeSheet ?? Object.keys(doc.workbook.sheets)[0],
@@ -324,7 +328,7 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, view = null
     return { error: `unsupported tool ${name}` };
   }
 
-  function textTool(name, args) {
+  function text(name, args) {
     if (doc.format === 'docx') {
       if (name === 'get_document_context') return { paragraphCount: doc.blocks.length, blocks: doc.blocks.map((b) => ({ index: b.index, style: b.style, preview: b.text ?? '[table]' })) };
       if (name === 'read_blocks') {
@@ -353,9 +357,27 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, view = null
     return { error: `unsupported tool ${name}` };
   }
 
+  return doc.format === 'xlsx' ? xlsx : text;
+}
+
+/**
+ * One case's tool session. execute(name, args) answers a call; writes() is the number of writes let through;
+ * denied() lists calls it refused (revoked access, viewer, stale version) so the runner can record them.
+ */
+export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = null } = {}) {
+  const documents = caseDoc.fixtures.map((fixture, i) => {
+    const doc = views?.[i] ?? loadView(fixture.id, fixturesDir);
+    applySetup(doc, fixture.id, caseDoc.setup);
+    return { module: MODULE_OF_FORMAT[doc.format] ?? 'docs', role: fixture.role ?? caseDoc.role, read: readTools(caseDoc, doc) };
+  });
+  const modules = documents.map((d) => d.module);
+  const revokeAfter = caseDoc.setup?.revokeAfterTool ?? Infinity;
+  let calls = 0;
+  let writes = 0;
+  const denied = [];
+
   return {
-    module,
-    setupWarnings,
+    modules: [...new Set(modules)],
     writes: () => writes,
     denied: () => [...denied],
     execute(name, rawArgs) {
@@ -364,8 +386,9 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, view = null
       else if (typeof rawArgs === 'string' && rawArgs.trim()) {
         try { args = JSON.parse(rawArgs); } catch { args = {}; }
       }
-      const ops = opsOfTool(module, name);
-      if (!ops) return { error: `unsupported tool ${name}` };
+      const target = documents.find((d) => TOOL_OPS[d.module][name]);
+      if (!target) return { error: `unsupported tool ${name}` };
+      const ops = TOOL_OPS[target.module][name];
       calls += 1;
       if (calls > revokeAfter) {
         denied.push({ name, reason: 'access_revoked' });
@@ -374,12 +397,12 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, view = null
       if (name === 'ask_clarification') return { status: 'clarification_requested', questions: args.questions ?? [] };
       const isWrite = ops.some((op) => WRITE_OPERATIONS.has(op)) && !(name === 'apply_ops' && args.dryRun === true);
       if (isWrite) {
-        if (role === 'viewer') { denied.push({ name, reason: 'viewer' }); return { error: 'permission_denied', message: 'This document is view-only.' }; }
+        if (target.role === 'viewer') { denied.push({ name, reason: 'viewer' }); return { error: 'permission_denied', message: 'This document is view-only.' }; }
         if (caseDoc.setup?.serverVersionAhead) { denied.push({ name, reason: 'version_conflict' }); return { error: 'version_conflict', message: 'The server holds a newer version than the copy that is open.' }; }
         writes += 1;
         return { status: 'applied', note: 'Edit applied in the editor (not yet saved).' };
       }
-      return doc.format === 'xlsx' ? xlsxTool(name, args) : textTool(name, args);
+      return target.read(name, args);
     },
   };
 }
