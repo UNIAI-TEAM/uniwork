@@ -1,0 +1,179 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18940 FRONTEND_ORIGIN=http://localhost:13840 API_PUBLIC_URL=http://localhost:18940 PREVIEW_ORIGIN=http://localhost:13841 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18940 NEXT_PUBLIC_WS_URL=ws://localhost:18940 NEXT_PUBLIC_APP_URL=http://localhost:13840 E2E_BASE_URL=http://localhost:13840 E2E_API_URL=http://localhost:18940; pnpm --filter @uniwork/web build && (PORT=13840 nohup pnpm --filter @uniwork/web start > /tmp/devci18-web.log 2>&1 &); sleep 2; echo started
+
+> @uniwork/web@0.0.0 build /workspace/apps/web
+> node scripts/office-frame-sync.mjs --ensure && next build
+
+office-frame: docs 0.1.0-06d77a2 already installed
+office-frame: pdf 0.1.0-06d77a2 already installed
+office-frame: markdown 0.1.0-06d77a2 already installed
+office-frame: html 0.1.0-06d77a2 already installed
+office-frame: slides 0.1.0-06d77a2 already installed
+office-frame: sheets 0.1.0-06d77a2 already installed
+▲ Next.js 16.3.8 (Turbopack)
+✓ Running next.config.mjs took 109ms
+
+  Creating an optimized production build ...
+Found 2 warnings while optimizing generated CSS:
+
+Issue #1:
+[2m│   }[22m
+[2m│ }[22m
+[2m│[22m ::highlight(task-find) {
+[2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+[2m┆[22m
+[2m│   background-color: var(--selection);[22m
+[2m│   color: var(--selection-foreground);[22m
+
+Issue #2:
+[2m│   color: var(--selection-foreground);[22m
+[2m│ }[22m
+[2m│[22m ::highlight(task-find-active) {
+[2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+[2m┆[22m
+[2m│   background-color: var(--brand);[22m
+[2m│   color: var(--brand-foreground);[22m
+
+Turbopack build encountered 2 warnings:
+./apps/web/app/globals.css:2:296553
+Warning: Parsing CSS source code failed
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...r-layout]>[data-panel]{transition:none}}::highlight(task-find){background-color:[36mvar[0m(--se...
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:2:296553
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...r-layout]>[data-panel]{transition:none}}::highlight(task-find){background-color:[36mvar[0m(--se...
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+./apps/web/app/globals.css:2:296644
+Warning: Parsing CSS source code failed
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...tion);color:[36mvar[0m(--selection-foreground)}::highlight(task-find-active){background-color:[36mv..[0m.
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:2:296644
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...tion);color:[36mvar[0m(--selection-foreground)}::highlight(task-find-active){background-color:[36mv..[0m.
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+
+> Build error occurred
+Error: Turbopack build failed with 4 errors:
+./apps/web/platform/marketing-link.tsx:4:1
+Error: Export marketingHref doesn't exist in target module
+  [90m2 |[0m [36mimport[0m [33mNextLink[0m [36mfrom[0m [32m"next/link"[0m;
+  [90m3 |[0m [36mimport[0m [36mtype[0m { [33mComponentProps[0m } [36mfrom[0m [32m"react"[0m;
+[31m[1m>[0m [90m4 |[0m [36mimport[0m { marketingHref, marketingRoute } [36mfrom[0m [32m"@uniwork/core/paths"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m5 |[0m [36mimport[0m { persistMarketingLocale, useMarketingLocale } [36mfrom[0m [32m"./marketing-context"[0m;
+  [90m6 |[0m
+  [90m7 |[0m [90m/** Auth transitions load the application provider independently of the marketing shell. */[0m
+
+The export marketingHref was not found in module [project]/packages/core/paths/index.ts [app-client] (ecmascript).
+Did you mean to import routePattern?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import trace:
+  Server Component:
+    ./apps/web/platform/marketing-link.tsx
+    ./apps/web/features/landing/guide-page.tsx
+    ./apps/web/platform/public-page.tsx
+    ./apps/web/app/about/page.tsx
+
+
+./apps/web/platform/marketing-link.tsx:4:1
+Error: Export marketingHref doesn't exist in target module
+  [90m2 |[0m [36mimport[0m [33mNextLink[0m [36mfrom[0m [32m"next/link"[0m;
+  [90m3 |[0m [36mimport[0m [36mtype[0m { [33mComponentProps[0m } [36mfrom[0m [32m"react"[0m;
+[31m[1m>[0m [90m4 |[0m [36mimport[0m { marketingHref, marketingRoute } [36mfrom[0m [32m"@uniwork/core/paths"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m5 |[0m [36mimport[0m { persistMarketingLocale, useMarketingLocale } [36mfrom[0m [32m"./marketing-context"[0m;
+  [90m6 |[0m
+  [90m7 |[0m [90m/** Auth transitions load the application provider independently of the marketing shell. */[0m
+
+The export marketingHref was not found in module [project]/packages/core/paths/index.ts [app-ssr] (ecmascript).
+Did you mean to import routePattern?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import trace:
+  Server Component:
+    ./apps/web/platform/marketing-link.tsx
+    ./apps/web/features/landing/guide-page.tsx
+    ./apps/web/platform/public-page.tsx
+    ./apps/web/app/about/page.tsx
+
+
+./apps/web/platform/marketing-link.tsx:4:1
+Error: Export marketingRoute doesn't exist in target module
+  [90m2 |[0m [36mimport[0m [33mNextLink[0m [36mfrom[0m [32m"next/link"[0m;
+  [90m3 |[0m [36mimport[0m [36mtype[0m { [33mComponentProps[0m } [36mfrom[0m [32m"react"[0m;
+[31m[1m>[0m [90m4 |[0m [36mimport[0m { marketingHref, marketingRoute } [36mfrom[0m [32m"@uniwork/core/paths"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m5 |[0m [36mimport[0m { persistMarketingLocale, useMarketingLocale } [36mfrom[0m [32m"./marketing-context"[0m;
+  [90m6 |[0m
+  [90m7 |[0m [90m/** Auth transitions load the application provider independently of the marketing shell. */[0m
+
+The export marketingRoute was not found in module [project]/packages/core/paths/index.ts [app-client] (ecmascript).
+Did you mean to import pendingAuthStep?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import trace:
+  Server Component:
+    ./apps/web/platform/marketing-link.tsx
+    ./apps/web/features/landing/guide-page.tsx
+    ./apps/web/platform/public-page.tsx
+    ./apps/web/app/about/page.tsx
+
+
+./apps/web/platform/marketing-link.tsx:4:1
+Error: Export marketingRoute doesn't exist in target module
+  [90m2 |[0m [36mimport[0m [33mNextLink[0m [36mfrom[0m [32m"next/link"[0m;
+  [90m3 |[0m [36mimport[0m [36mtype[0m { [33mComponentProps[0m } [36mfrom[0m [32m"react"[0m;
+[31m[1m>[0m [90m4 |[0m [36mimport[0m { marketingHref, marketingRoute } [36mfrom[0m [32m"@uniwork/core/paths"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m5 |[0m [36mimport[0m { persistMarketingLocale, useMarketingLocale } [36mfrom[0m [32m"./marketing-context"[0m;
+  [90m6 |[0m
+  [90m7 |[0m [90m/** Auth transitions load the application provider independently of the marketing shell. */[0m
+
+The export marketingRoute was not found in module [project]/packages/core/paths/index.ts [app-ssr] (ecmascript).
+Did you mean to import pendingAuthStep?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import trace:
+  Server Component:
+    ./apps/web/platform/marketing-link.tsx
+    ./apps/web/features/landing/guide-page.tsx
+    ./apps/web/platform/public-page.tsx
+    ./apps/web/app/about/page.tsx
+
+
+    at <unknown> (./apps/web/platform/marketing-link.tsx:4:1)
+    at <unknown> (./apps/web/platform/marketing-link.tsx:4:1)
+    at <unknown> (./apps/web/platform/marketing-link.tsx:4:1)
+    at <unknown> (./apps/web/platform/marketing-link.tsx:4:1)
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 build: `node scripts/office-frame-sync.mjs --ensure && next build`
+Exit status 1
+started

@@ -1,0 +1,2 @@
+$ pnpm install --frozen-lockfile >/dev/null 2>&1; echo "SEO_INSTALL_EXIT=$?"
+SEO_INSTALL_EXIT=0

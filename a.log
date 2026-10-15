@@ -1,0 +1,4 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; for p in 18940 13840 13841; do fuser -k -n tcp $p 2>/dev/null; done; sleep 3; ss -ltnp | grep -E ":(18940|13840) " || echo PORTS_FREE
+beaa1596aae6ff483f945e7f004e459cfcf19070
+bash: line 1: ss: command not found
+PORTS_FREE

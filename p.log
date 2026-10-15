@@ -1,0 +1,2 @@
+$ pnpm install --frozen-lockfile >/dev/null 2>&1; echo "PRESEO_INSTALL_EXIT=$?"
+PRESEO_INSTALL_EXIT=0
