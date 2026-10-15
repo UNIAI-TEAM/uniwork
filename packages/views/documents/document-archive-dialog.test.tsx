@@ -390,7 +390,7 @@ describe("DocumentArchiveDialog", () => {
       expect(screen.getByRole("button", { name: t("common.cancel") })).toBeInTheDocument();
     });
 
-    it("shows the permission message on 403 and 404 (missing) from archive-impact without a retry button and keeps confirm locked", async () => {
+    it("shows the permission message on 403 and 404 (missing) from archive-impact without a retry button and hides the confirm button", async () => {
       let status = 403;
       let code = "forbidden";
       requestMock.mockImplementation((path: string) => {
@@ -406,7 +406,8 @@ describe("DocumentArchiveDialog", () => {
         t("documents.archive.archive_forbidden"),
       );
       expect(screen.queryByRole("button", { name: t("documents.archive.retry") })).toBeNull();
-      expect(screen.getByRole("button", { name: t("documents.archive.delete_confirm") })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: t("documents.archive.delete_confirm") })).toBeNull();
+      expect(screen.getByRole("button", { name: t("common.cancel") })).toBeInTheDocument();
       unmount();
 
       status = 404;
@@ -417,7 +418,8 @@ describe("DocumentArchiveDialog", () => {
         t("documents.archive.archive_forbidden"),
       );
       expect(screen.queryByRole("button", { name: t("documents.archive.retry") })).toBeNull();
-      expect(screen.getByRole("button", { name: t("documents.archive.delete_confirm") })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: t("documents.archive.delete_confirm") })).toBeNull();
+      expect(screen.getByRole("button", { name: t("common.cancel") })).toBeInTheDocument();
     });
 
     it("shows the trashed toast after deleting a folder and the restored toast after restoring", async () => {

@@ -142,7 +142,7 @@ describe("FolderPickerDialog", () => {
     expect(props.onSubmit).not.toHaveBeenCalled();
   });
 
-  it("allows picking Documents (gốc) root when moving an item out of a subfolder", () => {
+  it("allows picking Tài liệu (gốc) root when moving an item out of a subfolder", () => {
     const props = renderPicker({
       currentFolderId: "f1",
       initialFolderId: "f1",
