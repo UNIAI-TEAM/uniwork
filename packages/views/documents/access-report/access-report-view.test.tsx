@@ -583,7 +583,26 @@ describe("AccessReportView - layout", () => {
     for (const target of [person, title]) {
       expect(target.className).toContain("min-h-6");
       expect(target.className).toContain("pointer-coarse:min-h-11");
+      // A very short name ("Lê Chi") must not leave the target narrower than 44px either.
+      expect(target.className).toContain("pointer-coarse:min-w-11");
     }
+  });
+
+  it("the Granted on track is wide enough for a date and time, and the cell keeps the full value in its tooltip", async () => {
+    serve(wide);
+    renderView();
+    const table = await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    const row = within(table).getByRole("row", { name: /Trần Bình/ });
+    const template = row.className.split(/\s+/).find((c) => c.startsWith("md:grid-cols-"))!;
+    const tracks = template.slice("md:grid-cols-[".length, -1).split("_");
+    expect(tracks).toHaveLength(7);
+    // 8.5rem cut "Oct 10, 2026, 3:00 AM" at 1280 (visual r2, VB-1).
+    expect(Number.parseFloat(tracks[5]!.replace("rem", ""))).toBeGreaterThanOrEqual(11);
+    // Status stays a fixed track so the chip is never pushed out of the card.
+    expect(tracks[6]).toMatch(/^\d+(\.\d+)?rem$/);
+    const grantedAt = within(row).getAllByRole("cell")[5]!;
+    expect(grantedAt.getAttribute("title")).toMatch(/2026/);
+    expect(grantedAt.getAttribute("title")).toMatch(/\d{1,2}:\d{2}:\d{2}/);
   });
 });
 
