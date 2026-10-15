@@ -46,6 +46,9 @@ describe("TakeOverDialog", () => {
       .mockRejectedValueOnce(new ApiError("changed", "edit_lock_changed", 409))
       .mockResolvedValueOnce(undefined);
     const { props, rerender } = setup({ onConfirm });
+    // CFE-2-3: the status region is there before it has anything to say, so a screen reader announces the fill.
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
     fireEvent.click(await screen.findByRole("button", { name: "Vẫn lấy quyền sửa" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Người đang sửa vừa thay đổi. Xem lại rồi thử lại.");
     expect(props.onReread).toHaveBeenCalled();
@@ -53,10 +56,11 @@ describe("TakeOverDialog", () => {
     // Nothing to take over until the reread lands.
     expect(screen.getByRole("button", { name: "Vẫn lấy quyền sửa" })).toBeDisabled();
     // V-2: the disabled confirm says why: the reread is pending.
-    expect(screen.getByRole("status")).toHaveTextContent("Đang kiểm tra ai đang sửa…");
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status).toHaveTextContent("Đang kiểm tra ai đang sửa…");
     expect(screen.getByRole("button", { name: "Vẫn lấy quyền sửa" })).toHaveAttribute("aria-busy", "true");
     await act(async () => rerender({ onConfirm, lock: summary({ lock_id: "L2", holder_name: "Chi" }) }));
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(status).toBeEmptyDOMElement();
     expect(screen.getByRole("alertdialog", { name: "Lấy quyền sửa từ Chi?" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Vẫn lấy quyền sửa" }));
     await waitFor(() => expect(onConfirm).toHaveBeenLastCalledWith("L2"));

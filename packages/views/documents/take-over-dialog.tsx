@@ -95,12 +95,15 @@ export function TakeOverDialog({ open, onOpenChange, lock, onConfirm, onReread }
             {t(error === "changed" ? "documents.editLock.takeOverChanged" : "documents.editLock.takeOverFailed")}
           </p>
         ) : null}
-        {rereading ? (
-          <p role="status" className="flex items-center gap-2 text-caption text-muted-foreground">
-            <Spinner data-icon="inline-start" />
-            {t("documents.editLock.takeOverRereading")}
-          </p>
-        ) : null}
+        {/* Mounted empty and filled when rereading, so a screen reader announces it (CFE-2-3). */}
+        <p role="status" className="flex items-center gap-2 text-caption text-muted-foreground empty:hidden">
+          {rereading ? (
+            <>
+              <Spinner data-icon="inline-start" />
+              {t("documents.editLock.takeOverRereading")}
+            </>
+          ) : null}
+        </p>
         <AlertDialogFooter>
           <AlertDialogCancel ref={cancelRef} disabled={pending}>{t("documents.editLock.cancel")}</AlertDialogCancel>
           <AlertDialogAction disabled={pending || !expected || !lock} aria-busy={pending || rereading || undefined} onClick={confirm}>
