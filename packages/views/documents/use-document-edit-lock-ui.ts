@@ -71,15 +71,27 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
   const r1 = lock.lockState.data;
 
   // A gated write answered 423 while this editor held the lock: end the hold like any lost lock.
+  // Only a refusal of the lock id held NOW counts, and each refusal once: a late 423 for an older
+  // id (or one already handled) must not drop a lock that was regained since (CFE-1-1).
+  const handled423 = useRef<unknown>(null);
   useEffect(() => {
     if (saveState.phase !== "locked" || phase !== "mine") return;
+    if (handled423.current === saveState.errorFields) return;
+    if (saveState.sentEditLockId !== lock.editLockId) return;
+    handled423.current = saveState.errorFields;
     const lost = lostFrom423(saveState.errorFields);
     lock.markLost(lost.reason, lost.by);
-  }, [saveState.phase, saveState.errorFields, phase, lock]);
+  }, [saveState.phase, saveState.errorFields, saveState.sentEditLockId, phase, lock]);
   // Holding it again (edit now, edit here, a handover): the kept draft goes out after the quiet window.
+  // Only on the way into "mine", or for a refusal of an older id; a refusal of the current id is the
+  // effect above's to end the hold with.
+  const restorePhase = useRef(phase);
   useEffect(() => {
-    if (phase === "mine" && saveState.phase === "locked") save.lockRestored();
-  }, [phase, saveState.phase, save]);
+    const was = restorePhase.current;
+    restorePhase.current = phase;
+    if (phase !== "mine" || saveState.phase !== "locked") return;
+    if (was !== "mine" || saveState.sentEditLockId !== lock.editLockId) save.lockRestored();
+  }, [phase, saveState.phase, saveState.sentEditLockId, lock.editLockId, save]);
 
   /* ---- read-only -> mine: start from the server's current revision (addendum §9) ---- */
   // A content-only save emits no document.updated, so a read-only copy can be
