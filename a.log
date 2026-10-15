@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 3251676b HEAD && echo main-merged-ok
+794ae4e955f68d6c1be336f489d6b8ae331dff1e
+4bdba928d1210df9b04bfdaf549bbcdd6419d206
+794ae4e9 merge: fork main 3251676b (workbench office desk, PR #7) into the G5-09 lane
+fc2ed4b5 test(e2e): read the pending save intent through the durable store in offline cases (W16)
+3251676b Merge pull request #7 from UNIAI-TEAM/feat/workbench-office-desk
+82dc67f2 fix(shell): flush dirty editor before keeping S5 reload conflict draft
+9ffed97c fix(shell): re-queue slides tab file path before reloading WebContents (W14)
+fd4025b4 fix(slides): export queueSlidesForView to re-open deck from disk on reload (W14)
+2c0994a2 test(e2e): assert reloaded docs content on plain heading text, not OMML math (W13)
+5be37655 test(e2e): assert reloaded server content in d2 and split discard flow into d2b (W12)
+main-merged-ok

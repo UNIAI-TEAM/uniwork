@@ -1,0 +1,31 @@
+$ cd apps/slides && AI_PROVIDER=fake npx vitest run tests/uniwork-save.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure gate) > fires the hook only for an explicit in-place save of a titled deck 41ms
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure gate) > refuses read-only targets and AutoSave on bound paths 13ms
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure gate) > reads a missing or unknown origin as an explicit save 10ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > null policy: an explicit save writes and fires the hook once 18ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > an AutoSave pass on an unbound deck still writes but never fires the hook 13ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > bound: an AutoSave pass writes nothing 8ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > bound: an explicit save of a clean deck still writes and fires the hook once 12ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > read-only: Save is refused with no write and no hook 7ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > an untitled deck save (first save into drafts) does not fire the hook 12ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > reports bound / read-only for the sender deck only 6ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As of a bound deck to another path writes a plain copy, no hook 12ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As of a bound deck starts from its name in the remembered folder, not next to the copy 15ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As onto the open deck itself is an explicit Save: it writes and fires once 8ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As onto a read-only path is refused 6ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As of a locked working copy is refused before the target picker opens 8ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > MCP save to the same bound path writes but never fires the hook 9ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > MCP save onto a read-only path throws without writing 8ms
+ ✓ tests/uniwork-save.test.ts > crash-recovery copy > still writes the userData recovery copy of a bound dirty deck, with no hook 57ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > re-opens the queued deck from disk instead of returning the stale in-memory session 68ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > refreshes aliased peer windows on the same path instead of reusing their stale session 15ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > restores the in-memory session when reloading without queueSlidesForView (freeze recovery) 8ms
+
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+   Start at  02:25:33
+   Duration  3.09s (transform 1.80s, setup 0ms, import 2.33s, tests 358ms, environment 313ms)
+
