@@ -151,6 +151,10 @@ export function createFakeWorld({ sqlMembership = true, users = DEFAULT_USERS, o
       return w;
     },
     session: (key) => session(userOf(key)),
+    refreshTokens: () =>
+      worldCall("refreshTokens", [], () => {
+        for (const u of Object.values(worldRecord.users)) u.token = `${u.token.replace(/~\d+$/, "")}~${calls.world.length}`;
+      }),
     upload: (userKey, wsKey, fixtureId, opts = {}) =>
       worldCall("upload", [userKey, wsKey, fixtureId, opts], () => {
         userOf(userKey);
@@ -257,12 +261,15 @@ export function createFakeWorld({ sqlMembership = true, users = DEFAULT_USERS, o
           appAnswer("signIn", [user?.key ?? user?.id, o], () => ({
             status: { loggedIn: true, state: "signed-in" },
             orgChoiceShown: false,
-            orgApiCallsBeforeChoice: 0,
+            expectOrgChoice: Boolean(o.expectOrgChoice),
+            sessionBinExists: true,
+            orgApiCallsBeforeChoice: null,
           })),
         selectOrg: (orgId) => appAnswer("selectOrg", [orgId], () => ({ loggedIn: true, state: "signed-in" })),
         signOut: () => appAnswer("signOut", [], () => ({ loggedIn: false, state: "signed-out" })),
-        openByTicket: (launchUrl) => appAnswer("openByTicket", [launchUrl], () => ({ path: "/fake/working-copy", documentId: null, kind: null })),
-        editorPage(kind) {
+        openByTicket: (launchUrl, o = {}) =>
+          appAnswer("openByTicket", [launchUrl, o], () => ({ path: "/fake/working-copy", documentId: o.documentId ?? null, kind: null })),
+        async editorPage(kind) {
           record("app", "editorPage", [kind]);
           if (!["docs", "sheets", "slides", "pdf"].includes(kind)) throw new Error(`no ${kind} editor page`);
           if (!editorPages.has(kind)) editorPages.set(kind, { fake: "page", kind, url: () => `genoffice-app://${kind}/index.html` });
@@ -275,7 +282,7 @@ export function createFakeWorld({ sqlMembership = true, users = DEFAULT_USERS, o
           return appAnswer(`aiOffice.${name}`, args, () => null);
         },
         save: (path) => appAnswer("save", [path], () => null),
-        focus: (path) => appAnswer("focus", [path], () => undefined),
+        focus: (path) => appAnswer("focus", [path], () => ({ activated: true, pages: 1 })),
         selection: (kind) => appAnswer("selection", [kind], () => null),
         evalBounded: (page, fn, arg, call) => appAnswer("evalBounded", [page?.kind ?? null, arg, call], () => undefined),
         close: () => appAnswer("close", [], () => undefined),
