@@ -152,7 +152,8 @@
           "c8028e4cf360302f9b6307889569167b3bc15199c": "The query and refund calls to VNPay now have a 15-second timeout, so one unanswered request no longer freezes IPN handling and plan lapse until a restart.",
           "cb8cfd349e9dfcb28e8a55e68d8e7b67b6385c325": "Opening a document in the desktop UniWork Office app: the installer dialog no longer appears when the app did open. The deep-link launcher waits 2.5 seconds before calling the app missing and reports a late hand-off for 60 seconds; both the Documents home and Open in UniWork Office close the dialog when the app opens late, and the not-installed copy now says the dialog can be closed, in Vietnamese and English.",
           "cdbf2cf4b3de7db506d7322e2507477cabfb1f331": "The sidebar preview line for the Chung channel now refreshes when a message arrives while you have another conversation open, instead of staying on the previous line.",
-          "c8be2e6dff1e8a2f898595a14e4bc44b641f091d4": "The admin plan screen now rejects a mistyped price or quota before saving: amounts must be whole numbers, and a bad value disables Save instead of turning 499.000 into 499 or text into an unlimited quota. When the server refuses the write, the form stays on screen with an error."
+          "c8be2e6dff1e8a2f898595a14e4bc44b641f091d4": "The admin plan screen now rejects a mistyped price or quota before saving: amounts must be whole numbers, and a bad value disables Save instead of turning 499.000 into 499 or text into an unlimited quota. When the server refuses the write, the form stays on screen with an error.",
+          "c5d891540b40d0b14088aca2f202b66dfeef08ee1": "A payment is now applied only once: two concurrent applies of the same payment each used to write an invoice, so an organization saw two invoices for one payment. The payment intent is now locked and completed before the subscription change, so the second writer stops."
         }
       }
     }

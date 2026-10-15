@@ -3,7 +3,7 @@
     "id": "release-1-4-0",
     "version": "1.4.0",
     "date": "2026-10-15",
-    "sourceRef": "97c18cf207f0e5bd5e8ceee87dfc0ffa5531738c",
+    "sourceRef": "e203954a67dba5ee5be13f20891c486d7e379822",
     "contentKey": "v1_4_0",
     "sections": [
       {
@@ -35,7 +35,8 @@
           "c8028e4cf360302f9b6307889569167b3bc15199c",
           "cb8cfd349e9dfcb28e8a55e68d8e7b67b6385c325",
           "cdbf2cf4b3de7db506d7322e2507477cabfb1f331",
-          "c8be2e6dff1e8a2f898595a14e4bc44b641f091d4"
+          "c8be2e6dff1e8a2f898595a14e4bc44b641f091d4",
+          "c5d891540b40d0b14088aca2f202b66dfeef08ee1"
         ]
       }
     ]

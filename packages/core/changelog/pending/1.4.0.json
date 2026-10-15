@@ -3,7 +3,7 @@
   "version": "1.4.0",
   "date": "2026-10-15",
   "ready": true,
-  "sourceRef": "97c18cf207f0e5bd5e8ceee87dfc0ffa5531738c",
+  "sourceRef": "e203954a67dba5ee5be13f20891c486d7e379822",
   "previousSourceRef": "6750c9ca0f82ca5acebc7c32f98f149c31f84197",
   "title": {
     "vi": "Sửa thông tin workspace, thẻ thông tin người trong chat, địa chỉ tiếng Việt cho trang công khai và một loạt bản sửa thanh toán",
@@ -934,6 +934,24 @@
       "evidence": {
         "kind": "pr",
         "url": "https://github.com/UNIAI-TEAM/uniwork/pull/310"
+      }
+    },
+    {
+      "commit": "5d891540b40d0b14088aca2f202b66dfeef08ee1",
+      "subject": "fix(billing): apply one paid intent only once under concurrent writers",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Một khoản thanh toán chỉ được ghi nhận một lần: trước đây hai lần xử lý song song của cùng khoản thanh toán đều tạo hóa đơn, nên tổ chức thấy hai hóa đơn cho một lần trả tiền. Phiên thanh toán nay được khóa và đóng trước khi đổi đăng ký, nên lần xử lý thứ hai dừng lại.",
+        "en": "A payment is now applied only once: two concurrent applies of the same payment each used to write an invoice, so an organization saw two invoices for one payment. The payment intent is now locked and completed before the subscription change, so the second writer stops."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/billing_provider_event.go",
+          "server/internal/service/billing_vnpay_test.go"
+        ]
       }
     }
   ]

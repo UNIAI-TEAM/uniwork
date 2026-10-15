@@ -152,7 +152,8 @@
           "c8028e4cf360302f9b6307889569167b3bc15199c": "Lệnh tra soát và lệnh hoàn tiền gửi sang VNPay có thời hạn chờ 15 giây, nên một yêu cầu không được trả lời không còn làm đứng việc xử lý IPN và hết hạn gói cho tới khi khởi động lại.",
           "cb8cfd349e9dfcb28e8a55e68d8e7b67b6385c325": "Mở tài liệu bằng ứng dụng UniWork Office trên máy: hộp thoại cài đặt không còn hiện khi ứng dụng đã mở được. Bộ mở liên kết chờ 2,5 giây trước khi coi là chưa cài và ghi nhận lần mở chậm trong 60 giây; cả Trang chủ Tài liệu lẫn lệnh Mở trong UniWork Office đều đóng hộp thoại khi ứng dụng mở muộn, và nội dung khi chưa cài nói rõ có thể đóng hộp thoại, cả tiếng Việt và tiếng Anh.",
           "cdbf2cf4b3de7db506d7322e2507477cabfb1f331": "Dòng xem trước của kênh Chung ở thanh bên được làm mới khi có tin nhắn đến trong lúc bạn đang mở một cuộc trò chuyện khác, thay vì giữ nguyên dòng cũ.",
-          "c8be2e6dff1e8a2f898595a14e4bc44b641f091d4": "Trang quản trị gói chặn giá hoặc hạn mức nhập sai trước khi lưu: số tiền phải là số nguyên, và giá trị sai làm nút Lưu không bấm được thay vì biến 499.000 thành 499 hoặc biến chữ thành hạn mức không giới hạn. Khi máy chủ từ chối, biểu mẫu ở lại trên màn hình kèm thông báo lỗi."
+          "c8be2e6dff1e8a2f898595a14e4bc44b641f091d4": "Trang quản trị gói chặn giá hoặc hạn mức nhập sai trước khi lưu: số tiền phải là số nguyên, và giá trị sai làm nút Lưu không bấm được thay vì biến 499.000 thành 499 hoặc biến chữ thành hạn mức không giới hạn. Khi máy chủ từ chối, biểu mẫu ở lại trên màn hình kèm thông báo lỗi.",
+          "c5d891540b40d0b14088aca2f202b66dfeef08ee1": "Một khoản thanh toán chỉ được ghi nhận một lần: trước đây hai lần xử lý song song của cùng khoản thanh toán đều tạo hóa đơn, nên tổ chức thấy hai hóa đơn cho một lần trả tiền. Phiên thanh toán nay được khóa và đóng trước khi đổi đăng ký, nên lần xử lý thứ hai dừng lại."
         }
       }
     }
