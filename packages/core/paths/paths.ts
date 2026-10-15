@@ -88,6 +88,12 @@ export const paths = {
       // A folder is a query on the documents page, not a page of its own
       // (FD-06): consistency.test.ts has no route to match it against.
       documentsFolder: (id: string) => `${base}/documents?folder=${encodeURIComponent(id)}`,
+      // Who holds which level on the documents the reader manages: the whole
+      // workspace, or one folder and its subfolders (UNI-1643).
+      documentsAccessReport: (folderId?: string) =>
+        folderId
+          ? `${base}/documents/access-report?folder=${encodeURIComponent(folderId)}`
+          : `${base}/documents/access-report`,
       document: (id: string) => `${base}/documents/${id}`,
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,

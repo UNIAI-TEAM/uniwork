@@ -66,6 +66,7 @@
     "./documents/hooks-access-requests": "./documents/hooks-access-requests.ts",
     "./documents/hooks-access-decisions": "./documents/hooks-access-decisions.ts",
     "./documents/doc05-fake": "./documents/doc05-fake.ts",
+    "./documents/hooks-access-report": "./documents/hooks-access-report.ts",
     "./documents/hooks-public": "./documents/hooks-public.ts",
     "./documents/keys": "./documents/keys.ts",
     "./documents/folder-limits": "./documents/folder-limits.ts",

@@ -217,6 +217,26 @@ func (s *OfficeFrameService) Authorize(ctx context.Context, claims OfficeFrameCl
 	return d, nil
 }
 
+// AuthorizeSave is Authorize for the two save routes (uploads, versions/commit).
+// The one difference is an archived document: a frame actor who could save
+// (edit or more) on it, in the workspace and organization the token names,
+// gets document_archived (403) so the client shows "archived" instead of
+// "deleted"; everyone else, and every other frame route, keeps not_found.
+func (s *OfficeFrameService) AuthorizeSave(ctx context.Context, claims OfficeFrameClaims) (OfficeFrameDocument, error) {
+	d, err := s.Authorize(ctx, claims)
+	if err == nil || !errors.Is(err, ErrNotFound) {
+		return d, err
+	}
+	doc, access, rerr := s.documents.readableDocument(ctx, Human(claims.UserID), claims.DocumentID)
+	if rerr == nil && doc.ArchivedAt.Valid && doc.Kind == DocumentKindFile &&
+		doc.WorkspaceID == claims.WorkspaceID && doc.OrganizationID == claims.OrganizationID {
+		if refusal := archivedSaveRefusal(access); !errors.Is(refusal, ErrNotFound) {
+			return OfficeFrameDocument{}, refusal
+		}
+	}
+	return OfficeFrameDocument{}, err
+}
+
 // load authorizes view and keeps only live file documents a web module
 // opens; the module comes from the stored file, never from the caller.
 func (s *OfficeFrameService) load(ctx context.Context, actor Actor, documentID string) (OfficeFrameDocument, error) {

@@ -433,6 +433,19 @@ func (s *DocumentService) withDocumentMutation(
 	return s.withDocumentMutationLocked(ctx, actor, documentID, "", required, fn)
 }
 
+// withFileSaveMutation is withDocumentMutation at edit for the version-save
+// commands (commit, restore). The only difference is the answer for a row
+// that was archived after the preflight: the gate gives it the preflight's
+// answer (archivedSaveRefusal: document_archived from edit up, not_found
+// below) instead of decideDocumentAccess's manage-only not_found, so a race
+// never flips the refusal inside one retry. Other commands keep the plain gate.
+func (s *DocumentService) withFileSaveMutation(
+	ctx context.Context, actor Actor, documentID string,
+	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
+) error {
+	return s.runDocumentMutation(ctx, actor, documentID, "", DocumentLevelEdit, true, fn)
+}
+
 // withDocumentMutationLocked is withDocumentMutation for a command that may
 // place a name into a parent: when treeWorkspaceID is set, the workspace tree
 // lock is taken once the transaction is open and before the document row lock
@@ -445,6 +458,15 @@ func (s *DocumentService) withDocumentMutation(
 // rather than trusted.
 func (s *DocumentService) withDocumentMutationLocked(
 	ctx context.Context, actor Actor, documentID, treeWorkspaceID string, required DocumentLevel,
+	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
+) error {
+	return s.runDocumentMutation(ctx, actor, documentID, treeWorkspaceID, required, false, fn)
+}
+
+// runDocumentMutation is the body of withDocumentMutationLocked; saveRoute
+// selects the archived answer of withFileSaveMutation.
+func (s *DocumentService) runDocumentMutation(
+	ctx context.Context, actor Actor, documentID, treeWorkspaceID string, required DocumentLevel, saveRoute bool,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
 ) error {
 	if !validActor(actor) || documentID == "" {
@@ -474,6 +496,9 @@ func (s *DocumentService) withDocumentMutationLocked(
 	access, err := s.effectiveLevel(ctx, q, actor, doc)
 	if err != nil {
 		return err
+	}
+	if saveRoute && doc.ArchivedAt.Valid {
+		return archivedSaveRefusal(access)
 	}
 	if err := decideDocumentAccess(doc, access, required); err != nil {
 		return err
