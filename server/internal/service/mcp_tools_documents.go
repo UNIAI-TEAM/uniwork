@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"path"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/document"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -285,9 +287,271 @@ func (s *McpToolService) searchDocuments(ctx context.Context, p McpPrincipal, wo
 	return out, nil
 }
 
+// mcpMaxDocumentTitleRunes is the longest page title a tool writes: the
+// service's own limit. Rename also refuses a stored title over it, which
+// changes could not show whole (it cuts a string at mcpMaxHitRunes).
+const mcpMaxDocumentTitleRunes = maxDocumentTitle
+
+// mcpDocumentTitle is a title a model sent, as the service stores it.
+func mcpDocumentTitle(v string) (string, error) {
+	title := strings.TrimSpace(v)
+	if n := utf8.RuneCountInString(title); n == 0 || n > mcpMaxDocumentTitleRunes {
+		return "", McpInvalidArgs{Msg: fmt.Sprintf("title must be 1-%d characters", mcpMaxDocumentTitleRunes)}
+	}
+	return title, nil
+}
+
+// mcpDocumentContent refuses Markdown the converter would not read, with the
+// way out for the model: the same figure document.MarkdownToPage holds.
+func mcpDocumentContent(md string) error {
+	if utf8.RuneCountInString(md) > document.MaxMarkdownRunes {
+		return McpInvalidArgs{Msg: fmt.Sprintf("content holds at most %d characters; send a longer text in parts, each one appended with update_document", document.MaxMarkdownRunes)}
+	}
+	return nil
+}
+
+type mcpCreateDocumentIn struct {
+	WorkspaceID string `json:"workspace_id"`
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	ParentID    string `json:"parent_id"`
+}
+
+// CreateDocument creates a page from Markdown. DocumentService decides who may
+// put it where: at the root of a workspace the person belongs to, or under a
+// folder or page they may edit, whose visibility it takes (CreatePage). A
+// parent the person cannot use reads as not found. Nobody is notified:
+// document.created has no notification rule.
+func (s *McpToolService) CreateDocument(ctx context.Context, p McpPrincipal, in mcpCreateDocumentIn) (McpWriteResult, error) {
+	if !s.documentsOn(ctx, p) {
+		return McpWriteResult{}, errMcpDocumentsUnavailable
+	}
+	title, err := mcpDocumentTitle(in.Title)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	if err := mcpDocumentContent(in.Content); err != nil {
+		return McpWriteResult{}, err
+	}
+	parent, err := mcpID("parent_id", in.ParentID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	if err := s.inGrant(ctx, p, in.WorkspaceID); err != nil {
+		return McpWriteResult{}, err
+	}
+	// No content is an empty page, not one with a stray paragraph.
+	var content json.RawMessage
+	if strings.TrimSpace(in.Content) != "" {
+		if content, err = document.MarkdownToPage(in.Content, nil); err != nil {
+			return McpWriteResult{}, McpInvalidArgs{Msg: "content could not be stored: " + err.Error()}
+		}
+	}
+	// Read before the write: a failure after the page exists would tell the
+	// model it failed, and a retry would create a second one.
+	base, err := s.ask.base(ctx, in.WorkspaceID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	var parentID string
+	if parent != nil {
+		parentID = *parent
+	}
+	v, err := s.docs.CreatePage(ctx, Human(p.UserID), in.WorkspaceID, CreatePageInput{Kind: DocumentKindPage, ParentID: parentID, Title: title, Content: content})
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	return McpWriteResult{Item: s.docOf(base, v.Document), Revision: v.Document.Revision}, nil
+}
+
+// mcpUpdateDocumentIn has pointers for title and content so that a blank one
+// is told from one left out: a blank title is a mistake to correct, and
+// content "" appends nothing.
+type mcpUpdateDocumentIn struct {
+	WorkspaceID string  `json:"workspace_id"`
+	DocumentID  string  `json:"document_id"`
+	Revision    *int64  `json:"revision"`
+	Title       *string `json:"title"`
+	Content     *string `json:"content"`
+	Mode        string  `json:"mode"`
+}
+
+// versionLabel names the version taken before an AI app changes a page, so a
+// person finds it in the page's history.
+func versionLabel(ctx context.Context) string {
+	label := "Trước khi sửa qua ứng dụng AI"
+	if v := audit.RequestFromContext(ctx).Via; v != nil && strings.TrimSpace(v.ClientName) != "" {
+		label = "Trước khi sửa qua " + strings.TrimSpace(v.ClientName)
+	}
+	return capRunes(label, maxDocumentVersionLabel, "")
+}
+
+// UpdateDocument renames a page and appends Markdown to it or replaces its
+// content. Before a change to the content the page as it was is saved as a
+// version, the undo of the call. replace is refused on a page the model cannot
+// have read whole as Markdown (lossy, or longer than get_document shows), so a
+// page is never rewritten from text that was not all of it. The revision is
+// checked here before anything is written, and again by the service under the
+// row lock. Nobody is notified: document.updated has no notification rule.
+func (s *McpToolService) UpdateDocument(ctx context.Context, p McpPrincipal, in mcpUpdateDocumentIn) (McpWriteResult, error) {
+	if in.Revision == nil || *in.Revision <= 0 {
+		return McpWriteResult{}, McpInvalidArgs{Msg: "revision is required; read the document first and send its revision"}
+	}
+	if in.Mode == "" {
+		in.Mode = "append"
+	}
+	if in.Mode != "append" && in.Mode != "replace" {
+		return McpWriteResult{}, McpInvalidArgs{Msg: "mode must be append or replace"}
+	}
+	if in.Content == nil && in.Title == nil {
+		return McpWriteResult{}, McpInvalidArgs{Msg: "send content, title or both"}
+	}
+	var title *string
+	if in.Title != nil {
+		t, err := mcpDocumentTitle(*in.Title)
+		if err != nil {
+			return McpWriteResult{}, err
+		}
+		title = &t
+	}
+	if in.Content != nil {
+		if err := mcpDocumentContent(*in.Content); err != nil {
+			return McpWriteResult{}, err
+		}
+		if in.Mode == "append" && strings.TrimSpace(*in.Content) == "" {
+			return McpWriteResult{}, McpInvalidArgs{Msg: "content is empty, so there is nothing to append"}
+		}
+	}
+	v, err := s.document(ctx, p, in.WorkspaceID, in.DocumentID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	before := v.Document
+	if before.Kind != DocumentKindPage {
+		return McpWriteResult{}, McpToolError{Code: "not_a_page", Msg: "only pages can be edited through the connector; files and folders are edited in UniWork"}
+	}
+	if before.Revision != *in.Revision {
+		return McpWriteResult{}, errRevisionConflict(before.Revision)
+	}
+	// Undo of a rename sends back changes.from, which the cut of changes would
+	// spoil for a title over the cap.
+	if title != nil && utf8.RuneCountInString(before.Title) > mcpMaxDocumentTitleRunes {
+		return McpWriteResult{}, McpInvalidArgs{Msg: "the page's title is too long to change safely here; edit it in UniWork"}
+	}
+	var content json.RawMessage
+	var beforeMD string
+	if in.Content != nil {
+		var lossy bool
+		if beforeMD, lossy, err = document.PageToMarkdown(before.Content); err != nil {
+			return McpWriteResult{}, McpToolError{Code: "lossy_document", Msg: "the content of this page could not be read as Markdown; edit it in UniWork"}
+		}
+		if in.Mode == "replace" {
+			if lossy || utf8.RuneCountInString(beforeMD) > mcpMaxItemRunes {
+				return McpWriteResult{}, McpToolError{Code: "lossy_document", Msg: "this page holds content Markdown cannot carry or is longer than one read, so replacing it could lose part of it; use mode append, or edit it in UniWork"}
+			}
+			content, err = document.MarkdownToPage(*in.Content, document.AssetsOf(before.Content))
+		} else {
+			content, err = document.AppendMarkdown(before.Content, *in.Content)
+		}
+		if err != nil {
+			return McpWriteResult{}, McpInvalidArgs{Msg: "content could not be stored: " + err.Error()}
+		}
+	}
+	// Read before the write: a failure after the page changed would tell the
+	// model it failed, and a retry would change it again.
+	base, err := s.ask.base(ctx, in.WorkspaceID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	actor := Human(p.UserID)
+	contentChanged := content != nil && !sameJSON(content, before.Content)
+	var note string
+	switch {
+	case contentChanged:
+		// The version is taken only for a change that will be written. When the
+		// page already equals its latest version none is added, and the note says
+		// so rather than name a label that does not exist.
+		label := versionLabel(ctx)
+		switch _, err := s.docs.CreateDocumentVersion(ctx, actor, before.ID, CreateDocumentVersionInput{Label: label}); {
+		case err == nil:
+			note = fmt.Sprintf("the page as it was is saved as the version %q in its history", label)
+		case codedIs(err, "document_version_unchanged"):
+			note = "the page as it was is already the latest version in its history"
+		default:
+			return McpWriteResult{}, err
+		}
+	case title == nil || *title == before.Title:
+		note = "nothing changed: the page already held this, so its revision and history are as they were"
+	}
+	after, err := s.docs.UpdateDocument(ctx, actor, before.ID, UpdateDocumentInput{Revision: *in.Revision, Title: title, Content: content})
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	return s.documentUpdated(base, before, after.Document, beforeMD, in.Content != nil, note), nil
+}
+
+// documentUpdated is what update_document returns once the page is saved. It
+// never fails: a model that read an error would write the page again, so a
+// part that cannot be shown goes into the note, after what was saved.
+func (s *McpToolService) documentUpdated(base string, before, after db.Document, beforeMD string, contentSent bool, note string) McpWriteResult {
+	res := McpWriteResult{Item: s.docOf(base, after), Revision: after.Revision, Note: note}
+	changes := []McpChange{{"title", before.Title, after.Title}}
+	if contentSent {
+		if afterMD, _, err := document.PageToMarkdown(after.Content); err != nil {
+			unread := "the page was saved, but its new Markdown could not be read back; call get_document to see it"
+			if res.Note != "" {
+				unread = res.Note + "; " + unread
+			}
+			res.Note = unread
+		} else {
+			changes = append(changes, McpChange{"content", beforeMD, afterMD})
+		}
+	}
+	res.Changes = mcpChanges(changes...)
+	return res
+}
+
+type mcpAddDocumentCommentIn struct {
+	WorkspaceID string `json:"workspace_id"`
+	DocumentID  string `json:"document_id"`
+	Body        string `json:"body"`
+}
+
+// AddDocumentComment starts a comment thread on a document, as the person: it
+// needs edit on the document (DocumentService), and reads as not found for a
+// person who may only read it. Whoever can read the document sees it. The
+// notification rule (ruleDocumentCommentAdded) tells the people the body
+// names as [@Name](mention://member/<user_id>) who can read the document, and
+// the author of the parent comment for a reply, which this tool cannot write:
+// a comment with no mention notifies nobody.
+func (s *McpToolService) AddDocumentComment(ctx context.Context, p McpPrincipal, in mcpAddDocumentCommentIn) (McpWriteResult, error) {
+	if n := utf8.RuneCountInString(strings.TrimSpace(in.Body)); n == 0 || n > mcpMaxBodyRunes {
+		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("body must be 1-%d characters", mcpMaxBodyRunes)}
+	}
+	v, err := s.document(ctx, p, in.WorkspaceID, in.DocumentID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	// Read before the write: a failure after the comment exists would tell the
+	// model it failed, and a retry would post it twice.
+	base, err := s.ask.base(ctx, in.WorkspaceID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	c, err := s.docs.AddDocumentComment(ctx, Human(p.UserID), v.Document.ID, AddCommentInput{Body: in.Body}, "")
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	return McpWriteResult{Item: McpComment{ID: c.ID, DocumentID: v.Document.ID, Body: capRunes(c.Body, mcpMaxHitRunes, mcpHitCut), URL: s.frontend + base + "/documents/" + v.Document.ID}}, nil
+}
+
 var (
 	mcpSchemaListDocuments = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"parent_id":{"type":"string","description":"A folder or page id; omit for the top level of the workspace."},"cursor":{"type":"string","description":"next_cursor of the previous page."}},"required":["workspace_id"],"additionalProperties":false}`)
 	mcpSchemaDocument      = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"document_id":{"type":"string"}},"required":["workspace_id","document_id"],"additionalProperties":false}`)
+
+	mcpSchemaCreateDocument  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"title":{"type":"string","minLength":1,"maxLength":` + strconv.Itoa(mcpMaxDocumentTitleRunes) + `},"content":{"type":"string","maxLength":` + strconv.Itoa(document.MaxMarkdownRunes) + `,"description":"Markdown: headings, lists, task lists, tables, code, quotes, https links, [@Name](uniwork://user/<user_id>) mentions. A longer text is appended in parts with update_document."},"parent_id":{"type":"string","description":"A folder or page to put it in; omit for the top level of the workspace."}},"required":["workspace_id","title"],"additionalProperties":false}`)
+	mcpSchemaUpdateDocument  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"document_id":{"type":"string"},"revision":{"type":"integer","description":"The revision get_document returned."},"title":{"type":"string","minLength":1,"maxLength":` + strconv.Itoa(mcpMaxDocumentTitleRunes) + `},"content":{"type":"string","maxLength":` + strconv.Itoa(document.MaxMarkdownRunes) + `,"description":"Markdown. A longer text is sent in parts, each one appended."},"mode":{"type":"string","enum":["append","replace"],"description":"append (the default) adds content after the page's own; replace swaps the whole content and needs a page that is not lossy."}},"required":["workspace_id","document_id","revision"],"additionalProperties":false}`)
+	mcpSchemaDocumentComment = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"document_id":{"type":"string"},"body":{"type":"string","minLength":1,"maxLength":` + strconv.Itoa(mcpMaxBodyRunes) + `,"description":"The comment. To mention someone write [@Name](mention://member/<user_id>) with a user_id from list_members."}},"required":["workspace_id","document_id","body"],"additionalProperties":false}`)
 )
 
 func mcpDocumentTools(s *McpToolService) []ai.Tool {
@@ -299,6 +563,18 @@ func mcpDocumentTools(s *McpToolService) []ai.Tool {
 		mcpReadTool("get_document", "Get document", "One document the user may read. A page comes as Markdown in content, with its revision. lossy true means the page holds something Markdown cannot carry back exactly (a blank paragraph, a merged table cell, formatting Markdown cannot express, or more than "+strconv.Itoa(document.MaxMarkdownRunes)+" characters), so it can only be appended to, never replaced. content is cut at "+strconv.Itoa(mcpMaxItemRunes)+" characters and truncated says so; a cut page cannot be replaced either. A text file (md, html, txt) comes as text, cut the same way; any other file comes as filename and mime_type only, with a note saying why. A folder has no content: list_documents with its id as parent_id shows what is in it.", mcpSchemaDocument,
 			func(ctx context.Context, p McpPrincipal, in mcpDocumentRef) (any, error) {
 				return s.GetDocument(ctx, p, in)
+			}),
+		mcpWriteTool("create_document", "Create document", "Creates a page from Markdown as the user, at the top level of the workspace or inside a folder or page (parent_id, one the user may edit; any other reads as not found). title is 1-"+strconv.Itoa(mcpMaxDocumentTitleRunes)+" characters. content is Markdown (headings, lists, task lists, tables, code, quotes, https links, [@Name](uniwork://user/<user_id>) mentions) of at most "+strconv.Itoa(document.MaxMarkdownRunes)+" characters: for a longer page create it with the first part and append the rest in parts with update_document. A link that is not https keeps its text and loses the link, and an image becomes a link. The page is visible to everyone in the workspace; one created inside a restricted folder or page is restricted too, visible only to the user, workspace admins and the people it is shared with, and the parent's own shares are not copied. No one is notified, a mention in the page included. It comes back with its doc_kind, revision and url.", "the user moves it to the trash in UniWork, where it can be restored", false, mcpSchemaCreateDocument,
+			func(ctx context.Context, p McpPrincipal, in mcpCreateDocumentIn) (any, error) {
+				return s.CreateDocument(ctx, p, in)
+			}),
+		mcpWriteTool("update_document", "Update document", "Edits a page as the user: title renames it, content changes it as Markdown of at most "+strconv.Itoa(document.MaxMarkdownRunes)+" characters (a longer text is sent in parts, each one appended with a call of its own). mode append, the default, adds content after the page's own. mode replace swaps the whole content, and is refused with lossy_document, nothing written, when the page is lossy or its Markdown is longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters (get_document would have shown it cut), because replacing it could lose what you never read: a blank paragraph, a merged table cell, formatting Markdown cannot carry; append still works on such a page. revision must be the one get_document returned; if the page changed since, nothing is written and the call fails with revision_conflict. Before a change to the content, a version of the page as it was is saved in the page's history, unless the latest version already is that page; the note says which. A rename saves none. A link that is not https keeps its text and loses the link. Everyone who can read the page sees the change, and no one is notified. It needs the right to edit the page; one the user can only read reads as not found. Only pages can be edited, not files or folders, and a page whose title is longer than "+strconv.Itoa(mcpMaxDocumentTitleRunes)+" characters cannot be renamed here; edit those in UniWork. changes shows the title, and the start of the content, before and after.", "restore the version saved before this change from the page's history in UniWork; for a rename, call update_document with the from title", true, mcpSchemaUpdateDocument,
+			func(ctx context.Context, p McpPrincipal, in mcpUpdateDocumentIn) (any, error) {
+				return s.UpdateDocument(ctx, p, in)
+			}),
+		mcpWriteTool("add_document_comment", "Add document comment", "Starts a new comment thread on a document as the user; it cannot reply to one. It needs the right to edit the document: one the user can only read reads as not found. Everyone who can read the document sees the comment. No one is notified unless the body names them as [@Name](mention://member/<user_id>), with a user_id from list_members: each person named is then notified in the app, unless they turned that kind off, if they can read the document; the user is never notified of their own mention, and @Name written as plain text notifies no one. body is 1-"+strconv.Itoa(mcpMaxBodyRunes)+" characters.", "the user deletes the comment in UniWork", false, mcpSchemaDocumentComment,
+			func(ctx context.Context, p McpPrincipal, in mcpAddDocumentCommentIn) (any, error) {
+				return s.AddDocumentComment(ctx, p, in)
 			}),
 	}
 }

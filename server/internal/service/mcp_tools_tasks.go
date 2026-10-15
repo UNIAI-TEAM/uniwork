@@ -233,12 +233,14 @@ func mcpDate(field, v string) error {
 	return nil
 }
 
-// McpComment is a comment as a write tool shows it. It has no revision.
+// McpComment is a comment as a write tool shows it, on a task (TaskID) or on a
+// document (DocumentID); the other is absent. It has no revision.
 type McpComment struct {
-	ID     string `json:"id"`
-	TaskID string `json:"task_id"`
-	Body   string `json:"body"`
-	URL    string `json:"url"`
+	ID         string `json:"id"`
+	TaskID     string `json:"task_id,omitempty"`
+	DocumentID string `json:"document_id,omitempty"`
+	Body       string `json:"body"`
+	URL        string `json:"url"`
 }
 
 type mcpCreateTaskIn struct {

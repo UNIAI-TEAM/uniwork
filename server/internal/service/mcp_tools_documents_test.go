@@ -10,8 +10,12 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/document"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
@@ -187,6 +191,9 @@ func TestMcpDocumentToolsWithoutDocumentsAreUnavailable(t *testing.T) {
 	for _, call := range []struct{ tool, input string }{
 		{"get_document", `{"workspace_id":"` + x.w.ID + `","document_id":"01J0000000000000000000000X"}`},
 		{"list_documents", `{"workspace_id":"` + x.w.ID + `"}`},
+		{"create_document", `{"workspace_id":"` + x.w.ID + `","title":"Mới"}`},
+		{"update_document", `{"workspace_id":"` + x.w.ID + `","document_id":"01J0000000000000000000000X","revision":1,"content":"x"}`},
+		{"add_document_comment", `{"workspace_id":"` + x.w.ID + `","document_id":"01J0000000000000000000000X","body":"x"}`},
 	} {
 		_, err := callMcpTool(t, x.tools, x.p, call.tool, call.input)
 		var te McpToolError
@@ -690,4 +697,838 @@ func TestMcpDocumentsFollowTheDocumentsFlag(t *testing.T) {
 	}
 	x.tools.SetFlags(nil)
 	unavailable("no flag evaluator")
+}
+
+// The document write tools (spec 2026-10-14 §5.4, Phase 4): create_document,
+// update_document and add_document_comment. A page is written as Markdown, as
+// the person, through DocumentService.
+
+func (x *mcpToolWorld) docRow(t *testing.T, id string) db.Document {
+	t.Helper()
+	d, err := x.tools.q.GetDocumentByID(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+// docVersions is a page's history, newest first.
+func (x *mcpToolWorld) docVersions(t *testing.T, id string) []db.DocumentVersion {
+	t.Helper()
+	page, err := x.docs(t).ListDocumentVersions(context.Background(), Human(x.ua.ID), id, ListDocumentVersionsInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return page.Versions
+}
+
+// count runs a count(*) query on the tools' database.
+func (x *mcpToolWorld) count(t *testing.T, q string, args ...any) (n int) {
+	t.Helper()
+	if err := x.tools.ask.pool.QueryRow(context.Background(), q, args...).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// docRows is how many documents the workspace holds, the trash included.
+func (x *mcpToolWorld) docRows(t *testing.T) int {
+	t.Helper()
+	return x.count(t, `SELECT count(*) FROM documents WHERE workspace_id = $1`, x.w.ID)
+}
+
+func (x *mcpToolWorld) commentRows(t *testing.T, documentID string) int {
+	t.Helper()
+	return x.count(t, `SELECT count(*) FROM document_comments WHERE document_id = $1`, documentID)
+}
+
+// callCtx runs a tool as the person with the call's own context, which is how
+// the /mcp handler puts the AI app on it (audit.WithVia).
+func (x *mcpToolWorld) callCtx(t *testing.T, ctx context.Context, p McpPrincipal, name string, args map[string]any) (json.RawMessage, error) {
+	t.Helper()
+	tool, ok := McpTools(x.tools).Get(name)
+	if !ok {
+		t.Fatalf("no tool %q", name)
+	}
+	b, err := json.Marshal(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tool.Handle(ctx, ai.ToolContext{ActorID: p.UserID, OrganizationID: p.OrganizationID}, b)
+}
+
+// updateDoc runs update_document on the world's workspace as the world's person.
+func (x *mcpToolWorld) updateDoc(t *testing.T, id string, revision int64, extra map[string]any) (json.RawMessage, error) {
+	t.Helper()
+	args := map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": revision}
+	for k, v := range extra {
+		args[k] = v
+	}
+	return x.callJSON(t, x.p, "update_document", args)
+}
+
+// pageMarkdown is a stored page as Markdown.
+func (x *mcpToolWorld) pageMarkdown(t *testing.T, id string) string {
+	t.Helper()
+	md, _, err := document.PageToMarkdown(x.docRow(t, id).Content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return md
+}
+
+func toolErrorCode(err error) string {
+	var te McpToolError
+	if errors.As(err, &te) {
+		return te.Code
+	}
+	return ""
+}
+
+func TestMcpCreateDocument(t *testing.T) {
+	x := newMcpToolWorld(t)
+	x.withDocs(t, "Có sẵn", mcpTestPage)
+	content := "## Quyết định\n\n- Chốt giá\n\n[trang chính](https://example.com) và [cũ](http://example.com)\n\n![sơ đồ](https://example.com/so-do.png)\n\n[@Anh](uniwork://user/" + x.ua.ID + ")"
+	raw, err := callMcpTool(t, x.tools, x.p, "create_document", `{"workspace_id":"`+x.w.ID+`","title":"  Biên bản  ","content":`+strconv.Quote(content)+`}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	id, _ := item["id"].(string)
+	row := x.docRow(t, id)
+	if id == "" || res.Revision != 1 || res.Revision != row.Revision || item["doc_kind"] != "page" || item["revision"] != float64(1) || item["title"] != "Biên bản" ||
+		item["kind"] != "document" || item["workspace_id"] != x.w.ID || !strings.HasSuffix(item["url"].(string), "/documents/"+id) || len(res.Changes) != 0 || res.Note != "" {
+		t.Fatalf("create_document = %s", raw)
+	}
+	onlyKeys(t, "create_document item", item, "kind", "id", "workspace_id", "title", "url", "doc_kind", "revision", "parent_id")
+	if row.Kind != DocumentKindPage || row.Visibility != documentVisibilityWorkspace || row.CreatedBy != x.ua.ID || row.CreatedByKind != "human" || row.ParentID.Valid || row.Title != "Biên bản" {
+		t.Errorf("stored row = %+v", row)
+	}
+	if n := x.count(t, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = 'document.created'`, id); n != 1 {
+		t.Errorf("%d document.created audit rows, want 1", n)
+	}
+	got := x.getDoc(t, id).Content
+	for _, want := range []string{"## Quyết định\n\n- Chốt giá", "[trang chính](https://example.com)", "uniwork://user/" + x.ua.ID} {
+		if !strings.Contains(got, want) {
+			t.Errorf("created page reads back as %q, missing %q", got, want)
+		}
+	}
+	// Sanitize keeps https links only: the other keeps its text and loses the link.
+	if strings.Contains(got, "http://example.com") || !strings.Contains(got, "cũ") {
+		t.Errorf("a plain http link survived or lost its text: %q", got)
+	}
+	// A page that holds no asset shows no image: the image is a link.
+	if strings.Contains(string(row.Content), `"image"`) || !strings.Contains(got, "(https://example.com/so-do.png)") {
+		t.Errorf("an image was stored as an image, or its link was lost: %q", got)
+	}
+
+	// No content: an empty page, readable and not lossy.
+	raw, err = callMcpTool(t, x.tools, x.p, "create_document", `{"workspace_id":"`+x.w.ID+`","title":"Trang trống"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, item = writeResult(t, raw)
+	if d := x.getDoc(t, item["id"].(string)); d.Content != "" || d.Lossy || d.Format != "markdown" {
+		t.Errorf("a page created with no content = %+v", d)
+	}
+}
+
+func TestMcpCreateDocumentRefusals(t *testing.T) {
+	x := newMcpToolWorld(t)
+	x.docs(t)
+	ws := x.w.ID
+	before := x.docRows(t)
+	for name, c := range map[string]struct {
+		args map[string]any
+		want string
+	}{
+		"no title":         {map[string]any{"workspace_id": ws}, "title must be 1-500 characters"},
+		"blank title":      {map[string]any{"workspace_id": ws, "title": "   "}, "title must be 1-500 characters"},
+		"title too long":   {map[string]any{"workspace_id": ws, "title": strings.Repeat("a", 501)}, "title must be 1-500 characters"},
+		"content too long": {map[string]any{"workspace_id": ws, "title": "Dài", "content": strings.Repeat("a", document.MaxMarkdownRunes+1)}, "content holds at most 50000 characters"},
+		"blank parent":     {map[string]any{"workspace_id": ws, "title": "Con", "parent_id": "  "}, "parent_id must not be blank"},
+		"no workspace":     {map[string]any{"title": "Mồ côi"}, "workspace_id is required"},
+	} {
+		_, err := x.callJSON(t, x.p, "create_document", c.args)
+		var bad McpInvalidArgs
+		if !errors.As(err, &bad) || !strings.Contains(bad.Msg, c.want) {
+			t.Errorf("%s: %v, want invalid arguments with %q", name, err, c.want)
+		}
+	}
+	if n := x.docRows(t); n != before {
+		t.Fatalf("refused creates wrote %d documents", n-before)
+	}
+	// The cap is inclusive: a page of exactly that many characters is written.
+	raw, err := x.callJSON(t, x.p, "create_document", map[string]any{"workspace_id": ws, "title": "Vừa đủ", "content": strings.Repeat("a", document.MaxMarkdownRunes)})
+	if err != nil {
+		t.Fatalf("content at the cap: %v", err)
+	}
+	if _, item := writeResult(t, raw); utf8.RuneCountInString(x.pageMarkdown(t, item["id"].(string))) != document.MaxMarkdownRunes {
+		t.Errorf("the page at the cap was not stored whole")
+	}
+}
+
+// A page goes in the workspace root, a folder or a page. It takes the
+// visibility of the one it goes in (CreatePage); a parent that is not the
+// person's to edit, or is not there, reads as the one not-found answer.
+func TestMcpCreateDocumentUnderAParent(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	docs := x.docs(t)
+	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, page := x.withDocs(t, "Trang mẹ", mcpTestPage)
+	create := func(p McpPrincipal, parent string) (map[string]any, error) {
+		raw, err := x.callJSON(t, p, "create_document", map[string]any{"workspace_id": x.w.ID, "title": "Trang con", "content": "nội dung", "parent_id": parent})
+		if err != nil {
+			return nil, err
+		}
+		_, item := writeResult(t, raw)
+		return item, nil
+	}
+
+	for _, parent := range []string{folder.Document.ID, page.Document.ID} {
+		item, err := create(x.p, parent)
+		if err != nil {
+			t.Fatalf("under %s: %v", parent, err)
+		}
+		if row := x.docRow(t, item["id"].(string)); item["parent_id"] != parent || row.ParentID.String != parent || row.Visibility != documentVisibilityWorkspace {
+			t.Errorf("under %s: item %v, row %+v", parent, item, row)
+		}
+	}
+
+	// Under a restricted folder the page is restricted too: its creator reads
+	// it, another member of the workspace does not.
+	secret, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục riêng", Visibility: documentVisibilityRestricted})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := create(x.p, secret.Document.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := item["id"].(string)
+	member := x.member(t)
+	if row := x.docRow(t, child); row.Visibility != documentVisibilityRestricted {
+		t.Errorf("a page under a restricted folder is %s", row.Visibility)
+	}
+	if d := x.getDoc(t, child); d.ID != child {
+		t.Errorf("the creator cannot read the page: %+v", d)
+	}
+	if _, err := x.tools.document(ctx, member, x.w.ID, child); !errors.Is(err, ErrNotFound) {
+		t.Errorf("another member reads a page under a restricted folder: %v", err)
+	}
+	// The shares of a restricted folder are not copied to a page created in it.
+	shared, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục chia sẻ", Visibility: documentVisibilityRestricted})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := docs.ShareDocument(ctx, Human(x.ua.ID), shared.Document.ID, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: member.UserID, Level: DocumentLevelEdit}); err != nil {
+		t.Fatal(err)
+	}
+	item, err = create(x.p, shared.Document.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := x.tools.document(ctx, member, x.w.ID, shared.Document.ID); err != nil {
+		t.Fatalf("control: the member reads the folder shared with them: %v", err)
+	}
+	if _, err := x.tools.document(ctx, member, x.w.ID, item["id"].(string)); !errors.Is(err, ErrNotFound) {
+		t.Errorf("the member reads the page under the folder that was shared with them: %v", err)
+	}
+
+	// Every parent that cannot be used reads exactly as one that does not exist.
+	_, unknown := create(x.p, util.NewID())
+	if !errors.Is(unknown, ErrNotFound) {
+		t.Fatalf("unknown parent: %v", unknown)
+	}
+	sibling, err := x.tools.ws.CreateInOrg(ctx, x.ua.ID, x.w.OrganizationID, "WS khác", "ws-khac")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inSibling, err := docs.CreatePage(ctx, Human(x.ua.ID), sibling.Workspace.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Ở workspace khác"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, other := x.org(t, x.ua.ID, "Khác", "khac")
+	inOther, err := docs.CreatePage(ctx, Human(x.ua.ID), other.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Ở tổ chức khác"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trashed, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Trong thùng rác"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := docs.ArchiveDocument(ctx, Human(x.ua.ID), trashed.Document.ID, ArchiveDocumentInput{}); err != nil {
+		t.Fatal(err)
+	}
+	viewOnly, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Chỉ xem", Visibility: documentVisibilityRestricted})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := docs.ShareDocument(ctx, Human(x.ua.ID), viewOnly.Document.ID, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: member.UserID, Level: DocumentLevelView}); err != nil {
+		t.Fatal(err)
+	}
+	rows := x.docRows(t)
+	for name, c := range map[string]struct {
+		p      McpPrincipal
+		parent string
+	}{
+		"a folder of a sibling workspace":              {x.p, inSibling.Document.ID},
+		"a folder of another organization":             {x.p, inOther.Document.ID},
+		"a folder in the trash":                        {x.p, trashed.Document.ID},
+		"a restricted folder the person cannot read":   {member, secret.Document.ID},
+		"a restricted folder the person can only read": {member, viewOnly.Document.ID},
+	} {
+		_, err := create(c.p, c.parent)
+		if !errors.Is(err, ErrNotFound) || err.Error() != unknown.Error() {
+			t.Errorf("under %s: %v, want %v", name, err, unknown)
+		}
+	}
+	if n := x.docRows(t); n != rows {
+		t.Errorf("refused creates wrote %d documents", n-rows)
+	}
+
+	// A page does not go inside a file.
+	file := x.textFile(t, "ghi-chu.md", []byte("nội dung"))
+	if _, err := create(x.p, file); toolErrorCode(err) != "document_parent_kind" {
+		t.Errorf("under a file: %v, want document_parent_kind", err)
+	}
+}
+
+func TestMcpDocumentWriteToolsFollowTheDocumentsFlag(t *testing.T) {
+	x := newMcpToolWorld(t)
+	_, page := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	x.flags.byOrg = map[string]bool{x.w.OrganizationID: false}
+	rows, rev := x.docRows(t), x.docRow(t, page.Document.ID).Revision
+	for tool, args := range map[string]map[string]any{
+		"create_document":      {"workspace_id": x.w.ID, "title": "Mới", "content": "x"},
+		"update_document":      {"workspace_id": x.w.ID, "document_id": page.Document.ID, "revision": rev, "content": "x"},
+		"add_document_comment": {"workspace_id": x.w.ID, "document_id": page.Document.ID, "body": "x"},
+	} {
+		if _, err := x.callJSON(t, x.p, tool, args); toolErrorCode(err) != "documents_unavailable" {
+			t.Errorf("%s with the flag off: %v, want documents_unavailable", tool, err)
+		}
+	}
+	if x.docRows(t) != rows || x.docRow(t, page.Document.ID).Revision != rev || len(x.docVersions(t, page.Document.ID)) != 0 || x.commentRows(t, page.Document.ID) != 0 {
+		t.Error("a tool refused for the flag wrote something")
+	}
+	x.flags.byOrg = map[string]bool{x.w.OrganizationID: true}
+	if _, err := x.callJSON(t, x.p, "create_document", map[string]any{"workspace_id": x.w.ID, "title": "Mới"}); err != nil {
+		t.Errorf("create_document with the flag back on: %v", err)
+	}
+}
+
+func TestMcpUpdateDocumentAppendsWithAVersionBefore(t *testing.T) {
+	x := newMcpToolWorld(t)
+	docs, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	rev := v.Document.Revision
+	in := map[string]any{"content": "## Rủi ro\n\nThiếu người"}
+	raw, err := x.updateDoc(t, v.Document.ID, rev, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	const old = "## Mục tiêu\n\nTăng doanh thu quý bốn"
+	if md := x.pageMarkdown(t, v.Document.ID); md != old+"\n\n## Rủi ro\n\nThiếu người" {
+		t.Fatalf("after append: %q (%s)", md, raw)
+	}
+	row := x.docRow(t, v.Document.ID)
+	if res.Revision <= rev || res.Revision != row.Revision || item["revision"] != float64(row.Revision) || item["id"] != v.Document.ID || item["doc_kind"] != "page" || item["title"] != "Kế hoạch" {
+		t.Fatalf("update_document = %s", raw)
+	}
+	// Only the content changed, and the change carries the Markdown before and after.
+	if len(res.Changes) != 1 || res.Changes[0].Field != "content" || res.Changes[0].From != old || res.Changes[0].To != old+"\n\n## Rủi ro\n\nThiếu người" {
+		t.Errorf("changes = %+v", res.Changes)
+	}
+	// The version holds the page as it was and says who changed it.
+	versions := x.docVersions(t, v.Document.ID)
+	const label = "Trước khi sửa qua ứng dụng AI"
+	if len(versions) != 1 || !versions[0].Label.Valid || versions[0].Label.String != label {
+		t.Fatalf("versions = %+v", versions)
+	}
+	saved, err := docs.GetDocumentVersion(context.Background(), Human(x.ua.ID), v.Document.ID, versions[0].Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if md, _, _ := document.PageToMarkdown(saved.Content); md != old {
+		t.Errorf("the version holds %q, want the page as it was", md)
+	}
+	if want := "the page as it was is saved as the version " + strconv.Quote(label) + " in its history"; res.Note != want {
+		t.Errorf("note = %q, want %q", res.Note, want)
+	}
+
+	// The same revision twice: nothing is written and no version is taken.
+	_, err = x.updateDoc(t, v.Document.ID, rev, in)
+	var te McpToolError
+	if !errors.As(err, &te) || te.Code != "revision_conflict" || !strings.Contains(te.Msg, strconv.FormatInt(row.Revision, 10)) {
+		t.Fatalf("a stale revision: %v", err)
+	}
+	if after := x.docRow(t, v.Document.ID); after.Revision != row.Revision || len(x.docVersions(t, v.Document.ID)) != 1 {
+		t.Errorf("a stale revision wrote: revision %d, %d versions", after.Revision, len(x.docVersions(t, v.Document.ID)))
+	}
+}
+
+// replace swaps the whole content of a page Markdown carries back exactly.
+func TestMcpUpdateDocumentReplacesContent(t *testing.T) {
+	x := newMcpToolWorld(t)
+	_, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	raw, err := x.updateDoc(t, v.Document.ID, v.Document.Revision, map[string]any{"content": "# Kế hoạch mới\n\nBản thay thế", "mode": "replace"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, _ := writeResult(t, raw)
+	if md := x.pageMarkdown(t, v.Document.ID); md != "# Kế hoạch mới\n\nBản thay thế" {
+		t.Fatalf("after replace: %q", md)
+	}
+	if len(res.Changes) != 1 || res.Changes[0].From != "## Mục tiêu\n\nTăng doanh thu quý bốn" || res.Changes[0].To != "# Kế hoạch mới\n\nBản thay thế" {
+		t.Errorf("changes = %+v", res.Changes)
+	}
+	if versions := x.docVersions(t, v.Document.ID); len(versions) != 1 || !strings.Contains(res.Note, "Trước khi sửa qua ứng dụng AI") {
+		t.Errorf("replace took %d versions, note %q", len(versions), res.Note)
+	}
+}
+
+// replace is refused on a page Markdown cannot carry, and on one too long for
+// the model to have read whole; append still works. Nothing is written.
+func TestMcpUpdateDocumentReplaceRefusesLossyAndCutPages(t *testing.T) {
+	x := newMcpToolWorld(t)
+	lossy := `{"type":"doc","content":[{"type":"table","content":[{"type":"tableRow","content":[{"type":"tableHeader","content":[{"type":"paragraph","content":[{"type":"text","text":"a"}]},{"type":"paragraph","content":[{"type":"text","text":"b"}]}]}]}]}]}`
+	_, v := x.withDocs(t, "Bảng", lossy)
+	_, err := x.updateDoc(t, v.Document.ID, v.Document.Revision, map[string]any{"content": "x", "mode": "replace"})
+	if toolErrorCode(err) != "lossy_document" {
+		t.Fatalf("replace a lossy page: %v", err)
+	}
+	// Title and content together are refused as a whole: the rename is not applied either.
+	if _, err := x.updateDoc(t, v.Document.ID, v.Document.Revision, map[string]any{"content": "x", "mode": "replace", "title": "Mới"}); toolErrorCode(err) != "lossy_document" {
+		t.Fatalf("replace and rename a lossy page: %v", err)
+	}
+	if row := x.docRow(t, v.Document.ID); row.Revision != v.Document.Revision || row.Title != "Bảng" || len(x.docVersions(t, v.Document.ID)) != 0 {
+		t.Errorf("a refused replace wrote: %+v, %d versions", row, len(x.docVersions(t, v.Document.ID)))
+	}
+
+	page := func(chars int) DocumentView {
+		t.Helper()
+		content := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"` + strings.Repeat("a", chars) + `"}]}]}`
+		big, err := x.docs(t).CreatePage(context.Background(), Human(x.ua.ID), x.w.ID, CreatePageInput{Title: "Dài " + strconv.Itoa(chars), Content: json.RawMessage(content)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return big
+	}
+	// One character over what get_document shows whole: refused. At the limit: allowed.
+	over, atLimit := page(mcpMaxItemRunes+1), page(mcpMaxItemRunes)
+	if d := x.getDoc(t, over.Document.ID); !d.Truncated || d.Lossy {
+		t.Fatalf("the long page is cut %v, lossy %v; the case is not what it says", d.Truncated, d.Lossy)
+	}
+	if _, err := x.updateDoc(t, over.Document.ID, over.Document.Revision, map[string]any{"content": "x", "mode": "replace"}); toolErrorCode(err) != "lossy_document" {
+		t.Fatalf("replace a page longer than one read: %v", err)
+	}
+	if len(x.docVersions(t, over.Document.ID)) != 0 || x.pageMarkdown(t, over.Document.ID) != strings.Repeat("a", mcpMaxItemRunes+1) {
+		t.Error("a refused replace changed the long page")
+	}
+	if _, err := x.updateDoc(t, atLimit.Document.ID, atLimit.Document.Revision, map[string]any{"content": "x", "mode": "replace"}); err != nil {
+		t.Fatalf("replace a page of exactly one read: %v", err)
+	}
+
+	// Append works on both refused pages.
+	for _, d := range []DocumentView{v, over} {
+		if _, err := x.updateDoc(t, d.Document.ID, d.Document.Revision, map[string]any{"content": "thêm"}); err != nil {
+			t.Errorf("append to %s: %v", d.Document.Title, err)
+		}
+	}
+}
+
+func TestMcpUpdateDocumentRefusals(t *testing.T) {
+	x := newMcpToolWorld(t)
+	_, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	id, rev := v.Document.ID, v.Document.Revision
+	for name, c := range map[string]struct {
+		args map[string]any
+		want string
+	}{
+		"no revision":      {map[string]any{"workspace_id": x.w.ID, "document_id": id, "content": "x"}, "revision is required"},
+		"zero revision":    {map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": 0, "content": "x"}, "revision is required"},
+		"unknown mode":     {map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": rev, "content": "x", "mode": "prepend"}, "mode must be append or replace"},
+		"nothing to write": {map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": rev}, "send content, title or both"},
+		"blank title":      {map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": rev, "title": "  "}, "title must be 1-500 characters"},
+		"title too long":   {map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": rev, "title": strings.Repeat("a", 501)}, "title must be 1-500 characters"},
+		"content too long": {map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": rev, "content": strings.Repeat("a", document.MaxMarkdownRunes+1)}, "content holds at most 50000 characters"},
+		"replace too long": {map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": rev, "content": strings.Repeat("a", document.MaxMarkdownRunes+1), "mode": "replace"}, "content holds at most 50000 characters"},
+		"empty append":     {map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": rev, "content": ""}, "nothing to append"},
+		"blank append":     {map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": rev, "content": " \n\t "}, "nothing to append"},
+		"no document":      {map[string]any{"workspace_id": x.w.ID, "document_id": " ", "revision": rev, "content": "x"}, "document_id is required"},
+	} {
+		_, err := x.callJSON(t, x.p, "update_document", c.args)
+		var bad McpInvalidArgs
+		if !errors.As(err, &bad) || !strings.Contains(bad.Msg, c.want) {
+			t.Errorf("%s: %v, want invalid arguments with %q", name, err, c.want)
+		}
+	}
+	if row := x.docRow(t, id); row.Revision != rev || len(x.docVersions(t, id)) != 0 {
+		t.Errorf("a refused update wrote: revision %d, %d versions", row.Revision, len(x.docVersions(t, id)))
+	}
+
+	// A file and a folder are not pages.
+	folder, err := x.docs(t).CreatePage(context.Background(), Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := x.textFile(t, "ghi-chu.md", []byte("nội dung"))
+	for name, doc := range map[string]string{"file": file, "folder": folder.Document.ID} {
+		_, err := x.updateDoc(t, doc, x.docRow(t, doc).Revision, map[string]any{"content": "x"})
+		if toolErrorCode(err) != "not_a_page" {
+			t.Errorf("update a %s: %v, want not_a_page", name, err)
+		}
+	}
+}
+
+// A rename needs no version: a version holds the content, and restoring one
+// leaves the title alone.
+func TestMcpUpdateDocumentRenames(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	_, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	raw, err := x.updateDoc(t, v.Document.ID, v.Document.Revision, map[string]any{"title": "  Kế hoạch Q4  "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	if item["title"] != "Kế hoạch Q4" || res.Note != "" || len(res.Changes) != 1 || res.Changes[0] != (McpChange{"title", "Kế hoạch", "Kế hoạch Q4"}) {
+		t.Fatalf("rename = %s", raw)
+	}
+	if row := x.docRow(t, v.Document.ID); row.Title != "Kế hoạch Q4" || row.Revision != res.Revision || x.pageMarkdown(t, v.Document.ID) != "## Mục tiêu\n\nTăng doanh thu quý bốn" || len(x.docVersions(t, v.Document.ID)) != 0 {
+		t.Errorf("after rename: %+v, %d versions", row, len(x.docVersions(t, v.Document.ID)))
+	}
+
+	// Title and content in one call: one version, both changes.
+	raw, err = x.updateDoc(t, v.Document.ID, res.Revision, map[string]any{"title": "Kế hoạch Q4 v2", "content": "thêm"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, _ = writeResult(t, raw)
+	if len(res.Changes) != 2 || res.Changes[0].Field != "title" || res.Changes[1].Field != "content" || len(x.docVersions(t, v.Document.ID)) != 1 {
+		t.Errorf("title and content: %+v, %d versions", res.Changes, len(x.docVersions(t, v.Document.ID)))
+	}
+
+	// A title the tool could not send back is not replaced: the schema caps it
+	// at 500, and a stored one longer (written outside the service) is edited in UniWork.
+	long := util.NewID()
+	insertRow(t, ctx, x.tools.ask.pool, "documents", baseDoc(map[string]any{
+		"id": long, "organization_id": x.w.OrganizationID, "workspace_id": x.w.ID, "title": strings.Repeat("ế", 501),
+		"created_by": x.ua.ID, "updated_by": x.ua.ID,
+	}))
+	rev := x.docRow(t, long).Revision
+	if _, err := x.updateDoc(t, long, rev, map[string]any{"title": "Ngắn"}); !errors.As(err, new(McpInvalidArgs)) || !strings.Contains(err.Error(), "too long to change safely here") {
+		t.Errorf("rename a title over the cap: %v", err)
+	}
+	if row := x.docRow(t, long); row.Title != strings.Repeat("ế", 501) || row.Revision != rev {
+		t.Errorf("the refused rename wrote: revision %d", row.Revision)
+	}
+	// The content of that page is still the tool's to change: its title stays.
+	if _, err := x.updateDoc(t, long, rev, map[string]any{"content": "thêm"}); err != nil {
+		t.Errorf("append to a page with a long title: %v", err)
+	}
+}
+
+// The note names the version the call took, and never one it did not: a page
+// that already equals its latest version takes no new one.
+func TestMcpUpdateDocumentNamesTheVersionItTook(t *testing.T) {
+	x := newMcpToolWorld(t)
+	docs, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	id := v.Document.ID
+	if _, err := docs.CreateDocumentVersion(context.Background(), Human(x.ua.ID), id, CreateDocumentVersionInput{Label: "Bản gốc"}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := audit.WithVia(context.Background(), audit.Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"})
+	call := func(rev int64, content string) McpWriteResult {
+		t.Helper()
+		raw, err := x.callCtx(t, ctx, x.p, "update_document", map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": rev, "content": content})
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, _ := writeResult(t, raw)
+		return res
+	}
+	first := call(v.Document.Revision, "một")
+	if want := "the page as it was is already the latest version in its history"; first.Note != want {
+		t.Errorf("first note = %q, want %q", first.Note, want)
+	}
+	if versions := x.docVersions(t, id); len(versions) != 1 || versions[0].Label.String != "Bản gốc" {
+		t.Fatalf("an unchanged page took a version: %+v", versions)
+	}
+	// Now the working copy differs from the latest version: the call takes one,
+	// labelled with the app that made the change.
+	second := call(first.Revision, "hai")
+	versions := x.docVersions(t, id)
+	if len(versions) != 2 || versions[0].Label.String != "Trước khi sửa qua Claude" {
+		t.Fatalf("versions = %+v", versions)
+	}
+	if want := "the page as it was is saved as the version " + strconv.Quote("Trước khi sửa qua Claude") + " in its history"; second.Note != want {
+		t.Errorf("second note = %q, want %q", second.Note, want)
+	}
+	saved, err := docs.GetDocumentVersion(context.Background(), Human(x.ua.ID), id, versions[0].Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if md, _, _ := document.PageToMarkdown(saved.Content); !strings.HasSuffix(md, "một") || strings.Contains(md, "hai") {
+		t.Errorf("the version holds %q, want the page before the second change", md)
+	}
+}
+
+// A call that would change nothing writes nothing: no revision, no version.
+func TestMcpUpdateDocumentThatChangesNothing(t *testing.T) {
+	x := newMcpToolWorld(t)
+	_, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	raw, err := x.updateDoc(t, v.Document.ID, v.Document.Revision, map[string]any{"title": "Kế hoạch", "content": "## Mục tiêu\n\nTăng doanh thu quý bốn", "mode": "replace"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, _ := writeResult(t, raw)
+	if res.Revision != v.Document.Revision || len(res.Changes) != 0 || !strings.Contains(res.Note, "nothing changed") {
+		t.Errorf("no-op update = %s", raw)
+	}
+	if row := x.docRow(t, v.Document.ID); row.Revision != v.Document.Revision || len(x.docVersions(t, v.Document.ID)) != 0 {
+		t.Errorf("a no-op update wrote: revision %d, %d versions", row.Revision, len(x.docVersions(t, v.Document.ID)))
+	}
+}
+
+// What the result says after the page is saved never fails the call: a model
+// that read an error would write it again.
+func TestMcpDocumentUpdatedResultSurvivesAnUnreadablePage(t *testing.T) {
+	s := &McpToolService{frontend: "https://app.example.test"}
+	before := db.Document{ID: "d1", WorkspaceID: "w1", Kind: DocumentKindPage, Title: "Cũ", Revision: 2}
+	after := before
+	after.Title, after.Revision, after.Content = "Mới", 3, []byte(`{`)
+	res := s.documentUpdated("/o/w", before, after, "trước", true, "the page as it was is saved")
+	if res.Revision != 3 || res.Item == nil || !strings.Contains(res.Note, "the page as it was is saved") || !strings.Contains(res.Note, "could not be read back") {
+		t.Errorf("result = %+v", res)
+	}
+	if len(res.Changes) != 1 || res.Changes[0].Field != "title" {
+		t.Errorf("changes = %+v, want the title alone", res.Changes)
+	}
+}
+
+// Documents keep their own ladder: a person who may only read a page cannot
+// write it, and the answer is the one a page that is not there gets.
+func TestMcpDocumentWritesNeedTheRightToEdit(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	docs := x.docs(t)
+	member := x.member(t)
+	restricted := func(title string, level DocumentLevel) DocumentView {
+		t.Helper()
+		v, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Title: title, Visibility: documentVisibilityRestricted, Content: json.RawMessage(mcpTestPage)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := docs.ShareDocument(ctx, Human(x.ua.ID), v.Document.ID, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: member.UserID, Level: level}); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	viewOnly, editable := restricted("Chỉ xem", DocumentLevelView), restricted("Được sửa", DocumentLevelEdit)
+	_, unknown := x.tools.document(ctx, member, x.w.ID, util.NewID())
+
+	for tool, args := range map[string]map[string]any{
+		"update_document":      {"workspace_id": x.w.ID, "document_id": viewOnly.Document.ID, "revision": viewOnly.Document.Revision, "content": "x"},
+		"add_document_comment": {"workspace_id": x.w.ID, "document_id": viewOnly.Document.ID, "body": "x"},
+	} {
+		if _, err := x.callJSON(t, member, tool, args); !errors.Is(err, ErrNotFound) || err.Error() != unknown.Error() {
+			t.Errorf("%s on a page the person may only read: %v, want %v", tool, err, unknown)
+		}
+	}
+	if x.docRow(t, viewOnly.Document.ID).Revision != viewOnly.Document.Revision || len(x.docVersions(t, viewOnly.Document.ID)) != 0 || x.commentRows(t, viewOnly.Document.ID) != 0 {
+		t.Error("a refused write left something behind")
+	}
+
+	// With the right to edit, both go through, as that person.
+	raw, err := x.callJSON(t, member, "update_document", map[string]any{"workspace_id": x.w.ID, "document_id": editable.Document.ID, "revision": editable.Document.Revision, "content": "do thành viên"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row := x.docRow(t, editable.Document.ID); row.UpdatedBy != member.UserID || row.UpdatedByKind != "human" {
+		t.Errorf("updated by %s/%s: %s", row.UpdatedBy, row.UpdatedByKind, raw)
+	}
+	if _, err := x.callJSON(t, member, "add_document_comment", map[string]any{"workspace_id": x.w.ID, "document_id": editable.Document.ID, "body": "do thành viên"}); err != nil {
+		t.Errorf("comment by a person who may edit: %v", err)
+	}
+	if versions := x.docVersions(t, editable.Document.ID); len(versions) != 1 || versions[0].CreatedBy != member.UserID {
+		t.Errorf("the version was taken as %+v, want the member", versions)
+	}
+}
+
+func TestMcpAddDocumentComment(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	docs, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	member := x.member(t)
+	body := "Cần số liệu tháng 9, nhờ [@Bình](mention://member/" + member.UserID + ") xem"
+	raw, err := callMcpTool(t, x.tools, x.p, "add_document_comment", `{"workspace_id":"`+x.w.ID+`","document_id":"`+v.Document.ID+`","body":`+strconv.Quote("  "+body+"  ")+`}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	id, _ := item["id"].(string)
+	if _, hasTask := item["task_id"]; id == "" || item["document_id"] != v.Document.ID || hasTask || item["body"] != body ||
+		item["url"] != "https://app.example.test/"+x.tools.mustBase(t, x.w.ID)+"/documents/"+v.Document.ID || res.Revision != 0 || len(res.Changes) != 0 || res.Note != "" {
+		t.Fatalf("add_document_comment = %s", raw)
+	}
+	onlyKeys(t, "add_document_comment item", item, "id", "document_id", "body", "url")
+
+	var author, kind, stored string
+	var parent *string
+	if err := x.tools.ask.pool.QueryRow(ctx, `SELECT author_id, author_kind, body, parent_comment_id FROM document_comments WHERE id = $1`, id).Scan(&author, &kind, &stored, &parent); err != nil {
+		t.Fatal(err)
+	}
+	if author != x.ua.ID || kind != "human" || stored != body || parent != nil {
+		t.Errorf("stored comment = %s/%s %q parent %v", author, kind, stored, parent)
+	}
+	// The mention token is read as the editor's own: the member is on it, active.
+	var state string
+	if err := x.tools.ask.pool.QueryRow(ctx, `SELECT state FROM document_comment_mentions WHERE comment_id = $1 AND user_id = $2`, id, member.UserID).Scan(&state); err != nil || state != "active" {
+		t.Errorf("mention row of the member = %q, %v", state, err)
+	}
+	if n := x.count(t, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = 'document.comment_added' AND metadata::jsonb->>'comment_id' = $2`, v.Document.ID, id); n != 1 {
+		t.Errorf("%d document.comment_added audit rows, want 1", n)
+	}
+	// Everyone who can read the document reads the comment.
+	if c, err := docs.GetDocumentComment(ctx, Human(member.UserID), id); err != nil || c.Body != body {
+		t.Errorf("the member reads %+v, %v", c, err)
+	}
+
+	// The tool starts a thread: it cannot reply, so it takes no parent.
+	for _, field := range []string{"reply_to", "parent_id"} {
+		_, err := x.callJSON(t, x.p, "add_document_comment", map[string]any{"workspace_id": x.w.ID, "document_id": v.Document.ID, "body": "x", field: id})
+		if !errors.As(err, new(McpInvalidArgs)) || !strings.Contains(err.Error(), "unknown field "+field) {
+			t.Errorf("add_document_comment with %s: %v", field, err)
+		}
+	}
+	// A long body is cut in the answer, not in the store.
+	long := strings.Repeat("dài ", 600)
+	raw, err = callMcpTool(t, x.tools, x.p, "add_document_comment", `{"workspace_id":"`+x.w.ID+`","document_id":"`+v.Document.ID+`","body":`+strconv.Quote(long)+`}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, item = writeResult(t, raw)
+	if got := item["body"].(string); utf8.RuneCountInString(got) > mcpMaxHitRunes || !strings.HasSuffix(got, mcpHitCut) {
+		t.Errorf("answer body holds %d characters", utf8.RuneCountInString(got))
+	}
+	var full string
+	if err := x.tools.ask.pool.QueryRow(ctx, `SELECT body FROM document_comments WHERE id = $1`, item["id"]).Scan(&full); err != nil || full != strings.TrimSpace(long) {
+		t.Errorf("the stored comment is %d characters, %v", utf8.RuneCountInString(full), err)
+	}
+}
+
+func TestMcpAddDocumentCommentRefusals(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	docs, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	for name, body := range map[string]string{"empty": "", "blank": " \n ", "too long": strings.Repeat("a", mcpMaxBodyRunes+1)} {
+		_, err := x.callJSON(t, x.p, "add_document_comment", map[string]any{"workspace_id": x.w.ID, "document_id": v.Document.ID, "body": body})
+		if !errors.As(err, new(McpInvalidArgs)) || !strings.Contains(err.Error(), "body must be 1-20000 characters") {
+			t.Errorf("%s body: %v", name, err)
+		}
+	}
+	if _, err := x.callJSON(t, x.p, "add_document_comment", map[string]any{"workspace_id": x.w.ID, "document_id": " ", "body": "x"}); !errors.As(err, new(McpInvalidArgs)) {
+		t.Errorf("blank document_id: %v", err)
+	}
+	// A document that is not here for the workspace is not found, and nothing is written.
+	_, unknown := x.callJSON(t, x.p, "add_document_comment", map[string]any{"workspace_id": x.w.ID, "document_id": util.NewID(), "body": "x"})
+	sibling, err := x.tools.ws.CreateInOrg(ctx, x.ua.ID, x.w.OrganizationID, "WS khác", "ws-khac")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inSibling, err := docs.CreatePage(ctx, Human(x.ua.ID), sibling.Workspace.ID, CreatePageInput{Title: "Ở workspace khác", Content: json.RawMessage(mcpTestPage)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trashed, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Title: "Trong thùng rác", Content: json.RawMessage(mcpTestPage)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := docs.ArchiveDocument(ctx, Human(x.ua.ID), trashed.Document.ID, ArchiveDocumentInput{}); err != nil {
+		t.Fatal(err)
+	}
+	for name, id := range map[string]string{"sibling workspace": inSibling.Document.ID, "trash": trashed.Document.ID} {
+		if _, err := x.callJSON(t, x.p, "add_document_comment", map[string]any{"workspace_id": x.w.ID, "document_id": id, "body": "x"}); !errors.Is(err, ErrNotFound) || err.Error() != unknown.Error() {
+			t.Errorf("%s: %v, want %v", name, err, unknown)
+		}
+		if n := x.commentRows(t, id); n != 0 {
+			t.Errorf("%s: %d comments written", name, n)
+		}
+	}
+	if n := x.commentRows(t, v.Document.ID); n != 0 {
+		t.Errorf("refused calls wrote %d comments", n)
+	}
+}
+
+// What the three tools record as the person goes through the AI app that
+// asked: the audit rows of the page, its version and the comment name it.
+func TestMcpDocumentWriteToolsRecordTheViaOnTheirAuditRows(t *testing.T) {
+	x := newMcpToolWorld(t)
+	x.docs(t)
+	via := audit.Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"}
+	ctx := audit.WithVia(context.Background(), via)
+	call := func(name string, args map[string]any) map[string]any {
+		t.Helper()
+		raw, err := x.callCtx(t, ctx, x.p, name, args)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		_, item := writeResult(t, raw)
+		return item
+	}
+	page := call("create_document", map[string]any{"workspace_id": x.w.ID, "title": "Trang qua ứng dụng AI", "content": "một"})
+	id := page["id"].(string)
+	call("update_document", map[string]any{"workspace_id": x.w.ID, "document_id": id, "revision": page["revision"], "content": "hai"})
+	comment := call("add_document_comment", map[string]any{"workspace_id": x.w.ID, "document_id": id, "body": "Bình luận qua ứng dụng AI"})
+	for _, row := range []struct{ what, where, id string }{
+		{"document.created", `resource_id = $1 AND action = 'document.created'`, id},
+		{"document.version_created", `resource_id = $1 AND action = 'document.version_created'`, id},
+		{"document.updated", `resource_id = $1 AND action = 'document.updated'`, id},
+		{"comment", `metadata::jsonb->>'comment_id' = $1`, comment["id"].(string)},
+	} {
+		var kind, client, grant, name string
+		q := `SELECT coalesce(metadata::jsonb->'via'->>'kind',''), coalesce(metadata::jsonb->'via'->>'client_id',''), coalesce(metadata::jsonb->'via'->>'grant_id',''), coalesce(metadata::jsonb->'via'->>'client_name','') FROM audit_events WHERE ` + row.where
+		if err := x.tools.ask.pool.QueryRow(context.Background(), q, row.id).Scan(&kind, &client, &grant, &name); err != nil {
+			t.Fatalf("%s audit row: %v", row.what, err)
+		}
+		if (audit.Via{Kind: kind, ClientID: client, GrantID: grant, ClientName: name}) != via {
+			t.Errorf("%s audit via = %q/%q/%q/%q, want %+v", row.what, kind, client, grant, name, via)
+		}
+	}
+}
+
+// The limits the tools state to the model are the ones they hold.
+func TestMcpDocumentWriteSchemasHoldTheLimits(t *testing.T) {
+	registry := McpTools(&McpToolService{})
+	prop := func(tool, field, key string) any {
+		t.Helper()
+		def, _ := registry.Get(tool)
+		var schema struct {
+			Properties map[string]map[string]any `json:"properties"`
+		}
+		if err := json.Unmarshal(def.Schema, &schema); err != nil {
+			t.Fatal(err)
+		}
+		return schema.Properties[field][key]
+	}
+	for _, c := range []struct {
+		tool, field, key string
+		want             float64
+	}{
+		{"create_document", "title", "maxLength", 500}, {"create_document", "content", "maxLength", document.MaxMarkdownRunes},
+		{"update_document", "title", "maxLength", 500}, {"update_document", "content", "maxLength", document.MaxMarkdownRunes},
+		{"add_document_comment", "body", "maxLength", mcpMaxBodyRunes},
+	} {
+		if got := prop(c.tool, c.field, c.key); got != c.want {
+			t.Errorf("%s.%s %s = %v, want %v", c.tool, c.field, c.key, got, c.want)
+		}
+	}
+	if got, _ := json.Marshal(prop("update_document", "mode", "enum")); string(got) != `["append","replace"]` {
+		t.Errorf("update_document mode enum = %s", got)
+	}
 }

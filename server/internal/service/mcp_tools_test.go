@@ -49,6 +49,9 @@ var mcpToolCatalogue = []mcpCatalogueEntry{
 	{"restore_meeting", "Restore meeting", ai.ToolWrite, false},
 	{"list_documents", "List documents", ai.ToolRead, false},
 	{"get_document", "Get document", ai.ToolRead, false},
+	{"create_document", "Create document", ai.ToolWrite, false},
+	{"update_document", "Update document", ai.ToolWrite, true},
+	{"add_document_comment", "Add document comment", ai.ToolWrite, false},
 }
 
 func TestMCPToolCatalogue(t *testing.T) {
@@ -80,13 +83,19 @@ func TestMCPToolCatalogue(t *testing.T) {
 		"search":         {"documents", "page text and file names", "whole query", "most recently updated first", "excerpt", "get_document", "Chat is not searched"},
 		"list_documents": {"top level", "order of the document tree", "siblings by position, then id", "next_cursor", "cursor", "doc_kind", "revision", "get_document", "trash", strconv.Itoa(mcpMaxList)},
 		"get_document":   {"Markdown", "revision", "lossy", "blank paragraph", "merged table cell", "appended to", "never replaced", "more than " + strconv.Itoa(document.MaxMarkdownRunes) + " characters", "truncated", "cut page cannot be replaced", strconv.Itoa(mcpMaxItemRunes), "text file", "filename and mime_type", "folder", "parent_id"},
-		"get_task":       {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
-		"get_project":    {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count", "and status to narrow"},
-		"list_projects":  {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
-		"create_project": {"without a chat channel", "Everyone in the workspace", "No one is notified", "duplicate_project_title", strconv.Itoa(mcpMaxItemRunes), "its title stays taken"},
-		"list_meetings":  {"soonest first", "most recent day first", "CANCELED", "MISSED", "hosted_by_me", "truncated", "At most 50", "92 days", "narrowing from and to", "today in the user's timezone", "excerpt", "start of the description"},
-		"get_meeting":    {"attendees", "revision", "attendees_truncated", "no emails", "description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "Transcripts are not included", "in excerpt", "MISSED"},
-		"update_project": {"revision_conflict", "creator", "lead", "workspace owner or admin", "not_project_editor", "No one is notified", "too long", strconv.Itoa(mcpMaxItemRunes), "led by an agent", "cannot be undone here"},
+		// Who sees a page and who is told about it is DocumentService's and the
+		// notification rules' (rules.go): a page created or changed has no rule,
+		// a comment notifies the people its body names as mention://member/<id>.
+		"create_document":      {"Markdown", strconv.Itoa(document.MaxMarkdownRunes), "in parts", "https", "an image becomes a link", "parent_id", "reads as not found", "restricted", "parent's own shares are not copied", "No one is notified", "doc_kind", "revision", "uniwork://user/"},
+		"update_document":      {"revision_conflict", "lossy_document", "lossy", "blank paragraph", "merged table cell", "append still works", "mode append", strconv.Itoa(mcpMaxItemRunes), strconv.Itoa(document.MaxMarkdownRunes), "in parts", "version of the page as it was", "unless the latest version already is that page", "A rename saves none", "https", "no one is notified", "reads as not found", "not files or folders", "cannot be renamed here", "changes shows"},
+		"add_document_comment": {"cannot reply", "right to edit", "reads as not found", "Everyone who can read the document sees the comment", "No one is notified unless", "mention://member/", "list_members", "can read the document", "never notified of their own mention", "plain text notifies no one", strconv.Itoa(mcpMaxBodyRunes)},
+		"get_task":             {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
+		"get_project":          {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count", "and status to narrow"},
+		"list_projects":        {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
+		"create_project":       {"without a chat channel", "Everyone in the workspace", "No one is notified", "duplicate_project_title", strconv.Itoa(mcpMaxItemRunes), "its title stays taken"},
+		"list_meetings":        {"soonest first", "most recent day first", "CANCELED", "MISSED", "hosted_by_me", "truncated", "At most 50", "92 days", "narrowing from and to", "today in the user's timezone", "excerpt", "start of the description"},
+		"get_meeting":          {"attendees", "revision", "attendees_truncated", "no emails", "description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "Transcripts are not included", "in excerpt", "MISSED"},
+		"update_project":       {"revision_conflict", "creator", "lead", "workspace owner or admin", "not_project_editor", "No one is notified", "too long", strconv.Itoa(mcpMaxItemRunes), "led by an agent", "cannot be undone here"},
 		// Who is told about a meeting is the notification rules' (rules.go): an
 		// invitation notifies the person invited, a schedule or an update nobody.
 		"schedule_meeting":  {"host", "Everyone in the workspace", "not notified", "invite_to_meeting", "list_members", "offset", "Asia/Ho_Chi_Minh", strconv.Itoa(mcpMaxItemRunes), "comes back with its attendees"},

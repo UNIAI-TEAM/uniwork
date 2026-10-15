@@ -124,6 +124,17 @@ func (w *isoWorld) meetingVersion(t *testing.T, id any) int64 {
 	return version
 }
 
+// documentRevision is a page's current revision, the one update_document must
+// send.
+func (w *isoWorld) documentRevision(t *testing.T, id any) int64 {
+	t.Helper()
+	var rev int64
+	if err := w.pool.QueryRow(context.Background(), `SELECT revision FROM documents WHERE id = $1`, fmt.Sprint(id)).Scan(&rev); err != nil {
+		t.Fatal(err)
+	}
+	return rev
+}
+
 // isToolError reports a tools/call answer that carries result.isError: the way
 // the connector refuses without a JSON-RPC error.
 func isToolError(raw []byte) bool {
@@ -201,6 +212,13 @@ func TestIsolationMCP(t *testing.T) {
 	// meeting holds now, so that only the tenant gate can refuse it.
 	meetingTool := func(tool string) bool {
 		return slices.Contains([]string{"update_meeting", "cancel_meeting", "restore_meeting"}, tool)
+	}
+
+	// docWriteTool is a document write tool: its attack and its control hold
+	// the same promises (no note but the version one, nothing of A's in a
+	// refusal), and update_document sends the revision the page holds now.
+	docWriteTool := func(tool string) bool {
+		return slices.Contains([]string{"create_document", "update_document", "add_document_comment"}, tool)
 	}
 
 	meetingsFrom, meetingsTo := time.Now().Add(-24*time.Hour).UTC().Format(time.RFC3339), time.Now().Add(7*24*time.Hour).UTC().Format(time.RFC3339)
@@ -356,6 +374,27 @@ func TestIsolationMCP(t *testing.T) {
 			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting}, ""},
 		{"restore_meeting", map[string]any{"workspace_id": b.wsID, "meeting_id": aMeeting},
 			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting2}, ""},
+		// The document write tools of Phase 4: A's workspace, A's page named as
+		// the page to change or comment on in A's workspace and in B's, and
+		// A's page as the parent of a page created in B's own workspace.
+		// update_document rows get the live revision of the page they name; the
+		// controls of create_document and update_document carry a title that the
+		// run makes unique. A's own append and rename each leave a version and
+		// a revision behind, so the digest has something to see.
+		{"create_document", map[string]any{"workspace_id": a.wsID, "title": "iso-write", "content": "iso"},
+			map[string]any{"workspace_id": a.wsID, "title": "iso-control", "content": "iso-control"}, ""},
+		{"create_document", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "content": "iso", "parent_id": aDoc},
+			map[string]any{"workspace_id": a.wsID, "title": "iso-control", "content": "iso-control", "parent_id": aDoc}, ""},
+		{"update_document", map[string]any{"workspace_id": a.wsID, "document_id": aDoc, "content": "iso"},
+			map[string]any{"workspace_id": a.wsID, "document_id": aDoc, "content": "iso-control"}, ""},
+		{"update_document", map[string]any{"workspace_id": b.wsID, "document_id": aDoc, "content": "iso"},
+			map[string]any{"workspace_id": a.wsID, "document_id": aDoc, "content": "iso-control"}, ""},
+		{"update_document", map[string]any{"workspace_id": b.wsID, "document_id": aDoc, "title": "iso"},
+			map[string]any{"workspace_id": a.wsID, "document_id": aDoc, "title": "iso-control"}, ""},
+		{"add_document_comment", map[string]any{"workspace_id": a.wsID, "document_id": aDoc, "body": "iso"},
+			map[string]any{"workspace_id": a.wsID, "document_id": aDoc, "body": "iso-control"}, ""},
+		{"add_document_comment", map[string]any{"workspace_id": b.wsID, "document_id": aDoc, "body": "iso"},
+			map[string]any{"workspace_id": a.wsID, "document_id": aDoc, "body": "iso-control"}, ""},
 	}
 	// missing gives every id of A's that a write attack names a stand-in that
 	// never existed; the twin of an attack is the same call with those swapped in.
@@ -476,6 +515,9 @@ func TestIsolationMCP(t *testing.T) {
 			}
 			if meetingTool(at.tool) {
 				args["revision"] = w.meetingVersion(t, args["meeting_id"])
+			}
+			if at.tool == "update_document" {
+				args["revision"] = w.documentRevision(t, args["document_id"])
 			}
 			status, raw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, args)
 			text := toolText(raw)
@@ -615,6 +657,9 @@ func TestIsolationMCP(t *testing.T) {
 			if _, titled := args["title"]; titled || at.tool == "create_task" || at.tool == "create_project" {
 				args["title"] = fmt.Sprintf("iso-control-%s-%d", a.tag, i)
 			}
+			if at.tool == "update_document" {
+				args["revision"] = w.documentRevision(t, args["document_id"])
+			}
 			if at.tool == "update_task" {
 				args["revision"] = liveRevision(t, args["task_id"])
 			}
@@ -646,15 +691,26 @@ func TestIsolationMCP(t *testing.T) {
 					}
 				}
 			}
-			if at.tool != "update_task" && at.tool != "update_project" && !meetingTool(at.tool) {
+			if at.tool != "update_task" && at.tool != "update_project" && !meetingTool(at.tool) && !docWriteTool(at.tool) {
 				continue
 			}
 			// An update that saved its fields but failed a later step (parent,
 			// labels) still answers 200 with an item: it must have no note, and
-			// every field the call names must show in changes.
+			// every field the call names must show in changes. The one note a
+			// success carries is update_document's, which names the version it
+			// saved before a change to the content (or says the page already was
+			// the latest one); a rename or a create or a comment has none.
 			sc := done.Result.StructuredContent
-			if sc.Note != "" {
+			if _, content := args["content"]; at.tool == "update_document" && content {
+				if !strings.HasPrefix(sc.Note, "the page as it was is ") {
+					t.Errorf("A's own %s %v came back with the note %q, want the version one: %s", at.tool, args, sc.Note, raw)
+				}
+			} else if sc.Note != "" {
 				t.Errorf("A's own %s %v came back with a note: %s", at.tool, args, raw)
+			}
+			// A create and a comment change nothing that already existed.
+			if (at.tool == "create_document" || at.tool == "add_document_comment") && len(sc.Changes) != 0 {
+				t.Errorf("A's own %s %v came back with changes: %s", at.tool, args, raw)
 			}
 			fields := map[string]string{"title": "title", "project_id": "project_id", "assignee_id": "assignee_id", "parent_task_id": "parent_task_id", "add_label_ids": "labels", "remove_label_ids": "labels"}
 			if at.tool == "update_project" {
@@ -662,6 +718,12 @@ func TestIsolationMCP(t *testing.T) {
 			}
 			if at.tool == "update_meeting" {
 				fields = map[string]string{"title": "title", "project_id": "project_id"}
+			}
+			if at.tool == "update_document" {
+				fields = map[string]string{"title": "title", "content": "content"}
+			}
+			if at.tool == "create_document" || at.tool == "add_document_comment" {
+				fields = nil
 			}
 			// A cancel and a restore change the status, and no more.
 			if at.tool == "cancel_meeting" || at.tool == "restore_meeting" {
@@ -675,8 +737,9 @@ func TestIsolationMCP(t *testing.T) {
 		}
 		// The digest sees these writes, so "unchanged" in refused means something.
 		if changed := isoDiff(written, w.tenantDigest(t, a)); !slices.Contains(changed, "tasks") || !slices.Contains(changed, "task_comments") || !slices.Contains(changed, "projects") ||
-			!slices.Contains(changed, "meetings") || !slices.Contains(changed, "meeting_participants") {
-			t.Errorf("A's own writes changed the digest of %v only, want tasks, task_comments, projects, meetings and meeting_participants among them", changed)
+			!slices.Contains(changed, "meetings") || !slices.Contains(changed, "meeting_participants") ||
+			!slices.Contains(changed, "documents") || !slices.Contains(changed, "document_versions") || !slices.Contains(changed, "document_comments") {
+			t.Errorf("A's own writes changed the digest of %v only, want tasks, task_comments, projects, meetings, meeting_participants, documents, document_versions and document_comments among them", changed)
 		}
 	})
 
