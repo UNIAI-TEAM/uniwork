@@ -457,7 +457,7 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = nul
   const documents = caseDoc.fixtures.map((fixture, i) => {
     const doc = views?.[i] ?? loadView(fixture.id, fixturesDir);
     applySetup(doc, fixture.id, caseDoc.setup);
-    return { module: MODULE_OF_FORMAT[doc.format] ?? 'docs', role: fixture.role ?? caseDoc.role, read: readTools(caseDoc, doc) };
+    return { module: MODULE_OF_FORMAT[doc.format] ?? 'docs', role: fixture.role ?? caseDoc.role, read: readTools(caseDoc, doc), sheetNames: doc.workbook ? Object.keys(doc.workbook.sheets) : [] };
   });
   const modules = documents.map((d) => d.module);
   const revokeAfter = caseDoc.setup?.revokeAfterTool ?? Infinity;
@@ -477,6 +477,7 @@ export function createBackend(caseDoc, { fixturesDir = FIXTURES_DIR, views = nul
     denied: () => [...denied],
     writeLog: () => writeLog.map((entry) => ({ ...entry })),
     invalid: () => [...invalid],
+    sheetNames: () => documents.find((d) => d.sheetNames.length > 0)?.sheetNames ?? [],
     execute(name, rawArgs) {
       const target = documents.find((d) => TOOL_OPS[d.module][name]);
       if (!target) return { error: `unsupported tool ${name}` };

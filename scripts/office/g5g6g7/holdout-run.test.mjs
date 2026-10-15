@@ -344,6 +344,49 @@ describe('answer adapter', () => {
     assert.deepEqual([out.adapter.writeBacked, out.adapter.writeUnbacked, out.adapter.writeSelfReported], [0, 1, 2]);
   });
 
+  it('credits an edited cell only when ONE applied operation carries its address AND its value, not either alone (G712-17)', () => {
+    const edit = synthCase({
+      category: 'edit', tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: { numeric: [], structural: [{ kind: 'cell', anchor: 'Q1!C3', value: '4200' }], writes: 1, mustNotContain: [] },
+      referenceAnswer: { numeric: {}, structural: [{ kind: 'cell', anchor: 'Q1!C3', value: '4200' }], writes: 1, text: 'test reference' },
+    });
+    const line = reportFor({ items: [{ kind: 'cell', anchor: 'Q1!C3', value: '4200' }] });
+    const written = (args, over = {}) => ({ reply: line, calls: [{ name: 'propose_operations' }], writes: 1, dropped: [], modules: ['sheets'], sheetNames: ['Q1', 'Q2'], writeLog: [{ name: 'propose_operations', applied: true, args }], ...over });
+    const verdict = (ask) => score(edit, deriveAnswer(edit, ask).answer).checks.find((x) => x.id.startsWith('structural:')).status;
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!C3', value: 4200 }] })), 'pass', 'right value at the right cell');
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!C3', value: 987654321 }] })), 'fail', 'wrong value at the right cell');
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!ZZ900', value: 4200 }] })), 'fail', 'right value at the wrong cell');
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!C3', value: 1 }, { range: 'Q1!F9', value: 4200 }] })), 'fail', 'address and value in two different operations');
+    assert.equal(verdict(written({ operations: [{ range: 'Q2!C3', value: 4200 }] })), 'fail', 'the same address on another sheet');
+    assert.equal(verdict(written({ operations: [{ range: 'C3', sheetId: 'sheet-2', value: 4200 }] })), 'fail', 'a sheet id that resolves to another sheet');
+    assert.equal(verdict(written({ operations: [{ range: 'C3', sheetId: 'sheet-1', value: 4200 }] })), 'pass', 'a sheet id that resolves to this sheet');
+    assert.equal(verdict(written({ sheetId: 'Q1', operations: [{ range: 'C3', values: [[4200]] }] })), 'pass', 'the sheet inherited from the enclosing object');
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!B2:D4', values: [[1, 2, 3], [4, 4200, 6], [7, 8, 9]] }] })), 'pass', 'a value matrix is read at the cell offset');
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!B2:D4', values: [[1, 2, 3], [4200, 5, 6], [7, 8, 9]] }] })), 'fail', 'the value sits in the matrix at another cell');
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!C2:C4', values: [1, 4200, 3] }] })), 'pass', 'a one-column list');
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!C3', value: '4.200' }] })), 'pass', 'a Vietnamese-grouped number is the same number');
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!C2:C5', formula: '=SUM(B2:B5)' }] })), 'pass', 'a formula at the cell: the address is all the harness can prove');
+    assert.equal(deriveAnswer(edit, written({ operations: [{ range: 'Q1!C2:C5', formula: '=SUM(B2:B5)' }] })).adapter.writeFormula, 1, 'and it is counted');
+    assert.equal(verdict(written({ operations: [{ range: 'Q1!C3', value: 4200 }] }, { writeLog: [{ name: 'propose_operations', applied: false, args: { operations: [{ range: 'Q1!C3', value: 4200 }] } }] })), 'fail', 'a refused write proves nothing');
+  });
+
+  it('scores the real xlsx edit cases from the arguments: the right cell and value pass, either alone fails (G712-17)', () => {
+    const edits = cases.filter((c) => c.format === 'xlsx' && c.expected.writes > 0);
+    assert.equal(edits.length, 3);
+    const items = (c) => c.referenceAnswer.structural.filter((x) => x.kind === 'cell');
+    const run = (c, make) => {
+      const backend = createBackend(c);
+      backend.execute('propose_operations', JSON.stringify({ edits: items(c).map(make) }));
+      const ask = { reply: `${c.referenceAnswer.text}\n${referenceLine(c)}`, calls: [{ name: 'propose_operations' }], writes: backend.writes(), writeLog: backend.writeLog(), dropped: [], modules: ['sheets'], sheetNames: backend.sheetNames() };
+      return score(c, deriveAnswer(c, ask).answer).checks.filter((x) => x.id.startsWith('structural:')).map((x) => x.status);
+    };
+    for (const c of edits) {
+      assert.ok(run(c, ({ anchor, value }) => ({ anchor, value })).every((st) => st === 'pass'), `${c.id}: the reference edit`);
+      assert.ok(run(c, ({ anchor }) => ({ anchor, value: 987654321 })).includes('fail'), `${c.id}: a wrong value at the right cells`);
+      assert.ok(run(c, ({ anchor, value }) => ({ anchor: `${anchor.split('!')[0]}!ZZ900`, value })).includes('fail'), `${c.id}: the right values at the wrong cell`);
+    }
+  });
+
   it('flags a figure of the reporting line that the prose never states, apart from rounding and grouping (G712-5)', () => {
     const c = synthCase();
     const ask = (text, figures) => ({ reply: `${text}\n${ANSWER_MARKER} ${JSON.stringify({ numbers: figures })}`, calls: [], writes: 0, dropped: [], modules: ['sheets'] });

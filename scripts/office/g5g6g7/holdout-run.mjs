@@ -268,7 +268,7 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   }
   const { answer, adapter } = deriveAnswer(
     caseDoc,
-    { reply, calls: record.toolCalls, writes: backend.writes(), writeLog: record.writeLog, dropped: record.dropped, modules: modulesOfCase(caseDoc) },
+    { reply, calls: record.toolCalls, writes: backend.writes(), writeLog: record.writeLog, dropped: record.dropped, modules: modulesOfCase(caseDoc), sheetNames: backend.sheetNames() },
     { numbers: opts.numbers, computeByReply: opts.computeByReply, anchors: opts.anchors },
   );
   record.adapter = adapter;
