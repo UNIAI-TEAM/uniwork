@@ -587,4 +587,84 @@ describe("ShareDialog", () => {
     fireEvent.click(revokeButtons[0]!);
     await waitFor(() => expect(calls).toContain("/api/v1/documents/d1/links/l1"));
   });
+
+  /** Members split over two pages: page 2 holds Minh (u5) and the ACL owner (u9). */
+  function servePagedMembers(onPost?: (body: any) => void) {
+    const memberPaths: string[] = [];
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
+        return Promise.resolve({ ...accessPayload, acl_owner: { user_id: "u9", level: "manage", via: "member" } });
+      }
+      if (path === "/api/v1/documents/d1/shares/batch" && opts?.method === "POST") {
+        onPost?.(opts.body);
+        return Promise.resolve({ shares: [] });
+      }
+      if (path.startsWith("/api/v1/orgs/acme/members")) {
+        memberPaths.push(path);
+        if (path.includes("cursor=c2")) {
+          return Promise.resolve({
+            members: [
+              { user_id: "u5", email: "minh@acme.vn", display_name: "Minh", role: "member", created_at: "" },
+              { user_id: "u9", email: "owner@acme.vn", display_name: "Chủ Tài Liệu", role: "owner", created_at: "" },
+            ],
+            next_cursor: "",
+          });
+        }
+        return Promise.resolve({ ...membersPayload, next_cursor: "c2" });
+      }
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
+      return Promise.resolve({});
+    });
+    return memberPaths;
+  }
+
+  it("loads every member page so a person past the first page is pickable and shared", async () => {
+    const bodies: any[] = [];
+    const memberPaths = servePagedMembers((body) => bodies.push(body));
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickPerson("Minh");
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
+
+    await waitFor(() => expect(bodies).toEqual([{ principal_ids: ["u5"], level: "view" }]));
+    expect(memberPaths.some((p) => p.includes("cursor=c2"))).toBe(true);
+  });
+
+  it("never shows the ACL owner's raw id, and names them once their page arrives", async () => {
+    servePagedMembers();
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    expect(screen.queryByText("u9")).toBeNull();
+    expect(await screen.findByText("Chủ Tài Liệu")).toBeInTheDocument();
+    expect(screen.queryByText("u9")).toBeNull();
+  });
+
+  it("shows a neutral label for an ACL owner who is not a listed member", async () => {
+    // accessPayload's owner u1 is not in membersPayload.
+    renderDialog();
+    expect(await screen.findByText(t("documents.share.person_unknown"))).toBeInTheDocument();
+    expect(screen.queryByText("u1")).toBeNull();
+  });
+
+  it("keeps a grant row's name in a shrinkable slot with the level text below it", async () => {
+    renderDialog();
+    const access = await screen.findByRole("region", { name: t("documents.share.access_title") });
+    const name = await within(access).findByText("Bình");
+    const row = name.closest("li")!;
+    expect(name).toHaveClass("truncate");
+    // The level/effective text wraps under the name instead of claiming the
+    // row's width beside it (the 390px layout lost the name, TV-2).
+    const level = within(row).getByText(new RegExp(`^${t("documents.share.level_view")}`));
+    expect(level.closest(".shrink-0")).toBeNull();
+    expect(level.parentElement).toBe(name.closest(".min-w-0.flex-1"));
+  });
+
+  it("gives the people picker the full row when the principal is a person", async () => {
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+    const input = screen.getByRole("combobox", { name: t("documents.share.principal_placeholder") });
+    expect(input.closest(".sm\\:col-span-2")).not.toBeNull();
+  });
 });

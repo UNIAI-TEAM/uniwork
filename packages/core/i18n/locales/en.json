@@ -8478,6 +8478,8 @@
       "principal_empty": "No matching principal.",
       "people_placeholder": "Search by name or email",
       "people_empty": "No matching members.",
+      "people_loading": "Loading members…",
+      "person_unknown": "Unknown member",
       "people_already_shared": "Has access",
       "people_chosen": "Selected people",
       "people_selected_one": "{{count}} person selected",

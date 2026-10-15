@@ -11,7 +11,7 @@ import {
   useRevokeDocumentShare,
   useShareDocument,
 } from "@uniwork/core/documents/hooks-sharing";
-import { useOrgMembers, useOrgWorkspaces } from "@uniwork/core/organizations";
+import { useOrgWorkspaces } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
 import type {
   Document,
@@ -42,6 +42,7 @@ import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import { ShareLinksSection } from "./share-links-section";
 import { SharePeoplePicker, useSharePeople } from "./share-people-picker";
+import { useShareMembers } from "./use-share-members";
 
 export interface ShareDialogProps {
   open: boolean;
@@ -81,7 +82,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
   const revokeShare = useRevokeDocumentShare(wsId, doc.id);
   const update = useUpdateDocument(wsId, doc.id);
 
-  const members = useOrgMembers(workspace.organization_slug);
+  const members = useShareMembers(workspace.organization_slug, open);
   const orgWorkspaces = useOrgWorkspaces(doc.organization_id);
 
   const [principalType, setPrincipalType] = useState<PrincipalType>("user");
@@ -90,19 +91,15 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
   const [addError, setAddError] = useState<string | null>(null);
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
 
-  const memberRows = useMemo(
-    () => members.data?.pages.flatMap((page) => page.members) ?? [],
-    [members.data],
-  );
-
+  // Name, else a skeleton while pages load, else a neutral label; never the id.
   const memberName = (userId: string) =>
-    memberRows.find((m) => m.user_id === userId)?.display_name || userId;
-  const people = useSharePeople(wsId, doc.id, memberName, setAddError);
+    members.nameOf(userId) ?? (members.loading ? null : t("documents.share.person_unknown"));
+  const people = useSharePeople(wsId, doc.id, (id) => members.nameOf(id) ?? id, setAddError);
   const pending = share.isPending || people.isPending;
   const workspaceName = (id: string) =>
     orgWorkspaces.data?.find((w) => w.id === id)?.name || id;
 
-  const principalName = (row: AccessShare) => {
+  const principalName = (row: AccessShare): string | null => {
     switch (row.principal_type) {
       case "user":
         return memberName(row.principal_id);
@@ -219,9 +216,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                     <li className="flex items-center justify-between gap-2 px-3 py-2">
                       <span className="flex min-w-0 items-center gap-2 text-body text-foreground">
                         <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                        <span className="truncate">
-                          {memberName(access.data.acl_owner.user_id)}
-                        </span>
+                        <NameOrSkeleton name={memberName(access.data.acl_owner.user_id)} />
                         <span className="shrink-0 text-caption text-muted-foreground">
                           {t("documents.share.acl_owner")}
                         </span>
@@ -233,34 +228,37 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                   ) : null}
                   {shares.map((row) => (
                     <li key={row.id} className="flex items-center justify-between gap-2 px-3 py-2">
-                      <span className="flex min-w-0 items-center gap-2 text-body text-foreground">
-                        {row.principal_type === "user" ? (
-                          <UserRound aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                        ) : row.principal_type === "workspace" ? (
-                          <Building2 aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <Users aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                        <span className="truncate">{principalName(row)}</span>
-                        {!row.active ? (
-                          <span className="shrink-0 text-caption text-muted-foreground">
-                            {t("documents.share.inactive")}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <span className="text-caption text-muted-foreground">
+                      {/* Level text sits under the name so 390px keeps the name (TV-2). */}
+                      <div className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-2 text-body text-foreground">
+                          {row.principal_type === "user" ? (
+                            <UserRound aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                          ) : row.principal_type === "workspace" ? (
+                            <Building2 aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <Users aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                          )}
+                          <NameOrSkeleton name={principalName(row)} />
+                          {!row.active ? (
+                            <span className="shrink-0 text-caption text-muted-foreground">
+                              {t("documents.share.inactive")}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="block pl-5.5 text-caption text-muted-foreground">
                           {levelLabel(row.level)}
                           {row.effective_level && row.effective_level !== row.level
                             ? ` · ${t("documents.share.effective", { level: levelLabel(row.effective_level) })}`
                             : ""}
                           {row.effective_via ? ` · ${viaLabel(row.effective_via)}` : ""}
                         </span>
+                      </div>
+                      <span className="flex shrink-0 items-center gap-2">
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          aria-label={`${t("documents.share.revoke")} ${principalName(row)}`}
+                          aria-label={`${t("documents.share.revoke")} ${principalName(row) ?? ""}`.trim()}
                           disabled={revokeShare.isPending}
                           aria-busy={(revokeShare.isPending && revokeShare.variables === row.id) || undefined}
                           onClick={() => {
@@ -288,7 +286,8 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                 <h3 id="share-add-title" className="text-label font-medium text-foreground">
                   {t("documents.share.add_title")}
                 </h3>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                {/* Person: picker on its own row, Level beside Principal (TV-6). */}
+                <div className="grid grid-cols-1 gap-2 sm:grid-flow-row-dense sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="share-principal-type">{t("documents.share.principal_label")}</Label>
                     <Select
@@ -317,10 +316,16 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex flex-col gap-1.5">
+                  <div className={principalType === "user" ? "flex flex-col gap-1.5 sm:col-span-2" : "flex flex-col gap-1.5"}>
                     <Label htmlFor="share-principal-id">{t("documents.share.principal_placeholder")}</Label>
+                    {principalType === "user" && members.loading ? (
+                      <p role="status" className="flex items-center gap-1.5 text-caption text-muted-foreground">
+                        <Spinner className="size-3.5" />
+                        {t("documents.share.people_loading")}
+                      </p>
+                    ) : null}
                     {principalType === "user" ? (
-                      <SharePeoplePicker id="share-principal-id" members={memberRows} shares={shares} people={people} />
+                      <SharePeoplePicker id="share-principal-id" members={members.rows} shares={shares} people={people} />
                     ) : (
                       <Select
                         items={principalItems}
@@ -362,7 +367,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-end">
+                  <div className={principalType === "user" ? "flex items-end sm:col-span-2" : "flex items-end"}>
                     <Button
                       type="button"
                       className="w-full"
@@ -410,6 +415,10 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
       </DialogContent>
     </Dialog>
   );
+}
+
+function NameOrSkeleton({ name }: { name: string | null }) {
+  return name === null ? <Skeleton aria-hidden className="h-4 w-24" /> : <span className="truncate">{name}</span>;
 }
 
 function VisibilitySection({
