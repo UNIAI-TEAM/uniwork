@@ -1,16 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
+import { DocumentAccessSchema } from "../../types/document";
+import { ApiError } from "../http";
 import { setAccessToken } from "../session";
 import {
+  canBreakGlassFromError,
   createDocument,
+  createDocumentBreakGlass,
+  createDocumentComment,
   createDocumentFile,
   documentAssetPath,
   documentDownloadPath,
   downloadDocumentFile,
   getDocument,
+  getDocumentAdminSummary,
   getDocumentAsset,
   getDocumentDownloadMeta,
+  isBreakGlassReasonInvalidError,
+  isBreakGlassRequiredError,
+  isDocumentRestrictedError,
+  listDocumentMentionCandidates,
+  parseDocumentAccessError,
   patchDocument,
+  revokeDocumentBreakGlass,
+  updateDocumentComment,
   uploadDocumentAsset,
   uploadDocumentFile,
 } from "./documents";
@@ -362,5 +375,373 @@ describe("documents endpoints", () => {
     );
     const out = await listDocumentVersions("d1");
     expect(out.versions[0]?.reason).toBe("future_reason");
+  });
+
+  // ---- G8-18: mentions_without_access + mention-candidates can_view ------
+
+  it("createDocumentComment and updateDocumentComment parse mentions_without_access", async () => {
+    const commentWithMentions = {
+      id: "c1",
+      document_id: "d1",
+      author_id: "u1",
+      author_kind: "human",
+      body: "Xem giúp [@Bình](mention://member/u2) và [@Chi](mention://member/u3)",
+      type: "discussion",
+      kind: "discussion",
+      revision: 1,
+      created_at: "2026-10-15T01:00:00Z",
+      updated_at: "2026-10-15T01:00:00Z",
+      mentions_without_access: [
+        { user_id: "u2", display_name: "Trần Bình", can_share: true },
+        { user_id: "u3", can_share: false },
+      ],
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ comment: commentWithMentions }, 201));
+    const created = await createDocumentComment(
+      "d1",
+      { body: commentWithMentions.body },
+      { idempotencyKey: "k-c1" },
+    );
+    expect(created?.id).toBe("c1");
+    expect(created?.mentions_without_access).toEqual([
+      { user_id: "u2", display_name: "Trần Bình", can_share: true },
+      { user_id: "u3", can_share: false },
+    ]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: {
+          ...commentWithMentions,
+          revision: 2,
+          mentions_without_access: [{ user_id: "u2", display_name: "Trần Bình", can_share: false }],
+        },
+      }),
+    );
+    const updated = await updateDocumentComment("d1", "c1", { body: "Cập nhật" });
+    expect(updated?.revision).toBe(2);
+    expect(updated?.mentions_without_access).toEqual([
+      { user_id: "u2", display_name: "Trần Bình", can_share: false },
+    ]);
+  });
+
+  it("degrades malformed mentions_without_access without dropping the comment", async () => {
+    const baseComment = {
+      id: "c1",
+      document_id: "d1",
+      body: "Nội dung bình luận",
+      revision: 1,
+    };
+
+    // Non-array mentions_without_access degrades to [] while preserving the comment.
+    for (const badField of ["not-an-array", 42, { user_id: "u2" }, true]) {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        json({ comment: { ...baseComment, mentions_without_access: badField } }),
+      );
+      const out = await createDocumentComment("d1", { body: "Nội dung bình luận" });
+      expect(out?.id).toBe("c1");
+      expect(out?.mentions_without_access).toEqual([]);
+    }
+
+    // Malformed items inside mentions_without_access are dropped; valid items and
+    // items with a non-string display_name degrade gracefully.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: {
+          ...baseComment,
+          mentions_without_access: [
+            { nope: true },
+            { user_id: "", can_share: true },
+            { user_id: "u2", can_share: "yes" },
+            { user_id: "u3", display_name: 12345, can_share: true },
+            { user_id: "u4", display_name: "Lê Dung", can_share: false },
+          ],
+        },
+      }),
+    );
+    const partial = await updateDocumentComment("d1", "c1", { body: "Nội dung bình luận" });
+    expect(partial?.id).toBe("c1");
+    expect(partial?.mentions_without_access).toEqual([
+      { user_id: "u3", can_share: true },
+      { user_id: "u4", display_name: "Lê Dung", can_share: false },
+    ]);
+  });
+
+  it("listDocumentMentionCandidates sends include=no_access and parses can_view", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        candidates: [
+          { user_id: "u1", display_name: "Nguyễn An", can_view: true },
+          { user_id: "u2", display_name: "Trần Bình", can_view: false },
+          { user_id: "u3", display_name: "Lê Chi" },
+        ],
+      }),
+    );
+    const out = await listDocumentMentionCandidates("d1", {
+      q: "  an ",
+      limit: 15,
+      include: "no_access",
+    });
+    const [url] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe(
+      "http://api.test/api/v1/documents/d1/mention-candidates?q=an&limit=15&include=no_access",
+    );
+    expect(out).toEqual([
+      { user_id: "u1", display_name: "Nguyễn An", can_view: true },
+      { user_id: "u2", display_name: "Trần Bình", can_view: false },
+      { user_id: "u3", display_name: "Lê Chi", can_view: undefined },
+    ]);
+  });
+
+  it("degrades malformed can_view and malformed mention candidate rows safely", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        candidates: [
+          { user_id: "u1", display_name: "An", can_view: "not-a-bool" },
+          { user_id: "", display_name: "Empty id", can_view: false },
+          { nope: true },
+          null,
+          { user_id: "u2", display_name: null, can_view: false },
+        ],
+      }),
+    );
+    const out = await listDocumentMentionCandidates("d1", { includeNoAccess: true });
+    expect(out).toEqual([
+      { user_id: "u1", display_name: "An", can_view: undefined },
+      { user_id: "u2", display_name: "", can_view: false },
+    ]);
+
+    for (const body of malformedBodies) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(
+        listDocumentMentionCandidates("d1", { include: "no_access" }),
+      ).resolves.toEqual([]);
+    }
+  });
+
+  // ---- DOC-05: break-glass + admin-summary + typed errors ----------------
+
+  const grantBody = (over: Record<string, unknown> = {}) => ({
+    id: "bg1",
+    document_id: "d1",
+    actor_id: "u_admin",
+    actor_name: "Nguyễn Quản Trị",
+    level: "view",
+    reason: "Kiểm tra sự cố bảo mật theo yêu cầu của trưởng bộ phận",
+    granted_at: "2026-10-15T02:00:00Z",
+    expires_at: "2026-10-16T02:00:00Z",
+    ...over,
+  });
+
+  it("createDocumentBreakGlass posts reason and parses the grant envelope", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ grant: grantBody() }, 201));
+    const grant = await createDocumentBreakGlass(
+      "d1",
+      { reason: "Kiểm tra sự cố bảo mật theo yêu cầu của trưởng bộ phận" },
+      { idempotencyKey: "bg-key-1" },
+    );
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/break-glass");
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("bg-key-1");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      reason: "Kiểm tra sự cố bảo mật theo yêu cầu của trưởng bộ phận",
+    });
+    expect(grant).toMatchObject({
+      id: "bg1",
+      document_id: "d1",
+      actor_id: "u_admin",
+      actor_name: "Nguyễn Quản Trị",
+      level: "view",
+      expires_at: "2026-10-16T02:00:00Z",
+    });
+  });
+
+  it.each([
+    ...malformedBodies,
+    { grant: null },
+    { grant: { id: "bg1" } },
+    { grant: grantBody({ expires_at: "" }) },
+  ])("createDocumentBreakGlass degrades malformed response %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(
+      createDocumentBreakGlass("d1", { reason: "Lý do hợp lệ trên mười ký tự" }),
+    ).resolves.toBeNull();
+  });
+
+  it("revokeDocumentBreakGlass sends DELETE and verifies { status: 'ok' }", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    const ok = await revokeDocumentBreakGlass("d1", "bg1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/break-glass/bg1");
+    expect(init?.method).toBe("DELETE");
+    expect(ok).toBe(true);
+
+    for (const body of [...malformedBodies, { status: "failed" }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(revokeDocumentBreakGlass("d1", "bg1")).resolves.toBe(false);
+    }
+  });
+
+  it("getDocumentAdminSummary reads metadata, acl_owner, and my_grant", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: {
+          id: "d1",
+          organization_id: "o1",
+          workspace_id: "w1",
+          parent_id: null,
+          kind: "page",
+          title: "Biên bản họp kín",
+          visibility: "restricted",
+          size_bytes: 0,
+          created_by: "u_owner",
+          created_at: "2026-10-14T09:00:00Z",
+          updated_at: "2026-10-15T01:00:00Z",
+        },
+        acl_owner: { user_id: "u_owner", level: "manage", via: "owner" },
+        my_level: "view",
+        via: "break_glass",
+        admin_scope: true,
+        my_grant: grantBody(),
+      }),
+    );
+    const summary = await getDocumentAdminSummary("d1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/admin-summary");
+    expect(init?.method).toBe("GET");
+    expect(summary?.document.title).toBe("Biên bản họp kín");
+    expect(summary?.acl_owner).toEqual({ user_id: "u_owner", level: "manage", via: "owner" });
+    expect(summary?.my_level).toBe("view");
+    expect(summary?.via).toBe("break_glass");
+    expect(summary?.my_grant?.id).toBe("bg1");
+  });
+
+  it("getDocumentAdminSummary tolerates malformed my_grant/acl_owner and rejects missing document", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: {
+          id: "d1",
+          workspace_id: "w1",
+          kind: "page",
+          title: "Tài liệu hạn chế",
+          visibility: "restricted",
+        },
+        acl_owner: { nope: true },
+        my_level: "",
+        my_grant: { id: "broken-grant-without-timestamps" },
+      }),
+    );
+    const degraded = await getDocumentAdminSummary("d1");
+    expect(degraded?.document.id).toBe("d1");
+    expect(degraded?.acl_owner).toBeNull();
+    expect(degraded?.my_level).toBe("");
+    expect(degraded?.my_grant).toBeNull();
+
+    for (const body of [...malformedBodies, { document: { id: "d1" } }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(getDocumentAdminSummary("d1")).resolves.toBeNull();
+    }
+  });
+
+  it("DocumentSchema parses break_glass_expires_at and DocumentAccessSchema tolerates malformed break_glass items", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: docBody({
+          my_level: "view",
+          via: "break_glass",
+          break_glass_expires_at: "2026-10-16T02:00:00Z",
+        }),
+      }),
+    );
+    const doc = await getDocument("d1");
+    expect(doc?.via).toBe("break_glass");
+    expect(doc?.break_glass_expires_at).toBe("2026-10-16T02:00:00Z");
+
+    const parsedAccess = DocumentAccessSchema.parse({
+      my_level: "",
+      via: "",
+      break_glass: [grantBody(), { id: "incomplete" }, "bad"],
+    });
+    expect(parsedAccess.my_level).toBe("");
+    expect(parsedAccess.break_glass).toHaveLength(1);
+    expect(parsedAccess.break_glass?.[0]?.id).toBe("bg1");
+
+    const nonArrayBreakGlass = DocumentAccessSchema.parse({
+      my_level: "manage",
+      break_glass: "not-an-array",
+    });
+    expect(nonArrayBreakGlass.break_glass).toEqual([]);
+  });
+
+  it("parses document_restricted, break_glass_required, and break_glass_reason_invalid typed errors", () => {
+    const restrictedCanBreakGlass = new ApiError(
+      "restricted",
+      "document_restricted",
+      403,
+      "corr-1",
+      { can_break_glass: true },
+      "permission",
+    );
+    expect(parseDocumentAccessError(restrictedCanBreakGlass)).toEqual({
+      kind: "document_restricted",
+      code: "document_restricted",
+      canBreakGlass: true,
+      can_break_glass: true,
+      status: 403,
+      message: "restricted",
+    });
+    expect(isDocumentRestrictedError(restrictedCanBreakGlass)).toBe(true);
+    expect(canBreakGlassFromError(restrictedCanBreakGlass)).toBe(true);
+
+    // Malformed can_break_glass (non-boolean or missing fields) safely degrades to false.
+    const restrictedMalformed = new ApiError(
+      "restricted",
+      "document_restricted",
+      403,
+      "corr-2",
+      { can_break_glass: "true" },
+      "permission",
+    );
+    expect(parseDocumentAccessError(restrictedMalformed)?.canBreakGlass).toBe(false);
+    expect(canBreakGlassFromError(restrictedMalformed)).toBe(false);
+
+    const selfShareRefused = new ApiError(
+      "use break-glass",
+      "break_glass_required",
+      403,
+      "corr-3",
+      undefined,
+      "permission",
+    );
+    expect(parseDocumentAccessError(selfShareRefused)).toEqual({
+      kind: "break_glass_required",
+      code: "break_glass_required",
+      status: 403,
+      message: "use break-glass",
+    });
+    expect(isBreakGlassRequiredError(selfShareRefused)).toBe(true);
+
+    const invalidReason = new ApiError(
+      "reason too short",
+      "break_glass_reason_invalid",
+      422,
+      "corr-4",
+      { min: 10, max: 500, length: 4 },
+    );
+    expect(parseDocumentAccessError(invalidReason)).toEqual({
+      kind: "break_glass_reason_invalid",
+      code: "break_glass_reason_invalid",
+      min: 10,
+      max: 500,
+      length: 4,
+      status: 422,
+      message: "reason too short",
+    });
+    expect(isBreakGlassReasonInvalidError(invalidReason)).toBe(true);
+
+    // Unrelated error or non-error returns null.
+    expect(parseDocumentAccessError(new ApiError("no", "forbidden", 403))).toBeNull();
+    expect(parseDocumentAccessError(null)).toBeNull();
+    expect(parseDocumentAccessError("nope")).toBeNull();
   });
 });
