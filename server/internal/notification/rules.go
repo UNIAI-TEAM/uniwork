@@ -146,7 +146,7 @@ func changedFields(ctx context.Context, q *db.Queries, ev outbox.Row, action, re
 		return nil, nil
 	}
 	row, err := q.GetAuditEventByCorrelation(ctx, db.GetAuditEventByCorrelationParams{
-		CorrelationID: ev.CorrelationID.String, Action: action, ResourceID: resourceID,
+		CorrelationID: ev.CorrelationID.String, Action: action, ResourceID: resourceID, Before: ev.CreatedAt,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil

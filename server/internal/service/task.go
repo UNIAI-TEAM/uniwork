@@ -86,6 +86,9 @@ type UpdateTaskInput struct {
 	StartAt      **time.Time
 	DueAt        **time.Time
 	ProjectID    **string
+	// ExpectedRevision, when set, is the revision the caller read; a task
+	// that moved since is refused with revision_conflict (MCP, ADR 0033).
+	ExpectedRevision *int64
 }
 
 // assigneeKind validates the assignee pair: humans and agents must already be
@@ -742,6 +745,11 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 	// lock keeps it that way until commit. Counting the queries below instead
 	// would break silently the day one of them bumps conditionally.
 	revisionBefore := task.Revision - 1
+	if in.ExpectedRevision != nil {
+		if err := CheckTaskRevision(*in.ExpectedRevision, revisionBefore); err != nil {
+			return db.Task{}, err
+		}
+	}
 	if in.AssigneeID != nil {
 		kind, kerr := s.assigneeKind(ctx, before.OrganizationID, before.WorkspaceID, *in.AssigneeID, in.AssigneeKind,
 			!keepsAssignee(before, *in.AssigneeID, in.AssigneeKind))

@@ -56,6 +56,7 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionMcpTokenFamilyRevoked:             "covered by mcp_tokens_test.go",
 	audit.ActionOrganizationMcpPolicyChanged:      "covered by mcp_grants_test.go",
 	audit.ActionOrganizationMcpWritePolicyChanged: "covered by mcp_grants_test.go",
+	audit.ActionMeetingRestored:                   "covered by meeting_restore_test.go",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -936,7 +937,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionChatVoiceCallLogged: func(t *testing.T, f *auditFixture) {
 			dm := f.newDM(t)
-			if err := f.chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
+			if err := f.chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call", false); err != nil {
 				t.Fatal(err)
 			}
 			if err := f.chat.SignalVoiceAccept(f.ctx, f.member.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
@@ -1604,6 +1605,7 @@ func auditActions() []string {
 		audit.ActionMcpGrantRevoked,
 		audit.ActionMcpGrantScopeChanged,
 		audit.ActionMcpTokenFamilyRevoked,
+		audit.ActionMeetingRestored,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
 	}

@@ -72,7 +72,7 @@ export function WorkspaceTaskPrefixDialog({
               value={value}
               maxLength={10}
               autoComplete="off"
-              className="font-mono uppercase"
+              className="uppercase"
               aria-label={t("workspace.task_prefix_new")}
               aria-invalid={invalid || undefined}
               aria-describedby={invalid ? errorId : undefined}

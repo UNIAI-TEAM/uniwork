@@ -1,6 +1,6 @@
 # Connector MCP v2 (đọc + ghi) Implementation Plan
 
-> **Trạng thái:** in-progress — Phase 0 (UNI-1587) đã làm xong trên nhánh, chờ PR; Phase 1–4 chưa bắt đầu.
+> **Trạng thái:** shipped — Phase 0–4 đã merge (Phase 0 qua #282; Phase 1–4 xếp chồng nhánh và merge một lần theo yêu cầu người dùng). Các chỗ code thật khác plan nằm trong ledger SDD và mô tả PR.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -508,6 +508,52 @@ func (q *Queries) GetWorkspaceWithOrg(ctx context.Context, id string) (GetWorksp
 	return i, err
 }
 
+const listAssignableMembers = `-- name: ListAssignableMembers :many
+SELECT u.id::text AS user_id, u.display_name::text AS display_name,
+       COALESCE(wm.role, 'org_' || om.role)::text AS role
+FROM organization_members om
+JOIN users u ON u.id = om.user_id
+LEFT JOIN workspace_members wm ON wm.workspace_id = $1::text AND wm.user_id = om.user_id
+WHERE om.organization_id = $2::text
+  AND om.deactivated_at IS NULL
+  AND (wm.user_id IS NOT NULL OR om.role IN ('owner', 'admin'))
+ORDER BY lower(u.display_name), u.id
+`
+
+type ListAssignableMembersParams struct {
+	WorkspaceID    string `json:"workspace_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+type ListAssignableMembersRow struct {
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	Role        string `json:"role"`
+}
+
+// Who can be given a task in the workspace: its members and the
+// organization's owners and admins (implicit workspace admins), active only.
+// Email is left out on purpose: the MCP connector hands this to an AI app.
+func (q *Queries) ListAssignableMembers(ctx context.Context, arg ListAssignableMembersParams) ([]ListAssignableMembersRow, error) {
+	rows, err := q.db.Query(ctx, listAssignableMembers, arg.WorkspaceID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAssignableMembersRow{}
+	for rows.Next() {
+		var i ListAssignableMembersRow
+		if err := rows.Scan(&i.UserID, &i.DisplayName, &i.Role); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInvitationWorkspaces = `-- name: ListInvitationWorkspaces :many
 SELECT iw.invitation_id, w.id, w.name, w.slug
 FROM invitation_workspaces iw

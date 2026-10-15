@@ -235,7 +235,13 @@ func (s *WorkspaceService) withIconURL(ctx context.Context, v WorkspaceView) Wor
 		return v
 	}
 	for _, r := range resolved {
-		if r.Err == nil && r.URL != "" {
+		if r.Err != nil {
+			// A refused id is not a batch error; log it, or an icon that
+			// never shows (local storage cannot presign) leaves no trace.
+			slog.Warn("workspace icon resolve", "workspace_id", v.ID, "err", r.Err)
+			continue
+		}
+		if r.URL != "" {
 			v.IconURL = r.URL
 		}
 	}

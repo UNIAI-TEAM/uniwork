@@ -17,7 +17,7 @@ import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocom
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 import { deserializeMessageBodyToComposerDraft, serializeComposerDraftToMessageBody } from "./chat-mention-utils";
-import { CHAT_FILE_ACCEPT, pickChatAcceptedFiles } from "./chat-file-accept";
+import { CHAT_FILE_ACCEPT, CHAT_FILE_MAX_LABEL, isChatFileTooLarge, pickChatAcceptedFiles } from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 import { useComposerMentions } from "./use-composer-mentions";
 import { useFileDropZone } from "../editor/use-file-drop-zone";
@@ -105,12 +105,11 @@ export function ChatComposer({
     (files: File[]) => {
       if (disabled || !onSendFile) return;
       const accepted = pickChatAcceptedFiles(files);
-      if (accepted.length === 0) {
-        if (files.length > 0) toast.error(t("chat.file_type_unsupported"));
-        return;
-      }
+      const ready = accepted.filter((file) => !isChatFileTooLarge(file));
       if (accepted.length < files.length) toast.error(t("chat.file_type_unsupported"));
-      setStagedFiles((current) => [...current, ...accepted]);
+      if (ready.length < accepted.length) toast.error(t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }));
+      if (ready.length === 0) return;
+      setStagedFiles((current) => [...current, ...ready]);
       textareaRef.current?.focus();
     },
     [disabled, onSendFile, t],

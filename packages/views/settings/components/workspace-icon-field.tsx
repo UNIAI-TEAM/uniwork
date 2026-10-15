@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageUp, FaceSlightlySmilingPlus, Trash2 } from "lucide-react";
+import { Camera, ImageUp, Trash2 } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -21,7 +21,14 @@ const ICON_ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
 /** The server's upload cap for workspace icons (2 MiB). */
 const MAX_ICON_BYTES = 2 * 1024 * 1024;
 
-/** Preview plus the three icon actions an owner or admin has (spec §6.4). */
+/** The quiet tile every icon row shows; the read-only row uses it too. */
+export const WORKSPACE_ICON_TILE = "size-10 rounded-lg bg-muted text-title font-semibold text-foreground";
+
+/**
+ * The icon itself is the button: clicking it opens a popover holding the
+ * three icon actions (spec §6.4). The camera badge says it can be changed,
+ * as on the profile avatar.
+ */
 export function WorkspaceIconField({ workspace }: { workspace: Workspace }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings" });
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -51,27 +58,54 @@ export function WorkspaceIconField({ workspace }: { workspace: Workspace }) {
     upload.mutate({ wsId: workspace.id, file }, { onError: (err) => toastApiError(err, t("workspace.icon_upload_error")) });
   };
 
+  const pickImage = () => {
+    setPickerOpen(false);
+    fileInput.current?.click();
+  };
+
+  const removeIcon = () => {
+    setPickerOpen(false);
+    remove.mutate({ wsId: workspace.id }, { onError: (err) => toastApiError(err, t("workspace.icon_error")) });
+  };
+
   return (
-    <div className="flex items-center gap-2 sm:justify-end">
-      <WorkspaceIcon
-        workspace={workspace}
-        className="size-10 rounded-lg bg-primary text-title font-semibold text-primary-foreground"
-      />
+    <div className="flex items-center sm:justify-end">
       <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger render={<Button type="button" variant="outline" size="sm" disabled={busy} />}>
-          <FaceSlightlySmilingPlus aria-hidden />
-          {t("workspace.icon_pick_emoji")}
+        <PopoverTrigger
+          disabled={busy}
+          aria-label={t("workspace.icon_change")}
+          title={t("workspace.icon_change")}
+          className="group relative shrink-0 cursor-pointer rounded-lg disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <WorkspaceIcon
+            workspace={workspace}
+            className={`${WORKSPACE_ICON_TILE} transition-colors group-hover:bg-surface-hover`}
+          />
+          <span
+            aria-hidden
+            className="absolute -right-1 -bottom-1 flex size-5 items-center justify-center rounded-full border-2 border-card bg-muted text-muted-foreground"
+          >
+            <Camera className="size-3" />
+          </span>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-auto p-0">
           <Suspense fallback={<div className="h-80 w-72" aria-hidden />}>
             <EmojiPicker onSelect={pickEmoji} />
           </Suspense>
+          <div className="flex items-center justify-between gap-2 border-t border-border p-2">
+            <Button type="button" variant="ghost" size="sm" onClick={pickImage}>
+              <ImageUp aria-hidden />
+              {t("workspace.icon_upload")}
+            </Button>
+            {hasIcon ? (
+              <Button type="button" variant="ghost" size="sm" onClick={removeIcon}>
+                <Trash2 aria-hidden />
+                {t("workspace.icon_remove")}
+              </Button>
+            ) : null}
+          </div>
         </PopoverContent>
       </Popover>
-      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => fileInput.current?.click()}>
-        <ImageUp aria-hidden />
-        {t("workspace.icon_upload")}
-      </Button>
       <input
         ref={fileInput}
         type="file"
@@ -81,21 +115,6 @@ export function WorkspaceIconField({ workspace }: { workspace: Workspace }) {
         aria-label={t("workspace.icon_upload")}
         onChange={(e) => uploadFile(e.target.files?.[0])}
       />
-      {hasIcon ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t("workspace.icon_remove")}
-          title={t("workspace.icon_remove")}
-          disabled={busy}
-          onClick={() =>
-            remove.mutate({ wsId: workspace.id }, { onError: (err) => toastApiError(err, t("workspace.icon_error")) })
-          }
-        >
-          <Trash2 aria-hidden />
-        </Button>
-      ) : null}
     </div>
   );
 }

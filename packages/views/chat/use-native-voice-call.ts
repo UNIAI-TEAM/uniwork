@@ -403,7 +403,7 @@ export function useNativeVoiceCall({
       const withCamera = options?.withCamera ?? false;
       const callId = createVoiceCallId();
       hangupSentRef.current = null;
-      await signalChatVoiceInvite(workspaceId, roomId, callId);
+      await signalChatVoiceInvite(workspaceId, roomId, callId, withCamera);
       if (isMultiPartyVoiceCall(callKind)) {
         return connectCall(roomId, callId, peerName, true, callKind, undefined, withCamera);
       }

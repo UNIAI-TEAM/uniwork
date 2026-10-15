@@ -82,6 +82,7 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			Outcome:         m.VoiceCall.Outcome,
 			DurationSeconds: m.VoiceCall.DurationSeconds,
 			CallerID:        m.VoiceCall.CallerID,
+			Video:           m.VoiceCall.Video,
 			Participants:    participants,
 			RecordingID:     m.VoiceCall.RecordingID,
 			RecordingStatus: m.VoiceCall.RecordingStatus,

@@ -797,7 +797,7 @@ func TestVoiceBlockedDM(t *testing.T) {
 	if err := s.BlockChatUser(ctx, ub.ID, w.ID, ua.ID); err != nil {
 		t.Fatalf("block: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1"); err == nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1", false); err == nil {
 		t.Fatal("voice invite should fail when blocked")
 	}
 	if _, err := s.MintVoiceTokenRoom(ctx, ua.ID, dm.ID, "call-1"); err == nil {
@@ -821,7 +821,7 @@ func TestVoiceInviteAfterLeave(t *testing.T) {
 	if err := s.LeaveChatRoom(ctx, ua.ID, w.ID, dm.ID); err != nil {
 		t.Fatalf("leave: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1"); err != ErrForbidden {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1", false); err != ErrForbidden {
 		t.Fatalf("invite after leave: %v", err)
 	}
 }
@@ -839,7 +839,7 @@ func TestVoiceAcceptAfterLeave(t *testing.T) {
 	if err := s.LeaveChatRoom(ctx, ub.ID, w.ID, dm.ID); err != nil {
 		t.Fatalf("leave: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-1"); err != nil {
@@ -848,7 +848,7 @@ func TestVoiceAcceptAfterLeave(t *testing.T) {
 	if _, err := s.MintVoiceTokenRoom(ctx, ub.ID, dm.ID, "call-1"); err != nil {
 		t.Fatalf("token after accept rejoin: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-2"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-2", false); err != nil {
 		t.Fatalf("invite to rejoined peer: %v", err)
 	}
 }
@@ -863,7 +863,7 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve dm: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-log-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-log-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-log-1"); err != nil {
@@ -892,6 +892,9 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 		}
 		if msg.VoiceCall.CallerID != ua.ID {
 			t.Fatalf("caller: %+v", msg.VoiceCall)
+		}
+		if msg.VoiceCall.Video {
+			t.Fatal("a voice invite was stored as a video call")
 		}
 		if len(msg.VoiceCall.Participants) != 2 {
 			t.Fatalf("participants: %+v", msg.VoiceCall.Participants)
@@ -939,7 +942,7 @@ func TestChannelVoiceCall(t *testing.T) {
 	}
 	pub.events = nil
 
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, ch.ID, "channel-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, ch.ID, "channel-call-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	last := pub.events[len(pub.events)-1]
@@ -997,7 +1000,7 @@ func TestChannelVoiceCallRequiresMember(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, ch.ID, "channel-no-join"); !codedIs(err, "chat_not_member") {
+	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, ch.ID, "channel-no-join", false); !codedIs(err, "chat_not_member") {
 		t.Fatalf("invite before join: want chat_not_member, got %v", err)
 	}
 }
@@ -1009,7 +1012,7 @@ func TestDefaultChannelVoiceBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("default channel: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, defaultRoom.RoomID, "default-call"); err == nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, defaultRoom.RoomID, "default-call", false); err == nil {
 		t.Fatal("expected voice invite blocked on default channel")
 	}
 }
@@ -1031,7 +1034,7 @@ func TestGroupVoiceCallLogParticipants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-log-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-log-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, group.ID, "group-log-1"); err != nil {
@@ -1094,7 +1097,7 @@ func TestGroupVoiceCall(t *testing.T) {
 	}
 	pub.events = nil
 
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-call-1", false); err != nil {
 		t.Fatalf("group invite: %v", err)
 	}
 	last := pub.events[len(pub.events)-1]
@@ -1160,7 +1163,7 @@ func TestGroupVoiceTokenInvitedMember(t *testing.T) {
 	if _, err := s.InviteGroupMembers(ctx, ua.ID, w.ID, group.ID, []string{ud.ID}); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "inv-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "inv-call-1", false); err != nil {
 		t.Fatalf("voice invite: %v", err)
 	}
 	if _, err := s.MintVoiceTokenRoom(ctx, ud.ID, group.ID, "inv-call-1"); err != nil {
@@ -1184,7 +1187,7 @@ func TestGroupVoiceHangupOnlyCaller(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-hangup-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-hangup-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	pub.events = nil
@@ -1215,7 +1218,7 @@ func TestVoiceCallStrangerCannotJoin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve dm: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-stranger"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-stranger", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, uc.ID, w.ID, dm.ID, "call-stranger"); err != ErrForbidden {
@@ -1242,7 +1245,7 @@ func TestVoiceTokenCrossWorkspaceDM(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve dm: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "xws-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "xws-call-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w2View.Workspace.ID, dm.ID, "xws-call-1"); err != nil {
@@ -1276,7 +1279,7 @@ func TestVoiceTokenCrossWorkspaceGroupAndArchivedChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "xws-group-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "xws-group-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if _, err := s.MintVoiceTokenRoom(ctx, ub.ID, group.ID, "xws-group-1"); err != nil {
@@ -1292,7 +1295,7 @@ func TestVoiceTokenCrossWorkspaceGroupAndArchivedChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, ch.ID, "xws-channel-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, ch.ID, "xws-channel-1", false); err != nil {
 		t.Fatalf("channel invite: %v", err)
 	}
 	if err := s.ArchiveChannel(ctx, ua.ID, w.ID, ch.ID); err != nil {
@@ -1521,7 +1524,7 @@ func TestSendRestrictedMemberCannotPinVoteOrCall(t *testing.T) {
 	requireValidationError(t, err, "muted pin")
 	_, err = s.VoteChatPollMessage(ctx, ub.ID, w.ID, groupID, poll.ID, poll.Poll.Options[0].ID)
 	requireValidationError(t, err, "muted vote")
-	requireValidationError(t, s.SignalVoiceInvite(ctx, ub.ID, w.ID, groupID, "muted-call"), "muted call")
+	requireValidationError(t, s.SignalVoiceInvite(ctx, ub.ID, w.ID, groupID, "muted-call", false), "muted call")
 
 	restrict(false)
 	if _, err := s.ToggleChatMessagePin(ctx, ub.ID, w.ID, groupID, poll.ID); err != nil {
@@ -1530,7 +1533,7 @@ func TestSendRestrictedMemberCannotPinVoteOrCall(t *testing.T) {
 	if _, err := s.VoteChatPollMessage(ctx, ub.ID, w.ID, groupID, poll.ID, poll.Poll.Options[0].ID); err != nil {
 		t.Fatalf("vote after unmute: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, groupID, "unmuted-call"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, groupID, "unmuted-call", false); err != nil {
 		t.Fatalf("call after unmute: %v", err)
 	}
 }

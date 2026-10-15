@@ -234,6 +234,40 @@ describe("fetchAndPatchChatMessage unread", () => {
     expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
   });
 
+  it("shows the new default-channel message in the sidebar while another room is open", async () => {
+    const message = {
+      ...sampleMessage("m-new", "2026-01-01T11:00:00Z"),
+      room_id: "ws-room",
+      body: "tin mới từ Chung",
+    };
+    const get = vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(message);
+    const qc = new QueryClient();
+    seed(qc, chatKeys.rooms("ws1"), [
+      {
+        id: "ws-room",
+        kind: "channel",
+        is_default: true,
+        name: "Chung",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        unread_count: 0,
+        mention_unread_count: 0,
+        last_message_body: "tin cũ của mình",
+        last_message_sender_id: "u1",
+        last_message_at: "2026-01-01T09:00:00Z",
+      },
+    ]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m-new", true, "u2");
+
+    const room = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0];
+    expect(get).toHaveBeenCalledWith("ws1", "ws-room", "m-new");
+    expect(room?.last_message_body).toBe("tin mới từ Chung");
+    expect(room?.last_message_sender_id).toBe("u2");
+    expect(room?.unread_count).toBe(1);
+    expect(qc.getQueryData(chatKeys.roomMessages("ws1", "ws-room"))).toBeUndefined();
+  });
+
   it("counts a new default-channel message without a GET when its timeline is not loaded", async () => {
     const get = vi.spyOn(chatApi, "getChatRoomMessage");
     const qc = new QueryClient();

@@ -39,6 +39,7 @@ type RowData = {
   mutedRoomIds: ReadonlySet<string>;
   labels: SidebarRowLabels;
   memberAvatarByUserId: MemberAvatarUrlMap;
+  typingNameByUserId: Record<string, string>;
 };
 
 /**
@@ -126,6 +127,7 @@ export function ChatSidebarList(props: RowData) {
         tabIndex={index === rowTabStop ? 0 : -1}
         onRowFocus={setFocusIndex}
         memberAvatarByUserId={props.memberAvatarByUserId}
+        typingNameByUserId={props.typingNameByUserId}
       />
     );
   };

@@ -76,7 +76,7 @@ func TestGroupVoiceCallNeedsASecondParticipant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "solo-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "solo-1", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ua.ID, w.ID, group.ID, "solo-1"); err != nil {
@@ -135,7 +135,7 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve dm: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "summary-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "summary-call-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "summary-call-1"); err != nil {
@@ -208,7 +208,7 @@ func TestVoiceCallSummarySkipsWhenAIDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve dm: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "summary-call-2"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "summary-call-2", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "summary-call-2"); err != nil {

@@ -204,6 +204,18 @@ WHERE (
   )
   AND t.number = sqlc.arg('number');
 
+-- name: GetTaskInWorkspaceByIdentifier :one
+-- A PREFIX-N reference read inside one workspace. Prefixes are three letters
+-- of the slug and numbers count per workspace, so across workspaces the same
+-- reference can name several tasks; here it names at most one.
+SELECT t.* FROM tasks t
+INNER JOIN workspaces w
+  ON w.id = t.workspace_id AND w.organization_id = t.organization_id
+WHERE t.organization_id = sqlc.arg('organization_id')
+  AND t.workspace_id = sqlc.arg('workspace_id')
+  AND upper(w.task_prefix) = upper(sqlc.arg('prefix'))
+  AND t.number = sqlc.arg('number');
+
 -- name: ListMyTasks :many
 -- Actor's tasks filtered by relation (all|assigned|created|involved).
 -- relation NULL/'all' → assignee OR created_by; 'involved' → empty until agent links exist.

@@ -53,6 +53,7 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
           recording_id: record.voice_call.recording_id,
           recording_status: record.voice_call.recording_status,
           recording_url: record.voice_call.recording_url,
+          ...(record.voice_call.video ? { video: true } : {}),
         }
       : undefined,
     voiceCallSummary: record.voice_call_summary

@@ -3,7 +3,9 @@
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ApiError, errorCode } from "@uniwork/core/api";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
+import { CHAT_FILE_MAX_LABEL, isChatFileTooLarge } from "./chat-file-accept";
 
 type EnsureRoomResult = { room_id?: string } | null | undefined;
 
@@ -82,6 +84,10 @@ export function useChatMediaSend({
         toast.error(t("chat.room_load_failed"));
         return;
       }
+      if (isChatFileTooLarge(file)) {
+        toast.error(t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }));
+        return;
+      }
       try {
         await sendFileMessage.mutateAsync({
           roomId,
@@ -91,8 +97,9 @@ export function useChatMediaSend({
           reply_to_message_id: replyToId,
         });
         clearReply();
-      } catch {
-        toast.error(t("chat.file_upload_failed"));
+      } catch (err) {
+        const tooLarge = errorCode(err) === "too_large" || (err instanceof ApiError && err.status === 413);
+        toast.error(tooLarge ? t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }) : t("chat.file_upload_failed"));
       }
     },
     [clearReply, replyToId, resolveRoomId, sendFileMessage, t],

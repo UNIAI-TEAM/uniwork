@@ -106,6 +106,21 @@ describe("buildChatNameContext", () => {
     expect(withProfileNick).toEqual([{ user_id: "u6", display_name: "Sáu", email: "six@example.com" }]);
   });
 
+  it("replaces a contact stored as an id with the member's name", () => {
+    const userId = "01M4WJJEDVW2TDT49SB7FYS7D1";
+    const context = buildChatNameContext(
+      [contact(userId, userId, "")],
+      null,
+      null,
+      {},
+      [{ user_id: userId, display_name: "Nam Nguyễn", email: "nam@example.com" }],
+    );
+
+    expect(context).toEqual([
+      { user_id: userId, display_name: "Nam Nguyễn", email: "nam@example.com" },
+    ]);
+  });
+
   it("includes active contact and falls back to user_id for blank workspace labels", () => {
     const active = contact("u9", "Active", "a@x.com");
     const context = buildChatNameContext(

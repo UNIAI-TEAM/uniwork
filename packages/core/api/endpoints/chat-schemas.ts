@@ -60,6 +60,7 @@ export const ChatMessageSchema = z.object({
       recording_id: z.string().optional(),
       recording_status: z.string().optional(),
       recording_url: z.string().optional(),
+      video: z.boolean().optional().catch(undefined),
     })
     .optional(),
   voice_call_summary: z

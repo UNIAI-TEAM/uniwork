@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -26,6 +28,8 @@ type McpToolService struct {
 	ask      *AskUNIService
 	home     *HomeService
 	ws       *WorkspaceService
+	docs     *DocumentService // nil until SetDocuments; the document tools then say so
+	flags    McpFlags         // nil until SetFlags; the documents flag then reads as off
 	frontend string
 }
 
@@ -220,15 +224,44 @@ func (s *McpToolService) Search(ctx context.Context, p McpPrincipal, workspaceID
 	for _, src := range topSources(items, mcpMaxResults) {
 		out = append(out, s.item(workspaceID, src, mcpMaxHitRunes, mcpHitCut))
 	}
+	docs, err := s.searchDocuments(ctx, p, workspaceID, query)
+	if err != nil {
+		// The tasks and meetings are already found: a document source that fails
+		// costs the model the documents, not the rest.
+		slog.WarnContext(ctx, "mcp search: documents not searched", "error", err, "workspace_id", workspaceID)
+		return out, nil
+	}
+	return append(out, docs...), nil
+}
+
+func (s *McpToolService) GetTask(ctx context.Context, p McpPrincipal, workspaceID, taskRef string) (McpTask, error) {
+	if err := s.inGrant(ctx, p, workspaceID); err != nil {
+		return McpTask{}, err
+	}
+	t, err := s.task(ctx, p, workspaceID, taskRef)
+	if err != nil {
+		return McpTask{}, err
+	}
+	item, err := s.one(ctx, p, workspaceID, t.ID, "task_id", s.ask.taskContext)
+	if err != nil {
+		return McpTask{}, err
+	}
+	base, err := s.ask.base(ctx, workspaceID)
+	if err != nil {
+		return McpTask{}, err
+	}
+	out := s.taskOf(base, t)
+	// The item carries the full excerpt, with comments; the status and due
+	// date come from the row, which the excerpt reader does not set.
+	status, due := out.Status, out.DueDate
+	out.McpItem = item
+	out.Status, out.DueDate = status, due
+	if out.Labels, err = s.labelsOf(ctx, p, t.ID); err != nil {
+		return McpTask{}, hidden(err)
+	}
+	desc := capRunes(t.Description, mcpMaxItemRunes, "")
+	out.Description, out.DescriptionTruncated = &desc, desc != t.Description
 	return out, nil
-}
-
-func (s *McpToolService) GetTask(ctx context.Context, p McpPrincipal, workspaceID, taskID string) (McpItem, error) {
-	return s.one(ctx, p, workspaceID, taskID, "task_id", s.ask.taskContext)
-}
-
-func (s *McpToolService) GetMeeting(ctx context.Context, p McpPrincipal, workspaceID, meetingID string) (McpItem, error) {
-	return s.one(ctx, p, workspaceID, meetingID, "meeting_id", s.ask.meetingContext)
 }
 
 // one reads a single object of the workspace. The comments of a task and the
@@ -322,24 +355,28 @@ func McpTools(s *McpToolService) ai.Registry {
 				return json.Marshal(out)
 			}}
 	}
-	return ai.Registry{
+	r := ai.Registry{
 		tool("list_workspaces", "List workspaces", "Workspaces the user belongs to in the connected UniWork organization.", mcpSchemaNone, nil,
 			func(ctx context.Context, p McpPrincipal, _ mcpArgs) (any, error) { return s.ListWorkspaces(ctx, p) }),
 		tool("my_work", "My work", "Open tasks assigned to the user, most urgent first (overdue, due today, later, then undated), and the user's meetings in progress or starting today or tomorrow, with links.", mcpSchemaMyWork, []string{"workspace_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.MyWork(ctx, p, a.WorkspaceID)
 			}),
-		tool("search", "Search UniWork", "Tasks and meetings in one workspace matching a keyword query. Chat is not searched.", mcpSchemaSearch, []string{"workspace_id", "query"},
+		tool("search", "Search UniWork", "Tasks and meetings in one workspace matching a keyword query, then up to "+strconv.Itoa(mcpSearchDocuments)+" documents the user may read, found by page text and file names (a page's title counts as its text; the whole query as one phrase), most recently updated first; a page's excerpt is the start of its text, a file has none, and call get_document for the rest. If the documents cannot be searched at that moment, the answer holds the tasks and meetings without them. Chat is not searched.", mcpSchemaSearch, []string{"workspace_id", "query"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.Search(ctx, p, a.WorkspaceID, a.Query)
 			}),
-		tool("get_task", "Get task", "One task with its comments.", mcpSchemaTask, []string{"workspace_id", "task_id"},
+		tool("get_task", "Get task", "One task with its comments, labels and revision, and its description exactly as stored (Markdown) to edit from; description_truncated says it was longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters and was cut. task_id is the id or the PREFIX-N reference.", mcpSchemaTask, []string{"workspace_id", "task_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetTask(ctx, p, a.WorkspaceID, a.TaskID)
 			}),
-		tool("get_meeting", "Get meeting", "One meeting with its AI summary when there is one. Transcripts are not included.", mcpSchemaMeeting, []string{"workspace_id", "meeting_id"},
+		tool("get_meeting", "Get meeting", "One meeting with its host, timezone, revision, description exactly as stored, attendees (name, role and status ACTIVE or REMOVED; no emails) and, in excerpt when there is one, the AI summary with its decisions and action items. Its status reads MISSED for a scheduled meeting whose time passed without it starting. Transcripts are not included. description_truncated says the description was longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters and was cut; attendees_truncated says the meeting has more than "+strconv.Itoa(mcpMaxList)+" attendees and the first "+strconv.Itoa(mcpMaxList)+", in the order they were added, are listed.", mcpSchemaMeeting, []string{"workspace_id", "meeting_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetMeeting(ctx, p, a.WorkspaceID, a.MeetingID)
 			}),
 	}
+	r = append(r, mcpTaskTools(s)...)
+	r = append(r, mcpProjectTools(s)...)
+	r = append(r, mcpMeetingTools(s)...)
+	return append(r, mcpDocumentTools(s)...)
 }

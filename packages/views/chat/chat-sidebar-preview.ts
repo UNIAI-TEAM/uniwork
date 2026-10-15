@@ -1,4 +1,7 @@
-import { resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
+import {
+  isPlaceholderChatDisplayName,
+  resolveChatNicknameForUser,
+} from "@uniwork/core/chat/contacts-store";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
 
@@ -42,10 +45,12 @@ export function formatChatSidebarPreviewText(
       preview.senderId.trim().toUpperCase() === options.currentUserId.trim().toUpperCase();
     const selfNickname = resolveChatNicknameForUser(options.nicknamesByUserId, options.currentUserId);
     const peerNickname = resolveChatNicknameForUser(options.nicknamesByUserId, preview.senderId);
+    const peerName = preview.senderName.trim();
     const sender = isSelf
       ? selfNickname || options.youLabel
-      : peerNickname || preview.senderName.trim() || preview.senderId;
-    return `${sender}: ${body}`;
+      : peerNickname ||
+        (peerName && !isPlaceholderChatDisplayName(peerName, preview.senderId) ? peerName : "");
+    return sender ? `${sender}: ${body}` : body;
   }
   return body;
 }
@@ -101,14 +106,10 @@ export function formatChatSidebarTime(
   return sidebarTimeFormatter(options.locale, "date").format(date);
 }
 
-function sameUserId(left: string, right: string): boolean {
-  return left.trim().toUpperCase() === right.trim().toUpperCase();
-}
-
 /** A display name that is the person's id is not a name. */
 function humanLabel(label: string, userId: string): string {
   const name = label.trim();
-  if (!name || sameUserId(name, userId)) return "";
+  if (!name || isPlaceholderChatDisplayName(name, userId)) return "";
   return name;
 }
 

@@ -32,7 +32,7 @@ func TestSignalVoiceAndTyping(t *testing.T) {
 		t.Fatalf("typing publish: %+v", pub.events)
 	}
 
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1", false); err != nil {
 		t.Fatalf("voice invite: %v", err)
 	}
 	if pub.events[len(pub.events)-1].Type != "chat.voice.invite" {
@@ -68,7 +68,7 @@ func TestVoiceSignalReachesTheActorsOtherTabs(t *testing.T) {
 	}
 	deliverChatEvents(t, pool, q, s, pub)
 
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-tabs"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-tabs", false); err != nil {
 		t.Fatalf("voice invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-tabs"); err != nil {
@@ -138,7 +138,7 @@ func TestListPendingVoiceInviteWhileOffline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 
@@ -165,7 +165,7 @@ func TestListPendingVoiceInviteWhileOffline(t *testing.T) {
 		t.Fatalf("hangup: %v", err)
 	}
 
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-2"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-2", false); err != nil {
 		t.Fatalf("invite 2: %v", err)
 	}
 	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "offline-call-2"); err != nil {
@@ -195,13 +195,13 @@ func TestSignalVoiceInviteRefusesATakenCallID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "call-x"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "call-x", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, uc.ID, w.ID, group.ID, "call-x"); err != nil {
 		t.Fatalf("accept: %v", err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, group.ID, "call-x"); !errors.Is(err, ErrConflict) {
+	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, group.ID, "call-x", false); !errors.Is(err, ErrConflict) {
 		t.Fatalf("re-invite with a live call_id: got %v, want ErrConflict", err)
 	}
 	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, group.ID, "call-x"); err != nil {
@@ -242,7 +242,7 @@ func TestConcurrentVoiceHangupsWriteOneCallLog(t *testing.T) {
 	const calls = 50
 	for i := range calls {
 		callID := fmt.Sprintf("race-%d", i)
-		if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, callID); err != nil {
+		if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, callID, false); err != nil {
 			t.Fatalf("invite %s: %v", callID, err)
 		}
 		if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, callID); err != nil {

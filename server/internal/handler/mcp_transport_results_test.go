@@ -92,6 +92,8 @@ func mcpDirectCall(t *testing.T, h http.Handler, body string) map[string]any {
 type mcpToolCounts struct {
 	mu    sync.Mutex
 	calls []string
+	// kinds is calls with the kind label in the middle: tool/kind/outcome.
+	kinds []string
 }
 
 func (m *mcpToolCounts) count() int {
@@ -107,10 +109,11 @@ func (m *mcpToolCounts) joined() string {
 }
 
 func (m *mcpToolCounts) IncOAuth(string) {}
-func (m *mcpToolCounts) ObserveTool(tool, outcome string, _ time.Duration) {
+func (m *mcpToolCounts) ObserveTool(tool, kind, outcome string, _ time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.calls = append(m.calls, tool+"/"+outcome)
+	m.kinds = append(m.kinds, tool+"/"+kind+"/"+outcome)
 }
 
 // The principal the gate put on the context is the actor the tool runs as, and

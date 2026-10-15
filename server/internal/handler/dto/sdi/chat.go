@@ -113,6 +113,7 @@ type MintChatVoiceTokenSDI struct {
 // VoiceSignalSDI is POST voice invite/hangup on a chat room.
 type VoiceSignalSDI struct {
 	CallID string `json:"call_id" maxLength:"64" description:"Client-generated voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Video  bool   `json:"video,omitempty" description:"True when the caller started with the camera on" example:"true"`
 }
 
 // ChatPresenceSDI is POST .../chat/presence.

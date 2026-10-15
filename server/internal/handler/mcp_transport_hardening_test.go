@@ -299,7 +299,7 @@ func TestMcpRealClientFlowStillWorksOnTheFloor(t *testing.T) {
 		t.Errorf("notifications/initialized: %d %s", res.StatusCode, raw)
 	}
 	res, raw = mcpRawPOST(t, srv, header, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
-	if res.StatusCode != http.StatusOK || strings.Count(string(raw), `"readOnlyHint":true`) != 5 {
+	if res.StatusCode != http.StatusOK || strings.Count(string(raw), `"readOnlyHint":true`) != mcpReadToolCount(t, d) {
 		t.Errorf("tools/list: %d %s", res.StatusCode, raw)
 	}
 	res, raw = mcpRawPOST(t, srv, header, `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_task","arguments":{"workspace_id":"`+wsID+`","task_id":"01NOPE0000000000000000000"}}}`)

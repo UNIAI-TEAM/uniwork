@@ -290,6 +290,31 @@ function bumpUnreadLocally(qc: QueryClient, wsId: string, roomId: string): void 
   );
 }
 
+function isRoomsListShown(qc: QueryClient, wsId: string): boolean {
+  return (qc.getQueryCache().find({ queryKey: chatKeys.rooms(wsId), exact: true })?.getObserversCount() ?? 0) > 0;
+}
+
+/**
+ * The default channel has no `chat.room.activity`, so a message that arrives
+ * while another room is open never reaches the sidebar preview. One GET,
+ * only while that list is on screen, fills the preview and leaves the
+ * timeline for the next open.
+ */
+async function refreshUnshownDefaultChannelPreview(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  messageId: string,
+): Promise<void> {
+  if (!isRoomsListShown(qc, wsId)) return;
+  const rooms = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId));
+  const room = rooms?.find((entry) => entry.id === roomId);
+  if (!room || !isDefaultWorkspaceChannel(room)) return;
+  const message = await getChatRoomMessage(wsId, roomId, messageId);
+  if (!message || isChatThreadReply(message)) return;
+  qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) => patchRoomSidebarFromMessage(old, roomId, message));
+}
+
 /**
  * Apply one `chat.message.*` frame. `created` is true only for
  * `chat.message.created`: edits and reactions are not unread. `senderId` is
@@ -308,10 +333,12 @@ export async function fetchAndPatchChatMessage(
   const viewing = isViewingRoom(wsId, roomId);
   if (!isRoomTimelineShown(qc, wsId, roomId)) {
     // Nobody here shows this room: the next open loads it. The preview of a
-    // non-default room follows `chat.room.activity`; the default channel has
-    // none, so its badge counts here (preview catches up on the next refetch).
-    // The frame names the sender: one's own message (another tab or device) is not unread.
+    // non-default room follows `chat.room.activity`. The default channel has
+    // none, so its badge counts here and, while the room list is open, one
+    // GET fills the preview. The frame names the sender: one's own message
+    // (another tab or device) is not unread.
     if (created && !viewing && senderId !== currentUserId()) bumpUnreadLocally(qc, wsId, roomId);
+    if (created) await refreshUnshownDefaultChannelPreview(qc, wsId, roomId, messageId);
     return;
   }
   const knownBefore = roomTimelineHas(

@@ -247,9 +247,21 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 }
 
 func (s *MeetingService) Cancel(ctx context.Context, userID, meetingID, reason string) error {
+	return s.cancel(ctx, userID, meetingID, reason, nil)
+}
+
+// CancelAt is Cancel for a caller that read the meeting at version (MCP).
+func (s *MeetingService) CancelAt(ctx context.Context, userID, meetingID, reason string, version int32) error {
+	return s.cancel(ctx, userID, meetingID, reason, &version)
+}
+
+func (s *MeetingService) cancel(ctx context.Context, userID, meetingID, reason string, expected *int32) error {
 	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
 	if err != nil {
 		return err
+	}
+	if expected != nil && *expected != m.Version {
+		return errMeetingVersionConflict(m.Version)
 	}
 	if m.Status != MeetingScheduled {
 		return errInvalidState()
@@ -288,6 +300,52 @@ func (s *MeetingService) Cancel(ctx context.Context, userID, meetingID, reason s
 		return err
 	}
 	return nil
+}
+
+// Restore brings a cancelled meeting back to SCHEDULED while its window is
+// still ahead: the undo of Cancel (ADR 0033). Host or workspace admin only.
+// A cancellation sends no notification, so neither does a restore; the
+// realtime meeting.updated refreshes every open list.
+func (s *MeetingService) Restore(ctx context.Context, userID, meetingID string, expectedVersion *int32) (db.Meeting, error) {
+	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
+	if err != nil {
+		return db.Meeting{}, err
+	}
+	if expectedVersion != nil && *expectedVersion != m.Version {
+		return db.Meeting{}, errMeetingVersionConflict(m.Version)
+	}
+	if m.Status != MeetingCanceled || !m.EndsAt.Time.After(time.Now()) {
+		return db.Meeting{}, errInvalidState()
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.Meeting{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	restored, err := q.RestoreMeeting(ctx, db.RestoreMeetingParams{ID: m.ID, Version: m.Version, UpdatedBy: strText(userID)})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Meeting{}, errInvalidState()
+	}
+	if err != nil {
+		return db.Meeting{}, err
+	}
+	if err := s.writeAudit(ctx, q, m, "MEETING_RESTORED", userID, MeetingCanceled, MeetingScheduled, "{}"); err != nil {
+		return db.Meeting{}, err
+	}
+	payload := meetingEventPayload(restored)
+	payload["workspace_id"] = restored.WorkspaceID
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: restored.OrganizationID, WorkspaceID: restored.WorkspaceID, Actor: audit.User(userID),
+		Action: audit.ActionMeetingRestored, ResourceType: "meeting", ResourceID: restored.ID,
+		Changes: audit.Diff(map[string]any{"status": MeetingCanceled}, map[string]any{"status": MeetingScheduled}),
+	}, audit.Event{Topic: "meeting.updated", Payload: payload, OrganizationID: restored.OrganizationID, WorkspaceID: restored.WorkspaceID}); err != nil {
+		return db.Meeting{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.Meeting{}, err
+	}
+	return restored, nil
 }
 
 func (s *MeetingService) TransferHost(ctx context.Context, userID, meetingID, newHostUserID string) (db.Meeting, error) {
