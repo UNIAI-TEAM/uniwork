@@ -4,8 +4,6 @@ $ for f in .harness-run/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 6
 06:11:50.889 INF migrate done component=server dir=up
 === .harness-run/logs/server-build.log
 === .harness-run/logs/server.log
-06:12:00.693 INF http request method=GET path=/api/v1/documents/01M4Z30RGVQFG76B0753P5HW6Z status=200 duration=990µs request_id=cursor/zFwRlxxXJG-000221 correlation_id=e8922b0ee152967bf1955c889fb94a77 trace_id=e8922b0ee152967bf1955c889fb94a77 span_id=2a251869dbf27ea9 organization_id=01M4Z30Q5CSXNSH2RJAQ2TRZED workspace_id=01M4Z30Q5KM6HSR6JHJHASKM2Z actor_id=01M4Z30Q2ZCQH88XX279QBAC3M actor_kind=human
-06:12:00.698 INF http request method=POST path=/api/v1/documents/01M4Z30RGVQFG76B0753P5HW6Z/versions/commit status=200 duration=4.11ms request_id=cursor/zFwRlxxXJG-000222 correlation_id=ad5fbab2b21df3bede1dc38f89c14647 trace_id=ad5fbab2b21df3bede1dc38f89c14647 span_id=511c1c0418c024cc organization_id=01M4Z30Q5CSXNSH2RJAQ2TRZED workspace_id=01M4Z30Q5KM6HSR6JHJHASKM2Z actor_id=01M4Z30Q2ZCQH88XX279QBAC3M actor_kind=human
 06:12:00.700 INF http request method=GET path=/api/v1/documents/01M4Z30RGVQFG76B0753P5HW6Z/versions status=200 duration=564µs request_id=cursor/zFwRlxxXJG-000223 correlation_id=77be2d5d03a05f82b5f139baea01e4b9 trace_id=77be2d5d03a05f82b5f139baea01e4b9 span_id=20214eae357462ae organization_id=01M4Z30Q5CSXNSH2RJAQ2TRZED workspace_id=01M4Z30Q5KM6HSR6JHJHASKM2Z actor_id=01M4Z30Q2ZCQH88XX279QBAC3M actor_kind=human
 06:12:00.809 INF http request method=POST path=/api/v1/workspaces/01M4Z30Q5KM6HSR6JHJHASKM2Z/invitations status=200 duration=1.299ms request_id=cursor/zFwRlxxXJG-000224 correlation_id=6486b74b086848a52ae861265000c34c trace_id=6486b74b086848a52ae861265000c34c span_id=013dfc564be14fce organization_id=01M4Z30Q5CSXNSH2RJAQ2TRZED workspace_id=01M4Z30Q5KM6HSR6JHJHASKM2Z actor_id=01M4Z30Q2ZCQH88XX279QBAC3M actor_kind=human
 06:12:00.811 INF http request method=GET path=/api/v1/me/invitations status=200 duration=1.072ms request_id=cursor/zFwRlxxXJG-000225 correlation_id=1569c1b8a0ab6eb8d5b80bfae01223de trace_id=1569c1b8a0ab6eb8d5b80bfae01223de span_id=8e436534fa71a032 actor_id=01M4Z30Q7GQGKWJ16BXAWY758V actor_kind=human
@@ -64,6 +62,8 @@ $ for f in .harness-run/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 6
 06:12:01.186 INF http request method=POST path=/api/v1/documents/01M4Z30S09V0QE5CN3SK1J10NY/move status=200 duration=2.792ms request_id=cursor/zFwRlxxXJG-000274 correlation_id=60e9f611cd6fdd7a6d30cc6ee11f4852 trace_id=60e9f611cd6fdd7a6d30cc6ee11f4852 span_id=d987cb2f1bdf7df7 organization_id=01M4Z30Q5CSXNSH2RJAQ2TRZED workspace_id=01M4Z30Q5KM6HSR6JHJHASKM2Z actor_id=01M4Z30Q2ZCQH88XX279QBAC3M actor_kind=human
 06:12:01.191 INF http request method=POST path=/api/v1/documents/01M4Z30S09V0QE5CN3SK1J10NY/versions/commit status=200 duration=3.779ms request_id=cursor/zFwRlxxXJG-000275 correlation_id=2b860be2abcf5f3c84f8ce336e23cc0e trace_id=2b860be2abcf5f3c84f8ce336e23cc0e span_id=f2f0ddea7f1b7362 organization_id=01M4Z30Q5CSXNSH2RJAQ2TRZED workspace_id=01M4Z30Q5KM6HSR6JHJHASKM2Z actor_id=01M4Z30Q2ZCQH88XX279QBAC3M actor_kind=human
 06:12:01.193 INF http request method=GET path=/api/v1/documents/01M4Z30S09V0QE5CN3SK1J10NY/versions status=200 duration=464µs request_id=cursor/zFwRlxxXJG-000276 correlation_id=578bda328b1d356dadc36f62482fdcec trace_id=578bda328b1d356dadc36f62482fdcec span_id=a616ee0886eb0178 organization_id=01M4Z30Q5CSXNSH2RJAQ2TRZED workspace_id=01M4Z30Q5KM6HSR6JHJHASKM2Z actor_id=01M4Z30Q2ZCQH88XX279QBAC3M actor_kind=human
+06:12:04.611 INF shutting down component=server signal=terminated
+06:12:04.611 INF stopped component=server
 === .harness-run/logs/web.log
 
 > @uniwork/web@0.0.0 dev /workspace/apps/web
@@ -93,3 +93,6 @@ or run kill 47534 to stop it and start a new one.
 /workspace/apps/web:
  ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 dev: `node scripts/office-frame-sync.mjs --ensure && sh -c 'next dev --port "${FRONTEND_PORT:-3000}"'`
 Exit status 1
+=== .harness-run/fault/.app/FQ-51-3/app.log
+Debugger ending on ws://127.0.0.1:44341/8e69efeb-7b70-433a-a20c-3fa8748e5b67
+For help, see: https://nodejs.org/learn/getting-started/debugging
