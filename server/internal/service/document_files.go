@@ -37,6 +37,11 @@ type documentStore struct {
 	// after ClaimInTx, so a test can fail the transaction after the bytes
 	// are stored and the file is claimed. nil in production.
 	afterClaim func() error
+	// beforeSaveLock is a test seam: it runs after the preflight (and, for a
+	// commit, the intent claim) and right before the save transaction opens
+	// its row lock, so a test can change the row in that window. nil in
+	// production.
+	beforeSaveLock func()
 }
 
 var errDocumentStoreMissing = errors.New("documents: FileService is not wired")
