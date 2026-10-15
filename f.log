@@ -1,0 +1,41 @@
+$ node scripts/office/g5g6g7/fault/server-cases.mjs; echo "SERVER_CASES_PASS2_EXIT $?"; for f in .harness-run/fault/*/result.json; do echo "=== $f"; node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+FQ-01 (G5-A06): FAIL
+FQ-02 (G5-A06): FAIL
+FQ-03 (G6-A04,G5-A06): FAIL
+FQ-04 (G6-A04,G5-A06): FAIL
+FQ-05 (G5-A06): FAIL
+FQ-06 (G5-A06): FAIL
+FQ-07 (G5-A06,G5-A08): FAIL
+FQ-08 (G5-A08,G6-A04): FAIL
+FQ-09 (G5-A06): FAIL
+FQ-10 (G5-A06): PASS
+FQ-11 (G6-A04): FAIL
+FQ-12 (G7-A02): FAIL
+FQ-13 (G5-A08): FAIL
+SERVER_CASES_PASS2_EXIT 1
+=== .harness-run/fault/FQ-01/result.json
+FQ-01 FAIL lookup_200_committed: expected "200:committed" actual "410:undefined" | replay_200_same_version: expected "ver" actual null | version_delta: expected 1 actual 0 | proxy_log_same_key_tag: expected "1 tag across 2 POST + 1 GET" actual "1 tag(s) across 2 POST"
+=== .harness-run/fault/FQ-02/result.json
+FQ-02 FAIL retry_commit_200: expected 200 actual 400 | version_delta: expected 1 actual 0 | proxy_log: expected "dropped then 200 with 1 keyTag" actual "dropped,400 (1 tag)"
+=== .harness-run/fault/FQ-03/result.json
+FQ-03 FAIL concurrent_statuses: expected "2x200(same version) or 200+409(idempotency_in_flight)" actual "400+400" | lookup_200_committed: expected "200:committed" actual "410:undefined" | version_delta: expected 1 actual 0
+=== .harness-run/fault/FQ-04/result.json
+FQ-04 FAIL commit_2_200: expected 200 actual 400 | lookup_200_committed: expected "200:committed" actual "410:undefined" | version_delta: expected 1 actual 0 | proxy_log: expected "synthetic then 200 same keyTag" actual "synthetic,400 (1 tag)"
+=== .harness-run/fault/FQ-05/result.json
+FQ-05 FAIL commit_200: expected 200 actual 400 | version_delta: expected 1 actual 0
+=== .harness-run/fault/FQ-06/result.json
+FQ-06 FAIL lookup_200_committed: expected "200:committed" actual "410:undefined" | version_delta: expected 1 actual 0
+=== .harness-run/fault/FQ-07/result.json
+FQ-07 FAIL device_b_commit_200: expected 200 actual 400 | device_a_commit_409_conflict: expected "409:document_version_conflict:" actual "400:invalid_request:" | lookup_200_not_committed: expected "200:not_committed" actual "410:undefined" | version_delta: expected 1 actual 0
+=== .harness-run/fault/FQ-08/result.json
+FQ-08 FAIL device_b_commit_200: expected 200 actual 400 | device_a_first_commit_409: expected "409:document_version_conflict" actual "400:invalid_request" | device_a_overwrite_200: expected 200 actual 400 | checksum_matches_a_upload: expected "cfd16b88ba82cd4b54e4f7b4cfd96036848f6b0d518a973969cd43c8ea2aa8e3" actual null | version_delta: expected 2 actual 0
+=== .harness-run/fault/FQ-09/result.json
+FQ-09 FAIL commit_409_conflict: expected "409:document_version_conflict" actual "400:invalid_request" | lookup_200_not_committed: expected "200:not_committed" actual "410:undefined" | version_delta: expected 1 actual 0
+=== .harness-run/fault/FQ-10/result.json
+FQ-10 PASS 
+=== .harness-run/fault/FQ-11/result.json
+FQ-11 FAIL ai_turn_1_200: expected 200 actual 503 | ai_turn_2_200: expected 200 actual 503 | save_after_ai_200: expected "201+200" actual "201+400" | version_delta: expected 1 actual 0
+=== .harness-run/fault/FQ-12/result.json
+FQ-12 FAIL ai_turn_1_200: expected 200 actual 503 | commit_refused_403_404: expected "403|404" actual 400
+=== .harness-run/fault/FQ-13/result.json
+FQ-13 FAIL commit_while_archived_410: expected "410:document_deleted" actual "400:invalid_request" | commit_after_restore_move_200: expected 200 actual 400 | version_delta: expected 1 actual 0

@@ -1,0 +1,552 @@
+$ node scripts/office/g5g6g7/fault/server-cases.mjs; echo "SERVER_CASES_PASS1_EXIT $?"; for f in .harness-run/fault/*/result.json; do echo "=== $f"; cat "$f"; echo; done; rm -rf .fault-pass1; cp -r .harness-run/fault .fault-pass1; true
+FQ-01 (G5-A06): FAIL
+FQ-02 (G5-A06): FAIL
+FQ-03 (G6-A04,G5-A06): FAIL
+FQ-04 (G6-A04,G5-A06): FAIL
+FQ-05 (G5-A06): FAIL
+FQ-06 (G5-A06): FAIL
+FQ-07 (G5-A06,G5-A08): FAIL
+FQ-08 (G5-A08,G6-A04): FAIL
+FQ-09 (G5-A06): FAIL
+FQ-10 (G5-A06): PASS
+FQ-11 (G6-A04): FAIL
+FQ-12 (G7-A02): FAIL
+FQ-13 (G5-A08): FAIL
+SERVER_CASES_PASS1_EXIT 1
+=== .harness-run/fault/FQ-01/result.json
+{
+  "case": "FQ-01",
+  "ac": [
+    "G5-A06"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "upload_201",
+      "expected": 201,
+      "actual": 201,
+      "ok": true
+    },
+    {
+      "name": "commit_1_dropped",
+      "expected": "dropped",
+      "actual": "dropped",
+      "ok": true
+    },
+    {
+      "name": "lookup_200_committed",
+      "expected": "200:committed",
+      "actual": "410:undefined",
+      "ok": false
+    },
+    {
+      "name": "replay_200_same_version",
+      "expected": "ver",
+      "actual": null,
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 1,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log_same_key_tag",
+      "expected": "1 tag across 2 POST + 1 GET",
+      "actual": "1 tag(s) across 2 POST",
+      "ok": false
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-02/result.json
+{
+  "case": "FQ-02",
+  "ac": [
+    "G5-A06"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "commit_1_dropped",
+      "expected": "dropped",
+      "actual": "dropped",
+      "ok": true
+    },
+    {
+      "name": "lookup_410_commit_intent_unknown",
+      "expected": "410:commit_intent_unknown:unknown",
+      "actual": "410:commit_intent_unknown:unknown",
+      "ok": true
+    },
+    {
+      "name": "retry_commit_200",
+      "expected": 200,
+      "actual": 400,
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 1,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log",
+      "expected": "dropped then 200 with 1 keyTag",
+      "actual": "dropped,400 (1 tag)",
+      "ok": false
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-03/result.json
+{
+  "case": "FQ-03",
+  "ac": [
+    "G6-A04",
+    "G5-A06"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "concurrent_statuses",
+      "expected": "2x200(same version) or 200+409(idempotency_in_flight)",
+      "actual": "400+400",
+      "ok": false
+    },
+    {
+      "name": "lookup_200_committed",
+      "expected": "200:committed",
+      "actual": "410:undefined",
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 1,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log",
+      "expected": "2 POST commit same keyTag",
+      "actual": "2 POST (1 tag)",
+      "ok": true
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-04/result.json
+{
+  "case": "FQ-04",
+  "ac": [
+    "G6-A04",
+    "G5-A06"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "commit_1_503",
+      "expected": 503,
+      "actual": 503,
+      "ok": true
+    },
+    {
+      "name": "commit_2_200",
+      "expected": 200,
+      "actual": 400,
+      "ok": false
+    },
+    {
+      "name": "lookup_200_committed",
+      "expected": "200:committed",
+      "actual": "410:undefined",
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 1,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log",
+      "expected": "synthetic then 200 same keyTag",
+      "actual": "synthetic,400 (1 tag)",
+      "ok": false
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-05/result.json
+{
+  "case": "FQ-05",
+  "ac": [
+    "G5-A06"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "upload_1_dropped",
+      "expected": "dropped",
+      "actual": "dropped",
+      "ok": true
+    },
+    {
+      "name": "upload_2_201",
+      "expected": 201,
+      "actual": 201,
+      "ok": true
+    },
+    {
+      "name": "commit_200",
+      "expected": 200,
+      "actual": 400,
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 1,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log",
+      "expected": "2 uploads(1 tag) + 1 commit",
+      "actual": "2 uploads(1 tag) + 1 commit",
+      "ok": true
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-06/result.json
+{
+  "case": "FQ-06",
+  "ac": [
+    "G5-A06"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "client_aborted_while_held",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "name": "release_hold_commit",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "name": "lookup_200_committed",
+      "expected": "200:committed",
+      "actual": "410:undefined",
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 1,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log_single_post_same_key",
+      "expected": "1 POST + 1 GET (1 keyTag)",
+      "actual": "1 POST + 1 GET (1 tag)",
+      "ok": true
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-07/result.json
+{
+  "case": "FQ-07",
+  "ac": [
+    "G5-A06",
+    "G5-A08"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "device_b_commit_200",
+      "expected": 200,
+      "actual": 400,
+      "ok": false
+    },
+    {
+      "name": "device_a_commit_409_conflict",
+      "expected": "409:document_version_conflict:",
+      "actual": "400:invalid_request:",
+      "ok": false
+    },
+    {
+      "name": "lookup_200_not_committed",
+      "expected": "200:not_committed",
+      "actual": "410:undefined",
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 1,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log",
+      "expected": "1 POST + 1 GET same keyTag",
+      "actual": "1 POST + 1 GET (1 tag)",
+      "ok": true
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-08/result.json
+{
+  "case": "FQ-08",
+  "ac": [
+    "G5-A08",
+    "G6-A04"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "device_b_commit_200",
+      "expected": 200,
+      "actual": 400,
+      "ok": false
+    },
+    {
+      "name": "device_a_first_commit_409",
+      "expected": "409:document_version_conflict",
+      "actual": "400:invalid_request",
+      "ok": false
+    },
+    {
+      "name": "device_a_overwrite_200",
+      "expected": 200,
+      "actual": 400,
+      "ok": false
+    },
+    {
+      "name": "checksum_matches_a_upload",
+      "expected": "cfd16b88ba82cd4b54e4f7b4cfd96036848f6b0d518a973969cd43c8ea2aa8e3",
+      "actual": null,
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 2,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log_3_commits_2_a_keys",
+      "expected": "3 POST commit, 2 distinct A keyTags",
+      "actual": "3 POST, 2 A tags",
+      "ok": true
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-09/result.json
+{
+  "case": "FQ-09",
+  "ac": [
+    "G5-A06"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "commit_409_conflict",
+      "expected": "409:document_version_conflict",
+      "actual": "400:invalid_request",
+      "ok": false
+    },
+    {
+      "name": "lookup_200_not_committed",
+      "expected": "200:not_committed",
+      "actual": "410:undefined",
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 1,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log",
+      "expected": "1 POST + 1 GET same keyTag",
+      "actual": "1 POST + 1 GET (1 tag)",
+      "ok": true
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-10/result.json
+{
+  "case": "FQ-10",
+  "ac": [
+    "G5-A06"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {
+      "name": "foreign_member_lookup_410",
+      "expected": "410:commit_intent_unknown",
+      "actual": "410:commit_intent_unknown",
+      "ok": true
+    },
+    {
+      "name": "never_sent_lookup_410",
+      "expected": "410:commit_intent_unknown",
+      "actual": "410:commit_intent_unknown",
+      "ok": true
+    },
+    {
+      "name": "version_delta",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "proxy_log_2_gets_410",
+      "expected": "2 GET -> 410",
+      "actual": "2 GET (410,410)",
+      "ok": true
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-11/result.json
+{
+  "case": "FQ-11",
+  "ac": [
+    "G6-A04"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "ai_turn_1_200",
+      "expected": 200,
+      "actual": 503,
+      "ok": false
+    },
+    {
+      "name": "ai_turn_2_200",
+      "expected": 200,
+      "actual": 503,
+      "ok": false
+    },
+    {
+      "name": "zero_versions_during_ai",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "save_after_ai_200",
+      "expected": "201+200",
+      "actual": "201+400",
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 1,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log_ai_then_save",
+      "expected": "2 AI POST + 1 upload + 1 commit",
+      "actual": "2 AI",
+      "ok": true
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-12/result.json
+{
+  "case": "FQ-12",
+  "ac": [
+    "G7-A02"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "ai_turn_1_200",
+      "expected": 200,
+      "actual": 503,
+      "ok": false
+    },
+    {
+      "name": "revoke_member_204",
+      "expected": 204,
+      "actual": 204,
+      "ok": true
+    },
+    {
+      "name": "ai_turn_2_refused_403_404",
+      "expected": "403|404",
+      "actual": 404,
+      "ok": true
+    },
+    {
+      "name": "commit_refused_403_404",
+      "expected": "403|404",
+      "actual": 400,
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    }
+  ]
+}
+
+=== .harness-run/fault/FQ-13/result.json
+{
+  "case": "FQ-13",
+  "ac": [
+    "G5-A08"
+  ],
+  "result": "FAIL",
+  "assertions": [
+    {
+      "name": "commit_while_archived_410",
+      "expected": "410:document_deleted",
+      "actual": "400:invalid_request",
+      "ok": false
+    },
+    {
+      "name": "restore_move_bumped_revision",
+      "expected": ">1",
+      "actual": "3",
+      "ok": true
+    },
+    {
+      "name": "commit_after_restore_move_200",
+      "expected": 200,
+      "actual": 400,
+      "ok": false
+    },
+    {
+      "name": "version_delta",
+      "expected": 1,
+      "actual": 0,
+      "ok": false
+    },
+    {
+      "name": "proxy_log_2_commits_same_key",
+      "expected": "2 POST commit (1 keyTag)",
+      "actual": "2 POST (1 tag)",
+      "ok": true
+    }
+  ]
+}
+

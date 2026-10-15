@@ -1,0 +1,162 @@
+$ node --test scripts/office/g5g6g7/fault/cases.test.mjs scripts/office/g5g6g7/fault/proxy.test.mjs scripts/office/g5g6g7/fault/rules.test.mjs scripts/office/g5g6g7/fault/server-cases.test.mjs; echo "FAULT_UNIT_EXIT $?"; true
+TAP version 13
+# Subtest: case ids are unique and carry the card prefix
+ok 1 - case ids are unique and carry the card prefix
+  ---
+  duration_ms: 1.159657
+  ...
+# Subtest: the card AC lists in the file match the plan cards
+ok 2 - the card AC lists in the file match the plan cards
+  ---
+  duration_ms: 0.690754
+  ...
+# Subtest: every AC a card lists appears in at least one of its rows
+ok 3 - every AC a card lists appears in at least one of its rows
+  ---
+  duration_ms: 0.373369
+  ...
+# Subtest: a row lists only AC rows of its own card
+ok 4 - a row lists only AC rows of its own card
+  ---
+  duration_ms: 0.314169
+  ...
+# Subtest: every row has a layer, an expectation, artifacts and a status
+ok 5 - every row has a layer, an expectation, artifacts and a status
+  ---
+  duration_ms: 2.604424
+  ...
+# Subtest: pending rows name a dependency and ready rows have none
+ok 6 - pending rows name a dependency and ready rows have none
+  ---
+  duration_ms: 0.266378
+  ...
+# Subtest: every G7-03b row is pending and notes the G5-D1 gate
+ok 7 - every G7-03b row is pending and notes the G5-D1 gate
+  ---
+  duration_ms: 0.20764
+  ...
+# Subtest: a row runs on a fixture every one of its AC rows declares
+ok 8 - a row runs on a fixture every one of its AC rows declares
+  ---
+  duration_ms: 0.345779
+  ...
+# Subtest: proxy rules follow the proxy contract
+ok 9 - proxy rules follow the proxy contract
+  ---
+  duration_ms: 0.689805
+  ...
+# Subtest: proxy forwards methods, rewrites Host to target, passes multipart intact, and never forwards control paths
+ok 10 - proxy forwards methods, rewrites Host to target, passes multipart intact, and never forwards control paths
+  ---
+  duration_ms: 36.904759
+  ...
+# Subtest: proxy proves delay, drop_request, drop_response_after_forward, status, reset, nth, once, and hold + release
+ok 11 - proxy proves delay, drop_request, drop_response_after_forward, status, reset, nth, once, and hold + release
+  ---
+  duration_ms: 93.783222
+  ...
+# Subtest: proxy log records required fields only and never logs bodies, Authorization, cookies, tokens or key values
+ok 12 - proxy log records required fields only and never logs bodies, Authorization, cookies, tokens or key values
+  ---
+  duration_ms: 10.261555
+  ...
+# Subtest: proxy passes WebSocket upgrade connections through and CLI prints FAULT_PROXY_ORIGIN
+ok 13 - proxy passes WebSocket upgrade connections through and CLI prints FAULT_PROXY_ORIGIN
+  ---
+  duration_ms: 48.115209
+  ...
+# Subtest: collect.mjs reads paginated document versions via public API, writes server-versions.json, and enforces FAULT_API_TOKEN from env only
+ok 14 - collect.mjs reads paginated document versions via public API, writes server-versions.json, and enforces FAULT_API_TOKEN from env only
+  ---
+  duration_ms: 6.564273
+  ...
+# Subtest: stripQuery removes query strings and fragments and normalizes full URLs
+ok 15 - stripQuery removes query strings and fragments and normalizes full URLs
+  ---
+  duration_ms: 1.085432
+  ...
+# Subtest: validateRule and validateRules accept all six action types and reject malformed rules
+ok 16 - validateRule and validateRules accept all six action types and reject malformed rules
+  ---
+  duration_ms: 1.566886
+  ...
+# Subtest: first matching rule wins and once rules disarm after the first hit
+ok 17 - first matching rule wins and once rules disarm after the first hit
+  ---
+  duration_ms: 0.712679
+  ...
+# Subtest: nth (1-based) triggers only on the nth matching request
+ok 18 - nth (1-based) triggers only on the nth matching request
+  ---
+  duration_ms: 1.296914
+  ...
+# Subtest: hold action blocks until release(ruleId) is called
+ok 19 - hold action blocks until release(ruleId) is called
+  ---
+  duration_ms: 15.429471
+  ...
+# Subtest: selectServerCases selects all 13 ready server rows or a single --case row
+ok 20 - selectServerCases selects all 13 ready server rows or a single --case row
+  ---
+  duration_ms: 1.947229
+  ...
+# Subtest: parseServerCasesArgs parses --case, --run-dir, env defaults, and rejects unknown flags
+ok 21 - parseServerCasesArgs parses --case, --run-dir, env defaults, and rejects unknown flags
+  ---
+  duration_ms: 0.410379
+  ...
+# Subtest: renderCaseRules renders server rules, substitutes <id>, and substitutes per-exit for FQ-43
+ok 22 - renderCaseRules renders server rules, substitutes <id>, and substitutes per-exit for FQ-43
+  ---
+  duration_ms: 1.701406
+  ...
+# Subtest: evaluateCaseResult, aggregateExitCode, and buildIntentLogEntry follow contract rules
+ok 23 - evaluateCaseResult, aggregateExitCode, and buildIntentLogEntry follow contract rules
+  ---
+  duration_ms: 1.147456
+  ...
+# Subtest: runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a fake transport
+ok 24 - runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a fake transport
+  ---
+  duration_ms: 27.292301
+  ...
+# Subtest: runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent
+ok 25 - runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent
+  ---
+  duration_ms: 3.036904
+  ...
+# Subtest: SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201
+ok 26 - SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201
+  ---
+  duration_ms: 0.143178
+  ...
+# Subtest: readVerificationCode reads the run's server.env, then the process env, then the harness default
+ok 27 - readVerificationCode reads the run's server.env, then the process env, then the harness default
+  ---
+  duration_ms: 0.648589
+  ...
+# Subtest: registerAndVerifyUser accepts register 200 and sends the run's verification code
+ok 28 - registerAndVerifyUser accepts register 200 and sends the run's verification code
+  ---
+  duration_ms: 0.683438
+  ...
+# Subtest: registerAndVerifyUser names the step and both statuses when the server answers otherwise
+ok 29 - registerAndVerifyUser names the step and both statuses when the server answers otherwise
+  ---
+  duration_ms: 1.596711
+  ...
+# Subtest: seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently
+ok 30 - seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently
+  ---
+  duration_ms: 0.687665
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 257.387637
+FAULT_UNIT_EXIT 0
