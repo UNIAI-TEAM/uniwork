@@ -1618,6 +1618,143 @@ export function redactSignInError(raw) {
   return text.length > SIGN_IN_ERROR_MAX_CHARS ? `${text.slice(0, SIGN_IN_ERROR_MAX_CHARS)}...` : text;
 }
 
+export const DEFAULT_APP_STEP_TIMEOUT_MS = 90_000;
+export const DEFAULT_LOOP_TIMEOUT_MS = 600_000;
+const APP_LOG_TAIL_LINES = 40;
+
+export function resolveAppStepTimeoutMs(overrideMs, portsEnv = null) {
+  if (Number.isFinite(Number(overrideMs)) && Number(overrideMs) > 0) {
+    return Number(overrideMs);
+  }
+  const fromEnv = Number(process.env.HARNESS_APP_STEP_TIMEOUT_MS);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  const fromPorts = Number(portsEnv?.HARNESS_APP_STEP_TIMEOUT_MS);
+  if (Number.isFinite(fromPorts) && fromPorts > 0) return fromPorts;
+  return DEFAULT_APP_STEP_TIMEOUT_MS;
+}
+
+export function resolveLoopTimeoutMs(overrideMs, portsEnv = null) {
+  if (Number.isFinite(Number(overrideMs)) && Number(overrideMs) > 0) {
+    return Number(overrideMs);
+  }
+  const fromEnv = Number(process.env.HARNESS_LOOP_TIMEOUT_MS);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  const fromPorts = Number(portsEnv?.HARNESS_LOOP_TIMEOUT_MS);
+  if (Number.isFinite(fromPorts) && fromPorts > 0) return fromPorts;
+  return DEFAULT_LOOP_TIMEOUT_MS;
+}
+
+export function formatAppStepTimeoutReason(call, timeoutMs) {
+  const seconds = Number((Number(timeoutMs) / 1000).toFixed(3));
+  return `${call} did not settle within ${seconds} s`;
+}
+
+export function readRedactedAppLogTail(runDir, maxLines = APP_LOG_TAIL_LINES) {
+  if (!runDir) return [];
+  const appLogPath = join(runDir, "logs", "app.log");
+  if (!existsSync(appLogPath)) return [];
+  try {
+    const raw = readFileSync(appLogPath, "utf8");
+    const lines = raw.split(/\r?\n/);
+    if (lines.length > 0 && lines.at(-1) === "") lines.pop();
+    return lines.slice(-maxLines).map((line) => redactSignInError(line));
+  } catch {
+    return [];
+  }
+}
+
+function readBindingSnapshotAtTimeout({
+  userDataDir,
+  deploymentId = HARNESS_DEPLOYMENT_ID,
+  documentId,
+  expectedUserId,
+}) {
+  if (!userDataDir || !documentId) {
+    return { bindingState: null, binding: null };
+  }
+  try {
+    const wc = inspectWorkingCopy({
+      userDataDir,
+      deploymentId,
+      documentId,
+      expectedUserId,
+    });
+    if (!wc.bindingPresent || !wc.binding) {
+      return { bindingState: null, binding: null };
+    }
+    return {
+      bindingState: wc.bindingState ?? wc.binding?.state ?? null,
+      binding: {
+        state: wc.binding?.state ?? null,
+        baseVersion: wc.binding?.baseVersion ?? null,
+        baseRevision: wc.binding?.baseRevision ?? null,
+        baseVersionId: wc.binding?.baseVersionId ?? null,
+        baseChecksum: wc.binding?.baseChecksum ?? null,
+        error: wc.binding?.error ? redactSignInError(wc.binding.error) : null,
+      },
+    };
+  } catch {
+    return { bindingState: null, binding: null };
+  }
+}
+
+/**
+ * Runs an app-side CDP call (`connect`, `page.evaluate` of `window.aiOffice.*`,
+ * `aiOfficeTabs.close`, etc.) under a bounded race (`HARNESS_APP_STEP_TIMEOUT_MS`,
+ * default 90000 ms). On timeout, throws an Error with `isAppStepTimeout = true`
+ * and `appStepTimeout` diagnostics (`call`, `elapsedMs`, `bindingState`, `binding`,
+ * `appLogTail`).
+ */
+export async function runBoundedAppStep(
+  call,
+  fn,
+  {
+    timeoutMs,
+    portsEnv = null,
+    runDir = null,
+    userDataDir = null,
+    deploymentId = HARNESS_DEPLOYMENT_ID,
+    documentId = null,
+    expectedUserId = null,
+  } = {},
+) {
+  const boundMs = resolveAppStepTimeoutMs(timeoutMs, portsEnv);
+  const startedAt = Date.now();
+  let timer = null;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(fn),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const elapsedMs = Math.max(boundMs, Date.now() - startedAt);
+          const reason = formatAppStepTimeoutReason(call, boundMs);
+          const { bindingState, binding } = readBindingSnapshotAtTimeout({
+            userDataDir: userDataDir ?? portsEnv?.UNIWORK_USER_DATA ?? null,
+            deploymentId,
+            documentId,
+            expectedUserId,
+          });
+          const appLogTail = readRedactedAppLogTail(runDir, APP_LOG_TAIL_LINES);
+          const err = new Error(reason);
+          err.isAppStepTimeout = true;
+          err.appStepTimeout = {
+            call,
+            timeoutMs: boundMs,
+            elapsedMs,
+            reason,
+            bindingState,
+            binding,
+            appLogTail,
+          };
+          reject(err);
+        }, boundMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+}
+
 function loadPlaywrightChromium(repoRoot = DEFAULT_REPO_ROOT) {
   try {
     const req = createRequire(join(repoRoot, "e2e", "package.json"));
@@ -1862,13 +1999,26 @@ export async function connectAppController({
   fetchImpl = fetch,
   token,
   userId,
+  documentId = null,
   deploymentId = HARNESS_DEPLOYMENT_ID,
   timeoutMs = 20_000,
+  appStepTimeoutMs = null,
   cdpConnector = null,
   deepLinkDeliverer = deliverDeepLink,
 }) {
   const cdpPort = Number(portsEnv?.APP_CDP_PORT || 0);
   const chromium = cdpPort > 0 && !cdpConnector ? loadPlaywrightChromium(repoRoot) : null;
+  let activeDocumentId = documentId || null;
+  const runAppCdp = (call, fn, docId = activeDocumentId) =>
+    runBoundedAppStep(call, fn, {
+      timeoutMs: appStepTimeoutMs,
+      portsEnv,
+      runDir,
+      userDataDir: portsEnv?.UNIWORK_USER_DATA ?? null,
+      deploymentId,
+      documentId: docId,
+      expectedUserId: userId,
+    });
   // The app the harness started, from the run's own PID file: every decision
   // below carries it, and a recorded process that is gone makes the loop FAIL
   // rather than BLOCK (G1 — start.sh reported this app up).
@@ -1916,11 +2066,37 @@ export async function connectAppController({
   }
 
   let browser;
+  const closeBrowserBounded = async () => {
+    if (!browser) return;
+    await Promise.race([
+      Promise.resolve()
+        .then(() => browser.close())
+        .catch(() => {}),
+      sleep(1_000),
+    ]);
+  };
   try {
-    browser = cdpConnector
-      ? await cdpConnector(cdpPort)
-      : await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, { timeout: 10_000 });
+    browser = await runAppCdp("connect", () =>
+      cdpConnector
+        ? cdpConnector(cdpPort)
+        : chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, {
+            timeout: resolveAppStepTimeoutMs(appStepTimeoutMs, portsEnv),
+          }),
+    );
   } catch (err) {
+    if (err?.isAppStepTimeout) {
+      err.appSignIn = buildSanitizedAppSignInRecord({
+        ...appProcessFields,
+        appStarted: true,
+        cdpAttempted: true,
+        cdpConnected: false,
+        accountState: "cdp-timeout",
+        sessionBinExists: existsSync(sessionBinPath),
+        expectedUserId: userId ?? "",
+        blockerReason: err.message,
+      });
+      throw err;
+    }
     const pre = checkDesktopPrecondition(portsEnv);
     const reason = pre.ok
       ? `could not connect to the running Electron app over CDP port ${cdpPort}: ${err.message}`
@@ -1936,136 +2112,185 @@ export async function connectAppController({
     });
   }
 
-  const findShellPage = async () => {
-    for (const ctx of browser.contexts()) {
-      for (const p of ctx.pages()) {
-        const hasApi = await p.evaluate(() => typeof window.aiOffice === "object").catch(() => false);
-        if (hasApi) return p;
-      }
-    }
-    return null;
-  };
-
-  let page = await findShellPage();
-  for (let i = 0; i < 20 && !page; i += 1) {
-    await sleep(250);
-    page = await findShellPage();
-  }
-  if (!page) {
-    await browser.close().catch(() => {});
-    const reason = "connected to Electron CDP but found no shell renderer window exposing window.aiOffice";
-    return unavailable({
-      appStarted: true,
-      cdpAttempted: true,
-      cdpConnected: true,
-      shellWindowFound: false,
-      accountState: "no-shell-window",
-      sessionBinExists: existsSync(sessionBinPath),
-      expectedUserId: userId ?? "",
-      blockerReason: reason,
-    });
-  }
-
-  let status = await page.evaluate(() => window.aiOffice.accountStatus());
-  const refreshDeadline = Date.now() + 5_000;
-  while (status?.state === "refreshing" && Date.now() < refreshDeadline) {
-    await sleep(200);
-    status = await page.evaluate(() => window.aiOffice.accountStatus());
-  }
-
-  if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") {
-    await browser.close().catch(() => {});
-    // The keyring is the one desktop precondition the VM may genuinely lack: the
-    // app itself said so, so the record may say `keyringAvailable: false`.
-    return unavailable({
-      appStarted: true,
-      cdpAttempted: true,
-      cdpConnected: true,
-      shellWindowFound: true,
-      keyringAvailable: false,
-      accountState: status.state,
-      sessionBinExists: existsSync(sessionBinPath),
-      expectedUserId: userId ?? "",
-    });
-  }
-
-  const getProfileAccountId = (st) => st?.profile?.accountId ?? st?.profile?.id ?? "";
+  let page = null;
+  let status = null;
   let signInError = "";
+  const getProfileAccountId = (st) => st?.profile?.accountId ?? st?.profile?.id ?? "";
 
-  if (
-    status?.state !== "signed-in" ||
-    !existsSync(sessionBinPath) ||
-    (userId && getProfileAccountId(status) && getProfileAccountId(status) !== userId)
-  ) {
-    if (status?.state === "signed-in") {
-      await page.evaluate(() => window.aiOffice.accountLogout()).catch(() => {});
-    } else if (status?.state === "signing-in") {
-      await page.evaluate(() => window.aiOffice.accountCancelLogin?.()).catch(() => {});
+  try {
+    const findShellPage = async () => {
+      for (const ctx of browser.contexts()) {
+        for (const p of ctx.pages()) {
+          const hasApi = await runAppCdp("window.aiOffice", () =>
+            p.evaluate(() => typeof window.aiOffice === "object"),
+          ).catch((err) => {
+            if (err?.isAppStepTimeout) throw err;
+            return false;
+          });
+          if (hasApi) return p;
+        }
+      }
+      return null;
+    };
+
+    page = await findShellPage();
+    for (let i = 0; i < 20 && !page; i += 1) {
+      await sleep(250);
+      page = await findShellPage();
     }
-    try {
-      const authUrl = await page.evaluate(
-        () =>
-          new Promise((resolveUrl, rejectUrl) => {
-            const timer = setTimeout(() => rejectUrl(new Error("accountLogin url timeout")), 15_000);
-            const off = window.aiOffice.onAccountLogin((ev) => {
-              if (ev && ev.phase === "url" && ev.url) {
-                clearTimeout(timer);
-                off();
-                resolveUrl(ev.url);
-              } else if (ev && ev.phase === "error") {
-                clearTimeout(timer);
-                off();
-                rejectUrl(new Error(`accountLogin error: ${ev.error}`));
-              }
-            });
-            window.aiOffice.accountLogin().catch((err) => {
-              clearTimeout(timer);
-              off();
-              rejectUrl(err);
-            });
-          }),
+    if (!page) {
+      await closeBrowserBounded();
+      const reason = "connected to Electron CDP but found no shell renderer window exposing window.aiOffice";
+      return unavailable({
+        appStarted: true,
+        cdpAttempted: true,
+        cdpConnected: true,
+        shellWindowFound: false,
+        accountState: "no-shell-window",
+        sessionBinExists: existsSync(sessionBinPath),
+        expectedUserId: userId ?? "",
+        blockerReason: reason,
+      });
+    }
+
+    status = await runAppCdp("aiOffice.accountStatus", () =>
+      page.evaluate(() => window.aiOffice.accountStatus()),
+    );
+    const refreshDeadline = Date.now() + 5_000;
+    while (status?.state === "refreshing" && Date.now() < refreshDeadline) {
+      await sleep(200);
+      status = await runAppCdp("aiOffice.accountStatus", () =>
+        page.evaluate(() => window.aiOffice.accountStatus()),
       );
-      const attemptId = new URL(authUrl).searchParams.get("attempt_id");
-      if (!attemptId) {
-        throw new Error(`accountLogin URL carried no attempt_id: ${authUrl}`);
-      }
-      const consentGet = await callTracerApi({
-        apiOrigin,
-        fetchImpl,
-        name: "getDesktopConsent",
-        query: { attempt_id: attemptId },
-        token,
-      });
-      const csrfToken = consentGet.data?.csrf_token ?? "";
-      if (!csrfToken) {
-        throw new Error("getDesktopConsent returned no csrf_token");
-      }
-      const consentPost = await callTracerApi({
-        apiOrigin,
-        fetchImpl,
-        name: "submitDesktopConsent",
-        token,
-        body: { attempt_id: attemptId, csrf_token: csrfToken, decision: "approve" },
-      });
-      const callbackUrl = consentPost.data?.callback_url ?? consentPost.data?.redirect_url ?? "";
-      if (!callbackUrl) throw new Error("submitDesktopConsent returned no callback_url");
-      const handoff = deepLinkDeliverer(portsEnv, callbackUrl);
-      if (handoff?.error || (typeof handoff?.status === "number" && handoff.status !== 0)) {
-        throw new Error(
-          `callback deep-link handoff failed (exit ${handoff?.status ?? "err"}): ${handoff?.stderr || handoff?.error?.message || ""}`.trim(),
-        );
-      }
-      const signDeadline = Date.now() + 15_000;
-      while (Date.now() < signDeadline) {
-        status = await page.evaluate(() => window.aiOffice.accountStatus());
-        if (status?.state === "signed-in" && existsSync(sessionBinPath)) break;
-        if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") break;
-        await sleep(250);
-      }
-    } catch (err) {
-      signInError = err instanceof Error ? err.message : String(err);
-      status = await page.evaluate(() => window.aiOffice.accountStatus()).catch(() => status);
     }
+
+    if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") {
+      await closeBrowserBounded();
+      // The keyring is the one desktop precondition the VM may genuinely lack: the
+      // app itself said so, so the record may say `keyringAvailable: false`.
+      return unavailable({
+        appStarted: true,
+        cdpAttempted: true,
+        cdpConnected: true,
+        shellWindowFound: true,
+        keyringAvailable: false,
+        accountState: status.state,
+        sessionBinExists: existsSync(sessionBinPath),
+        expectedUserId: userId ?? "",
+      });
+    }
+
+    if (
+      status?.state !== "signed-in" ||
+      !existsSync(sessionBinPath) ||
+      (userId && getProfileAccountId(status) && getProfileAccountId(status) !== userId)
+    ) {
+      if (status?.state === "signed-in") {
+        await runAppCdp("aiOffice.accountLogout", () =>
+          page.evaluate(() => window.aiOffice.accountLogout()),
+        ).catch((err) => {
+          if (err?.isAppStepTimeout) throw err;
+        });
+      } else if (status?.state === "signing-in") {
+        await runAppCdp("aiOffice.accountCancelLogin", () =>
+          page.evaluate(() => window.aiOffice.accountCancelLogin?.()),
+        ).catch((err) => {
+          if (err?.isAppStepTimeout) throw err;
+        });
+      }
+      try {
+        const authUrl = await runAppCdp("aiOffice.accountLogin", () =>
+          page.evaluate(
+            () =>
+              new Promise((resolveUrl, rejectUrl) => {
+                const timer = setTimeout(() => rejectUrl(new Error("accountLogin url timeout")), 15_000);
+                const off = window.aiOffice.onAccountLogin((ev) => {
+                  if (ev && ev.phase === "url" && ev.url) {
+                    clearTimeout(timer);
+                    off();
+                    resolveUrl(ev.url);
+                  } else if (ev && ev.phase === "error") {
+                    clearTimeout(timer);
+                    off();
+                    rejectUrl(new Error(`accountLogin error: ${ev.error}`));
+                  }
+                });
+                window.aiOffice.accountLogin().catch((err) => {
+                  clearTimeout(timer);
+                  off();
+                  rejectUrl(err);
+                });
+              }),
+          ),
+        );
+        const attemptId = new URL(authUrl).searchParams.get("attempt_id");
+        if (!attemptId) {
+          throw new Error(`accountLogin URL carried no attempt_id: ${authUrl}`);
+        }
+        const consentGet = await callTracerApi({
+          apiOrigin,
+          fetchImpl,
+          name: "getDesktopConsent",
+          query: { attempt_id: attemptId },
+          token,
+        });
+        const csrfToken = consentGet.data?.csrf_token ?? "";
+        if (!csrfToken) {
+          throw new Error("getDesktopConsent returned no csrf_token");
+        }
+        const consentPost = await callTracerApi({
+          apiOrigin,
+          fetchImpl,
+          name: "submitDesktopConsent",
+          token,
+          body: { attempt_id: attemptId, csrf_token: csrfToken, decision: "approve" },
+        });
+        const callbackUrl = consentPost.data?.callback_url ?? consentPost.data?.redirect_url ?? "";
+        if (!callbackUrl) throw new Error("submitDesktopConsent returned no callback_url");
+        const handoff = deepLinkDeliverer(portsEnv, callbackUrl);
+        if (handoff?.error || (typeof handoff?.status === "number" && handoff.status !== 0)) {
+          throw new Error(
+            `callback deep-link handoff failed (exit ${handoff?.status ?? "err"}): ${handoff?.stderr || handoff?.error?.message || ""}`.trim(),
+          );
+        }
+        const signDeadline = Date.now() + 15_000;
+        while (Date.now() < signDeadline) {
+          status = await runAppCdp("aiOffice.accountStatus", () =>
+            page.evaluate(() => window.aiOffice.accountStatus()),
+          );
+          if (status?.state === "signed-in" && existsSync(sessionBinPath)) break;
+          if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") break;
+          await sleep(250);
+        }
+      } catch (err) {
+        if (err?.isAppStepTimeout) throw err;
+        signInError = err instanceof Error ? err.message : String(err);
+        status = await runAppCdp("aiOffice.accountStatus", () =>
+          page.evaluate(() => window.aiOffice.accountStatus()),
+        ).catch((statusErr) => {
+          if (statusErr?.isAppStepTimeout) throw statusErr;
+          return status;
+        });
+      }
+    }
+  } catch (err) {
+    await closeBrowserBounded();
+    if (err?.isAppStepTimeout) {
+      err.appSignIn = buildSanitizedAppSignInRecord({
+        ...appProcessFields,
+        appStarted: true,
+        cdpAttempted: true,
+        cdpConnected: true,
+        shellWindowFound: Boolean(page),
+        keyringAvailable: page ? true : null,
+        accountState: status?.state ?? "cdp-step-timeout",
+        sessionBinExists: existsSync(sessionBinPath),
+        signedInUserId: getProfileAccountId(status),
+        expectedUserId: userId ?? "",
+        signInError: err.message,
+      });
+    }
+    throw err;
   }
 
   const keyringStillAvailable =
@@ -2086,7 +2311,7 @@ export async function connectAppController({
   const signInOutcome = appSignIn.decisionResult;
 
   if (!signInOutcome.signedIn) {
-    await browser.close().catch(() => {});
+    await closeBrowserBounded();
     return {
       signedIn: false,
       driven: false,
@@ -2097,19 +2322,24 @@ export async function connectAppController({
     };
   }
 
-  const closeOpenTabForPath = async (filePath) => {
-    await page
-      .evaluate(async (targetPath) => {
-        if (!window.aiOfficeTabs?.list || !window.aiOfficeTabs?.close) return;
-        const list = await window.aiOfficeTabs.list();
-        const tabs = Array.isArray(list?.tabs) ? list.tabs : Array.isArray(list) ? list : [];
-        for (const t of tabs) {
-          if (t && t.filePath === targetPath && t.id) {
-            await window.aiOfficeTabs.close(t.id);
+  const closeOpenTabForPath = async (filePath, docId = activeDocumentId) => {
+    await runAppCdp(
+      "aiOfficeTabs.close",
+      () =>
+        page.evaluate(async (targetPath) => {
+          if (!window.aiOfficeTabs?.list || !window.aiOfficeTabs?.close) return;
+          const list = await window.aiOfficeTabs.list();
+          const tabs = Array.isArray(list?.tabs) ? list.tabs : Array.isArray(list) ? list : [];
+          for (const t of tabs) {
+            if (t && t.filePath === targetPath && t.id) {
+              await window.aiOfficeTabs.close(t.id);
+            }
           }
-        }
-      }, filePath)
-      .catch(() => {});
+        }, filePath),
+      docId,
+    ).catch((err) => {
+      if (err?.isAppStepTimeout) throw err;
+    });
   };
 
   return {
@@ -2119,14 +2349,15 @@ export async function connectAppController({
     blockerReason: "",
     appSignIn,
     close: async () => {
-      await browser.close().catch(() => {});
+      await closeBrowserBounded();
     },
-    openDocumentV1: async ({ documentId }) => {
+    openDocumentV1: async ({ documentId: docId }) => {
+      activeDocumentId = docId;
       const launchRes = await callTracerApi({
         apiOrigin,
         fetchImpl,
         name: "mintLaunch",
-        params: { documentID: documentId },
+        params: { documentID: docId },
         token,
         body: {
           operation: "edit",
@@ -2145,7 +2376,7 @@ export async function connectAppController({
         const wc = inspectWorkingCopy({
           userDataDir: portsEnv.UNIWORK_USER_DATA,
           deploymentId,
-          documentId,
+          documentId: docId,
           expectedUserId: userId,
         });
         if (wc.bindingPresent && wc.filePresent && Number(wc.binding?.baseVersion ?? 0) === 1) {
@@ -2155,7 +2386,8 @@ export async function connectAppController({
       }
       return { opened: false, binding: null };
     },
-    waitForFeedReloadV2: async ({ documentId, expectedSha256 }) => {
+    waitForFeedReloadV2: async ({ documentId: docId, expectedSha256 }) => {
+      activeDocumentId = docId;
       // Do NOT close the open tab for `documentId` before feed reload (F1b):
       // `UniworkDocsService.noteRemoteChange` (`apps/shell/src/main/uniwork-docs/service.ts:3117`)
       // checks `if (!doc || !this.deps.isPathOpen(doc.path)) return`, so the tab opened in
@@ -2164,7 +2396,7 @@ export async function connectAppController({
         const wc = inspectWorkingCopy({
           userDataDir: portsEnv.UNIWORK_USER_DATA,
           deploymentId,
-          documentId,
+          documentId: docId,
           expectedUserId: userId,
           expectedSha256,
         });
@@ -2184,9 +2416,21 @@ export async function connectAppController({
 
       // Trigger an immediate SyncRuntime pass by toggling the app proxy and calling accountRetry()
       setAppApiProxyOnline(runDir, false);
-      await page.evaluate(() => window.aiOffice.accountRetry()).catch(() => {});
+      await runAppCdp(
+        "aiOffice.accountRetry",
+        () => page.evaluate(() => window.aiOffice.accountRetry()),
+        docId,
+      ).catch((err) => {
+        if (err?.isAppStepTimeout) throw err;
+      });
       setAppApiProxyOnline(runDir, true);
-      await page.evaluate(() => window.aiOffice.accountRetry()).catch(() => {});
+      await runAppCdp(
+        "aiOffice.accountRetry",
+        () => page.evaluate(() => window.aiOffice.accountRetry()),
+        docId,
+      ).catch((err) => {
+        if (err?.isAppStepTimeout) throw err;
+      });
 
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
@@ -2197,29 +2441,34 @@ export async function connectAppController({
       const last = inspectWorkingCopy({
         userDataDir: portsEnv.UNIWORK_USER_DATA,
         deploymentId,
-        documentId,
+        documentId: docId,
         expectedUserId: userId,
         expectedSha256,
       });
       return { reloaded: false, binding: last.binding };
     },
-    saveOnlineInApp: async ({ documentId, v2Bytes, expectedSha256 }) => {
+    saveOnlineInApp: async ({ documentId: docId, v2Bytes, expectedSha256 }) => {
+      activeDocumentId = docId;
       const wc0 = inspectWorkingCopy({
         userDataDir: portsEnv.UNIWORK_USER_DATA,
         deploymentId,
-        documentId,
+        documentId: docId,
         expectedUserId: userId,
       });
       if (!wc0.workingCopyFilePath) return { saved: false, binding: null };
-      await closeOpenTabForPath(wc0.workingCopyFilePath);
+      await closeOpenTabForPath(wc0.workingCopyFilePath, docId);
       writeFileSync(wc0.workingCopyFilePath, v2Bytes);
-      await page.evaluate((p) => window.aiOffice.uniworkSave(p), wc0.workingCopyFilePath);
+      await runAppCdp(
+        "aiOffice.uniworkSave",
+        () => page.evaluate((p) => window.aiOffice.uniworkSave(p), wc0.workingCopyFilePath),
+        docId,
+      );
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
         const wc = inspectWorkingCopy({
           userDataDir: portsEnv.UNIWORK_USER_DATA,
           deploymentId,
-          documentId,
+          documentId: docId,
           expectedUserId: userId,
           expectedSha256,
         });
@@ -2233,25 +2482,32 @@ export async function connectAppController({
       }
       return { saved: false, binding: null };
     },
-    saveOfflineWhileCut: async ({ documentId, v2Bytes, v2Sha256 }) => {
+    saveOfflineWhileCut: async ({ documentId: docId, v2Bytes, v2Sha256 }) => {
+      activeDocumentId = docId;
       const wc0 = inspectWorkingCopy({
         userDataDir: portsEnv.UNIWORK_USER_DATA,
         deploymentId,
-        documentId,
+        documentId: docId,
         expectedUserId: userId,
       });
       if (!wc0.workingCopyFilePath) {
         return { bindingWhileCut: null, intentFilesWhileCut: [], v2Sha256 };
       }
-      await closeOpenTabForPath(wc0.workingCopyFilePath);
+      await closeOpenTabForPath(wc0.workingCopyFilePath, docId);
       writeFileSync(wc0.workingCopyFilePath, v2Bytes);
       setAppApiProxyOnline(runDir, false);
-      await page.evaluate((p) => window.aiOffice.uniworkSave(p), wc0.workingCopyFilePath).catch(() => {});
+      await runAppCdp(
+        "aiOffice.uniworkSave",
+        () => page.evaluate((p) => window.aiOffice.uniworkSave(p), wc0.workingCopyFilePath),
+        docId,
+      ).catch((err) => {
+        if (err?.isAppStepTimeout) throw err;
+      });
       await sleep(300);
       const wcCut = inspectWorkingCopy({
         userDataDir: portsEnv.UNIWORK_USER_DATA,
         deploymentId,
-        documentId,
+        documentId: docId,
         expectedUserId: userId,
       });
       const intentFilesWhileCut = listAppSyncIntentFiles(portsEnv.UNIWORK_USER_DATA, deploymentId, userId);
@@ -2262,24 +2518,37 @@ export async function connectAppController({
         workingCopyFilePath: wc0.workingCopyFilePath,
       };
     },
-    reconnectAndFlushSave: async ({ documentId, expectedSha256 }) => {
+    reconnectAndFlushSave: async ({ documentId: docId, expectedSha256 }) => {
+      activeDocumentId = docId;
       const wc0 = inspectWorkingCopy({
         userDataDir: portsEnv.UNIWORK_USER_DATA,
         deploymentId,
-        documentId,
+        documentId: docId,
         expectedUserId: userId,
       });
       setAppApiProxyOnline(runDir, true);
-      await page.evaluate(() => window.aiOffice.accountRetry()).catch(() => {});
+      await runAppCdp(
+        "aiOffice.accountRetry",
+        () => page.evaluate(() => window.aiOffice.accountRetry()),
+        docId,
+      ).catch((err) => {
+        if (err?.isAppStepTimeout) throw err;
+      });
       if (wc0.workingCopyFilePath) {
-        await page.evaluate((p) => window.aiOffice.uniworkSave(p), wc0.workingCopyFilePath).catch(() => {});
+        await runAppCdp(
+          "aiOffice.uniworkSave",
+          () => page.evaluate((p) => window.aiOffice.uniworkSave(p), wc0.workingCopyFilePath),
+          docId,
+        ).catch((err) => {
+          if (err?.isAppStepTimeout) throw err;
+        });
       }
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
         const wc = inspectWorkingCopy({
           userDataDir: portsEnv.UNIWORK_USER_DATA,
           deploymentId,
-          documentId,
+          documentId: docId,
           expectedUserId: userId,
           expectedSha256,
         });
@@ -2298,7 +2567,7 @@ export async function connectAppController({
       const last = inspectWorkingCopy({
         userDataDir: portsEnv.UNIWORK_USER_DATA,
         deploymentId,
-        documentId,
+        documentId: docId,
         expectedUserId: userId,
         expectedSha256,
       });
@@ -2345,6 +2614,7 @@ function finalizeLoopOutcome(decision, loopState) {
       accountState: "not-started",
       sessionBinExists: false,
     });
+  const timeoutInfo = loopState.details?.appStepTimeout ?? null;
   const details = {
     owner,
     ...loopState.details,
@@ -2359,10 +2629,61 @@ function finalizeLoopOutcome(decision, loopState) {
     owner,
     reason: decision.reason,
     appSignIn,
+    ...(timeoutInfo
+      ? {
+          call: timeoutInfo.call,
+          elapsedMs: timeoutInfo.elapsedMs,
+          bindingState: timeoutInfo.bindingState,
+          binding: timeoutInfo.binding,
+          appLogTail: timeoutInfo.appLogTail,
+          appStepTimeout: timeoutInfo,
+        }
+      : {}),
     steps: loopState.steps,
     versionCounts: loopState.versionCounts,
     details,
   };
+}
+
+function recordLoopException(err, loopState, currentStep) {
+  const errMsg = err instanceof Error ? err.message : String(err);
+  if (err?.appSignIn && !loopState.details.appSignIn) {
+    loopState.details.appSignIn = err.appSignIn;
+  }
+  const timeoutInfo = err?.appStepTimeout ?? null;
+  if (timeoutInfo) {
+    loopState.details.appStepTimeout = timeoutInfo;
+    loopState.details.call = timeoutInfo.call;
+    loopState.details.elapsedMs = timeoutInfo.elapsedMs;
+    loopState.details.bindingState = timeoutInfo.bindingState;
+    loopState.details.binding = timeoutInfo.binding;
+    loopState.details.appLogTail = timeoutInfo.appLogTail;
+  }
+  if (loopState.steps[currentStep]) {
+    loopState.steps[currentStep] = {
+      ...loopState.steps[currentStep],
+      status: "FAIL",
+      reason: errMsg,
+      ...(timeoutInfo
+        ? {
+            call: timeoutInfo.call,
+            elapsedMs: timeoutInfo.elapsedMs,
+            bindingState: timeoutInfo.bindingState,
+            binding: timeoutInfo.binding,
+            appLogTail: timeoutInfo.appLogTail,
+          }
+        : {}),
+    };
+  }
+  return finalizeLoopOutcome(
+    {
+      exitCode: 1,
+      status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
+      reason: errMsg,
+    },
+    loopState,
+  );
 }
 
 // ---- Loop 1: fx-xlsx-revenue-xyz (Web -> AI -> Editor X/Y/Z Save -> Feed -> App) ----
@@ -2378,6 +2699,7 @@ async function runLoop1({
   appDriver = null,
   cdpConnector = null,
   deepLinkDeliverer = deliverDeepLink,
+  watchdogHook = null,
 }) {
   const loopState = {
     steps: {
@@ -2400,6 +2722,11 @@ async function runLoop1({
   };
   let currentStep = "webFrameOpen";
   let appCtrl = null;
+  if (watchdogHook) {
+    watchdogHook.loopState = loopState;
+    watchdogHook.getCurrentStep = () => currentStep;
+    watchdogHook.getAppCtrl = () => appCtrl;
+  }
 
   try {
     const seeded = await seedFixtureDocument({
@@ -2437,6 +2764,7 @@ async function runLoop1({
         fetchImpl,
         token: seeded.token,
         userId: seeded.userId,
+        documentId: seeded.documentId,
         deploymentId,
         timeoutMs,
         cdpConnector,
@@ -2905,23 +3233,7 @@ async function runLoop1({
 
     return finalizeLoopOutcome(decision, loopState);
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    if (loopState.steps[currentStep]) {
-      loopState.steps[currentStep] = {
-        ...loopState.steps[currentStep],
-        status: "FAIL",
-        reason: errMsg,
-      };
-    }
-    return finalizeLoopOutcome(
-      {
-        exitCode: 1,
-        status: "FAIL",
-        owner: UPSTREAM_BLOCKED_OWNER,
-        reason: errMsg,
-      },
-      loopState,
-    );
+    return recordLoopException(err, loopState, currentStep);
   } finally {
     if (typeof appCtrl?.close === "function") await appCtrl.close();
   }
@@ -2939,6 +3251,7 @@ async function runLoop2({
   appDriver = null,
   cdpConnector = null,
   deepLinkDeliverer = deliverDeepLink,
+  watchdogHook = null,
 }) {
   const loopState = {
     steps: {
@@ -2958,6 +3271,11 @@ async function runLoop2({
   };
   let currentStep = "appOpenV1";
   let appCtrl = null;
+  if (watchdogHook) {
+    watchdogHook.loopState = loopState;
+    watchdogHook.getCurrentStep = () => currentStep;
+    watchdogHook.getAppCtrl = () => appCtrl;
+  }
 
   try {
     const seeded = await seedFixtureDocument({
@@ -2985,6 +3303,7 @@ async function runLoop2({
         fetchImpl,
         token: seeded.token,
         userId: seeded.userId,
+        documentId: seeded.documentId,
         deploymentId,
         timeoutMs,
         cdpConnector,
@@ -3288,23 +3607,7 @@ async function runLoop2({
 
     return finalizeLoopOutcome(decision, loopState);
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    if (loopState.steps[currentStep]) {
-      loopState.steps[currentStep] = {
-        ...loopState.steps[currentStep],
-        status: "FAIL",
-        reason: errMsg,
-      };
-    }
-    return finalizeLoopOutcome(
-      {
-        exitCode: 1,
-        status: "FAIL",
-        owner: UPSTREAM_BLOCKED_OWNER,
-        reason: errMsg,
-      },
-      loopState,
-    );
+    return recordLoopException(err, loopState, currentStep);
   } finally {
     if (typeof appCtrl?.close === "function") await appCtrl.close();
   }
@@ -3323,6 +3626,7 @@ async function runLoop3({
   appDriver = null,
   cdpConnector = null,
   deepLinkDeliverer = deliverDeepLink,
+  watchdogHook = null,
 }) {
   const loopState = {
     steps: {
@@ -3343,6 +3647,11 @@ async function runLoop3({
   let currentStep = "appOfflineSave";
   let seeded = null;
   let appCtrl = null;
+  if (watchdogHook) {
+    watchdogHook.loopState = loopState;
+    watchdogHook.getCurrentStep = () => currentStep;
+    watchdogHook.getAppCtrl = () => appCtrl;
+  }
 
   try {
     seeded = await seedFixtureDocument({
@@ -3368,6 +3677,7 @@ async function runLoop3({
         fetchImpl,
         token: seeded.token,
         userId: seeded.userId,
+        documentId: seeded.documentId,
         deploymentId,
         timeoutMs,
         cdpConnector,
@@ -3665,23 +3975,7 @@ async function runLoop3({
 
     return finalizeLoopOutcome(decision, loopState);
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    if (loopState.steps[currentStep]) {
-      loopState.steps[currentStep] = {
-        ...loopState.steps[currentStep],
-        status: "FAIL",
-        reason: errMsg,
-      };
-    }
-    return finalizeLoopOutcome(
-      {
-        exitCode: 1,
-        status: "FAIL",
-        owner: UPSTREAM_BLOCKED_OWNER,
-        reason: errMsg,
-      },
-      loopState,
-    );
+    return recordLoopException(err, loopState, currentStep);
   } finally {
     setAppApiProxyOnline(runDir, true);
     if (typeof appCtrl?.close === "function") await appCtrl.close();
@@ -3736,6 +4030,7 @@ export async function runTracerLoop({
   repoRoot = DEFAULT_REPO_ROOT,
   fetchImpl = fetch,
   timeoutMs = 45_000,
+  loopTimeoutMs = null,
   spawnAppHook = null,
   webDriver = null,
   appDriver = null,
@@ -3795,48 +4090,7 @@ export async function runTracerLoop({
     };
   }
 
-  try {
-    if (normalized === "1") {
-      return await runLoop1({
-        apiOrigin,
-        portsEnv,
-        runDir,
-        repoRoot,
-        fetchImpl,
-        timeoutMs,
-        webDriver,
-        appDriver,
-        cdpConnector,
-        deepLinkDeliverer,
-      });
-    }
-    if (normalized === "2") {
-      return await runLoop2({
-        apiOrigin,
-        portsEnv,
-        runDir,
-        repoRoot,
-        fetchImpl,
-        timeoutMs,
-        appDriver,
-        cdpConnector,
-        deepLinkDeliverer,
-      });
-    }
-    if (normalized === "3") {
-      return await runLoop3({
-        apiOrigin,
-        portsEnv,
-        runDir,
-        repoRoot,
-        fetchImpl,
-        timeoutMs,
-        spawnAppHook,
-        appDriver,
-        cdpConnector,
-        deepLinkDeliverer,
-      });
-    }
+  if (normalized !== "1" && normalized !== "2" && normalized !== "3") {
     return {
       exitCode: 2,
       status: "FAIL",
@@ -3847,6 +4101,113 @@ export async function runTracerLoop({
       versionCounts: {},
       details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized, appSignIn: defaultAppSignIn },
     };
+  }
+
+  const watchdogHook = {
+    loopState: null,
+    getCurrentStep: () => "",
+    getAppCtrl: () => null,
+  };
+  const effectiveLoopTimeoutMs = resolveLoopTimeoutMs(loopTimeoutMs, portsEnv);
+  let watchdogTimer = null;
+
+  const runSelectedLoop = async () => {
+    if (normalized === "1") {
+      return runLoop1({
+        apiOrigin,
+        portsEnv,
+        runDir,
+        repoRoot,
+        fetchImpl,
+        timeoutMs,
+        webDriver,
+        appDriver,
+        cdpConnector,
+        deepLinkDeliverer,
+        watchdogHook,
+      });
+    }
+    if (normalized === "2") {
+      return runLoop2({
+        apiOrigin,
+        portsEnv,
+        runDir,
+        repoRoot,
+        fetchImpl,
+        timeoutMs,
+        appDriver,
+        cdpConnector,
+        deepLinkDeliverer,
+        watchdogHook,
+      });
+    }
+    return runLoop3({
+      apiOrigin,
+      portsEnv,
+      runDir,
+      repoRoot,
+      fetchImpl,
+      timeoutMs,
+      spawnAppHook,
+      appDriver,
+      cdpConnector,
+      deepLinkDeliverer,
+      watchdogHook,
+    });
+  };
+
+  try {
+    return await Promise.race([
+      runSelectedLoop(),
+      new Promise((resolveWatchdog) => {
+        watchdogTimer = setTimeout(() => {
+          try {
+            setAppApiProxyOnline(runDir, true);
+          } catch {
+            // ignore cleanup errors on watchdog expiry
+          }
+          const liveCtrl = watchdogHook.getAppCtrl?.();
+          if (typeof liveCtrl?.close === "function") {
+            Promise.resolve()
+              .then(() => liveCtrl.close())
+              .catch(() => {});
+          }
+          const liveState = watchdogHook.loopState ?? {
+            steps: {},
+            versionCounts: {},
+            details: { loop: normalized, appSignIn: defaultAppSignIn },
+          };
+          const activeStep = watchdogHook.getCurrentStep?.() || "";
+          if (activeStep && liveState.steps?.[activeStep]) {
+            liveState.steps[activeStep] = {
+              ...liveState.steps[activeStep],
+              status: "FAIL",
+              reason: "loop watchdog",
+            };
+          }
+          liveState.details.appLogTail = readRedactedAppLogTail(runDir, APP_LOG_TAIL_LINES);
+          const watchdogRes = finalizeLoopOutcome(
+            {
+              exitCode: 1,
+              status: "FAIL",
+              owner: UPSTREAM_BLOCKED_OWNER,
+              reason: "loop watchdog",
+            },
+            liveState,
+          );
+          try {
+            mkdirSync(runDir, { recursive: true });
+            writeFileSync(
+              join(runDir, `tracer-loop-${normalized}.json`),
+              `${JSON.stringify(watchdogRes, null, 2)}\n`,
+            );
+          } catch {
+            // ignore write error if runDir was already removed
+          }
+          resolveWatchdog(watchdogRes);
+        }, effectiveLoopTimeoutMs);
+      }),
+    ]);
   } catch (err) {
     return {
       exitCode: 1,
@@ -3858,6 +4219,8 @@ export async function runTracerLoop({
       versionCounts: {},
       details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized, appSignIn: defaultAppSignIn },
     };
+  } finally {
+    if (watchdogTimer !== null) clearTimeout(watchdogTimer);
   }
 }
 

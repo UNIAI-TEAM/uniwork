@@ -125,6 +125,16 @@ and the exact command in `start.sh`'s output.
   with the reason, instead of an "up" that the loops then cannot use. An app that
   was started and is then missing at a loop start is a FAIL there too, never
   BLOCKED — see the tracer's `decideAppSignInOutcome`.
+* **Every app-side CDP call and every tracer loop is bounded.** Each CDP `connect`
+  or `page.evaluate` call into `window.aiOffice.*` (`uniworkSave`, `accountStatus`,
+  `accountRetry`, `accountLogin`) and `aiOfficeTabs.close` races against
+  `HARNESS_APP_STEP_TIMEOUT_MS` (default `90000` ms). On timeout the step is
+  **FAIL** (exit `1`, never `77` BLOCKED) with `<call> did not settle within <n> s`,
+  and the loop JSON records the call name, elapsed ms, `binding.json` state at
+  that moment, and the redacted last 40 lines of `logs/app.log`. An outer per-loop
+  watchdog (`HARNESS_LOOP_TIMEOUT_MS`, default `600000` ms) bounds each tracer
+  loop as a whole: if exceeded, it writes `tracer-loop-<N>.json` with status
+  `FAIL` and reason `"loop watchdog"` and exits `1`.
 
 ## Exit codes
 
@@ -155,6 +165,8 @@ ran, the claim was false).
 | `HARNESS_APP_SETTLE_SECONDS` | `2` | how long the app must stay alive after DevTools answered before the start calls the run up |
 | `HARNESS_DOC_WAIT_MS` | `60000` | how long `document-step.mjs` waits for the app's working copy |
 | `HARNESS_HANDOFF_TIMEOUT_MS` | `30000` | how long the second Electron instance that carries the deep link may run before it is killed (as a process group) |
+| `HARNESS_APP_STEP_TIMEOUT_MS` | `90000` | per-call timeout (ms) for app-side CDP calls (`connect`, `page.evaluate` of `aiOffice.*` / `aiOfficeTabs.close`); timeout is a FAIL (`<call> did not settle within <n> s`) |
+| `HARNESS_LOOP_TIMEOUT_MS` | `600000` | per-loop watchdog timeout (ms) for `g7-10/tracer.mjs`; timeout writes `tracer-loop-<N>.json` with `status: "FAIL"`, `reason: "loop watchdog"` and exits `1` |
 | `HARNESS_DOC_EMAIL` / `HARNESS_DOC_PASSWORD` | unset | document step, desktop mode: reuse this existing account instead of seeding one (both or neither) |
 
 The harness fills the gap the VM's profile left, as the Advisor's rule requires:
