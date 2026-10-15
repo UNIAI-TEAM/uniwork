@@ -19,12 +19,14 @@ import type { LibraryView } from "./documents-sidebar";
 import {
   documentRow,
   indexTree,
+  matchesAccess,
   matchesChip,
   mergeNewestFirst,
   readFolderSort,
   sortFolderRows,
   sourceRow,
   writeFolderSort,
+  type AccessFilter,
   type FolderInfo,
   type FolderSort,
   type LibraryRow,
@@ -100,6 +102,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const sourcesWanted = chip !== "page" && ((home && !folderId) || view.kind === "sources");
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const [lastUserId, setLastUserId] = useState<string | null>(userId);
+  const [access, setAccess] = useState<AccessFilter>("all");
   const [sort, setSortState] = useState<FolderSort>(() => readFolderSort(userId));
   if (userId !== lastUserId) {
     setLastUserId(userId);
@@ -251,16 +254,18 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     }
   }
 
-  const rows = state.rows.filter((row) => matchesChip(row, chip));
+  const rows = state.rows.filter((row) => matchesChip(row, chip) && matchesAccess(row, access));
   return {
     state: { ...state, rows },
-    /** Rows before the chip filter: an empty table under a chip is "no matches". */
+    /** Rows before the chip and access filters: an empty table under either is "no matches". */
     unfilteredCount: state.rows.length,
     tree: nodes,
     folderIndex,
     starredIds: new Set(starred.map((fav) => fav.document_id)),
     starredCount: favorites.data ? starred.length : null,
     sourcesAvailable,
+    access,
+    setAccess,
     sort,
     setSort,
   };
