@@ -5005,6 +5005,11 @@
         "name": "Tên hiển thị",
         "description": "Mô tả",
         "billing_period": "Chu kỳ (none / month / year)",
+        "period": {
+          "month": "Tháng",
+          "year": "Năm",
+          "none": "Không theo kỳ"
+        },
         "price": "Giá (đồng, để trống = liên hệ)",
         "sort_order": "Thứ tự sắp xếp",
         "is_active": "Hiển thị trên trang billing"
