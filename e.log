@@ -1,0 +1,19 @@
+$ DEBUG= xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts e2e/docs-selection-bar-painter.spec.ts --repeat-each 3 --reporter=list; echo "PAINTER_RERUN_EXIT=$? (informational: r6 office-ci-e2e flake suspect docs-selection-bar-painter.spec.ts:198, not gating)"
+
+Running 6 tests using 1 worker
+
+(node:9782) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 e2e/docs-selection-bar-painter.spec.ts:128:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (1.7s)
+  ✓  2 e2e/docs-selection-bar-painter.spec.ts:198:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (2.4s)
+(node:9962) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 e2e/docs-selection-bar-painter.spec.ts:128:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (1.7s)
+  ✓  4 e2e/docs-selection-bar-painter.spec.ts:198:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (2.3s)
+(node:10138) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  5 e2e/docs-selection-bar-painter.spec.ts:128:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (1.7s)
+  ✓  6 e2e/docs-selection-bar-painter.spec.ts:198:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (2.4s)
+
+  6 passed (13.4s)
+PAINTER_RERUN_EXIT=0 (informational: r6 office-ci-e2e flake suspect docs-selection-bar-painter.spec.ts:198, not gating)
