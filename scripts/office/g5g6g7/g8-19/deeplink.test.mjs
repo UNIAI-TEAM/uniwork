@@ -9,6 +9,7 @@ import { afterEach, beforeEach, test } from "node:test";
 
 import {
   DEEP_LINK_EXCEPTIONS,
+  DESKTOP_REVEAL_DROP_OWNER,
   decideDesktopReveal,
   decideException,
   decideG8A07,
@@ -136,6 +137,42 @@ test("decideDesktopReveal: xlsx PASS needs the ticket comment, the opened docume
   assert.equal(decideDesktopReveal(desktopOk({ thread: { present: true, focusedThreadId: null } })).status, "FAIL");
   // docx: no cell to check, the thread alone
   assert.equal(decideDesktopReveal(desktopOk({ format: "docx", selection: null })).status, "PASS");
+});
+
+test("decideDesktopReveal: no focus on the first open of a comment made before the launch is a plain FAIL with the evidence, not the unlisted-id drop (cloud r3 xlsx)", () => {
+  const r3 = desktopOk({
+    thread: { present: true, focusedThreadId: null, anchorState: "exact" },
+    selection: { status: "ok", result: { sheet: "Doanh thu Q1", range: "A1" } },
+    selectionSource: "document page",
+    firstOpen: true,
+    commentMadeBeforeLaunch: true,
+    listedBeforeLaunch: null,
+  });
+  const v = decideDesktopReveal(r3);
+  assert.equal(v.status, "FAIL");
+  assert.match(v.reason, /^the editor focused no thread, want c1/);
+  assert.match(v.reason, /the thread is listed after the open/);
+  assert.match(v.reason, /selection Doanh thu Q1!A1 \(document page\), want Doanh thu Q2!B7/);
+  assert.match(v.reason, /not the unlisted-id drop of fork apps\/sheets\/src\/renderer\/server-comments\/SheetsServerComments\.tsx:287-289/);
+  assert.match(v.reason, /SheetsServerComments\.tsx:260-286/, "the reveal waits for the first list");
+  assert.doesNotMatch(v.reason, /^product/);
+  assert.equal(v.owner, undefined, "a plain FAIL names no owner");
+});
+
+test("decideDesktopReveal: a reveal of a comment the open panel had not listed is the product drop (SheetsServerComments.tsx:287-289, Lead F)", () => {
+  const dropped = decideDesktopReveal(desktopOk({ thread: { present: true, focusedThreadId: null }, firstOpen: false, listedBeforeLaunch: false }));
+  assert.equal(dropped.status, "FAIL");
+  assert.match(dropped.reason, /^product: the desktop dropped the launch reveal of c1, which its open panel had not listed yet/);
+  assert.match(dropped.reason, /SheetsServerComments\.tsx:287-289/);
+  assert.match(dropped.reason, /contract-collab\.md:663/);
+  assert.equal(dropped.owner, DESKTOP_REVEAL_DROP_OWNER);
+  assert.equal(DESKTOP_REVEAL_DROP_OWNER, "owner candidate Lead F (G8-13 Sheets server comments)");
+  // listed before the launch and still no focus: plain FAIL with that evidence
+  const listed = decideDesktopReveal(desktopOk({ thread: { present: true, focusedThreadId: null }, firstOpen: false, listedBeforeLaunch: true }));
+  assert.match(listed.reason, /^the editor focused no thread, want c1.*although the open panel listed it before the launch/);
+  assert.equal(listed.owner, undefined);
+  // docx has no unlisted-drop cite: the plain FAIL stays
+  assert.doesNotMatch(decideDesktopReveal(desktopOk({ format: "docx", selection: null, thread: { present: true, focusedThreadId: null }, listedBeforeLaunch: false })).reason, /SheetsServerComments/);
 });
 
 // ---- the five exceptions (UNI-1389) --------------------------------------------------------------
@@ -512,6 +549,10 @@ test("runDeeplink: the B7 selection is read in the page that shows the document,
   assert.equal(a.steps["desktop-reveal"].status, "PASS", JSON.stringify(a.steps["observe-desktop"], null, 1));
   assert.equal(a.steps["observe-desktop"].details.selectionSource, "document page");
   assert.equal(fake.calls.app.filter((c) => c.key === "selection").length, 0);
+  // the main document is uploaded in observe-seed and first opened by this launch, with c1 made before it
+  assert.equal(a.steps["observe-desktop"].details.firstOpen, true);
+  assert.equal(a.steps["observe-desktop"].details.commentMadeBeforeLaunch, true);
+  assert.equal(a.steps["observe-desktop"].details.listedBeforeLaunch, null);
 });
 
 test("runDeeplink: the lost-anchor comment is listed by the open panel (focus refresh) before the re-launch reveals it", async () => {

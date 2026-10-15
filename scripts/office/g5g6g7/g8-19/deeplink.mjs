@@ -240,12 +240,46 @@ export function decideException(name, observed, { pin } = {}) {
   }
 }
 
+/** Who answers a desktop that drops a launch reveal of a comment its open panel has not listed. */
+export const DESKTOP_REVEAL_DROP_OWNER = "owner candidate Lead F (G8-13 Sheets server comments)";
+
+const SHEETS_REVEAL_DROP_CITE = "fork apps/sheets/src/renderer/server-comments/SheetsServerComments.tsx:287-289";
+const SHEETS_REVEAL_WAIT_CITE = "SheetsServerComments.tsx:260-286";
+
+/**
+ * A reveal that focused no thread. `listedBeforeLaunch === false` (the document was already open and
+ * its panel had not listed the comment) on xlsx is the product drop of an unlisted id; anything else
+ * stays a plain FAIL that carries what was observed.
+ */
+function noFocusVerdict(d) {
+  const xlsx = d.format === "xlsx";
+  if (xlsx && d.listedBeforeLaunch === false) {
+    return {
+      ...fail(
+        `product: the desktop dropped the launch reveal of ${d.commentId}, which its open panel had not listed yet (${SHEETS_REVEAL_DROP_CITE}: ` +
+          "a desktop reveal of an unlisted id returns false with no reload and no S15 line); contract-collab.md:663 item 5 sends each launch comment_id one reveal per open " +
+          `and EXPERIENCE-G8 S15 row 3 wants the thread or the panel line; ${DESKTOP_REVEAL_DROP_OWNER}`,
+      ),
+      owner: DESKTOP_REVEAL_DROP_OWNER,
+    };
+  }
+  const evidence = [`the thread is ${d.thread?.present ? "listed" : "not listed"} after the open`];
+  if (xlsx) evidence.push(`selection ${normalizeSelection(d.selection) ?? "unknown"}${d.selectionSource ? ` (${d.selectionSource})` : ""}, want ${B7_SHEET_NAME}!${B7_ANCHOR.range}`);
+  if (d.listedBeforeLaunch === true) evidence.push("although the open panel listed it before the launch");
+  if (xlsx && d.firstOpen && d.commentMadeBeforeLaunch) {
+    evidence.push(
+      `the comment existed before this first open, so the panel's first list, which the reveal waits for (${SHEETS_REVEAL_WAIT_CITE}), held it: not the unlisted-id drop of ${SHEETS_REVEAL_DROP_CITE}`,
+    );
+  }
+  return fail(`the editor focused ${d.thread?.focusedThreadId ?? "no"} thread, want ${d.commentId}; ${evidence.join("; ")}`);
+}
+
 /** Desktop half: the ticket named the comment, the app opened the document, focused the thread, and on xlsx selected B7. */
 export function decideDesktopReveal(d) {
   if (!d) return fail("the desktop reveal was not observed");
   if (!d.ticketCommentId || d.ticketCommentId !== d.commentId) return fail(`the launch ticket carried ${d.ticketCommentId ?? "no"} comment id`);
   if (!d.openedDocumentId || d.openedDocumentId !== d.documentId) return fail(`the app opened ${d.openedDocumentId ?? "nothing"}, not the document`);
-  if (d.thread?.focusedThreadId !== d.commentId) return fail(`the editor focused ${d.thread?.focusedThreadId ?? "no"} thread, want ${d.commentId}`);
+  if (d.thread?.focusedThreadId !== d.commentId) return noFocusVerdict(d);
   if (d.format === "xlsx") {
     const sel = normalizeSelection(d.selection);
     const want = `${B7_SHEET_NAME}!${B7_ANCHOR.range}`;
@@ -423,6 +457,11 @@ export async function runDeeplink(ctx, deps = {}) {
         thread,
         selection,
         ...(selection ? { selectionSource: "document page" } : {}),
+        // observe-seed uploaded the document and made c1 before this launch, its first open:
+        // the panel's first list holds c1, so "listed before the launch" does not apply (null)
+        firstOpen: true,
+        commentMadeBeforeLaunch: true,
+        listedBeforeLaunch: null,
       };
       return { details: { ...rec.desktop } };
     }))) return finishDecisions(ctx, rec);
