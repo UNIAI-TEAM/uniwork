@@ -95,7 +95,8 @@ describe("ChatComposer mentions", () => {
         />,
       ),
     );
-    expect(screen.getByText("Còn 0 ký tự")).toHaveClass("text-destructive");
+    // Each token adds 47 characters (3,960 + 94 = 4,054), so the counter says how much to cut.
+    expect(screen.getByText("Vượt 54 ký tự")).toHaveClass("text-destructive");
     fireEvent.keyDown(screen.getByLabelText("Nhập tin nhắn…"), { key: "Enter" });
     expect(onSend).not.toHaveBeenCalled();
   });

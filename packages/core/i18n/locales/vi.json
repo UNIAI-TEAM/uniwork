@@ -3588,7 +3588,9 @@
       "error_unsupported": "Trình duyệt này không ghi âm được. Dùng bản mới của Chrome, Edge, Firefox hoặc Safari.",
       "error_upload": "Chưa gửi được tin nhắn thoại. Bản ghi vẫn còn, bấm Gửi lại.",
       "chars_left_one": "Còn {{count}} ký tự",
-      "chars_left_other": "Còn {{count}} ký tự"
+      "chars_left_other": "Còn {{count}} ký tự",
+      "chars_over_one": "Vượt {{count}} ký tự",
+      "chars_over_other": "Vượt {{count}} ký tự"
     },
     "voice_call_incoming_recorded_description": "{{status}}. Cuộc gọi này đang được ghi âm.",
     "form_char_count": "{{length}}/{{max}}",

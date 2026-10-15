@@ -382,7 +382,9 @@ export function ChatComposer({
                 remaining <= 0 ? "text-destructive" : "text-muted-foreground",
               )}
             >
-              {t("chat.composer_state.chars_left", { count: Math.max(remaining, 0) })}
+              {remaining < 0
+                ? t("chat.composer_state.chars_over", { count: -remaining })
+                : t("chat.composer_state.chars_left", { count: remaining })}
             </p>
           ) : null}
         </form>

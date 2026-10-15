@@ -3589,7 +3589,9 @@
       "error_unsupported": "This browser can't record audio. Use a recent Chrome, Edge, Firefox or Safari.",
       "error_upload": "Couldn't send the voice message. Your recording is still here — press Send again.",
       "chars_left_one": "{{count}} character left",
-      "chars_left_other": "{{count}} characters left"
+      "chars_left_other": "{{count}} characters left",
+      "chars_over_one": "{{count}} character over",
+      "chars_over_other": "{{count}} characters over"
     },
     "voice_call_incoming_recorded_description": "{{status}}. This call is being recorded.",
     "form_char_count": "{{length}}/{{max}}",
