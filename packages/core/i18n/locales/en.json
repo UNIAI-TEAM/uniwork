@@ -465,7 +465,10 @@
         "document_comment_resolved": "Comment resolved",
         "chat_mentioned": "Mentioned in chat",
         "chat_dm": "Direct messages",
-        "chat_thread_replied": "Replies in threads you follow"
+        "chat_thread_replied": "Replies in threads you follow",
+        "document_access_requested": "Document access requests",
+        "document_access_approved": "Document access granted",
+        "document_access_declined": "Document access request declined"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
@@ -4814,14 +4817,22 @@
       "document_comment_resolved_untitled": "{{actor}} marked your comment in a document as resolved.",
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
       "chat_dm": "{{actor}} sent you a message",
-      "chat_thread_replied": "{{actor}} replied to a thread in {{room}}"
+      "chat_thread_replied": "{{actor}} replied to a thread in {{room}}",
+      "document_access_requested": "{{actor}} requested access to “{{document}}”.",
+      "document_access_requested_untitled": "{{actor}} requested access to a document.",
+      "document_access_approved": "{{actor}} gave you access to “{{document}}”.",
+      "document_access_approved_untitled": "{{actor}} gave you access to a document.",
+      "document_access_declined": "Your request to access a document was declined."
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
       "document_comment_replied": "New reply to your comment",
       "document_discussion_mentioned": "You were mentioned in a discussion",
       "document_discussion_replied": "New reply in a discussion",
-      "document_comment_resolved": "Comment resolved"
+      "document_comment_resolved": "Comment resolved",
+      "document_access_requested": "Document access request",
+      "document_access_approved": "Access granted",
+      "document_access_declined": "Request declined"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",
