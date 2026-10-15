@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -5; git merge-base --is-ancestor 71a2a227 HEAD && echo main-merged-ok
+1c1c3d5550321873e80dc326759fc3c396c5a05a
+71a2a22749abef2487c9c48365fa27bd4ee01602
+1c1c3d55 test(e2e): d3 Save as a copy creates the copy on the stub; d3b failing step 2 archives it (G5-12)
+bc62960a test(shell): pin the G5-12 save-copy flow in main and the dialog (G5-12)
+80a77ec3 feat(shell): Save as a copy creates a real copy of the user's version (G5-12)
+71a2a227 fix(slides): a throwing reload re-open keeps the previous deck instead of booting blank (W21)
+3d1f98d9 merge: fork main 1e5f8dfe (G5-08c offline lease core) into the G5-09 lane
+main-merged-ok
