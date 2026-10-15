@@ -195,7 +195,7 @@ export function DocumentDetailView({
   // Only the locked card consumes it: a readable document leaves it to the
   // actions menu.
   useAccessRequestsDeepLink({
-    allowed: !!adminSummary.data && !adminSummary.data.document.archived_at,
+    allowed: !!adminSummary.data && !adminSummary.data.document.archived_at && !adminSummary.data.document.owner_kind,
     ready: gate === "on" && !query.isPending && showLockedAdmin && (adminSummary.isSuccess || adminSummary.isError),
     onOpen: () => {
       setFocusRequests(true);

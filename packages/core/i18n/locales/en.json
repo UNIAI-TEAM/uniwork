@@ -8624,9 +8624,7 @@
       "none_pending": "No requests are waiting.",
       "level_comment": "Comment",
       "decision_failed": "Couldn't update this request. Try again.",
-      "sent_message_label": "Message",
-      "admin_locked_title": "This document is restricted",
-      "admin_locked_body": "As an admin you can manage who has access."
+      "sent_message_label": "Message"
     },
     "accessLog": {
       "title": "Access log",

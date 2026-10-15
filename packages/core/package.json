@@ -65,7 +65,6 @@
     "./documents/hooks-owner": "./documents/hooks-owner.ts",
     "./documents/hooks-access-requests": "./documents/hooks-access-requests.ts",
     "./documents/hooks-access-decisions": "./documents/hooks-access-decisions.ts",
-    "./documents/doc05-fake": "./documents/doc05-fake.ts",
     "./documents/hooks-access-report": "./documents/hooks-access-report.ts",
     "./documents/break-glass-queries": "./documents/break-glass-queries.ts",
     "./documents/hooks-public": "./documents/hooks-public.ts",

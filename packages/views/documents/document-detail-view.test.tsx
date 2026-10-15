@@ -993,7 +993,7 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
       if (path === "/api/v1/documents/d1") return Promise.reject(restricted());
       if (path === "/api/v1/documents/d1/admin-summary") return Promise.resolve(summaryBody());
       if (path === "/api/v1/documents/d1/shares") {
-        return Promise.resolve({ my_level: "", admin_scope: true, acl_owner: null, shares: [], links: [] });
+        return Promise.resolve({ my_level: "", admin_scope: true, acl_owner: { user_id: "01HOWNERULID", level: "none", via: "member" }, shares: [], links: [] });
       }
       if (path === "/api/v1/documents/d1/access-requests") return Promise.resolve({ requests: [] });
       return Promise.resolve({});
@@ -1002,6 +1002,11 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     fireEvent.click(await screen.findByRole("button", { name: t("documents.share.admin_manage_button") }));
     const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
     expect(await within(dialog).findByText(t("documents.share.admin_scope_note"))).toBeInTheDocument();
+    // DOC-05 opens the owner transfer and the add-share form to admin_scope.
+    expect(
+      await within(dialog).findByRole("button", { name: t("documents.share.owner.transfer_button") }),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText(t("documents.share.add_title"))).toBeInTheDocument();
     // Admins manage but never read: no body request beyond the refused one.
     expect(requestMock.mock.calls.filter(([p]) => p === "/api/v1/documents/d1")).toHaveLength(1);
   });
@@ -1030,6 +1035,22 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
       if (path === "/api/v1/documents/d1") return Promise.reject(restricted());
       if (path === "/api/v1/documents/d1/admin-summary") {
         return Promise.resolve(summaryBody({ document: { ...summaryBody().document, archived_at: "2026-10-14T00:00:00Z" } }));
+      }
+      return Promise.resolve({});
+    });
+    const nav = fakeNav("/acme/team/documents/d1?access=requests");
+    renderWithNav(nav);
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1"));
+    expect(screen.queryByRole("dialog", { name: t("documents.share.title") })).toBeNull();
+  });
+
+  it("drops ?access=requests silently when a work product owns the document", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") return Promise.reject(restricted());
+      if (path === "/api/v1/documents/d1/admin-summary") {
+        return Promise.resolve(
+          summaryBody({ document: { ...summaryBody().document, owner_kind: "work_product" } }),
+        );
       }
       return Promise.resolve({});
     });

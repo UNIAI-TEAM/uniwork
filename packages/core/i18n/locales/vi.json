@@ -8619,9 +8619,7 @@
       "none_pending": "Không còn yêu cầu nào đang chờ.",
       "level_comment": "Bình luận",
       "decision_failed": "Chưa xử lý được yêu cầu này. Hãy thử lại.",
-      "sent_message_label": "Lời nhắn",
-      "admin_locked_title": "Tài liệu này bị hạn chế",
-      "admin_locked_body": "Bạn có thể quản lý quyền truy cập với vai trò quản trị viên."
+      "sent_message_label": "Lời nhắn"
     },
     "accessLog": {
       "title": "Nhật ký truy cập",

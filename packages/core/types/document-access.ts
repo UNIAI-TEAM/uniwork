@@ -3,6 +3,7 @@ import type {
   DocumentAccessLevel,
   DocumentAccessVia,
   DocumentKind,
+  DocumentOwnerKind,
   DocumentVisibility,
 } from "./document";
 import {
@@ -74,16 +75,21 @@ export const DocumentAdminSummaryDocumentSchema = z.object({
     .catch(0)
     .transform((v) => v ?? 0),
   archived_at: z.string().nullable().optional(),
+  // Waits S-DOC06: card (a) does not send these yet. Absent keeps the
+  // fallback (not owned, no revision); a malformed value reads as absent.
+  owner_kind: z.string().nullable().optional().catch(undefined),
+  revision: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
 });
 export type DocumentAdminSummaryDocument = Omit<
   z.infer<typeof DocumentAdminSummaryDocumentSchema>,
-  "kind" | "visibility"
+  "kind" | "visibility" | "owner_kind"
 > & {
   kind: DocumentKind;
   visibility: DocumentVisibility;
+  owner_kind?: DocumentOwnerKind | null;
 };
 
 /** GET /api/v1/documents/{id}/admin-summary answer (DOC-05, contract-g8-18-doc-05.md §3). */

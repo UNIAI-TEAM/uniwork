@@ -27,7 +27,9 @@ export function adminRefFromSummary(summary: DocumentAdminSummary): DocumentAdmi
     id: summary.document.id,
     organization_id: summary.document.organization_id,
     visibility: summary.document.visibility,
-    owner_kind: null,
+    // Both wait S-DOC06: absent reads as not owned and no revision.
+    owner_kind: summary.document.owner_kind ?? null,
+    revision: summary.document.revision || undefined,
     my_level: summary.my_level || undefined,
     admin_scope: true,
     archived_at: summary.document.archived_at ?? null,

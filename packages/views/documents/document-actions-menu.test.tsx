@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
-import type { DocumentAdminScopeFake } from "@uniwork/core/documents/doc05-fake";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -72,7 +71,7 @@ function documentFixture(over: Record<string, unknown> = {}): Document {
 }
 
 function renderMenu(
-  doc: Document & DocumentAdminScopeFake = documentFixture(),
+  doc: Document = documentFixture(),
   over: { onArchived?: () => void; nav?: ReturnType<typeof fakeNav> } = {},
 ) {
   return render(

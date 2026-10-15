@@ -1,4 +1,3 @@
-import type { DocumentAdminScopeFake } from "@uniwork/core/documents/doc05-fake";
 import type { Document, DocumentAccessLevel } from "@uniwork/core/types/document";
 
 /**
@@ -14,4 +13,5 @@ export type ShareDialogTarget = Pick<Document, "id" | "visibility" | "owner_kind
   my_level?: DocumentAccessLevel | "";
   title?: string;
   revision?: string;
-} & DocumentAdminScopeFake;
+  admin_scope?: boolean;
+};

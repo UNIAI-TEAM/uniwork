@@ -499,6 +499,27 @@ describe("documents endpoints", () => {
     }
   });
 
+  it("getDocumentAdminSummary reads owner_kind and revision when sent and degrades them when malformed (waits S-DOC06)", async () => {
+    const base = { id: "d1", workspace_id: "w1", kind: "page", title: "Tài liệu hạn chế", visibility: "restricted" };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: { ...base, owner_kind: "work_product", revision: "7" }, my_level: "" }),
+    );
+    const sent = await getDocumentAdminSummary("d1");
+    expect(sent?.document.owner_kind).toBe("work_product");
+    expect(sent?.document.revision).toBe("7");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: { ...base, owner_kind: 5, revision: 7 }, my_level: "" }));
+    const malformed = await getDocumentAdminSummary("d1");
+    expect(malformed?.document.id).toBe("d1");
+    expect(malformed?.document.owner_kind).toBeUndefined();
+    expect(malformed?.document.revision).toBeUndefined();
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: base, my_level: "" }));
+    const absent = await getDocumentAdminSummary("d1");
+    expect(absent?.document.owner_kind).toBeUndefined();
+    expect(absent?.document.revision).toBeUndefined();
+  });
+
   it("DocumentSchema parses break_glass_expires_at and DocumentAccessSchema tolerates malformed break_glass items", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({
