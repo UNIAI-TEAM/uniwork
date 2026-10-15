@@ -67,6 +67,15 @@ for (const [name, call] of Object.entries(API_CALLS)) {
   }
 }
 
+test("sdiFields treats pointer / omitempty fields as optional even when they carry minLength bounds for present values (C1)", () => {
+  const fields = sdiFields("CreateOfficeLaunchSessionSDI");
+  assert.equal(fields.deployment_id?.required, true);
+  assert.equal(fields.client_id?.required, true);
+  assert.equal(fields.version?.required, false);
+  assert.equal(fields.return_hint?.required, false);
+  assert.equal(fields.comment_id?.required, false);
+});
+
 test("the slug-for-id mistake of cloud round 5 is caught: createWorkspace's {org} reaches the service as an id", () => {
   const target = pathParamTarget("CreateOrgWorkspace", "org");
   assert.deepEqual({ method: target.method, kind: paramKind(target.name) }, { method: "CreateInOrg", kind: "id" });
