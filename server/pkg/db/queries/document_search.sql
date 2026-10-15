@@ -15,6 +15,13 @@
 -- a member listing visibility. Restricted docs never match member_visible,
 -- so an invisible document drops out of the set before LIMIT runs.
 --
+-- DOC-05 (UNI-1628): a see_all caller (workspace owner/admin) still lists a
+-- restricted document they reach only through see_all - not the ACL owner, no
+-- live share, no live break-glass grant - but cannot read it: such a row has
+-- an empty snippet and a query matches its title only, never search_text, so
+-- neither the snippet nor a body-only keyword leaks the content. The
+-- "content readable" predicate is inlined where it is used.
+--
 -- Actor-kind guards (resolveLevel answers the same): agents are never share
 -- principals and never ACL owners, so callers pass allow_shares / acl_owner
 -- false for an agent and every share or ACL-owner leg folds shut.
@@ -24,6 +31,28 @@
 -- name: ListDocumentsPage :many
 SELECT d.*,
        COALESCE(CASE WHEN sqlc.narg(query)::text IS NULL THEN NULL::text
+                     WHEN NOT (NOT sqlc.arg(see_all)::boolean
+                 OR d.visibility <> 'restricted'
+                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = sqlc.arg(actor_id)
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now())) THEN NULL::text
                      ELSE left(d.content_text, 160)::text END, '')::text AS snippet
 FROM documents d
 WHERE d.organization_id = sqlc.arg(organization_id)
@@ -51,8 +80,51 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.updated_at < sqlc.narg(updated_to))
   AND (sqlc.narg(query)::text IS NULL
        OR (NOT sqlc.arg(match_title)::boolean
+           AND (NOT sqlc.arg(see_all)::boolean
+                 OR d.visibility <> 'restricted'
+                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = sqlc.arg(actor_id)
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
-       OR (sqlc.arg(match_title)::boolean
+       OR ((sqlc.arg(match_title)::boolean OR NOT (NOT sqlc.arg(see_all)::boolean
+                 OR d.visibility <> 'restricted'
+                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = sqlc.arg(actor_id)
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_at)::timestamptz IS NULL
        OR (d.updated_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))
@@ -90,8 +162,51 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.updated_at < sqlc.narg(updated_to))
   AND (sqlc.narg(query)::text IS NULL
        OR (NOT sqlc.arg(match_title)::boolean
+           AND (NOT sqlc.arg(see_all)::boolean
+                 OR d.visibility <> 'restricted'
+                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = sqlc.arg(actor_id)
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
-       OR (sqlc.arg(match_title)::boolean
+       OR ((sqlc.arg(match_title)::boolean OR NOT (NOT sqlc.arg(see_all)::boolean
+                 OR d.visibility <> 'restricted'
+                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = sqlc.arg(actor_id)
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_position)::float8 IS NULL
        OR (d.position, d.id) > (sqlc.narg(cursor_position), sqlc.narg(cursor_id)::text))
@@ -127,8 +242,51 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.archived_at < sqlc.narg(updated_to))
   AND (sqlc.narg(query)::text IS NULL
        OR (NOT sqlc.arg(match_title)::boolean
+           AND (NOT sqlc.arg(see_all)::boolean
+                 OR d.visibility <> 'restricted'
+                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = sqlc.arg(actor_id)
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
-       OR (sqlc.arg(match_title)::boolean
+       OR ((sqlc.arg(match_title)::boolean OR NOT (NOT sqlc.arg(see_all)::boolean
+                 OR d.visibility <> 'restricted'
+                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR EXISTS (
+                      SELECT 1 FROM document_shares rs
+                      WHERE rs.organization_id = d.organization_id
+                        AND rs.workspace_id = d.workspace_id
+                        AND rs.document_id = d.id
+                        AND rs.revoked_at IS NULL
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
+                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                             OR (rs.principal_type = 'workspace'
+                                 AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
+                 OR EXISTS (
+                      SELECT 1 FROM document_break_glass_grants g
+                      WHERE g.organization_id = d.organization_id
+                        AND g.workspace_id = d.workspace_id
+                        AND g.document_id = d.id
+                        AND g.actor_id = sqlc.arg(actor_id)
+                        AND g.actor_kind = 'human'
+                        AND g.revoked_at IS NULL
+                        AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_at)::timestamptz IS NULL
        OR (d.archived_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))
