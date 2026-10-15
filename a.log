@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+2950fce8d0c9b8b96f34397480b72d567ece104a
+2950fce8d chore: merge UNI-1645 edit-lock addendum (e4bb43f90) into the G5-G7 root
+b45ecabe5 test(office): deterministic clock in the G8-A02 closed-panel fake
+9187b2c4c fix(office): rename the world seed helper so knip stops reading register("A") as a module
