@@ -1900,9 +1900,10 @@ func seedAnchorVersion(t *testing.T, f *auditFixture, documentID string, ordinal
 	return versionID
 }
 
-// Two commands write document.created without owning the action: CreateFolder
-// (a folder is a document of kind folder) and SaveSourceFile (a file copied out
-// of chat, a task, a meeting or a mailbox). TestEveryAuditedCommandWritesItsRow
+// Three commands write document.created without owning the action: CreateFolder
+// (a folder is a document of kind folder), SaveSourceFile (a file copied out
+// of chat, a task, a meeting or a mailbox) and CopyDocument (a standalone copy
+// of a file document). TestEveryAuditedCommandWritesItsRow
 // is keyed by action, so a dropped audit write on either would hide behind the
 // other document.created writers. These cases are keyed by command: each runs
 // it and demands an audit row and an outbox row for the document it created.
@@ -1926,6 +1927,17 @@ func TestReusedAuditActionCommandsWriteTheirOwnRows(t *testing.T) {
 			store.objects["workspaces/"+env.tn.wsA+"/attachments/"+attID+"/audit.pdf"] = pdfBody("audit-save")
 			res, err := svc.Save(context.Background(), human(env.tn.member), env.tn.wsA, "task:"+attID,
 				SaveSourceFileInput{IdempotencyKey: "audit-save"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return env, res.Document.ID
+		},
+		"CopyDocument": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			member := human(env.tn.member)
+			src := env.createFile(t, member, "audit-copy.md", []byte("# Audit copy\n"))
+			res, err := env.svc.CopyDocument(context.Background(), member, src.Document.ID,
+				CopyDocumentInput{Consent: documentCopyConsent, IdempotencyKey: "audit-copy"})
 			if err != nil {
 				t.Fatal(err)
 			}
