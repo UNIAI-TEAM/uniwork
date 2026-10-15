@@ -61,6 +61,11 @@ type DocumentMetrics interface {
 	IncDocumentQuotaRejected(kind string)
 	ObserveDocumentWorkerSweep(worker, result string, seconds float64)
 	AddDocumentWorkerRowsFailed(worker string, n int)
+	// The edit lock (UNI-1645): op, route and request outcome are closed
+	// label sets, never ids.
+	IncDocumentEditLockOp(op string)
+	IncDocumentEditLockRefused(route string)
+	IncDocumentEditRequest(op string)
 }
 
 type nopDocumentMetrics struct{}
@@ -72,6 +77,9 @@ func (nopDocumentMetrics) IncDocumentConflict(string, string)                 {}
 func (nopDocumentMetrics) IncDocumentQuotaRejected(string)                    {}
 func (nopDocumentMetrics) ObserveDocumentWorkerSweep(string, string, float64) {}
 func (nopDocumentMetrics) AddDocumentWorkerRowsFailed(string, int)            {}
+func (nopDocumentMetrics) IncDocumentEditLockOp(string)                       {}
+func (nopDocumentMetrics) IncDocumentEditLockRefused(string)                  {}
+func (nopDocumentMetrics) IncDocumentEditRequest(string)                      {}
 
 // SetMetrics wires the operational counters. Unwired, every call is a nop.
 func (s *DocumentService) SetMetrics(m DocumentMetrics) {

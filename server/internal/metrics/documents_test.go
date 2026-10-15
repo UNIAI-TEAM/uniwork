@@ -51,6 +51,35 @@ func TestDocumentMetricsExposeSaveAndWorkerSignals(t *testing.T) {
 	}
 }
 
+// UNI-1645: the three edit-lock families are returned by Collectors(), so the
+// registry NewRegistry builds exposes them to a scrape; a family left out of
+// Collectors() would be invisible in production.
+func TestDocumentMetricsExposeEditLockSignals(t *testing.T) {
+	registry := NewRegistry(RegistryOptions{})
+	d := registry.Documents
+
+	d.IncDocumentEditLockOp("acquire")
+	d.IncDocumentEditLockOp("acquire")
+	d.IncDocumentEditLockOp("session_revoked")
+	d.IncDocumentEditLockRefused("frame_commit")
+	d.IncDocumentEditRequest("rate_limited")
+
+	rec := httptest.NewRecorder()
+	NewHandler(registry.Gatherer).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := rec.Body.String()
+
+	for _, want := range []string{
+		`uniwork_document_edit_lock_ops_total{op="acquire"} 2`,
+		`uniwork_document_edit_lock_ops_total{op="session_revoked"} 1`,
+		`uniwork_document_edit_lock_refused_total{route="frame_commit"} 1`,
+		`uniwork_document_edit_requests_total{op="rate_limited"} 1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics body missing %q\n%s", want, body)
+		}
+	}
+}
+
 // The lag collector reads the queues its workers drain: a quiet page with no
 // snapshot, an archived document past purge_after and an orphaned asset past
 // its grace all show up as pending seconds; a drained queue reads 0.
