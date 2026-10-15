@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+a0f699ce9af35cd57e2a6a681a8ed37d95000368
+a0f699ce9 test(documents): cover the library access columns and filter
+cccea0fc1 feat(documents): add My access and Visibility columns and an access filter to the library
+72b53366d chore(office): let knip accept the go toolchain binary used by devset-run
+24af6910d docs(office): correct the commit route description to 409 document_version_conflict
