@@ -109,11 +109,28 @@ const IPV6_RE = /\[[0-9a-f:]{2,39}\](?::\d{1,5})?|\b(?:[0-9a-f]{1,4}:){7}[0-9a-f
 const HEX_RUN_RE = /\b[0-9a-f]{40,}\b/gi;
 const BASE64_RUN_RE = /[A-Za-z0-9+/_-]{40,}={0,2}/g;
 // A Vietnamese amount of a billion or more ("1.100.100.100 đồng") has the shape of an IPv4 literal; with a currency unit
-// beside it, it is money. Without a unit the shape stays ambiguous and is redacted and flagged (a human reads the flag).
+// beside it, it is money. Without a unit it stays ambiguous and is redacted and flagged (a human reads the flag), except a lead of one digit.
 const GROUPED_AMOUNT_RE = /^\d{1,3}(?:\.\d{3}){3}$/;
 const UNIT_AFTER_RE = /^\s?(?:đồng|vnd|vnđ|đ|₫)(?![\p{L}])/iu;
 const UNIT_BEFORE_RE = /(?:₫|vnd|vnđ)\s?$/i;
-const looksEncoded = (run) => /[A-Z]/.test(run) && /[a-z]/.test(run) && /\d/.test(run);
+// A bare "2.100.100.100" (one leading digit) is a billion-scale amount far more often than a private address (those start with
+// 10., 100., 127., 172., 192.): without a unit it is kept too (G712-26). Longer leads (10.100.100.100) stay flagged.
+const SMALL_LEAD_AMOUNT_RE = /^\d\.\d{3}\.\d{3}\.\d{3}$/;
+/**
+ * Does a long run of base64 characters look like encoded data rather than a path or an identifier (G712-26)? Random base64 is about
+ * 40% upper case, 40% lower case and 16% digits with a '/' in every ~64 characters; a slash-joined path is mostly lower case with
+ * slashes every few characters, and a CamelCase identifier has few capitals. Measured on random blobs and on every tracked repo path:
+ * ~0 paths flagged, under 2% of 40-character blobs missed (under 0.3% from 64 characters).
+ */
+function looksEncoded(run) {
+  const n = run.length;
+  const slashes = run.split('/').length - 1;
+  if ((slashes >= 2 && slashes * 24 >= n && run.startsWith('/')) || (slashes >= 4 && slashes * 12 >= n)) return false;
+  const upper = (run.match(/[A-Z]/g) ?? []).length;
+  const lower = (run.match(/[a-z]/g) ?? []).length;
+  const digits = (run.match(/\d/g) ?? []).length;
+  return upper > 0 && lower > 0 && digits >= 2 && upper / n >= 0.2 && lower / n <= 0.65;
+}
 
 /** Redacts secret-looking values in a string; returns the clean text and what was found, as [{ kind, count }]. */
 export function redactSecrets(text) {
@@ -126,6 +143,7 @@ export function redactSecrets(text) {
   swap(PRIVATE_HOST_RE, 'private_host');
   swap(IPV6_RE, 'ipv6');
   out = out.replace(IPV4_RE, (match, offset, whole) => {
+    if (SMALL_LEAD_AMOUNT_RE.test(match)) return match;
     if (GROUPED_AMOUNT_RE.test(match) && (UNIT_AFTER_RE.test(whole.slice(offset + match.length)) || UNIT_BEFORE_RE.test(whole.slice(0, offset)))) return match;
     note('ipv4');
     return '[redacted:ipv4]';

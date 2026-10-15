@@ -827,7 +827,8 @@ describe('runner faults and failures', () => {
     }
     assert.deepEqual(redactSecrets('host 10.20.30.40.').hits, [{ kind: 'ipv4', count: 1 }]);
     assert.deepEqual(redactSecrets('Bearer abcdefghijklmnopqrstuv').hits, [{ kind: 'key', count: 1 }]);
-    assert.deepEqual(redactSecrets('Tổng 1.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'without a unit the shape is ambiguous: flagged for a human');
+    assert.deepEqual(redactSecrets('Tổng 10.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'without a unit and a lead of two digits the shape is ambiguous: flagged for a human');
+    assert.deepEqual(redactSecrets('Tổng 1.100.100.100').hits, [], 'a one-digit lead without a unit is kept (G712-26)');
   });
 
   it('also redacts bearer tokens, provider keys, JWTs, userinfo URLs, long hex/base64 runs and private hosts, never money or dates (G712-10)', () => {
@@ -850,6 +851,9 @@ describe('runner faults and failures', () => {
       [`digest ${'a1b2c3d4'.repeat(8)}`, 'hex_run'],
       [`blob ${'Ab3dE6gH9kLm'.repeat(4)}`, 'base64_run'],
       ['api_key=zx81abcd5678efgh', 'credential'],
+      ['call 2.100.100.100:8080 today', 'ipv4'],
+      ['call 10.100.100.100 today', 'ipv4'],
+      ['blob q3Vh9Z/Lm2Xk+Rt7PwB4nYcD8sE1fGjH6aKoUiT0vNxM5zQ', 'base64_run'],
     ];
     for (const [text, kind] of cases10) {
       const out = redactSecrets(text);
@@ -859,7 +863,13 @@ describe('runner faults and failures', () => {
     const harmless = [
       'Tổng 31.337.000 đồng và 1.100.100.100 VNĐ', 'Doanh thu Q1!G8 = SUM(G2:G7), Q1!B2:B5', 'Ngày 2026-10-15T09:30:00+07:00 và 15/10/2026 lúc 09:30:45',
       'Tổng 22060000 VND (31,337,000)', 'tokens: 5600000, input_tokens: 123456789', 'Xem report.xlsx:2026 và Sheet1.A1:B2', 'Thời hạn 12:30, tỷ lệ 10:1',
-      'trace 0123456789abcdef0123456789abcdef', 'Một đoạn văn tiếng Việt dài không có bí mật nào cả, chỉ có chữ và số 12345.',
+      'trace 0123456789abcdef0123456789abcdef',
+      // G712-26: a slash-joined path, a long CamelCase identifier and a dotted number with a one-digit lead are not secrets.
+      'tệp /home/ubuntu/orca/workspaces/uniwork/feature-UNI-1384-g7-12-holdout-eval/scripts/office/g5g6g7/holdout-run.mjs',
+      'xem docs/office/g5g6g7/holdout/cases/HO-XLSX-023.json và packages/views/layout/module-icons.ts',
+      'lớp aVeryLongCamelCaseIdentifierWithNumbers12345 và AbstractSingletonProxyFactoryBean2WithExtras12345',
+      'số 2.100.100.100',
+      'Một đoạn văn tiếng Việt dài không có bí mật nào cả, chỉ có chữ và số 12345.',
     ];
     for (const text of harmless) assert.deepEqual(redactSecrets(text), { text, hits: [] }, text);
   });
