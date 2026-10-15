@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at 63e768f5aed347e4fa48310a0cdaaf2d4adf7a3b
-// (fork lane feature/UNI-1413-g8-18-mention-editor on fork main 451e4f610; unchanged since the G5-03w re-vendor, SHA bumped with the protocol.)
+// web/docs/protocol/host.ts at 039c2223511bc389a8b311782a834b7636c6fad4
+// (fork lane feature/UNI-1413-g8-18-fork-fix at 039c22235; unchanged since the G5-03w re-vendor, SHA bumped with the protocol.)
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
