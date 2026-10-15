@@ -23,6 +23,7 @@ import {
   decideG8A01,
   decideG8A04,
   downloadVersion,
+  openReplyComposer,
   runG8A01,
   runG8A04,
   waitDesktopSees,
@@ -103,7 +104,7 @@ function a04Record(over = {}) {
     ],
     hardDelete: { deleted: true, tokenChanged: true, goneOnDesktop: true, elapsedMs: 5_000 },
     concurrent: { statuses: [201, 201], ids: ["k1", "k2"], rows: 2 },
-    offline: { draftTyped: true, readOnly: true, sendBlocked: true, draftKept: true, recovered: true, draftKeptAfter: true },
+    offline: { draftTyped: true, sendOnline: true, readOnly: true, sendBlocked: true, draftKept: true, recovered: true, draftKeptAfter: true },
     panels: { desktop: 1, web: { status: "PASS", count: 1 } },
     ...over,
   };
@@ -138,7 +139,7 @@ test("decideG8A04: the desktop must see a web change on focus within 30 s poll +
 });
 
 test("decideG8A04: offline must be read-only (status line + Send blocked), keep the draft, and recover", () => {
-  for (const field of ["readOnly", "sendBlocked", "draftKept", "recovered", "draftKeptAfter", "draftTyped"]) {
+  for (const field of ["readOnly", "sendBlocked", "draftKept", "recovered", "draftKeptAfter", "draftTyped", "sendOnline"]) {
     const rec = a04Record();
     rec.offline = { ...rec.offline, [field]: false };
     const d = decideG8A04(rec);
@@ -316,12 +317,14 @@ test("downloadVersion GETs /api/v1/documents/{id}/download?version=N with the us
   await assert.rejects(downloadVersion({ apiOrigin: "http://api", token: "t", documentId: "D", version: 3, fetchImpl: async () => ({ ok: false, status: 404 }) }), /download of version 3 answered 404/);
 });
 
-test("runG8A04 (xlsx, fake): web create seen on desktop after focus, desktop create read by B, R1 BLOCKED, A03 add-on in details", async () => {
-  const fake = createFakeWorld();
+/** The xlsx A04 world: rows, list tokens, the panel probe, and a Reply composer that opens on demand. */
+function scriptA04Xlsx(fake, opts = { replyOpens: true }) {
+  const opened = [];
   const server = { rows: [], token: 0, title: "G8-A04" };
   const bump = () => `lt-${++server.token}`;
   let online = true;
-  let draft = "";
+  let draft = null;
+  let replyFor = null;
   fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
   fake.script.respond("app.openByTicket", (call) => ({ path: "/wc/rev.xlsx", documentId: call.args[1]?.documentId, kind: "sheets" }));
   fake.script.respond("app.comments.context", { ok: true, value: { documentId: "doc-1", versionId: "ver-1" } });
@@ -362,9 +365,18 @@ test("runG8A04 (xlsx, fake): web create seen on desktop after focus, desktop cre
     const name = call.args[2];
     if (name === "probe:panel") {
       const live = server.rows.filter((r) => !r.gone && r.kind === "comment");
-      return { panels: 1, commentIds: live.map((r) => r.id), warn: !online, composer: true, draft, sendDisabled: !online };
+      // the kit renders a composer only under a thread whose Reply was pressed (CollabThread.tsx:851-852)
+      const composer = replyFor !== null;
+      return { panels: 1, commentIds: live.map((r) => r.id), warn: !online, composer, draft: composer ? draft ?? "" : null, sendDisabled: composer ? !online || !draft : null };
+    }
+    if (name === "draft:open") {
+      opened.push(call.args[1].threadId);
+      if (!opts.replyOpens || !server.rows.some((r) => r.id === call.args[1].threadId && !r.gone)) return { ok: false, reason: `no Reply in thread ${call.args[1].threadId}` };
+      replyFor = call.args[1].threadId;
+      return { ok: true };
     }
     if (name === "draft:type") {
+      if (replyFor === null) return { ok: false, reason: "no composer textarea in the panel" };
       draft = call.args[1].text;
       return { ok: true };
     }
@@ -392,21 +404,28 @@ test("runG8A04 (xlsx, fake): web create seen on desktop after focus, desktop cre
   sB("getDocument", () => ({ status: 200, body: { document: { id: "doc-1", title: server.title, revision: "3", file: { version_id: "ver-1" } } } }));
   sB("copyDocument", { status: 201, body: { document: { id: "doc-copy" } } });
 
+  return { server, opened, setOnline: (_runDir, value) => (online = value), isOnline: () => online };
+}
+
+test("runG8A04 (xlsx, fake): web create seen on desktop after focus, desktop create read by B, R1 BLOCKED, A03 add-on in details", async () => {
+  const fake = createFakeWorld();
+  const w = scriptA04Xlsx(fake);
   const ctx = fakeCtx(fake, "G8-A04", "fx-xlsx-revenue-xyz");
   const record = await runG8A04(ctx, {
     connectApp: fake.app.connectApp,
     sleep: async () => {},
     framePin: { gitSha: "05fd209" },
-    setOnline: (_runDir, value) => {
-      online = value;
-    },
+    setOnline: w.setOnline,
   });
   assert.equal(record.status, "BLOCKED", JSON.stringify(record, null, 1));
   assert.equal(record.blocker, WEB_FRAME_PIN_BLOCKER);
   for (const [name, step] of Object.entries(record.steps)) {
     if (!["check:desktop-to-web-realtime", "check:one-panel-web"].includes(name)) assert.equal(step.status, "PASS", `${name}: ${step.reason ?? ""}`);
   }
-  assert.equal(online, true, "the app proxy is back online at the end");
+  assert.equal(w.isOnline(), true, "the app proxy is back online at the end");
+  const deskId = w.server.rows.find((r) => r.body.startsWith("G8-A04 desktop"))?.id;
+  assert.deepEqual(w.opened, [deskId], "the offline draft goes into the Reply composer of the desktop thread");
+  assert.deepEqual(record.details.offline.threadId, deskId);
   assert.equal(record.details.g8A03AddOn.status, "PASS", JSON.stringify(record.details.g8A03AddOn));
   assert.ok(fake.calls.app.filter((c) => c.key === "focus").length >= 2, "the desktop poll is forced by focus");
   const created = fake.calls.api.filter((c) => c.key === "createDocumentComment" && c.user === "B");
@@ -444,4 +463,48 @@ test("runG8A04: a panel that does not appear after the opener is FAIL at panel w
   const record = await runG8A04(fakeCtx(fake, "G8-A04", "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 2_000), framePin: { gitSha: "05fd209" }, setOnline: () => {} });
   assert.equal(record.status, "FAIL");
   assert.match(record.reason, /^panel: .*no comments panel .*Show Comments/);
+});
+
+test("runG8A04 offline: a composer that cannot be opened makes the offline step FAIL itself (never PASS on empty observations)", async () => {
+  const fake = createFakeWorld();
+  const w = scriptA04Xlsx(fake, { replyOpens: false });
+  const ctx = fakeCtx(fake, "G8-A04", "fx-xlsx-revenue-xyz");
+  const record = await runG8A04(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" }, setOnline: w.setOnline });
+  assert.equal(ctx.steps.offline.status, "FAIL");
+  assert.match(ctx.steps.offline.reason, /^could not open a reply composer: no Reply in thread/);
+  assert.equal(record.steps["check:offline"].status, "FAIL");
+  assert.match(record.steps["check:offline"].reason, /no draft could be typed into the composer \(could not open a reply composer: no Reply in thread/);
+  assert.equal(w.isOnline(), true, "never left offline");
+});
+
+test("decideG8A04 offline: Send must be enabled online with the draft, else its offline block proves nothing", () => {
+  const rec = a04Record();
+  rec.offline = { ...rec.offline, sendOnline: false };
+  const c = decideG8A04(rec).steps["check:offline"];
+  assert.equal(c.status, "FAIL");
+  assert.match(c.reason, /Send was already blocked online with a draft/);
+});
+
+test("openReplyComposer presses Reply in the thread and waits for its composer (fork CollabThread.tsx:761-770,851-852)", async () => {
+  const saved = globalThis.document;
+  let composer = null;
+  const reply = { textContent: " Trả lời ", getAttribute: () => null, click: () => (composer = { tag: "textarea" }) };
+  const other = { textContent: "Đi tới vị trí", getAttribute: () => null, click: () => assert.fail("wrong button") };
+  const thread = { getAttribute: () => "k2", querySelectorAll: (sel) => (sel === "button.collab-link" ? [other, reply] : []), querySelector: (sel) => (sel === "textarea.collab-composer-input" ? composer : null) };
+  globalThis.document = {
+    querySelector: (sel) => (sel === 'aside.collab-panel [data-thread-id="k2"]' ? thread : null),
+    querySelectorAll: (sel) => (sel === "aside.collab-panel [data-thread-id]" ? [thread] : []),
+  };
+  try {
+    assert.deepEqual(await openReplyComposer({ threadId: "k2", boundMs: 50 }), { ok: true });
+    composer = null;
+    reply.click = () => {};
+    assert.match((await openReplyComposer({ threadId: "k2", boundMs: 50 })).reason, /no composer under thread k2/);
+    assert.match((await openReplyComposer({ threadId: "k9", boundMs: 50 })).reason, /no thread k9 in the panel/);
+    reply.click = () => (composer = { tag: "textarea" });
+    composer = null;
+    assert.deepEqual(await openReplyComposer({ threadId: "k9", anyThread: true, boundMs: 50 }), { ok: true, threadId: "k2" }, "a listed thread stands in, and is named");
+  } finally {
+    globalThis.document = saved;
+  }
 });

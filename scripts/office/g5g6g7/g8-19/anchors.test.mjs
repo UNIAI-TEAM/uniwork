@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { zipStore } from "../fixtures-lib/zip.mjs";
 import { createFakeWorld } from "./fake-world.mjs";
 import { B7_ANCHOR, WEB_FRAME_PIN_BLOCKER, WEB_FRAME_PIN_OWNER, exitCodeFor } from "./run-row.mjs";
 import {
@@ -17,6 +18,8 @@ import {
   anchorForFixture,
   anchorMatches,
   PURGED_CASE_NOTE,
+  docxQuoteBlock,
+  serverCommentMark,
   decideG8A02,
   decideWebToDesktop,
   expectedAfterShift,
@@ -45,6 +48,11 @@ function closedMoved(over = {}) {
     row: { id: "cc", anchor: B8, anchor_state: "exact", anchor_version_id: "vc-2", deleted_at: null },
     ...over,
   };
+}
+
+/** The docx anchor of the fixture's block 2 quote, at `path`. */
+function docxAnchor(path = [2]) {
+  return { format: "docx", v: 1, path, start: 0, end: 20, quote: "Tổng doanh thu quý 1", prefix: "", suffix: " đạt 22.060.000 đồng." };
 }
 
 /** A record where every sub-step passed (xlsx), the web frame pin already re-pinned. */
@@ -567,20 +575,86 @@ test("decideG8A02 closed-panel Save: an anchor that moved to the new head with t
   assert.equal(Object.keys(d.steps)[0], "check:closed-panel-save", "it runs first and is listed first");
 });
 
-test("decideG8A02 closed-panel Save: an anchor left on the old version is FAIL with the product reason, the row FAILs even when the panel path passes", () => {
+test("decideG8A02 closed-panel Save: an anchor the round never covered (exact on the old version) is FAIL naming the one-list-at-mount controller and the format's round", () => {
   for (const format of ["xlsx", "docx", "pptx", "pdf"]) {
     const rec = passingRecord({ format, closedPanel: closedMoved({ row: { id: "cc", anchor: B7_ANCHOR, anchor_state: "exact", anchor_version_id: "vc-1", deleted_at: null } }) });
     const d = decideG8A02(rec);
     const c = d.steps["check:closed-panel-save"];
     assert.equal(c.status, "FAIL", format);
-    assert.match(c.reason, /^desktop re-anchors on Save only the roots its open comments panel listed \(packages\/electron-utils\/src\/comments-poll\.ts:128-131, apps\/[a-z]+\/src\/renderer\/[^)]*\.tsx?:\d+-\d+\); with the panel closed the server anchor stays on the old version/, format);
+    assert.match(c.reason, /^desktop did not re-anchor this comment on Save: the editor's round covers only the roots its comments controller has listed \(apps\/[a-z]+\/src\/renderer\/[^)]*\.tsx?:\d+-\d+\)/, format);
+    assert.match(c.reason, /packages\/ui\/src\/collab\/use-collab-threads\.ts:455-475/, `${format}: one list at mount`);
+    assert.match(c.reason, /packages\/electron-utils\/src\/comments-poll\.ts:128-131/, `${format}: no reload with the panel closed`);
     assert.match(c.reason, /vc-1.*vc-2/, `${format}: the observed versions are in the reason`);
     assert.equal(c.owner, CLOSED_PANEL_OWNER);
     assert.equal(CLOSED_PANEL_OWNER, "g8-fork_editors / Lead F");
     assert.equal(d.status, "FAIL", `${format}: not BLOCKED, not hidden`);
   }
-  const stayed = closedMoved({ row: { id: "cc", anchor: B7_ANCHOR, anchor_state: "lost", anchor_version_id: "vc-1" } });
-  assert.match(decideG8A02(passingRecord({ format: "docx", closedPanel: stayed })).steps["check:closed-panel-save"].reason, /ServerCommentsHost\.tsx:194-203/, "docx cites its anchor round");
+  const pdf = decideG8A02(passingRecord({ format: "pdf", closedPanel: closedMoved({ createdAfterSave: true, row: { id: "cc", anchor: { format: "pdf", v: 1, page: 2, rect: [72, 700, 96, 724] }, anchor_state: "exact", anchor_version_id: "vc-1" } }) }));
+  assert.match(pdf.steps["check:closed-panel-save"].reason, /PdfServerComments\.tsx:178-202/);
+  assert.match(pdf.steps["check:closed-panel-save"].reason, /made after the prepare Save/, "pdf: the comment came after the controller's one list");
+});
+
+test("decideG8A02 closed-panel Save: a row the desktop reported lost is the round's own answer, never the panel gate; docx names the post-Save reload", () => {
+  const lost = { id: "cc", anchor: { ...docxAnchor() }, anchor_state: "lost", anchor_version_id: "vc-1" };
+  const docx = decideG8A02(passingRecord({ format: "docx", closedPanel: closedMoved({ expected: docxAnchor([3]), row: lost, headQuote: { block: 3 }, marks: { beforeEdit: 1, afterEdit: 1, afterSave: 0 } }) })).steps["check:closed-panel-save"];
+  assert.equal(docx.status, "FAIL");
+  assert.equal(docx.owner, CLOSED_PANEL_OWNER);
+  assert.match(docx.reason, /^desktop reported the anchor lost on Save/);
+  assert.doesNotMatch(docx.reason, /comments-poll|panel closed/, "the round ran: the panel gate does not explain a lost row");
+  assert.match(docx.reason, /apps\/docs\/src\/renderer\/file-actions\.ts:1125-1148/);
+  assert.match(docx.reason, /anchor-tracker\.ts:79-91/);
+  assert.match(docx.reason, /anchor-sync\.ts:25-31/);
+  assert.match(docx.reason, /document_comment_anchors\.go:434-440/);
+  assert.match(docx.reason, /saved head holds the quote at block 3/);
+  assert.match(docx.reason, /highlight before edit 1, after edit 1, after Save 0/);
+  const pptx = decideG8A02(passingRecord({ format: "pptx", closedPanel: closedMoved({ row: { ...lost, anchor: { format: "pptx", v: 1, slide_id: "257", slide_index: 1 } } }) })).steps["check:closed-panel-save"];
+  assert.match(pptx.reason, /^desktop reported the anchor lost on Save/);
+  assert.doesNotMatch(pptx.reason, /file-actions|comments-poll/, "only code that explains the failure is cited");
+});
+
+test("decideG8A02 docx: a saved head whose quote is not at the expected block is the edit driver's fault (harness), not a product FAIL", () => {
+  const lost = { id: "cc", anchor: docxAnchor(), anchor_state: "lost", anchor_version_id: "vc-1" };
+  const c = decideG8A02(passingRecord({ format: "docx", closedPanel: closedMoved({ expected: docxAnchor([3]), row: lost, headQuote: { block: 2 } }) })).steps["check:closed-panel-save"];
+  assert.equal(c.status, "FAIL");
+  assert.match(c.reason, /^edit driver: the saved head holds the quote at block 2, want 3/);
+  assert.equal(c.owner, undefined, "a harness fault has no product owner");
+  const none = decideG8A02(passingRecord({ format: "docx", closedPanel: closedMoved({ expected: docxAnchor([3]), row: lost, headQuote: { block: null } }) })).steps["check:closed-panel-save"];
+  assert.match(none.reason, /^edit driver: the saved head no longer holds the quote/);
+});
+
+test("decideG8A02 shift: a lost row says the desktop reported lost (the server keeps the version), with the docx reason; remove after an already-lost row is not observed", () => {
+  const rec = passingRecord({ format: "docx" });
+  rec.created = { ok: true, commentId: "c1", anchor: docxAnchor(), versionId: "ver-1" };
+  rec.shift = { ...rec.shift, expected: docxAnchor([3]), headQuote: { block: 3 }, row: { id: "c1", anchor: docxAnchor(), anchor_state: "lost", anchor_version_id: "ver-1", deleted_at: null } };
+  rec.restSeesMoved = { anchor: docxAnchor(), anchor_version_id: "ver-1" };
+  rec.remove.row = { ...rec.shift.row };
+  rec.afterInvalid = { ...rec.shift.row };
+  const d = decideG8A02(rec);
+  assert.match(d.steps["check:shift"].reason, /^desktop reported the anchor lost on Save, want exact at path \[3\]/);
+  assert.match(d.steps["check:shift"].reason, /file-actions\.ts:1125-1148/);
+  assert.doesNotMatch(d.steps["check:shift"].reason, /anchor stayed on version/);
+  assert.equal(d.steps["check:remove-lost"].status, "FAIL");
+  assert.match(d.steps["check:remove-lost"].reason, /not observed: the row was already lost after the shift Save/);
+});
+
+test("docxQuoteBlock: the top-level block that holds the quote, empty <w:p/> paragraphs counted", () => {
+  const xml = (body) => zipStore([{ name: "word/document.xml", data: `<w:document><w:body>${body}<w:sectPr/></w:body></w:document>` }]);
+  const p = (t) => `<w:p><w:r><w:t xml:space="preserve">${t}</w:t></w:r></w:p>`;
+  assert.equal(docxQuoteBlock(xml(`<w:p/>${p("")}${p("Tiêu đề")}${p("Tổng doanh thu quý 1 đạt")}`), "Tổng doanh thu quý 1"), 3);
+  assert.equal(docxQuoteBlock(xml(`<w:p w14:paraId="1"/>${p("Tổng doanh thu quý 1")}`), "Tổng doanh thu quý 1"), 1);
+  assert.equal(docxQuoteBlock(xml(p("khác")), "Tổng doanh thu quý 1"), null);
+});
+
+test("serverCommentMark counts the docx highlights of one comment (fork anchor-tracker.ts:49,58-61)", () => {
+  const saved = globalThis.document;
+  const el = (id, text) => ({ getAttribute: (n) => (n === "data-server-comment" ? id : null), textContent: text });
+  globalThis.document = { querySelectorAll: (sel) => (sel === "[data-server-comment]" ? [el("c1", "Tổng doanh"), el("c1", " thu"), el("c2", "x")] : []) };
+  try {
+    assert.deepEqual(serverCommentMark({ commentId: "c1" }), { marks: 2, text: "Tổng doanh thu" });
+    assert.deepEqual(serverCommentMark({ commentId: "c9" }), { marks: 0, text: "" });
+  } finally {
+    globalThis.document = saved;
+  }
 });
 
 test("decideG8A02 closed-panel Save: moved but wrong place, a failed edit or Save, or a part that did not run -> FAIL with that reason", () => {
@@ -603,7 +677,7 @@ test("runG8A02 runs the closed-panel Save first on its own document: no opener b
   assert.deepEqual(Object.keys(ctx.steps).slice(0, 3), ["upload", "closed-panel-save", "open-desktop"], JSON.stringify(Object.keys(ctx.steps)));
   const c = record.steps["check:closed-panel-save"];
   assert.equal(c.status, "FAIL");
-  assert.match(c.reason, /with the panel closed the server anchor stays on the old version/);
+  assert.match(c.reason, /^desktop did not re-anchor this comment on Save: .*the server anchor stays on the old version/);
   assert.equal(record.status, "FAIL");
   assert.equal(record.steps["check:shift"].status, "PASS", "the panel-open path is still its own check");
   const closedCreate = fake.calls.app.find((c2) => c2.key === "comments.create" && c2.args[0].path === CLOSED_PATH);
@@ -633,4 +707,96 @@ test("runG8A02 asks for the editor page that shows each document by path (two do
     ["sheets", { path: CLOSED_PATH, documentId: CLOSED_DOC }],
     ["sheets", { path: "/wc/doc.xlsx", documentId: "doc-1" }],
   ]);
+});
+
+/**
+ * The r2 docx behaviour: every Save round answers lost (the row keeps its version), the editor's
+ * highlight is there until the Save and gone after it, and the saved head holds the quote at block 3.
+ */
+function scriptDocxServer(fake) {
+  const docs = {
+    "doc-1": { head: 1, row: null },
+    "doc-3": { head: 1, row: null },
+  };
+  const state = { marks: 0, panel: false };
+  const idOfPath = (path) => (path === "/wc/doc-3.docx" ? "doc-3" : "doc-1");
+  fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
+  fake.script.respond("app.openByTicket", (call) => {
+    const id = call.args[1]?.documentId ?? "doc-1";
+    return { path: `/wc/${id}.docx`, documentId: id, kind: "docs" };
+  });
+  fake.script.respond("app.comments.context", (call) => ({ ok: true, value: { documentId: idOfPath(call.args[0].path), versionId: `${idOfPath(call.args[0].path)}-v${docs[idOfPath(call.args[0].path)].head}` } }));
+  fake.script.respond("app.comments.create", (call) => {
+    const input = call.args[0];
+    const d = docs[idOfPath(input.path)];
+    if (input.parentId) return { ok: true, value: { comment: { id: "r1", parent_id: input.parentId } } };
+    d.row = { id: idOfPath(input.path) === "doc-3" ? "cc" : "c1", anchor: input.anchor, anchor_state: "exact", anchor_version_id: input.baseVersionId, deleted_at: null, parent_id: null };
+    state.marks = 1;
+    return { ok: true, value: { comment: d.row } };
+  });
+  fake.script.respond("app.evalBounded", (call) => {
+    const [, arg, label] = call.args;
+    if (label === "probe:listed") return { panels: state.panel ? 1 : 0, commentIds: state.panel ? ["c1"] : [] };
+    if (label === "probe:mark") return { marks: state.marks, text: state.marks ? "Tổng doanh thu quý 1" : "" };
+    if (arg?.selector === "button.rb-big") state.panel = true;
+    return { status: "ok" };
+  });
+  fake.script.respond("app.save", (call) => {
+    const d = docs[idOfPath(call.args[0])];
+    d.head += 1;
+    if (d.row) d.row = { ...d.row, anchor_state: "lost" };
+    state.marks = 0;
+    return { state: "saved" };
+  });
+  const docOf = (call) => call.args.pathParams?.documentID;
+  fake.script.respond("api.getDocument", (call) => {
+    const id = docOf(call);
+    const d = docs[id] ?? docs["doc-1"];
+    return { status: 200, body: { document: { id, file: { version_id: `${id}-v${d.head}`, version: d.head } } } };
+  });
+  fake.script.respond("api.listDocumentComments", (call) => {
+    const d = docs[docOf(call)] ?? { row: null };
+    return { status: 200, body: { comments: d.row ? [d.row, { id: "r1", parent_id: d.row.id, deleted_at: null }] : [], list_token: "t" } };
+  });
+  fake.script.respond("api.putDocumentCommentAnchors", { status: 400, body: bodyInvalid });
+  return { docs, state };
+}
+
+test("runG8A02 (docx, fake): records the highlight around each Save and the saved head's quote block, and a lost row ends the wait at once", async () => {
+  const fake = createFakeWorld();
+  scriptDocxServer(fake);
+  const p = (t) => `<w:p><w:r><w:t>${t}</w:t></w:r></w:p>`;
+  const head = zipStore([{ name: "word/document.xml", data: `<w:document><w:body>${p("")}${p("")}${p("1. Tóm tắt")}${p("Tổng doanh thu quý 1 đạt")}</w:body></w:document>` }]);
+  const downloads = [];
+  let t = 0;
+  const record = await runG8A02(fakeCtx(fake, "fx-docx-report-vi"), {
+    connectApp: fake.app.connectApp,
+    sleep: async () => {},
+    now: () => (t += 1_000),
+    framePin: { gitSha: "05fd209" },
+    download: async (documentId, version) => {
+      downloads.push([documentId, version]);
+      return head;
+    },
+  });
+  const closed = record.details.closedPanel;
+  assert.deepEqual(closed.marks, { beforeEdit: 1, afterEdit: 1, afterSave: 0 });
+  assert.deepEqual(closed.headQuote, { block: 3, version: 2 });
+  assert.ok(closed.elapsedMs < 5_000, `a lost row is the round's answer: no 60 s wait (${closed.elapsedMs})`);
+  assert.match(record.steps["check:closed-panel-save"].reason, /^desktop reported the anchor lost on Save: the saved head holds the quote at block 3/);
+  assert.match(record.steps["check:closed-panel-save"].reason, /highlight before edit 1, after edit 1, after Save 0/);
+  assert.deepEqual(record.details.shift.marks, { beforeEdit: 1, afterEdit: 1, afterSave: 0 });
+  assert.match(record.steps["check:shift"].reason, /^desktop reported the anchor lost on Save, want exact at path \[3\]/);
+  assert.equal(record.steps["check:remove-lost"].status, "FAIL");
+  assert.deepEqual(downloads, [["doc-3", 2], ["doc-1", 2]]);
+  assert.equal(record.status, "FAIL");
+});
+
+test("runG8A02 closed panel records whether the comment was made after a prepare Save (xlsx: no prepare plan, no docx highlight probe)", async () => {
+  const fake = createFakeWorld();
+  const state = scriptXlsxServer(fake);
+  state.closedStays = true;
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  assert.equal(record.details.closedPanel.createdAfterSave, false, "xlsx has no prepare plan");
+  assert.equal(record.details.closedPanel.marks, undefined, "highlights are a docx probe only");
 });
