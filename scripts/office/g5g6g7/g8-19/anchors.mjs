@@ -707,19 +707,27 @@ export function decideG8A02(rec) {
     );
   }
 
-  steps["check:remove-lost"] = decideEdit("remove", rec.remove, (r) => {
-    const row = r.row;
-    if (!row) return ["the thread is gone after the target was deleted (it must stay)"];
-    if (rec.shift?.row?.anchor_state === "lost") return ["not observed: the row was already lost after the shift Save, so deleting the target proves nothing"];
-    const reasons = [];
-    if (row.deleted_at) reasons.push("the thread was deleted with its target");
-    if (row.anchor_state !== "lost") reasons.push(`anchor_state ${row.anchor_state}, want lost`);
-    if (!(r.replies >= 1)) reasons.push("the reply did not survive");
-    // server R1-7 (document_comment_anchors.go:434-440): a lost report keeps the stored anchor and its version
-    const kept = rec.shift?.row?.anchor_version_id;
-    if (row.anchor_state === "lost" && kept && row.anchor_version_id !== kept) reasons.push(`a lost anchor must keep its last version ${kept}, got ${row.anchor_version_id}`);
-    return reasons;
-  });
+  // the shift's product failure left the row lost already: remove-lost lost its precondition (an exact row)
+  steps["check:remove-lost"] =
+    steps["check:shift"].status === "FAIL" && rec.shift?.row?.anchor_state === "lost"
+      ? {
+          status: "NOT_JUDGED",
+          cascadeFrom: "check:shift",
+          reason:
+            "not judged: check:shift failed first (the desktop reported the anchor lost on the shift Save), so the row was already lost before the target was deleted and deleting it proves nothing",
+        }
+      : decideEdit("remove", rec.remove, (r) => {
+          const row = r.row;
+          if (!row) return ["the thread is gone after the target was deleted (it must stay)"];
+          const reasons = [];
+          if (row.deleted_at) reasons.push("the thread was deleted with its target");
+          if (row.anchor_state !== "lost") reasons.push(`anchor_state ${row.anchor_state}, want lost`);
+          if (!(r.replies >= 1)) reasons.push("the reply did not survive");
+          // server R1-7 (document_comment_anchors.go:434-440): a lost report keeps the stored anchor and its version
+          const kept = rec.shift?.row?.anchor_version_id;
+          if (row.anchor_state === "lost" && kept && row.anchor_version_id !== kept) reasons.push(`a lost anchor must keep its last version ${kept}, got ${row.anchor_version_id}`);
+          return reasons;
+        });
 
   const inv = Array.isArray(rec.invalidVersions) ? rec.invalidVersions : [];
   const invReasons = [];

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 
 import { createFakeWorld } from "./fake-world.mjs";
-import { runRowModule, rowArtifactPath } from "./run-row.mjs";
+import { decideFromSteps, runRowModule, rowArtifactPath } from "./run-row.mjs";
 
 let runDir;
 beforeEach(() => {
@@ -177,4 +177,17 @@ test("rowMain: parses the CLI args, prints one status line and returns the exit 
   } finally {
     console.log = orig;
   }
+});
+
+test("decideFromSteps: a NOT_JUDGED check that cascades from a failing check adds no FAIL reason, and never makes a PASS", () => {
+  const cascade = { status: "NOT_JUDGED", reason: "not judged: check:a failed first", cascadeFrom: "check:a" };
+  const failed = decideFromSteps({ "check:a": { status: "FAIL", reason: "boom" }, "check:b": cascade, "check:c": { status: "PASS" } });
+  assert.deepEqual(failed, { status: "FAIL", reason: "check:a: boom" });
+  // the named source passed (or does not exist): nothing explains it, so it is a FAIL of its own
+  const orphan = decideFromSteps({ "check:a": { status: "PASS" }, "check:b": cascade });
+  assert.equal(orphan.status, "FAIL");
+  assert.equal(orphan.reason, "check:b: not judged: check:a failed first");
+  assert.equal(decideFromSteps({ "check:b": { ...cascade, cascadeFrom: "check:zz" } }).status, "FAIL");
+  // a NOT_JUDGED beside a BLOCKED (no FAIL) is still a FAIL, never BLOCKED or PASS
+  assert.equal(decideFromSteps({ "check:a": { status: "BLOCKED", blocker: "x" }, "check:b": { ...cascade, cascadeFrom: "check:a" } }).status, "FAIL");
 });

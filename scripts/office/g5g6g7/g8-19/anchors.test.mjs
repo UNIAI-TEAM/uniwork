@@ -688,8 +688,14 @@ test("decideG8A02 shift: a lost row says the desktop reported lost (the server k
   assert.match(d.steps["check:shift"].reason, /^desktop reported the anchor lost on Save, want exact at path \[3\]/);
   assert.match(d.steps["check:shift"].reason, /file-actions\.ts:1125-1148/);
   assert.doesNotMatch(d.steps["check:shift"].reason, /anchor stayed on version/);
-  assert.equal(d.steps["check:remove-lost"].status, "FAIL");
-  assert.match(d.steps["check:remove-lost"].reason, /not observed: the row was already lost after the shift Save/);
+  // the shift's product failure removed remove-lost's precondition (an exact row to lose): not judged, never PASS
+  const r = d.steps["check:remove-lost"];
+  assert.equal(r.status, "NOT_JUDGED");
+  assert.equal(r.cascadeFrom, "check:shift");
+  assert.match(r.reason, /^not judged: check:shift failed first \(the desktop reported the anchor lost on the shift Save\), so the row was already lost before the target was deleted/);
+  assert.equal(d.status, "FAIL");
+  assert.doesNotMatch(d.reason, /check:remove-lost/, "a cascade adds no FAIL reason of its own");
+  assert.match(d.reason, /check:shift: desktop reported the anchor lost/);
 });
 
 test("docxQuoteBlock: the top-level block that holds the quote, empty <w:p/> paragraphs counted", () => {
@@ -854,7 +860,9 @@ test("runG8A02 (docx, fake): records the highlight around each Save and the save
   assert.doesNotMatch(record.steps["check:closed-panel-save"].reason, /file-actions/, "the reload does not explain a root the round never had");
   assert.deepEqual(record.details.shift.marks, { beforeEdit: 1, afterEdit: 1, afterSave: 0 });
   assert.match(record.steps["check:shift"].reason, /^desktop reported the anchor lost on Save, want exact at path \[3\]/);
-  assert.equal(record.steps["check:remove-lost"].status, "FAIL");
+  assert.equal(record.steps["check:remove-lost"].status, "NOT_JUDGED");
+  assert.equal(record.steps["check:remove-lost"].cascadeFrom, "check:shift");
+  assert.doesNotMatch(record.reason, /check:remove-lost/);
   assert.deepEqual(downloads, [["doc-3", 2], ["doc-1", 2]]);
   assert.equal(record.status, "FAIL");
 });
