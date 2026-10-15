@@ -5,6 +5,8 @@ package handler
 // the locked list row. Real router, real DB, real DocumentService.
 
 import (
+	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -187,4 +189,69 @@ func docRow(t *testing.T, out map[string]any, id string) map[string]any {
 	}
 	t.Fatalf("document %s not in the list: %v", id, out)
 	return nil
+}
+
+// TestDocumentSaveRoutesAnswerRestrictedToAdminScope pins DOC-05 §4 on the
+// save routes: a workspace admin who cannot read a live restricted file is
+// told document_restricted with can_break_glass on upload, commit and
+// restore - as on the asset upload route - while a member with no level is
+// not found, and the owner's upload still passes (the control).
+func TestDocumentSaveRoutesAnswerRestrictedToAdminScope(t *testing.T) {
+	w := newDocsWorld(t)
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+		map[string]string{"title": "secret.txt"}, "secret.txt", []byte("restricted body\n"), map[string]string{"Idempotency-Key": "rs-create"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create file doc: %d %s", res.StatusCode, raw)
+	}
+	var created map[string]any
+	_ = json.Unmarshal(raw, &created)
+	doc := created["document"].(map[string]any)
+	id := doc["id"].(string)
+	res, out := doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.token, map[string]any{"revision": doc["revision"], "visibility": "restricted"})
+	if res.StatusCode != 200 {
+		t.Fatalf("restrict: %d %v", res.StatusCode, out)
+	}
+	revision := out["document"].(map[string]any)["revision"].(string)
+	admin, _ := docsJoinWorkspaceAs(t, w, "rs-admin@example.com", "admin")
+	member, _ := docsJoinWorkspace(t, w, "rs-member@example.com")
+
+	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+id+"/uploads", w.token, nil, "v2.txt", []byte("v2\n"), nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("owner upload (control): %d %s", res.StatusCode, raw)
+	}
+	var staged map[string]any
+	_ = json.Unmarshal(raw, &staged)
+	uploadID := staged["upload_id"].(string)
+
+	type answer struct {
+		res *http.Response
+		out map[string]any
+	}
+	routes := func(t *testing.T, token string) map[string]answer {
+		t.Helper()
+		got := map[string]answer{}
+		res, raw := doMultipart(t, w.srv, "POST", "/api/v1/documents/"+id+"/uploads", token, nil, "v3.txt", []byte("v3\n"), nil)
+		up := map[string]any{}
+		_ = json.Unmarshal(raw, &up)
+		got["upload"] = answer{res, up}
+		res, out := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", token,
+			map[string]string{"Idempotency-Key": "rs-commit"}, map[string]any{"upload_id": uploadID, "base_revision": revision})
+		got["commit"] = answer{res, out}
+		res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/1/restore", token,
+			map[string]string{"Idempotency-Key": "rs-restore"}, map[string]any{"base_revision": revision})
+		got["restore"] = answer{res, out}
+		return got
+	}
+	for route, got := range routes(t, admin) {
+		code, class := errCodeClass(got.out)
+		fields, _ := got.out["error"].(map[string]any)["fields"].(map[string]any)
+		if got.res.StatusCode != 403 || code != "document_restricted" || class != "permission" || fields["can_break_glass"] != true {
+			t.Fatalf("admin %s = %d %v, want 403 document_restricted with can_break_glass", route, got.res.StatusCode, got.out)
+		}
+	}
+	for route, got := range routes(t, member) {
+		if code, _ := errCodeClass(got.out); got.res.StatusCode != 404 || code != "not_found" {
+			t.Fatalf("member %s = %d %v, want 404 not_found", route, got.res.StatusCode, got.out)
+		}
+	}
 }
