@@ -10,18 +10,22 @@ import path from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { reportingFooter } from './holdout-answer.mjs';
 import {
-  GROUPS, NO_THRESHOLD, THRESHOLDS_KIND, awaitingReviewer, buildReport, callLatencies, distribution, evaluateThresholds, findFlaky,
-  loadRuns, parseThresholds, percentile, renderReport, summarizeRun, tupleConsistency,
+  EXIT, GROUPS, MIN_CASES, NO_THRESHOLD, REVIEWS_KIND, THRESHOLDS_KIND, applyReviews, awaitingReviewer, buildReport, callLatencies, checkRunSet,
+  distribution, evaluateThresholds, exitCodeOf, findFlaky, loadRuns, loadSession, parseReviews, parseThresholds, percentile, renderReport,
+  summarizeRun, tupleConsistency,
 } from './holdout-report.mjs';
-import { RUN_KIND } from './holdout-run.mjs';
+import { MANIFEST_KIND, RUN_KIND, sha256Hex } from './holdout-run.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'g712-report-test-'));
 after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 
-const TUPLE = { dSha: 'a'.repeat(40), dirty: false, dShaSource: 'checkout HEAD', framePin: '0.1.0-test', promptIds: ['office_uniwork_ai@test'], providers: ['fake'], resolvedModels: ['model-x'], redis: 'on' };
+const TUPLE = { dSha: 'a'.repeat(40), dirty: false, dShaSource: 'checkout HEAD', framePin: '0.1.0-test', promptIds: ['office_uniwork_ai@test'], providers: ['provider-x'], resolvedModels: ['model-x'], redis: 'on' };
+const SURFACE = Object.fromEntries(['sheets', 'docs', 'slides', 'pdf', 'markdown', 'html'].map((m) => [m, { source: m === 'sheets' || m === 'docs' ? 'devset' : `file:${'b'.repeat(64)}`, tools: ['t'], schemasSha256: 'c'.repeat(64) }]));
+const CONFIG = { threads: 2, langs: ['vi', 'en'], answerProtocol: 'v1', numbers: 'strict', anchors: 'strict', computeByReply: true, maxRetries: 3, footerSha256: sha256Hex(reportingFooter()), toolSurface: SURFACE, toolSurfaceSha256: 'd'.repeat(64), usageReader: 'ai_usage_events', usageReaderError: null };
 
 function ask(over = {}) {
   return {
@@ -44,8 +48,28 @@ function suite(over = (a) => a) {
 }
 
 function run(index, asks = suite(), over = {}) {
-  return { schemaVersion: 1, kind: RUN_KIND, runIndex: index, runsPlanned: 3, status: 'completed', reason: null, partial: false, startedAt: 't', finishedAt: 't',
-    tuple: TUPLE, config: { threads: 2, casesRead: asks.length / 2, langs: ['vi', 'en'] }, asks, ...over };
+  const { config = {}, ...rest } = over;
+  const caseCount = over.caseCount ?? asks.length / 2;
+  return { schemaVersion: 1, kind: RUN_KIND, sessionId: 's-1', runIndex: index, runsPlanned: 3, status: 'completed', reason: null, partial: false, startedAt: 't', finishedAt: 't',
+    caseCount, caseSetSha256: 'e'.repeat(64), tuple: TUPLE, config: { ...CONFIG, casesRead: caseCount, ...config }, redactions: [], asks, ...rest };
+}
+
+/** The manifest and file hashes the runner would have written for these runs (one invocation, session s-1). */
+function makeSession(runs, over = {}) {
+  const files = runs.map((r) => ({ file: `run-${String(r.runIndex).padStart(2, '0')}.json`, sha256: sha256Hex(`run ${r.runIndex}`) }));
+  const manifest = { schemaVersion: 1, kind: MANIFEST_KIND, sessionId: 's-1', runsPlanned: runs.length, caseCount: runs[0].caseCount, caseSetSha256: 'e'.repeat(64), asksPerRun: runs[0].asks.length, partial: false, status: 'completed', startedAt: 't', finishedAt: 't',
+    runs: runs.map((r, i) => ({ runIndex: r.runIndex, file: files[i].file, sha256: files[i].sha256, status: r.status, asks: r.asks.length })), ...over };
+  return { runs, files, manifest, manifestSha256: sha256Hex('manifest') };
+}
+
+// A suite as big as the one G7-D1 is about: MIN_CASES cases, in the four groups.
+function bigSuite(over = (a) => a) {
+  const groups = [['xlsx', 'xlsx', 40], ['docx', 'docx', 20], ['pptx', 'other', 20], ['cross', 'cross', 20]];
+  let n = 0;
+  return groups.flatMap(([format, group, count]) => Array.from({ length: count }, () => {
+    n += 1;
+    return ['vi', 'en'].map((lang) => over(ask({ id: `HO-B-${String(n).padStart(3, '0')}`, lang, format, group })));
+  }).flat());
 }
 
 const failing = (ids, patch = {}) => (a) => (ids.includes(`${a.id}/${a.lang}`) ? { ...a, status: 'fail', checks: [{ id: 'numeric:a', status: 'fail', detail: 'x' }], ...patch } : a);
@@ -214,15 +238,16 @@ describe('thresholds file', () => {
 });
 
 describe('with a signed thresholds file', () => {
-  const good = () => [run(1), run(2), run(3)];
+  const good = () => [run(1, bigSuite()), run(2, bigSuite()), run(3, bigSuite())];
   const limits = { outsideAllowlistCases: { max: 0 }, unauthorizedWrites: { max: 0 }, leaks: { max: 0 }, staleApplied: { max: 0 }, numericPassRate: { min: 1 }, successRateOverall: { min: 0.95 }, successRateGroupMin: { min: 0.9 }, modelLatencyP50Ms: { max: 5000 }, modelLatencyP95Ms: { max: 12000 } };
-  const judge = (runs, thresholds = signed(limits)) => buildReport(runs, { thresholds }).overall;
+  const judge = (runs, thresholds = signed(limits), extra = {}) => buildReport(runs, { thresholds, session: makeSession(runs), ...extra }).overall;
 
   it('passes only when every metric holds in every run', () => {
     const overall = judge(good());
     assert.equal(overall.status, 'PASS');
-    assert.deepEqual(Object.values(overall.metrics).map((m) => m.verdict), Array(9).fill('pass'));
-    assert.match(renderReport(buildReport(good(), { thresholds: signed(limits) })), /Trạng thái tổng: PASS/);
+    assert.deepEqual(Object.values(overall.metrics).map((m) => m.verdict), Object.keys(limits).map((k) => (k === 'staleApplied' ? 'not_gating' : 'pass')));
+    assert.match(renderReport(buildReport(good(), { thresholds: signed(limits), session: makeSession(good()) })), /Trạng thái tổng: PASS/);
+    assert.equal(exitCodeOf(buildReport(good(), { thresholds: signed(limits), session: makeSession(good()) })), EXIT.pass);
   });
 
   it('is decided by the worst run, never the best', () => {
@@ -249,7 +274,7 @@ describe('with a signed thresholds file', () => {
 
   it('is inconclusive with fewer complete runs than signed, a blocked run or a partial run', () => {
     assert.equal(judge([run(1), run(2)]).status, 'INCONCLUSIVE');
-    assert.match(judge([run(1), run(2)]).blockers[0], /only 2 complete run/);
+    assert.match(judge([run(1), run(2)]).blockers.join(' '), /only 2 complete run/);
     assert.equal(judge([run(1), run(2), run(3, [], { status: 'blocked' })]).status, 'INCONCLUSIVE');
     assert.equal(judge([run(1), run(2), run(3, suite().slice(0, 4), { partial: true })]).status, 'INCONCLUSIVE');
   });
@@ -284,7 +309,7 @@ describe('command line', () => {
     assert.equal(loadRuns(runs).length, 3);
     const out = path.join(tmpRoot, 'out');
     const res = spawnSync(process.execPath, [path.join(here, 'holdout-report.mjs'), '--runs', runs, '--out', out], { encoding: 'utf8' });
-    assert.equal(res.status, 0, res.stderr);
+    assert.equal(res.status, EXIT.noThreshold, res.stderr);
     assert.ok(fs.readFileSync(path.join(out, 'report.md'), 'utf8').includes(NO_THRESHOLD));
     assert.equal(JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8')).overall.status, 'no_threshold');
     const file = path.join(tmpRoot, 'signed.json');
@@ -293,7 +318,7 @@ describe('command line', () => {
     assert.equal(gated.status, 2, 'inconclusive exits 2');
     assert.match(gated.stdout, /Trạng thái tổng: INCONCLUSIVE/);
     const bad = spawnSync(process.execPath, [path.join(here, 'holdout-report.mjs'), '--runs', runs, '--thresholds', runs], { encoding: 'utf8' });
-    assert.notEqual(bad.status, 0);
+    assert.equal(bad.status, EXIT.error);
   });
 
   it('refuses a directory without run files and a file that is not a run', () => {
@@ -325,5 +350,370 @@ describe('reviewer and harness-gap listings', () => {
     const report = buildReport(runs);
     assert.deepEqual(report.unobtainable, [{ id: 'HO-T-07', ops: ['read_pdf'] }]);
     assert.match(renderReport(report), /HO-T-07 \(read_pdf\)/);
+  });
+});
+
+// ---- G712-2: the verdict needs a complete, consistent run set ----
+
+describe('run set integrity (G712-2)', () => {
+  const limits = { leaks: { max: 0 }, successRateOverall: { min: 0.95 } };
+  const full = () => [run(1, bigSuite()), run(2, bigSuite()), run(3, bigSuite())];
+  const verdict = (runs, session = makeSession(runs), thresholds = signed(limits)) => buildReport(runs, { thresholds, session }).overall;
+  const blocked = (runs, session) => { const o = verdict(runs, session); assert.equal(o.status, 'INCONCLUSIVE', o.blockers.join(' | ')); return o.blockers.join(' | '); };
+
+  it('passes the complete set of one invocation', () => {
+    assert.equal(verdict(full()).status, 'PASS');
+    assert.deepEqual(checkRunSet(full(), makeSession(full())), []);
+  });
+
+  it('is inconclusive with a fourth, partial run beside three complete ones', () => {
+    const runs = [...full(), run(4, bigSuite().slice(0, 20), { partial: true, runsPlanned: 3, caseCount: 100 })];
+    const session = makeSession(full());
+    session.files.push({ file: 'run-04.json', sha256: sha256Hex('run 4') });
+    const text = blocked(runs, session);
+    assert.match(text, /run-04\.json is not in the manifest/);
+    assert.match(text, /run 4 is partial/);
+  });
+
+  it('is inconclusive with a gap: run 3 of 4 is gone, so the worst run could have been deleted', () => {
+    const runs = [run(1, bigSuite()), run(2, bigSuite()), run(4, bigSuite())];
+    const session = makeSession(runs, { runsPlanned: 4 });
+    session.manifest.runs = [1, 2, 3, 4].map((i) => ({ runIndex: i, file: `run-0${i}.json`, sha256: sha256Hex(`run ${i}`), status: 'completed', asks: 200 }));
+    const text = blocked(runs, session);
+    assert.match(text, /run-03\.json is listed in the manifest but missing/);
+  });
+
+  it('is inconclusive when a run was made over a subset of the cases, and says so without a signed file too', () => {
+    const subset = (i) => run(i, bigSuite().slice(0, 8), { caseCount: 4 });
+    const runs = [subset(1), subset(2), subset(3)];
+    assert.match(blocked(runs), new RegExp(`covers 4 case\\(s\\); the suite G7-D1 is about has at least ${MIN_CASES}`));
+    const plain = renderReport(buildReport(runs, { session: makeSession(runs) }));
+    assert.match(plain, /covers 4 case\(s\)/);
+    assert.match(plain, /KHÔNG đầy đủ/);
+    assert.ok(plain.includes(NO_THRESHOLD));
+  });
+
+  it('is inconclusive when a run file changed after the runner wrote it (an overwritten or edited run)', () => {
+    const runs = full();
+    const session = makeSession(runs);
+    session.files[1] = { file: 'run-02.json', sha256: sha256Hex('someone edited it') };
+    assert.match(blocked(runs, session), /run-02\.json changed after the runner wrote it/);
+  });
+
+  it('is inconclusive without a manifest, with mixed sessions, or when the invocation did not complete', () => {
+    const runs = full();
+    assert.match(blocked(runs, { ...makeSession(runs), manifest: null }), /no manifest\.json/);
+    const mixed = [run(1, bigSuite()), run(2, bigSuite(), { sessionId: 's-2' }), run(3, bigSuite())];
+    assert.match(blocked(mixed, makeSession(mixed)), /do not share one session id/);
+    assert.match(blocked(full(), makeSession(full(), { status: 'aborted' })), /did not complete/);
+    assert.match(blocked(full(), makeSession(full(), { partial: true })), /partial run \(--only\/--limit\)/);
+  });
+
+  it('is inconclusive when a run holds duplicate or missing asks, even with the right count', () => {
+    const dup = bigSuite();
+    dup[1] = { ...dup[0] };
+    const runs = [run(1, dup, { caseCount: 100 }), run(2, bigSuite()), run(3, bigSuite())];
+    assert.match(blocked(runs), /run 1 holds 200 asks, not 200/);
+  });
+
+  it('never calls an empty set a pass: no cases, no group, no metric', () => {
+    const empty = [run(1, [], { caseCount: 0 }), run(2, [], { caseCount: 0 }), run(3, [], { caseCount: 0 })];
+    const o = verdict(empty, makeSession(empty), signed({ successRateGroupMin: { min: 0.9 }, leaks: { max: 0 } }));
+    assert.equal(o.status, 'INCONCLUSIVE');
+    assert.equal(o.metrics.successRateGroupMin.verdict, 'inconclusive');
+  });
+
+  it('reads the manifest and the hashes of a real folder', () => {
+    const dir = path.join(tmpRoot, 'folder');
+    fs.mkdirSync(dir, { recursive: true });
+    const runs = full().map((r) => ({ ...r, asks: r.asks.slice(0, 2), caseCount: 1 }));
+    const entries = runs.map((r) => { const json = `${JSON.stringify(r)}\n`; const file = `run-0${r.runIndex}.json`; fs.writeFileSync(path.join(dir, file), json); return { runIndex: r.runIndex, file, sha256: sha256Hex(json), status: 'completed', asks: 2 }; });
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ schemaVersion: 1, kind: MANIFEST_KIND, sessionId: 's-1', runsPlanned: 3, caseCount: 1, caseSetSha256: 'e'.repeat(64), status: 'completed', partial: false, runs: entries }));
+    const session = loadSession(dir);
+    assert.deepEqual(session.files.map((f) => f.sha256), entries.map((e) => e.sha256));
+    assert.deepEqual(checkRunSet(session.runs, session).filter((p) => !/covers 1 case/.test(p)), []);
+    fs.appendFileSync(path.join(dir, 'run-02.json'), ' ');
+    assert.match(checkRunSet(session.runs, loadSession(dir)).join(' | '), /run-02\.json changed after the runner wrote it/);
+  });
+});
+
+// ---- G712-3, -5, -8, -9: a signed verdict needs known, default and unchanged measurement conditions ----
+
+describe('measurement conditions (G712-3, G712-5, G712-8, G712-9)', () => {
+  const limits = { leaks: { max: 0 }, successRateOverall: { min: 0.95 } };
+  const make = (over = {}, later = {}) => [run(1, bigSuite(), over), run(2, bigSuite(), { ...over, ...later }), run(3, bigSuite(), over)];
+  const judge = (runs) => buildReport(runs, { thresholds: signed(limits), session: makeSession(runs) }).overall;
+  const inconclusive = (runs, pattern) => { const o = judge(runs); assert.equal(o.status, 'INCONCLUSIVE', o.blockers.join(' | ')); assert.match(o.blockers.join(' | '), pattern); };
+  const cfg = (patch) => ({ config: patch });
+
+  it('passes when everything is known, default and the same', () => {
+    assert.equal(judge(make()).status, 'PASS');
+  });
+
+  it('is inconclusive when the policy of one run differs from the others', () => {
+    inconclusive(make({}, cfg({ numbers: 'lenient', computeByReply: false, threads: 1 })), /policy changed between runs \(threads, numbers, computeByReply\)/);
+  });
+
+  it('is inconclusive when the policy is not the default, even in every run', () => {
+    inconclusive(make(cfg({ numbers: 'lenient' })), /not the default \(numbers=lenient\)/);
+    inconclusive(make(cfg({ anchors: 'lenient' })), /not the default \(anchors=lenient\)/);
+    inconclusive(make(cfg({ maxRetries: 9 })), /maxRetries=9/);
+  });
+
+  it('is inconclusive when the reporting footer is not the one of this harness version', () => {
+    inconclusive(make(cfg({ footerSha256: 'f'.repeat(64) })), /reporting footer/);
+  });
+
+  it('is inconclusive for every unknown part of the release tuple, and names it', () => {
+    inconclusive(make({ tuple: { ...TUPLE, promptIds: ['unknown (no ai_usage_events rows)'], providers: ['unknown (no ai_usage_events rows)'], resolvedModels: [] } }), /unknown part\(s\): promptIds, providers, resolvedModels/);
+    inconclusive(make({ tuple: { ...TUPLE, framePin: 'unknown', redis: 'unknown' } }), /unknown part\(s\): framePin, redis/);
+    inconclusive(make({ tuple: { ...TUPLE, dirty: true } }), /dirty working tree/);
+  });
+
+  it('is inconclusive for a fake provider (a plumbing run)', () => {
+    inconclusive(make({ tuple: { ...TUPLE, providers: ['fake'] } }), /provider is "fake"/);
+  });
+
+  it('is inconclusive when any latency is client time, or the usage reader failed', () => {
+    const clientOnly = (a) => ({ ...a, calls: [{ step: 0, attempt: 0, status: 200, clientMs: 200, usage: null }] });
+    inconclusive([run(1, bigSuite(clientOnly)), run(2, bigSuite()), run(3, bigSuite())], /200 model call\(s\) have client-side latency only/);
+    inconclusive(make(cfg({ usageReaderError: 'psql failed' })), /usage reader failed in run\(s\) 1, 2, 3/);
+  });
+
+  it('is inconclusive when a module has a name-only tool surface, and when none was recorded', () => {
+    inconclusive(make(cfg({ toolSurface: { ...SURFACE, pdf: { ...SURFACE.pdf, source: 'name-only' } } })), /module\(s\) pdf is name-only/);
+    inconclusive(make(cfg({ toolSurface: undefined })), /tool surface was not recorded/);
+  });
+
+  it('is inconclusive when any run had values redacted: a flagged run cannot count as a pass', () => {
+    const flagged = bigSuite((a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, redactions: [{ kind: 'ipv4', count: 1 }] } : a));
+    inconclusive([run(1, flagged, { redactions: [{ ask: 'HO-B-001/vi', kinds: [{ kind: 'ipv4', count: 1 }] }] }), run(2, bigSuite()), run(3, bigSuite())], /redacted in run\(s\) 1; a flagged run cannot count as a pass/);
+    assert.equal(summarizeRun(run(1, flagged)).redactedAsks, 1);
+  });
+
+  it('prints every condition problem even without a signed file, and no verdict word', () => {
+    const runs = make(cfg({ anchors: 'lenient' }), { tuple: { ...TUPLE, providers: ['fake'] } });
+    const md = renderReport(buildReport(runs, { session: makeSession(runs) }));
+    assert.match(md, /Điều kiện chưa đạt/);
+    assert.match(md, /anchors=lenient/);
+    assert.match(md, /provider is "fake"/);
+    assert.doesNotMatch(md, /\b(PASS|FAIL|INCONCLUSIVE)\b/);
+  });
+});
+
+// ---- G712-7: the report alone shows the conditions ----
+
+describe('measurement conditions section (G712-7)', () => {
+  it('prints the footer text and hash, the policy, the emulation, the tool surface per module and the latency source up front', () => {
+    const runs = [run(1, bigSuite()), run(2, bigSuite()), run(3, bigSuite())];
+    const md = renderReport(buildReport(runs, { session: makeSession(runs) }));
+    assert.ok(md.indexOf('## 0. Điều kiện của phép đo') < md.indexOf('## 1.'));
+    assert.ok(md.includes(reportingFooter()), 'the footer, verbatim');
+    assert.ok(md.includes(sha256Hex(reportingFooter())));
+    assert.match(md, /số = strict, neo vị trí = strict/);
+    assert.match(md, /Backend giả lập.*chỉ được đếm, không được áp vào tài liệu/);
+    assert.match(md, /route façade AI của khung \(không qua panel\)/);
+    assert.match(md, /\| sheets \| devset \| 1 \|/);
+    assert.match(md, new RegExp(`\\| slides \\| file:${'b'.repeat(64)} \\|`));
+    assert.match(md, /600 lượt gọi lấy `latency_ms` của cổng AI, 0 lượt gọi chỉ có thời gian phía client/);
+    assert.match(md, /khai báo, không quan sát/);
+  });
+
+  it('shows a name-only module as such', () => {
+    const runs = [run(1, bigSuite(), { config: { toolSurface: { ...SURFACE, html: { ...SURFACE.html, source: 'name-only' } } } })];
+    assert.match(renderReport(buildReport(runs)), /\| html \| name-only \(chỉ có tên\) \|/);
+  });
+});
+
+// ---- G712-4: the reviewer input ----
+
+describe('reviewer input (G712-4)', () => {
+  const limits = { successRateOverall: { min: 0.5 } };
+  const rubric = (a) => (a.group === 'docx' ? { ...a, status: 'needs_reviewer' } : a);
+  const runs = () => [run(1, bigSuite(rubric)), run(2, bigSuite(rubric)), run(3, bigSuite(rubric))];
+  const reviewsFor = (verdict, over = {}) => parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: bigSuite(rubric).filter((a) => a.status === 'needs_reviewer').map((a) => ({ id: a.id, lang: a.lang, verdict: typeof verdict === 'function' ? verdict(a) : verdict, reviewer: 'QA reviewer', date: '2026-10-21', ...over })) });
+  const judge = (reviews) => buildReport(runs(), { thresholds: signed(limits), session: makeSession(runs()), reviews }).overall;
+
+  it('keeps a rubric ask "awaiting reviewer" and a signed rate gate inconclusive when no review exists, even if the rate would hold', () => {
+    const o = judge(null);
+    assert.equal(o.metrics.successRateOverall.verdict, 'pass', 'the rate of the deterministic asks alone clears the bar');
+    assert.equal(o.status, 'INCONCLUSIVE');
+    assert.match(o.blockers.join(' '), /40 ask\(s\) still wait for a reviewer/);
+    const md = renderReport(buildReport(runs(), { session: makeSession(runs()) }));
+    assert.match(md, /không bao giờ đạt/);
+    assert.match(md, /không có --reviews/);
+  });
+
+  it('counts a confirmed review as pass and a rejected one as fail, for every run', () => {
+    assert.equal(judge(reviewsFor('pass')).status, 'PASS');
+    const rejected = judge(reviewsFor('fail'));
+    assert.equal(rejected.metrics.successRateOverall.worst, 0.8);
+    assert.equal(rejected.metrics.successRateOverall.verdict, 'pass');
+    const strict = buildReport(runs(), { thresholds: signed({ successRateOverall: { min: 0.95 } }), session: makeSession(runs()), reviews: reviewsFor('fail') }).overall;
+    assert.equal(strict.status, 'FAIL');
+    const mixed = judge(reviewsFor((a) => (a.id === 'HO-B-041' ? 'fail' : 'pass')));
+    assert.equal(mixed.status, 'PASS', 'a rejection of one case is a failure only if the threshold says so');
+  });
+
+  it('is inconclusive while some waiting ask has no review', () => {
+    const partial = parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: [{ id: 'HO-B-041', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' }] });
+    const o = judge(partial);
+    assert.equal(o.status, 'INCONCLUSIVE');
+    assert.match(o.blockers.join(' '), /39 ask\(s\) still wait/);
+  });
+
+  it('applies a per-run review to that run only and lets it win over a general one; never rescues a deterministic fail', () => {
+    const input = [run(1, bigSuite(rubric)), run(2, bigSuite(rubric))];
+    const reviews = parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: [
+      { id: 'HO-B-041', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' },
+      { id: 'HO-B-041', lang: 'vi', run: 2, verdict: 'fail', reviewer: 'QA second', date: '2026-10-21' },
+      { id: 'HO-B-001', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' },
+      { id: 'HO-B-999', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' },
+    ] });
+    const out = applyReviews(input, reviews);
+    const status = (r, id) => out.runs[r].asks.find((a) => a.id === id && a.lang === 'vi').status;
+    assert.deepEqual([status(0, 'HO-B-041'), status(1, 'HO-B-041')], ['pass', 'fail']);
+    assert.equal(status(0, 'HO-B-001'), 'pass', 'a review of an ask that is not waiting changes nothing');
+    assert.deepEqual(out.unused, ['HO-B-001/vi', 'HO-B-999/vi']);
+    assert.equal(input[0].asks.find((a) => a.id === 'HO-B-041').status, 'needs_reviewer', 'the inputs are untouched');
+    const md = renderReport(buildReport(input, { reviews, session: makeSession(input) }));
+    assert.match(md, /Tệp duyệt: 4 mục, 2 lượt hỏi đã áp dụng/);
+    assert.match(md, /không khớp lượt hỏi nào đang chờ: HO-B-001\/vi, HO-B-999\/vi/);
+  });
+
+  it('validates the reviews file: kind, case id, language, verdict, a named reviewer, a date, no repeats', () => {
+    const base = { id: 'HO-B-041', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' };
+    const file = (over, extra = {}) => ({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: [{ ...base, ...over }], ...extra });
+    assert.doesNotThrow(() => parseReviews(file({})));
+    assert.throws(() => parseReviews(file({ verdict: 'confirmed' })), /verdict must be pass or fail/);
+    assert.throws(() => parseReviews(file({ reviewer: ' ' })), /reviewer is required/);
+    assert.throws(() => parseReviews(file({ date: 'soon' })), /date must be a date/);
+    assert.throws(() => parseReviews(file({ lang: 'fr' })), /lang must be vi or en/);
+    assert.throws(() => parseReviews(file({ id: 'nonsense' })), /must be a case id/);
+    assert.throws(() => parseReviews(file({ run: 0 })), /run must be a run index/);
+    assert.throws(() => parseReviews(file({}, { kind: 'other' })), /kind must be/);
+    assert.throws(() => parseReviews({ ...file({}), reviews: [base, base] }), /repeats HO-B-041\/vi\/\*/);
+    assert.throws(() => parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, reviews: [] }), /non-empty array/);
+  });
+
+  it('is wired into the command line, and the reviews file hash goes into the report', () => {
+    const dir = path.join(tmpRoot, 'review-cli');
+    fs.mkdirSync(dir, { recursive: true });
+    const input = runs();
+    const entries = input.map((r) => { const json = `${JSON.stringify(r)}\n`; const file = `run-0${r.runIndex}.json`; fs.writeFileSync(path.join(dir, file), json); return { runIndex: r.runIndex, file, sha256: sha256Hex(json), status: 'completed', asks: r.asks.length }; });
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ schemaVersion: 1, kind: MANIFEST_KIND, sessionId: 's-1', runsPlanned: 3, caseCount: 100, caseSetSha256: 'e'.repeat(64), status: 'completed', partial: false, runs: entries }));
+    const reviews = path.join(tmpRoot, 'reviews.json');
+    fs.writeFileSync(reviews, JSON.stringify(reviewsFor('pass')));
+    const limitsFile = path.join(tmpRoot, 'limits.json');
+    fs.writeFileSync(limitsFile, JSON.stringify({ schemaVersion: 1, kind: THRESHOLDS_KIND, decision: 'G7-D1', signedBy: 'test signer', signedAt: '2026-10-20T00:00:00Z', aggregation: 'every_run', minRuns: 3, thresholds: limits }));
+    const out = path.join(tmpRoot, 'review-out');
+    const res = spawnSync(process.execPath, [path.join(here, 'holdout-report.mjs'), '--runs', dir, '--thresholds', limitsFile, '--reviews', reviews, '--out', out], { encoding: 'utf8' });
+    assert.equal(res.status, EXIT.pass, res.stdout + res.stderr);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8')).reviews.sha256, sha256Hex(fs.readFileSync(reviews)));
+    const without = spawnSync(process.execPath, [path.join(here, 'holdout-report.mjs'), '--runs', dir, '--thresholds', limitsFile, '--out', out], { encoding: 'utf8' });
+    assert.equal(without.status, EXIT.inconclusive, 'without the reviews the same runs give no pass');
+  });
+});
+
+// ---- G712-5: what the report counts about adapter leniency ----
+
+describe('adapter findings in the report (G712-5, G712-11)', () => {
+  it('lists the lenient, unbacked, prose-mismatch and invalid-argument asks per case and counts them', () => {
+    const marked = (a) => {
+      if (a.id === 'HO-T-01' && a.lang === 'vi') return { ...a, adapter: { ...a.adapter, anchorLenient: 2 } };
+      if (a.id === 'HO-T-02') return { ...a, adapter: { ...a.adapter, proseFigureMismatch: 1, writeBacked: 3, writeUnbacked: 1, writeSelfReported: 2 } };
+      if (a.id === 'HO-T-03') return { ...a, invalidArguments: [{ name: 'read_cells', reason: 'x' }], errored: true, status: 'fail' };
+      return a;
+    };
+    const runs = [run(1, suite(marked)), run(2, suite(marked))];
+    const report = buildReport(runs);
+    assert.deepEqual(report.lenientAsks, [{ key: 'HO-T-01/vi', count: 4 }]);
+    assert.deepEqual(report.proseMismatchAsks.map((x) => `${x.key}:${x.count}`), ['HO-T-02/en:2', 'HO-T-02/vi:2']);
+    assert.deepEqual(report.unbackedEditAsks.map((x) => x.count), [2, 2]);
+    assert.deepEqual(report.invalidArgumentAsks.map((x) => x.key), ['HO-T-03/en', 'HO-T-03/vi']);
+    const s = report.summaries[0];
+    assert.deepEqual([s.adapter.anchorLenient, s.adapter.proseMismatchAsks, s.adapter.writeBacked, s.adapter.writeUnbacked, s.adapter.writeSelfReported, s.adapter.invalidArgumentAsks], [2, 2, 6, 2, 4, 2]);
+    const md = renderReport(report);
+    assert.match(md, /Lượt hỏi được chấm nới neo.*HO-T-01\/vi ×4/);
+    assert.match(md, /không nêu một con số có trong dòng báo cáo.*HO-T-02\/en ×2, HO-T-02\/vi ×2/);
+    assert.match(md, /đối số ghi không chứng minh được ô.*HO-T-02\/en ×2/);
+    assert.match(md, /tham số không hợp lệ.*HO-T-03\/en ×2, HO-T-03\/vi ×2/);
+  });
+});
+
+// ---- G712-6: emulated rows ----
+
+describe('emulated rows (G712-6)', () => {
+  it('labels the stale and viewer rows as emulated and counts the writes the emulator refused', () => {
+    const refused = (a) => (a.id === 'HO-T-01' ? { ...a, denied: [{ name: 'x', reason: 'viewer' }, { name: 'y', reason: 'version_conflict' }] } : a.id === 'HO-T-02' ? { ...a, denied: [{ name: 'z', reason: 'access_revoked' }] } : a);
+    const report = buildReport([run(1, suite(refused)), run(2, suite())]);
+    assert.deepEqual(report.summaries[0].emulatedRefusals, { total: 6, byReason: { viewer: 2, version_conflict: 2, access_revoked: 2 } });
+    assert.deepEqual(report.distribution.emulatedRefusals.values, [6, 0]);
+    const md = renderReport(report);
+    assert.match(md, /Ghi áp lên bản cũ.*mô phỏng, luôn 0 theo cấu trúc/);
+    assert.match(md, /Số lần ghi bị backend giả lập từ chối.*\| 6; 0 \|/);
+    assert.match(md, /bằng 0 theo cấu trúc, không phải bằng chứng về khung hay máy chủ/);
+  });
+
+  it('accepts staleApplied in a signed file but never gates on it, and says so', () => {
+    const file = signed({ staleApplied: { max: 0 }, leaks: { max: 0 } });
+    const runs = [run(1, bigSuite()), run(2, bigSuite()), run(3, bigSuite())];
+    const report = buildReport(runs, { thresholds: file, session: makeSession(runs) });
+    assert.equal(report.overall.metrics.staleApplied.verdict, 'not_gating');
+    assert.match(report.overall.metrics.staleApplied.reason, /0 by construction/);
+    assert.equal(report.overall.status, 'PASS', 'the other gate decides');
+    assert.match(renderReport(report), /\| staleApplied \| ≤ 0 \| - \| KHÔNG GATE/);
+    const stale = buildReport(runs, { thresholds: signed({ staleApplied: { max: 0 } }), session: makeSession(runs) }).overall;
+    assert.equal(stale.status, 'INCONCLUSIVE');
+    assert.match(stale.blockers.join(' '), /every metric of the signed file is non-gating/);
+    const applied = bigSuite((a) => (a.id === 'HO-B-001' ? { ...a, category: 'stale', writes: 1 } : a));
+    const still = buildReport([run(1, applied), run(2, applied), run(3, applied)], { thresholds: signed({ staleApplied: { max: 0 } }) }).overall;
+    assert.notEqual(still.status, 'FAIL', 'an emulated count never fails a run');
+  });
+});
+
+// ---- G712-12: exit codes ----
+
+describe('exit codes (G712-12)', () => {
+  const script = path.join(here, 'holdout-report.mjs');
+  const session = (name, runs) => {
+    const dir = path.join(tmpRoot, name);
+    fs.mkdirSync(dir, { recursive: true });
+    const entries = runs.map((r) => { const json = `${JSON.stringify(r)}\n`; const file = `run-0${r.runIndex}.json`; fs.writeFileSync(path.join(dir, file), json); return { runIndex: r.runIndex, file, sha256: sha256Hex(json), status: r.status, asks: r.asks.length }; });
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ schemaVersion: 1, kind: MANIFEST_KIND, sessionId: 's-1', runsPlanned: runs.length, caseCount: runs[0].caseCount, caseSetSha256: 'e'.repeat(64), status: 'completed', partial: false, runs: entries }));
+    return dir;
+  };
+  const thresholds = (name, body) => {
+    const file = path.join(tmpRoot, `${name}.json`);
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, kind: THRESHOLDS_KIND, decision: 'G7-D1', signedBy: 'test signer', signedAt: '2026-10-20T00:00:00Z', aggregation: 'every_run', minRuns: 3, thresholds: body }));
+    return file;
+  };
+  const exit = (args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
+
+  it('uses 0 only for a signed pass and a distinct code for fail, inconclusive, no threshold and error', () => {
+    assert.deepEqual(EXIT, { pass: 0, fail: 1, inconclusive: 2, noThreshold: 3, error: 4 });
+    const good = session('exit-good', [run(1, bigSuite()), run(2, bigSuite()), run(3, bigSuite())]);
+    const out = (n) => path.join(tmpRoot, `exit-out-${n}`);
+    assert.equal(exit(['--runs', good, '--thresholds', thresholds('t-pass', { leaks: { max: 0 } }), '--out', out(1)]).status, 0);
+    assert.equal(exit(['--runs', good, '--out', out(2)]).status, 3, 'no threshold is not a success');
+    const leaky = bigSuite((a) => (a.id === 'HO-B-001' ? { ...a, expects: { numeric: 0, writes: 0, mustNotContain: 1 }, checks: [{ id: 'must_not_contain:m', status: 'fail', detail: '' }], status: 'fail' } : a));
+    const bad = session('exit-bad', [run(1, leaky), run(2, leaky), run(3, leaky)]);
+    assert.equal(exit(['--runs', bad, '--thresholds', thresholds('t-fail', { leaks: { max: 0 } }), '--out', out(3)]).status, 1);
+    const short = session('exit-short', [run(1, bigSuite()), run(2, bigSuite())]);
+    assert.equal(exit(['--runs', short, '--thresholds', thresholds('t-inc', { leaks: { max: 0 } }), '--out', out(4)]).status, 2);
+    assert.equal(exit(['--runs', path.join(tmpRoot, 'does-not-exist')]).status, 4);
+    assert.equal(exit(['--nonsense']).status, 4);
+  });
+
+  it('documents the codes in --help and refuses an --out inside the repo (G712-15)', () => {
+    const help = exit(['--help']);
+    assert.equal(help.status, 0);
+    assert.match(help.stdout, /0 signed PASS, 1 signed FAIL, 2 INCONCLUSIVE, 3 no threshold/);
+    assert.match(help.stdout, /--reviews/);
+    const good = session('exit-repo', [run(1, bigSuite()), run(2, bigSuite()), run(3, bigSuite())]);
+    const inRepo = exit(['--runs', good, '--out', path.join(repoRoot, 'docs/x')]);
+    assert.equal(inRepo.status, 4);
+    assert.match(inRepo.stderr, /inside the repo/);
+    assert.equal(fs.existsSync(path.join(repoRoot, 'docs/x')), false);
   });
 });

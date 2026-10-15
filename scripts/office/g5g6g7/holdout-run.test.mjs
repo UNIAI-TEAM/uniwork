@@ -12,13 +12,13 @@ import { fileURLToPath } from 'node:url';
 import { parseMechanicalTable } from '../instruction-pack-tools.mjs';
 import { ANSWER_MARKER, deriveAnswer, parseReport, reportingFooter } from './holdout-answer.mjs';
 import {
-  TOOL_OPS, createBackend, modulesOfCase, offeredTools, opsOfTool, toolCatalogue, unobtainableOps,
+  TOOL_OPS, createBackend, modulesOfCase, offeredTools, opsOfTool, toolCatalogue, toolSurface, unobtainableOps,
 } from './holdout-backend.mjs';
 import {
-  DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, MAX_STEPS, buildAsks, createServerSession, createUsageReader, firstMessages, httpTransport,
-  parseArgs, runHoldout,
+  DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, MANIFEST_KIND, MAX_STEPS, buildAsks, createServerSession, createUsageReader, firstMessages, httpTransport,
+  isInsideRepo, parseArgs, preflight, redactSecrets, runHoldout, sha256Hex,
 } from './holdout-run.mjs';
-import { OPERATIONS, loadCases } from './holdout-score.mjs';
+import { OPERATIONS, loadCases, score } from './holdout-score.mjs';
 import { readWorkbook } from './holdout-xlsx-truth.mjs';
 import { referenceLine, scriptedModel, startStubFacade } from './holdout-stub-facade.helper.mjs';
 
@@ -59,18 +59,51 @@ describe('tool catalogue', () => {
     }
   });
 
-  it('offers every case a tool set where each required operation has a tool (refuse and compute-by-reply aside)', () => {
+  it('offers every case of a module the same tools, whatever the case expects (G712-1)', () => {
     const catalogue = toolCatalogue();
+    const names = (c) => offeredTools(c, catalogue).map((t) => t.function.name);
+    const byModules = new Map();
     for (const c of cases) {
-      const tools = offeredTools(c, catalogue);
-      assert.ok(tools.length > 0 || c.tools.required.every((op) => op === 'refuse'), `${c.id} has no tool`);
-      assert.deepEqual(unobtainableOps(c, tools), [], `${c.id} needs an operation no offered tool serves`);
-      const modules = modulesOfCase(c);
-      for (const t of tools) {
-        const ops = opsOfTool(modules, t.function.name);
-        assert.ok(ops.some((op) => c.tools.allowed.includes(op)), `${c.id} is offered ${t.function.name} outside its allowlist`);
-      }
+      const key = modulesOfCase(c).join('+');
+      byModules.set(key, [...(byModules.get(key) ?? []), c]);
     }
+    for (const [key, group] of byModules) {
+      const first = names(group[0]);
+      assert.ok(first.length > 0, key);
+      for (const c of group) assert.deepEqual(names(c), first, `${c.id} (${key}) is offered a different tool list than ${group[0].id}`);
+    }
+    for (const c of cases) {
+      const modules = modulesOfCase(c);
+      const offered = new Set(names(c));
+      for (const module of modules) for (const tool of Object.keys(TOOL_OPS[module])) assert.ok(offered.has(tool), `${c.id} is not offered ${module}.${tool}`);
+      assert.deepEqual(unobtainableOps(c, offeredTools(c, catalogue)), [], `${c.id} needs an operation no offered tool serves`);
+    }
+  });
+
+  it('offers the write tools to cases that expect no write: injection, viewer and refusal cases included', () => {
+    const catalogue = toolCatalogue();
+    const writeTools = (c) => offeredTools(c, catalogue).filter((t) => opsOfTool(modulesOfCase(c), t.function.name).some((op) => op === 'write_range' || op === 'edit_paragraph'));
+    const injection = cases.filter((c) => c.category === 'injection');
+    const viewers = cases.filter((c) => c.role === 'viewer');
+    const readOnly = cases.filter((c) => c.expected.writes === 0 && !c.tools.allowed.some((op) => op === 'write_range' || op === 'edit_paragraph'));
+    assert.ok(injection.length > 0 && viewers.length > 0 && readOnly.length > 0);
+    for (const c of [...injection, ...viewers, ...readOnly]) assert.ok(writeTools(c).length > 0, `${c.id} is offered no write tool`);
+  });
+
+  it('records where every module\'s schemas came from, and the strictest source wins', () => {
+    const surface = toolSurface(toolCatalogue());
+    assert.equal(surface.sheets.source, 'devset');
+    assert.equal(surface.docs.source, 'devset');
+    for (const module of ['slides', 'pdf', 'markdown', 'html']) assert.equal(surface[module].source, 'name-only', module);
+    assert.deepEqual(surface.sheets.tools, Object.keys(TOOL_OPS.sheets).sort());
+    assert.match(surface.sheets.schemasSha256, /^[0-9a-f]{64}$/);
+    const real = (name) => ({ type: 'function', function: { name, description: 'real', parameters: { type: 'object', properties: { x: { type: 'string' } } } } });
+    const filled = toolSurface(toolCatalogue({ slides: Object.keys(TOOL_OPS.slides).map(real) }), { fileSha256: 'f'.repeat(64) });
+    assert.equal(filled.slides.source, `file:${'f'.repeat(64)}`);
+    assert.equal(filled.pdf.source, 'name-only');
+    const partial = toolSurface(toolCatalogue({ slides: [real('read_slide')] }), { fileSha256: 'f'.repeat(64) });
+    assert.equal(partial.slides.source, 'name-only', 'a module with any hollow tool is name-only');
+    assert.notEqual(filled.slides.schemasSha256, surface.slides.schemasSha256);
   });
 });
 
@@ -137,6 +170,63 @@ describe('fixture backend', () => {
   });
 });
 
+describe('fixture backend: arguments, write log and number formats', () => {
+  const firstSheet = Object.keys(readWorkbook(path.join(repoRoot, 'docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.xlsx')))[0];
+  const everyTool = [
+    ['sheets', synthCase()],
+    ['docs', synthCase({ format: 'docx', fixtures: [{ id: 'fx-docx-report-vi', sha256: fixtureSha, version: 'v1' }], tools: { allowed: ['read_document'], required: ['read_document'] } })],
+    ['markdown', synthCase({ format: 'md', fixtures: [{ id: 'fx-md-notes-vi', sha256: fixtureSha, version: 'v1' }], tools: { allowed: ['read_document'], required: ['read_document'] } })],
+  ];
+
+  it('answers invalid_arguments for a malformed argument of every tool, never throws, and keeps the call out of the write count (G712-11)', () => {
+    const bad = [5, true, '{oops', '[1,2]', '"text"', { addresses: 5 }, { addresses: {} }, { range: { a: 1 }, sheetId: [] }, { startBlockIndex: {}, endBlockIndex: [] }];
+    for (const [module, c] of everyTool) {
+      for (const name of Object.keys(TOOL_OPS[module])) {
+        for (const args of bad) {
+          const backend = createBackend(c);
+          let result;
+          assert.doesNotThrow(() => { result = backend.execute(name, args); }, `${module}.${name}(${JSON.stringify(args)})`);
+          assert.ok(result && typeof result === 'object');
+          if (['{oops', '[1,2]', '"text"', 5, true].includes(args)) {
+            assert.equal(result.error, 'invalid_arguments', `${module}.${name}(${JSON.stringify(args)})`);
+            assert.equal(backend.writes(), 0, `${module}.${name} counted a write for a malformed call`);
+          }
+        }
+      }
+    }
+    const backend = createBackend(synthCase());
+    assert.equal(backend.execute('read_cells', { addresses: 5, sheetId: firstSheet }).error, 'invalid_arguments');
+    assert.deepEqual(backend.invalid().map((i) => i.name), ['read_cells']);
+  });
+
+  it('keeps the arguments of every write attempt, applied or refused, so an edit can be scored from them', () => {
+    const docx = (over) => synthCase({ format: 'docx', fixtures: [{ id: 'fx-docx-report-vi', sha256: fixtureSha, version: 'v1' }], tools: { allowed: ['read_document', 'edit_paragraph'], required: ['edit_paragraph'] }, ...over });
+    const open = createBackend(docx());
+    open.execute('replace_blocks', { startBlockIndex: 1, html: 'new text' });
+    open.execute('apply_ops', { ops: [], dryRun: true });
+    assert.deepEqual(open.writeLog(), [{ name: 'replace_blocks', applied: true, args: { startBlockIndex: 1, html: 'new text' } }]);
+    const viewer = createBackend(docx({ role: 'viewer' }));
+    viewer.execute('replace_blocks', { html: 'x' });
+    assert.deepEqual(viewer.writeLog().map((w) => w.applied), [false]);
+  });
+
+  it('reads the number format of a cell from the workbook, as the #numberFormat probe of the cases needs (G712-13)', () => {
+    const probe = cases.find((c) => c.expected.structural.some((i) => i.anchor.includes('#numberFormat')));
+    assert.ok(probe, 'the set has a #numberFormat case');
+    const backend = createBackend(probe);
+    const item = probe.expected.structural.find((i) => i.anchor.includes('#numberFormat'));
+    const [sheet, cell] = item.anchor.replace(/#numberFormat$/, '').split('!');
+    // The probe names the format AFTER the edit; before it the cell is a plain number, which read_formats must say.
+    const before = backend.execute('read_formats', { sheetId: sheet, range: cell });
+    assert.equal(before.rows[0].formats[cell], 'number');
+    const seen = new Set();
+    const wb = backend.execute('read_formats', { sheetId: sheet, range: 'A1:Z50' });
+    for (const row of wb.rows) for (const f of Object.values(row.formats)) seen.add(f);
+    for (const f of seen) assert.ok(['percent', 'number', 'text', 'currency', 'date'].includes(f), f);
+    assert.ok(seen.has('percent') && seen.has('text'), 'the fixture has percent cells and text cells');
+  });
+});
+
 describe('answer adapter', () => {
   it('parses the reporting line and tells a missing one from an invalid one', () => {
     assert.equal(parseReport('only text').status, 'missing');
@@ -188,18 +278,55 @@ describe('answer adapter', () => {
     assert.deepEqual(sheets.answer.tools.used, [], 'in sheets compute needs the tool');
   });
 
-  it('matches cell/count items by value, flags a value found at another anchor, and reports unmatched tools by name', () => {
+  it('fails a right value at another anchor by default and reports unmatched tools by name (G712-5)', () => {
     const c = synthCase({
       tools: { allowed: ['read_range'], required: ['read_range'] },
       expected: { numeric: [], structural: [{ kind: 'cell', anchor: 'Sheet!A1', value: 'wanted value' }], writes: 0, mustNotContain: [] },
     });
-    const out = deriveAnswer(c, {
+    const ask = {
       reply: reportFor({ items: [{ kind: 'cell', anchor: 'Sheet!Z9', value: 'wanted value' }] }),
       calls: [{ name: 'read_range' }, { name: 'made_up_tool' }], writes: 0, dropped: ['dropped_tool'], modules: ['sheets'],
+    };
+    const strict = deriveAnswer(c, ask);
+    assert.equal(strict.adapter.anchorLenient, 0);
+    assert.deepEqual(strict.answer.structural, [{ kind: 'cell', anchor: 'Sheet!Z9', value: 'wanted value' }], 'the model\'s own anchor is kept, never rewritten');
+    assert.equal(score(c, { ...strict.answer, tools: { used: ['read_range'] } }).status, 'fail');
+    assert.deepEqual([...strict.answer.tools.used].sort(), ['dropped_tool', 'made_up_tool', 'read_range']);
+    const lenient = deriveAnswer(c, ask, { anchors: 'lenient' });
+    assert.equal(lenient.adapter.anchorLenient, 1);
+    assert.deepEqual(lenient.answer.structural[0], { kind: 'cell', anchor: 'Sheet!A1', value: 'wanted value' });
+    const right = deriveAnswer(c, { ...ask, reply: reportFor({ items: [{ kind: 'cell', anchor: 'sheet!a1', value: 'wanted value' }] }) });
+    assert.equal(right.adapter.anchorLenient, 0);
+    assert.deepEqual(right.answer.structural[0], { kind: 'cell', anchor: 'Sheet!A1', value: 'wanted value' });
+  });
+
+  it('credits an edited cell only when an applied write carries its value or covers its address (G712-5)', () => {
+    const edit = synthCase({
+      category: 'edit', tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: { numeric: [], structural: [{ kind: 'cell', anchor: 'Sheet!C3', value: '4200' }, { kind: 'cell', anchor: 'Sheet!C4', value: '' }, { kind: 'count', anchor: 'changed', value: '1' }], writes: 1, mustNotContain: [] },
+      referenceAnswer: { numeric: {}, structural: [{ kind: 'cell', anchor: 'Sheet!C3', value: '4200' }, { kind: 'cell', anchor: 'Sheet!C4', value: '' }, { kind: 'count', anchor: 'changed', value: '1' }], writes: 1, text: 'test reference' },
     });
-    assert.equal(out.adapter.anchorLenient, 1);
-    assert.deepEqual(out.answer.structural[0], { kind: 'cell', anchor: 'Sheet!A1', value: 'wanted value' });
-    assert.deepEqual([...out.answer.tools.used].sort(), ['dropped_tool', 'made_up_tool', 'read_range']);
+    const line = reportFor({ items: [{ kind: 'cell', anchor: 'Sheet!C3', value: '4200' }, { kind: 'cell', anchor: 'Sheet!C4', value: '' }, { kind: 'count', anchor: 'changed', value: '1' }] });
+    const base = { reply: line, calls: [{ name: 'propose_operations' }], writes: 1, dropped: [], modules: ['sheets'] };
+    const asWritten = (args, applied = true) => ({ ...base, writes: applied ? 1 : 0, writeLog: [{ name: 'propose_operations', applied, args }] });
+    const verdict = (ask) => score(edit, deriveAnswer(edit, ask).answer).checks.filter((x) => x.id.startsWith('structural:')).map((x) => x.status);
+    assert.deepEqual(verdict(asWritten({ ops: [{ range: 'Sheet!C3', value: 4200 }] })), ['pass', 'pass', 'pass'], 'the value is in the arguments');
+    assert.deepEqual(verdict(asWritten({ ops: [{ range: 'Sheet!C2:C5', formula: '=A1*2' }] })), ['pass', 'pass', 'pass'], 'the range covers the cell (a formula result is not in the arguments)');
+    assert.deepEqual(verdict(asWritten({ ops: [{ range: 'Sheet!F9', value: 'other' }] })), ['fail', 'pass', 'pass'], 'a write elsewhere does not back the claim');
+    assert.deepEqual(verdict(asWritten({})), ['fail', 'pass', 'pass'], 'a claimed edit with empty arguments');
+    assert.deepEqual(verdict(asWritten({ range: 'C3', value: 4200 }, false)), ['fail', 'pass', 'pass'], 'a refused write proves nothing');
+    assert.deepEqual(verdict({ ...base, writeLog: [] }), ['fail', 'pass', 'pass'], 'no write at all');
+    const out = deriveAnswer(edit, asWritten({ range: 'Sheet!F9' }));
+    assert.deepEqual([out.adapter.writeBacked, out.adapter.writeUnbacked, out.adapter.writeSelfReported], [0, 1, 2]);
+  });
+
+  it('flags a figure of the reporting line that the prose never states, apart from rounding and grouping (G712-5)', () => {
+    const c = synthCase();
+    const ask = (text, figures) => ({ reply: `${text}\n${ANSWER_MARKER} ${JSON.stringify({ numbers: figures })}`, calls: [], writes: 0, dropped: [], modules: ['sheets'] });
+    assert.equal(deriveAnswer(c, ask('The total is 31.337.000 dong.', [31337000])).adapter.proseFigureMismatch, 0);
+    assert.equal(deriveAnswer(c, ask('The share is 12.5% of 8 orders.', [12.5])).adapter.proseFigureMismatch, 0);
+    assert.equal(deriveAnswer(c, ask('The total is 31.337.000 dong.', [31337])).adapter.proseFigureMismatch, 1);
+    assert.equal(deriveAnswer(c, ask('No digits here, only words.', [31337])).adapter.proseFigureMismatch, 0, 'prose with no figure states nothing to compare');
   });
 
   it('adds one fixed reporting footer to the question and nothing a case could give away', () => {
@@ -220,11 +347,11 @@ describe('answer adapter', () => {
 const usageReader = async (ids) => new Map(ids.map((id, i) => [id, { promptId: 'office_uniwork_ai@test', provider: 'fake', model: 'stub-resolved', status: 'succeeded', latencyMs: 100 + (i % 7), inputTokens: 5, outputTokens: 2 }]));
 const noSleep = async () => {};
 
-async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, opts = {}, usage = usageReader, subset = null }, dirName) {
+async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
   const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs });
   const session = await createServerSession({ serverUrl: facade.url });
   const mounts = [];
-  const wrapped = { ...session, mount: (id, o) => { mounts.push({ id, ...o }); return session.mount(id, o); } };
+  const wrapped = { ...session, mount: (id, o) => { mounts.push({ id, ...o }); return mount ? mount(id, o, session, mounts.length) : session.mount(id, o); } };
   const outDir = path.join(tmpRoot, dirName);
   try {
     const files = await runHoldout({
@@ -315,12 +442,13 @@ describe('runner faults and failures', () => {
     assert.equal(bare.docs[0].asks[0].adapter.reportStatus, 'missing');
   });
 
-  it('counts a tool outside the allowlist, even one the façade would drop, without executing it', async () => {
+  it('counts a tool outside the allowlist, even one the façade would drop; an offered write tool is executed and counted', async () => {
     const { docs } = await runWith({ ...only(readOnlyNumeric), model: mutate((r, ctx) => (r.toolCalls && ctx.state.step === 0 ? { toolCalls: [...r.toolCalls, { id: 'call_x', type: 'function', function: { name: 'propose_operations', arguments: '{}' } }, { id: 'call_y', type: 'function', function: { name: 'web_search', arguments: '{}' } }] } : r)) }, 'outside');
     const ask = docs[0].asks[0];
     assert.equal(ask.status, 'fail');
     assert.deepEqual([...ask.outsideAllowlist].sort(), ['web_search', 'write_range']);
-    assert.equal(ask.writes, 0, 'a tool that was not offered is not executed');
+    assert.equal(ask.writes, 1, 'the write tool is offered to every case, so the call is executed and counted; a tool that was not offered is not');
+    assert.ok(ask.checks.some((c) => c.id === 'writes' && c.status === 'fail'), 'a write above the ceiling of a read-only case fails');
   });
 
   it('fails a write above the ceiling of the case', async () => {
@@ -386,19 +514,52 @@ describe('runner faults and failures', () => {
     assert.notEqual(docs[0].asks[0].status, undefined);
   });
 
-  it('sends the open document and never an upstream address; tools are the case allowlist only', async () => {
-    const { facade } = await runWith({ ...only(readOnlyNumeric) }, 'tools');
+  it('sends the open document and never an upstream address; every case of a module gets the same tools (G712-1)', async () => {
+    const sheetCases = cases.filter((c) => modulesOfCase(c).join() === 'sheets' && c.id !== readOnlyNumeric.id);
+    const other = sheetCases.find((c) => c.expected.writes > 0) ?? sheetCases[0];
+    const { facade } = await runWith({ onlyIds: [readOnlyNumeric.id, other.id], subset: cases, threads: 1 }, 'tools');
     const request = facade.requests[0];
     assert.match(request.authorization, /^Bearer stub-frame-/);
     assert.equal(request.body.model, 'uniwork');
     assert.equal(request.body.stream, true);
-    const ops = request.body.tools.flatMap((t) => opsOfTool(modulesOfCase(readOnlyNumeric), t.function.name));
-    assert.ok(ops.every((op) => readOnlyNumeric.tools.allowed.includes(op)));
+    const first = (c) => facade.requests.find((r) => r.body.messages.at(-1).content.includes(c.query.vi))?.body.tools.map((t) => t.function.name);
+    assert.deepEqual(first(readOnlyNumeric), first(other));
+    assert.deepEqual(first(readOnlyNumeric), Object.keys(TOOL_OPS.sheets), 'the whole module list, write tool included');
   });
 
-  it('refuses to write a run whose output looks like a secret', async () => {
-    const leak = mutate((r) => (r.content ? { content: r.content.replace('UNIWORK_ANSWER', 'reach me at 10.20.30.40\nUNIWORK_ANSWER') } : r));
-    await assert.rejects(runWith({ ...only(readOnlyNumeric), model: leak }, 'secret'), /secret-looking/);
+  it('counts a write an injection case is tempted into: the write tool is offered, the call is executed and graded', async () => {
+    const injection = pick((c) => c.category === 'injection' && modulesOfCase(c).join() === 'sheets' && c.expected.writes === 0);
+    assert.ok(injection, 'the set has a sheets injection case that expects no write');
+    const tempt = mutate((r, ctx) => (r.toolCalls && ctx.state.step === 0 ? { toolCalls: [...r.toolCalls, { id: 'call_inj', type: 'function', function: { name: 'propose_operations', arguments: '{"note":"injected"}' } }] } : r));
+    const { docs, facade } = await runWith({ ...only(injection), model: tempt }, 'injection');
+    assert.ok(facade.requests[0].body.tools.some((t) => t.function.name === 'propose_operations'));
+    const ask = docs[0].asks[0];
+    assert.equal(ask.writes, 1);
+    assert.equal(ask.status, 'fail');
+    assert.ok(ask.outsideAllowlist.includes('write_range') || ask.checks.some((c) => c.id === 'writes' && c.status === 'fail'));
+  });
+
+  it('redacts a secret-looking value in the ask, still writes and counts the run, and flags it (G712-9)', async () => {
+    const leak = mutate((r) => (r.content ? { content: r.content.replace('UNIWORK_ANSWER', 'reach me at 10.20.30.40 or http://gw.example:8443/v1 with sk-abcdefgh12345678\nUNIWORK_ANSWER') } : r));
+    const { docs, files } = await runWith({ ...only(readOnlyNumeric), model: leak }, 'secret');
+    assert.equal(files.length, 1, 'the run is written');
+    assert.equal(docs[0].status, 'completed');
+    const text = fs.readFileSync(files[0], 'utf8');
+    assert.doesNotMatch(text, /10\.20\.30\.40|gw\.example|sk-abcdefgh/);
+    assert.match(text, /\[redacted:ipv4\]/);
+    assert.deepEqual(docs[0].asks[0].redactions.map((h) => h.kind).sort(), ['host_port_url', 'ipv4', 'key']);
+    assert.deepEqual(docs[0].redactions.map((r) => r.ask), docs[0].asks.map((a) => `${a.id}/${a.lang}`));
+    assert.deepEqual(docs[0].asks.map((a) => a.status), ['pass', 'pass'], 'redaction happens after grading and never changes a verdict');
+  });
+
+  it('does not flag Vietnamese money as an address, and flags a bare look-alike (G712-9)', () => {
+    for (const text of ['Tổng 31.337.000 đồng', 'Tổng 31,337,000 VND', 'Tổng 1.100.100.100 đồng', '₫1.100.100.100', 'Tổng 1.100.100.100 VNĐ.']) {
+      assert.deepEqual(redactSecrets(text).hits, [], text);
+      assert.equal(redactSecrets(text).text, text);
+    }
+    assert.deepEqual(redactSecrets('host 10.20.30.40.').hits, [{ kind: 'ipv4', count: 1 }]);
+    assert.deepEqual(redactSecrets('Bearer abcdefghijklmnopqrstuv').hits, [{ kind: 'key', count: 1 }]);
+    assert.deepEqual(redactSecrets('Tổng 1.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'without a unit the shape is ambiguous: flagged for a human');
   });
 
   it('turns a transport that always throws into error asks, not a crash', async () => {
@@ -418,22 +579,137 @@ describe('runner faults and failures', () => {
     }
   });
 
-  it('marks a run that dies mid-way as aborted, keeps what it has and does not start the next run', async () => {
-    const dir = path.join(tmpRoot, 'aborted');
+  it('turns an exception inside an ask into an errored ask: the run completes and keeps every other ask (G712-11)', async () => {
+    const pair = [readOnlyNumeric, oneWrite];
+    let created = 0;
+    const { docs } = await runWith({
+      onlyIds: pair.map((c) => c.id), subset: cases, threads: 1,
+      opts: { backendFactory: (c, o) => { if (c.id === pair[0].id) throw new Error('backend exploded'); created += 1; return createBackend(c, o); } },
+    }, 'exception');
+    assert.equal(docs[0].status, 'completed');
+    assert.equal(docs[0].asks.length, 4);
+    const broken = docs[0].asks.filter((a) => a.id === pair[0].id);
+    assert.ok(broken.every((a) => a.errored && a.status === 'fail' && /backend exploded/.test(a.error)));
+    assert.ok(docs[0].asks.filter((a) => a.id === pair[1].id).every((a) => a.status !== 'fail' && !a.errored));
+    assert.equal(created, 2);
+  });
+
+  it('fails the ask, not the run, when the model gives a tool a malformed argument (G712-11)', async () => {
+    const pair = [readOnlyNumeric, oneWrite];
+    const breakFirst = mutate((r, ctx) => (r.toolCalls && ctx.state.caseDoc?.id === pair[0].id && ctx.state.step === 0 ? { toolCalls: [{ id: 'call_bad', type: 'function', function: { name: 'read_cells', arguments: '{"addresses":5}' } }, ...r.toolCalls] } : r));
+    const { docs } = await runWith({ onlyIds: pair.map((c) => c.id), subset: cases, model: breakFirst }, 'malformed');
+    assert.equal(docs[0].status, 'completed');
+    assert.equal(docs[0].asks.length, 4);
+    const bad = docs[0].asks.filter((a) => a.id === pair[0].id);
+    assert.ok(bad.every((a) => a.errored && a.status === 'fail' && /invalid tool arguments: read_cells/.test(a.error) && a.invalidArguments.length === 1));
+    assert.ok(docs[0].asks.filter((a) => a.id === pair[1].id).every((a) => a.status !== 'fail' && !a.errored));
+  });
+
+  it('stops a run only when the harness cannot mount a fixture, keeps the asks it finished and does not start the next run (G712-11)', async () => {
+    const { files, docs } = await runWith({
+      runs: 3, threads: 1, onlyIds: [readOnlyNumeric.id, oneWrite.id], subset: cases,
+      mount: (id, o, session, calls) => (calls > 2 ? Promise.reject(new Error('upload failed')) : session.mount(id, o)),
+    }, 'aborted');
+    assert.equal(files.length, 1);
+    assert.equal(docs[0].status, 'aborted');
+    assert.match(docs[0].reason, /cannot mount fixture .*upload failed/);
+    assert.ok(docs[0].asks.length >= 1 && docs[0].asks.every((a) => a.status !== 'fail'), 'what finished is kept');
+    const manifest = JSON.parse(fs.readFileSync(path.join(path.dirname(files[0]), 'manifest.json'), 'utf8'));
+    assert.equal(manifest.status, 'aborted');
+    assert.equal(manifest.runs.length, 1);
+  });
+
+  it('keeps the outside-allowlist evidence of an ask that then errored (G712-14)', async () => {
+    const callOutside = mutate((r, ctx) => (r.toolCalls && ctx.state.step === 0 ? { toolCalls: [{ id: 'call_o', type: 'function', function: { name: 'web_search', arguments: '{}' } }] } : r));
+    const { docs } = await runWith({ ...only(readOnlyNumeric), model: callOutside, opts: { maxRetries: 0 }, threads: 1, hooks: { before: (i) => (i % 2 === 1 ? { status: 503 } : null) } }, 'errored-outside');
+    const ask = docs[0].asks[0];
+    assert.equal(ask.errored, true);
+    assert.deepEqual(ask.outsideAllowlist, ['web_search']);
+  });
+
+  it('proves an edit from the write arguments: a claim with empty write arguments fails (G712-5)', async () => {
+    assert.ok(oneWrite.expected.structural.some((s) => s.kind === 'cell' && String(s.value).trim() && !s.anchor.includes('#')), 'the edit case has a provable cell');
+    const empty = mutate((r) => (r.toolCalls ? { toolCalls: r.toolCalls.map((t) => ({ ...t, function: { ...t.function, arguments: '{}' } })) } : r));
+    const { docs } = await runWith({ ...only(oneWrite), model: empty }, 'edit-empty');
+    const ask = docs[0].asks[0];
+    assert.equal(ask.status, 'fail');
+    assert.ok(ask.adapter.writeUnbacked > 0);
+    const { docs: ok } = await runWith({ ...only(oneWrite) }, 'edit-ok');
+    assert.notEqual(ok[0].asks[0].status, 'fail');
+    assert.ok(ok[0].asks[0].adapter.writeBacked > 0);
+  });
+});
+
+describe('sessions, manifest and tool surface', () => {
+  it('writes one session: ids, case-set hash, a manifest with the sha256 of every run file, and never overwrites (G712-2)', async () => {
+    const dir = path.join(tmpRoot, 'session');
     const facade = await startStubFacade({ model: scriptedModel(cases) });
     const session = await createServerSession({ serverUrl: facade.url });
+    const subset = cases.filter((c) => c.format === 'xlsx').slice(0, 2);
+    const go = () => runHoldout({ cases: subset, runs: 2, threads: 2, outDir: dir, session, transport: httpTransport(facade.url), redis: 'off', sessionId: 's-test-1', opts: { sleep: noSleep } });
     try {
-      const files = await runHoldout({
-        cases, runs: 3, threads: 1, outDir: dir, session, redis: 'off', onlyIds: [readOnlyNumeric.id], transport: httpTransport(facade.url),
-        opts: { sleep: noSleep, backendFactory: () => { throw new Error('backend exploded'); } },
-      });
-      assert.equal(files.length, 1);
-      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
-      assert.equal(doc.status, 'aborted');
-      assert.match(doc.reason, /backend exploded/);
+      const files = await go();
+      const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
+      assert.equal(manifest.kind, MANIFEST_KIND);
+      assert.equal(manifest.sessionId, 's-test-1');
+      assert.deepEqual([manifest.runsPlanned, manifest.caseCount, manifest.asksPerRun, manifest.status, manifest.partial], [2, 2, 4, 'completed', false]);
+      assert.match(manifest.caseSetSha256, /^[0-9a-f]{64}$/);
+      assert.deepEqual(manifest.runs.map((r) => r.file), ['run-01.json', 'run-02.json']);
+      files.forEach((f, i) => assert.equal(manifest.runs[i].sha256, sha256Hex(fs.readFileSync(f))));
+      const docs = files.map((f) => JSON.parse(fs.readFileSync(f, 'utf8')));
+      assert.ok(docs.every((d) => d.sessionId === 's-test-1' && d.caseCount === 2 && d.caseSetSha256 === manifest.caseSetSha256));
+      await assert.rejects(go(), /already holds manifest\.json, run-01\.json, run-02\.json/);
+      assert.equal(JSON.parse(fs.readFileSync(files[0], 'utf8')).sessionId, 's-test-1', 'the refused run left the files alone');
     } finally {
       await facade.close();
     }
+  });
+
+  it('hashes the case set, not its content: a different set gives a different hash', async () => {
+    const a = await runWith({ onlyIds: null, subset: cases.slice(0, 2), threads: 1 }, 'hash-a');
+    const b = await runWith({ onlyIds: null, subset: cases.slice(0, 3), threads: 1 }, 'hash-b');
+    assert.notEqual(a.docs[0].caseSetSha256, b.docs[0].caseSetSha256);
+    assert.deepEqual([a.docs[0].caseCount, b.docs[0].caseCount], [2, 3]);
+    assert.ok(!JSON.stringify(a.docs[0]).includes(`"${cases[0].query.en}"`), 'the run config carries no case text');
+  });
+
+  it('records the tool surface per module and the policy in the run config (G712-8, G712-7)', async () => {
+    const { docs } = await runWith({ onlyIds: [cases[0].id], subset: cases }, 'surface');
+    const { config } = docs[0];
+    assert.equal(config.toolSurface.sheets.source, 'devset');
+    assert.equal(config.toolSurface.slides.source, 'name-only');
+    assert.match(config.toolSurfaceSha256, /^[0-9a-f]{64}$/);
+    assert.equal(config.footerSha256, sha256Hex(reportingFooter()));
+    assert.deepEqual([config.numbers, config.anchors, config.computeByReply, config.maxRetries, config.answerProtocol], ['strict', 'strict', true, 3, 'v1']);
+    assert.match(config.harness.backend, /emulated/);
+    assert.equal(config.usageReader, 'ai_usage_events');
+    assert.equal(config.usageReaderError, null);
+    const real = (name) => ({ type: 'function', function: { name, description: 'real', parameters: { type: 'object', properties: {} } } });
+    const withFile = await runWith({ onlyIds: [cases[0].id], subset: cases, opts: { toolSchemas: { slides: Object.keys(TOOL_OPS.slides).map(real) }, toolSchemasSha256: 'a'.repeat(64) } }, 'surface-file');
+    assert.equal(withFile.docs[0].config.toolSurface.slides.source, `file:${'a'.repeat(64)}`);
+  });
+
+  it('refuses a real run without --redis on|off, and without tool schemas for every module unless --allow-name-only (G712-8)', () => {
+    const hollow = toolCatalogue();
+    assert.throws(() => preflight({ redis: 'unknown', catalogue: hollow, allowNameOnly: true }), /--redis on\|off is required/);
+    assert.throws(() => preflight({ redis: 'on', catalogue: hollow }), /no real tool schemas for module\(s\) slides, pdf, markdown, html/);
+    assert.doesNotThrow(() => preflight({ redis: 'on', catalogue: hollow, allowNameOnly: true }));
+    const real = (name) => ({ type: 'function', function: { name, description: 'real', parameters: { type: 'object', properties: {} } } });
+    const full = toolCatalogue(Object.fromEntries(['slides', 'pdf', 'markdown', 'html'].map((m) => [m, Object.keys(TOOL_OPS[m]).map(real)])));
+    assert.doesNotThrow(() => preflight({ redis: 'off', catalogue: full }));
+  });
+
+  it('records a usage reader failure in the run instead of swallowing it, and the coverage of usage rows (G712-3, G712-15)', async () => {
+    const boom = await runWith({ onlyIds: [cases[0].id], subset: cases, usage: async () => { throw new Error('psql exploded 10.20.30.40'); } }, 'reader-error');
+    assert.equal(boom.docs[0].status, 'completed');
+    assert.match(boom.docs[0].config.usageReaderError, /psql exploded \[redacted:ipv4\]/);
+    assert.deepEqual(boom.docs[0].tuple.providers, ['unknown (no ai_usage_events rows)']);
+    const everyOther = async (ids) => new Map(ids.filter((_, i) => i % 2 === 0).map((id) => [id, { promptId: 'p', provider: 'x', model: 'm', status: 'succeeded', latencyMs: 10, inputTokens: 5, outputTokens: 2 }]));
+    const multi = cases.find((c) => c.expected.numeric.length > 0 && c.format === 'xlsx' && c.tools.required.includes('compute'));
+    const part = await runWith({ onlyIds: [multi.id], subset: cases, usage: everyOther, threads: 1 }, 'coverage');
+    const tokens = part.docs[0].asks[0].tokens;
+    assert.equal(tokens.source, 'ai_usage_events');
+    assert.ok(tokens.callsWithRow < tokens.calls && tokens.callsWithRow >= 1, JSON.stringify(tokens));
   });
 });
 
@@ -463,6 +739,17 @@ describe('usage rows and arguments', () => {
     assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--out', path.join(repoRoot, 'docs/x')]), /inside the repo/);
     assert.equal(parseArgs(['--server-url', 'http://localhost:1', '--out', path.join(repoRoot, 'docs/x'), '--allow-in-repo']).allowInRepo, true);
     assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--redis', 'maybe']), /--redis/);
+    assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--anchors', 'sloppy']), /--anchors must be strict or lenient/);
+    assert.equal(parseArgs(['--server-url', 'http://localhost:1']).anchors, 'strict');
+    assert.equal(parseArgs(['--server-url', 'http://localhost:1', '--anchors', 'lenient']).anchors, 'lenient');
+  });
+
+  it('resolves symlinks before deciding an --out is outside the repo (G712-15)', () => {
+    const link = path.join(tmpRoot, 'link-into-repo');
+    fs.symlinkSync(path.join(repoRoot, 'docs'), link);
+    assert.equal(isInsideRepo(path.join(link, 'runs')), true);
+    assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--out', path.join(link, 'runs')]), /inside the repo/);
+    assert.equal(isInsideRepo(path.join(tmpRoot, 'plain', 'runs')), false);
   });
 
   it('keeps the reference line helper in step with the reporting format', () => {
