@@ -8,6 +8,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/document"
+	"github.com/unicomhub/uniwork/server/internal/files"
 )
 
 // The table is the contract of C-01 section 14.5 / DOC-005 section 4: every
@@ -111,8 +114,10 @@ func TestErrorClassTable(t *testing.T) {
 	// Every code the document permission / share / break-glass files emit is
 	// decided here, classified or unclassified on purpose (addendum G8-18 /
 	// DOC-05 section 4), and so is every code of the access report files
-	// (UNI-1643), which read through the same gates. Only these files are
-	// scanned: the rest of the service package predates the rule.
+	// (UNI-1643), which read through the same gates, and of the file save
+	// routes (document_files.go, document_commit.go), which write some codes
+	// through the document./files. constants. Only these files are scanned:
+	// the rest of the service package predates the rule.
 	decided := map[string]bool{}
 	for code := range want {
 		decided[code] = true
@@ -123,6 +128,7 @@ func TestErrorClassTable(t *testing.T) {
 	found := map[string]bool{}
 	for _, name := range []string{
 		"document_permissions.go", "document_shares.go", "document_break_glass.go",
+		"document_files.go", "document_commit.go",
 		"document_access_report.go", "document_access_report_export.go",
 	} {
 		src, err := os.ReadFile("../../../service/" + name)
@@ -132,14 +138,25 @@ func TestErrorClassTable(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, code := range permissionFileCodes(string(src)) {
+		codes, unknown := permissionFileCodes(string(src))
+		for _, ident := range unknown {
+			t.Errorf("%s writes a code through %s, which codeConstants cannot resolve; add the constant and the string it holds", name, ident)
+		}
+		for _, code := range codes {
 			found[code] = true
 			if !decided[code] {
 				t.Errorf("%s emits %q, which is neither in want nor in unclassified", name, code)
 			}
 		}
 	}
-	for _, code := range []string{"document_restricted", "break_glass_required", "document_owned_by_work_product", "access_report_too_large"} {
+	// The first four are literal emissions in the files above; the last two
+	// are written only through a Go constant (document.ErrCodeUnsupportedMedia,
+	// files.CodeStorageUnavailable), so a scan that stopped at string literals
+	// fails here even with the file listed.
+	for _, code := range []string{
+		"document_restricted", "break_glass_required", "document_owned_by_work_product",
+		"access_report_too_large", "unsupported_media_type", "storage_unavailable",
+	} {
 		if !found[code] {
 			t.Errorf("scan did not find %q: the emission pattern changed, update permissionFileCodes", code)
 		}
@@ -147,20 +164,43 @@ func TestErrorClassTable(t *testing.T) {
 }
 
 var (
-	codedErrorLiteral = regexp.MustCompile(`CodedError\{[^}]*?Code:\s*"([a-z0-9_]+)"`)
-	codedHelperCall   = regexp.MustCompile(`\bcoded\([^,()]+,\s*"([a-z0-9_]+)"`)
+	codedErrorLiteral   = regexp.MustCompile(`CodedError\{[^}]*?Code:\s*"([a-z0-9_]+)"`)
+	codedHelperCall     = regexp.MustCompile(`\bcoded\([^,()]+,\s*"([a-z0-9_]+)"`)
+	codedErrorConstant  = regexp.MustCompile(`CodedError\{[^}]*?Code:\s*([A-Za-z_][A-Za-z0-9_.]*)`)
+	codedHelperConstant = regexp.MustCompile(`\bcoded\([^,()]+,\s*([A-Za-z_][A-Za-z0-9_.]*)`)
 )
 
+// codeConstants resolves the Go constants the scanned files pass as a code:
+// the scan reads source text, so an identifier is only known once it is listed
+// here, and the value side is the constant itself, so a change in its declaring
+// file cannot drift from this table. An identifier that is not listed fails
+// TestErrorClassTable, and the value it resolves to faces the same two-way
+// check a literal does.
+var codeConstants = map[string]string{
+	"document.ErrCodeUnsupportedMedia": document.ErrCodeUnsupportedMedia, // internal/document/file_validation.go
+	"files.CodeStorageUnavailable":     files.CodeStorageUnavailable,     // internal/files/errors.go
+}
+
 // permissionFileCodes lists the codes a Go source emits through a
-// CodedError{Code: "..."} literal or a coded(status, "...", msg) call.
-func permissionFileCodes(src string) []string {
-	var out []string
+// CodedError{Code: ...} field or a coded(status, ...) call: a string literal
+// directly, a known constant through codeConstants. unknown lists the
+// identifiers codeConstants did not resolve; the caller fails on each.
+func permissionFileCodes(src string) (codes, unknown []string) {
 	for _, re := range []*regexp.Regexp{codedErrorLiteral, codedHelperCall} {
 		for _, m := range re.FindAllStringSubmatch(src, -1) {
-			out = append(out, m[1])
+			codes = append(codes, m[1])
 		}
 	}
-	return out
+	for _, re := range []*regexp.Regexp{codedErrorConstant, codedHelperConstant} {
+		for _, m := range re.FindAllStringSubmatch(src, -1) {
+			if code, ok := codeConstants[m[1]]; ok {
+				codes = append(codes, code)
+				continue
+			}
+			unknown = append(unknown, m[1])
+		}
+	}
+	return codes, unknown
 }
 
 // The wire field is optional: an unclassified code must not emit an
