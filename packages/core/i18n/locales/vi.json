@@ -8394,6 +8394,7 @@
       "lostDownload": "Tải bản của tôi",
       "lostReload": "Tải lại bản mới nhất",
       "lostReloadConfirm": "Tải lại sẽ bỏ thay đổi chưa lưu trên trang này. Tiếp tục?",
+      "reloadFailed": "Chưa tải được bản mới nhất. Thay đổi chưa lưu của bạn vẫn còn.",
       "myCopyName": "{{title}} (bản của tôi)",
       "holdStart": "Giữ quyền sửa khi offline",
       "holdActive": "Giữ quyền sửa đến {{time}}",

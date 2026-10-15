@@ -159,12 +159,16 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
   }, [phase, lostReason, page, hasUnsavedWork]);
 
   const loadLatest = useCallback(async () => {
+    // Reread first: a failed reread must neither drop the draft nor pass stale cache off as the newest.
+    const fresh = await refetch().catch(() => null);
+    if (!fresh || fresh.isError || !fresh.data) {
+      toast.error(t("documents.editLock.reloadFailed"));
+      return;
+    }
     save.discardDraft();
-    const fresh = await refetch();
-    const next = fresh.data ?? doc;
-    editorRef.current?.adoptContent(next.content, next.revision);
-    save.updateBase(next.revision, next);
-  }, [save, refetch, doc, editorRef]);
+    editorRef.current?.adoptContent(fresh.data.content, fresh.data.revision);
+    save.updateBase(fresh.data.revision, fresh.data);
+  }, [save, refetch, editorRef, t]);
 
   const lostDialog = {
     open: lostOpen,

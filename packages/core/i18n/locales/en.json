@@ -8399,6 +8399,7 @@
       "lostDownload": "Download my copy",
       "lostReload": "Reload latest version",
       "lostReloadConfirm": "Reloading discards the unsaved changes on this page. Continue?",
+      "reloadFailed": "Could not load the latest version. Your unsaved changes are still here.",
       "myCopyName": "{{title}} (my copy)",
       "holdStart": "Keep editing offline",
       "holdActive": "Editing kept until {{time}}",
