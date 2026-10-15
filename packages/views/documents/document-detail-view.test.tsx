@@ -153,7 +153,7 @@ describe("DocumentDetailView", () => {
       ),
     );
     renderView();
-    expect(await screen.findByRole("heading", { name: t("documents.detail.revoked_title") })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: t("documents.access_request.admin_locked_title") })).toBeInTheDocument();
     expect(document.querySelector("[data-document-locked-card='admin']")).not.toBeNull();
     expect(screen.queryByRole("button", { name: t("documents.access_request.send") })).toBeNull();
   });

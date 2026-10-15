@@ -8610,7 +8610,12 @@
       "approved": "Đã cấp quyền {{level}} cho {{name}}",
       "declined": "Đã từ chối yêu cầu của {{name}}",
       "closed": "Yêu cầu này đã được xử lý hoặc đã hết hạn.",
-      "none_pending": "Không còn yêu cầu nào đang chờ."
+      "none_pending": "Không còn yêu cầu nào đang chờ.",
+      "level_comment": "Bình luận",
+      "decision_failed": "Chưa xử lý được yêu cầu này. Hãy thử lại.",
+      "sent_message_label": "Lời nhắn",
+      "admin_locked_title": "Tài liệu này bị hạn chế",
+      "admin_locked_body": "Bạn có thể quản lý quyền truy cập với vai trò quản trị viên."
     },
     "accessLog": {
       "title": "Nhật ký truy cập",

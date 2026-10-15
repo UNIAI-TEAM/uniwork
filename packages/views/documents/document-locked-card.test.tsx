@@ -106,6 +106,11 @@ describe("DocumentLockedCard variant=member", () => {
     // Level and message stay readable, not editable.
     expect(screen.queryByRole("textbox", { name: K("message_label") })).toBeNull();
     expect(screen.getByText("cần sửa báo cáo")).toBeInTheDocument();
+    // The recap has its own label: "(optional)" makes no sense on a sent message.
+    const recap = screen.getByRole("status");
+    expect(recap).toHaveTextContent(K("sent_message_label"));
+    expect(recap).not.toHaveTextContent(K("message_label"));
+    expect(K("sent_message_label")).not.toMatch(/optional|không bắt buộc/i);
   });
 
   it("sends no source and no empty message when there is none", async () => {
@@ -273,7 +278,11 @@ describe("DocumentLockedCard variant=admin", () => {
         </WorkspaceProvider>,
       ),
     );
-    expect(screen.getByRole("heading", { name: t("documents.detail.revoked_title") })).toBeInTheDocument();
+    // An admin never had this document: it is restricted, not revoked.
+    expect(screen.getByRole("heading", { name: K("admin_locked_title") })).toBeInTheDocument();
+    expect(screen.getByText(K("admin_locked_body"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.detail.revoked_title"))).toBeNull();
+    expect(screen.queryByText(t("documents.detail.revoked_description"))).toBeNull();
     expect(await screen.findByRole("button", { name: t("documents.share.admin_manage_button") })).toBeInTheDocument();
     // Admins manage but never read: the title the summary carries is not on the card.
     expect(screen.queryByText("Lương 2026")).toBeNull();

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage, errorCode } from "@uniwork/core/api";
+import { errorCode } from "@uniwork/core/api";
 import type { DocumentAccessRequest, DocumentAccessRequestLevel } from "@uniwork/core/api/endpoints/documents-access-requests";
 import {
   useApproveDocumentAccessRequest,
@@ -54,7 +54,11 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
   const decline = useDeclineDocumentAccessRequest(wsId, documentId);
   const [choices, setChoices] = useState<Record<string, DocumentAccessRequestLevel>>({});
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  // The row the decision came from and the one after it: once the list has
+  // dropped the decided row, focus goes to the next row, else the heading.
+  const [handoff, setHandoff] = useState<{ decidedId: string; nextId: string | null } | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const busy = approve.isPending || decline.isPending;
   const busyId = approve.isPending ? approve.variables?.requestId : decline.isPending ? decline.variables?.requestId : null;
 
@@ -72,27 +76,63 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
   }, [focusOnOpen]);
 
   const rows = requests.data ?? [];
-  const nameOf = (row: DocumentAccessRequest) => row.requester_name.trim() || t("documents.share.person_unknown");
-  const levelLabel = (level: string) => t(`documents.share.level_${level}`, { defaultValue: level });
 
-  const failed = (err: unknown) => {
+  useEffect(() => {
+    if (!handoff || !requests.isSuccess || requests.isFetching) return;
+    if (requests.data?.some((row) => row.id === handoff.decidedId)) return;
+    const next = handoff.nextId ? listRef.current?.querySelector<HTMLElement>(`[data-request-id="${handoff.nextId}"]`) : null;
+    (next?.querySelector<HTMLElement>("button") ?? headingRef.current)?.focus();
+    setHandoff(null);
+  }, [handoff, requests.isSuccess, requests.isFetching, requests.data]);
+
+  const nameOf = (row: DocumentAccessRequest) => row.requester_name.trim() || t("documents.share.person_unknown");
+  // "comment" is this namespace's own label: documents.share.level_comment belongs to DOC-05.
+  const levelLabel = (level: string) =>
+    level === "comment" ? t("documents.access_request.level_comment") : t(`documents.share.level_${level}`, { defaultValue: level });
+
+  const closed = (row: DocumentAccessRequest) => {
+    const at = rows.findIndex((r) => r.id === row.id);
+    setHandoff({ decidedId: row.id, nextId: rows[at + 1]?.id ?? null });
+  };
+
+  const failed = (row: DocumentAccessRequest, err: unknown) => {
     if (errorCode(err) === "access_request_closed") {
       setNotice({ kind: "closed" });
+      closed(row);
       return;
     }
-    setError(apiErrorMessage(err) ?? t("documents.share.submit_failed"));
+    // The server's own text is never shown: it may not be in the viewer's language.
+    setError(true);
   };
 
   const decide = (row: DocumentAccessRequest, action: "approve" | "decline") => {
     if (busy) return;
     setNotice(null);
-    setError(null);
+    setError(false);
     const name = nameOf(row);
     if (action === "approve") {
       const level = choices[row.id] ?? askedLevel(row.requested_level);
-      approve.mutate({ requestId: row.id, level }, { onSuccess: () => setNotice({ kind: "approved", name, level }), onError: failed });
+      approve.mutate(
+        { requestId: row.id, level },
+        {
+          onSuccess: () => {
+            setNotice({ kind: "approved", name, level });
+            closed(row);
+          },
+          onError: (err) => failed(row, err),
+        },
+      );
     } else {
-      decline.mutate({ requestId: row.id }, { onSuccess: () => setNotice({ kind: "declined", name }), onError: failed });
+      decline.mutate(
+        { requestId: row.id },
+        {
+          onSuccess: () => {
+            setNotice({ kind: "declined", name });
+            closed(row);
+          },
+          onError: (err) => failed(row, err),
+        },
+      );
     }
   };
 
@@ -122,7 +162,7 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
       </p>
       {error ? (
         <p role="alert" className="border-b border-border px-3 py-2 text-caption text-destructive">
-          {error}
+          {t("documents.access_request.decision_failed")}
         </p>
       ) : null}
       {requests.isPending ? (
@@ -141,7 +181,7 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
       ) : rows.length === 0 ? (
         <p className="px-3 py-2 text-caption text-muted-foreground">{t("documents.access_request.none_pending")}</p>
       ) : (
-        <ul className="divide-y divide-border">
+        <ul ref={listRef} className="divide-y divide-border">
           {rows.map((row) => {
             const asked = askedLevel(row.requested_level);
             const choice = choices[row.id] ?? asked;
@@ -149,7 +189,7 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
             const name = nameOf(row);
             const rowBusy = busyId === row.id;
             return (
-              <li key={row.id} aria-labelledby={`${titleId}-${row.id}`} className="flex flex-col gap-2 px-3 py-2">
+              <li key={row.id} data-request-id={row.id} aria-labelledby={`${titleId}-${row.id}`} className="flex flex-col gap-2 px-3 py-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                   <span id={`${titleId}-${row.id}`} className="min-w-0 truncate text-body font-medium text-foreground" title={name}>
                     {name}

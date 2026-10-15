@@ -151,12 +151,27 @@ describe("AccessRequestsSection", () => {
     await screen.findByText("Bình");
     fireEvent.click(screen.getByRole("combobox", { name: `${t("documents.share.level_label")} Bình` }));
     const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    // The label is this namespace's own: documents.share.level_comment belongs to DOC-05.
     expect(options).toEqual([
       t("documents.share.level_view"),
-      // No comment label exists until DOC-05 lands; the section falls back to the raw level.
-      t("documents.share.level_comment", { defaultValue: "comment" }),
+      t("documents.access_request.level_comment"),
       t("documents.share.level_edit"),
     ]);
+    expect(options).not.toContain("comment");
+  });
+
+  it("names the comment level in the caption and in the approval line, never the raw word", async () => {
+    pending = { requests: [{ ...binh, id: "r1", requested_level: "comment" }] };
+    renderSection();
+    await screen.findByText("Bình");
+    const row = screen.getByRole("listitem", { name: /Bình/ });
+    const source = within(row).getByText(t("documents.access_request.row_source", { source: "Báo giá Q4" }));
+    expect(source.parentElement).toHaveTextContent(`${t("documents.access_request.level_comment")} · ${source.textContent}`);
+    fireEvent.click(within(row).getByRole("button", { name: new RegExp(t("documents.access_request.approve")) }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      t("documents.access_request.approved", { name: "Bình", level: t("documents.access_request.level_comment") }),
+    );
+    expect(screen.getByRole("status")).not.toHaveTextContent(/\bcomment\b/);
   });
 
   it("approves at the requested level by default, awaits the server, then drops the row and says so", async () => {
@@ -216,8 +231,41 @@ describe("AccessRequestsSection", () => {
     await screen.findByText("Bình");
     const first = screen.getByRole("listitem", { name: /Bình/ });
     fireEvent.click(within(first).getByRole("button", { name: new RegExp(t("documents.access_request.decline")) }));
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    const alert = await screen.findByRole("alert");
+    // A localized sentence, never the server's own text.
+    expect(alert).toHaveTextContent(t("documents.access_request.decision_failed"));
+    expect(alert).not.toHaveTextContent("boom");
     expect(screen.getByRole("listitem", { name: /Bình/ })).toBeInTheDocument();
+  });
+
+  it("moves focus to the next row's first control after a decision removed the row", async () => {
+    renderSection();
+    await screen.findByText("Bình");
+    const first = screen.getByRole("listitem", { name: /Bình/ });
+    fireEvent.click(within(first).getByRole("button", { name: new RegExp(t("documents.access_request.approve")) }));
+    await waitFor(() => expect(screen.queryByRole("listitem", { name: /Bình/ })).not.toBeInTheDocument());
+    const next = screen.getByRole("listitem", { name: /Chi/ });
+    await waitFor(() => expect(next.contains(document.activeElement)).toBe(true));
+    expect(document.activeElement).toBe(within(next).getByRole("combobox"));
+  });
+
+  it("moves focus to the section heading when the decided row was the last one", async () => {
+    pending = { requests: [chi] };
+    serve();
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === LIST && !opts?.method) return Promise.resolve(pending);
+      if (path === `${LIST}/r2/decline`) {
+        pending = { requests: [] };
+        return Promise.resolve({ id: "r2", status: "declined" });
+      }
+      return Promise.resolve({});
+    });
+    renderSection();
+    await screen.findByText("Chi");
+    const row = screen.getByRole("listitem", { name: /Chi/ });
+    fireEvent.click(within(row).getByRole("button", { name: new RegExp(t("documents.access_request.decline")) }));
+    const heading = await screen.findByRole("heading", { name: t("documents.access_request.section_title", { count: 0 }) });
+    await waitFor(() => expect(heading).toHaveFocus());
   });
 
   it("moves focus to the section heading when it was opened from the inbox link", async () => {
