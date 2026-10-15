@@ -294,3 +294,71 @@ func TestReadingAChatClosesItsNotification(t *testing.T) {
 		t.Fatalf("thread row after reading the thread = %+v", got)
 	}
 }
+
+// Muting a room is stored on the member row and read at delivery, so a DM, a
+// mention or a thread reply in it notifies and pushes to no device; unmuting
+// brings the next one back (UNI-1697).
+func TestMutedRoomSendsNoChatNotification(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+		Name: "an-trua", Visibility: "public", MemberUserIDs: []string{f.member.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, roomID := range []string{dm.ID, ch.ID} {
+		if err := chat.SetRoomNotificationsMuted(f.ctx, f.member.ID, f.wsID, roomID, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The owner follows the channel thread; their mute covers its replies.
+	if err := chat.SetRoomNotificationsMuted(f.ctx, f.owner.ID, f.wsID, ch.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	pushBefore := len(f.events(t, TopicPush))
+
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "chào"}); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	root, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{
+		Body: "[@Thành Viên](mention://member/" + f.member.ID + ") xem giúp",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.message.mentioned")
+	if _, err := chat.SendThreadReply(f.ctx, f.member.ID, f.wsID, ch.ID, root.ID, service.SendChatMessageInput{Body: "ok"}); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.thread.reply_received")
+
+	if got := f.inbox(t, f.member.ID); len(got) != 0 {
+		t.Fatalf("muted rooms reached the member's inbox: %+v", got)
+	}
+	if got := f.inbox(t, f.owner.ID); len(got) != 0 {
+		t.Fatalf("a muted channel's thread reply reached the owner's inbox: %+v", got)
+	}
+	if n := len(f.events(t, TopicPush)) - pushBefore; n != 0 {
+		t.Fatalf("muted rooms pushed %d times, want 0", n)
+	}
+
+	if err := chat.SetRoomNotificationsMuted(f.ctx, f.member.ID, f.wsID, dm.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "còn đó không?"}); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	if got := f.inbox(t, f.member.ID); len(got) != 1 || got[0].Kind != KindChatDM {
+		t.Fatalf("the dm after unmuting = %+v", got)
+	}
+	if n := len(f.events(t, TopicPush)) - pushBefore; n != 1 {
+		t.Fatalf("the dm after unmuting pushed %d times, want 1", n)
+	}
+}

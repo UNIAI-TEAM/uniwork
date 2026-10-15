@@ -612,6 +612,7 @@ func channelSummaryFromMineRow(row db.ListChatChannelsMineRow) ChatRoomSummary {
 		MemberPermissions:  memberPermissionsFromRaw(row.MemberPermissions),
 		Visibility:         row.Visibility, Topic: row.Topic, IsDefault: row.IsDefault,
 		ProjectID: textOrEmpty(row.ProjectID), LastReadAt: timePtr(row.MyLastReadAt),
+		NotificationsMuted: row.NotificationsMuted,
 	}
 	if row.LastMessageAt.Valid {
 		t := row.LastMessageAt.Time

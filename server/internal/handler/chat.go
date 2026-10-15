@@ -190,6 +190,7 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 		LastMessageBody: r.LastMessageBody, LastMessageKind: r.LastMessageKind,
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
+		NotificationsMuted: r.NotificationsMuted,
 	}
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
@@ -399,6 +400,25 @@ func (h *handlers) leaveChatRoom(w http.ResponseWriter, r *http.Request) {
 func (h *handlers) markChatRoomRead(w http.ResponseWriter, r *http.Request) {
 	err := h.Chat.MarkRoomRead(
 		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
+func (h *handlers) muteChatRoom(w http.ResponseWriter, r *http.Request) {
+	h.setChatRoomMuted(w, r, true)
+}
+
+func (h *handlers) unmuteChatRoom(w http.ResponseWriter, r *http.Request) {
+	h.setChatRoomMuted(w, r, false)
+}
+
+func (h *handlers) setChatRoomMuted(w http.ResponseWriter, r *http.Request, muted bool) {
+	err := h.Chat.SetRoomNotificationsMuted(
+		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), muted,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)

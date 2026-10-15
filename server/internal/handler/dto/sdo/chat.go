@@ -194,6 +194,7 @@ type ChatRoomDTO struct {
 	ProjectID             string                        `json:"project_id,omitempty" description:"Linked project id when set"`
 	Topic                 string                        `json:"topic,omitempty" description:"Channel topic"`
 	IsDefault             bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
+	NotificationsMuted    bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
 }
 
 // ChatChannelListSDO is GET .../chat/channels.

@@ -173,6 +173,20 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/mute", h.MuteChatRoom, apiOp{
+		summary:     "Mute chat room",
+		description: "Tắt thông báo và push của phòng cho người gọi, trên mọi thiết bị.",
+		tags:        []string{"chat"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.With(chatWriteLimit).Delete("/workspaces/{workspaceID}/chat/rooms/{roomID}/mute", h.UnmuteChatRoom, apiOp{
+		summary:     "Unmute chat room",
+		description: "Bật lại thông báo của phòng cho người gọi.",
+		tags:        []string{"chat"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/members", h.ListChatRoomMembers, apiOp{
 		summary:     "List chat room members",
 		description: "Danh sách thành viên phòng chat kèm role và trạng thái cấm gửi.",

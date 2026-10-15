@@ -44,10 +44,16 @@ func chatMessageRule(kind string) rule {
 		if ev.OrganizationID.Valid && room.OrganizationID != ev.OrganizationID.String {
 			return nil, nil
 		}
-		if _, err := e.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: room.ID, UserID: userID}); errors.Is(err, pgx.ErrNoRows) {
+		mem, err := e.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: room.ID, UserID: userID})
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
-		} else if err != nil {
+		}
+		if err != nil {
 			return nil, err
+		}
+		// Read at delivery, so a mute set after the send still holds (UNI-1697).
+		if mem.NotificationsMuted {
+			return nil, nil
 		}
 		wsID, err := chatRecipientWorkspace(ctx, e, room, userID)
 		if err != nil || wsID == "" {

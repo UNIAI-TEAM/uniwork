@@ -52,6 +52,8 @@ type ChatRoomSummary struct {
 	ProjectID             string
 	Topic                 string
 	IsDefault             bool
+	// NotificationsMuted is the caller's own mute of this room (UNI-1697).
+	NotificationsMuted bool
 }
 
 type CreateGroupInput struct {
@@ -121,7 +123,7 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 			MentionUnreadCount: int(row.MentionUnreadCount),
 			MemberPermissions:  memberPermissionsFromRaw(row.MemberPermissions),
 			PeerUserID:         row.PeerUserID, PeerEmail: row.PeerEmail, PeerDisplayName: row.PeerDisplayName,
-			LastReadAt: timePtr(row.MyLastReadAt),
+			LastReadAt: timePtr(row.MyLastReadAt), NotificationsMuted: row.NotificationsMuted,
 		}
 		if row.Kind == chatRoomKindDM && strings.TrimSpace(summary.Name) == "" {
 			summary.Name = row.PeerDisplayName
@@ -145,6 +147,25 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 		out = append(out, channelSummaryFromMineRow(row))
 	}
 	return out, nil
+}
+
+// SetRoomNotificationsMuted mutes or unmutes chat notifications of one room
+// for the caller only. Like FollowThread it is a personal preference, so it
+// writes no audit row; the notification rules read it at delivery.
+func (s *ChatService) SetRoomNotificationsMuted(ctx context.Context, userID, workspaceID, roomID string, muted bool) error {
+	if _, err := s.authorizeRoomMember(ctx, userID, workspaceID, roomID); err != nil {
+		return err
+	}
+	n, err := s.q.SetChatRoomMemberNotificationsMuted(ctx, db.SetChatRoomMemberNotificationsMutedParams{
+		RoomID: roomID, UserID: userID, NotificationsMuted: muted,
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // defaultRoomForNonMember is the default channel's row for a caller who is not

@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/auth"
 )
 
 // chatNotifyRecipients is every user_id the durable chat notification topic
@@ -251,5 +254,65 @@ func TestThreadReplyPastTheBoundNotifiesOnlyTheRootAuthor(t *testing.T) {
 	}
 	if got := chatNotifyRecipients(t, s, "chat.thread.reply_received", reply.ID); !slices.Equal(got, []string{ua.ID}) {
 		t.Fatalf("reply in a busy thread notified %v, want only the root's author", got)
+	}
+}
+
+// Muting a room is a personal flag on the caller's member row: it leaves the
+// other members' flags alone, refuses someone outside the room, and comes
+// back on every device through ListChatRooms (UNI-1697).
+func TestRoomMuteIsPersonal(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	outsider := registerVerified(t, q, as, "chat-mute-x@example.com", "X")
+	addOrgMember(t, q, w.OrganizationID, outsider.ID)
+	addWorkspaceMember(t, q, w.ID, outsider.ID)
+	ud := registerVerified(t, q, as, "chat-mute-d@example.com", "D")
+	addOrgMember(t, q, w.OrganizationID, ud.ID)
+	addWorkspaceMember(t, q, w.ID, ud.ID)
+
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Ăn trưa", MemberUserIDs: []string{ub.ID, ud.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{Name: "an-trua", Visibility: "public", MemberUserIDs: []string{ub.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{group.ID, ch.ID} {
+		if err := s.SetRoomNotificationsMuted(ctx, ua.ID, w.ID, id, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	muted := func(userID, roomID string) bool {
+		t.Helper()
+		rooms, err := s.ListChatRooms(ctx, userID, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range rooms {
+			if r.ID == roomID {
+				return r.NotificationsMuted
+			}
+		}
+		t.Fatalf("room %s not listed for %s", roomID, userID)
+		return false
+	}
+	if !muted(ua.ID, group.ID) || !muted(ua.ID, ch.ID) {
+		t.Fatal("ListChatRooms lost the caller's mute")
+	}
+	if muted(ub.ID, group.ID) || muted(ub.ID, ch.ID) {
+		t.Fatal("one member's mute changed another's")
+	}
+	if err := s.SetRoomNotificationsMuted(ctx, outsider.ID, w.ID, group.ID, true); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider mute = %v, want ErrForbidden", err)
+	}
+	if err := s.SetRoomNotificationsMuted(ctx, ua.ID, w.ID, group.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if muted(ua.ID, group.ID) || !muted(ua.ID, ch.ID) {
+		t.Fatal("unmuting the group changed the wrong room")
 	}
 }

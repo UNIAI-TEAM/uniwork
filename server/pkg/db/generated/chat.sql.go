@@ -489,7 +489,7 @@ func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoic
 }
 
 const getActiveChatRoomMember = `-- name: GetActiveChatRoomMember :one
-SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
+SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, notifications_muted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
 LIMIT 1
 `
@@ -500,19 +500,20 @@ type GetActiveChatRoomMemberParams struct {
 }
 
 type GetActiveChatRoomMemberRow struct {
-	ID             string             `json:"id"`
-	RoomID         string             `json:"room_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	UserID         string             `json:"user_id"`
-	Role           string             `json:"role"`
-	Status         string             `json:"status"`
-	SendRestricted bool               `json:"send_restricted"`
-	InvitedBy      pgtype.Text        `json:"invited_by"`
-	JoinedAt       pgtype.Timestamptz `json:"joined_at"`
-	LeftAt         pgtype.Timestamptz `json:"left_at"`
-	LastReadAt     pgtype.Timestamptz `json:"last_read_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ID                 string             `json:"id"`
+	RoomID             string             `json:"room_id"`
+	WorkspaceID        string             `json:"workspace_id"`
+	UserID             string             `json:"user_id"`
+	Role               string             `json:"role"`
+	Status             string             `json:"status"`
+	SendRestricted     bool               `json:"send_restricted"`
+	NotificationsMuted bool               `json:"notifications_muted"`
+	InvitedBy          pgtype.Text        `json:"invited_by"`
+	JoinedAt           pgtype.Timestamptz `json:"joined_at"`
+	LeftAt             pgtype.Timestamptz `json:"left_at"`
+	LastReadAt         pgtype.Timestamptz `json:"last_read_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 // tenant: parent room_id
@@ -527,6 +528,7 @@ func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChat
 		&i.Role,
 		&i.Status,
 		&i.SendRestricted,
+		&i.NotificationsMuted,
 		&i.InvitedBy,
 		&i.JoinedAt,
 		&i.LeftAt,
@@ -869,7 +871,7 @@ INSERT INTO chat_room_members (
   id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
-) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id
+) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id, notifications_muted
 `
 
 type InsertChatRoomMemberParams struct {
@@ -908,6 +910,7 @@ func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMe
 		&i.UpdatedAt,
 		&i.SendRestricted,
 		&i.OrganizationID,
+		&i.NotificationsMuted,
 	)
 	return i, err
 }
@@ -1220,6 +1223,7 @@ SELECT
   r.member_permissions,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
+  mem.notifications_muted,
   -- Same capped badges as ListChatRoomsForMember.
   (
     SELECT COUNT(*)::int FROM (
@@ -1312,6 +1316,7 @@ type ListChatChannelsMineRow struct {
 	MemberPermissions     []byte             `json:"member_permissions"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 	MyLastReadAt          pgtype.Timestamptz `json:"my_last_read_at"`
+	NotificationsMuted    bool               `json:"notifications_muted"`
 	UnreadCount           int32              `json:"unread_count"`
 	MentionUnreadCount    int32              `json:"mention_unread_count"`
 	MemberUserIds         []string           `json:"member_user_ids"`
@@ -1348,6 +1353,7 @@ func (q *Queries) ListChatChannelsMine(ctx context.Context, arg ListChatChannels
 			&i.MemberPermissions,
 			&i.UpdatedAt,
 			&i.MyLastReadAt,
+			&i.NotificationsMuted,
 			&i.UnreadCount,
 			&i.MentionUnreadCount,
 			&i.MemberUserIds,
@@ -1935,6 +1941,7 @@ SELECT
   r.member_permissions,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
+  mem.notifications_muted,
   -- Badges stop at 100 (the client shows 99+), so a room left unread for
   -- months costs the same as one read a minute ago. Both count the main
   -- timeline only (opening a room reads that, not threads) and, for a member
@@ -2042,6 +2049,7 @@ type ListChatRoomsForMemberRow struct {
 	MemberPermissions     []byte             `json:"member_permissions"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 	MyLastReadAt          pgtype.Timestamptz `json:"my_last_read_at"`
+	NotificationsMuted    bool               `json:"notifications_muted"`
 	UnreadCount           int32              `json:"unread_count"`
 	MentionUnreadCount    int32              `json:"mention_unread_count"`
 	MemberUserIds         []string           `json:"member_user_ids"`
@@ -2074,6 +2082,7 @@ func (q *Queries) ListChatRoomsForMember(ctx context.Context, arg ListChatRoomsF
 			&i.MemberPermissions,
 			&i.UpdatedAt,
 			&i.MyLastReadAt,
+			&i.NotificationsMuted,
 			&i.UnreadCount,
 			&i.MentionUnreadCount,
 			&i.MemberUserIds,
@@ -2537,6 +2546,26 @@ func (q *Queries) SearchChatMessagesByRoom(ctx context.Context, arg SearchChatMe
 		return nil, err
 	}
 	return items, nil
+}
+
+const setChatRoomMemberNotificationsMuted = `-- name: SetChatRoomMemberNotificationsMuted :execrows
+UPDATE chat_room_members SET notifications_muted = $3, updated_at = now()
+WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
+`
+
+type SetChatRoomMemberNotificationsMutedParams struct {
+	RoomID             string `json:"room_id"`
+	UserID             string `json:"user_id"`
+	NotificationsMuted bool   `json:"notifications_muted"`
+}
+
+// tenant: parent room_id
+func (q *Queries) SetChatRoomMemberNotificationsMuted(ctx context.Context, arg SetChatRoomMemberNotificationsMutedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setChatRoomMemberNotificationsMuted, arg.RoomID, arg.UserID, arg.NotificationsMuted)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :one

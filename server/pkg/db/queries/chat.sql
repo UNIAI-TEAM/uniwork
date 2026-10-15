@@ -19,7 +19,7 @@ INSERT INTO chat_rooms (
 
 -- name: GetActiveChatRoomMember :one
 -- tenant: parent room_id
-SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
+SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, notifications_muted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
 LIMIT 1;
 
@@ -39,6 +39,11 @@ WHERE room_id = $1 AND status IN ('invited', 'active');
 -- tenant: parent room_id
 UPDATE chat_room_members
 SET last_read_at = GREATEST(last_read_at, $3), updated_at = now()
+WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
+
+-- name: SetChatRoomMemberNotificationsMuted :execrows
+-- tenant: parent room_id
+UPDATE chat_room_members SET notifications_muted = $3, updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 
 -- name: ListChatMessagesByRoom :many
@@ -218,6 +223,7 @@ SELECT
   r.member_permissions,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
+  mem.notifications_muted,
   -- Badges stop at 100 (the client shows 99+), so a room left unread for
   -- months costs the same as one read a minute ago. Both count the main
   -- timeline only (opening a room reads that, not threads) and, for a member
@@ -441,6 +447,7 @@ SELECT
   r.member_permissions,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
+  mem.notifications_muted,
   -- Same capped badges as ListChatRoomsForMember.
   (
     SELECT COUNT(*)::int FROM (
