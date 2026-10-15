@@ -205,4 +205,23 @@ describe("DocumentWorkspace edit lock", () => {
     const answer = editLockRoute.mock.calls.find(([path]) => String(path).endsWith("/answer"));
     expect(answer?.[1]?.body).toEqual({ decision: "decline", lock_id: "lock-d1" });
   });
+
+  it("429 edit_request_rate_limited: the banner says when to ask again, in whole minutes from retry_after_s (CFE-1-17)", async () => {
+    editLockRoute.mockImplementation((path: string, opts: RouteOpts) => {
+      if (opts?.method === "POST" && path.endsWith("/edit-lock")) return Promise.reject(locked());
+      if (opts?.method === "POST" && path.endsWith("/edit-requests")) {
+        return Promise.reject(new ApiError("slow down", "edit_request_rate_limited", 429, undefined, { retry_after_s: 601 }));
+      }
+      if ((opts?.method ?? "GET") === "GET") return Promise.resolve(lockState({ lock: holder, can_request: true }));
+      return defaultEditLockRoute(path, opts);
+    });
+    renderPage();
+    await findEditor();
+    const banner = screen.getByTestId("edit-lock-banner");
+    await waitFor(() => expect(banner).toHaveTextContent("An đang sửa từ"));
+    fireEvent.click(within(banner).getByRole("button", { name: "Yêu cầu quyền sửa" }));
+    // 601 s rounds up to 11 minutes; the request button goes away until then.
+    await waitFor(() => expect(banner).toHaveTextContent("Bạn đã yêu cầu nhiều lần. Thử lại sau 11 phút."));
+    expect(within(banner).queryByRole("button", { name: "Yêu cầu quyền sửa" })).toBeNull();
+  });
 });
