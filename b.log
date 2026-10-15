@@ -1,0 +1,19 @@
+$ npm run typecheck -w @genoffice/shell && npm run typecheck -w @genoffice/docs && npm run typecheck -w @genoffice/sheets && npm run typecheck -w @genoffice/slides && (cd packages/electron-utils && npx tsc --noEmit -p .); rc=$?; echo; echo "TYPECHECK_EXIT=$rc"
+
+> @genoffice/shell@1.0.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/docs@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/sheets@0.1.0 typecheck
+> tsc --noEmit && tsc --noEmit -p tsconfig.collab-shim.json
+
+
+> @genoffice/slides@0.1.0 typecheck
+> tsc --noEmit
+
+
+TYPECHECK_EXIT=0
