@@ -1,0 +1,117 @@
+$ git checkout -q 11af55400 -- . ; AI_PROVIDER=fake npm exec -w @genoffice/docs -- vitest run tests/docs-protection-ai.test.ts; a=$?; git reset -q --hard HEAD; echo; echo "RED_N6 docs=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ❯ tests/docs-protection-ai.test.ts (10 tests | 8 failed) 139ms
+     × readOnly: only read tools, edits and comments refused 79ms
+     × forms: only read tools, edits and comments refused 11ms
+     × comments: read tools plus add/reply comment, body edits refused 9ms
+     × trackedChanges: editing stays, accept/reject are hidden and refused 11ms
+     × is live: removing the protection brings every tool back on the next read 8ms
+     × maps the document state to one AI protection kind 1ms
+     × a password-to-modify lock beats every restriction 0ms
+     × an enforced restriction of an unknown kind is treated as read only 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > AI agent on a protected Word document > readOnly: only read tools, edits and comments refused
+ FAIL  tests/docs-protection-ai.test.ts > AI agent on a protected Word document > forms: only read tools, edits and comments refused
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/docs-protection-ai.test.ts:64:65
+     62|       const before = JSON.stringify(editor.getJSON())
+     63|       const skill = skillFor(editor, () => kind)
+     64|       expect(names(skill).every((n) => READ_ONLY_TOOLS.has(n))).toBe(t…
+       |                                                                 ^
+     65|       for (const n of [...EDIT_TOOLS, ...COMMENT_TOOLS, ...REVIEW_TOOL…
+     66|         expect(names(skill)).not.toContain(n)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > AI agent on a protected Word document > comments: read tools plus add/reply comment, body edits refused
+AssertionError: expected [ 'get_document_context', …(36) ] to not include 'insert_content'
+ ❯ tests/docs-protection-ai.test.ts:89:23
+     87|     for (const n of COMMENT_TOOLS) expect(got).toContain(n)
+     88|     for (const n of [...EDIT_TOOLS, ...REVIEW_TOOLS, 'resolve_comment'…
+     89|       expect(got).not.toContain(n)
+       |                       ^
+     90|     }
+     91|     const exec = await skill.executeTool({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > AI agent on a protected Word document > trackedChanges: editing stays, accept/reject are hidden and refused
+AssertionError: expected [ 'get_document_context', …(36) ] to not include 'accept_changes'
+ ❯ tests/docs-protection-ai.test.ts:107:51
+    105|     const got = names(skill)
+    106|     for (const n of EDIT_TOOLS) expect(got).toContain(n)
+    107|     for (const n of REVIEW_TOOLS) expect(got).not.toContain(n)
+       |                                                   ^
+    108|     const exec = await skill.executeTool({ id: 't1', name: 'accept_cha…
+    109|     expect(exec.isError).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > AI agent on a protected Word document > is live: removing the protection brings every tool back on the next read
+AssertionError: expected [ 'get_document_context', …(36) ] to not include 'insert_content'
+ ❯ tests/docs-protection-ai.test.ts:119:30
+    117|     let kind: AiDocProtection = 'readOnly'
+    118|     const skill = skillFor(editor, () => kind)
+    119|     expect(names(skill)).not.toContain('insert_content')
+       |                              ^
+    120|     kind = 'none'
+    121|     expect(names(skill)).toEqual(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > aiProtectionOf > maps the document state to one AI protection kind
+TypeError: aiProtectionOf is not a function
+ ❯ tests/docs-protection-ai.test.ts:155:12
+    153|   const on = (edit: string, hash?: string) => ({ edit, enforced: true,…
+    154|   it('maps the document state to one AI protection kind', () => {
+    155|     expect(aiProtectionOf(null, false)).toBe('none')
+       |            ^
+    156|     expect(aiProtectionOf({ edit: 'readOnly', enforced: false }, false…
+    157|     expect(aiProtectionOf(on('readOnly'), false)).toBe('readOnly')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > aiProtectionOf > a password-to-modify lock beats every restriction
+TypeError: aiProtectionOf is not a function
+ ❯ tests/docs-protection-ai.test.ts:164:12
+    162|
+    163|   it('a password-to-modify lock beats every restriction', () => {
+    164|     expect(aiProtectionOf(null, true)).toBe('readOnly')
+       |            ^
+    165|     expect(aiProtectionOf(on('trackedChanges'), true)).toBe('readOnly')
+    166|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > aiProtectionOf > an enforced restriction of an unknown kind is treated as read only
+TypeError: aiProtectionOf is not a function
+ ❯ tests/docs-protection-ai.test.ts:169:12
+    167|
+    168|   it('an enforced restriction of an unknown kind is treated as read on…
+    169|     expect(aiProtectionOf(on('somethingNew'), false)).toBe('readOnly')
+       |            ^
+    170|   })
+    171| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  8 failed | 2 passed (10)
+   Start at  18:12:04
+   Duration  4.07s (transform 2.61s, setup 0ms, import 3.38s, tests 139ms, environment 433ms)
+
+
+RED_N6 docs=1
+RED_OK

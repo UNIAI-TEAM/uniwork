@@ -1,0 +1,84 @@
+$ git checkout -q 8e1258910 -- . ; AI_PROVIDER=fake npm exec -w @genoffice/docs -- vitest run tests/docs-protection-ai.test.ts; a=$?; git reset -q --hard HEAD; echo; echo "RED_RFC docs=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ❯ tests/docs-protection-ai.test.ts (17 tests | 4 failed) 170ms
+     × trackedChanges: every write tool that cannot record a revision is hidden and refused 13ms
+     × refusal text uses plain words, not the camelCase kind 9ms
+     × edit="none" enforced stays unrestricted, like the app own reading 1ms
+     × tracked-changes protection forces the AI author even with the toggle off 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > AI agent on a protected Word document > trackedChanges: every write tool that cannot record a revision is hidden and refused
+AssertionError: expected [ 'get_document_context', …(34) ] to not include 'set_header_footer'
+ ❯ tests/docs-protection-ai.test.ts:141:56
+    139|     const skill = skillFor(editor, () => 'trackedChanges')
+    140|     const got = names(skill)
+    141|     for (const n of UNTRACKABLE_TOOLS) expect(got).not.toContain(n)
+       |                                                        ^
+    142|     for (const n of [...TRACKABLE_TOOLS, 'write_document', ...COMMENT_…
+    143|       expect(got).toContain(n)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > AI agent on a protected Word document > refusal text uses plain words, not the camelCase kind
+AssertionError: expected 'accept_changes is unavailable: this d…' to contain 'tracked changes'
+
+Expected: "tracked changes"
+Received: "accept_changes is unavailable: this document is protected (trackedChanges) and the protection does not allow it."
+
+ ❯ tests/docs-protection-ai.test.ts:159:25
+    157|     const skill = skillFor(editor, () => 'trackedChanges')
+    158|     const exec = await skill.executeTool({ id: 't1', name: 'accept_cha…
+    159|     expect(exec.output).toContain('tracked changes')
+       |                         ^
+    160|     expect(exec.output).not.toContain('trackedChanges')
+    161|     editor.destroy()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > aiProtectionOf > edit="none" enforced stays unrestricted, like the app own reading
+AssertionError: expected 'readOnly' to be 'none' // Object.is equality
+
+Expected: "none"
+Received: "readOnly"
+
+ ❯ tests/docs-protection-ai.test.ts:247:47
+    245|
+    246|   it('edit="none" enforced stays unrestricted, like the app own readin…
+    247|     expect(aiProtectionOf(on('none'), false)).toBe('none')
+       |                                               ^
+    248|   })
+    249|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/docs-protection-ai.test.ts > forced AI tracking > tracked-changes protection forces the AI author even with the toggle off
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/docs-protection-ai.test.ts:257:54
+    255| describe('forced AI tracking', () => {
+    256|   it('tracked-changes protection forces the AI author even with the to…
+    257|     expect(aiTracksChanges(false, 'trackedChanges')).toBe(true)
+       |                                                      ^
+    258|     expect(aiTrackFor(false, 'trackedChanges', 'AI Assistant')).toEqua…
+    259|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 13 passed (17)
+   Start at  18:12:09
+   Duration  4.08s (transform 2.60s, setup 0ms, import 3.34s, tests 170ms, environment 450ms)
+
+
+RED_RFC docs=1
+RED_OK
