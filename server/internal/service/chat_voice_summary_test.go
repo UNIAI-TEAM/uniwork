@@ -401,3 +401,106 @@ func TestVoiceCallLogWritesAuditAndJobTogether(t *testing.T) {
 		t.Fatalf("job correlation %q != audit correlation %q", jobCorrelation, correlations[0])
 	}
 }
+
+// voiceSummaryJob returns the room's queued summary job payload, filled the
+// way the consumer fills it, and the call log it summarises.
+func voiceSummaryJob(t *testing.T, pool *pgxpool.Pool, w db.Workspace, roomID string) (map[string]string, db.ChatMessage) {
+	t.Helper()
+	ctx := context.Background()
+	var raw string
+	if err := pool.QueryRow(ctx,
+		`SELECT payload FROM outbox_events WHERE topic = 'chat.voice.call.completed' AND payload::jsonb->>'room_id' = $1`, roomID,
+	).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	payload := map[string]string{}
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		t.Fatal(err)
+	}
+	payload["organization_id"], payload["workspace_id"] = w.OrganizationID, w.ID
+	logMsg, err := db.New(pool).GetChatMessageByID(ctx, payload["call_log_message_id"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return payload, logMsg
+}
+
+func voiceSummaryCount(t *testing.T, pool *pgxpool.Pool, roomID string) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM chat_messages WHERE room_id = $1 AND metadata ? 'voice_call_summary'`, roomID,
+	).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// A call log deleted before its summary job runs ends the job at once: no LLM
+// call, no summary, no retry (UNI-1702).
+func TestVoiceCallSummarySkipsADeletedCallLog(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	fake := &provider.Fake{Reply: ai.FakeReply}
+	s.SetAIGateway(ai.NewGateway(q, fake, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	talk(t, s, ua, ub, w, dm.ID, "deleted-log", 45*time.Second)
+	_, logMsg := voiceSummaryJob(t, pool, w, dm.ID)
+	if err := s.DeleteChatMessage(ctx, logMsg.SenderID, w.ID, dm.ID, logMsg.ID); err != nil {
+		t.Fatalf("delete call log: %v", err)
+	}
+
+	d := outbox.New(pool, q, outbox.Options{})
+	d.Register(NewChatVoiceSummaryConsumer(s))
+	if err := d.Process(ctx, 50); err != nil {
+		t.Fatalf("process outbox: %v", err)
+	}
+	if fake.Calls != 0 {
+		t.Fatalf("LLM calls = %d, want 0 for a deleted call log", fake.Calls)
+	}
+	if n := voiceSummaryCount(t, pool, dm.ID); n != 0 {
+		t.Fatalf("summaries = %d, want 0", n)
+	}
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM outbox_events WHERE topic = 'chat.voice.call.completed' AND payload::jsonb->>'room_id' = $1`, dm.ID,
+	).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "DONE" {
+		t.Fatalf("summary job status = %s, want DONE", status)
+	}
+}
+
+// A redelivered summary job posts nothing more: one call, one summary
+// (UNI-1702).
+func TestVoiceCallSummaryPostsOnceWhenRedelivered(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	fake := &provider.Fake{Reply: ai.FakeReply}
+	s.SetAIGateway(ai.NewGateway(q, fake, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	talk(t, s, ua, ub, w, dm.ID, "redelivered", 45*time.Second)
+	payload, _ := voiceSummaryJob(t, pool, w, dm.ID)
+	for range 2 {
+		if err := s.HandleVoiceCallCompleted(ctx, payload); err != nil {
+			t.Fatalf("handle: %v", err)
+		}
+	}
+	if n := voiceSummaryCount(t, pool, dm.ID); n != 1 {
+		t.Fatalf("summaries = %d, want 1", n)
+	}
+	if fake.Calls != 1 {
+		t.Fatalf("LLM calls = %d, want 1", fake.Calls)
+	}
+}

@@ -80,7 +80,14 @@ func (s *ChatService) HandleVoiceCallCompleted(ctx context.Context, payload map[
 	if roomID == "" || callID == "" || callLogID == "" || callerID == "" || orgID == "" || wsID == "" {
 		return nil
 	}
-	if summaryMessageIDFromCallLog(ctx, s.q, callLogID) != "" {
+	logMsg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{ID: callLogID, RoomID: roomID, WorkspaceID: wsID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // the call log is gone: nothing to attach a summary to
+	}
+	if err != nil {
+		return err
+	}
+	if summaryMessageIDFromMetadata(logMsg.Metadata) != "" {
 		return nil
 	}
 	startAt, err := time.Parse(time.RFC3339, strings.TrimSpace(payload["started_at"]))
@@ -187,11 +194,7 @@ func (s *ChatService) HandleVoiceCallCompleted(ctx context.Context, payload map[
 		})
 	}
 
-	summaryMsgID, err := s.postVoiceCallSummaryMessage(ctx, room, callerID, wsID, callID, callLogID, parsed.Summary, parsed.Highlights, items)
-	if err != nil {
-		return err
-	}
-	return s.patchCallLogSummaryMessageID(ctx, callLogID, roomID, wsID, summaryMsgID)
+	return s.postVoiceCallSummaryMessage(ctx, room, callerID, wsID, callID, callLogID, parsed.Summary, parsed.Highlights, items)
 }
 
 func (s *ChatService) chatPathBase(ctx context.Context, workspaceID string) (string, error) {
@@ -202,10 +205,13 @@ func (s *ChatService) chatPathBase(ctx context.Context, workspaceID string) (str
 	return "/" + w.OrganizationSlug + "/" + w.Slug, nil
 }
 
+// postVoiceCallSummaryMessage posts the summary and links it from the call
+// log in one transaction under the log's row lock, so a redelivered job or a
+// log deleted while the LLM ran never leaves a second or orphaned summary.
 func (s *ChatService) postVoiceCallSummaryMessage(
 	ctx context.Context, room db.ChatRoom, callerID, workspaceID, callID, callLogID, summary string,
 	highlights []string, items []VoiceCallSummaryActionItem,
-) (string, error) {
+) error {
 	body := formatVoiceCallSummaryBody(summary, highlights, items)
 	metaMap := map[string]any{
 		"voice_call_summary": map[string]any{
@@ -218,24 +224,64 @@ func (s *ChatService) postVoiceCallSummaryMessage(
 	}
 	rawMeta, err := json.Marshal(metaMap)
 	if err != nil {
-		return "", err
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	logMsg, err := q.GetChatMessageInRoomForUpdate(ctx, db.GetChatMessageInRoomForUpdateParams{
+		ID: callLogID, RoomID: room.ID, WorkspaceID: workspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // deleted while the LLM ran: drop the summary
+	}
+	if err != nil {
+		return err
+	}
+	if summaryMessageIDFromMetadata(logMsg.Metadata) != "" {
+		return nil // another delivery already posted it
 	}
 	msgID := util.NewID()
-	msg, err := s.q.CreateChatMessage(ctx, db.CreateChatMessageParams{
+	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID: msgID, RoomID: room.ID, OrganizationID: room.OrganizationID, WorkspaceID: workspaceID,
 		SenderID: callerID, SenderKind: string(audit.KindHuman), Body: body,
 	})
 	if err != nil {
-		return "", err
+		return err
 	}
-	if _, err := s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
+	if _, err := q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
 		ID: msgID, RoomID: room.ID, WorkspaceID: workspaceID, Metadata: rawMeta,
 	}); err != nil {
-		return "", err
+		return err
 	}
-	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
+	var logMeta map[string]any
+	if len(logMsg.Metadata) > 0 {
+		_ = json.Unmarshal(logMsg.Metadata, &logMeta)
+	}
+	if logMeta == nil {
+		logMeta = map[string]any{}
+	}
+	logMeta["summary_message_id"] = msgID
+	rawLogMeta, err := json.Marshal(logMeta)
+	if err != nil {
+		return err
+	}
+	if _, err := q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
+		ID: callLogID, RoomID: room.ID, WorkspaceID: workspaceID, Metadata: rawLogMeta,
+	}); err != nil {
+		return err
+	}
+	if err := q.TouchChatRoomUpdatedAt(ctx, room.ID); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
 	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
-	return msg.ID, nil
+	return nil
 }
 
 func formatVoiceCallSummaryBody(summary string, highlights []string, items []VoiceCallSummaryActionItem) string {
@@ -313,36 +359,14 @@ func voiceCallSummaryFromMetadata(kind string, raw []byte) *VoiceCallSummaryInfo
 	}
 }
 
-func summaryMessageIDFromCallLog(ctx context.Context, q *db.Queries, callLogID string) string {
-	msg, err := q.GetChatMessageByID(ctx, callLogID)
-	if err != nil {
-		return ""
-	}
+func summaryMessageIDFromMetadata(raw []byte) string {
 	var meta struct {
 		SummaryMessageID string `json:"summary_message_id"`
 	}
-	if len(msg.Metadata) == 0 {
-		return ""
-	}
-	if err := json.Unmarshal(msg.Metadata, &meta); err != nil {
+	if len(raw) == 0 || json.Unmarshal(raw, &meta) != nil {
 		return ""
 	}
 	return strings.TrimSpace(meta.SummaryMessageID)
-}
-
-func (s *ChatService) patchCallLogSummaryMessageID(ctx context.Context, callLogID, roomID, wsID, summaryMsgID string) error {
-	_, err := s.mutateChatMessageMetadata(ctx, callLogID, roomID, wsID, func(msg db.ChatMessage) ([]byte, error) {
-		var meta map[string]any
-		if len(msg.Metadata) > 0 {
-			_ = json.Unmarshal(msg.Metadata, &meta)
-		}
-		if meta == nil {
-			meta = map[string]any{}
-		}
-		meta["summary_message_id"] = summaryMsgID
-		return json.Marshal(meta)
-	})
-	return err
 }
 
 func formatVoiceCallParticipantNames(participants []VoiceCallParticipant) string {
