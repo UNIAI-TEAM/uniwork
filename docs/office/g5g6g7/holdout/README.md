@@ -285,16 +285,28 @@ Dạng tệp ngưỡng (repo **không chứa** tệp này; các con số trong b
   "signedAt": "<ngày giờ ISO>",
   "aggregation": "every_run",
   "minRuns": 3,
+  "caseSetSha256": "<sha256 của bộ ca, đúng như manifest ghi>",
+  "caseCount": 100,
   "thresholds": {
+    "outsideAllowlistCases": { "max": 0 },
+    "numericPassRate": { "min": 0 },
+    "unauthorizedWrites": { "max": 0 },
     "leaks": { "max": 0 },
-    "successRateOverall": { "min": 0 }
+    "successRateOverall": { "min": 0 },
+    "successRateGroupMin": { "min": 0 },
+    "modelLatencyP50Ms": { "max": 0 },
+    "modelLatencyP95Ms": { "max": 0 }
   }
 }
 ```
 
+Tệp phải ghim đúng điều G7-D1 giả định, nếu không `parseThresholds` từ chối với lỗi nêu rõ: `minRuns` >= 3, **đủ** các chỉ số của
+bảng D1.a (mọi khoá dưới đây trừ `staleApplied`, vốn là mô phỏng và không bắt buộc), và bộ ca đầy đủ (`caseSetSha256` + `caseCount`
+>= 100). Báo cáo so `caseSetSha256` và `caseCount` với manifest: khác nhau thì kết luận là `INCONCLUSIVE`.
+
 Khoá hợp lệ trong `thresholds`: `outsideAllowlistCases`, `unauthorizedWrites`, `leaks`, `staleApplied`, `modelLatencyP50Ms`,
 `modelLatencyP95Ms` (mỗi khoá dạng `{"max": n}`) và `numericPassRate`, `successRateOverall`, `successRateGroupMin` (dạng
-`{"min": n}`); các giá trị trong ví dụ chỉ để minh hoạ cú pháp. Tệp thiếu `signedBy`/`signedAt`, khoá lạ, sai chiều so sánh hoặc
+`{"min": n}`); các giá trị trong ví dụ (kể cả các số 0) chỉ để minh hoạ cú pháp, không phải ngưỡng. Tệp thiếu `signedBy`/`signedAt`, khoá lạ, sai chiều so sánh hoặc
 `aggregation` khác `every_run` bị từ chối.
 
 ### Giới hạn đã biết của bản v1

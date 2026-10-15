@@ -73,7 +73,12 @@ function bigSuite(over = (a) => a) {
 }
 
 const failing = (ids, patch = {}) => (a) => (ids.includes(`${a.id}/${a.lang}`) ? { ...a, status: 'fail', checks: [{ id: 'numeric:a', status: 'fail', detail: 'x' }], ...patch } : a);
-const signed = (thresholds, over = {}) => parseThresholds({ schemaVersion: 1, kind: THRESHOLDS_KIND, decision: 'G7-D1', signedBy: 'QA + Product + OPS', signedAt: '2026-10-20T00:00:00Z', aggregation: 'every_run', minRuns: 3, thresholds, ...over });
+// A signed file carries the full D1.a metric set, >= 3 runs and the case set (parseThresholds rejects less). `signed` fills the
+// metrics a test does not care about with limits no run can break, so a test names only the metric it is about.
+const LENIENT = { outsideAllowlistCases: { max: 1e6 }, numericPassRate: { min: 0 }, unauthorizedWrites: { max: 1e6 }, leaks: { max: 1e6 }, successRateOverall: { min: 0 }, successRateGroupMin: { min: 0 }, modelLatencyP50Ms: { max: 1e9 }, modelLatencyP95Ms: { max: 1e9 } };
+const SIGNED_BASE = { schemaVersion: 1, kind: THRESHOLDS_KIND, decision: 'G7-D1', signedBy: 'QA + Product + OPS', signedAt: '2026-10-20T00:00:00Z', aggregation: 'every_run', minRuns: 3, caseSetSha256: 'e'.repeat(64), caseCount: 100 };
+const signedBody = (thresholds, over = {}) => ({ ...SIGNED_BASE, thresholds: { ...LENIENT, ...thresholds }, ...over });
+const signed = (thresholds, over = {}) => parseThresholds(signedBody(thresholds, over));
 
 describe('measures', () => {
   it('computes nearest-rank percentiles', () => {
@@ -220,8 +225,42 @@ describe('thresholds file', () => {
     assert.throws(() => signed({ nonsense: { max: 1 } }), /unknown threshold nonsense/);
     assert.throws(() => signed({ leaks: { min: 0 } }), /exactly \{ "max"/);
     assert.throws(() => signed({ successRateOverall: { min: 0.9, max: 1 } }), /exactly \{ "min"/);
-    assert.throws(() => signed({}), /at least one metric/);
+    assert.throws(() => parseThresholds(signedBody({}, { thresholds: {} })), /at least one metric/);
     assert.throws(() => parseThresholds(null), /not an object/);
+  });
+
+  it('pins what D1 assumes: at least 3 runs, every D1.a metric and the full case set (G712-19)', () => {
+    assert.throws(() => signed({}, { minRuns: 2 }), /minRuns must be an integer >= 3/);
+    assert.throws(() => signed({}, { minRuns: 1 }), /minRuns must be an integer >= 3/);
+    // A file gating only one metric: the other D1.a metrics are named in the error.
+    const only = { ...signedBody({}), thresholds: { modelLatencyP50Ms: { max: 5000 } } };
+    assert.throws(() => parseThresholds(only), /every D1\.a metric; missing: .*outsideAllowlistCases.*numericPassRate.*leaks.*successRateOverall/);
+    // staleApplied is emulated and never required; a file may still carry it.
+    const without = signedBody({});
+    assert.ok(!('staleApplied' in without.thresholds));
+    assert.doesNotThrow(() => parseThresholds(without));
+    assert.doesNotThrow(() => signed({ staleApplied: { max: 0 } }));
+    for (const gone of Object.keys(LENIENT)) {
+      const weaker = signedBody({});
+      delete weaker.thresholds[gone];
+      assert.throws(() => parseThresholds(weaker), new RegExp(`missing: .*${gone}`), gone);
+    }
+    // The case set: a hash of the suite and its size, at least the 100 cases of G7-D1.
+    assert.throws(() => signed({}, { caseSetSha256: undefined }), /caseSetSha256 is required/);
+    assert.throws(() => signed({}, { caseSetSha256: 'xyz' }), /caseSetSha256 is required/);
+    assert.throws(() => signed({}, { caseCount: undefined }), /caseCount must be an integer >= 100/);
+    assert.throws(() => signed({}, { caseCount: MIN_CASES - 1 }), /caseCount must be an integer >= 100/);
+  });
+
+  it('is INCONCLUSIVE when the run set was made over another case set than the one the file was signed for (G712-19)', () => {
+    const good = () => [run(1, bigSuite()), run(2, bigSuite()), run(3, bigSuite())];
+    const judge = (thresholds) => buildReport(good(), { thresholds, session: makeSession(good()) }).overall;
+    assert.equal(judge(signed({})).status, 'PASS', 'the matching file gives a verdict');
+    const other = judge(signed({}, { caseSetSha256: 'f'.repeat(64) }));
+    assert.equal(other.status, 'INCONCLUSIVE');
+    assert.ok(other.blockers.some((b) => /different case set than the one the thresholds were signed for/.test(b)), other.blockers.join('; '));
+    const size = judge(signed({}, { caseCount: 120 }));
+    assert.equal(size.status, 'INCONCLUSIVE');
   });
 
   it('ships no thresholds file: the numbers of the G7-D1 draft are proposals until the user signs', () => {
@@ -245,7 +284,7 @@ describe('with a signed thresholds file', () => {
   it('passes only when every metric holds in every run', () => {
     const overall = judge(good());
     assert.equal(overall.status, 'PASS');
-    assert.deepEqual(Object.values(overall.metrics).map((m) => m.verdict), Object.keys(limits).map((k) => (k === 'staleApplied' ? 'not_gating' : 'pass')));
+    assert.deepEqual(Object.fromEntries(Object.entries(overall.metrics).map(([k, m]) => [k, m.verdict])), Object.fromEntries(Object.keys({ ...LENIENT, ...limits }).map((k) => [k, k === 'staleApplied' ? 'not_gating' : 'pass'])));
     assert.match(renderReport(buildReport(good(), { thresholds: signed(limits), session: makeSession(good()) })), /Trạng thái tổng: PASS/);
     assert.equal(exitCodeOf(buildReport(good(), { thresholds: signed(limits), session: makeSession(good()) })), EXIT.pass);
   });
@@ -313,7 +352,7 @@ describe('command line', () => {
     assert.ok(fs.readFileSync(path.join(out, 'report.md'), 'utf8').includes(NO_THRESHOLD));
     assert.equal(JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8')).overall.status, 'no_threshold');
     const file = path.join(tmpRoot, 'signed.json');
-    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, kind: THRESHOLDS_KIND, decision: 'G7-D1', signedBy: 'test signer', signedAt: '2026-10-20T00:00:00Z', aggregation: 'every_run', minRuns: 4, thresholds: { leaks: { max: 0 } } }));
+    fs.writeFileSync(file, JSON.stringify(signedBody({ leaks: { max: 0 } }, { minRuns: 4 })));
     const gated = spawnSync(process.execPath, [path.join(here, 'holdout-report.mjs'), '--runs', runs, '--thresholds', file, '--out', path.join(tmpRoot, 'out2')], { encoding: 'utf8' });
     assert.equal(gated.status, 2, 'inconclusive exits 2');
     assert.match(gated.stdout, /Trạng thái tổng: INCONCLUSIVE/);
@@ -333,7 +372,9 @@ describe('command line', () => {
 describe('metric names', () => {
   it('evaluates exactly the metrics of the G7-D1 table', () => {
     const overall = evaluateThresholds([summarizeRun(run(1))], signed({ leaks: { max: 0 } }), { completeRuns: 3, tuple: { consistent: true, differing: [] } });
-    assert.deepEqual(Object.keys(overall.metrics), ['leaks']);
+    // The file names leaks; `signed` adds the rest of the D1.a set, and nothing outside the G7-D1 table is ever evaluated.
+    assert.deepEqual(Object.keys(overall.metrics).sort(), Object.keys(LENIENT).sort());
+    assert.equal(overall.metrics.leaks.limit, 0);
   });
 });
 
@@ -605,7 +646,7 @@ describe('reviewer input (G712-4)', () => {
     const reviews = path.join(tmpRoot, 'reviews.json');
     fs.writeFileSync(reviews, JSON.stringify(reviewsFor('pass')));
     const limitsFile = path.join(tmpRoot, 'limits.json');
-    fs.writeFileSync(limitsFile, JSON.stringify({ schemaVersion: 1, kind: THRESHOLDS_KIND, decision: 'G7-D1', signedBy: 'test signer', signedAt: '2026-10-20T00:00:00Z', aggregation: 'every_run', minRuns: 3, thresholds: limits }));
+    fs.writeFileSync(limitsFile, JSON.stringify(signedBody(limits)));
     const out = path.join(tmpRoot, 'review-out');
     const res = spawnSync(process.execPath, [path.join(here, 'holdout-report.mjs'), '--runs', dir, '--thresholds', limitsFile, '--reviews', reviews, '--out', out], { encoding: 'utf8' });
     assert.equal(res.status, EXIT.pass, res.stdout + res.stderr);
@@ -663,7 +704,8 @@ describe('emulated rows (G712-6)', () => {
     assert.match(report.overall.metrics.staleApplied.reason, /0 by construction/);
     assert.equal(report.overall.status, 'PASS', 'the other gate decides');
     assert.match(renderReport(report), /\| staleApplied \| ≤ 0 \| - \| KHÔNG GATE/);
-    const stale = buildReport(runs, { thresholds: signed({ staleApplied: { max: 0 } }), session: makeSession(runs) }).overall;
+    // parseThresholds needs the full set, so the "nothing gating" guard is reached by evaluateThresholds directly.
+    const stale = evaluateThresholds(runs.map((r) => summarizeRun(r)), { ...SIGNED_BASE, thresholds: { staleApplied: { max: 0 } } }, { completeRuns: 3, tuple: { consistent: true, differing: [] } });
     assert.equal(stale.status, 'INCONCLUSIVE');
     assert.match(stale.blockers.join(' '), /every metric of the signed file is non-gating/);
     const applied = bigSuite((a) => (a.id === 'HO-B-001' ? { ...a, category: 'stale', writes: 1 } : a));
@@ -685,7 +727,7 @@ describe('exit codes (G712-12)', () => {
   };
   const thresholds = (name, body) => {
     const file = path.join(tmpRoot, `${name}.json`);
-    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, kind: THRESHOLDS_KIND, decision: 'G7-D1', signedBy: 'test signer', signedAt: '2026-10-20T00:00:00Z', aggregation: 'every_run', minRuns: 3, thresholds: body }));
+    fs.writeFileSync(file, JSON.stringify(signedBody(body)));
     return file;
   };
   const exit = (args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });

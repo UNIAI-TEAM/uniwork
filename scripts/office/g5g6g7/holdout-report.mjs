@@ -50,6 +50,10 @@ export const NON_GATING = {
   staleApplied: 'emulated by the harness backend: every write of a stale case is refused, so the count is 0 by construction',
 };
 
+// The signed file must pin what D1 assumes: at least this many runs, every gating metric of the D1.a table, the full case set.
+export const MIN_RUNS = 3;
+export const GATING_KEYS = Object.keys(THRESHOLD_KEYS).filter((key) => !NON_GATING[key]);
+
 const sha256Hex = (value) => createHash('sha256').update(value).digest('hex');
 
 /** Nearest-rank percentile of an ascending list (the same rule as the dev set runner). */
@@ -378,7 +382,9 @@ export function parseThresholds(doc) {
   for (const field of ['signedBy', 'signedAt']) if (typeof doc[field] !== 'string' || doc[field].trim() === '') problems.push(`${field} is required (an unsigned file gives no verdict)`);
   if (typeof doc.signedAt === 'string' && Number.isNaN(Date.parse(doc.signedAt))) problems.push('signedAt must be a date');
   if (doc.aggregation !== 'every_run') problems.push('aggregation must be "every_run" (the worst run decides; no best-run rule exists)');
-  if (!Number.isInteger(doc.minRuns) || doc.minRuns < 1) problems.push('minRuns must be an integer >= 1');
+  if (!Number.isInteger(doc.minRuns) || doc.minRuns < MIN_RUNS) problems.push(`minRuns must be an integer >= ${MIN_RUNS} (D1: the worst of at least ${MIN_RUNS} runs decides)`);
+  if (typeof doc.caseSetSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(doc.caseSetSha256)) problems.push('caseSetSha256 is required (the sha256 of the case set the file was signed for, as the runner manifest records it)');
+  if (!Number.isInteger(doc.caseCount) || doc.caseCount < MIN_CASES) problems.push(`caseCount must be an integer >= ${MIN_CASES} (the full case set of G7-D1)`);
   const limits = doc.thresholds;
   if (!limits || typeof limits !== 'object' || Array.isArray(limits) || Object.keys(limits).length === 0) problems.push('thresholds must name at least one metric');
   else {
@@ -390,6 +396,8 @@ export function parseThresholds(doc) {
         problems.push(`threshold ${key} must be exactly { "${comparator}": <number> }`);
       }
     }
+    const missing = GATING_KEYS.filter((key) => !(key in limits));
+    if (missing.length > 0) problems.push(`thresholds must carry every D1.a metric; missing: ${missing.join(', ')}`);
   }
   if (problems.length > 0) throw new Error(`invalid thresholds file:\n- ${problems.join('\n- ')}`);
   return doc;
@@ -496,6 +504,10 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
   if (thresholds) {
     const adjusted = runs.map((r) => summarizeRun(r, flakyKeys));
     const extraBlockers = [...runSet, ...conditions.problems];
+    const seen = session?.manifest && !session.manifest.unreadable ? session.manifest : runs[0];
+    if (thresholds.caseSetSha256 !== seen?.caseSetSha256 || thresholds.caseCount !== seen?.caseCount) {
+      extraBlockers.push(`the run set was made over a different case set than the one the thresholds were signed for (${seen?.caseCount ?? '?'} cases, sha256 ${String(seen?.caseSetSha256 ?? 'unknown').slice(0, 12)} vs signed ${thresholds.caseCount}, ${String(thresholds.caseSetSha256).slice(0, 12)})`);
+    }
     if (waiting.length > 0) extraBlockers.push(`${waiting.length} ask(s) still wait for a reviewer (no review for them in --reviews)`);
     report.overall = evaluateThresholds(adjusted, thresholds, { completeRuns, tuple, extraBlockers });
     report.flakyCountedAsFailed = flaky.length;
