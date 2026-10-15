@@ -20,7 +20,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 	// make check exports the app's .env; pin everything Load reads so a local
 	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
-	for _, k := range []string{"APP_ENV", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM"} {
+	for _, k := range []string{"APP_ENV", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK"} {
 		t.Setenv(k, "")
 	}
 }
@@ -358,5 +358,32 @@ func TestLoadEmailHubOAuthClients(t *testing.T) {
 	t.Setenv("EMAIL_HUB_MICROSOFT_TENANT", "contoso.onmicrosoft.com")
 	if c, _ = Load(); c.EmailHubMicrosoftTenant != "contoso.onmicrosoft.com" {
 		t.Fatalf("EmailHubMicrosoftTenant = %q, want the named tenant", c.EmailHubMicrosoftTenant)
+	}
+}
+
+func TestLoadDocumentCommitIntentSweepTick(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{"unset keeps the 10m default", "", 10 * time.Minute},
+		{"valid duration override", "250ms", 250 * time.Millisecond},
+		{"invalid falls back to default", "nonsense", 10 * time.Minute},
+		{"zero falls back to default", "0s", 10 * time.Minute},
+		{"negative falls back to default", "-5s", 10 * time.Minute},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("DOCUMENT_COMMIT_INTENT_SWEEP_TICK", tc.raw)
+			c, err := Load()
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if c.DocumentCommitIntentSweepTick != tc.want {
+				t.Fatalf("DocumentCommitIntentSweepTick = %v, want %v", c.DocumentCommitIntentSweepTick, tc.want)
+			}
+		})
 	}
 }

@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { useDocumentAdminSummaryFake } from "@uniwork/core/documents/doc05-fake";
 import { ShareDialog } from "./share-dialog";
 import type { ShareDialogTarget } from "./share-dialog-target";
+import { useAccessRequestsDeepLink } from "./use-access-requests-deeplink";
 
 export interface AdminManageAccess {
   /** The admin-summary read answered 200: the caller administers the document. */
@@ -25,6 +26,11 @@ export interface AdminManageAccess {
  * (`documents.share.admin_manage_button`) after the break-glass button when
  * `available`, calls `open`, and renders `dialog`. The card is not on the
  * root yet, so this hook is the entry it will call.
+ *
+ * It is also the pure admin's entry for `?access=requests` (§2.5, §3.4): once
+ * the summary has answered, an administrable, unarchived document opens the
+ * dialog at the requests section and the parameter is dropped; a refusal or an
+ * archived document drops it silently.
  */
 export function useAdminManageAccess(
   wsId: string,
@@ -33,7 +39,16 @@ export function useAdminManageAccess(
 ): AdminManageAccess {
   const summary = useDocumentAdminSummaryFake(wsId, documentId, opts);
   const [isOpen, setOpen] = useState(false);
+  const [focusRequests, setFocusRequests] = useState(false);
   const data = summary.data;
+  useAccessRequestsDeepLink({
+    allowed: !!data && !data.archived_at && !data.owner_kind,
+    ready: summary.isSuccess || summary.isError,
+    onOpen: () => {
+      setFocusRequests(true);
+      setOpen(true);
+    },
+  });
   const target: ShareDialogTarget | null = data
     ? {
         id: data.id,
@@ -53,6 +68,17 @@ export function useAdminManageAccess(
   return {
     available: !!target,
     open: () => setOpen(true),
-    dialog: target ? <ShareDialog open={isOpen} onOpenChange={setOpen} wsId={wsId} doc={target} /> : null,
+    dialog: target ? (
+      <ShareDialog
+        open={isOpen}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setFocusRequests(false);
+        }}
+        wsId={wsId}
+        doc={target}
+        focusRequests={focusRequests}
+      />
+    ) : null,
   };
 }

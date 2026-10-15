@@ -32,6 +32,7 @@ import { AccessLogSheet } from "./access-log-sheet";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { DocumentCopyDialog } from "./document-copy-dialog";
 import { ShareDialog } from "./share-dialog";
+import { useAccessRequestsDeepLink } from "./use-access-requests-deeplink";
 import { VersionHistorySheet } from "./version-history-sheet";
 
 export interface DocumentActionsMenuProps {
@@ -81,6 +82,17 @@ export function DocumentActionsMenu({
   const archived = !!doc.archived_at;
   const [panel, setPanel] = useState<PanelId>(null);
   const [copyUnavailable, setCopyUnavailable] = useState(false);
+  const [focusRequests, setFocusRequests] = useState(false);
+  // The inbox link for a manager (`?access=requests`, access addendum §3.4):
+  // open Share at the requests section, then drop the parameter. An archived
+  // or owned document, or a caller who cannot administer, loses it silently.
+  useAccessRequestsDeepLink({
+    allowed: canAdminister && !owned && !archived,
+    onOpen: () => {
+      setFocusRequests(true);
+      setPanel("share");
+    },
+  });
   const folded = useHeaderActionsSlotFilled();
   const comments = useDocumentCommentsChrome();
   const commentsEnabled = useFlag("documents", false);
@@ -151,9 +163,13 @@ export function DocumentActionsMenu({
       {!owned && canAdminister ? (
         <ShareDialog
           open={panel === "share"}
-          onOpenChange={(next) => setPanel(next ? "share" : null)}
+          onOpenChange={(next) => {
+            setPanel(next ? "share" : null);
+            if (!next) setFocusRequests(false);
+          }}
           wsId={wsId}
           doc={doc}
+          focusRequests={focusRequests}
         />
       ) : null}
       <AccessLogSheet

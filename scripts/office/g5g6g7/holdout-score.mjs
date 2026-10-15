@@ -65,8 +65,9 @@ const VALUE_KINDS = new Set(['cell', 'formula', 'heading', 'table_cell', 'count'
 const PROSE_KINDS = new Set(['clarification', 'refusal', 'not_found']);
 const REVIEW_KINDS = new Set(['caveat']);
 const ROUNDINGS = new Set(['none', '0dp', '2dp']);
-// A reply is blank when it holds only whitespace and invisible Unicode format characters (\p{Cf}).
-const BLANK_CHARS = /[\s\p{Cf}]/gu;
+// A reply is blank when it holds only whitespace and invisible Unicode format characters (\p{Cf}). The review quote
+// check reuses the rule (G712-30): a quote that proves nothing may not satisfy the required field.
+export const BLANK_CHARS = /[\s\p{Cf}]/gu;
 const HOSTS = new Set(['web', 'desktop']);
 const ROLES = new Set(['editor', 'viewer']);
 const ORACLE_TYPES = new Set(['deterministic', 'rubric']);
