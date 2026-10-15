@@ -47,7 +47,52 @@ function testFuncs(pkgDir) {
   return names;
 }
 
-test("every -run pattern of every row matches at least one existing Test func in the packages it names (a dead pattern is a row that tests nothing)", () => {
+/**
+ * Expands a `go test -run` regexp made of alternatives and groups into its bare alternatives:
+ * `A(b|c)|D` -> Ab, Ac, D. Only what the rows use is understood (| and one or more ( ) groups, no quantifiers).
+ */
+function expandRunPattern(pattern) {
+  const splitTop = (text) => {
+    const parts = [];
+    let depth = 0;
+    let from = 0;
+    for (let i = 0; i < text.length; i += 1) {
+      if (text[i] === "(") depth += 1;
+      else if (text[i] === ")") depth -= 1;
+      else if (text[i] === "|" && depth === 0) {
+        parts.push(text.slice(from, i));
+        from = i + 1;
+      }
+    }
+    parts.push(text.slice(from));
+    return parts;
+  };
+  return splitTop(pattern).flatMap((alt) => {
+    const open = alt.indexOf("(");
+    if (open === -1) return [alt];
+    let depth = 0;
+    let close = -1;
+    for (let i = open; i < alt.length; i += 1) {
+      if (alt[i] === "(") depth += 1;
+      else if (alt[i] === ")" && --depth === 0) {
+        close = i;
+        break;
+      }
+    }
+    assert.ok(close > open, `unbalanced group in -run pattern ${pattern}`);
+    const [head, inner, tail] = [alt.slice(0, open), alt.slice(open + 1, close), alt.slice(close + 1)];
+    return splitTop(inner).flatMap((choice) => expandRunPattern(`${head}${choice}${tail}`));
+  });
+}
+
+test("expandRunPattern turns grouped and top-level alternatives into bare alternatives", () => {
+  assert.deepEqual(expandRunPattern("A|B|C"), ["A", "B", "C"]);
+  assert.deepEqual(expandRunPattern("Doc(Kind|Tomb|Rev)"), ["DocKind", "DocTomb", "DocRev"]);
+  assert.deepEqual(expandRunPattern("Doc(Kind|Tomb)|Purge|Copy"), ["DocKind", "DocTomb", "Purge", "Copy"]);
+  assert.deepEqual(expandRunPattern("A(b|c)D(e|f)"), ["AbDe", "AbDf", "AcDe", "AcDf"]);
+});
+
+test("every -run alternative of every row, grouped ones expanded, matches at least one existing Test func in the packages it names (a dead alternative proves nothing)", () => {
   let checked = 0;
   for (const row of ["G8-A03", "G8-A05", "G8-A06", "G8-A08"]) {
     for (const line of plan(row).filter((l) => l.includes("go test") && l.includes(" -run "))) {
@@ -55,16 +100,13 @@ test("every -run pattern of every row matches at least one existing Test func in
       const pkgs = head.split(/\s+/).filter((a) => a.startsWith("./"));
       assert.ok(pkgs.length > 0, `${row}: "${line}" names a package`);
       const funcs = pkgs.flatMap(testFuncs);
-      const alternatives = pattern.replace(/^'|'$/g, "").split("|");
-      // a group like DocumentComment(Kind|Tombstone) holds a | itself: only a bare alternative list is split
-      const parts = pattern.includes("(") ? [pattern.replace(/^'|'$/g, "")] : alternatives;
-      for (const part of parts) {
-        assert.ok(funcs.some((fn) => new RegExp(part).test(fn)), `${row}: -run ${part} matches no Test func in ${pkgs.join(" ")}`);
+      for (const part of expandRunPattern(pattern.replace(/^'|'$/g, ""))) {
+        assert.ok(funcs.some((fn) => new RegExp(part).test(fn)), `${row}: -run alternative ${part} matches no Test func in ${pkgs.join(" ")}`);
         checked += 1;
       }
     }
   }
-  assert.ok(checked >= 6, `the patterns were really checked (${checked})`);
+  assert.ok(checked >= 20, `the alternatives were really checked (${checked})`);
 });
 
 test("G8-A08 audit coverage runs the Test funcs of audit_coverage_test.go by their real names (the contract's AuditCoverage matches none)", () => {
