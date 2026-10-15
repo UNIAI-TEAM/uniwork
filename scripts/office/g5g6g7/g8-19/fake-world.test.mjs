@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { G8_API_CALLS } from "../harness/api-contract.mjs";
 import { COMMENTS_API_NAMES, DISCUSSION_API_NAMES } from "../harness/app.mjs";
 import { SQL_MEMBERSHIP_BLOCKER } from "../harness/world.mjs";
-import { FAKE_TIMEOUT, createFakeWorld, fakeNetworkError } from "./fake-world.mjs";
+import { FAKE_TIMEOUT, bridgeCommentCreateRefusal, createFakeWorld, fakeNetworkError, serverCommentCreateRefusal } from "./fake-world.mjs";
 import {
   B7_ANCHOR,
   ROW_EXIT,
@@ -220,4 +220,28 @@ test("run-row pure helpers: artifact path, exit mapping, step decision, args", (
   assert.equal(parseRowArgs(["--row", "G8-A01", "--fixture", "fx-a"], { HARNESS_RUN_DIR: "/env" }).runDir, "/env");
   assert.throws(() => parseRowArgs(["--row", "G8-A01"], {}), /usage/);
   assert.deepEqual({ ...B7_ANCHOR }, { format: "xlsx", v: 1, sheet: "sheet-2", range: "B7" });
+});
+
+test("serverCommentCreateRefusal mirrors D's anchor rules (document_comment_anchors.go:254-276)", () => {
+  const A = { format: "xlsx", v: 1, sheet: "sheet-2", range: "B7" };
+  assert.equal(serverCommentCreateRefusal({ body: "x", kind: "comment" })?.status, 400);
+  assert.equal(serverCommentCreateRefusal({ body: "x", kind: "comment" }).body.error.code, "invalid_request");
+  assert.equal(serverCommentCreateRefusal({ body: "x", kind: "comment", anchor: A }).status, 400);
+  assert.equal(serverCommentCreateRefusal({ body: "x", kind: "discussion", anchor: A, base_version_id: "v" }).status, 400);
+  assert.equal(serverCommentCreateRefusal({ body: "x", parent_id: "p", anchor: A, base_version_id: "v" }).status, 400);
+  assert.equal(serverCommentCreateRefusal({ body: "x", kind: "comment", anchor: A, base_version_id: "v" }), null);
+  assert.equal(serverCommentCreateRefusal({ body: "x", kind: "discussion" }), null);
+  assert.equal(serverCommentCreateRefusal({ body: "x" }), null);
+  assert.equal(serverCommentCreateRefusal({ body: "x", parent_id: "p", kind: "comment" }), null);
+});
+
+test("bridgeCommentCreateRefusal mirrors the fork's parseCommentsCreateInput (comments-ipc.ts:260-276) -> malformed", () => {
+  const A = { format: "docx", v: 1 };
+  assert.equal(bridgeCommentCreateRefusal({ kind: "comment", body: "x" })?.error.code, "malformed");
+  assert.equal(bridgeCommentCreateRefusal({ kind: "comment", body: "x", anchor: A })?.error.code, "malformed");
+  assert.equal(bridgeCommentCreateRefusal({ kind: "discussion", body: "x", anchor: A, baseVersionId: "v" })?.error.code, "malformed");
+  assert.equal(bridgeCommentCreateRefusal({ kind: "comment", body: "", anchor: A, baseVersionId: "v" })?.error.code, "malformed");
+  assert.equal(bridgeCommentCreateRefusal({ kind: "comment", body: "x", anchor: A, baseVersionId: "v" }), null);
+  assert.equal(bridgeCommentCreateRefusal({ kind: "discussion", body: "x" }), null);
+  assert.equal(bridgeCommentCreateRefusal({ kind: "comment", body: "x", parentId: "p" }), null);
 });

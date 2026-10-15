@@ -69,6 +69,34 @@ export function session(user, { apiOrigin, fetchImpl = fetch } = {}) {
   };
 }
 
+const API_ERROR_TEXT_MAX = 200;
+
+/**
+ * What a call answered, for a FAIL reason: `<status> <code>: <message>` from
+ * the server's ErrorSDO (D server/internal/handler/dto/sdo/common.go:6-12),
+ * a string `error`, a non-JSON body, or the transport error. Redacted and cut
+ * to 200 characters; never `[object Object]`.
+ */
+export function apiErrorText(res) {
+  const err = res?.body?.error;
+  let detail = "";
+  if (err && typeof err === "object") {
+    const code = typeof err.code === "string" ? err.code : "";
+    const message = typeof err.message === "string" ? err.message : "";
+    detail = code && message ? `${code}: ${message}` : code || message || JSON.stringify(err);
+  } else if (typeof err === "string") {
+    detail = err;
+  } else if (typeof res?.body?.rawText === "string") {
+    detail = res.body.rawText;
+  } else if (typeof res?.error === "string") {
+    detail = res.error;
+  }
+  detail = redactSignInError(redact(detail)) || "";
+  if (detail.length > API_ERROR_TEXT_MAX) detail = `${detail.slice(0, API_ERROR_TEXT_MAX)}…`;
+  const status = String(res?.status ?? "no answer");
+  return detail ? `${status} ${detail}` : status;
+}
+
 /** `{ session(user) }` bound to one API origin. */
 export function createApi({ apiOrigin, fetchImpl = fetch }) {
   return { session: (user) => session(user, { apiOrigin, fetchImpl }) };

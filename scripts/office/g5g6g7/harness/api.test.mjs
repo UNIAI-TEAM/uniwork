@@ -8,7 +8,7 @@ import http from "node:http";
 import { after, before, test } from "node:test";
 
 import { API_PREFIX, G8_API_CALLS, G8_CALLS } from "./api-contract.mjs";
-import { createApi, session } from "./api.mjs";
+import { apiErrorText, createApi, session } from "./api.mjs";
 import { paramKind, pathParamTarget, routeCatalogue, sdiFields } from "./server-contract.helper.mjs";
 
 const routes = routeCatalogue();
@@ -167,4 +167,21 @@ test("programming errors throw: unknown row, missing path param, unknown body ke
 test("a session without a token sends no authorization header", async () => {
   await session({ key: "anon" }, { apiOrigin: origin }).call("listNotifications");
   assert.equal(seen.at(-1).auth, null);
+});
+
+test("apiErrorText: the server's {error:{code,message}} reads as 'status code: message', never [object Object]", () => {
+  const res = { status: 400, ok: false, body: { error: { code: "invalid_request", message: "bình luận kind=comment phải có neo và base_version_id" } } };
+  assert.equal(apiErrorText(res), "400 invalid_request: bình luận kind=comment phải có neo và base_version_id");
+  assert.equal(apiErrorText({ status: 404, ok: false, body: { error: "not_found" } }), "404 not_found");
+  assert.equal(apiErrorText({ status: 502, ok: false, body: { rawText: "<html>bad gateway</html>" } }), "502 <html>bad gateway</html>");
+  assert.equal(apiErrorText({ status: 0, ok: false, body: null, error: "timeout: aborted" }), "0 timeout: aborted");
+  assert.equal(apiErrorText({ status: 500, ok: false, body: null }), "500");
+  assert.ok(!/object Object/.test(apiErrorText({ status: 400, body: { error: { code: { nested: 1 } } } })));
+});
+
+test("apiErrorText: a token in the server's message is redacted and the text is capped", () => {
+  const res = { status: 400, ok: false, body: { error: { code: "bad", message: `"access_token":"SECRET-1" ticket=SECRET-2 ${"x".repeat(500)}` } } };
+  const text = apiErrorText(res);
+  assert.ok(!/SECRET-1|SECRET-2/.test(text), text);
+  assert.ok(text.length <= 240, String(text.length));
 });
