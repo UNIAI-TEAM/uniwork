@@ -4,14 +4,24 @@ import { useEffect, useId, useRef, useState } from "react";
 import { CircleCheck, MessageSquareReply, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
-import type { DocumentComment } from "@uniwork/core/types/document";
+import type {
+  Document,
+  DocumentComment,
+  DocumentCommentMentionWithoutAccess,
+} from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DocumentCommentComposer, type SendOutcome } from "./document-comment-composer";
 import { DocumentCommentEntry } from "./document-comment-entry";
 import type { MentionNames } from "./document-comment-body";
 import { K } from "./document-comments-keys";
-import { anchorLabel, anchorStateKey, replyTargetOf, type DocumentThread } from "./document-comments-model";
+import {
+  anchorLabel,
+  anchorStateKey,
+  canResolveCommentThread,
+  replyTargetOf,
+  type DocumentThread,
+} from "./document-comments-model";
 
 // One thread of the panel (S12 "Một thread" / S13 list rows): a list item
 // named by its author, anchor label and state (aria-labelledby, no composed
@@ -31,17 +41,21 @@ export interface ThreadContext {
   wsId: string;
   documentId: string;
   orgId: string;
+  doc?: Pick<Document, "my_level" | "owner_kind" | "admin_scope"> | null;
+  /** The caller may list workspace members: the picker asks for `include=no_access` (G8-18). */
+  canSeeMembers?: boolean;
   names: MentionNames;
   nameOf: (comment: Pick<DocumentComment, "author_id" | "author" | "display_name">) => string;
   nameOfId: (userId: string) => string;
   currentUserId: string | undefined;
-  /** edit or manage: reply, resolve, edit/delete own posts. */
+  /** comment, edit or manage: reply, edit/delete own posts. */
   canWrite: boolean;
   /** manage: edit/delete anyone's posts too. */
   canModerate: boolean;
   /** Id of the panel status line while sending is blocked. */
   blockedReasonId?: string;
   deletedKey: string;
+  postSendNotices?: ReadonlyMap<string, DocumentCommentMentionWithoutAccess[]>;
   actions: ThreadActions;
 }
 
@@ -88,11 +102,18 @@ export function DocumentCommentThread({
   const resolved = !!root.resolved_at;
   const deleted = !!root.deleted_at;
   const target = replyTargetOf(thread);
-  const mine = (comment: DocumentComment) => !!ctx.currentUserId && comment.author_id === ctx.currentUserId;
+  const mine = (comment: DocumentComment) =>
+    !!ctx.currentUserId && comment.author_id === ctx.currentUserId && comment.author_kind !== "agent";
   const permissionsOf = (comment: DocumentComment) => {
     const allowed = ctx.canWrite && (mine(comment) || ctx.canModerate);
     return { canEdit: allowed, canDelete: allowed };
   };
+  const canResolve = canResolveCommentThread({
+    canWrite: ctx.canWrite,
+    level: ctx.doc?.my_level ?? "edit",
+    currentUserId: ctx.currentUserId,
+    root,
+  });
   const guard = async (run: () => Promise<boolean>) => {
     setFailed(false);
     const ok = await run();
@@ -131,6 +152,7 @@ export function DocumentCommentThread({
       onTombstone={ctx.actions.reload}
       headingRef={isRoot ? headingRef : undefined}
       meta={isRoot ? meta : undefined}
+      mentionsWithoutAccess={ctx.postSendNotices?.get(comment.id) ?? comment.mentions_without_access}
     >
       {isRoot && ctx.canWrite && !deleted ? (
         <div className="mt-2 flex flex-wrap gap-1">
@@ -140,16 +162,18 @@ export function DocumentCommentThread({
               {t(K.collabReply)}
             </Button>
           ) : null}
-          <Button
-            ref={resolveRef}
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => void guard(() => ctx.actions.setResolved(root.id, !resolved))}
-          >
-            {resolved ? <RotateCcw aria-hidden /> : <CircleCheck aria-hidden />}
-            {resolved ? t(K.collabReopen) : t(K.collabResolve)}
-          </Button>
+          {canResolve ? (
+            <Button
+              ref={resolveRef}
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void guard(() => ctx.actions.setResolved(root.id, !resolved))}
+            >
+              {resolved ? <RotateCcw aria-hidden /> : <CircleCheck aria-hidden />}
+              {resolved ? t(K.collabReopen) : t(K.collabResolve)}
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </DocumentCommentEntry>
@@ -185,10 +209,14 @@ export function DocumentCommentThread({
             placeholderKey={K.collabComposerReply}
             deletedKey={ctx.deletedKey}
             blockedReasonId={ctx.blockedReasonId}
+            doc={ctx.doc}
+            canSeeMembers={ctx.canSeeMembers}
+            renderPostSendInline={false}
             autoFocus
             onSend={async (body) => {
               const outcome = await ctx.actions.reply(target.id, body);
-              if (outcome === "sent") setReplying(false);
+              const status = typeof outcome === "string" ? outcome : outcome.status;
+              if (status === "sent") setReplying(false);
               return outcome;
             }}
             onCancel={() => setReplying(false)}
