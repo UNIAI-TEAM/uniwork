@@ -15,6 +15,18 @@ const REQUEST_TIMEOUT_MS = 30_000;
 
 export class TenantError extends Error {}
 
+/** The origin the runner itself uses for direct D calls: Node resolves `localhost` to ::1 first, the server listens on 127.0.0.1. Other hosts are left alone. */
+export function runnerApiOrigin(apiOrigin) {
+  try {
+    const url = new URL(apiOrigin);
+    if (url.hostname !== "localhost") return apiOrigin;
+    url.hostname = "127.0.0.1";
+    return url.origin;
+  } catch {
+    return apiOrigin;
+  }
+}
+
 /** A request to the D server; resolves `{status, body}` and never throws on a status. */
 export async function dRequest(apiOrigin, path, { method = "GET", token, headers = {}, json, form } = {}) {
   const reqHeaders = { accept: "application/json", ...headers };

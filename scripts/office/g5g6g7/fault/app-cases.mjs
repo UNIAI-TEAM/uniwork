@@ -33,7 +33,7 @@ import {
 } from "./app-cases-lib.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
-  causeSuffix, clearSyncWrite, createFileDocument, enrollTotp, freshToken, grantPlatformAdmin, login, seedAppTenant, setSyncWrite,
+  causeSuffix, clearSyncWrite, createFileDocument, enrollTotp, freshToken, grantPlatformAdmin, login, runnerApiOrigin, seedAppTenant, setSyncWrite,
 } from "./app-tenant.mjs";
 import { caseExpect } from "./case-expect.mjs";
 import { EMPTY_SERVER_VERSIONS, collectServerVersions } from "./collect.mjs";
@@ -93,7 +93,7 @@ async function preconditions({ runDir, ports, playwright }) {
   if (!playwright) return "Playwright is not installed (the e2e workspace's @playwright/test)";
   if (!process.env.DBUS_SESSION_BUS_ADDRESS) return "no D-Bus session: run under `dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node …` (the app keeps its session in the OS keyring)";
   try {
-    const res = await fetch(`${ports.API_ORIGIN}/healthz`, { signal: AbortSignal.timeout(5_000) });
+    const res = await fetch(`${runnerApiOrigin(ports.API_ORIGIN)}/healthz`, { signal: AbortSignal.timeout(5_000) });
     if (!res.ok) return `the D server answered ${res.status} on /healthz`;
   } catch {
     return `no D server on ${ports.API_ORIGIN}`;
@@ -270,9 +270,11 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
     const results = runnable.map((row) => finishCase(row, blockedCase(row, blocker), join(runDir, "fault", row.id), runDir, forkSha));
     return { results, blockedResults, exitCode: runExitCode(results) };
   }
-  const proxy = await startFaultProxy({ target: ports.API_ORIGIN, port: 0, logFile: join(runDir, "logs", "fault-app-proxy.jsonl") });
+  const runnerApi = runnerApiOrigin(ports.API_ORIGIN);
+  const proxy = await startFaultProxy({ target: runnerApi, port: 0, logFile: join(runDir, "logs", "fault-app-proxy.jsonl") });
+  process.stdout.write(`APP_RUNNER api=${runnerApi} app_api=${proxy.origin} proxy_upstream=${runnerApi}\n`);
   try {
-    const tenant = await seedAppTenant(ports.API_ORIGIN, { verificationCode: serverEnv.DEV_VERIFICATION_CODE || "123456" });
+    const tenant = await seedAppTenant(runnerApi, { verificationCode: serverEnv.DEV_VERIFICATION_CODE || "123456" });
     let admin;
     const shared = {
       ports, proxy, tenant, playwright, runDir, fixtures: loadFixtures(), databaseUrl: serverEnv.DATABASE_URL || "",
@@ -284,8 +286,8 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
           // again with the second factor
           if (!admin) {
             try {
-              await enrollTotp(ports.API_ORIGIN, tenant.owner);
-              await login(ports.API_ORIGIN, tenant.owner);
+              await enrollTotp(runnerApi, tenant.owner);
+              await login(runnerApi, tenant.owner);
             } catch (error) {
               admin = `platform admin MFA enrolment: ${error.message}`;
             }

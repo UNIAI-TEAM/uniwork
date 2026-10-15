@@ -24,7 +24,7 @@ import {
 } from "./app-cases-lib.mjs";
 import {
   ACCESS_TOKEN_TTL_MS, TOKEN_RENEW_AFTER_MS, authedRequest, base32Decode, causeSuffix, dRequest, deviceBCommit, enrollTotp,
-  expireStagedClaims, freshToken, login, psqlUrl, totpCode,
+  expireStagedClaims, freshToken, login, psqlUrl, runnerApiOrigin, totpCode,
 } from "./app-tenant.mjs";
 import { buildIntentLogEntry, loadFaultCases } from "./server-cases-lib.mjs";
 
@@ -524,4 +524,13 @@ test("dRequest reports the fetch cause for a closed port without leaking the tok
   const text = JSON.stringify(res).toLowerCase();
   assert.ok(!text.includes("authorization") && !text.includes("secret-token") && !text.includes("q=1"));
   assert.match(causeSuffix(res), /ECONNREFUSED/);
+});
+
+test("runnerApiOrigin maps localhost to the IPv4 loopback and leaves other hosts alone", () => {
+  assert.equal(runnerApiOrigin("http://localhost:8080"), "http://127.0.0.1:8080");
+  assert.equal(runnerApiOrigin("https://localhost:8443"), "https://127.0.0.1:8443");
+  assert.equal(runnerApiOrigin("http://127.0.0.1:8080"), "http://127.0.0.1:8080");
+  assert.equal(runnerApiOrigin("http://api.example.com:8080"), "http://api.example.com:8080");
+  assert.equal(runnerApiOrigin("http://localhost.example.com:8080"), "http://localhost.example.com:8080");
+  assert.equal(runnerApiOrigin("not a url"), "not a url");
 });
