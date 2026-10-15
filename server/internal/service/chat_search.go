@@ -65,11 +65,12 @@ func (s *ChatService) SearchRoomMessages(
 	if in.Before != nil {
 		before = pgtype.Timestamptz{Time: *in.Before, Valid: true}
 	}
-	pattern := "%" + escapeILIKEPattern(query) + "%"
+	// The query compares against uw_fold_search(body), so "hop" finds "Họp".
+	pattern := "%" + escapeILIKEPattern(foldForSearch(query)) + "%"
 	rows, err := s.q.SearchChatMessagesByRoom(ctx, db.SearchChatMessagesByRoomParams{
 		RoomID:        roomID,
 		WorkspaceID:   roomAnchorWorkspaceID(room),
-		SearchPattern: []byte(pattern),
+		SearchPattern: pattern,
 		BeforeAt:      before,
 		ResultLimit:   int32(limit),
 	})

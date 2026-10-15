@@ -1371,6 +1371,48 @@ func TestSearchRoomMessages(t *testing.T) {
 	}
 }
 
+// UNI-1694: Vietnamese users type without marks, so "hop" must find "Họp".
+func TestSearchRoomMessagesIgnoresVietnameseMarks(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "Họp lúc 3 giờ ở Đà Nẵng"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	search := func(query string) []ChatMessageRow {
+		t.Helper()
+		hits, err := s.SearchRoomMessages(ctx, ub.ID, w.ID, dm.ID, SearchChatMessagesInput{Query: query})
+		if err != nil {
+			t.Fatalf("search %q: %v", query, err)
+		}
+		return hits
+	}
+	for _, query := range []string{"hop", "HỌP", "da nang", "ĐÀ  NẴNG"} {
+		if hits := search(query); len(hits) != 1 || hits[0].ID != msg.ID {
+			t.Fatalf("search %q: want the one message, got %+v", query, hits)
+		}
+	}
+	if _, err := s.EditChatMessage(ctx, ua.ID, w.ID, dm.ID, msg.ID, "Hủy họp"); err != nil {
+		t.Fatal(err)
+	}
+	if hits := search("huy"); len(hits) != 1 || hits[0].ID != msg.ID {
+		t.Fatalf("search huy after edit: got %+v", hits)
+	}
+	if hits := search("da nang"); len(hits) != 0 {
+		t.Fatalf("search the old body after edit: got %+v", hits)
+	}
+	if hits := search("__"); len(hits) != 0 {
+		t.Fatalf("search __ must match literally, got %+v", hits)
+	}
+}
+
 func TestSendRoomMessageIdempotentClientMsgID(t *testing.T) {
 	s, pub, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()

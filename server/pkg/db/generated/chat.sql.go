@@ -2343,7 +2343,10 @@ WHERE m.room_id = $1
   AND m.workspace_id = $2
   AND m.deleted_at IS NULL
   AND m.kind = 'text'
-  AND m.body ILIKE $3 ESCAPE '\'
+  -- Folded on both sides (foldForSearch builds the pattern) and served by
+  -- idx_chat_messages_body_fold; ILIKE keeps case folding for scripts the
+  -- uw_fold_search table does not lower-case.
+  AND uw_fold_search(m.body) ILIKE $3::text ESCAPE '\'
   AND ($4::timestamptz IS NULL OR m.created_at < $4)
 ORDER BY m.created_at DESC
 LIMIT $5
@@ -2352,7 +2355,7 @@ LIMIT $5
 type SearchChatMessagesByRoomParams struct {
 	RoomID        string             `json:"room_id"`
 	WorkspaceID   string             `json:"workspace_id"`
-	SearchPattern []byte             `json:"search_pattern"`
+	SearchPattern string             `json:"search_pattern"`
 	BeforeAt      pgtype.Timestamptz `json:"before_at"`
 	ResultLimit   int32              `json:"result_limit"`
 }

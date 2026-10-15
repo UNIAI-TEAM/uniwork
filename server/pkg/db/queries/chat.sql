@@ -618,7 +618,10 @@ WHERE m.room_id = $1
   AND m.workspace_id = $2
   AND m.deleted_at IS NULL
   AND m.kind = 'text'
-  AND m.body ILIKE sqlc.arg(search_pattern) ESCAPE '\'
+  -- Folded on both sides (foldForSearch builds the pattern) and served by
+  -- idx_chat_messages_body_fold; ILIKE keeps case folding for scripts the
+  -- uw_fold_search table does not lower-case.
+  AND uw_fold_search(m.body) ILIKE sqlc.arg(search_pattern)::text ESCAPE '\'
   AND (sqlc.narg(before_at)::timestamptz IS NULL OR m.created_at < sqlc.narg(before_at))
 ORDER BY m.created_at DESC
 LIMIT sqlc.arg(result_limit);
