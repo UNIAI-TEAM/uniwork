@@ -203,15 +203,14 @@ describe("createChatRealtimePatchScheduler", () => {
 
   it("dispose clears pending work without flushing", async () => {
     const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
-    scheduler.scheduleUpsert("room1", "m1");
-    scheduler.scheduleDelete("room1", "m2");
-    scheduler.scheduleMention("room1", "u2");
-    // A first reload, then a held one: dispose must cancel the held timer too.
+    // A first reload, so the next one is held: dispose must cancel the held timer too.
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     scheduler.scheduleRoomActivity();
     await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
     vi.clearAllMocks();
     scheduler.scheduleUpsert("room1", "m1");
+    scheduler.scheduleDelete("room1", "m2");
+    scheduler.scheduleMention("room1", "u2");
     scheduler.scheduleRoomActivity();
     await scheduler.dispose();
     await vi.advanceTimersByTimeAsync(2 * ROOMS_HOLD_MAX_MS);
