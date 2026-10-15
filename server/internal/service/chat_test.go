@@ -1114,6 +1114,28 @@ func TestLookupUserDifferentOrg(t *testing.T) {
 	_ = otherOrg
 }
 
+// A deactivated colleague is "not here" to the caller: the peer check answers
+// 404, never the caller-facing member_deactivated that locks the client out
+// (UNI-1659).
+func TestChatPeerDeactivatedIsNotFound(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	members := NewOrganizationMemberService(s.pool, q, s.ws.orgs)
+	if _, err := members.Deactivate(ctx, ua.ID, w.OrganizationID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
+	_, errDM := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	_, errProfile := s.LookupUserByID(ctx, ua.ID, w.ID, ub.ID)
+	_, errBlock := s.GetChatBlockStatus(ctx, ua.ID, w.ID, ub.ID)
+	for name, err := range map[string]error{"ResolveDM": errDM, "LookupUserByID": errProfile, "GetChatBlockStatus": errBlock} {
+		if !errors.Is(err, ErrNotFound) || errors.Is(err, ErrMemberDeactivated) {
+			t.Errorf("%s on a deactivated peer: err=%v, want not found", name, err)
+		}
+	}
+}
+
 func TestSearchRoomMessages(t *testing.T) {
 	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
