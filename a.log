@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor origin/main HEAD && echo SYNCED_WITH_MAIN
+88c2d25b283c069232340fb752bdea50f6022766
+71a2a22749abef2487c9c48365fa27bd4ee01602
+88c2d25b merge: fork main 71a2a227 (G5-09 conflict dialog S5) into the G5-10 lane (UNI-1357)
+204337e9 fix(shell): sync center long row actions wrap inside the actions column (VIS-2n, G5-10, UNI-1357)
+aede999e fix(shell): sync center reads lease_expired / clock_rollback from the G5-08c lease manager (RES-3, G5-10, UNI-1357)
+449d0bcb merge: fork main 1e5f8dfe (G5-08c offline lease core) into the G5-10 lane (UNI-1357)
+a3aa6a60 merge: r6 visual r1 fixes VIS-1..6, VIS-8 (G5-10, UNI-1357)
+c9b02793 fix(shell): sync center visual review r1 fixes VIS-1..VIS-6, VIS-8 (G5-10, UNI-1357)
+71a2a227 fix(slides): a throwing reload re-open keeps the previous deck instead of booting blank (W21)
+3d1f98d9 merge: fork main 1e5f8dfe (G5-08c offline lease core) into the G5-09 lane
+SYNCED_WITH_MAIN
