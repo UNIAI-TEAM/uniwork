@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
@@ -77,18 +77,19 @@ describe("ChatFileMessageRow", () => {
     expect(getChatRoomMessage).not.toHaveBeenCalled();
   });
 
-  it("shows a photo's signed thumbnail and opens the original in a new tab on click", async () => {
-    const tab = { opener: {} as unknown, location: { href: "" }, close: vi.fn() };
-    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+  it("shows a photo's signed thumbnail and previews the original in the chat on click", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
     renderRow(fileMessage("message3", { filename: "photo.jpg", content_type: "image/jpeg", size_bytes: 4_000_000 }));
 
     expect(screen.getByRole("img", { name: "photo.jpg" })).toHaveAttribute("src", "https://storage.test/message3-thumb");
 
-    fireEvent.click(screen.getByRole("button", { name: "Mở photo.jpg" }));
-    // The tab opens inside the click so no popup blocker stops it.
-    expect(open).toHaveBeenCalledWith("", "_blank");
-    expect(tab.opener).toBeNull();
-    await waitFor(() => expect(tab.location.href).toBe("https://storage.test/message3"));
+    fireEvent.click(screen.getByRole("button", { name: "Xem photo.jpg" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("img", { name: "photo.jpg" })).toHaveAttribute(
+      "src",
+      "https://storage.test/message3",
+    );
+    expect(open).not.toHaveBeenCalled();
     expect(getChatRoomMessage).not.toHaveBeenCalled();
     open.mockRestore();
   });

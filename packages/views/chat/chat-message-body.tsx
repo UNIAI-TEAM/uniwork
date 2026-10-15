@@ -94,6 +94,22 @@ function linkify(text: string, linkClass: string, keyPrefix = ""): ReactNode[] {
 
 const MENTION_PATTERN = /\[@([^\]]+)\]\(mention:\/\/(member|all)\/([^)]+)\)/g;
 
+function sameMentionId(left: string, right: string): boolean {
+  return left.trim().toUpperCase() === right.trim().toUpperCase();
+}
+
+/** The name written on the message, or the name we know now when that text is the id. */
+function mentionLabel(label: string, id: string, nameContext: ChatNameContextEntry[]): string {
+  const written = label.trim();
+  if (written && !sameMentionId(written, id)) return written;
+  const match = nameContext.find((entry) => sameMentionId(entry.user_id, id));
+  const known = match?.display_name?.trim() ?? "";
+  if (known && !sameMentionId(known, id)) return known;
+  const local = match?.email?.split("@")[0]?.trim() ?? "";
+  if (local && !sameMentionId(local, id)) return local;
+  return written || id;
+}
+
 /**
  * Text with its mentions drawn as chips and its links made clickable. One
  * path for every message: the same words render the same whether or not
@@ -112,8 +128,7 @@ function renderMessageText(
     const start = match.index ?? 0;
     if (start > last) out.push(...linkify(body.slice(last, start), classes.link, `s${last}`));
     const [, label = "", kind, id] = match;
-    const name =
-      kind === "all" ? allLabel : (nameContext.find((entry) => entry.user_id === id)?.display_name?.trim() || label);
+    const name = kind === "all" ? allLabel : mentionLabel(label, id, nameContext);
     out.push(
       <span key={`m${start}`} className={classes.mention}>
         @{name}

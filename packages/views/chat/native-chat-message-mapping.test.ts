@@ -151,5 +151,13 @@ describe("senderLabelFor", () => {
       "u1",
     );
     expect(senderLabelFor(message, "other", "Bạn", [])).toBe("u1");
+    expect(
+      senderLabelFor(message, "other", "Bạn", [{ user_id: "U1", display_name: "An" }]),
+    ).toBe("An");
+    expect(
+      senderLabelFor(message, "other", "Bạn", [
+        { user_id: "u1", display_name: "u1", email: "tramyd@example.com" },
+      ]),
+    ).toBe("tramyd");
   });
 });

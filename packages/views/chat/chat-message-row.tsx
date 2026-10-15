@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { Bell, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
@@ -16,7 +16,6 @@ import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { senderNameClass } from "./sender-colors";
-import { initialOf } from "./chat-initials";
 import { useMessageActionsReveal } from "./use-message-actions-reveal";
 
 /** Fixed gutter matching the 32px avatar — keeps grouped bubbles aligned. */
@@ -166,14 +165,13 @@ function ChatMessageRowImpl({
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
       {!isOwn ? (
-        <div className={INCOMING_AVATAR_SLOT_CLASS} aria-hidden>
+        <div className={INCOMING_AVATAR_SLOT_CLASS}>
           {showAvatar ? (
-            <ActorAvatar
+            <ChatSenderAvatar
+              userId={message.sender}
               name={senderLabel}
-              initials={initialOf(senderLabel)}
               avatarUrl={senderAvatarUrl}
-              size="lg"
-              className="shrink-0"
+              nameContext={nameContext}
             />
           ) : null}
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Download, ExternalLink, Eye, EyeOff, FileText } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import { Download, Eye, EyeOff, FileText } from "lucide-react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -11,6 +11,7 @@ import { isChatImageContentType, isChatPdfContentType, resolveChatFileContentTyp
 import { formatChatFileSize } from "./chat-file-size";
 import type { ChatMessage } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
+import { ChatImagePreviewDialog } from "./chat-image-preview-dialog";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media-url";
 
 type ChatFile = NonNullable<ChatMessage["file"]>;
@@ -123,6 +124,34 @@ function ImageAttachment({
   );
   const { src: url, status } = preview;
   const freshUrl = useFreshChatMediaUrl(workspaceId, roomId);
+  const previewRequest = useRef(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const openPreview = () => {
+    const token = ++previewRequest.current;
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    setPreviewSrc(null);
+    freshUrl(message.id, { url: file?.url, expiresAt: file?.url_expires_at }, (fresh) => fresh.file?.url).then(
+      (href) => {
+        if (previewRequest.current !== token) return;
+        setPreviewSrc(href);
+        setPreviewLoading(false);
+      },
+      (err: unknown) => {
+        if (previewRequest.current !== token) return;
+        setPreviewOpen(false);
+        setPreviewLoading(false);
+        toastChatError(err, t, t("chat.file_download_failed"));
+      },
+    );
+  };
+  const closePreview = (open: boolean) => {
+    if (open) return;
+    previewRequest.current += 1;
+    setPreviewOpen(false);
+  };
   const [aspect, setAspect] = useState(() => imageAspectByMessage.get(message.id) ?? null);
   const rememberAspect = (img: HTMLImageElement) => {
     if (!img.naturalWidth || !img.naturalHeight) return;
@@ -150,9 +179,17 @@ function ImageAttachment({
   }
   const openLabel = t("chat.message_list.file_open_named", { name });
   const imgClass = "block max-h-56 max-w-full object-contain";
+  const previewDialog = (
+    <ChatImagePreviewDialog
+      open={previewOpen}
+      name={name}
+      src={previewSrc}
+      loading={previewLoading}
+      onOpenChange={closePreview}
+    />
+  );
   if (isGif) {
-    const open = () => window.open(url, "_blank", "noopener,noreferrer");
-    // The GIF carries its own play/pause button, so opening it is a button
+    // The GIF carries its own play/pause button, so the preview is a button
     // of its own rather than the whole picture.
     return (
       <div className="relative w-fit max-w-full" style={aspect ? undefined : boxStyle}>
@@ -163,46 +200,34 @@ function ImageAttachment({
           variant="secondary"
           className="absolute top-1.5 right-1.5 pointer-coarse:size-11"
           aria-label={openLabel}
-          onClick={open}
+          onClick={openPreview}
         >
-          <ExternalLink aria-hidden />
+          <Eye className="size-4" aria-hidden />
         </Button>
+        {previewDialog}
       </div>
     );
   }
-  const openOriginal = () => {
-    // The tab opens inside the click, before any URL refresh, so no popup
-    // blocker refuses it; the original is put into it once it is signed.
-    const tab = window.open("", "_blank");
-    if (!tab) return;
-    tab.opener = null;
-    freshUrl(message.id, { url: file?.url, expiresAt: file?.url_expires_at }, (fresh) => fresh.file?.url).then(
-      (href) => {
-        tab.location.href = href;
-      },
-      (err: unknown) => {
-        tab.close();
-        toastChatError(err, t, t("chat.file_download_failed"));
-      },
-    );
-  };
   return (
-    <button
-      type="button"
-      className="block max-w-full overflow-hidden"
-      style={aspect ? undefined : boxStyle}
-      aria-label={openLabel}
-      onClick={openOriginal}
-    >
-      {/* Short-lived signed storage URL, not a public CDN asset. */}
-      <img
-        src={url}
-        alt={name}
-        className={imgClass}
-        onLoad={(e) => rememberAspect(e.currentTarget)}
-        onError={preview.onError}
-      />
-    </button>
+    <>
+      <button
+        type="button"
+        className="block max-w-full overflow-hidden"
+        style={aspect ? undefined : boxStyle}
+        aria-label={openLabel}
+        onClick={openPreview}
+      >
+        {/* Short-lived signed storage URL, not a public CDN asset. */}
+        <img
+          src={url}
+          alt={name}
+          className={imgClass}
+          onLoad={(e) => rememberAspect(e.currentTarget)}
+          onError={preview.onError}
+        />
+      </button>
+      {previewDialog}
+    </>
   );
 }
 
