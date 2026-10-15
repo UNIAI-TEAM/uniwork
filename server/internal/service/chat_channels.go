@@ -461,7 +461,14 @@ func (s *ChatService) UnarchiveChannel(ctx context.Context, userID, workspaceID,
 	}}); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	// chat.channel.updated is ephemeral: the outbox row above reaches no client.
+	s.publishChatRoomMembersEvent(ctx, roomID, Event{
+		Type: "chat.channel.updated", Payload: map[string]string{"room_id": roomID, "workspace_id": workspaceID},
+	})
+	return nil
 }
 
 // CreateChannelForProject creates a public channel linked to a project (optional CreateProject tick).

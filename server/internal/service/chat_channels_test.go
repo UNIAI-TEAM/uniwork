@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -357,6 +358,35 @@ func TestListChatRoomMembersMarksTheCreator(t *testing.T) {
 	for _, m := range members {
 		if m.IsCreator != (m.UserID == ub.ID) {
 			t.Fatalf("member %s IsCreator = %v", m.UserID, m.IsCreator)
+		}
+	}
+}
+
+// UNI-1672: chat.channel.updated is ephemeral, so the outbox row alone reaches
+// nobody; unarchiving tells the members directly, as UpdateChannel does.
+func TestUnarchiveChannelTellsTheMembers(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "sale", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ArchiveChannel(ctx, ua.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	pub.sent = nil
+	if err := s.UnarchiveChannel(ctx, ua.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	got := pub.sentTo("chat.channel.updated")
+	for _, id := range []string{ua.ID, ub.ID} {
+		if !slices.Contains(got, "user:"+id) {
+			t.Fatalf("unarchive went to %v, want every member including %s", got, id)
 		}
 	}
 }

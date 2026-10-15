@@ -184,6 +184,14 @@ function keysFor(
       }
       break;
     }
+    case "chat.channel.created":
+    case "chat.channel.updated":
+    case "chat.channel.archived": {
+      push(chatKeys.rooms(wsId)); // through the chat scheduler (isChatRoomsKey)
+      push(["chat", "channels", wsId]);
+      push(["chat", "project-channels", wsId]);
+      break;
+    }
     case "chat.voice.recording.started":
     case "chat.voice.recording.stopped": {
       if (payload.room_id) {

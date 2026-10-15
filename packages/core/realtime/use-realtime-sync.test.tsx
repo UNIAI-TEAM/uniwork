@@ -827,6 +827,29 @@ describe("useRealtimeSync", () => {
     vi.useRealTimers();
   });
 
+  // UNI-1672: a channel created, renamed, archived or unarchived by someone
+  // else reaches the sidebar, the channel directory and project channels.
+  it.each(["chat.channel.created", "chat.channel.updated", "chat.channel.archived"] as const)(
+    "refreshes the sidebar and channel lists on %s",
+    async (type) => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { room_id: "c1", workspace_id: "ws1" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      const called = keysCalled(invalidate);
+      expect(called).toContain(JSON.stringify(["chat", "channels", "ws1"]));
+      expect(called).toContain(JSON.stringify(["chat", "project-channels", "ws1"]));
+      const rooms = JSON.stringify(chatKeys.rooms("ws1"));
+      const roomCalls = invalidate.mock.calls.filter(
+        (call) => JSON.stringify((call[0] as { queryKey: unknown }).queryKey) === rooms,
+      );
+      expect(roomCalls).toEqual([[{ queryKey: chatKeys.rooms("ws1") }, { cancelRefetch: false }]]);
+      vi.useRealTimers();
+    },
+  );
+
   // C10: one invite is one frame, which refreshes the room list and members.
   it("refreshes the room list and members on chat.room.members_added", async () => {
     vi.useFakeTimers();
