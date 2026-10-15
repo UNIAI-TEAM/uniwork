@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, type WSMessage } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { PROTOCOL_NS, PROTOCOL_VERSION, checkInitComments, type Envelope, type InitPayload, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import type { User } from "@uniwork/core/types";
@@ -95,7 +96,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   }, { wrapper, initialProps: initial as Props });
   const sent = (type: string) => received.filter((m) => m.kind === "request" && m.type === type);
   const frame = {
-    hook, panels, received, sent, onError, api,
+    hook, panels, received, sent, onError, api, client,
     rerender: (props: Props) => hook.rerender(props),
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     respond: (to: Envelope, payload: unknown) => post(envelope("response", to.type, payload, to.id)),
@@ -428,6 +429,24 @@ describe("useFrameComments: G8-18 comments.shareView and mentions without access
       expect.objectContaining({ method: "POST", body: { principal_type: "user", principal_id: "u2", level: "view" } }),
     );
     expect(answer.payload).toEqual({ ok: true });
+  });
+
+  it("L9: a share the frame made refreshes the shares list an open share dialog reads", async () => {
+    const frame = setup({ myLevel: "manage" });
+    await frame.boot();
+    const spy = vi.spyOn(frame.client, "invalidateQueries");
+    frame.api.mockResolvedValue(SHARE);
+    await frame.answerOf(await frame.request("comments.shareView", { user_id: "u2" }));
+    expect(spy).toHaveBeenCalledWith({ queryKey: documentKeys.shares("ws-1", "doc-1") });
+  });
+
+  it("L9: a refused share does not touch the shares cache", async () => {
+    const frame = setup({ myLevel: "manage" });
+    await frame.boot();
+    const spy = vi.spyOn(frame.client, "invalidateQueries");
+    frame.api.mockRejectedValue(new ApiError("x", "forbidden", 403));
+    await frame.answerOf(await frame.request("comments.shareView", { user_id: "u2" }));
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it("refuses without the capability (a level below manage): forbidden, no share request", async () => {

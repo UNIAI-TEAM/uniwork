@@ -1,8 +1,10 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@uniwork/core/api/http";
 import { useAuthStore } from "@uniwork/core/auth";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import {
   createFrameComment,
   deleteFrameComment,
@@ -118,8 +120,9 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
   const [attached, setAttached] = useState<Attached | null>(null);
   const [held, setHeld] = useState<Held | null>(null);
   const userId = useAuthStore((s) => s.user?.id ?? "");
-  const latest = useRef({ options, attached, userId });
-  latest.current = { options, attached, userId };
+  const queryClient = useQueryClient();
+  const latest = useRef({ options, attached, userId, queryClient });
+  latest.current = { options, attached, userId, queryClient };
   // One Idempotency-Key per Send, kept across the retries of that Send: the same payload that
   // has not succeeded yet reuses its key, so a create the server already stored is not stored twice.
   // Keyed by payload so two Sends in flight (two threads sent quickly) each keep their own.
@@ -181,7 +184,11 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
         call("comments.shareView", async (doc) => {
           if (!shareViewGranted.current) throw new DocsProtocolError({ code: "forbidden", message: "comments.shareView was not granted", retryable: false });
           const shared = await shareDocument(doc, { principal_type: "user", principal_id: userId, level: "view" }, signal);
-          return shared ? { ok: true as const } : null;
+          if (!shared) return null;
+          // A share dialog open in this tab reads the shares query: refresh it for the document the frame edits.
+          const { options: current, queryClient: qc } = latest.current;
+          void qc.invalidateQueries({ queryKey: documentKeys.shares(current.wsId, doc) });
+          return { ok: true as const };
         }),
       "mentions.search": (payload, { signal }) =>
         call("mentions.search", async (doc) => (await searchFrameMentionCandidates(doc, payload, signal)) as FrameRequests["mentions.search"]["result"] | null),
