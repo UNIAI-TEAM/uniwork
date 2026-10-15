@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -932,5 +933,72 @@ func TestAIUniworkUpstreamRateLimitedRetryAfter(t *testing.T) {
 				t.Fatalf("usage row = %s/%s, want failed/%s", status, reason, ErrRateLimited.Code)
 			}
 		})
+	}
+}
+
+// G6-09a (UNI-1374) N1: the slides tools a UniWork AI turn never gets (the web
+// stubs, whole-deck generation and style templates) are out of the table, so a
+// modified client cannot offer them to the model and a call for one is dropped
+// as not_allowlisted. The tools the client hides only for a bound document
+// (create_document, the pdf file-level page tools) stay: the table cannot tell
+// a bound document from a local file the user opened under UniWork AI.
+func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
+	removed := []string{"generate_deck", "insert_web_image", "regenerate_slide", "replace_image", "save_style_template"}
+	slides := officeUniworkModulesV1["slides"]
+	for _, name := range removed {
+		for _, group := range [][]string{slides.Read, slides.Write} {
+			for _, have := range group {
+				if have == name {
+					t.Errorf("slides table still lists %q", name)
+				}
+			}
+		}
+	}
+
+	offered := facadeSpecs(append([]string{"apply_ops", "read_slide"}, removed...)...)
+	allow := UniworkModuleAllowlist("slides", offered, false)
+	if got := strings.Join(allow.Tools.Names(), ","); got != "apply_ops,read_slide" {
+		t.Fatalf("slides allowlist = %q, want only the tools UniWork AI keeps", got)
+	}
+	for _, name := range removed {
+		if _, ok := allow.Tools.Get(name); ok {
+			t.Errorf("%q reached the slides allowlist", name)
+		}
+		for _, w := range allow.WriteNames {
+			if w == name {
+				t.Errorf("%q is still a named write tool, so a call for it would read as view_only", name)
+			}
+		}
+	}
+
+	// the rest of the table still holds: every module, and the slides names the client keeps
+	if len(officeUniworkModulesV1) != 6 {
+		t.Fatalf("table has %d modules, want 6", len(officeUniworkModulesV1))
+	}
+	for _, want := range []string{"apply_ops", "edit_chart", "execute_slide_script"} {
+		if !slices.Contains(slides.Write, want) {
+			t.Errorf("slides write tools lost %q", want)
+		}
+	}
+	for _, want := range []string{"read_slide", "plan_deck", "web_search", "image_search", "generate_image"} {
+		if !slices.Contains(slides.Read, want) {
+			t.Errorf("slides read tools lost %q", want)
+		}
+	}
+
+	// bound-only hides stay in the table (the server cannot tell bound from local)
+	for module, names := range map[string][]string{
+		"docs":   {"create_document"},
+		"sheets": {"create_document"},
+		"pdf": {
+			"create_document", "insert_blank_page", "set_page_size", "crop_pages", "replace_pages",
+			"extract_pages", "split_pdf", "split_pages", "merge_pages", "edit_text", "transform_image",
+		},
+	} {
+		for _, name := range names {
+			if !slices.Contains(officeUniworkModulesV1[module].Write, name) {
+				t.Errorf("%s table lost %q, which only a bound document hides", module, name)
+			}
+		}
 	}
 }
