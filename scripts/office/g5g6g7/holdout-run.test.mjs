@@ -15,7 +15,7 @@ import {
   TOOL_OPS, createBackend, frameToolCounts, modulesOfCase, offeredTools, opsOfTool, toolCatalogue, toolSurface, unobtainableOps,
 } from './holdout-backend.mjs';
 import {
-  DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, MANIFEST_KIND, MAX_STEPS, buildAsks, createServerSession, createUsageReader, firstMessages, httpTransport,
+  DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, MANIFEST_KIND, MAX_STEPS, buildAsks, createServerSession, createUsageReader, firstMessages, fixtureEmails, httpTransport,
   isInsideRepo, parseArgs, preflight, redactSecrets, runHoldout, sha256Hex,
 } from './holdout-run.mjs';
 import { OPERATIONS, loadCases, score } from './holdout-score.mjs';
@@ -891,6 +891,28 @@ describe('runner faults and failures', () => {
     for (const text of harmless) assert.deepEqual(redactSecrets(text), { text, hits: [] }, text);
   });
 
+  it('redacts an email as a soft kind, and keeps an address the case set itself carries (G712-62)', () => {
+    const email = 'g712-holdout-test@example.com';
+    const flagged = redactSecrets(`sign-in for ${email} was refused`);
+    assert.deepEqual(flagged.hits, [{ kind: 'email', count: 1 }]);
+    assert.equal(flagged.text, 'sign-in for [redacted:email] was refused');
+    // Exact provenance, not a broad pattern: the case's own address stays, another address beside it still goes.
+    const exemptEmails = new Set([email]);
+    assert.deepEqual(redactSecrets(`write to ${email} today`, { exemptEmails }), { text: `write to ${email} today`, hits: [] });
+    const mixed = redactSecrets(`write to ${email} or bookkeeping@example.com`, { exemptEmails });
+    assert.deepEqual(mixed.hits, [{ kind: 'email', count: 1 }], 'only the exact address the cases carry is exempt');
+    assert.equal(mixed.text, `write to ${email} or [redacted:email]`);
+  });
+
+  it('reads the emails a case set really carries, so the runner exempts exactly them (G712-62)', () => {
+    const synthetic = [
+      { id: 'S-1', query: { vi: 'thư gửi ops@example.org' }, referenceAnswer: { text: 'gửi ops@example.org và kế toán', structural: [{ value: 'ops@example.org' }] } },
+      { id: 'S-2', query: { vi: 'không có địa chỉ nào' } },
+    ];
+    assert.deepEqual([...fixtureEmails(synthetic)], ['ops@example.org'], 'every address-shaped value of the loaded case data is read');
+    assert.deepEqual([...fixtureEmails([])], [], 'a case set without an address exempts nothing');
+  });
+
   it('keeps the base64 guard\'s miss rate at or under the number its comment documents (G712-41)', () => {
     // The comment on looksEncoded documents the measurement (2.2% of 40-character blobs missed on 100000 random blobs, 2026-10-16).
     // This is a deterministic sample of the same population: same blobs every run, so a guard that got worse fails here and an
@@ -1010,8 +1032,9 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
   it('renews an expired session and an expired frame token: the run completes, both are counted and no fixture is re-uploaded', async () => {
     const dir = path.join(tmpRoot, 'renew');
     const password = 'Holdout-Test-Pw!';
+    const email = 'g712-holdout-test@example.com';
     const facade = await startStubFacade({ model: scriptedModel(cases), sessionExpiresAfterCalls: 2, frameExpiresAfterCalls: 2 });
-    const session = await createServerSession({ serverUrl: facade.url, password });
+    const session = await createServerSession({ serverUrl: facade.url, email, password });
     const lines = [];
     try {
       const files = await runHoldout({
@@ -1034,8 +1057,8 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
       const retried = doc.asks.flatMap((a) => a.calls).filter((c) => c.renewed);
       assert.ok(retried.length >= 1);
       assert.ok(retried.every((c) => c.status === 200 && Number.isFinite(c.clientMs)));
-      // The test user's credentials never reach the run file or a log line.
-      for (const secret of [password, 'stub-access-', 'stub-refresh-', 'uniwork_refresh']) {
+      // The test user's credentials (the email address too) never reach the run file or a log line.
+      for (const secret of [email, password, 'stub-access-', 'stub-refresh-', 'uniwork_refresh']) {
         assert.equal(text.includes(secret), false, `the run file carries ${secret}`);
         assert.ok(lines.every((line) => !line.includes(secret)), `a log line carries ${secret}`);
       }
@@ -1106,6 +1129,32 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
       const plainOverhead = plain.wallMs - modelSum(plain);
       assert.ok(cleanOverhead - plainOverhead < renewing.renewalMs, `server overhead (wall − model sum) reads at the level of an ask that never renewed: ${cleanOverhead} vs ${plainOverhead}`);
       assert.deepEqual([plain.renewalMs, plain.wallMsNoRenewals], [0, plain.wallMs], 'an ask that renewed nothing keeps its wall');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('redacts the test user\'s address when a renewal failure text carries it: run file and log lines stay clean (G712-62)', async () => {
+    const dir = path.join(tmpRoot, 'renew-email');
+    const email = 'g712-holdout-test@example.com';
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i === 0 ? { status: 401 } : null) } });
+    const session = await createServerSession({ serverUrl: facade.url, email });
+    // A renewal that fails the way a server body could echo the address back: the error text names it.
+    const failing = { ...session, mount: (fixtureId, o) => (o?.fresh ? Promise.reject(new Error(`session renewal via login failed: 401 ${email} is not allowed`)) : session.mount(fixtureId, o)) };
+    const lines = [];
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session: failing, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-renew-email', opts: { sleep: noSleep }, log: (line) => lines.push(line),
+      });
+      const text = fs.readFileSync(files[0], 'utf8');
+      const doc = JSON.parse(text);
+      assert.equal(doc.status, 'completed', 'the failed renewal is one error ask, not a dead run');
+      const errored = doc.asks.filter((a) => a.errored);
+      assert.equal(errored.length, 1);
+      assert.match(errored[0].error, /session renewal via login failed: 401 \[redacted:email\] is not allowed/);
+      assert.equal(text.includes(email), false, 'the run file carries no address');
+      assert.ok(lines.every((line) => !line.includes(email)), 'no log line carries the address');
     } finally {
       await facade.close();
     }

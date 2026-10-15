@@ -167,9 +167,10 @@ Runner **đọc ca lúc chạy** từ `cases/`; không câu hỏi, đáp án hay
 model có thể lặp lại giá trị tham chiếu, file kết quả mặc định nằm **ngoài repo** (`~/office-g5g6g7/reports/g6-ai_server/g712-runs/`);
 runner từ chối `--out` trong repo (kể cả khi đi qua symlink; báo cáo cũng vậy), và **che** (`[redacted:<loại>]`) mọi giá trị trông
 như bí mật ngay trong từng lượt hỏi thay vì bỏ cả lần chạy: lần chạy vẫn được ghi và đếm, nhưng bị đánh dấu `redactions` và
-không thể là kết luận đạt. Ngoại lệ: loại `base64_run` / `hex_run` (chuỗi dài trông như mã hóa, có thể chỉ là một định danh dài) vẫn được
-liệt kê trong `redactions` để người đọc xem, nhưng không làm mất hiệu lực lần chạy; các loại khoá, token, userinfo, host:port, IPv4
-vẫn làm mất hiệu lực. Đường dẫn và định danh CamelCase không bị coi là bí mật; số có dấu chấm một chữ số đầu (`2.100.100.100`) chỉ được giữ
+không thể là kết luận đạt. Ngoại lệ: loại `base64_run` / `hex_run` (chuỗi dài trông như mã hóa, có thể chỉ là một định danh dài) và loại
+`email` (địa chỉ trong câu trả lời có thể là nội dung hợp lệ) vẫn được liệt kê trong `redactions` để người đọc xem, nhưng không làm mất
+hiệu lực lần chạy; các loại khoá, token, userinfo, host:port, IPv4 vẫn làm mất hiệu lực. Địa chỉ mà **bộ ca mang sẵn** (đọc lúc chạy) là ngoại lệ theo đúng chuỗi đó, không theo mẫu rộng: một địa chỉ
+khác trong cùng câu trả lời vẫn bị che (G712-62). Đường dẫn và định danh CamelCase không bị coi là bí mật; số có dấu chấm một chữ số đầu (`2.100.100.100`) chỉ được giữ
 khi đứng cạnh dấu hiệu tiền tệ (`đồng`, `VNĐ`, `₫`) hoặc sau chữ "số" — đứng một mình, làm host của URL không cổng, hay đứng trước cổng thì bị che và đánh dấu (G712-40). Một lần gọi runner ghi **một thư mục phiên** `<out>/<sessionId>/` gồm `run-NN.json` và `manifest.json`
 (mã phiên, hash bộ ca, sha256 của từng file run); báo cáo chỉ tính đúng các lần chạy mà manifest liệt kê.
 
@@ -266,7 +267,7 @@ backend giả lập, đường façade, bộ công cụ từng module và nguồ
 và release tuple, tải (lượt gọi, 429/5xx, thử lại, token và tỷ lệ lượt gọi có dòng `ai_usage_events`), mọi chỉ số §9.2 với
 **min / trung vị / max** trên các lần chạy, theo nhóm (XLSX 40, DOCX 20, định dạng khác 20, cross 20) và theo định dạng, độ
 trễ p50/p95 mỗi lần và gộp, ca không ổn định (khớp ở lần này, lệch ở lần khác), số lượt hỏi có **giá trị bị che** theo từng lần chạy kèm loại đã che
-(loại `base64_run`/`hex_run` không làm mất hiệu lực lần chạy, G712-42), ca **chờ người duyệt** (ca `rubric` và ca có
+(loại `base64_run`/`hex_run`/`email` không làm mất hiệu lực lần chạy, G712-42, G712-62), ca **chờ người duyệt** (ca `rubric` và ca có
 `caveat`: scorer không bao giờ tự xác nhận), và giới hạn của adapter.
 
 Hai hàng "ghi áp lên bản cũ" và "ghi trái phép" của viewer/thu hồi quyền ghi rõ **mô phỏng, bằng 0 theo cấu trúc** (backend từ

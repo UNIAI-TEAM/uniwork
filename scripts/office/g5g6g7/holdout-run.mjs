@@ -107,6 +107,10 @@ const IPV4_RE = /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d
 const HOST_PORT_URL_RE = /\bhttps?:\/\/[^\s"'<>]+:\d+\b/gi;
 // A URL with credentials before the host (scheme://user:pass@host, scheme://token@host).
 const USERINFO_URL_RE = /\b[a-z][a-z0-9+.-]{1,15}:\/\/[^\s/@"'<>]+@[^\s"'<>]+/gi;
+// An email address (G712-62): the test user's own address is a credential like the password, but an address the case set
+// or a fixture legitimately carries is content - the caller exempts exactly those strings (see fixtureEmails), never a
+// pattern like a whole domain.
+const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}\b/g;
 // Provider-style keys (sk-, ak-, xai-, AIza, AKIA, ghp_/gho_/ghs_, github_pat_, sk_live_/pk_live_, xox*-) and a bearer token of any case.
 const KEY_RE = /\b(?:(?:sk|ak|xai|rk|pk)-[A-Za-z0-9_-]{8,}|(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{8,}|AIza[0-9A-Za-z_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|bearer\s+[A-Za-z0-9._~+/=-]{16,})\b/gi;
 const JWT_RE = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g;
@@ -144,14 +148,24 @@ function looksEncoded(run) {
   return upper > 0 && lower > 0 && digits >= 2 && upper / n >= 0.2 && lower / n <= 0.65;
 }
 
-/** Redacts secret-looking values in a string; returns the clean text and what was found, as [{ kind, count }]. */
-export function redactSecrets(text) {
+/**
+ * Redacts secret-looking values in a string; returns the clean text and what was found, as [{ kind, count }].
+ * `exemptEmails` (a Set of exact addresses) is the G712-62 escape for content: an address the holdout cases or their
+ * fixtures really carry is legitimate data and is kept, while any other address is redacted as the soft kind `email`.
+ * The exemption is the exact string, never a pattern, so a credential-shaped address of another domain still goes.
+ */
+export function redactSecrets(text, { exemptEmails = null } = {}) {
   const found = new Map();
   const note = (kind) => found.set(kind, (found.get(kind) ?? 0) + 1);
   const swap = (re, kind) => { out = out.replace(re, () => { note(kind); return `[redacted:${kind}]`; }); };
   let out = String(text);
   swap(USERINFO_URL_RE, 'userinfo_url');
   swap(HOST_PORT_URL_RE, 'host_port_url');
+  out = out.replace(EMAIL_RE, (match) => {
+    if (exemptEmails?.has(match)) return match;
+    note('email');
+    return '[redacted:email]';
+  });
   swap(PRIVATE_HOST_RE, 'private_host');
   swap(IPV6_RE, 'ipv6');
   out = out.replace(IPV4_RE, (match, offset, whole) => {
@@ -178,11 +192,11 @@ export function redactSecrets(text) {
 }
 
 /** Redacts every string value of a JSON-shaped value (keys are the harness's own); returns { value, hits }. */
-export function redactDeep(value) {
+export function redactDeep(value, options = {}) {
   const hits = [];
   const walk = (node) => {
     if (typeof node === 'string') {
-      const r = redactSecrets(node);
+      const r = redactSecrets(node, options);
       hits.push(...r.hits);
       return r.text;
     }
@@ -194,6 +208,18 @@ export function redactDeep(value) {
   const merged = new Map();
   for (const h of hits) merged.set(h.kind, (merged.get(h.kind) ?? 0) + h.count);
   return { value: clean, hits: [...merged].map(([kind, count]) => ({ kind, count })) };
+}
+
+/**
+ * The email-shaped values the holdout cases really carry, read at runtime from the case data the run loads (G712-62).
+ * An address that comes with a case or a fixture is legitimate content - a contact in a document, the subject of a
+ * question - so the redactor keeps exactly these strings and flags any other address. A case set without one gives an
+ * empty set, and nothing is exempt.
+ */
+export function fixtureEmails(cases) {
+  const found = new Set();
+  for (const match of JSON.stringify(cases).matchAll(EMAIL_RE)) found.add(match[0]);
+  return found;
 }
 
 
@@ -411,11 +437,11 @@ export async function runPool(asks, threads, worker) {
 async function askSafely({ caseDoc, lang, ...rest }) {
   try {
     const record = await askOne({ caseDoc, lang, ...rest });
-    const clean = redactDeep(record);
+    const clean = redactDeep(record, { exemptEmails: rest.opts?.exemptEmails });
     return { ...clean.value, redactions: clean.hits };
   } catch (err) {
     if (err instanceof HarnessAbort) throw err;
-    const message = redactSecrets(`harness exception: ${String(err?.message ?? err).slice(0, 160)}`).text;
+    const message = redactSecrets(`harness exception: ${String(err?.message ?? err).slice(0, 160)}`, { exemptEmails: rest.opts?.exemptEmails ?? null }).text;
     const scored = score(caseDoc, null);
     return {
       id: caseDoc.id, lang, format: caseDoc.format, group: groupOf(caseDoc), modules: modulesOfCase(caseDoc), category: caseDoc.category, oracleType: caseDoc.oracle.type,
@@ -519,6 +545,9 @@ export async function runHoldout({
   onlyIds = null, limit = 0, opts = {}, log = () => {}, now = () => new Date(), sessionId = newSessionId(now()),
 }) {
   const options = { maxRetries: 3, retryWaitCapMs: 10000, numbers: 'strict', anchors: 'strict', computeByReply: true, ...opts };
+  // G712-62: an address the case set itself carries (read here, at runtime) is content and is kept; every other
+  // address in an ask is a credential-shaped value and is redacted and listed as the soft kind `email`.
+  options.exemptEmails ??= fixtureEmails(cases);
   const catalogue = options.catalogue ?? toolCatalogue(options.toolSchemas ?? null);
   const surface = toolSurface(catalogue, { fileSha256: options.toolSchemasSha256 ?? null });
   const partial = Boolean(onlyIds) || limit > 0;
@@ -544,7 +573,7 @@ export async function runHoldout({
       asks = await runPool(asksPlan, threads, ({ caseDoc, lang }) => askSafely({ caseDoc, lang, transport, session, catalogue, opts: options }));
     } catch (err) {
       status = 'aborted';
-      reason = redactSecrets(String(err?.message ?? err)).text;
+      reason = redactSecrets(String(err?.message ?? err), { exemptEmails: options.exemptEmails }).text;
       asks = err.results ?? [];
     }
     asks = asks.filter(Boolean);
@@ -647,8 +676,8 @@ export function refreshCookieOf(header) {
 
 /**
  * One test user, one organization, one workspace; every fixture is uploaded once and its frame token minted on demand.
- * The credentials (password, refresh cookie, access token) live in this closure only: they are never written to an ask
- * record, a log line or a run file. A session-token request renews the session the way the web app does - POST
+ * The credentials (email address, password, refresh cookie, access token) live in this closure only: they are never
+ * written to an ask record, a log line or a run file. A session-token request renews the session the way the web app does - POST
  * /api/v1/auth/refresh when the sign-in's refresh cookie is held, else POST /api/v1/auth/login - before use when the
  * access token is older than SESSION_RENEW_AFTER_MS and once more when the answer is a 401 of class session; a second
  * 401 stays the caller's failure, as before. A fresh mount mints a new frame token for the SAME document and re-uploads
@@ -656,11 +685,11 @@ export function refreshCookieOf(header) {
  * whether this call minted the frame token itself (`minted`), so two asks sharing one renewal count it once (G712-60).
  */
 export async function createServerSession({
-  serverUrl, dbUrl, sql = execPsql, fixturesRel = FIXTURES_REL, password = `Holdout-${Date.now()}-Pw!`,
-  nowMs = Date.now, sessionRenewAfterMs = SESSION_RENEW_AFTER_MS,
+  serverUrl, dbUrl, sql = execPsql, fixturesRel = FIXTURES_REL, email = `g712-holdout-${Date.now()}@example.com`,
+  password = `Holdout-${Date.now()}-Pw!`, nowMs = Date.now, sessionRenewAfterMs = SESSION_RENEW_AFTER_MS,
 }) {
   const stamp = Date.now();
-  const credentials = { email: `g712-holdout-${stamp}@example.com`, password, cookie: null };
+  const credentials = { email, password, cookie: null };
   const session = { token: '', userId: '', orgId: '', wsId: '' };
   let issuedAtMs = nowMs();
   let renewal = null;

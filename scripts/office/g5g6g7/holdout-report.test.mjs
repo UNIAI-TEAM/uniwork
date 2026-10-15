@@ -555,6 +555,15 @@ describe('measurement conditions (G712-3, G712-5, G712-8, G712-9)', () => {
     inconclusive([run(1, key, { redactions: [{ ask: 'HO-B-001/vi', kinds: keyKinds }] }), run(2, bigSuite()), run(3, bigSuite())], /redacted in run\(s\) 1; a flagged run cannot count as a pass/);
   });
 
+  it('keeps the verdict when only an email was listed as redacted (G712-62)', () => {
+    const kinds = [{ kind: 'email', count: 1 }];
+    const soft = bigSuite((a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, redactions: kinds } : a));
+    const runs = [run(1, soft, { redactions: [{ ask: 'HO-B-001/vi', kinds }] }), run(2, bigSuite()), run(3, bigSuite())];
+    assert.equal(judge(runs).status, 'PASS', 'an address a reply quotes is a soft kind: it voids no run');
+    assert.equal(summarizeRun(runs[0]).redactedAsks, 1, 'the hit stays listed in the run');
+    assert.match(renderReport(buildReport(runs)), /Che bí mật: 1 lượt hỏi có giá trị bị che \(loại: email\)/, 'and report.md names it as soft');
+  });
+
   it('counts token renewals per run, and a renewed run keeps its verdict (G7-12 pilot blocker)', () => {
     const renewed = (a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, renewals: [{ kind: 'session', ms: 3 }, { kind: 'frame', ms: 5 }] } : a);
     const runs = [run(1, bigSuite(renewed)), run(2, bigSuite()), run(3, bigSuite())];
