@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo; echo "INSTALL_EXIT=$rc"
+9702bdf16b059d80e0c601f2024b3c15b6b30e54
+9702bdf16 fix(office): run the holdout tests on win32 paths and without symlink rights (G712-W1)
+5bad60640 test(office): cover the mint-404 re-upload branch of the frame renewal (G712-63)
+edb53a5e4 fix(office): redact an email softly and scan the test user's address (G712-62)
+e7d61a471 fix(office): take the renewal time out of the wall used for server overhead (G712-61)
+a20e5086b fix(office): count a frame renewal once per token minted (G712-60)
+2a738ede8 docs(office): say how the holdout runner survives the token windows
+
+INSTALL_EXIT=0
