@@ -52,9 +52,11 @@ export function frameCommentsLevel({
   myLevel: string | null | undefined;
   readonly: boolean;
   canEdit: boolean | undefined;
-}): DocumentAccessLevel {
+}): Exclude<DocumentAccessLevel, "comment"> {
   if (readonly) return "view";
   const known = DOCUMENT_ACCESS_LEVELS.find((level) => level === myLevel);
+  // TEMPORARY (UNI-1413 card (a)): the frame is read-only for comment-level users until card (b) adds 'comment' to CommentsLevel; never grants more.
+  if (known === "comment") return "view";
   if (known) return known;
   return canEdit === true ? "edit" : "view";
 }
