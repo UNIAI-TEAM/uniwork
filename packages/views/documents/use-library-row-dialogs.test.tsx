@@ -146,7 +146,7 @@ describe("move", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("allows picking Documents (gốc) root when moving an item out of a folder and toasts the root destination", async () => {
+  it("allows picking Tài liệu (gốc) root when moving an item out of a folder and toasts the root destination", async () => {
     const nestedDoc = { ...doc, parent_id: "fa" } as unknown as DocumentSummaryRow;
     requestMock.mockImplementation((_path: string, opts?: { method?: string }) => {
       if (opts?.method === "POST") {
@@ -167,7 +167,7 @@ describe("move", () => {
     fireEvent.click(currentFolder);
     expect(currentFolder).toHaveAttribute("aria-selected", "false");
 
-    // Documents (gốc) root is enabled and pickable
+    // Tài liệu (gốc) root is enabled and pickable
     const rootItem = within(dialog).getByRole("treeitem", { name: t("documents.home.move.root") });
     expect(rootItem).not.toHaveAttribute("aria-disabled");
     fireEvent.click(rootItem);

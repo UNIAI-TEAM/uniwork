@@ -65,4 +65,19 @@ describe("vi/en parity", () => {
   it("không có chuỗi tiếng Anh nào bị bỏ trống", () => {
     expect(Object.entries(EN).filter(([, v]) => v.trim() === "").map(([k]) => k)).toEqual([]);
   });
+
+  it("thư viện Documents dùng \"Tài liệu\" trong tiếng Việt, không để nguyên \"Documents\" (UNI-1469 V-F1)", () => {
+    const keys = {
+      "documents.home.folders.create_title_root": "Thư mục mới ở Tài liệu (gốc)",
+      "documents.home.move.root": "Tài liệu (gốc)",
+      "documents.home.folder_invalid.back": "Về Tài liệu (gốc)",
+      "documents.home.search.label": "Tìm trong Tài liệu",
+      "documents.home.search.path_root": "Tài liệu (gốc)",
+    };
+    expect(Object.fromEntries(Object.keys(keys).map((k) => [k, VI[k]]))).toEqual(keys);
+    const leftover = Object.entries(VI)
+      .filter(([k, v]) => k.startsWith("documents.") && /\bDocuments\b/.test(v))
+      .map(([k]) => k);
+    expect(leftover).toEqual([]);
+  });
 });

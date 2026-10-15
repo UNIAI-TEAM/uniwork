@@ -150,6 +150,10 @@ export function DocumentArchiveDialog({
 
   const impactLoading = impact.isPending || impact.isFetching;
   const tooLarge = isArchive && folder && !impactLoading && !impact.isError && impact.data?.too_large === true;
+  const impactCls = impact.isError ? classifyDocumentError(impact.error).cls : null;
+  // 403/404 on the impact read: nothing the user can retry, so no (dim, disabled) confirm button either.
+  const impactRefused =
+    isArchive && folder && !impactLoading && (impactCls === "permission" || impactCls === "missing");
 
   const folderImpactBody = (() => {
     if (!isArchive || !folder) return null;
@@ -281,7 +285,7 @@ export function DocumentArchiveDialog({
         ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>{t("common.cancel")}</AlertDialogCancel>
-          {!tooLarge ? (
+          {!tooLarge && !impactRefused ? (
             <Button
               type="button"
               variant={isArchive ? "destructive" : "default"}
