@@ -46,7 +46,10 @@ describe("ChatCreatePostDialog", () => {
     fireEvent.submit(title.closest("form")!);
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ post: { title: "Release 1.4", body: "Chi tiết", pin_to_top: false } }),
+        expect.objectContaining({
+          client_msg_id: expect.stringMatching(/\S/),
+          post: { title: "Release 1.4", body: "Chi tiết", pin_to_top: false },
+        }),
       ),
     );
   });

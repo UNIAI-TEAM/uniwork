@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSendChatRoomMessage } from "@uniwork/core/chat";
+import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import { canSubmitNote, NOTE_BODY_MAX_LENGTH } from "@uniwork/core/chat/note-utils";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Label } from "@uniwork/ui/components/ui/label";
@@ -52,6 +53,7 @@ export function ChatCreateNoteDialog({
     void sendMessage
       .mutateAsync({
         roomId,
+        client_msg_id: newChatClientMsgId(),
         note: {
           body: body.trim(),
           pin_to_top: pinToTop && canPinToTop,
