@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1380-g7-03a-fixtures; git log --oneline -3
+c321a7462fc8fe5469dfe64a6817f74972b84a6f
+c321a7462fc8fe5469dfe64a6817f74972b84a6f
+c321a746 chore(sync): merge fork main ea981e10a (G5-12, G6-09c) into the G7-03a fixtures
+ea981e10 merge: G6-09c docs AI skill enforces Word protection (74c680866) into fork main (UNI-1374)
+12ccb8f0 test(sync): G7-03a test-hook queue overrides are inert without the env (Advisor qa-fault_local:35)
