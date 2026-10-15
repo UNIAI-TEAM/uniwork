@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; echo "INSTALL_EXIT=$?"
+5558c8b60b28b861188a86dfec8d5e43c2e27ec8
+5558c8b60 docs(office): how to run the holdout eval and what "chua co nguong" means
+858750692 test(office): holdout runner and report against a stub facade, deterministic
+306c87849 feat(office): holdout report with distributions and no verdict without a signed threshold file
+c1dea4fbe feat(office): holdout runner serves multi-document cases and a case-agnostic answer line
+9cb10ecd4 feat(office): holdout eval runner for G7-12 (runner, fixture backend, answer adapter)
+0edcd2a6e docs(office): add threat T18, another UniWork account on the same OS user (G5-11 D1)
+INSTALL_EXIT=0

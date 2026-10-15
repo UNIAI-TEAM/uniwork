@@ -1,0 +1,42 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/*.test.mjs scripts/office/g5g6g7/*.test.mjs 2>&1 | tail -40; echo "OFFICE_SCRIPTS_EXIT=${PIPESTATUS[0]}"
+# Subtest: the Go and TypeScript contract identities are the same pin
+ok 121 - the Go and TypeScript contract identities are the same pin
+  ---
+  duration_ms: 0.557906
+  ...
+# Subtest: the evidence doc records the same pin it was produced against
+ok 122 - the evidence doc records the same pin it was produced against
+  ---
+  duration_ms: 0.189116
+  ...
+# Subtest: every in-scope format row names a fixture the manifest knows
+ok 123 - every in-scope format row names a fixture the manifest knows
+  ---
+  duration_ms: 0.968996
+  ...
+# Subtest: the upgrade-replay manifest replays every format on the pinned build
+ok 124 - the upgrade-replay manifest replays every format on the pinned build
+  ---
+  duration_ms: 1.110794
+  ...
+# Subtest: the evidence doc leaves no in-scope format claim without a test
+ok 125 - the evidence doc leaves no in-scope format claim without a test
+  ---
+  duration_ms: 0.245107
+  ...
+# Subtest: the real engine container advertises the pin and the honesty rule
+ok 126 - the real engine container advertises the pin and the honesty rule
+  ---
+  duration_ms: 0.215577
+  ...
+# not_run: OFFICE_ENGINE_TEST_URL is not set, the container rows were not exercised
+1..126
+# tests 181
+# suites 16
+# pass 181
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3266.159438
+OFFICE_SCRIPTS_EXIT=0

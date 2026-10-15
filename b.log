@@ -1,0 +1,42 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/g5g6g7/holdout-run.test.mjs scripts/office/g5g6g7/holdout-report.test.mjs scripts/office/g5g6g7/holdout.test.mjs 2>&1 | tail -40; echo "HOLDOUT_EXIT=${PIPESTATUS[0]}"
+  ...
+# Subtest: quality bar: each category carries the assertion the spec demands
+ok 41 - quality bar: each category carries the assertion the spec demands
+  ---
+  duration_ms: 0.537139
+  ...
+# Subtest: setup is accepted and validated: overlay, history, selection, serverVersionAhead, activeSheet, revokeAfterTool
+ok 42 - setup is accepted and validated: overlay, history, selection, serverVersionAhead, activeSheet, revokeAfterTool
+  ---
+  duration_ms: 0.432507
+  ...
+# Subtest: case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)
+ok 43 - case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)
+  ---
+  duration_ms: 1060.228005
+  ...
+# Subtest: the leak scan finds an injection payload and a marker outside the holdout dir, binary included (R1-6)
+ok 44 - the leak scan finds an injection payload and a marker outside the holdout dir, binary included (R1-6)
+  ---
+  duration_ms: 55.88003
+  ...
+# Subtest: the leak scan keeps money-scale numbers and finds one planted outside the holdout dir, text and binary (R2-2)
+ok 45 - the leak scan keeps money-scale numbers and finds one planted outside the holdout dir, text and binary (R2-2)
+  ---
+  duration_ms: 44.747389
+  ...
+# Subtest: loadCases reads the directory and refuses a foreign document
+ok 46 - loadCases reads the directory and refuses a foreign document
+  ---
+  duration_ms: 2.265223
+  ...
+1..46
+# tests 94
+# suites 14
+# pass 94
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2788.462358
+HOLDOUT_EXIT=0
