@@ -23,6 +23,7 @@ import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { EditLockHolderChip } from "./edit-lock-holder-chip";
+import { libraryCell, type LibraryLadder } from "./library-columns";
 import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkLabelKey } from "./source-links";
 import {
@@ -91,11 +92,14 @@ export function LibraryRowView({
   row,
   handlers,
   archived,
+  ladder,
   typeCell,
 }: {
   row: LibraryRow;
   handlers: LibraryRowHandlers;
   archived: boolean;
+  /** The column ladder the list's header and colgroup were built from (library-columns.ts). */
+  ladder: LibraryLadder;
   typeCell?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
@@ -224,12 +228,12 @@ export function LibraryRowView({
           ) : null}
           {doc?.edit_lock ? <EditLockHolderChip name={doc.edit_lock.holder_name} avatarUrl={doc.edit_lock.holder_avatar_url} /> : null}
         </span>
-        {/* Below `xl` the My access / Visibility columns are hidden, so the level and the restricted mark ride on this line; below `md` it also carries editor, date and size. */}
+        {/* The editor · date · size part rides on this line until its columns join the table; the level and the restricted mark until My access / Visibility do (library-columns.ts). Only the meta part truncates: the mark keeps its width inside the Name cell. */}
         {metaLine || accessKey || restricted ? (
-          <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground xl:hidden">
-            {metaLine ? <span className="truncate md:hidden">{metaLine}</span> : null}
+          <span data-library-access-line className={cn("flex min-w-0 items-center gap-1.5 overflow-hidden text-caption text-muted-foreground", ladder.accessLineHides)}>
+            {metaLine ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{metaLine}</span> : null}
             {metaLine && (accessKey || restricted) ? (
-              <span aria-hidden className="shrink-0 md:hidden">·</span>
+              <span aria-hidden className={cn("shrink-0", ladder.metaHides)}>·</span>
             ) : null}
             {accessKey ? <span className="shrink-0">{t(accessKey)}</span> : null}
             {accessKey && restricted ? <span aria-hidden className="shrink-0">·</span> : null}
@@ -262,18 +266,18 @@ export function LibraryRowView({
           )}
         </td>
         {typeCell !== undefined ? (
-          <td className="hidden px-3 py-2 text-caption text-muted-foreground md:table-cell">{typeCell}</td>
+          <td className={cn("truncate px-3 py-2 text-caption text-muted-foreground", libraryCell(ladder, "type"))}>{typeCell}</td>
         ) : null}
-        <td className="hidden px-3 py-2 md:table-cell">
+        <td className={cn("px-3 py-2", libraryCell(ladder, "source"))}>
           <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
-            <span aria-hidden className={cn("size-1.5 rounded-full", origin === "created" || origin === "documents" ? "bg-primary" : "bg-muted-foreground")} />
-            {t(`documents.home.origin.${origin}`)}
+            <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", origin === "created" || origin === "documents" ? "bg-primary" : "bg-muted-foreground")} />
+            <span className="truncate">{t(`documents.home.origin.${origin}`)}</span>
           </span>
         </td>
-        <td className="hidden px-3 py-2 md:table-cell">
+        <td className={cn("px-3 py-2", libraryCell(ladder, "editor"))}>
           {editor ? (
             <span className="flex items-center gap-2 text-body text-foreground">
-              <span aria-hidden className="flex size-5 items-center justify-center rounded-full bg-muted text-caption text-muted-foreground">
+              <span aria-hidden className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-caption text-muted-foreground">
                 {initial(editor)}
               </span>
               <span className="truncate">{editor}</span>
@@ -282,27 +286,31 @@ export function LibraryRowView({
             <span className="text-muted-foreground">—</span>
           )}
         </td>
-        <td className="hidden px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground md:table-cell">{updated || "—"}</td>
-        <td className="hidden px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground md:table-cell">{size || "—"}</td>
-        {/* Wide screens only (xl): below it the fixed columns leave Name too little room, and the secondary line carries this. */}
-        <td className="hidden px-3 py-2 text-caption text-foreground xl:table-cell">
-          {accessKey ? <span className="block truncate">{t(accessKey)}</span> : <span className="text-muted-foreground">—</span>}
-        </td>
-        <td className="hidden px-3 py-2 text-caption xl:table-cell">
-          {visibilityKey ? (
-            <span className="flex items-center gap-1.5 text-foreground">
-              {restricted ? <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
-              <span className="truncate">{t(visibilityKey)}</span>
-            </span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </td>
+        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "updated"))}>{updated || "—"}</td>
+        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "size"))}>{size || "—"}</td>
+        {/* My access / Visibility exist only where the ladder has room for them; until then the secondary line carries them. */}
+        {libraryCell(ladder, "access") ? (
+          <td className={cn("px-3 py-2 text-caption text-foreground", libraryCell(ladder, "access"))}>
+            {accessKey ? <span className="block truncate">{t(accessKey)}</span> : <span className="text-muted-foreground">—</span>}
+          </td>
+        ) : null}
+        {libraryCell(ladder, "visibility") ? (
+          <td className={cn("px-3 py-2 text-caption", libraryCell(ladder, "visibility"))}>
+            {visibilityKey ? (
+              <span className="flex items-center gap-1.5 text-foreground">
+                {restricted ? <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+                <span className="truncate">{t(visibilityKey)}</span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </td>
+        ) : null}
         <td className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
             {quick ? (
-              // Below `md` the app command lives in the ⋯ menu so the name keeps the row.
-              <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100 max-md:hidden">
+              // Until the actions column widens (first ladder rung) the app command lives in the ⋯ menu so the name keeps the row.
+              <div className={cn("opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100", ladder.quick)}>
                 {quick}
               </div>
             ) : null}

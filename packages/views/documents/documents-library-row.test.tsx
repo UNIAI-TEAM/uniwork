@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
+import { libraryLadder } from "./library-columns";
 import { documentRow, type DocumentSummaryRow } from "./library-rows";
 
 // UNI-1645 (addendum §11.4): a row whose document someone is editing shows the holder's avatar.
@@ -44,7 +45,7 @@ function renderRow(doc: DocumentSummaryRow) {
   return render(
     <table>
       <tbody>
-        <LibraryRowView row={documentRow(doc)} handlers={handlers} archived={false} />
+        <LibraryRowView row={documentRow(doc)} handlers={handlers} archived={false} ladder={libraryLadder(false)} />
       </tbody>
     </table>,
   );

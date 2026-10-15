@@ -110,6 +110,11 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 			res, err = replayWithAccess(replay.Body, lockedAccess)
 			return err
 		}
+		// Same create seat as the same-format copy (document_copy.go),
+		// checked in the transaction.
+		if err := s.requireCopySeat(ctx, q, locked.WorkspaceID, actor.ID); err != nil {
+			return err
+		}
 		if locked.FileVersionID.String != job.BaseVersionID {
 			return errDocumentVersionConflict(locked.Revision)
 		}

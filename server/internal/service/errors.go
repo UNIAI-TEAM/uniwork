@@ -56,6 +56,18 @@ func errMemberDeactivated() error {
 	return CodedError{Code: "member_deactivated", Status: http.StatusForbidden, Msg: "tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này", Err: ErrMemberDeactivated}
 }
 
+// ErrWorkspaceSeatRequired is what the copy command answers a caller who may
+// edit the source (a share, a link) but holds no seat in the source's
+// workspace (BE-12-201). It is separate from ErrForbidden on purpose: the
+// desktop client tells "you are not a member of this workspace" (ask for a
+// seat) from "you may not edit the destination folder" (pick another), and
+// RequireMember itself stays a plain ErrForbidden for every other caller.
+var ErrWorkspaceSeatRequired = errors.New("workspace_seat_required")
+
+func errWorkspaceSeatRequired() error {
+	return CodedError{Code: "workspace_seat_required", Status: http.StatusForbidden, Msg: "bạn cần là thành viên của không gian làm việc này để tạo bản sao ở đó", Err: ErrWorkspaceSeatRequired}
+}
+
 // ErrOrganizationDeletionScheduled is what both membership gates answer for a
 // member of an organization whose deletion is waiting out its five days. The
 // owner still passes, so they can download files and cancel.

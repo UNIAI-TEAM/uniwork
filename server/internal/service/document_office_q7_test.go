@@ -273,6 +273,47 @@ func TestDocumentOfficeQ7(t *testing.T) {
 			}
 		})
 
+		// BE-12-201: the accept is a create in the source's workspace too. A
+		// share editor who started the job but holds no seat there is told so by
+		// code, and the completed job stays unspent.
+		t.Run("accept by a share editor without a workspace seat answers workspace_seat_required", func(t *testing.T) {
+			src := env.createFile(t, member, "seat.xls", xls)
+			if _, err := env.f.pool.Exec(ctx,
+				`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`,
+				src.Document.ID, env.tn.member.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.svc.ShareDocument(ctx, member, src.Document.ID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID, Level: DocumentLevelEdit,
+			}); err != nil {
+				t.Fatalf("share: %v", err)
+			}
+			shareEditor := human(env.tn.outsider)
+			eng := convertOnly()
+			jobs := newJobs(eng)
+			row, err := jobs.StartOfficeJobForDocument(ctx, shareEditor, src.Document.ID, OfficeJobRequest{
+				Operation: string(office.OperationConvert), TargetFormat: string(office.FormatXLSX), IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "start convert")
+			eng.finishConvert(t, row.ID, converted, q7Result("xls", "xlsx"))
+			before := q7DocCount(t, env)
+			_, err = env.svc.CopyDocument(ctx, shareEditor, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", JobID: row.ID, IdempotencyKey: util.NewID(),
+			})
+			if !errors.Is(err, ErrWorkspaceSeatRequired) {
+				t.Fatalf("accept without a seat = %v, want ErrWorkspaceSeatRequired", err)
+			}
+			if ce := wantCode(t, err, "workspace_seat_required"); ce.Status != 403 {
+				t.Fatalf("seat refusal = %+v", ce)
+			}
+			if q7DocCount(t, env) != before {
+				t.Fatal("a refused accept created a document")
+			}
+			if got := env.job(t, row.ID); got.CommittedVersionID.Valid {
+				t.Fatal("a refused accept claimed the job")
+			}
+		})
+
 		t.Run("a job that is not a conversion is never accepted as one", func(t *testing.T) {
 			src := env.createFile(t, member, "export.pdf", pdfBody("q7-export"))
 			job := env.officeJob(t, member, env.doc(t, src.Document.ID), pdfBody("q7-out"), "completed")
