@@ -256,7 +256,7 @@ test("a manager takes over: A turns read-only and downloads the unsaved text", a
   await banner.getByRole("button", { name: "Lấy quyền sửa" }).click();
   const confirm = m.page.getByRole("alertdialog", { name: `Lấy quyền sửa từ ${nameA}?` });
   await expect(confirm).toBeVisible({ timeout: 30_000 });
-  await confirm.getByRole("button", { name: "Lấy quyền sửa" }).click();
+  await confirm.getByRole("button", { name: "Vẫn lấy quyền sửa" }).click();
   await expect(confirm).toBeHidden({ timeout: 30_000 });
   await expectEditable(m.page, 30_000);
 

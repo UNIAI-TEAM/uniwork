@@ -180,7 +180,7 @@ describe("DocumentWorkspace edit lock", () => {
     expect(editor).toHaveTextContent("Nội dung A");
     fireEvent.click(within(banner).getByRole("button", { name: "Lấy quyền sửa" }));
     const confirm = await screen.findByRole("alertdialog", { name: "Lấy quyền sửa từ An?" });
-    fireEvent.click(within(confirm).getByRole("button", { name: "Lấy quyền sửa" }));
+    fireEvent.click(within(confirm).getByRole("button", { name: "Vẫn lấy quyền sửa" }));
     await waitFor(() => expect(refetch).toHaveBeenCalled());
     // Held, but not editable on the stale body while the reread is in flight.
     expect(editor).toHaveAttribute("contenteditable", "false");

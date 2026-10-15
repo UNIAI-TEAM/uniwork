@@ -29,7 +29,7 @@ describe("TakeOverDialog", () => {
 
   it("takes over with the R1 lock id it showed, then closes", async () => {
     const { props } = setup();
-    fireEvent.click(await screen.findByRole("button", { name: "Lấy quyền sửa" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Vẫn lấy quyền sửa" }));
     await waitFor(() => expect(props.onOpenChange).toHaveBeenCalledWith(false));
     expect(props.onConfirm).toHaveBeenCalledWith("L1");
   });
@@ -37,7 +37,7 @@ describe("TakeOverDialog", () => {
   it("keeps the shown id even when R1 changes under an open dialog (the server decides)", async () => {
     const { props, rerender } = setup();
     rerender({ lock: summary({ lock_id: "L2", holder_name: "Chi" }) });
-    fireEvent.click(await screen.findByRole("button", { name: "Lấy quyền sửa" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Vẫn lấy quyền sửa" }));
     await waitFor(() => expect(props.onConfirm).toHaveBeenCalledWith("L1"));
   });
 
@@ -46,22 +46,22 @@ describe("TakeOverDialog", () => {
       .mockRejectedValueOnce(new ApiError("changed", "edit_lock_changed", 409))
       .mockResolvedValueOnce(undefined);
     const { props, rerender } = setup({ onConfirm });
-    fireEvent.click(await screen.findByRole("button", { name: "Lấy quyền sửa" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Vẫn lấy quyền sửa" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Người đang sửa vừa thay đổi. Xem lại rồi thử lại.");
     expect(props.onReread).toHaveBeenCalled();
     expect(props.onOpenChange).not.toHaveBeenCalled();
     // Nothing to take over until the reread lands.
-    expect(screen.getByRole("button", { name: "Lấy quyền sửa" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Vẫn lấy quyền sửa" })).toBeDisabled();
     await act(async () => rerender({ onConfirm, lock: summary({ lock_id: "L2", holder_name: "Chi" }) }));
     expect(screen.getByRole("alertdialog", { name: "Lấy quyền sửa từ Chi?" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Lấy quyền sửa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Vẫn lấy quyền sửa" }));
     await waitFor(() => expect(onConfirm).toHaveBeenLastCalledWith("L2"));
     await waitFor(() => expect(props.onOpenChange).toHaveBeenCalledWith(false));
   });
 
   it("any other failure says it failed and stays open", async () => {
     const { props } = setup({ onConfirm: vi.fn(async () => { throw new ApiError("boom", "internal", 500); }) });
-    fireEvent.click(await screen.findByRole("button", { name: "Lấy quyền sửa" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Vẫn lấy quyền sửa" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Chưa lấy được quyền sửa. Thử lại.");
     expect(props.onReread).not.toHaveBeenCalled();
     expect(props.onOpenChange).not.toHaveBeenCalled();
@@ -69,6 +69,6 @@ describe("TakeOverDialog", () => {
 
   it("cannot take over without the lock id (an older server, or no holder)", async () => {
     setup({ lock: summary({ lock_id: undefined }) });
-    expect(await screen.findByRole("button", { name: "Lấy quyền sửa" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Vẫn lấy quyền sửa" })).toBeDisabled();
   });
 });

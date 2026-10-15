@@ -214,7 +214,7 @@ fails on drift. One flat namespace, keys nested by section:
 | path (breadcrumb / search result) | **đường dẫn** | Path | đường dẫn từ Documents tới cha trực tiếp |
 | editing (the document edit lock as a person sees it) | **quyền sửa** | Editing | `documents.editLock.*` (UNI-1645); never "khóa" in copy, which reads as locking or restricting the document |
 | editing (someone is, now) | **đang sửa** | Editing | `rowEditing` "đang sửa" / "editing", `bannerOther` "{{name}} đang sửa từ {{time}}" |
-| take over editing | **lấy quyền sửa** | Take over editing | manage level only, takes effect at once; the button and the confirm say the same words |
+| take over editing | **lấy quyền sửa** | Take over editing | manage level only, takes effect at once; the banner button says "Lấy quyền sửa", the confirm says "Vẫn lấy quyền sửa" so the two never read alike |
 | request to edit | **yêu cầu quyền sửa** | Request to edit | edit level; the holder answers "Lưu và nhường quyền" / "Từ chối" |
 | keep editing offline | **giữ quyền sửa khi offline** | Keep editing offline | desktop only; others read "{{name}} giữ quyền sửa offline đến {{time}}" |
 | offline (the app working without a network) | **offline** | offline | kept lowercase English inside Vietnamese, like workspace: "thư viện offline", "giữ quyền sửa offline"; **Ngoại tuyến** is only a person's presence (`presence_offline`), never the app's mode |

@@ -119,7 +119,7 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
 
   it("request declined or expired: 'A is still editing' + 'Ask again'", () => {
     const { region } = renderBanner({ session: session("other"), lockState: r1(), notReleased: true });
-    expect(region).toHaveTextContent("An chưa nhả quyền sửa.");
+    expect(region).toHaveTextContent("An vẫn đang sửa.");
     expect(screen.getByRole("button", { name: "Yêu cầu lại" })).toBeTruthy();
   });
 
