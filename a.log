@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+b9da169e8619f9f5a6b072434cae906536ce071a
+07ad36ec4c6875a5c666842c32bf7a5d85214012
+b9da169e8 test(documents): scan the access report files for unclassified error codes
+d13025e98 fix(documents): access report lists what the caller administers and shows break-glass grants (DOC-05)
+7cdf5c7ef chore: merge the G5-G7 root (07ad36ec4) into card (a) for the UNI-1643 access report
+07ad36ec4 chore: merge UNI-1643 document access report (9a36185df) into the G5-G7 root
+9a36185df chore: merge G5-G7 root 2950fce8d into the UNI-1643 access report
+8de80cbc9 Merge branch 'feature/UNI-1643-w2-web' into feature/UNI-1643-access-report
+3b884099d fix(documents): fit the access report Status chip inside its cell
+588c86751 test(documents): pin the access report Status track and chip containment
