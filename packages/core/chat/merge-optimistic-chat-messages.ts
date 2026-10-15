@@ -54,6 +54,7 @@ export function outboxToOptimisticChatMessage(
     body: entry.body,
     ts: Date.parse(entry.queued_at) || Date.now(),
     replyToEventId: entry.reply_to_message_id,
+    threadRootId: entry.thread_root_id,
     priority: entry.priority,
     reactions: {},
     deliveryStatus: "queued",

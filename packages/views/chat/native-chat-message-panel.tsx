@@ -165,10 +165,19 @@ export function NativeChatMessagePanel({
       threadRoot,
       threadRows: threadQuery.data,
       pendingEntries,
+      outboxEntries,
       currentUserId,
       threadsEnabled,
     });
-  }, [allMessages, currentUserId, pendingEntries, threadQuery.data, threadRoot, threadsEnabled]);
+  }, [
+    allMessages,
+    currentUserId,
+    outboxEntries,
+    pendingEntries,
+    threadQuery.data,
+    threadRoot,
+    threadsEnabled,
+  ]);
 
   const openThread = useCallback(
     (message: ChatMessage) => {
