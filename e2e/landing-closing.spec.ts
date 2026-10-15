@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady } from "./landing-ready";
 
 const samples = [
   { width: 1440, locale: "en", mode: "light", route: "/features/tasks" },
@@ -21,6 +22,7 @@ for (const sample of samples) {
     await page.setViewportSize({ width: sample.width, height: 1050 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: sample.mode });
     await page.goto(sample.route);
+    await landingReady(page);
     const closing = page.locator(".final-section");
     await expect(closing).toHaveCount(1);
     await closing.scrollIntoViewIfNeeded();
