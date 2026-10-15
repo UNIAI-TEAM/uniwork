@@ -25,10 +25,10 @@ const NONE = "—";
  * widening the grid). Below md there is no grid: each entry is a stacked row.
  */
 const ROW_GRID =
-  "md:grid md:grid-cols-[minmax(0,2.2fr)_5.5rem_6rem_minmax(0,1fr)_minmax(0,1.3fr)_8.5rem_10rem] md:items-center md:gap-x-3";
+  "md:grid md:grid-cols-[minmax(0,2.2fr)_5.5rem_6rem_minmax(0,1fr)_minmax(0,1.3fr)_11rem_8rem] md:items-center md:gap-x-3";
 
-/** A 24px target on a desktop pointer, 44px on a coarse one — by min-height, not font size. */
-const HIT_AREA = "flex min-h-6 min-w-0 items-center pointer-coarse:min-h-11";
+/** A 24px target on a desktop pointer, 44px on a coarse one — by min-height and min-width (a short name stays 44px wide), not font size. */
+const HIT_AREA = "flex min-h-6 min-w-0 items-center pointer-coarse:min-h-11 pointer-coarse:min-w-11";
 
 export interface AccessReportTableProps {
   documents: AccessReportDocument[];
@@ -133,6 +133,8 @@ function AccessReportRowLine({
   const name = row.principal_name?.trim() || principalTypeLabel(t, row.principal_type);
   const grantedBy = row.granted_by_name || NONE;
   const grantedAt = row.granted_at ? formatWhen(row.granted_at, i18n.language) : NONE;
+  // The cell shows date + HH:MM; the tooltip keeps seconds and zone.
+  const grantedAtFull = row.granted_at ? formatFull(row.granted_at, i18n.language) : undefined;
   const label = (key: string) => t(`documents.accessReport.${key}`);
   return (
     <div
@@ -182,7 +184,12 @@ function AccessReportRowLine({
       >
         {grantedBy}
       </div>
-      <div role="cell" data-label={label("col_granted_at")} className={cn(CELL, "truncate text-muted-foreground max-md:order-7")}>
+      <div
+        role="cell"
+        data-label={label("col_granted_at")}
+        title={grantedAtFull}
+        className={cn(CELL, "truncate text-muted-foreground max-md:order-7")}
+      >
         {grantedAt}
       </div>
       {/* Last in the grid; on a phone it sits before the "granted" line, so the chip is seen first. */}
@@ -196,6 +203,12 @@ function AccessReportRowLine({
       </div>
     </div>
   );
+}
+
+function formatFull(at: string, locale: string): string | undefined {
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "long" }).format(date);
 }
 
 function PrincipalGlyph({ type, name }: { type: string; name: string }) {
