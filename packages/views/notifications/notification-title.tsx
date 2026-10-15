@@ -33,10 +33,15 @@ export function titleParts(render: (params: Record<string, string>) => string, p
  * The locale key of the row's sentence. A document comment row whose title
  * snapshot is gone (the server drops it once the reader lost access) uses the
  * title-less variant of the sentence, so it never quotes an empty name or a
- * bare `{{document}}`.
+ * bare `{{document}}`. An edit-request answer has two sentences: a decline
+ * reads "still editing", not "handed you editing" (UNI-1645, server titles.go).
+ * The edit-lock kinds always carry the name, so they have no title-less variant.
  */
 export function notificationTitleKey(n: Notification): string {
-  const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_");
+  if (n.kind === "document_edit_request_answered" && n.params.decision === "decline") {
+    return "notifications.kind.document_edit_request_answered_declined";
+  }
+  const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_") && !n.kind.startsWith("document_edit_");
   return untitled && !n.params.document?.trim() ? `${n.title_key}_untitled` : n.title_key;
 }
 

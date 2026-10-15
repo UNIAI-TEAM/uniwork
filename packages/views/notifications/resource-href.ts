@@ -36,6 +36,10 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
       // A discussion post adds its kind: the tab to open when it is gone.
       const target = documentWorkspace(n, workspace, workspaces);
       const href = paths.workspace(target.organization_slug, target.slug).document(n.resource_id);
+      // The holder's edit request opens the editor with the answer prompt (UNI-1645).
+      if (n.kind === "document_edit_requested" && n.params.request_id) {
+        return `${href}?${new URLSearchParams({ edit_request: n.params.request_id }).toString()}`;
+      }
       const commentId = n.params.comment_id;
       if (!commentId) return href;
       const query = new URLSearchParams({ comment: commentId });
