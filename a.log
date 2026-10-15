@@ -1,0 +1,4 @@
+$ (command -v rustup >/dev/null || (curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal)) && . "$HOME/.cargo/env" && rustup toolchain install stable --profile minimal && rustup toolchain install 1.90.0 --profile minimal --target wasm32-wasip1; rc=$?; echo; echo "RUST_EXIT=$rc"
+bash: line 1: /home/ubuntu/.cargo/env: No such file or directory
+
+RUST_EXIT=1
