@@ -5,8 +5,10 @@
 // in the editor that moves it, saves, and the server row must follow to the new
 // head version (exact); a second edit removes the target and the row goes lost
 // with its thread kept; three PUT anchors calls with a version that is not the
-// document's answer the same 400. The web -> desktop direction needs the web
-// frame to carry the G8-12..15 adapters: BLOCKED(R1) while the pin is older.
+// document's answer the same 400. The web -> desktop direction (the same shift
+// plan run in the web frame, saved with harness/web.mjs webSave, read on the
+// desktop) needs the web frame to carry the G8-12..15 adapters: BLOCKED(R1)
+// while the pin is older.
 // Contract: scripts/office/g5g6g7/harness/g8-contract.md; plan card G8-19.
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -14,9 +16,10 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { connectApp as realConnectApp, editorKindOfFormat } from "../harness/app.mjs";
-import { sleep as realSleep } from "../harness/app-steps.mjs";
+import { loadPlaywrightChromium, sleep as realSleep } from "../harness/app-steps.mjs";
 import { loadVerifiedFixture } from "../harness/fixture-files.mjs";
 import { DEV_CLIENT_ID, forkCacheDir, isMainModule } from "../harness/lib.mjs";
+import * as realWeb from "../harness/web.mjs";
 import { readZipParts } from "./file-scan.mjs";
 import { B7_ANCHOR, B7_SHEET_NAME, WEB_FRAME_PIN_OWNER, decideFromSteps, rowMain } from "./run-row.mjs";
 
@@ -329,20 +332,25 @@ export async function openOnDesktop({ ctx, world, connectApp = realConnectApp, u
     const signed = await ctrl.signIn(world.user(userKey));
     const state = signed?.status?.state;
     if (state !== "signed-in" && signed?.status?.loggedIn !== true) throw new Error(`desktop sign-in as ${userKey} ended in state ${state ?? "unknown"}`);
-    const launch = await world.session(userKey).call(
-      "mintLaunch",
-      { documentID: documentId },
-      { operation: "edit", deployment_id: ctx.portsEnv?.HARNESS_DEPLOYMENT_ID || "default", client_id: DEV_CLIENT_ID, return_hint: "office", ...(commentId ? { comment_id: commentId } : {}) },
-    );
-    if (!launch.ok || !launch.body?.launch_url) throw new Error(`mintLaunch answered ${launch.status}${launch.error ? ` (${launch.error})` : ""}`);
-    const opened = await ctrl.openByTicket(launch.body.launch_url, { documentId });
-    const kind = opened.kind ?? editorKindOfFormat(format);
-    const page = await ctrl.editorPage(kind);
-    return { ctrl, path: opened.path, kind, page, comments: ctrl.comments(page) };
+    return await openTicketOnDesktop({ ctx, world, ctrl, userKey, documentId, format, commentId });
   } catch (err) {
     await Promise.resolve(ctrl.close?.()).catch(() => {});
     throw err;
   }
+}
+
+/** Mints a launch ticket for `documentId` as `userKey` and opens it in the already signed-in app. */
+export async function openTicketOnDesktop({ ctx, world, ctrl, userKey = "A", documentId, format, commentId = null }) {
+  const launch = await world.session(userKey).call(
+    "mintLaunch",
+    { documentID: documentId },
+    { operation: "edit", deployment_id: ctx.portsEnv?.HARNESS_DEPLOYMENT_ID || "default", client_id: DEV_CLIENT_ID, return_hint: "office", ...(commentId ? { comment_id: commentId } : {}) },
+  );
+  if (!launch.ok || !launch.body?.launch_url) throw new Error(`mintLaunch answered ${launch.status}${launch.error ? ` (${launch.error})` : ""}`);
+  const opened = await ctrl.openByTicket(launch.body.launch_url, { documentId });
+  const kind = opened.kind ?? editorKindOfFormat(format);
+  const page = await ctrl.editorPage(kind);
+  return { ctrl, path: opened.path, kind, page, comments: ctrl.comments(page) };
 }
 
 /** GET the comment list (as `session`) and the document head version; throws on a non-2xx. */
@@ -439,14 +447,110 @@ export function decideG8A02(rec) {
   }
   steps["check:invalid-versions"] = check(invReasons);
 
-  const w = rec.webToDesktop ?? { status: "FAIL", reason: "the web -> desktop direction did not run" };
-  steps["check:web-to-desktop"] = { status: w.status, ...(w.reason ? { reason: w.reason } : {}), ...(w.blocker ? { blocker: w.blocker, owner: w.owner ?? "" } : {}) };
+  steps["check:web-to-desktop"] = decideWebToDesktop(rec.webToDesktop);
 
   return { ...decideFromSteps(steps), steps };
 }
 
-/** Why the web -> desktop direction fails once R1 no longer blocks it. */
-export const NO_WEB_SAVE_DRIVER = "the web frame pin carries G8-12..15 but harness/web.mjs has no web-frame Save driver (g8-contract.md §6)";
+/**
+ * The web -> desktop direction (pure): the web frame's Save made a version, the
+ * server row is exact on that version at the moved anchor, and the desktop list
+ * reads the same anchor. A part that already carries a status (R1 BLOCKED, a
+ * step FAIL) passes through.
+ */
+export function decideWebToDesktop(part) {
+  if (!part) return { status: "FAIL", reason: "the web -> desktop direction did not run" };
+  if (!part.ran) return { status: part.status ?? "FAIL", ...(part.reason ? { reason: part.reason } : {}), ...(part.blocker ? { blocker: part.blocker, owner: part.owner ?? "" } : {}) };
+  const saved = part.saved;
+  if (saved?.status !== "saved" || !saved.versionId) return { status: "FAIL", reason: `web Save: ${saved?.status ?? "did not run"}${saved?.reason ? ` (${saved.reason})` : ""}` };
+  const reasons = [];
+  const row = part.serverRow;
+  if (!row) reasons.push("the server has no row for the web comment");
+  else {
+    if (row.anchor_version_id !== saved.versionId) reasons.push(`anchor stayed on version ${row.anchor_version_id}, the web Save made ${saved.versionId}`);
+    if (row.anchor_state !== "exact") reasons.push(`anchor_state ${row.anchor_state}, want exact`);
+    if (!anchorMatches(part.expected, row.anchor)) reasons.push(`server anchor at ${describeAnchor(row.anchor)}, want ${describeAnchor(part.expected)}`);
+  }
+  const desk = part.desktopRow;
+  if (!desk) reasons.push("the desktop list has no row for the web comment");
+  else {
+    if (!anchorMatches(part.expected, desk.anchor)) reasons.push(`the desktop reads ${describeAnchor(desk.anchor)}, want ${describeAnchor(part.expected)}`);
+    if (desk.anchor_version_id !== saved.versionId) reasons.push(`the desktop reads version ${desk.anchor_version_id}, want ${saved.versionId}`);
+  }
+  return check(reasons);
+}
+
+/** What the artifact says about the third 400 case (lead decision r1b, applied-pending-Advisor). */
+export const PURGED_CASE_NOTE =
+  "purged-version case replaced by empty id: no REST purge route (router/documents.go), same single lookup document_comment_anchors.go:362-369";
+
+// The editors install the control hook in their renderer (no Electron gate), so the same
+// plans run in the web frame: fork apps/docs/src/renderer/App.tsx:6220-6223,
+// apps/sheets/src/renderer/App.tsx:5116, apps/slides/src/renderer/App.tsx:3405, apps/pdf/src/renderer/App.tsx:1817.
+const WEB_FRAME_EVAL_MS = 30_000;
+
+/** Runs one plan in the web frame through webFrameEval; the first action that is not ok stops it. */
+async function runWebEditPlan(web, page, kind, actions) {
+  for (const [i, action] of actions.entries()) {
+    const res = await web.webFrameEval(page, kind, pageAction, action, { timeoutMs: WEB_FRAME_EVAL_MS });
+    if (res?.status !== "ok") return { status: "error", at: i, reason: res?.reason ?? `web frame action ${i} (${action.type}) answered nothing` };
+  }
+  return { status: "ok" };
+}
+
+/**
+ * G8-A02 web -> desktop (runs only once R1 lifts): A opens a third upload on the web, the
+ * pdf plan prepares and saves first, A comments on the fixture anchor over REST, the web page
+ * reloads so the frame loads that comment, the shift plan runs in the frame and webSave saves;
+ * the row must be exact on the saved version, and the signed-in desktop opens the document and
+ * lists the moved anchor. Fills `part` as it goes; the decision is decideWebToDesktop.
+ */
+async function runWebToDesktop({ ctx, world, desk, format, driver, web, launchBrowser, poll, part }) {
+  const A = world.session("A");
+  const kind = editorKindOfFormat(format);
+  const doc = await world.upload("A", "W2", ctx.fixture, { title: `G8-A02 web ${ctx.fixture}` });
+  part.documentId = doc.documentId;
+  const where = { webOrigin: ctx.webOrigin, org: world.org("X").slug, ws: world.workspace("X", "W2").slug, documentId: doc.documentId };
+  const browser = await launchBrowser();
+  try {
+    const session = await web.webLogin(browser, world.user("A"), { webOrigin: ctx.webOrigin });
+    const open = async () => {
+      const opened = await web.openDocument(session.page, where);
+      if (opened.status !== "ok") throw new Error(`web open answered ${opened.status}${opened.reason ? ` (${opened.reason})` : ""}`);
+    };
+    await open();
+    if (driver.prepare) {
+      const prepared = await runWebEditPlan(web, session.page, kind, driver.prepare);
+      if (prepared.status !== "ok") throw new Error(`web prepare edit: ${prepared.reason}`);
+      const saved = await web.webSave(session.page, { kind });
+      if (saved.status !== "saved") throw new Error(`web prepare Save: ${saved.status}${saved.reason ? ` (${saved.reason})` : ""}`);
+    }
+    const base = (await readServer(A, doc.documentId)).head;
+    const anchor = anchorForFixture(ctx.fixture, { repoRoot: ctx.repoRoot });
+    const made = await A.call("createDocumentComment", { documentID: doc.documentId }, { body: `G8-A02 web ${ctx.fixture}`, kind: "comment", anchor, base_version_id: base });
+    if (!made.ok || !made.body?.comment?.id) throw new Error(`createDocumentComment answered ${made.status}`);
+    const commentId = made.body.comment.id;
+    Object.assign(part, { commentId, versionBefore: base, expected: expectedAfterShift(anchor) });
+    await open();
+    part.edited = await runWebEditPlan(web, session.page, kind, driver.shift);
+    if (part.edited.status !== "ok") throw new Error(`web edit driver: ${part.edited.reason}`);
+    part.saved = await web.webSave(session.page, { kind });
+    await Promise.resolve(session.close?.()).catch(() => {});
+    if (part.saved.status !== "saved") return;
+    const rowOf = (srv) => srv.comments.find((r) => r.id === commentId) ?? null;
+    const settled = await poll(
+      () => readServer(A, doc.documentId),
+      (srv) => rowOf(srv)?.anchor_version_id === part.saved.versionId && rowOf(srv)?.anchor_state === "exact",
+    );
+    part.serverRow = rowState(rowOf(settled.value));
+    const opened = await openTicketOnDesktop({ ctx, world, ctrl: desk.ctrl, documentId: doc.documentId, format });
+    const listed = unwrap(await opened.comments.list({ path: opened.path, kind: "comment" }), "comments.list");
+    const deskRow = (listed?.comments ?? []).find((r) => r.id === commentId) ?? null;
+    part.desktopRow = deskRow ? { anchor: deskRow.anchor ?? null, anchor_version_id: deskRow.anchor_version_id ?? null } : null;
+  } finally {
+    await Promise.race([Promise.resolve().then(() => browser.close?.()).catch(() => {}), realSleep(2_000)]);
+  }
+}
 
 // ---- G8-A02 flow ---------------------------------------------------------------------------
 
@@ -459,10 +563,12 @@ export async function saveOnDesktop(ctrl, path) {
 
 /**
  * Runs G8-A02 on one fixture (ctx from runRowModule). `deps`: `connectApp`,
- * `sleep`, `now`, `framePin` (else read now), `isAncestor` (else the fork clone).
+ * `sleep`, `now`, `framePin` (else read now), `isAncestor` (else the fork clone),
+ * `web` (harness/web.mjs), `launchBrowser`.
  */
 export async function runG8A02(ctx, deps = {}) {
-  const { connectApp = realConnectApp, sleep = realSleep, now = Date.now } = deps;
+  const { connectApp = realConnectApp, sleep = realSleep, now = Date.now, web = realWeb } = deps;
+  const launchBrowser = deps.launchBrowser ?? (() => loadPlaywrightChromium(ctx.repoRoot).launch({ headless: true }));
   const format = FIXTURE_FORMAT[ctx.fixture];
   if (!format) return { status: "FAIL", reason: `G8-A02 has no anchor plan for fixture ${ctx.fixture}` };
   const driver = EDIT_DRIVERS[format];
@@ -557,6 +663,7 @@ export async function runG8A02(ctx, deps = {}) {
         ["unknown", "01J8X4VER0N1P2Q3R4S5T6U7V8"],
         ["empty", ""],
       ];
+      rec.invalidVersionsNote = PURGED_CASE_NOTE;
       rec.invalidVersions = [];
       for (const [name, versionId] of cases) {
         const res = await A.call("putDocumentCommentAnchors", { documentID: doc.documentId }, { version_id: versionId, anchors: [{ comment_id: commentId, anchor: rec.created.anchor, state: "exact" }] });
@@ -566,7 +673,13 @@ export async function runG8A02(ctx, deps = {}) {
     });
 
     const block = framePinBlock(deps.framePin ?? readFramePin(ctx.repoRoot, format), { isAncestor: deps.isAncestor ?? forkAncestorChecker(process.env, ctx.portsEnv) });
-    rec.webToDesktop = block ?? { status: "FAIL", reason: NO_WEB_SAVE_DRIVER };
+    if (block) rec.webToDesktop = block;
+    else {
+      const part = { ran: true };
+      rec.webToDesktop = part;
+      const s2 = await ctx.step("web-to-desktop", () => runWebToDesktop({ ctx, world, desk, format, driver, web, launchBrowser, poll, part }));
+      if (s2.status === "FAIL") rec.webToDesktop = { ...part, ran: false, status: "FAIL", reason: s2.reason };
+    }
     return out(decideG8A02(rec));
   } catch (err) {
     return out({ status: "FAIL", reason: err instanceof Error ? err.message : String(err) });
