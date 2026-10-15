@@ -277,25 +277,28 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                           {row.effective_via ? ` · ${viaLabel(row.effective_via)}` : ""}
                         </span>
                       </div>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`${t("documents.share.revoke")} ${principalName(row) ?? ""}`.trim()}
-                          disabled={revokeShare.isPending}
-                          aria-busy={(revokeShare.isPending && revokeShare.variables === row.id) || undefined}
-                          onClick={() => {
-                            setAddError(null);
-                            revokeShare.mutate(row.id);
-                          }}
-                        >
-                          {revokeShare.isPending && revokeShare.variables === row.id ? (
-                            <Spinner aria-hidden role="presentation" />
-                          ) : null}
-                          {t("documents.share.revoke")}
-                        </Button>
-                      </span>
+                      {/* Revoke follows the add-share gate: both wait for W-DOC05 to open them to admin_scope (§2.5). */}
+                      {canManage ? (
+                        <span className="flex shrink-0 items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`${t("documents.share.revoke")} ${principalName(row) ?? ""}`.trim()}
+                            disabled={revokeShare.isPending}
+                            aria-busy={(revokeShare.isPending && revokeShare.variables === row.id) || undefined}
+                            onClick={() => {
+                              setAddError(null);
+                              revokeShare.mutate(row.id);
+                            }}
+                          >
+                            {revokeShare.isPending && revokeShare.variables === row.id ? (
+                              <Spinner aria-hidden role="presentation" />
+                            ) : null}
+                            {t("documents.share.revoke")}
+                          </Button>
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                   {!shares.length && !access.data.acl_owner ? (

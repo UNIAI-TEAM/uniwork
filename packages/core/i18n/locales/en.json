@@ -4336,6 +4336,8 @@
         "recipient_placeholder": "Choose a member",
         "recipients_loading": "Loading members…",
         "recipients_error": "Couldn't load the members to choose from.",
+        "recipients_none": "No matching member.",
+        "forbidden": "You can't transfer this member's documents.",
         "later": "Later",
         "count_loading": "Counting documents…",
         "count_failed": "Couldn't count the documents. You can still deactivate and transfer them later.",
@@ -8479,7 +8481,7 @@
       "retry": "Retry",
       "access_title": "People and groups with access",
       "my_level": "Your level: {{level}}",
-      "acl_owner": "ACL owner",
+      "acl_owner": "Owner",
       "owner": {
         "transfer_button": "Transfer ownership",
         "transfer_title": "Transfer ownership of “{{document}}”",
@@ -8490,7 +8492,11 @@
         "transfer_confirm": "Transfer",
         "transferred": "Ownership transferred to {{name}}",
         "target_not_member": "{{name}} isn't a member of this workspace, so they can't own this document.",
-        "self_transfer_error": "Admins can't take ownership of a restricted document themselves. Ask another admin to transfer it, or open emergency access to inspect it."
+        "self_transfer_error": "Admins can't take ownership of a restricted document themselves. Ask another admin to transfer it, or open emergency access to inspect it.",
+        "title_untitled": "Transfer document ownership",
+        "search_placeholder": "Search workspace members",
+        "no_candidates": "No other member can take this document.",
+        "failed": "Couldn't transfer ownership. Try again."
       },
       "via_member": "workspace member",
       "via_share": "direct share",
@@ -8566,12 +8572,6 @@
       "link_lost_hint": "Lost the URL? Create a new link; the old token cannot be shown again.",
       "admin_manage_button": "Manage access",
       "admin_scope_note": "You manage this document as an admin. Its content stays hidden."
-    },
-    "owner_transfer": {
-      "title_untitled": "Transfer document ownership",
-      "search_placeholder": "Search workspace members",
-      "no_candidates": "No other member can take this document.",
-      "failed": "Couldn't transfer ownership. Try again."
     },
     "accessLog": {
       "title": "Access log",

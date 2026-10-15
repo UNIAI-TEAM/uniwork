@@ -252,6 +252,20 @@ describe("ShareDialog owner transfer (DOC6-W01)", () => {
     expect(requestMock.mock.calls.some(([p]) => p === "/api/v1/documents/d1")).toBe(false);
   });
 
+  it("shows Revoke to a manager and hides it from a pure admin, who also has no add-share form", async () => {
+    const shares = [{ id: "s1", principal_type: "user", principal_id: "u3", level: "view", active: true }];
+    serve({ access: accessPayload({ shares }) });
+    const view = renderDialog();
+    expect(await screen.findByRole("button", { name: /Thu hồi/ })).toBeInTheDocument();
+    view.unmount();
+
+    serve({ access: accessPayload({ my_level: "", via: "", admin_scope: true, shares }) });
+    renderDialog(target({ my_level: "", admin_scope: true }));
+    await transferButton();
+    expect(screen.queryByRole("button", { name: /Thu hồi/ })).toBeNull();
+    expect(screen.queryByText(t("documents.share.add_title"))).toBeNull();
+  });
+
   it("break-glass admin (my_level view, admin_scope) on restricted keeps self out of the picker too", async () => {
     serve({ access: accessPayload({ my_level: "view", via: "break_glass", admin_scope: true }) });
     renderDialog(target({ my_level: "view", admin_scope: true, visibility: "restricted" }));

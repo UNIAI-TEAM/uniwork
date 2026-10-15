@@ -10,14 +10,6 @@ import type { OrgMember } from "@uniwork/core/types/people";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@uniwork/ui/components/ui/combobox";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -34,6 +26,7 @@ import {
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { PersonCombobox, type PersonOption } from "../common/person-combobox";
 import { useWorkspace } from "../layout/workspace-context";
 import type { ShareDialogTarget } from "./share-dialog-target";
 
@@ -44,17 +37,6 @@ import type { ShareDialogTarget } from "./share-dialog-target";
  */
 const KEEP_LEVELS = ["edit", "view", "none"] as const;
 type KeepLevel = (typeof KEEP_LEVELS)[number];
-
-interface Candidate {
-  id: string;
-  name: string;
-  email: string;
-}
-
-/** Case- and diacritic-insensitive, so "chi" finds "Chí". */
-function fold(text: string): string {
-  return text.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 export interface OwnerTransferActionProps {
   wsId: string;
@@ -111,8 +93,7 @@ function OwnerTransferForm({
   const { user } = useWorkspace();
   const wsMembers = useMembers(wsId);
   const transfer = useTransferDocumentOwner(wsId, doc.id);
-  const [picked, setPicked] = useState<Candidate | null>(null);
-  const [input, setInput] = useState("");
+  const [picked, setPicked] = useState<PersonOption | null>(null);
   const [keep, setKeep] = useState<KeepLevel>("edit");
   const [error, setError] = useState<string | null>(null);
 
@@ -123,7 +104,7 @@ function OwnerTransferForm({
   // Workspace members who are still active in the organization: agents are
   // never workspace members, a deactivated person is absent from the active
   // list, and the current owner is not a transfer.
-  const candidates = useMemo<Candidate[]>(() => {
+  const candidates = useMemo<PersonOption[]>(() => {
     const active = new Map(orgMembers.map((m) => [m.user_id, m]));
     return (wsMembers.data ?? [])
       .filter((m) => m.user_id !== ownerId && active.has(m.user_id))
@@ -152,7 +133,7 @@ function OwnerTransferForm({
           ? t("documents.share.owner.target_not_member", { name: picked.name })
           : code === "break_glass_required"
             ? t("documents.share.owner.self_transfer_error")
-            : apiErrorMessage(err) ?? t("documents.owner_transfer.failed"),
+            : apiErrorMessage(err) ?? t("documents.share.owner.failed"),
       );
     }
   };
@@ -167,7 +148,7 @@ function OwnerTransferForm({
         <DialogTitle>
           {doc.title
             ? t("documents.share.owner.transfer_title", { document: doc.title })
-            : t("documents.owner_transfer.title_untitled")}
+            : t("documents.share.owner.title_untitled")}
         </DialogTitle>
         <DialogDescription>{t("documents.share.owner.transfer_note")}</DialogDescription>
       </DialogHeader>
@@ -175,44 +156,18 @@ function OwnerTransferForm({
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="owner-transfer-target">{t("documents.share.owner.new_owner_label")}</Label>
-          <Combobox
-            items={candidates}
+          <PersonCombobox
+            id="owner-transfer-target"
+            options={candidates}
             value={picked}
-            inputValue={input}
-            onInputValueChange={(text) => setInput(text)}
-            itemToStringLabel={(o: Candidate) => o.name}
-            itemToStringValue={(o: Candidate) => o.id}
-            isItemEqualToValue={(a: Candidate, b: Candidate) => a.id === b.id}
-            filter={(o: Candidate, query: string) => fold(`${o.name} ${o.email}`).includes(fold(query.trim()))}
-            onValueChange={(next: Candidate | null) => {
+            onValueChange={(next) => {
               setPicked(next);
-              setInput(next?.name ?? "");
               setError(null);
             }}
+            placeholder={t("documents.share.owner.search_placeholder")}
+            emptyLabel={wsMembers.isPending ? t("common.loading") : t("documents.share.owner.no_candidates")}
             disabled={transfer.isPending}
-          >
-            <ComboboxInput
-              id="owner-transfer-target"
-              className="w-full"
-              placeholder={t("documents.owner_transfer.search_placeholder")}
-              disabled={transfer.isPending}
-            />
-            <ComboboxContent>
-              <ComboboxEmpty>
-                {wsMembers.isPending ? t("common.loading") : t("documents.owner_transfer.no_candidates")}
-              </ComboboxEmpty>
-              <ComboboxList>
-                {(o: Candidate) => (
-                  <ComboboxItem key={o.id} value={o}>
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="break-words">{o.name}</span>
-                      <span className="truncate text-caption text-muted-foreground">{o.email}</span>
-                    </span>
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">
