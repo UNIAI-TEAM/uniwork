@@ -1,0 +1,18 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8; git diff --stat 72e535dcb HEAD | tail -15
+f9fc7d546dd3caffab2611b5cd2250ed8259364f
+49f57872933d771b7a93219c21978c2bf43757d0
+f9fc7d546 test(documents): scan the save routes' constant error codes (BE-G818-17)
+1e80173fc fix(documents): read the export path walk's break-glass grants inside its snapshot
+2b6b1cc39 test(documents): pin the save routes' HTTP answer to an AdminScope caller (DOC-05 §4)
+41f79103d fix(documents): answer document_restricted on upload/commit/restore to AdminScope (DOC-05 §4)
+72e535dcb Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1413-g818-fix
+49f578729 chore: merge W-DOC06 owner transfer (2f9a6a818) into the G5-G7 root
+2f9a6a818 test(e2e): expect the current owner-row copy in the share dialog
+adcc2f5ed Merge origin/feature/UNI-923-office-g5-g6-g7 (463e7fd2b) into UNI-1630 W-DOC06
+ .../internal/handler/document_break_glass_test.go  | 67 ++++++++++++++++++++++
+ .../internal/handler/dto/sdo/error_class_test.go   | 62 ++++++++++++++++----
+ .../service/document_archived_save_test.go         | 54 +++++++++++++++++
+ server/internal/service/document_commit.go         | 35 +++++++----
+ server/internal/service/document_files.go          |  7 ++-
+ server/internal/service/document_search.go         |  2 +-
+ 6 files changed, 203 insertions(+), 24 deletions(-)
