@@ -261,11 +261,11 @@ func writeAccessReportCSV(w io.Writer, header []string, lines [][]string, meta a
 	cw := csv.NewWriter(w)
 	cw.UseCRLF = true
 	filter := meta.filter()
-	if err := cw.Write(append(append([]string(nil), header...), "report_generated_at", "report_filter")); err != nil {
+	if err := cw.Write(csvSafeCells(append(append([]string(nil), header...), "report_generated_at", "report_filter"))); err != nil {
 		return err
 	}
 	for _, line := range lines {
-		if err := cw.Write(append(append([]string(nil), line...), meta.generatedAt, filter)); err != nil {
+		if err := cw.Write(csvSafeCells(append(append([]string(nil), line...), meta.generatedAt, filter))); err != nil {
 			return err
 		}
 	}
@@ -285,4 +285,17 @@ func writeAccessReportXLSX(w io.Writer, header []string, lines [][]string, meta 
 	}
 	_, err := w.Write(book)
 	return err
+}
+
+// csvSafeCells neutralises spreadsheet formulas in place: a cell whose first
+// rune is = + - @ TAB or CR (a title or display name anyone can set) gets a
+// leading quote, so Excel and LibreOffice show it as text instead of running
+// it. The XLSX needs no such guard: its cells are inline strings.
+func csvSafeCells(cells []string) []string {
+	for i, c := range cells {
+		if c != "" && strings.ContainsRune("=+-@\t\r", rune(c[0])) {
+			cells[i] = "'" + c
+		}
+	}
+	return cells
 }
