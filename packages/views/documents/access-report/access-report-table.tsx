@@ -25,7 +25,7 @@ const NONE = "—";
  * widening the grid). Below md there is no grid: each entry is a stacked row.
  */
 const ROW_GRID =
-  "md:grid md:grid-cols-[minmax(0,2.2fr)_5.5rem_6rem_minmax(0,1fr)_minmax(0,1.3fr)_11rem_8rem] md:items-center md:gap-x-3";
+  "md:grid md:grid-cols-[minmax(0,2.2fr)_5.5rem_6rem_minmax(0,1fr)_minmax(0,1.3fr)_11rem_10rem] md:items-center md:gap-x-3";
 
 /** A 24px target on a desktop pointer, 44px on a coarse one — by min-height and min-width (a short name stays 44px wide), not font size. */
 const HIT_AREA = "flex min-h-6 min-w-0 items-center pointer-coarse:min-h-11 pointer-coarse:min-w-11";
@@ -195,9 +195,9 @@ function AccessReportRowLine({
       {/* Last in the grid; on a phone it sits before the "granted" line, so the chip is seen first. */}
       <div role="cell" data-label={label("col_status")} className={cn(CELL, "max-md:order-5 max-md:empty:hidden max-md:before:content-none")}>
         {row.active ? null : (
-          <Badge variant="outline" className="text-muted-foreground">
+          <Badge variant="outline" title={t("documents.accessReport.inactive")} className="max-w-full text-muted-foreground">
             <CircleOff aria-hidden data-icon="inline-start" />
-            {t("documents.accessReport.inactive")}
+            <span className="truncate">{t("documents.accessReport.inactive")}</span>
           </Badge>
         )}
       </div>
