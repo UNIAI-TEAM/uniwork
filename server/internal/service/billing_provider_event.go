@@ -192,6 +192,16 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 	if err != nil {
 		return err
 	}
+	// Claiming the intent is the lock: the UPDATE only matches pending/failed,
+	// so a second apply of the same payment stops here instead of writing
+	// another invoice.
+	bankCode, txnNo := vnpayProviderMetaFromEvent(ev)
+	if _, err := q.MarkBillingPaymentIntentCompleted(ctx, markIntentCompletedParams(intent.ID, intent.OrganizationID, bankCode, txnNo, ev)); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return s.patchIntentProviderMeta(ctx, q, intent, ev)
+		}
+		return err
+	}
 	after, err := q.ApplyPaidSubscriptionFromProvider(ctx, db.ApplyPaidSubscriptionFromProviderParams{
 		ID: sub.ID, OrganizationID: intent.OrganizationID, PlanID: intent.PlanID,
 		Provider:           s.provider.Name(),
@@ -200,10 +210,6 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		UpdatedBy:          actor.ID, UpdatedByKind: string(actor.Kind),
 	})
 	if err != nil {
-		return err
-	}
-	bankCode, txnNo := vnpayProviderMetaFromEvent(ev)
-	if _, err := q.MarkBillingPaymentIntentCompleted(ctx, markIntentCompletedParams(intent.ID, intent.OrganizationID, bankCode, txnNo, ev)); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
 	invID := util.NewID()
