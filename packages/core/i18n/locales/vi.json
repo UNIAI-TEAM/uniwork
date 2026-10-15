@@ -462,6 +462,9 @@
         "document_discussion_mentioned": "Được nhắc đến trong thảo luận",
         "document_discussion_replied": "Phản hồi thảo luận",
         "document_comment_resolved": "Bình luận đã giải quyết",
+        "document_edit_requested": "Yêu cầu quyền sửa tài liệu",
+        "document_edit_request_answered": "Trả lời yêu cầu quyền sửa",
+        "document_edit_taken_over": "Bị lấy quyền sửa tài liệu",
         "chat_mentioned": "Được nhắc đến trong chat",
         "chat_dm": "Tin nhắn riêng",
         "chat_thread_replied": "Trả lời trong thread bạn theo dõi"
@@ -4780,6 +4783,10 @@
       "document_discussion_replied_untitled": "{{actor}} đã phản hồi nội dung thảo luận của bạn trong một tài liệu.",
       "document_comment_resolved": "{{actor}} đã đánh dấu bình luận của bạn trong tài liệu “{{document}}” là đã giải quyết.",
       "document_comment_resolved_untitled": "{{actor}} đã đánh dấu bình luận của bạn trong một tài liệu là đã giải quyết.",
+      "document_edit_requested": "{{actor}} muốn sửa “{{document}}”",
+      "document_edit_request_answered": "{{actor}} đã nhường quyền sửa “{{document}}” cho bạn",
+      "document_edit_request_answered_declined": "{{actor}} chưa nhả quyền sửa “{{document}}”",
+      "document_edit_taken_over": "{{actor}} đã lấy quyền sửa “{{document}}”. Thay đổi chưa lưu của bạn vẫn còn trong tài liệu đang mở.",
       "chat_mentioned": "{{actor}} đã nhắc đến bạn trong {{room}}",
       "chat_dm": "{{actor}} đã nhắn tin cho bạn",
       "chat_thread_replied": "{{actor}} đã trả lời thread trong {{room}}"

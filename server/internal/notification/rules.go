@@ -94,14 +94,19 @@ var rules = map[string]rule{
 	// table (contract-collab section 8.3, G8-05).
 	"document.comment_updated":  ruleDocumentCommentUpdated,
 	"document.comment_resolved": ruleDocumentCommentResolved,
-	"participant.invited":       ruleParticipantInvited,
-	"member.joined":             ruleMemberJoined,
-	"member.role_changed":       ruleRoleChanged,
-	"audit.exported":            ruleAuditExported,
-	"chat.follow_up.created":    ruleChatFollowUpCreated,
-	"chat.reminder.due":         ruleChatReminderDue,
-	"email_hub.new_mail":        ruleEmailHubNewMail,
-	"meeting.ended":             ruleMeetingEnded,
+	// The edit lock (UNI-1645): the holder, the requester and the previous
+	// holder each get one notification, addressed by payload.user_id.
+	"document.edit_requested":        ruleDocumentEditRequested,
+	"document.edit_request_answered": ruleDocumentEditRequestAnswered,
+	"document.lock_taken_over":       ruleDocumentEditTakenOver,
+	"participant.invited":            ruleParticipantInvited,
+	"member.joined":                  ruleMemberJoined,
+	"member.role_changed":            ruleRoleChanged,
+	"audit.exported":                 ruleAuditExported,
+	"chat.follow_up.created":         ruleChatFollowUpCreated,
+	"chat.reminder.due":              ruleChatReminderDue,
+	"email_hub.new_mail":             ruleEmailHubNewMail,
+	"meeting.ended":                  ruleMeetingEnded,
 
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
