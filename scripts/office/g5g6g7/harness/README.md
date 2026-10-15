@@ -424,6 +424,67 @@ Local dry run (a host that already has the daemon, `xvfb-run` and a fork checkou
 also runs the fork's real credential module against a fake `safeStorage`.
 
 
+## G7-04 cross-host loop (UNI-1386)
+
+`g7-04/cross-host.mjs` chains the whole cross-host loop on ONE seeded document
+per fixture and records the rows `G7-A01` and `G5-A03` (`acceptance.md` l.87 /
+l.61): a web edit + Save in the web frame, opening the app from web (deep link),
+a dirty app kept when a web Save lands, a desktop offline edit + Save under the
+harness proxy cut, the reconnect the web frame observes (the D host's own
+`doc.remoteVersion` notice and the frame's reload), an AI turn (zero versions)
+plus its Save (one version), the three-way sha256 at the end, and the running
+version tally (one per user Save, zero per AI turn). It reuses
+`harness/app.mjs` (CDP), `harness/web.mjs` (Playwright) and the
+`g7-10/tracer.mjs` fixture/seed/HTTP helpers by import — nothing is copied.
+Exit codes are the harness's everywhere: `0` PASS, `1` FAIL, `77` BLOCKED.
+
+One invocation writes one evidence line, so run one (row, fixture) per command:
+
+```sh
+for row in G7-A01 G5-A03; do
+  for fixture in fx-xlsx-revenue-xyz fx-docx-report-vi; do
+    OFFICE_FORK_SHA="$OFFICE_FORK_SHA" \
+      node scripts/office/g5g6g7/evidence.mjs run \
+        --req "$row" --fixture "$fixture" --checker tester-cloud -- \
+        node scripts/office/g5g6g7/g7-04/cross-host.mjs --row "$row" --fixture "$fixture"
+  done
+done
+```
+
+| Flag / env | Effect |
+| --- | --- |
+| `--row G7-A01\|G5-A03` | the row whose chain and evidence this run records (required) |
+| `--fixture <id>\|all` | one fixture, or both (refused under the evidence runner: one line per fixture) |
+| `--run-dir <dir>` | the run dir start.sh wrote (`HARNESS_RUN_DIR` by default) |
+| `--timeout-ms <ms>` | per-step bound (else `HARNESS_APP_STEP_TIMEOUT_MS`, else 90000) |
+| `--dry-run` | the start gate and ports.env only: prints the plan, starts nothing, writes no artifact |
+| `HARNESS_ALLOW_REAL_AI_UPSTREAM` | `1` lets the AI step PASS on a real upstream; without it, and under `AI_PROVIDER=fake` or a 503 `ai_disabled`, G7-A01.5 is BLOCKED with `real-AI upstream required, acceptance.md l.87` — never PASS |
+| `HARNESS_LOOP_TIMEOUT_MS` | the row watchdog (default 600000; expiry is FAIL `row watchdog`) |
+
+Rows and what each step proves: `G5-A03.1` web Save → app binding version id +
+working-copy sha256 = the server checksum; `G5-A03.3` a dirty app keeps its local
+bytes and shows the S6 new-version bar while a web Save lands (a reload there is
+a FAIL), then the bar's reload action discards the edit; `G5-A03.2`/`G7-A01.4`
+the desktop's reconnect commit is announced to the web frame and reloaded (the
+announced version id must be the desktop's); `G7-A01.3` the offline Save holds an
+intent with zero server versions; `G7-A01.5` the AI turn creates zero versions and
+the Save after it exactly one; `G7-A01.6` the three checksums agree and the
+tally is one version per user Save.
+
+Steps that cannot run are BLOCKED with a named blocker, never folded into a PASS:
+the app's editor cannot be driven (the dirty-edit plans of
+`DIRTY_EDIT_PLANS`), the S6 reload action cannot be driven, the web frame never
+reaches `data-state="ready"` (owner `lead-f`; the pinned bundle must be installed
+in the web build), or the app cannot sign in (no OS keyring). The offline Save
+may fall back to the tracer's working-copy write when no editor edit can be
+driven — the artifact says so in `steps["app-offline-save"].editSource` and in
+`notes`, and never claims a UI edit. The AI turn is the document-route protocol
+call (`contract-p0.md` A10) and the Save after it stores the format's
+deterministic stand-in bytes for the AI edit (recorded in `notes`). Artifacts:
+`<runDir>/reports/g7-qa/<row lower-case>/<fixture>.json`; version ids, counts and
+the three checksums are in the record the command prints (the evidence artifact
+log) and in that JSON.
+
 ## G8-19 cross-host rows (UNI-1414)
 
 The G8 rows (`g8-19/<module>.mjs`, one file per module) share one harness. The
