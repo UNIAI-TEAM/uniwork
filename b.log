@@ -1,0 +1,4 @@
+$ node --test scripts/office/g5g6g7/*.test.mjs scripts/office/g5g6g7/harness/*.test.mjs scripts/office/g5g6g7/g7-10/*.test.mjs 2>&1 | grep -E "^# (pass|fail)|^not ok" ; echo "G5G7_SCRIPTS_EXIT=${PIPESTATUS[0]}"
+# pass 301
+# fail 0
+G5G7_SCRIPTS_EXIT=0
