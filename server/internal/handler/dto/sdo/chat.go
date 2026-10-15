@@ -35,6 +35,7 @@ type VoiceCallLogDTO struct {
 	Outcome         string                    `json:"outcome" description:"completed, unanswered, or declined" example:"completed"`
 	DurationSeconds int                       `json:"duration_seconds,omitempty" description:"Call length in seconds when completed" example:"125"`
 	CallerID        string                    `json:"caller_id" description:"User id of the caller" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	Video           bool                      `json:"video,omitempty" description:"True when the call was started with the camera on" example:"true"`
 	Participants    []VoiceCallParticipantDTO `json:"participants,omitempty" description:"People involved in the call"`
 	RecordingID     string                    `json:"recording_id,omitempty" description:"Chat voice recording id when present" example:"01J8X4REC0N1P2Q3R4S5T6U7V8"`
 	RecordingStatus string                    `json:"recording_status,omitempty" description:"ACTIVE, PROCESSING, COMPLETE, or FAILED" example:"COMPLETE"`

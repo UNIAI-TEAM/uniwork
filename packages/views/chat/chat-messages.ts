@@ -25,6 +25,7 @@ export interface ChatMessage {
     recording_id?: string;
     recording_status?: string;
     recording_url?: string;
+    video?: boolean;
   };
   voiceCallSummary?: {
     call_id: string;

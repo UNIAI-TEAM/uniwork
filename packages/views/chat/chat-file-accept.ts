@@ -72,3 +72,12 @@ export function isChatPdfContentType(contentType: string | undefined): boolean {
 export function pickChatAcceptedFiles(files: Iterable<File>): File[] {
   return Array.from(files).filter(isChatAcceptedFile);
 }
+
+/** Matches MaxChatFileMessageBytes (25 MiB) in the chat file service. */
+export const CHAT_FILE_MAX_BYTES = 25 * 1024 * 1024;
+
+export const CHAT_FILE_MAX_LABEL = "25 MB";
+
+export function isChatFileTooLarge(file: Blob): boolean {
+  return file.size > CHAT_FILE_MAX_BYTES;
+}

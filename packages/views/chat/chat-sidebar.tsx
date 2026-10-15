@@ -30,6 +30,7 @@ import {
   type ChatSidebarKindFilter,
 } from "./chat-sidebar-unified";
 import { ChatSidebarList } from "./chat-sidebar-list";
+import { typingNameByUserIdFromContext } from "./chat-sidebar-typing";
 import {
   SidebarEmpty,
   SidebarIconAction,
@@ -45,6 +46,7 @@ const EMPTY_PREVIEWS: NonNullable<ChatSidebarProps["roomPreviewsByRoomId"]> = {}
 const EMPTY_NICKNAMES: Record<string, string> = {};
 const EMPTY_CHANNELS: NonNullable<ChatSidebarProps["channels"]> = [];
 const EMPTY_MEMBER_AVATARS: NonNullable<ChatSidebarProps["memberAvatarByUserId"]> = {};
+const EMPTY_PEOPLE: NonNullable<ChatSidebarProps["knownPeople"]> = [];
 
 export type { ChatSidebarTarget } from "./chat-sidebar-types";
 
@@ -86,6 +88,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   workspaceRoomTitle,
   onCollapse,
   memberAvatarByUserId = EMPTY_MEMBER_AVATARS,
+  knownPeople = EMPTY_PEOPLE,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
   const [filterQuery, setFilterQuery] = useState("");
@@ -101,6 +104,10 @@ export const ChatSidebar = memo(function ChatSidebar({
   const filterText = useDeferredValue(filterQuery.trim());
   const pinnedByRoomId = useChatRoomPreferencesStore((state) => state.byRoomId);
   const workspaceTitle = workspaceRoomTitle ?? t("chat.workspace_room");
+  const typingNameByUserId = useMemo(
+    () => typingNameByUserIdFromContext(knownPeople),
+    [knownPeople],
+  );
 
   const filterOptions = useMemo(() => chatSidebarFilterOptions(), []);
   const activityFilterOptions = useMemo(() => chatSidebarActivityFilterOptions(), []);
@@ -359,6 +366,7 @@ export const ChatSidebar = memo(function ChatSidebar({
               preferencesByRoomId={pinnedByRoomId}
               labels={labels}
               memberAvatarByUserId={memberAvatarByUserId}
+              typingNameByUserId={typingNameByUserId}
             />
           )}
           {!loading && !loadError && !filtering && entries.length === 1 && entries[0]?.kind === "workspace" ? (

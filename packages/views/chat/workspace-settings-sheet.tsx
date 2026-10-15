@@ -42,6 +42,7 @@ import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { WorkspaceRoomMemberList } from "./workspace-room-member-list";
 import { ChatConversationToolbar } from "./chat-conversation-toolbar";
 import { ChatRoomMark } from "./chat-room-mark";
+import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
 
 export function WorkspaceSettingsSheet({
   open,
@@ -141,6 +142,8 @@ export function WorkspaceSettingsSheet({
               canManage={isModerator}
             />
           ) : null}
+
+          <ChatRoomSharedTotals workspaceId={workspaceId} roomId={roomId} open={open} />
 
           <ChatSettingsCollapsibleSection
             title={t("chat.workspace_members")}

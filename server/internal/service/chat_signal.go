@@ -13,7 +13,7 @@ import (
 )
 
 // SignalVoiceInvite notifies organization members of an outgoing voice call.
-func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID, roomID, callID string) error {
+func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID, roomID, callID string, video bool) error {
 	callID, err := normalizeVoiceCallID(callID)
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if callerName == "" {
 		callerName = u.Email
 	}
-	s.trackVoiceCallInvite(room, callID, userID, callerName)
+	s.trackVoiceCallInvite(room, callID, userID, callerName, video)
 	ev := Event{
 		Type: "chat.voice.invite",
 		Payload: map[string]string{

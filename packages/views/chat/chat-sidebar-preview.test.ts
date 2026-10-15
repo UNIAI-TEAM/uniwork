@@ -292,7 +292,24 @@ describe("chat-sidebar-preview", () => {
           voiceCallLabel: "Cuộc gọi",
         },
       ),
-    ).toBe("u9: peer");
+    ).toBe("peer");
+    expect(
+      formatChatSidebarPreviewText(
+        {
+          body: "Sửa tối ưu phần chat",
+          kind: "text",
+          senderId: "01M4WJJEDVW2TDT49SB7FYS7D1",
+          senderName: "01M4WJJEDVW2TDT49SB7FYS7D1",
+          createdAt: "2026-03-26T10:00:00Z",
+        },
+        {
+          currentUserId: "self",
+          isGroup: true,
+          youLabel: "Bạn",
+          voiceCallLabel: "Cuộc gọi",
+        },
+      ),
+    ).toBe("Sửa tối ưu phần chat");
   });
 
   it("formats weekday and full date buckets for sidebar time", () => {
