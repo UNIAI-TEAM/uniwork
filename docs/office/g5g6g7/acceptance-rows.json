@@ -1440,7 +1440,7 @@
         "G8-06",
         "G8-08"
       ],
-      "command": "`go test ./internal/handler -run 'IsolationMatrix|IsolationRealtime|EveryBodyIDFieldHasAReferenceCase'` · `go test ./internal/service -run AuditCoverage` · `node --test scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs`",
+      "command": "`go test ./internal/handler -run 'IsolationMatrix|IsolationRealtime|EveryBodyIDFieldHasAReferenceCase'` · `go test ./internal/service -run 'EveryAuditedCommandWritesItsRow|ReusedAuditActionCommandsWriteTheirOwnRows'` · `node --test scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs`",
       "artifact": "`reports/g8-server/cloud-test-*.md`",
       "gate": null,
       "blocker": null,
