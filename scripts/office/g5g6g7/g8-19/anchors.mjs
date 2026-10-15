@@ -1,7 +1,9 @@
 // G8-19 (UNI-1414) row module G8-A02 "anchors survive Save", plus the anchor
 // and desktop helpers comments.mjs shares:
 //   node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture <fx> --run-dir <dir>
-// Desktop user A comments on an anchor of the fixture, makes a structural edit
+// Desktop user A comments on an anchor of the fixture, opens the editor's own
+// comments panel and waits until it lists that comment (the post-Save anchor
+// round only covers roots the editor has listed), makes a structural edit
 // in the editor that moves it, saves, and the server row must follow to the new
 // head version (exact); a second edit removes the target and the row goes lost
 // with its thread kept; three PUT anchors calls with a version that is not the
@@ -177,8 +179,11 @@ function describeAnchor(a) {
  * One page action, evaluated IN the editor page through ctrl.evalBounded
  * (self-contained: Playwright serializes it). `control` calls the editor's
  * `window.__genofficeControl`; `click`/`focus` find a product control by CSS
- * selector and an accessible-name regex; `key` dispatches keydown/keyup to a
- * target (the editors' own keymaps handle it). Resolves `{status:"ok"|"error"}`.
+ * selector and an accessible-name regex (`unlessActive`: an element that
+ * already carries the `active` class is left alone - a second press on the
+ * active ribbon tab collapses the ribbon, fork packages/ui/src/ribbon-collapse.tsx:367);
+ * `key` dispatches keydown/keyup to a target (the editors' own keymaps handle
+ * it). Resolves `{status:"ok"|"error"}`.
  */
 export async function pageAction(a) {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -200,6 +205,7 @@ export async function pageAction(a) {
       if (!el) await wait(250);
     }
     if (!el) return { status: "error", reason: `no element ${a.selector || "button"}${a.name ? ` named /${a.name}/` : ""}` };
+    if (a.unlessActive && el.classList?.contains("active")) return { status: "ok", label: labelOf(el).slice(0, 80), skipped: "active" };
     if (el.disabled || el.getAttribute("aria-disabled") === "true") return { status: "error", reason: `${labelOf(el) || a.selector} is disabled` };
     if (a.type === "click") el.click();
     else el.focus();
@@ -219,7 +225,53 @@ export async function pageAction(a) {
 }
 
 const goto = (target) => ({ type: "control", req: { cmd: "goto", target } });
-const pdfPagesTab = { type: "click", selector: ".ribbon-tab", name: "^(Pages|Trang)$" };
+const ribbonTab = (name) => ({ type: "click", selector: ".ribbon-tab", name, unlessActive: true });
+const pdfPagesTab = ribbonTab("^(Pages|Trang)$");
+const sheetsHomeTab = ribbonTab("^(Home|Trang đầu)$");
+const reviewTab = ribbonTab("^(Review|Xem lại)$");
+
+/**
+ * Per editor: the ribbon tab and the control a user presses to show the server
+ * comments panel (the editor WebContentsView, not the shell). Opening it makes the
+ * editor's own collab controller list the document's comments (comments-poll.ts:118-131
+ * polls only while the panel is open); the post-Save anchor round only covers the roots
+ * that controller has listed, located once when first listed.
+ */
+export const PANEL_OPENERS = Object.freeze({
+  docx: {
+    plan: [reviewTab, { type: "click", selector: "button.rb-big", name: "^(Show Comments|Hiện nhận xét)$", settleMs: 800 }],
+    cites: [
+      "apps/docs/src/renderer/components/ribbon-tabs.tsx:1029-1039 (Review > Show Comments, rb-big, no aria-label)",
+      "apps/docs/src/renderer/components/Ribbon.tsx:2067-2080 (.ribbon-tab buttons), i18n/ribbon/en.ts:14,701 vi.ts:14,699",
+      "apps/docs/src/renderer/App.tsx:7581-7588 (ServerCommentsHost panelOpen = showComments)",
+      "apps/docs/src/renderer/server-comments/anchor-sync.ts:17-35 (the anchor map covers the listed roots only)",
+    ],
+  },
+  xlsx: {
+    // the label follows a glyph span (ToolSymbol): matched at the end only
+    plan: [reviewTab, { type: "click", selector: "button.styles-row", name: "(Show Comments|Hiện nhận xét)$", settleMs: 800 }],
+    cites: [
+      "apps/sheets/src/renderer/ExcelShell.tsx:3415-3422 (Review > Show Comments -> comments-pane-toggle), :979-991 (.ribbon-tab)",
+      "apps/sheets/src/renderer/threaded-comment-actions.ts:85-86 (threadPane.toggle), server-comments/CommentsSurface.tsx:64-71 (panelOpen = pane.open)",
+      "apps/sheets/src/renderer/i18n/app/en.ts:659,1239 vi.ts:671,1251",
+      "apps/sheets/src/renderer/server-comments/SheetsServerComments.tsx:193-195,206-219 (track on list, anchor map on Save)",
+    ],
+  },
+  pptx: {
+    plan: [reviewTab, { type: "click", selector: "button.rb-big", name: "^(Comments Pane|Ngăn nhận xét)( \\(\\d+\\))?$", settleMs: 800 }],
+    cites: [
+      "apps/slides/src/renderer/components/Ribbon.tsx:2545 (review tab), :2626-2639 (Comments Pane + count suffix), :1909-1920 (.ribbon-tab)",
+      "apps/slides/src/renderer/App.tsx:3586 (onToggleComments), components/CommentsPane.tsx:329-340 (open = slot shown)",
+      "apps/slides/src/renderer/use-server-comments.ts:158-177 (the Save round covers the controller's threads only)",
+    ],
+  },
+  pdf: {
+    plan: [ribbonTab("^(Annotate|Chú thích)$"), { type: "click", selector: "#pdf-server-comments-toggle", settleMs: 800 }],
+    cites: [
+      "apps/pdf/src/renderer/App.tsx:315,7001-7014 (Annotate > #pdf-server-comments-toggle, label collabComments), :327-333 (ribbon tabs), :9765-9776 (open = serverPanelOpen)",
+    ],
+  },
+});
 
 /**
  * Per format: the product commands that move the anchored target (`shift`) and
@@ -231,8 +283,8 @@ const pdfPagesTab = { type: "click", selector: ".ribbon-tab", name: "^(Pages|Tra
 export const EDIT_DRIVERS = Object.freeze({
   xlsx: {
     // select A7 of "Doanh thu Q2", Home > Insert row (above): B7 -> B8; then Delete row on 8: lost
-    shift: [goto({ kind: "range", sheet: B7_SHEET_NAME, range: "A7" }), { type: "click", selector: "button[aria-label]", name: "^(Insert row|Chèn hàng)$" }],
-    remove: [goto({ kind: "range", sheet: B7_SHEET_NAME, range: "A8" }), { type: "click", selector: "button[aria-label]", name: "^(Delete row|Xóa hàng)$" }],
+    shift: [sheetsHomeTab, goto({ kind: "range", sheet: B7_SHEET_NAME, range: "A7" }), { type: "click", selector: "button[aria-label]", name: "^(Insert row|Chèn hàng)$" }],
+    remove: [sheetsHomeTab, goto({ kind: "range", sheet: B7_SHEET_NAME, range: "A8" }), { type: "click", selector: "button[aria-label]", name: "^(Delete row|Xóa hàng)$" }],
     cites: [
       "apps/sheets/src/renderer/control.ts:4-5,63-90 (goto activates the range)",
       "apps/sheets/src/renderer/ExcelShell.tsx:3985-3995 (Insert row / Delete row buttons, insert-row-here / delete-row-here)",
@@ -362,6 +414,36 @@ export async function readServer(session, documentId) {
   return { comments: list.body?.comments ?? [], listToken: list.body?.list_token ?? null, head: doc.body?.document?.file?.version_id ?? null };
 }
 
+/** The server comments panel in the editor page: how many, and the comment ids it lists (fork CollabPanel.tsx:526-528, CollabThread.tsx:712). */
+export function panelListing() {
+  const panels = document.querySelectorAll("aside.collab-panel");
+  const panel = panels[0] ?? null;
+  return { panels: panels.length, commentIds: panel ? [...panel.querySelectorAll("[data-comment-id]")].map((el) => el.getAttribute("data-comment-id")) : [] };
+}
+
+/** The bound for the editor's first list after the panel opens (the open itself polls once, comments-poll.ts:118-123). */
+export const EDITOR_LIST_BOUND_MS = 35_000;
+const PANEL_SHOW_BOUND_MS = 10_000;
+
+/**
+ * Opens the editor's comments panel through PANEL_OPENERS unless `probe()` already shows
+ * one, then waits (bounded) for it; resolves `{ status: "ok"|"error", panels, reason?, opened }`.
+ */
+export async function openCommentsPanel({ ctrl, page, format, probe, sleep = realSleep, now = Date.now }) {
+  const first = await probe();
+  if (first?.panels) return { status: "ok", panels: first.panels, opened: false };
+  const opener = PANEL_OPENERS[format];
+  if (!opener) return { status: "error", reason: `no panel opener for ${format}`, panels: 0, opened: false };
+  const ran = await runEditPlan(ctrl, page, opener.plan);
+  if (ran.status !== "ok") return { status: "error", reason: `opener step ${ran.at}: ${ran.reason}`, panels: 0, opened: false };
+  const shown = await pollUntil(probe, (v) => Boolean(v?.panels), { boundMs: PANEL_SHOW_BOUND_MS, intervalMs: 500, sleep, now });
+  if (!shown.ok) {
+    const what = opener.plan.map((a) => a.name ?? a.selector).join(" > ");
+    return { status: "error", reason: `no comments panel ${shown.elapsedMs} ms after pressing ${what}`, panels: 0, opened: true };
+  }
+  return { status: "ok", panels: shown.value.panels, opened: true };
+}
+
 const rowState = (row) => (row ? { id: row.id, anchor: row.anchor ?? null, anchor_state: row.anchor_state ?? null, anchor_version_id: row.anchor_version_id ?? null, deleted_at: row.deleted_at ?? null } : null);
 
 // ---- G8-A02 decision ----------------------------------------------------------------------
@@ -427,8 +509,9 @@ export function decideG8A02(rec) {
     if (row.deleted_at) reasons.push("the thread was deleted with its target");
     if (row.anchor_state !== "lost") reasons.push(`anchor_state ${row.anchor_state}, want lost`);
     if (!(r.replies >= 1)) reasons.push("the reply did not survive");
+    // server R1-7 (document_comment_anchors.go:434-440): a lost report keeps the stored anchor and its version
     const kept = rec.shift?.row?.anchor_version_id;
-    if (kept && row.anchor_version_id !== kept) reasons.push(`a lost anchor must keep its last version ${kept}, got ${row.anchor_version_id}`);
+    if (row.anchor_state === "lost" && kept && row.anchor_version_id !== kept) reasons.push(`a lost anchor must keep its last version ${kept}, got ${row.anchor_version_id}`);
     return reasons;
   });
 
@@ -617,6 +700,19 @@ export async function runG8A02(ctx, deps = {}) {
     if (s.status !== "PASS") return failed("create", s);
     const commentId = rec.created.commentId;
     const rowOf = (server) => server.comments.find((r) => r.id === commentId) ?? null;
+
+    // the Save anchor round covers only the roots the editor's controller has listed (located once,
+    // when first listed): open its panel and wait until it lists this comment, before any edit
+    s = await ctx.step("editor-lists", async () => {
+      const probe = () => desk.ctrl.evalBounded(desk.page, panelListing, {}, "probe:listed");
+      const opened = await openCommentsPanel({ ctrl: desk.ctrl, page: desk.page, format, probe, sleep, now });
+      rec.editorLists = { panel: opened, listed: false };
+      if (opened.status !== "ok") throw new Error(`open the comments panel: ${opened.reason}`);
+      const seen = await pollUntil(probe, (v) => Array.isArray(v?.commentIds) && v.commentIds.includes(commentId), { boundMs: EDITOR_LIST_BOUND_MS, intervalMs: 1_000, sleep, now });
+      Object.assign(rec.editorLists, { listed: seen.ok, elapsedMs: seen.elapsedMs, listedIds: seen.value?.commentIds ?? [] });
+      if (!seen.ok) throw new Error(`the editor's comments panel did not list comment ${commentId} within ${seen.elapsedMs} ms (panel opened ${opened.opened})`);
+    });
+    if (s.status !== "PASS") return failed("editor-lists", s);
 
     await ctx.step("shift", async () => {
       const versionBefore = (await readServer(A, doc.documentId)).head;

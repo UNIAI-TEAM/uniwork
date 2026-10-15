@@ -282,9 +282,12 @@ function scriptXlsxServer(fake) {
     return { ok: true, value: { comment: { id: "c1", anchor: input.anchor, anchor_state: "exact", anchor_version_id: input.baseVersionId } } };
   });
   // the editor's own comments panel lists the root once the comment exists
-  fake.script.respond("app.evalBounded", (call) =>
-    call.args[2] === "probe:listed" ? { panels: 1, commentIds: state.comment && !state.unlisted ? ["c1"] : [] } : { status: "ok" },
-  );
+  fake.script.respond("app.evalBounded", (call) => {
+    const [, arg, label] = call.args;
+    if (label === "probe:listed") return { panels: state.panel ? 1 : 0, commentIds: state.panel && state.comment && !state.unlisted ? ["c1"] : [] };
+    if (arg?.selector === "button.styles-row") state.panel = true;
+    return { status: "ok" };
+  });
   fake.script.respond("app.save", () => {
     state.saves += 1;
     state.head = `ver-${state.saves + 1}`;
@@ -467,16 +470,17 @@ test("runG8A02: an app that cannot be driven is FAIL (never BLOCKED)", async () 
 test("runG8A02 opens the editor's comments panel and waits until the editor lists the comment before the shift edit", async () => {
   const fake = createFakeWorld();
   scriptXlsxServer(fake);
-  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
-  assert.equal(record.steps["editor-lists"]?.status, "PASS", JSON.stringify(record.steps));
+  const ctx = fakeCtx(fake, "fx-xlsx-revenue-xyz");
+  const record = await runG8A02(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  assert.equal(ctx.steps["editor-lists"]?.status, "PASS", JSON.stringify(ctx.steps));
   assert.equal(record.details.editorLists.listed, true);
   const evals = fake.calls.app.filter((c) => c.key === "evalBounded").map((c) => c.args[2]);
   const opened = evals.indexOf("edit:click:1");
-  const listed = evals.indexOf("probe:listed");
+  const listed = evals.lastIndexOf("probe:listed");
   const inserted = evals.findIndex((l, i) => i > listed && l.startsWith("edit:"));
   assert.ok(opened >= 0 && listed > opened && inserted > listed, `opener, then the listing, then the edit: ${evals.join(",")}`);
   const actions = fake.calls.app.filter((c) => c.key === "evalBounded").map((c) => c.args[1]);
-  assert.deepEqual(actions.slice(0, PANEL_OPENERS.xlsx.plan.length), PANEL_OPENERS.xlsx.plan);
+  assert.deepEqual(actions.slice(1, 1 + PANEL_OPENERS.xlsx.plan.length), PANEL_OPENERS.xlsx.plan);
 });
 
 test("runG8A02: an editor that never lists the comment is FAIL at editor-lists and drives no edit", async () => {

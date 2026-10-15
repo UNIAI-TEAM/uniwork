@@ -428,7 +428,7 @@ test("runG8A04 opens the panel through the editor's own Review > Show Comments (
   fake.script.respond("api.createDocumentComment", { status: 500, body: {} });
   const ctx = fakeCtx(fake, "G8-A04", "fx-docx-report-vi");
   const record = await runG8A04(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" }, setOnline: () => {} });
-  assert.equal(record.steps.panel?.status, "PASS", JSON.stringify(record.steps.panel));
+  assert.equal(ctx.steps.panel?.status, "PASS", JSON.stringify(ctx.steps.panel));
   assert.equal(record.details.panels.desktop, 1);
   const actions = fake.calls.app.filter((c) => c.key === "evalBounded" && c.args[1]?.type === "click").map((c) => c.args[1]);
   assert.deepEqual(actions.slice(0, 2), PANEL_OPENERS.docx.plan);
