@@ -252,7 +252,10 @@ export class EditLockSession {
       }
       this.grant(lock, sentAt);
     } catch (err) {
-      if (op !== this.op || this.disposed) return;
+      if (op !== this.op || this.disposed) {
+        this.keepaliveOps.delete(op);
+        return;
+      }
       if (err instanceof ApiError && err.code === "document_locked") {
         const holder = holderFrom(err.fields);
         // Our own previous session (remount) may still be releasing: wait, ask once more.
