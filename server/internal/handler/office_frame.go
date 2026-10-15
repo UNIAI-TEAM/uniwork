@@ -201,7 +201,7 @@ func (h *handlers) getOfficeFrameContent(w http.ResponseWriter, r *http.Request)
 // uploadOfficeFrameFile is POST /office-frame/documents/{documentID}/uploads:
 // the Documents staging route (FileService, document_file purpose).
 func (h *handlers) uploadOfficeFrameFile(w http.ResponseWriter, r *http.Request) {
-	if _, err := h.OfficeFrame.Authorize(r.Context(), officeFrameClaims(r)); err != nil {
+	if _, err := h.OfficeFrame.AuthorizeSave(r.Context(), officeFrameClaims(r)); err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
@@ -214,7 +214,7 @@ func (h *handlers) uploadOfficeFrameFile(w http.ResponseWriter, r *http.Request)
 // document_version_conflict with fields.current_revision.
 func (h *handlers) commitOfficeFrameVersion(w http.ResponseWriter, r *http.Request) {
 	claims := officeFrameClaims(r)
-	if _, err := h.OfficeFrame.Authorize(r.Context(), claims); err != nil {
+	if _, err := h.OfficeFrame.AuthorizeSave(r.Context(), claims); err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
