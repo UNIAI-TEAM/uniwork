@@ -48,6 +48,10 @@ export const documentKeys = {
     [...documentKeys.workspace(wsId), "archive-impact", documentId] as const,
   shares: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "shares"] as const,
+  // Pending access requests (W-DOC07); a child of the detail key like
+  // `shares`, so approve/decline invalidate both from one document.
+  accessRequests: (wsId: string, documentId: string) =>
+    [...documentKeys.detail(wsId, documentId), "access-requests"] as const,
   accessLogs: (wsId: string, documentId: string, action: string = "") =>
     [...documentKeys.detail(wsId, documentId), "access-logs", action] as const,
   settings: (orgId: string) => [...documentKeys.all, "settings", orgId] as const,
