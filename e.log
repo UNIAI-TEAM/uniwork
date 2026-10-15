@@ -1,0 +1,37 @@
+$ git checkout -q 483fd30c4 -- . ; AI_PROVIDER=fake npm exec -w @genoffice/markdown -- vitest run tests/g6-09b-image-url-rule-text.test.ts; a=$?; git reset -q --hard HEAD; echo; echo "RED_RFN21 md=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ❯ tests/g6-09b-image-url-rule-text.test.ts (57 tests | 1 failed) 1552ms
+     × refuses when the prefix that lands carries an unregistered remote image 414ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > write_document truncated fallback under UniWork AI > refuses when the prefix that lands carries an unregistered remote image
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-09b-image-url-rule-text.test.ts:313:23
+    311|       brokenTailWriter(`{{secret}}\n\n![x](${STRANGER})`),
+    312|     )
+    313|     expect(r.isError).toBe(true)
+       |                       ^
+    314|     expect(r.output).toContain(IMAGE_URL_REFUSAL)
+    315|     expect(md()).toBe(before)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 56 passed (57)
+   Start at  21:23:09
+   Duration  2.92s (transform 723ms, setup 0ms, import 946ms, tests 1.55s, environment 327ms)
+
+
+RED_RFN21 md=1
+RED_OK

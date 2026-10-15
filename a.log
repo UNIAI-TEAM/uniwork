@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor origin/main HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+00ed3540bb43fae606f3d4dfa82cf62bbd20c393
+947f68e01d5cced1c0ebc1cd584aa35eace4eeb1
+00ed3540 merge: G6-09a 4ef0961dc (fork main 947f68e01) into the G6-09b lane branch
+4ef0961d merge: fork main 947f68e01 (G5-11f keystore-locked escape) into the G6-09a lane branch
+677bb6ea test(ai): pdf flags test deps leave the optional imageUrls host dep absent (UNI-1374)
+947f68e0 merge: G5-11f f6 BE review d1 lows (plannedRamOnly per scope, run rejections observed) into the G5-11f lane (UNI-1358)
+0e3472f3 fix(ai): write_document checks the markdown that lands, including the truncated rendered prefix (UNI-1374)
+8d4a8b58 fix(shell): key the planned RAM-only keys per scope (d1-3)
+5bff2d67 fix(shell): observe every account-boundary run's rejection (d1-2)
+483fd30c test(ai): pin markdown image rule spellings and the truncated write_document landing prefix (UNI-1374)
+
+SYNCED_EXIT=0

@@ -1,0 +1,48 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/sheets -- vitest run tests/g6-09b-image-url-rule.test.ts tests/g6-12-add-image-guard.test.ts tests/g6-12-fetch-image-guard.test.ts --reporter=verbose; rc=$?; echo; echo "SHEETS_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > refuses http://127.0.0.1/a.png without fetching it 3ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > refuses http://10.0.0.5/a.png without fetching it 0ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > refuses http://192.168.1.1/a.png without fetching it 0ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > refuses http://169.254.169.254/latest/meta-data without fetching it 0ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > refuses http://[::1]/a.png without fetching it 3ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > refuses http://localhost/a.png without fetching it 0ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > refuses file:///etc/passwd without fetching it 0ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > refuses ftp://93.184.216.34/a.png without fetching it 0ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > refuses a public URL that redirects to a private address 7ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > caps the download at 20 MB 0ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > refuses a declared Content-Length above the cap 1ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > stops a body without Content-Length once it passes the cap 9ms
+ ✓ tests/g6-12-fetch-image-guard.test.ts > g6-12 sheets ai:fetch-image guard > returns a small public image as base64 1ms
+ ✓ tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > refuses the local path /etc/passwd before anything is applied 4ms
+ ✓ tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > refuses the local path ~/.ssh/id_rsa before anything is applied 1ms
+ ✓ tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > refuses the local path C:\Users\u\secret.png before anything is applied 0ms
+ ✓ tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > refuses the local path relative/x.png before anything is applied 0ms
+ ✓ tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > refuses a local path inside a mixed batch (all-or-nothing) 0ms
+ ✓ tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > lets an image the user attached through 0ms
+ ✓ tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > lets the URL https://images.example.com/a.png through to the guarded fetch 0ms
+ ✓ tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > lets the URL http://images.example.com/a.png through to the guarded fetch 0ms
+ ✓ tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > lets the URL data:image/png;base64,iVBORw0KGgo= through to the guarded fetch 0ms
+ ✓ tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > keeps local paths for a local (not bound) workbook 1ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses the unregistered URL source https://img.example/stranger.png and applies nothing 5ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses the unregistered URL source http://img.example/a.png and applies nothing 1ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses the unregistered URL source data:image/png;base64,iVBORw0KGgo= and applies nothing 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses the unregistered URL source file:///store/generated/g1.png and applies nothing 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > accepts a URL image_search returned this run 1ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > accepts the URL generate_image returned this run 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses a URL from a PREVIOUS run 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > refuses the whole batch when one URL is unregistered (all-or-nothing) 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > keeps the bound local-path rule: an attached path passes, another path is refused 1ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > leaves a local path of a not-bound workbook to today's rules 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule under UniWork AI > begins a new run from the skill context (one buildContext per loop.run) 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule for BYOK > keeps today's rules: an unregistered URL source is applied 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > sheets image URL rule for BYOK > still records what image_search and generate_image returned 0ms
+
+ Test Files  3 passed (3)
+      Tests  36 passed (36)
+   Start at  21:23:22
+   Duration  1.26s (transform 1.86s, setup 0ms, import 2.49s, tests 49ms, environment 0ms)
+
+
+SHEETS_TARGETED_EXIT=0

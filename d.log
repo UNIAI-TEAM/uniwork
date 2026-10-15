@@ -1,0 +1,161 @@
+$ git checkout -q e97a56d90 -- . ; AI_PROVIDER=fake npm exec -w @genoffice/markdown -- vitest run tests/g6-09b-image-url-rule-text.test.ts; a=$?; git reset -q --hard HEAD; echo; echo "RED_RFN1 md=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ❯ tests/g6-09b-image-url-rule-text.test.ts (32 tests | 18 failed) 487ms
+     × apply_ops insertContent refuses an unregistered URL and changes nothing 92ms
+     × apply_ops replaceBlocks refuses an unregistered URL and changes nothing 21ms
+     × write_document refuses an unregistered URL and changes nothing 17ms
+     × apply_ops insertContent refuses an unregistered URL and changes nothing 10ms
+     × apply_ops replaceBlocks refuses an unregistered URL and changes nothing 10ms
+     × write_document refuses an unregistered URL and changes nothing 13ms
+     × apply_ops insertContent refuses an unregistered URL and changes nothing 11ms
+     × apply_ops replaceBlocks refuses an unregistered URL and changes nothing 9ms
+     × write_document refuses an unregistered URL and changes nothing 10ms
+     × apply_ops insertContent refuses an unregistered URL and changes nothing 19ms
+     × apply_ops replaceBlocks refuses an unregistered URL and changes nothing 15ms
+     × write_document refuses an unregistered URL and changes nothing 16ms
+     × apply_ops insertContent refuses an unregistered URL and changes nothing 15ms
+     × apply_ops replaceBlocks refuses an unregistered URL and changes nothing 12ms
+     × write_document refuses an unregistered URL and changes nothing 18ms
+     × refuses a data: image that was not generated this run, accepts one that was 8ms
+     × refuses the whole batch when only one op carries an unregistered image 10ms
+     × refuses an insertImage op with an unregistered remote src, accepts a registered one 8ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 18 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline ![alt](url), under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline with title, under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, reference ![alt][id], under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img src>, under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img> in a paragraph, under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-09b-image-url-rule-text.test.ts:87:23
+     85|       ops: [{ op: 'insertContent', after: 0, markdown: form(STRANGER) …
+     86|     })
+     87|     expect(r.isError).toBe(true)
+       |                       ^
+     88|     expect(r.output).toContain(IMAGE_URL_REFUSAL)
+     89|     expect(r.mutated).toBeFalsy()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/18]⎯
+
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline ![alt](url), under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline with title, under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, reference ![alt][id], under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img src>, under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img> in a paragraph, under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-09b-image-url-rule-text.test.ts:99:23
+     97|       ops: [{ op: 'replaceBlocks', target: { start: 0, end: 0 }, markd…
+     98|     })
+     99|     expect(r.isError).toBe(true)
+       |                       ^
+    100|     expect(r.output).toContain(IMAGE_URL_REFUSAL)
+    101|     expect(md()).toBe(before)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/18]⎯
+
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline ![alt](url), under UniWork AI > write_document refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline with title, under UniWork AI > write_document refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, reference ![alt][id], under UniWork AI > write_document refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img src>, under UniWork AI > write_document refuses an unregistered URL and changes nothing
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img> in a paragraph, under UniWork AI > write_document refuses an unregistered URL and changes nothing
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-09b-image-url-rule-text.test.ts:108:23
+    106|     const before = md()
+    107|     const r = await run('write_document', { plan: 'p', afterIndex: 0 }…
+    108|     expect(r.isError).toBe(true)
+       |                       ^
+    109|     expect(r.output).toContain(IMAGE_URL_REFUSAL)
+    110|     expect(md()).toBe(before)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/18]⎯
+
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: other cases > refuses a data: image that was not generated this run, accepts one that was
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-09b-image-url-rule-text.test.ts:140:29
+    138|     const ops = [{ op: 'insertContent', after: 0, markdown: `![d](${DA…
+    139|     const refused = await run('apply_ops', { ops })
+    140|     expect(refused.isError).toBe(true)
+       |                             ^
+    141|     expect(refused.output).toContain(IMAGE_URL_REFUSAL)
+    142|     imageUrls.register(DATA, 'generate_image')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/18]⎯
+
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: other cases > refuses the whole batch when only one op carries an unregistered image
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-09b-image-url-rule-text.test.ts:155:23
+    153|       ],
+    154|     })
+    155|     expect(r.isError).toBe(true)
+       |                       ^
+    156|     expect(md()).toBe(before)
+    157|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/18]⎯
+
+ FAIL  tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: other cases > refuses an insertImage op with an unregistered remote src, accepts a registered one
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-09b-image-url-rule-text.test.ts:162:25
+    160|     const { run, imageUrls } = setup(true)
+    161|     const bad = await run('apply_ops', { ops: [{ op: 'insertImage', af…
+    162|     expect(bad.isError).toBe(true)
+       |                         ^
+    163|     expect(bad.output).toContain(IMAGE_URL_REFUSAL)
+    164|     imageUrls.register(STRANGER, 'image_search')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/18]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  18 failed | 14 passed (32)
+   Start at  21:23:07
+   Duration  1.85s (transform 742ms, setup 0ms, import 965ms, tests 487ms, environment 313ms)
+
+
+RED_RFN1 md=1
+RED_OK
