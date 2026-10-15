@@ -64,3 +64,15 @@ export function useSetMcpPolicy(orgSlug: string) {
     onSuccess: (policy) => qc.setQueryData(connectKeys.policy(orgSlug), policy),
   });
 }
+
+export function useSetMcpWritePolicy(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const policy = await connect.setMcpWritePolicy(orgSlug, enabled);
+      if (!policy) throw new Error("mcp write policy response did not parse");
+      return policy;
+    },
+    onSuccess: (policy) => qc.setQueryData(connectKeys.policy(orgSlug), policy),
+  });
+}

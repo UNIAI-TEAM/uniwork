@@ -7,6 +7,7 @@ import (
 	"io"
 	"path"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -43,6 +44,11 @@ type FileMessageInfo struct {
 	ObjectKey   string
 	ContentType string
 	SizeBytes   int64
+	// Read URLs signed for the viewer (signChatMedia); empty when unsigned.
+	URL          string
+	DownloadURL  string
+	ThumbURL     string
+	URLExpiresAt time.Time
 }
 
 type PrepareFileMessageInput struct {

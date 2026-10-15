@@ -634,7 +634,10 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 // PendingInvitations hands out the tokens of the invitations sent to the
 // caller's address, so the address must be proven first: otherwise anyone who
 // registers an invitee's email before they do reads the token here.
-func (s *WorkspaceService) PendingInvitations(ctx context.Context, userID string) ([]db.ListInvitationsForEmailRow, error) {
+//
+// Each carries the workspaces it grants (UNI-1582), so the person sees where
+// accepting it leads before opening it.
+func (s *WorkspaceService) PendingInvitations(ctx context.Context, userID string) ([]MyInvitation, error) {
 	if err := requireVerifiedEmail(ctx, s.q, userID); err != nil {
 		return nil, err
 	}
@@ -642,7 +645,39 @@ func (s *WorkspaceService) PendingInvitations(ctx context.Context, userID string
 	if err != nil {
 		return nil, err
 	}
-	return s.q.ListInvitationsForEmail(ctx, u.Email)
+	rows, err := s.q.ListInvitationsForEmail(ctx, u.Email)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	orgIDs := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+		orgIDs = append(orgIDs, r.OrganizationID)
+	}
+	granted, err := invitationGrants(ctx, s.q, ids, orgIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MyInvitation, 0, len(rows))
+	for _, r := range rows {
+		inv := MyInvitation{ListInvitationsForEmailRow: r, Workspaces: granted[r.ID]}
+		if r.WorkspaceID.Valid {
+			inv.Workspaces = []WorkspaceRef{{ID: r.WorkspaceID.String, Name: r.WorkspaceName.String, Slug: r.WorkspaceSlug.String}}
+		}
+		if inv.Workspaces == nil {
+			inv.Workspaces = []WorkspaceRef{}
+		}
+		out = append(out, inv)
+	}
+	return out, nil
+}
+
+// MyInvitation is one invitation waiting for the caller, with the workspaces
+// accepting it grants.
+type MyInvitation struct {
+	db.ListInvitationsForEmailRow
+	Workspaces []WorkspaceRef
 }
 
 // OrganizationOf names the organization a workspace belongs to. The realtime

@@ -71,16 +71,23 @@ type ChatVoiceRecordingPlaybackSDO struct {
 
 // VoiceMessageDTO is metadata for private voice-message content.
 type VoiceMessageDTO struct {
-	DurationMS  int    `json:"duration_ms" description:"Recording duration in milliseconds" example:"12500"`
-	ContentType string `json:"content_type" description:"Sniffed audio MIME type" example:"audio/webm"`
-	SizeBytes   int64  `json:"size_bytes" description:"Stored audio size in bytes" example:"184320"`
+	DurationMS   int    `json:"duration_ms" description:"Recording duration in milliseconds" example:"12500"`
+	ContentType  string `json:"content_type" description:"Sniffed audio MIME type" example:"audio/webm"`
+	SizeBytes    int64  `json:"size_bytes" description:"Stored audio size in bytes" example:"184320"`
+	URL          string `json:"url,omitempty" description:"URL presign ngắn hạn để phát trực tiếp từ object storage; trống khi không ký được" example:"https://storage.example.com/uniwork/chat/voice/01J8X4FILE?X-Amz-Signature=abc"`
+	URLExpiresAt string `json:"url_expires_at,omitempty" description:"Thời điểm URL hết hạn (RFC3339); tải lại tin nhắn để có URL mới" example:"2026-03-26T22:00:00Z"`
 }
 
-// FileMessageDTO is metadata for private chat-file content (object_key stays server-side).
+// FileMessageDTO is a chat file: its metadata plus presigned read URLs for
+// the viewer (UNI-1633); the storage key itself stays server-side.
 type FileMessageDTO struct {
-	Filename    string `json:"filename" description:"Original filename" example:"sprint.pdf"`
-	ContentType string `json:"content_type" description:"Sniffed MIME type" example:"application/pdf"`
-	SizeBytes   int64  `json:"size_bytes" description:"Stored file size in bytes" example:"204800"`
+	Filename     string `json:"filename" description:"Original filename" example:"sprint.pdf"`
+	ContentType  string `json:"content_type" description:"Sniffed MIME type" example:"application/pdf"`
+	SizeBytes    int64  `json:"size_bytes" description:"Stored file size in bytes" example:"204800"`
+	URL          string `json:"url,omitempty" description:"URL presign ngắn hạn để xem tệp trực tiếp từ object storage (inline); trống khi không ký được" example:"https://storage.example.com/uniwork/chat/files/01J8X4FILE?X-Amz-Signature=abc"`
+	DownloadURL  string `json:"download_url,omitempty" description:"URL presign tải tệp xuống với tên gốc (Content-Disposition: attachment)" example:"https://storage.example.com/uniwork/chat/files/01J8X4FILE?response-content-disposition=attachment&X-Amz-Signature=abc"`
+	ThumbURL     string `json:"thumb_url,omitempty" description:"URL presign ảnh thu nhỏ (cạnh dài tối đa 640px); bằng url khi ảnh chưa có bản thu nhỏ" example:"https://storage.example.com/uniwork/chat/files/01J8X4THUMB?X-Amz-Signature=abc"`
+	URLExpiresAt string `json:"url_expires_at,omitempty" description:"Thời điểm URL sớm nhất hết hạn (RFC3339); tải lại tin nhắn để có URL mới" example:"2026-03-26T22:00:00Z"`
 }
 
 // ChatPollOptionDTO is one poll choice with vote count.

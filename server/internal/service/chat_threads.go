@@ -117,6 +117,7 @@ func (s *ChatService) ListThreadMessages(
 			out[i].ThreadUnread = unread
 		}
 	}
+	s.signChatMedia(ctx, room, out)
 	return out, nil
 }
 

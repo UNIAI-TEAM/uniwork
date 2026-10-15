@@ -43,6 +43,7 @@ import {
   canPromoteChatMember,
   canUnmuteChatMember,
 } from "./chat-room-moderation-utils";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { initialOf } from "./chat-initials";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
@@ -68,6 +69,7 @@ export function GroupSettingsSheet({
   leaveDisabled,
   onOpenSearch,
   memberAvatarByUserId = {},
+  onMessage,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -83,6 +85,7 @@ export function GroupSettingsSheet({
   onLeave: () => void | Promise<void>;
   leaving?: boolean;
   leaveDisabled?: boolean;
+  onMessage?: (member: ChatMemberMessageTarget) => void;
 }) {
   const { t } = useTranslation();
   const {
@@ -250,6 +253,20 @@ export function GroupSettingsSheet({
                             ? t("chat.room_role_muted")
                             : member.email
                     }
+                    profile={{
+                      userId: member.key,
+                      email: member.email,
+                      avatarUrl: lookupMemberAvatarUrl(memberAvatarByUserId, member.key),
+                      onMessage:
+                        !member.isSelf && onMessage && member.email
+                          ? () =>
+                              onMessage({
+                                user_id: member.key,
+                                email: member.email ?? "",
+                                display_name: member.legalLabel,
+                              })
+                          : undefined,
+                    }}
                     actions={
                       <>
                         <Button

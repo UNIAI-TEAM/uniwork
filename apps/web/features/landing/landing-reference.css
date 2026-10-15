@@ -138,7 +138,7 @@
 .roadmap-section .roadmap-phase-name { font-size: var(--text-title-sm); gap: 16px; }
 .roadmap-section .roadmap-count { display: none; }
 .landing-site .pricing-section { background: var(--landing-paper); border: 1px solid var(--border); }
-.pricing-section > div > div:first-child { max-width: 740px; }
+.pricing-section .pricing-introduction { max-width: 740px; }
 .landing-site .pricing-offer { gap: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
 .landing-site .pricing-plan { border-radius: 0; box-shadow: none; background: var(--landing-stage-soft); padding: 36px; }
 .landing-site .pricing-plan-mark { width: 48px; height: 48px; background: var(--landing-violet); box-shadow: none; margin-bottom: 24px; }

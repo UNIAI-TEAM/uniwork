@@ -1,5 +1,4 @@
-import { ChangelogPage } from "../../features/landing/changelog/page";
-import { marketingMetadata } from "../../platform/feature-metadata";
-
-export function generateMetadata() { return marketingMetadata("changelog", "/changelog"); }
-export default function Page() { return <ChangelogPage />; }
+import { publicPage } from "../../platform/public-page";
+import { seoMetadata } from "../../platform/seo";
+export function generateMetadata() { return seoMetadata("/changelog"); }
+export default function Page() { return publicPage("/changelog"); }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import {
@@ -279,6 +279,8 @@ describe("ChatSidebar", () => {
         id: "inv1",
         token: "tok1",
         role: "member",
+        org_role: "member",
+        expires_at: "2099-01-01T00:00:00Z",
         organization: { name: "Acme", slug: "acme" },
         workspace: { name: "Ops", slug: "ops" },
         invited_by: { display_name: "Lan" },
@@ -286,8 +288,33 @@ describe("ChatSidebar", () => {
     ];
     renderSidebar();
 
-    const link = screen.getByRole("link", { name: "Xem lời mời vào Acme" });
+    // The link names the workspace and its organization in words, not "›".
+    const link = screen.getByRole("link", { name: "Xem lời mời vào Ops trong Acme" });
     expect(link).toHaveAttribute("href", "/invite/tok1");
     expect(screen.queryByRole("button", { name: "Tham gia" })).not.toBeInTheDocument();
+  });
+
+  /** The same row as /invitations, so an invitation reads the same wherever it is listed. */
+  it("lists invitations with the shared row: inviter first, then the place, role and expiry", () => {
+    invitesMock.invites = [
+      {
+        id: "inv1",
+        token: "tok1",
+        role: "member",
+        org_role: "admin",
+        expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+        organization: { name: "Acme", slug: "acme" },
+        workspace: { name: "Ops", slug: "ops" },
+        invited_by: { display_name: "Lan" },
+      },
+    ];
+    renderSidebar();
+
+    const section = screen.getByRole("region", { name: "Lời mời đang chờ" });
+    const row = within(section).getByRole("listitem");
+    expect(row.textContent?.indexOf("Lan mời bạn vào")).toBe(0);
+    expect(row).toHaveTextContent("Acme › Ops");
+    expect(row).toHaveTextContent("Quản trị");
+    expect(within(row).getByText("Sắp hết hạn")).toBeInTheDocument();
   });
 });

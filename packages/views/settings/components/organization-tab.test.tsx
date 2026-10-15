@@ -301,8 +301,12 @@ describe("OrganizationTab", () => {
     expect(dialog).toHaveTextContent("Đóng Acme?");
     const submit = within(dialog).getByRole("button", { name: "Đóng tổ chức" });
     expect(submit).toHaveAttribute("aria-disabled", "true");
+    // What is missing is said in words, beside the held-back button and on it.
+    expect(submit).toHaveAccessibleDescription("Gõ đúng định danh tổ chức để đóng.");
+    // The page behind dims harder: closing cannot be undone from here.
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass("bg-black/45");
 
-    const field = within(dialog).getByLabelText("Gõ đường dẫn tổ chức để xác nhận");
+    const field = within(dialog).getByLabelText("Gõ định danh tổ chức để xác nhận");
     fireEvent.change(field, { target: { value: "Acme" } });
     fireEvent.blur(field);
     expect(field).toHaveAttribute("aria-invalid", "true");
@@ -321,7 +325,7 @@ describe("OrganizationTab", () => {
     const { replace } = renderTabWithNav();
     fireEvent.click(await screen.findByRole("button", { name: "Đóng tổ chức" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("Gõ đường dẫn tổ chức để xác nhận"), {
+    fireEvent.change(within(dialog).getByLabelText("Gõ định danh tổ chức để xác nhận"), {
       target: { value: "acme" },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Đóng tổ chức" }));
@@ -331,8 +335,82 @@ describe("OrganizationTab", () => {
     expect(screen.queryByText("còn thành viên")).not.toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
     // Pressing again cannot help; the transfer is offered in place.
-    expect(within(dialog).getByRole("button", { name: "Đóng tổ chức" })).toHaveAttribute("aria-disabled", "true");
+    const held = within(dialog).getByRole("button", { name: "Đóng tổ chức" });
+    expect(held).toHaveAttribute("aria-disabled", "true");
+    // The refusal on screen is the reason, said once.
+    expect(held).toHaveAccessibleDescription("Tổ chức vẫn còn thành viên khác. Chuyển quyền sở hữu trước khi đóng.");
+    expect(within(dialog).getAllByText("Tổ chức vẫn còn thành viên khác. Chuyển quyền sở hữu trước khi đóng.")).toHaveLength(1);
     fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển quyền" }));
     expect(await screen.findByRole("dialog", { name: "Chuyển quyền sở hữu Acme?" })).toBeInTheDocument();
+  });
+
+  it("lands focus on the danger zone heading once ownership has moved, not on <body>", async () => {
+    let role = "owner";
+    requestMock.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path.endsWith("/members/me")) return Promise.resolve({ role });
+      if (path.includes("/members?")) return Promise.resolve({ members });
+      if (path.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      if (path.endsWith("/transfer-ownership") && init?.method === "POST") {
+        role = "admin";
+        return Promise.resolve({ member: { user_id: "u2", role: "owner" } });
+      }
+      return Promise.resolve({});
+    });
+    renderTab();
+    fireEvent.click(await screen.findByRole("button", { name: "Chuyển quyền" }));
+    const dialog = await screen.findByRole("dialog", { name: "Chuyển quyền sở hữu Acme?" });
+    const combobox = within(dialog).getByRole("combobox", { name: "Chủ sở hữu mới" });
+    fireEvent.click(combobox);
+    const option = await screen.findByRole("option", { name: "Nguyễn Văn An an@acme.vn" });
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+    await waitFor(() => expect(combobox).toHaveTextContent("Nguyễn Văn An"));
+    fireEvent.change(within(dialog).getByLabelText("Gõ tên tổ chức để xác nhận"), { target: { value: "Acme" } });
+    fireEvent.change(within(dialog).getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "pw" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển quyền" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument(), { timeout: 3000 });
+    // The owner's rows are gone with the role; focus waits on the heading of
+    // the zone that changed, and the Leave row now lets the admin go.
+    const heading = screen.getByRole("heading", { name: "Vùng nguy hiểm" });
+    await waitFor(() => expect(heading).toHaveFocus());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Chuyển quyền" })).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Rời tổ chức" })).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("holds the danger zone's place while the role is unknown, instead of showing a member's rows to the owner", async () => {
+    let answer: (v: unknown) => void = () => {};
+    requestMock.mockImplementation((path: string) => {
+      if (path.endsWith("/members/me")) return new Promise((resolve) => (answer = resolve));
+      if (path.includes("/members?")) return Promise.resolve({ members });
+      if (path.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      return Promise.resolve({});
+    });
+    renderTab();
+    await screen.findByText("Nguyễn Văn An");
+    expect(screen.getByRole("heading", { name: "Vùng nguy hiểm" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rời tổ chức" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Rời tổ chức sẽ đưa bạn ra khỏi mọi workspace trong đó.")).not.toBeInTheDocument();
+    answer({ role: "owner" });
+    expect(await screen.findByRole("button", { name: "Chuyển quyền" })).toBeInTheDocument();
+  });
+
+  it("decides the close row from the first page that already shows another active member", async () => {
+    let second: (v: unknown) => void = () => {};
+    requestMock.mockImplementation((path: string) => {
+      if (path.endsWith("/members/me")) return Promise.resolve({ role: "owner" });
+      if (path.includes("status=active") && path.includes("cursor=p2")) {
+        return new Promise((resolve) => (second = resolve));
+      }
+      if (path.includes("status=active")) return Promise.resolve({ members: [members[0], members[1]], next_cursor: "p2" });
+      if (path.includes("/members?")) return Promise.resolve({ members });
+      if (path.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      return Promise.resolve({});
+    });
+    renderTab();
+    const leave = await screen.findByRole("button", { name: "Rời tổ chức" });
+    // Page one already names a candidate: no close row, and the final reason.
+    expect(screen.queryByRole("button", { name: "Đóng tổ chức" })).not.toBeInTheDocument();
+    expect(leave).toHaveAccessibleDescription(/Chuyển quyền sở hữu cho người khác trước khi rời/);
+    second({ members: [] });
   });
 });

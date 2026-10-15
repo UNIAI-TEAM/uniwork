@@ -739,9 +739,12 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	out := w.call(t, "POST", org+"/departments", tn.token, map[string]any{"name": m + " Department"})
 	tn.ids["department"] = isoID(t, out, "department")
 	// A pending invitation to someone outside both tenants: its id for the
-	// revoke route, its token for the accept route.
+	// revoke route, its token for the accept route. It grants the tenant's
+	// workspace, so invitation_workspaces holds a row of each tenant.
 	invitee := strings.ToLower(m) + "-invitee@example.com"
-	w.call(t, "POST", org+"/invitations", tn.token, map[string]any{"emails": []string{invitee}, "org_role": "member"})
+	w.call(t, "POST", org+"/invitations", tn.token, map[string]any{
+		"emails": []string{invitee}, "org_role": "member", "workspace_ids": []string{tn.wsID},
+	})
 	out = w.call(t, "GET", org+"/invitations", tn.token, nil)
 	for _, inv := range isoList(t, out, "invitations") {
 		tn.ids["orgInvitation"] = inv["id"].(string)

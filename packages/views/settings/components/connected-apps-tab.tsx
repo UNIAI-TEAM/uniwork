@@ -79,7 +79,12 @@ export function ConnectedAppsTab() {
           <SettingsListItem
             key={g.id}
             title={g.client_name}
-            badge={g.verified ? <SettingsBadge tone="success">{t("verified")}</SettingsBadge> : null}
+            badge={
+              <span className="flex items-center gap-1.5">
+                {g.verified ? <SettingsBadge tone="success">{t("verified")}</SettingsBadge> : null}
+                <SettingsBadge tone="muted">{t(g.scope.split(" ").includes("write") ? "scopeWrite" : "scopeRead")}</SettingsBadge>
+              </span>
+            }
             meta={metaLine(g)}
             actions={
               <Button variant="ghost" size="sm" aria-label={t("revokeAria", { client: g.client_name })} onClick={() => setPending(g)}>

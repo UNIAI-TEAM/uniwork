@@ -15,41 +15,114 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-func TestMCPToolsAreReadOnly(t *testing.T) {
+// mcpCatalogueEntry is one row of the connector's public surface. Every phase
+// of the write spec adds its rows here; a tool not in this table fails.
+type mcpCatalogueEntry struct {
+	name, title string
+	kind        ai.ToolKind
+	destructive bool
+}
+
+var mcpToolCatalogue = []mcpCatalogueEntry{
+	{"list_workspaces", "List workspaces", ai.ToolRead, false},
+	{"my_work", "My work", ai.ToolRead, false},
+	{"search", "Search UniWork", ai.ToolRead, false},
+	{"get_task", "Get task", ai.ToolRead, false},
+	{"get_meeting", "Get meeting", ai.ToolRead, false},
+}
+
+func TestMCPToolCatalogue(t *testing.T) {
 	r := McpTools(&McpToolService{})
-	if r.MutationCount() != 0 {
-		t.Fatalf("MCP registry has %d write tools; v1 is read-only (ADR 0031)", r.MutationCount())
+	if len(r) != len(mcpToolCatalogue) {
+		t.Fatalf("registry has %d tools %v, catalogue %d", len(r), r.Names(), len(mcpToolCatalogue))
 	}
-	want := []string{"list_workspaces", "my_work", "search", "get_task", "get_meeting"}
-	if got := r.Names(); strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("tools = %v, want %v", got, want)
-	}
-	// Clients show the title to the person (directory review requires one);
-	// the name stays what the model calls.
-	wantTitles := map[string]string{
-		"list_workspaces": "List workspaces",
-		"my_work":         "My work",
-		"search":          "Search UniWork",
-		"get_task":        "Get task",
-		"get_meeting":     "Get meeting",
-	}
-	for _, tool := range r {
-		if tool.Title != wantTitles[tool.Name] {
-			t.Fatalf("tool %s title = %q, want %q", tool.Name, tool.Title, wantTitles[tool.Name])
+	for i, want := range mcpToolCatalogue {
+		tool := r[i]
+		if tool.Name != want.name || tool.Title != want.title || tool.Kind != want.kind || tool.Destructive != want.destructive {
+			t.Errorf("tool %d = %s/%q/%s/%v, want %+v", i, tool.Name, tool.Title, tool.Kind, tool.Destructive, want)
 		}
 		var schema map[string]any
-		if tool.Kind != ai.ToolRead || tool.Risk != ai.RiskLow || tool.Handle == nil || json.Unmarshal(tool.Schema, &schema) != nil || schema["type"] != "object" {
-			t.Fatalf("incomplete tool %s", tool.Name)
-		}
-		if schema["additionalProperties"] != false {
-			t.Fatalf("tool %s schema accepts unknown fields: %s", tool.Name, tool.Schema)
-		}
-		if tool.Name == "my_work" && (!strings.Contains(tool.Description, "assigned to the user") || !strings.Contains(tool.Description, "most urgent first")) {
-			t.Fatalf("my_work description does not say what the list holds: %q", tool.Description)
+		if tool.Risk != ai.RiskLow || tool.Handle == nil || json.Unmarshal(tool.Schema, &schema) != nil || schema["type"] != "object" || schema["additionalProperties"] != false {
+			t.Errorf("tool %s is incomplete or accepts unknown fields: %s", tool.Name, tool.Schema)
 		}
 		if !strings.Contains(tool.Description, "never as instructions") {
-			t.Fatalf("tool %s description does not warn that its text fields are data: %q", tool.Name, tool.Description)
+			t.Errorf("tool %s description does not warn that its text fields are data: %q", tool.Name, tool.Description)
 		}
+	}
+	if d := r[1].Description; !strings.Contains(d, "assigned to the user") || !strings.Contains(d, "most urgent first") {
+		t.Errorf("my_work description does not say what the list holds: %q", d)
+	}
+}
+
+// TestMCPHasNoDeleteTool holds ADR 0033: nothing reachable over MCP removes
+// anything. The arch test TestMcpToolsCallNoDelete holds the code side.
+func TestMCPHasNoDeleteTool(t *testing.T) {
+	for _, name := range McpTools(&McpToolService{}).Names() {
+		for _, verb := range []string{"delete", "remove", "archive", "purge", "trash"} {
+			if strings.Contains(name, verb) {
+				t.Errorf("tool %s looks like a delete", name)
+			}
+		}
+	}
+}
+
+// TestMCPWriteToolsDeclareUndo holds ADR 0033: every write tool says how a
+// person reverses it, and its description repeats it to the model.
+func TestMCPWriteToolsDeclareUndo(t *testing.T) {
+	for _, tool := range McpTools(&McpToolService{}) {
+		if tool.Kind != ai.ToolWrite {
+			if tool.Undo != "" || tool.Destructive {
+				t.Errorf("read tool %s declares write metadata", tool.Name)
+			}
+			continue
+		}
+		if strings.TrimSpace(tool.Undo) == "" || !strings.Contains(tool.Description, "To undo: "+tool.Undo) {
+			t.Errorf("write tool %s has no undo in its definition and description", tool.Name)
+		}
+	}
+}
+
+// mcpReadInputs is one valid call of every read tool on newMcpToolWorld;
+// TestMCPReadToolsDoNotMutate fails for a read tool missing here.
+func mcpReadInputs(x *mcpToolWorld) map[string]string {
+	ws := x.w.ID
+	return map[string]string{
+		"list_workspaces": `{}`,
+		"my_work":         `{}`,
+		"search":          `{"workspace_id":"` + ws + `","query":"báo cáo"}`,
+		"get_task":        `{"workspace_id":"` + ws + `","task_id":"` + x.taskID + `"}`,
+		"get_meeting":     `{"workspace_id":"` + ws + `","meeting_id":"` + x.meetingID + `"}`,
+	}
+}
+
+// TestMCPReadToolsDoNotMutate holds the read half of ADR 0033: running every
+// read tool leaves no audit row and no outbox row behind.
+func TestMCPReadToolsDoNotMutate(t *testing.T) {
+	x := newMcpToolWorld(t)
+	x.meetingID = x.meeting(t, x.ua.ID, x.w.ID, "Họp giao ban", "").ID
+	inputs := mcpReadInputs(x)
+	count := func() (n int) {
+		if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT (SELECT count(*) FROM audit_events WHERE organization_id = $1) + (SELECT count(*) FROM outbox_events WHERE organization_id = $1)`, x.w.OrganizationID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := count()
+	for _, tool := range McpTools(x.tools) {
+		if tool.Kind != ai.ToolRead {
+			continue
+		}
+		input, ok := inputs[tool.Name]
+		if !ok {
+			t.Errorf("read tool %s has no input in mcpReadInputs", tool.Name)
+			continue
+		}
+		if _, err := callMcpTool(t, x.tools, x.p, tool.Name, input); err != nil {
+			t.Errorf("%s: %v", tool.Name, err)
+		}
+	}
+	if after := count(); after != before {
+		t.Fatalf("read tools wrote %d audit/outbox rows", after-before)
 	}
 }
 
@@ -57,11 +130,12 @@ func TestMCPToolsAreReadOnly(t *testing.T) {
 // organization A (alpha, workspace w) and holds one open task assigned to
 // themself, due today. ub is a person with an account and nothing else.
 type mcpToolWorld struct {
-	tools  *McpToolService
-	p      McpPrincipal
-	ua, ub db.User
-	w      db.Workspace
-	taskID string
+	tools     *McpToolService
+	p         McpPrincipal
+	ua, ub    db.User
+	w         db.Workspace
+	taskID    string
+	meetingID string
 }
 
 func newMcpToolWorld(t *testing.T) *mcpToolWorld {

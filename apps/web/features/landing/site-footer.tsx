@@ -1,11 +1,13 @@
 "use client";
-import Link from "next/link";
+import { MarketingAnchor } from "../../platform/marketing-link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { Logo } from "@uniwork/ui/brand";
 import { ANCHORS, href } from "./anchors";
 import { Container } from "./layout-primitives";
 import { SOLUTIONS, SOLUTION_KEYS } from "./solutions";
+import { siteInformation } from "../../platform/site-information";
 
 /**
  * Footer links are plain anchors, so they do not inherit the Button
@@ -100,9 +102,9 @@ export function SiteFooter() {
               </Link>
             </li>
             <li>
-              <a className={LINK} href={href(ANCHORS.roadmap)}>
+              <MarketingAnchor className={LINK} href={href(ANCHORS.roadmap)}>
                 {t("landing.footer.roadmap")}
-              </a>
+              </MarketingAnchor>
             </li>
             <li>
               <Link className={LINK} href={paths.pricing()}>
@@ -115,10 +117,15 @@ export function SiteFooter() {
         <nav aria-label={t("landing.footer.company")}>
           <h2 className="text-body font-semibold">{t("landing.footer.company")}</h2>
           <ul className="mt-3 grid gap-2">
+            <li><Link className={LINK} href={paths.about()}>{t("marketingSeo.about")}</Link></li>
+            <li><Link className={LINK} href={paths.security()}>{t("marketingSeo.data")}</Link></li>
+            {siteInformation.privacyUrl && <li><MarketingAnchor className={LINK} href={siteInformation.privacyUrl}>{t("marketingSeo.privacy")}</MarketingAnchor></li>}
+            {siteInformation.termsUrl && <li><MarketingAnchor className={LINK} href={siteInformation.termsUrl}>{t("marketingSeo.terms")}</MarketingAnchor></li>}
+            {siteInformation.supportEmail && <li><MarketingAnchor className={LINK} href={`mailto:${siteInformation.supportEmail}`}>{siteInformation.supportEmail}</MarketingAnchor></li>}
             <li>
-              <a className={LINK} href={href(ANCHORS.contact)}>
+              <MarketingAnchor className={LINK} href={href(ANCHORS.contact)}>
                 {t("landing.nav.contact")}
-              </a>
+              </MarketingAnchor>
             </li>
             <li>
               <Link className={LINK} href={paths.login()}>

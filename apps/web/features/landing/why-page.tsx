@@ -1,6 +1,7 @@
 "use client";
-import { ArrowDown, ArrowRight, BookOpen, ExternalLink, FileText, GitBranch, MessageSquare, Play, Sparkles } from "lucide-react";
-import Link from "next/link";
+import { MarketingAnchor } from "../../platform/marketing-link";
+import { ArrowDown, ArrowRight, BookOpen, ExternalLink, FileText, GitBranch, MessageSquare, Sparkles } from "lucide-react";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
@@ -33,7 +34,7 @@ const PROOFS = [
  */
 export function WhyPage() {
   const { t } = useTranslation();
-  return <MarketingShell closingTitle="landing.why.redesign.closingTitle" closingDemoHref={paths.feature("tasks")}>
+  return <MarketingShell closingTitle="landing.why.redesign.decisionTitle" closingDescription="landing.why.redesign.decisionDescription" closingAction={{ href: paths.feature("tasks"), labelKey: "landing.why.redesign.tryAction", icon: "play" }}>
     <div className="why-page">
       <section className="why-hero why-width" aria-labelledby="why-title">
         <div className="why-hero-copy">
@@ -42,7 +43,7 @@ export function WhyPage() {
           <p>{t("landing.why.redesign.description")}</p>
           <div className="marketing-actions">
             <Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link>
-            <a href="#comparison" className="why-compare-link">{t("landing.why.redesign.compareAction")}<ArrowDown aria-hidden /></a>
+            <MarketingAnchor href="#comparison" className="why-compare-link">{t("landing.why.redesign.compareAction")}<ArrowDown aria-hidden /></MarketingAnchor>
           </div>
         </div>
         <figure className="why-workspace">
@@ -66,11 +67,6 @@ export function WhyPage() {
           </div>
           <figure className="why-proof-figure"><FeatureIllustration featureKey={feature} index={index} /><figcaption>{t("landing.featureVisuals.sample")}</figcaption></figure>
         </article>)}
-      </section>
-      <section className="why-decision why-width" aria-labelledby="why-decision-title">
-        <Logo variant="mark" size={48} decorative />
-        <div><h2 id="why-decision-title">{t("landing.why.redesign.decisionTitle")}</h2><p>{t("landing.why.redesign.decisionDescription")}</p></div>
-        <Link href={paths.feature("tasks")} className={buttonVariants({ variant: "outline", size: "lg" })}><Play aria-hidden />{t("landing.why.redesign.tryAction")}</Link>
       </section>
     </div>
   </MarketingShell>;
@@ -107,7 +103,7 @@ function Comparison() {
         </tr>)}</tbody>
       </table>
       <div className="why-methodology"><p>{t(`${ns}.methodology`)}</p><p>{t(`${ns}.verifiedDate`)} <time dateTime="2026-09-29">29/09/2026</time></p>
-        <div className="why-sources"><a href={PLATFORM_MEDIA[platform].source} target="_blank" rel="noreferrer">{t(`${ns}.productSource`)}<ExternalLink aria-hidden /></a><a href={PLATFORM_MEDIA[platform].aiSource} target="_blank" rel="noreferrer">{t(`${ns}.contextSource`)}<ExternalLink aria-hidden /></a></div>
+        <div className="why-sources"><MarketingAnchor href={PLATFORM_MEDIA[platform].source} target="_blank" rel="noreferrer">{t(`${ns}.productSource`)}<ExternalLink aria-hidden /></MarketingAnchor><MarketingAnchor href={PLATFORM_MEDIA[platform].aiSource} target="_blank" rel="noreferrer">{t(`${ns}.contextSource`)}<ExternalLink aria-hidden /></MarketingAnchor></div>
       </div>
     </div>
   </section>;

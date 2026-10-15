@@ -83,14 +83,6 @@ func getChatAttachment(t *testing.T, srv *httptest.Server, path, token string) (
 	return res, raw
 }
 
-func fileStreamPath(wsID, roomID, messageID string) string {
-	return "/api/v1/workspaces/" + wsID + "/chat/rooms/" + roomID + "/messages/" + messageID + "/file"
-}
-
-func voiceStreamPath(wsID, roomID, messageID string) string {
-	return "/api/v1/workspaces/" + wsID + "/chat/rooms/" + roomID + "/messages/" + messageID + "/voice"
-}
-
 // registerOtherOrgUser creates a second organization with its own workspace
 // and returns its owner token plus the ids an attacker would have to guess.
 // The two-organization case is the isolation contract every FileService
@@ -115,8 +107,9 @@ func registerOtherOrgUser(t *testing.T, srv *httptest.Server, tag string) (token
 	return token, orgID, wsID
 }
 
-// The second member of a room sees the attachment in the room timeline and
-// downloads exactly the bytes the sender uploaded.
+// The second member of a room sees the attachment in the room timeline. The
+// bytes are read from storage through the signed URLs the FileService path
+// adds (UNI-1633, chat_media_fs_test.go); no API route streams them.
 func TestChatFileMessageSecondMemberSeesAndDownloads(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
@@ -161,21 +154,6 @@ func TestChatFileMessageSecondMemberSeesAndDownloads(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("second member did not see the file message: %v", out)
-	}
-
-	// And downloads the exact bytes through the authorized proxy route.
-	stream, raw := getChatAttachment(t, f.srv, fileStreamPath(f.wsID, f.groupRoomID, messageID), f.tokens["b"])
-	if stream.StatusCode != http.StatusOK {
-		t.Fatalf("download status = %d", stream.StatusCode)
-	}
-	if !bytes.Equal(raw, tinyPDF) {
-		t.Fatalf("downloaded %d bytes, want %d", len(raw), len(tinyPDF))
-	}
-	if got := stream.Header.Get("Content-Type"); got != "application/pdf" {
-		t.Fatalf("download content type = %q", got)
-	}
-	if got := stream.Header.Get("Content-Disposition"); got != `attachment; filename="ke-hoach.pdf"` {
-		t.Fatalf("download disposition = %q", got)
 	}
 }
 
@@ -222,19 +200,6 @@ func TestChatFileMessageIdempotentResendKeepsOneMessage(t *testing.T) {
 	}
 	if fileMessages != 1 {
 		t.Fatalf("file messages = %d, want 1", fileMessages)
-	}
-
-	// An image attachment streams inline; anything else is an attachment.
-	stream, raw := getChatAttachment(t, f.srv, fileStreamPath(f.wsID, f.groupRoomID, firstID), f.tokens["b"])
-	if stream.StatusCode != http.StatusOK || !bytes.Equal(raw, tinyPNG) {
-		t.Fatalf("image download = %d, bytes=%d", stream.StatusCode, len(raw))
-	}
-	if got := stream.Header.Get("Content-Disposition"); got != `inline; filename="anh.png"` {
-		t.Fatalf("image disposition = %q", got)
-	}
-	// H15: an image may sit in the private browser cache for a minute.
-	if got := stream.Header.Get("Cache-Control"); got != "private, max-age=60" {
-		t.Fatalf("image cache control = %q", got)
 	}
 }
 
@@ -321,24 +286,6 @@ func TestChatVoiceMessageSecondMemberPlaysWithDurationMetadata(t *testing.T) {
 		t.Fatalf("peer did not see the voice message: %v", out)
 	}
 
-	// Playback streams the same bytes inline.
-	stream, raw := getChatAttachment(t, f.srv, voiceStreamPath(f.wsID, f.groupRoomID, messageID), f.tokens["b"])
-	if stream.StatusCode != http.StatusOK {
-		t.Fatalf("playback status = %d", stream.StatusCode)
-	}
-	if !bytes.Equal(raw, tinyWebM) {
-		t.Fatalf("streamed %d bytes, want %d", len(raw), len(tinyWebM))
-	}
-	if got := stream.Header.Get("Content-Type"); got != "audio/webm" {
-		t.Fatalf("playback content type = %q", got)
-	}
-	if got := stream.Header.Get("Content-Disposition"); got != "inline" {
-		t.Fatalf("playback disposition = %q", got)
-	}
-	if got := stream.Header.Get("Cache-Control"); got != "private, no-store" {
-		t.Fatalf("playback cache control = %q", got)
-	}
-
 	// A retried voice upload with the same client_msg_id is one message.
 	res, retry := uploadChatVoice(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID, 12_500, "voice-share-1", tinyWebM)
 	if res.StatusCode != http.StatusOK {
@@ -385,8 +332,8 @@ func TestChatVoiceMessageRejectsBadDurationSizeAndTypePinsForFileServiceMigratio
 	}
 }
 
-// A workspace member who is not in the room cannot download the attachment,
-// and losing room membership closes the download immediately.
+// A workspace member who is not in the room cannot read the message that
+// carries the attachment's URLs, and losing room membership closes it at once.
 func TestChatFileMessageOutsideRoomCannotDownload(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
@@ -399,17 +346,15 @@ func TestChatFileMessageOutsideRoomCannotDownload(t *testing.T) {
 	voiceID := chatMessageDTO(t, voiceOut)["id"].(string)
 
 	// d is in the workspace but was never added to the group room.
-	res, raw := getChatAttachment(t, f.srv, fileStreamPath(f.wsID, f.groupRoomID, fileID), f.tokens["d"])
-	if res.StatusCode != http.StatusForbidden {
-		t.Fatalf("non-room-member file download = %d (%s)", res.StatusCode, raw)
+	for _, id := range []string{fileID, voiceID} {
+		res, out2 := doJSON(t, f.srv, "GET", roomMessagesPath(f, f.groupRoomID)+"/"+id, f.tokens["d"], nil)
+		if res.StatusCode != http.StatusForbidden {
+			t.Fatalf("non-room-member message read = %d %v", res.StatusCode, out2)
+		}
 	}
-	res, raw = getChatAttachment(t, f.srv, voiceStreamPath(f.wsID, f.groupRoomID, voiceID), f.tokens["d"])
+	res, out2 := doJSON(t, f.srv, "GET", roomMessagesPath(f, f.groupRoomID), f.tokens["d"], nil)
 	if res.StatusCode != http.StatusForbidden {
-		t.Fatalf("non-room-member voice download = %d (%s)", res.StatusCode, raw)
-	}
-	res, out2 := doJSON(t, f.srv, "GET", roomMessagesPath(f, f.groupRoomID)+"/"+fileID, f.tokens["d"], nil)
-	if res.StatusCode != http.StatusForbidden {
-		t.Fatalf("non-room-member message read = %d %v", res.StatusCode, out2)
+		t.Fatalf("non-room-member list = %d %v", res.StatusCode, out2)
 	}
 	res, out2 = uploadChatFile(t, f.srv.URL, f.tokens["d"], f.wsID, f.groupRoomID,
 		"x.pdf", "application/pdf", "acl-file-2", tinyPDF)
@@ -417,26 +362,26 @@ func TestChatFileMessageOutsideRoomCannotDownload(t *testing.T) {
 		t.Fatalf("non-room-member upload = %d %v", res.StatusCode, out2)
 	}
 
-	// c is a member and can download; after leaving the room the same URL is
-	// closed again.
-	stream, got := getChatAttachment(t, f.srv, fileStreamPath(f.wsID, f.groupRoomID, fileID), f.tokens["c"])
-	if stream.StatusCode != http.StatusOK || !bytes.Equal(got, tinyPDF) {
-		t.Fatalf("member download = %d, bytes=%d", stream.StatusCode, len(got))
+	// c is a member and reads the message; after leaving the room the same
+	// read is closed again, so no fresh URL is signed for c.
+	res, out2 = doJSON(t, f.srv, "GET", roomMessagesPath(f, f.groupRoomID)+"/"+fileID, f.tokens["c"], nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("member message read = %d %v", res.StatusCode, out2)
 	}
 	res, out2 = doJSON(t, f.srv, "POST",
 		"/api/v1/workspaces/"+f.wsID+"/chat/rooms/"+f.groupRoomID+"/leave", f.tokens["c"], nil)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("leave room: %d %v", res.StatusCode, out2)
 	}
-	res, raw = getChatAttachment(t, f.srv, fileStreamPath(f.wsID, f.groupRoomID, fileID), f.tokens["c"])
+	res, out2 = doJSON(t, f.srv, "GET", roomMessagesPath(f, f.groupRoomID)+"/"+fileID, f.tokens["c"], nil)
 	if res.StatusCode != http.StatusForbidden {
-		t.Fatalf("former-member download = %d (%s)", res.StatusCode, raw)
+		t.Fatalf("former-member message read = %d %v", res.StatusCode, out2)
 	}
 }
 
 // The two-organization case from plan §6.1: a member of another organization
 // who guesses the workspace, room and message ids still cannot list the room,
-// download the attachment or upload into it.
+// read the message that carries the attachment's URLs or upload into it.
 func TestChatFileMessageCrossOrganizationGuessedIDsBlocked(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
@@ -456,7 +401,6 @@ func TestChatFileMessageCrossOrganizationGuessedIDsBlocked(t *testing.T) {
 		name string
 		path string
 	}{
-		{"download file", fileStreamPath(f.wsID, f.groupRoomID, fileID)},
 		{"list room messages", roomMessagesPath(f, f.groupRoomID)},
 		{"read message", roomMessagesPath(f, f.groupRoomID) + "/" + fileID},
 		{"list rooms", "/api/v1/workspaces/" + f.wsID + "/chat/rooms"},

@@ -794,7 +794,11 @@ func facadeGatewayFixture(t *testing.T, p provider.Provider) (*Gateway, *pgxpool
 func TestAIUniworkUpstreamTimeout(t *testing.T) {
 	fp := &provider.Fake{Delay: 30 * time.Second}
 	g, pool := facadeGatewayFixture(t, fp)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	// The usage insert shares this context. A few dozen milliseconds expires
+	// during that write under -race, and the gateway then returns the
+	// database timeout instead of the provider deadline this test is about.
+	// Two seconds still finishes before the gateway's own five-second timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	req := askReq()
 	req.Capability = CapOfficeUniworkAI

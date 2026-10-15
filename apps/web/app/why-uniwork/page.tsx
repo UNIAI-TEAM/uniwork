@@ -1,5 +1,4 @@
-import { WhyPage } from "../../features/landing/why-page";
-import { whyMetadata } from "../../platform/feature-metadata";
-
-export function generateMetadata() { return whyMetadata(); }
-export default function Page() { return <WhyPage />; }
+import { publicPage } from "../../platform/public-page";
+import { seoMetadata } from "../../platform/seo";
+export function generateMetadata() { return seoMetadata("/why-uniwork"); }
+export default function Page() { return publicPage("/why-uniwork"); }
