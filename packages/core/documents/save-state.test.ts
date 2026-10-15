@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/http";
 import type { Document } from "../types/document";
 import {
+  createDocumentPatchTransport,
   DocumentSaveMachine,
   type DocumentSaveRequest,
   type DocumentSaveTransport,
@@ -353,5 +354,77 @@ describe("DocumentSaveMachine", () => {
     await settle();
     await vi.advanceTimersByTimeAsync(60_000);
     expect(calls).toHaveLength(1);
+  });
+
+  // UNI-1645: a 423 document_locked is not a conflict. The machine stops in
+  // "locked", keeps the content, never retries, and resumes only when the
+  // editor holds the lock again.
+  it("a 423 document_locked stops in locked, keeps the draft and never retries", async () => {
+    const t = fakeTransport();
+    const m = machine(t.impl);
+    m.edit({ content: { type: "doc", v: 1 } });
+    await vi.advanceTimersByTimeAsync(2_000);
+    t.pending[0]?.reject(
+      new ApiError("locked", "document_locked", 423, undefined, { holder_id: "u2", held_by_me: false }),
+    );
+    await settle();
+    const s = m.getState();
+    expect(s.phase).toBe("locked");
+    expect(s.errorClass).toBe("locked");
+    expect(s.errorCode).toBe("document_locked");
+    expect(s.dirty).toBe(true);
+    // Typing on, flushing and retrying send nothing while locked.
+    m.edit({ content: { type: "doc", v: 2 } });
+    m.flush();
+    m.retry();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(t.calls).toHaveLength(1);
+    // The lock is back on the same base: the kept draft goes out.
+    m.lockRestored();
+    expect(m.getState().phase).toBe("debouncing");
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(t.calls).toHaveLength(2);
+    expect(t.calls[1]?.patch).toEqual({ content: { type: "doc", v: 2 } });
+    expect(t.calls[1]?.baseRevision).toBe("41");
+  });
+
+  it("lockRestored is a no-op outside locked; discardDraft leaves locked", async () => {
+    const t = fakeTransport();
+    const m = machine(t.impl);
+    m.lockRestored();
+    expect(m.getState().phase).toBe("idle");
+    m.edit({ title: "a" });
+    await vi.advanceTimersByTimeAsync(2_000);
+    t.pending[0]?.reject(new ApiError("locked", "document_locked", 423));
+    await settle();
+    m.discardDraft();
+    expect(m.getState()).toMatchObject({ phase: "idle", dirty: false, errorClass: null });
+  });
+
+  it("sends the editor's current edit lock id with each save", async () => {
+    const t = fakeTransport();
+    let lockId: string | undefined = "lock-1";
+    const m = machine(t.impl, { getEditLockId: () => lockId });
+    m.edit({ content: { type: "doc" } });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(t.calls[0]?.editLockId).toBe("lock-1");
+    t.pending[0]?.resolve(stubDoc("42"));
+    await settle();
+    lockId = undefined;
+    m.edit({ content: { type: "doc", v: 2 } });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(t.calls[1]?.editLockId).toBeUndefined();
+  });
+});
+
+describe("createDocumentPatchTransport", () => {
+  it("puts edit_lock_id on the PATCH body only when the editor holds a lock", async () => {
+    const patch = vi.fn(async () => stubDoc("42"));
+    const transport = createDocumentPatchTransport(patch);
+    const signal = new AbortController().signal;
+    await transport({ documentId: "d1", baseRevision: "41", patch: { content: {} }, idempotencyKey: "k", signal, editLockId: "lock-1" });
+    await transport({ documentId: "d1", baseRevision: "42", patch: { title: "x" }, idempotencyKey: "k2", signal });
+    expect(patch).toHaveBeenNthCalledWith(1, "d1", { revision: "41", content: {}, edit_lock_id: "lock-1" }, { idempotencyKey: "k", signal });
+    expect(patch).toHaveBeenNthCalledWith(2, "d1", { revision: "42", title: "x" }, { idempotencyKey: "k2", signal });
   });
 });

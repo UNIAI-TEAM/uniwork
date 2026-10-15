@@ -41,6 +41,11 @@ export type DocumentDisposition = (typeof DOCUMENT_DISPOSITIONS)[number];
  * codes map onto these classes — so the union is what save-state and the UI
  * reason about, and an unknown class degrades to `unknown` via
  * classifyDocumentError, never a throw.
+ *
+ * `locked` is the one client-only class (UNI-1645): the server stamps no class
+ * on 423 document_locked, so it is absent from API_ERROR_CLASSES and only the
+ * code maps onto it. It is not a conflict: a locked writer never reaches the
+ * overwrite path.
  */
 export const DOCUMENT_ERROR_CLASSES = [
   "conflict",
@@ -50,6 +55,7 @@ export const DOCUMENT_ERROR_CLASSES = [
   "missing",
   "incompatible",
   "session",
+  "locked",
 ] as const;
 export type DocumentErrorClass = (typeof DOCUMENT_ERROR_CLASSES)[number];
 
