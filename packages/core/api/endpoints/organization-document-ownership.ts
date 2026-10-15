@@ -20,7 +20,7 @@ const OwnershipSchema = z.object({
   workspaces: z.array(WorkspaceCountSchema).default([]),
 });
 
-export type MemberDocumentOwnership = z.infer<typeof OwnershipSchema>;
+type MemberDocumentOwnership = z.infer<typeof OwnershipSchema>;
 
 const SkippedSchema = z
   .object({
@@ -37,9 +37,9 @@ const TransferSchema = z.object({
   cursor: z.string().default(""),
 });
 
-export type MemberDocumentsTransfer = z.infer<typeof TransferSchema>;
+type MemberDocumentsTransfer = z.infer<typeof TransferSchema>;
 
-export interface MemberDocumentsTransferInput {
+interface MemberDocumentsTransferInput {
   to_user_id: string;
   /** Echoed back on every later call of one batch run so the recipient gets one notification. */
   bulk_id?: string;
