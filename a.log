@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; echo "INSTALL_EXIT=$?"
+c11b4cbeeb680c0bdcd7f50448467d654a5468a8
+c11b4cbee docs(office): holdout README describes the edit-scoring rules of G712-16
+3cde42405 feat(office): holdout report shows the no-applied-write asks and the backed / unbacked / self-reported split per edit case
+44481c693 test(office): run all 11 real edit cases through the write-argument scoring
+ed9dc5f77 fix(office): holdout edit asks pass only with an applied write that carries what the edit introduces
+b90fb9cb4 fix(office): holdout credits an edited xlsx cell only for the right value at the right cell
+5dfed3445 feat(office): holdout run records how much of the frame's tool table is offered, report prints it
+INSTALL_EXIT=0
