@@ -219,6 +219,9 @@ describe("G8-18 / DOC-05 model rules", () => {
     expect(run()).toEqual([{ user_id: U1, display_name: "An", can_share: true }]);
     expect(run({ sharedUserIds: new Set([U1]) })).toEqual([]);
     expect(run({ canShare: false })[0]!.can_share).toBe(false);
+    // Nothing known about the document or the caller: cannot share (never upward).
+    expect(run({ canShare: undefined, doc: undefined })[0]!.can_share).toBe(false);
+    expect(run({ canShare: undefined, doc: null })[0]!.can_share).toBe(false);
     expect(run({ body: "no mention" })).toEqual([]);
     // Admin-scope callers cannot share with themselves (spec §3 can_share rule 4).
     expect(run({ canShare: undefined, doc: { my_level: undefined, owner_kind: undefined, admin_scope: true }, currentUserId: U1 })[0]!.can_share).toBe(false);

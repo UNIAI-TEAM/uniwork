@@ -134,7 +134,7 @@ describe("S14 mention picker", () => {
     // Closed, the same key sends as before.
     fireEvent.keyDown(box, { key: "Escape" });
     fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith("Nhờ @A"));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith("Nhờ @A", expect.anything()));
   });
 
   it("opens the listbox upward when the viewport below the composer cannot hold it, and caps it to the room", async () => {
@@ -181,7 +181,7 @@ describe("composer rows", () => {
     const box = renderComposer(onSend);
     type(box, "Xin chào");
     fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith("Xin chào"));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith("Xin chào", expect.anything()));
     await waitFor(() => expect(box).toHaveValue(""));
   });
 
@@ -313,7 +313,7 @@ describe("G8-18 mention without access", () => {
     });
   }
 
-  function mount(onSend: (b: string) => Promise<SendOutcome>, extra: Partial<React.ComponentProps<typeof DocumentCommentComposer>> = {}) {
+  function mount(onSend: (b: string, opts?: { warnedUserIds: ReadonlySet<string> }) => Promise<SendOutcome>, extra: Partial<React.ComponentProps<typeof DocumentCommentComposer>> = {}) {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -534,6 +534,51 @@ describe("G8-18 mention without access", () => {
     await waitFor(() => expect(shareCalls()).toHaveLength(1));
     expect(shareCalls()[0]!.body).toEqual({ principal_type: "user", principal_id: AN, level: "view" });
     await waitFor(() => expect(screen.queryByTestId("composer-post-send-notice")).toBeNull());
+  });
+
+  it("M2: send without notifying -> the post-send notice leaves out the warned person and keeps the typed one", async () => {
+    installApi({ candidates: [person(AN, "An")] });
+    const onSend = vi.fn((_body: string, _opts?: { warnedUserIds: ReadonlySet<string> }) =>
+      Promise.resolve<SendOutcome>({
+        status: "sent",
+        mentionsWithoutAccess: [
+          { user_id: AN, display_name: "An", can_share: true },
+          { user_id: BINH, display_name: "Bình", can_share: true },
+        ],
+      }),
+    );
+    const box = mount(onSend);
+    await pick(box, "", "An");
+    type(box, `${box.value}${tok(BINH, "Bình")} `);
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    fireEvent.click(within(await dialog()).getByRole("button", { name: t(K.collabSendWithoutNotify) }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(onSend.mock.calls[0]![1]?.warnedUserIds.has(AN.toUpperCase())).toBe(true);
+    const notice = await screen.findByTestId("composer-post-send-notice");
+    expect(notice).toHaveTextContent(t(K.collabPostSendNoAccess, { names: "Bình" }));
+    expect(notice).not.toHaveTextContent("An");
+  });
+
+  it("M2: send without notifying a lone warned person leaves no post-send notice at all", async () => {
+    installApi({ candidates: [person(AN, "An")] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>({ status: "sent", mentionsWithoutAccess: [{ user_id: AN, display_name: "An", can_share: true }] }));
+    const box = mount(onSend);
+    await pick(box, "", "An");
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    fireEvent.click(within(await dialog()).getByRole("button", { name: t(K.collabSendWithoutNotify) }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(box).toHaveValue(""));
+    expect(screen.queryByTestId("composer-post-send-notice")).toBeNull();
+  });
+
+  it("L7: with members listed, an empty picker does not claim 'with access'", async () => {
+    installApi({ candidates: [] });
+    const box = mount(() => Promise.resolve("sent"));
+    type(box, "@");
+    expect(await screen.findByText(t(K.collabMentionNoCandidatesMembers))).toHaveAttribute("aria-disabled", "true");
+    type(box, "@zz");
+    expect(await screen.findByText(t(K.collabMentionNoMatchMembers, { query: "zz" }))).toBeInTheDocument();
+    expect(screen.queryByText(t(K.collabMentionNoCandidates))).toBeNull();
   });
 
   it("post-send notice has no share action when nobody in it can be shared with", async () => {

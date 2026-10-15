@@ -1009,3 +1009,52 @@ describe("comment level (DOC5-W01, DOC5-W02)", () => {
     expect(within(notice).getByRole("button", { name: t(K.collabPostSendShareAction) })).toBeInTheDocument();
   });
 });
+
+describe("G8-18 post-send notice after the pre-send warning (R21 M2)", () => {
+  const WARNED = "01J8X4USR0000000000000000D";
+  const OTHER = "01J8X4USR0000000000000000E";
+
+  function mountHook(mentions: unknown[]) {
+    installApi({ comments: [] }, (method, path, init) => {
+      if (method === "POST" && path === `/api/v1/documents/${DOC}/comments`) {
+        const created = { ...row({ id: "n1", author_id: ME, display_name: "Minh", body: (init!.body as { body: string }).body }), mentions_without_access: mentions };
+        return Promise.resolve({ comment: created });
+      }
+      return undefined;
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return renderHook(() => useDocumentCommentsPanel(WS, makeDoc()), { wrapper });
+  }
+
+  it("leaves out the people the warning already listed and keeps the ones the server adds", async () => {
+    const { result } = mountHook([
+      { user_id: WARNED, display_name: "Đào", can_share: true },
+      { user_id: OTHER, display_name: "Em", can_share: true },
+    ]);
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    await act(async () => {
+      await result.current.send("Nhờ Đào và Em", undefined, new Set([WARNED]));
+    });
+    expect(result.current.postSendNotices.get("n1")).toEqual([{ user_id: OTHER, display_name: "Em", can_share: true }]);
+  });
+
+  it("send without notifying: no duplicate post-send notice for the warned people", async () => {
+    const { result } = mountHook([{ user_id: WARNED, display_name: "Đào", can_share: true }]);
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    await act(async () => {
+      await result.current.send("Nhờ Đào", undefined, new Set([WARNED]));
+    });
+    expect(result.current.postSendNotices.has("n1")).toBe(false);
+  });
+
+  it("tells about everyone when no warning was shown (typed or pasted mention)", async () => {
+    const { result } = mountHook([{ user_id: WARNED, display_name: "Đào", can_share: true }]);
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    await act(async () => {
+      await result.current.send("Nhờ Đào");
+    });
+    expect(result.current.postSendNotices.get("n1")).toHaveLength(1);
+  });
+});
+

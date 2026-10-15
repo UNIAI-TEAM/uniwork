@@ -37,14 +37,25 @@ export function useMentionWarning({
   // People already granted `view` in this composer session: a retry after a failed send never shares again.
   const sharedRef = useRef<Set<string>>(new Set());
 
+  // Everyone the pre-send warning listed (upper-cased ids): the post-send notice must not repeat them.
+  const warnedRef = useRef<Set<string>>(new Set());
+
   const resetShared = useCallback(() => {
+    warnedRef.current = new Set();
     if (sharedRef.current.size === 0) return;
     sharedRef.current = new Set();
     setSharedUserIds(new Set());
   }, []);
 
-  const open = (targets: Mention[]) => setWarn({ targets, phase: "idle", shared: [], failed: [] });
-  const close = () => setWarn(null);
+  const open = (targets: Mention[]) => {
+    for (const target of targets) warnedRef.current.add(target.user_id.toUpperCase());
+    setWarn({ targets, phase: "idle", shared: [], failed: [] });
+  };
+  // Cancelling the warning un-warns everyone: the user may still edit the body before the next send.
+  const close = () => {
+    warnedRef.current = new Set();
+    setWarn(null);
+  };
 
   const shareThenSend = async (toShare: Mention[]) => {
     if (!warn || warn.phase === "sharing") return;
@@ -78,5 +89,5 @@ export function useMentionWarning({
     await sendNow(sharedNames.length > 0 ? sharedNames : undefined);
   };
 
-  return { warn, sharedUserIds, sharedRef, open, close, shareThenSend, sendOnly, resetShared };
+  return { warn, sharedUserIds, sharedRef, warnedRef, open, close, shareThenSend, sendOnly, resetShared };
 }

@@ -5,13 +5,12 @@ import { CircleCheck, MessageSquareReply, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
 import type {
-  Document,
   DocumentComment,
   DocumentCommentMentionWithoutAccess,
 } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { DocumentCommentComposer, type SendOutcome } from "./document-comment-composer";
+import { DocumentCommentComposer, type SendOptions, type SendOutcome } from "./document-comment-composer";
 import { DocumentCommentEntry } from "./document-comment-entry";
 import type { MentionNames } from "./document-comment-body";
 import { K } from "./document-comments-keys";
@@ -20,6 +19,7 @@ import {
   anchorStateKey,
   canResolveCommentThread,
   replyTargetOf,
+  type CommentDocContext,
   type DocumentThread,
 } from "./document-comments-model";
 
@@ -30,7 +30,7 @@ import {
 // server refuses leaves the thread as it was and says so under it.
 
 export interface ThreadActions {
-  reply: (parentId: string, body: string) => Promise<SendOutcome>;
+  reply: (parentId: string, body: string, opts?: SendOptions) => Promise<SendOutcome>;
   edit: (commentId: string, body: string) => Promise<boolean>;
   remove: (commentId: string) => Promise<boolean>;
   setResolved: (commentId: string, resolved: boolean) => Promise<boolean>;
@@ -41,7 +41,7 @@ export interface ThreadContext {
   wsId: string;
   documentId: string;
   orgId: string;
-  doc?: Pick<Document, "my_level" | "owner_kind" | "admin_scope"> | null;
+  doc?: CommentDocContext | null;
   /** The caller may list workspace members: the picker asks for `include=no_access` (G8-18). */
   canSeeMembers?: boolean;
   names: MentionNames;
@@ -110,7 +110,7 @@ export function DocumentCommentThread({
   };
   const canResolve = canResolveCommentThread({
     canWrite: ctx.canWrite,
-    level: ctx.doc?.my_level ?? "edit",
+    level: ctx.doc?.my_level ?? "view",
     currentUserId: ctx.currentUserId,
     root,
   });
@@ -213,8 +213,8 @@ export function DocumentCommentThread({
             canSeeMembers={ctx.canSeeMembers}
             renderPostSendInline={false}
             autoFocus
-            onSend={async (body) => {
-              const outcome = await ctx.actions.reply(target.id, body);
+            onSend={async (body, opts) => {
+              const outcome = await ctx.actions.reply(target.id, body, opts);
               const status = typeof outcome === "string" ? outcome : outcome.status;
               if (status === "sent") setReplying(false);
               return outcome;

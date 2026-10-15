@@ -279,6 +279,13 @@ export function formatMentionList(names: readonly string[], locale: string): str
   }
 }
 
+/**
+ * The slice of a document the composer and thread read for G8-18 sharing rules.
+ * `admin_scope` is not part of core `Document` yet (the server lane adds it), so
+ * it is read defensively and an absent value means "no admin scope".
+ */
+export type CommentDocContext = Pick<Document, "my_level" | "owner_kind"> & { admin_scope?: boolean };
+
 /** Whether the caller can write/reply/edit own comments in the panel (DOC5-W01: comment, edit, manage). */
 export function canCommentInPanel(
   doc: Pick<Document, "my_level"> | null | undefined,
@@ -314,7 +321,7 @@ export function canResolveCommentThread(opts: {
 
 /** Whether the caller can grant `view` share to a specific mentioned candidate (G8-18). */
 export function canCallerShareMentionCandidate(opts: {
-  doc?: Pick<Document, "my_level" | "owner_kind" | "admin_scope"> | null;
+  doc?: CommentDocContext | null;
   currentUserId?: string;
   candidateUserId: string;
   canShare?: boolean | ((userId: string) => boolean);
@@ -327,7 +334,8 @@ export function canCallerShareMentionCandidate(opts: {
     if (opts.doc.admin_scope === true) return opts.candidateUserId !== opts.currentUserId;
     return false;
   }
-  return true;
+  // No document and no override: unknown never reads upward.
+  return false;
 }
 
 /** Extracts `[@Label](mention://member/<ULID>)` tokens from a comment body in order, deduplicated by userId. */
@@ -354,7 +362,7 @@ export function resolveNoAccessMentionsForSend(opts: {
   body: string;
   pickedCandidates: ReadonlyMap<string, MentionCandidate & { can_share?: boolean }>;
   sharedUserIds: ReadonlySet<string>;
-  doc?: Pick<Document, "my_level" | "owner_kind" | "admin_scope"> | null;
+  doc?: CommentDocContext | null;
   currentUserId?: string;
   canShare?: boolean | ((userId: string) => boolean);
 }): DocumentCommentMentionWithoutAccess[] {

@@ -331,7 +331,7 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
             doc={doc}
             canSeeMembers={panel.canSeeMembers}
             renderPostSendInline={false}
-            onSend={(text) => panel.send(text)}
+            onSend={(text, opts) => panel.send(text, undefined, opts?.warnedUserIds)}
             testId="document-discussion-composer"
           />
         </div>

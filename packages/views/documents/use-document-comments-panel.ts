@@ -143,7 +143,7 @@ export function useDocumentCommentsPanel(wsId: string, doc: Document) {
   );
 
   const send = useCallback(
-    async (body: string, parentId?: string): Promise<SendOutcome> => {
+    async (body: string, parentId?: string, warnedUserIds?: ReadonlySet<string>): Promise<SendOutcome> => {
       const parent = parentId ?? "";
       const previous = idempotency.current;
       const key = previous && previous.body === body && previous.parent === parent ? previous.key : newIdempotencyKey();
@@ -154,10 +154,14 @@ export function useDocumentCommentsPanel(wsId: string, doc: Document) {
         // only the editor can give (signed decision, OQ-C2), so the server's default applies.
         const created = await create.mutateAsync({ body, parent_id: parentId, idempotencyKey: key });
         idempotency.current = null;
-        if (created.mentions_without_access && created.mentions_without_access.length > 0) {
+        // People the pre-send warning already listed (and the user chose to skip) are not told again.
+        const unwarned = (created.mentions_without_access ?? []).filter(
+          (item) => !warnedUserIds?.has(item.user_id.toUpperCase()),
+        );
+        if (unwarned.length > 0) {
           setPostSendNotices((prev) => {
             const next = new Map(prev);
-            next.set(created.id, created.mentions_without_access!);
+            next.set(created.id, unwarned);
             return next;
           });
         }
@@ -172,7 +176,7 @@ export function useDocumentCommentsPanel(wsId: string, doc: Document) {
 
   const actions = useMemo<ThreadActions>(
     () => ({
-      reply: (parentId, body) => send(body, parentId),
+      reply: (parentId, body, opts) => send(body, parentId, opts?.warnedUserIds),
       edit: (commentId, body) =>
         run(async () => {
           const updated = await update.mutateAsync({ commentId, body });

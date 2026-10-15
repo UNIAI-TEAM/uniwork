@@ -5,7 +5,7 @@ import { Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { documentCommentDraftKey, useDocumentCommentDraftStore } from "@uniwork/core/documents/comment-drafts";
-import type { Document, DocumentCommentMentionWithoutAccess } from "@uniwork/core/types/document";
+import type { DocumentCommentMentionWithoutAccess } from "@uniwork/core/types/document";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +23,7 @@ import { PostSendMentionNotice } from "./document-comment-mention-notice";
 import { MentionWarningDialog } from "./document-comment-mention-warning";
 import { NoAccessChips, PickerOption } from "./document-comment-picker-option";
 import { K } from "./document-comments-keys";
-import { formatMentionList, resolveNoAccessMentionsForSend } from "./document-comments-model";
+import { formatMentionList, resolveNoAccessMentionsForSend, type CommentDocContext } from "./document-comments-model";
 import { useMentionPicker } from "./use-mention-picker";
 import { useMentionWarning } from "./use-mention-warning";
 
@@ -38,6 +38,12 @@ export type SendStatus = "sent" | "failed" | "target_deleted";
 export type SendOutcome =
   | SendStatus
   | { status: SendStatus; mentionsWithoutAccess?: DocumentCommentMentionWithoutAccess[] };
+
+/** What the composer tells the sender about the comment it posts. */
+export interface SendOptions {
+  /** Upper-cased ids the pre-send warning already listed: the post-send notice leaves them out. */
+  warnedUserIds: ReadonlySet<string>;
+}
 
 const LISTBOX_MAX = 256;
 const LISTBOX_GAP = 8;
@@ -73,13 +79,13 @@ export function DocumentCommentComposer({
   deletedKey: string;
   /** Id of the panel status line when sending is blocked (offline, server error, signed out). */
   blockedReasonId?: string;
-  onSend: (body: string) => Promise<SendOutcome>;
+  onSend: (body: string, opts?: SendOptions) => Promise<SendOutcome>;
   /** Closes the composer (reply box); asks first when a draft would be lost. */
   onCancel?: () => void;
   autoFocus?: boolean;
   testId: string;
   /** Document permission context for G8-18 `can_share` resolution. */
-  doc?: Pick<Document, "my_level" | "owner_kind" | "admin_scope"> | null;
+  doc?: CommentDocContext | null;
   /** Whether the caller may list workspace members (`seeMembers`); gates `include=no_access`. */
   canSeeMembers?: boolean;
   /** Optional override for whether the caller can share `view` access with a candidate. */
@@ -124,7 +130,8 @@ export function DocumentCommentComposer({
     setSending(true);
     setProblem(null);
     try {
-      const raw = await onSend(bodyToSend);
+      const warned = new Set(mention.warnedRef.current);
+      const raw = await onSend(bodyToSend, { warnedUserIds: warned });
       const outcome: SendStatus = typeof raw === "string" ? raw : raw.status;
       if (outcome === "sent") {
         setLastSentBody(bodyToSend);
@@ -132,7 +139,8 @@ export function DocumentCommentComposer({
         picker.clearPicked();
         mention.resetShared();
         setSharedNamesOnFailedSend(null);
-        setPostSendItems(typeof raw === "object" ? (raw.mentionsWithoutAccess ?? []) : []);
+        const fromServer = typeof raw === "object" ? (raw.mentionsWithoutAccess ?? []) : [];
+        setPostSendItems(fromServer.filter((item) => !warned.has(item.user_id.toUpperCase())));
       } else {
         setProblem(outcome);
         if (outcome === "failed" && sharedNamesForFailure && sharedNamesForFailure.length > 0) {
