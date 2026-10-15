@@ -462,6 +462,7 @@
         "document_discussion_mentioned": "Được nhắc đến trong thảo luận",
         "document_discussion_replied": "Phản hồi thảo luận",
         "document_comment_resolved": "Bình luận đã giải quyết",
+        "document_break_glass": "Truy cập khẩn cấp vào tài liệu",
         "chat_mentioned": "Được nhắc đến trong chat",
         "chat_dm": "Tin nhắn riêng",
         "chat_thread_replied": "Trả lời trong thread bạn theo dõi"
@@ -4776,6 +4777,8 @@
       "document_discussion_replied_untitled": "{{actor}} đã phản hồi nội dung thảo luận của bạn trong một tài liệu.",
       "document_comment_resolved": "{{actor}} đã đánh dấu bình luận của bạn trong tài liệu “{{document}}” là đã giải quyết.",
       "document_comment_resolved_untitled": "{{actor}} đã đánh dấu bình luận của bạn trong một tài liệu là đã giải quyết.",
+      "document_break_glass": "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “{{document}}”.",
+      "document_break_glass_untitled": "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào một tài liệu.",
       "chat_mentioned": "{{actor}} đã nhắc đến bạn trong {{room}}",
       "chat_dm": "{{actor}} đã nhắn tin cho bạn",
       "chat_thread_replied": "{{actor}} đã trả lời thread trong {{room}}"
@@ -4785,7 +4788,8 @@
       "document_comment_replied": "Có phản hồi bình luận mới",
       "document_discussion_mentioned": "Bạn được nhắc tên trong thảo luận",
       "document_discussion_replied": "Có phản hồi thảo luận mới",
-      "document_comment_resolved": "Bình luận đã được giải quyết"
+      "document_comment_resolved": "Bình luận đã được giải quyết",
+      "document_break_glass": "Truy cập khẩn cấp vào tài liệu"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",
