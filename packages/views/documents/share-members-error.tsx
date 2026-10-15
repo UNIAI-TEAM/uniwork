@@ -26,7 +26,7 @@ export function ShareMembersErrorLine({
   return (
     <Alert variant="destructive" className="flex items-start justify-between gap-2">
       <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
-      <AlertDescription className="min-w-0 flex-1 text-destructive">
+      <AlertDescription className="min-w-0 flex-1">
         {t(`documents.share.members_error_${error}`)}
       </AlertDescription>
       {error === "limit" ? null : (
