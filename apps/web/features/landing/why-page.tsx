@@ -1,6 +1,7 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import { ArrowDown, ArrowRight, BookOpen, ExternalLink, FileText, GitBranch, MessageSquare, Sparkles } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
@@ -42,7 +43,7 @@ export function WhyPage() {
           <p>{t("landing.why.redesign.description")}</p>
           <div className="marketing-actions">
             <Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link>
-            <a href="#comparison" className="why-compare-link">{t("landing.why.redesign.compareAction")}<ArrowDown aria-hidden /></a>
+            <MarketingAnchor href="#comparison" className="why-compare-link">{t("landing.why.redesign.compareAction")}<ArrowDown aria-hidden /></MarketingAnchor>
           </div>
         </div>
         <figure className="why-workspace">
@@ -102,7 +103,7 @@ function Comparison() {
         </tr>)}</tbody>
       </table>
       <div className="why-methodology"><p>{t(`${ns}.methodology`)}</p><p>{t(`${ns}.verifiedDate`)} <time dateTime="2026-09-29">29/09/2026</time></p>
-        <div className="why-sources"><a href={PLATFORM_MEDIA[platform].source} target="_blank" rel="noreferrer">{t(`${ns}.productSource`)}<ExternalLink aria-hidden /></a><a href={PLATFORM_MEDIA[platform].aiSource} target="_blank" rel="noreferrer">{t(`${ns}.contextSource`)}<ExternalLink aria-hidden /></a></div>
+        <div className="why-sources"><MarketingAnchor href={PLATFORM_MEDIA[platform].source} target="_blank" rel="noreferrer">{t(`${ns}.productSource`)}<ExternalLink aria-hidden /></MarketingAnchor><MarketingAnchor href={PLATFORM_MEDIA[platform].aiSource} target="_blank" rel="noreferrer">{t(`${ns}.contextSource`)}<ExternalLink aria-hidden /></MarketingAnchor></div>
       </div>
     </div>
   </section>;

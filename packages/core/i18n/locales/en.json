@@ -7722,7 +7722,7 @@
       "sub": "The digital workplace where people and AI teammates produce results together.",
       "product": "Product",
       "company": "Company",
-      "copyright": "© 2026 Unicom JSC",
+      "copyright": "© 2026 UniWork",
       "resources": "Resources",
       "roadmap": "Roadmap",
       "security": "Security",
@@ -8207,7 +8207,7 @@
         "sub": "UniWork Office shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
         "account": {
           "title": "AI through your UniWork account",
-          "description": "The cloud AI tools available today are web search, image search and transcription, and they run through UniWork under your organization's plan. If you use your own API key, the app calls the provider you choose directly, without going through UniWork servers."
+          "description": "Cloud AI tools run through UniWork under your organization’s configuration and plan. On the web, requests using your own API key still pass through UniWork to your chosen provider. Desktop has its own configuration; check the application before sending content."
         },
         "files": {
           "title": "Team files are saved in the workspace",
@@ -9776,5 +9776,12 @@
       "range": "{{from}} – {{to}}",
       "before_graph": "before the graph existed"
     }
+  },
+  "marketingSeo": {
+    "guidesTitle": "Practical guides",
+    "about": "About UniWork",
+    "data": "Data and AI",
+    "privacy": "Privacy policy",
+    "terms": "Terms of use"
   }
 }

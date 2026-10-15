@@ -1,3 +1,4 @@
+import { gotoLanding, landingHref } from "./landing-ready";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
@@ -17,7 +18,7 @@ for (const sample of [{ width: 1440, locale: "vi", theme: "light" }, { width: 39
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     for (const route of ["features/tasks", "enterprise", "pricing", "why-uniwork", "learn", "solutions/operations"]) {
-      await page.goto(`/${route}`);
+      await gotoLanding(page, `/${route}`);
       await expect(page.locator("h1")).toHaveCount(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), route).toBeLessThanOrEqual(1);
       const suffix = `${route.replaceAll("/", "-")}-${sample.width}-${sample.theme}`;
@@ -61,7 +62,7 @@ for (const sample of [{ width: 1440, locale: "vi", theme: "light" }, { width: 39
         await expect(section.locator("h2")).toHaveText(messages.landing.why.redesign.decisionTitle);
         await expect(section.locator(".final-compact-copy p")).toHaveText(messages.landing.why.redesign.decisionDescription);
         await expect(section.locator(".final-compact-demo")).toHaveText(messages.landing.why.redesign.tryAction);
-        await expect(section.locator(".final-compact-demo")).toHaveAttribute("href", "/features/tasks");
+        await expect(section.locator(".final-compact-demo")).toHaveAttribute("href", await landingHref(page, "/features/tasks"));
         await expect(page.locator(".why-proof-figure")).toHaveCount(3);
         await expect(page.locator(".why-sources a")).toHaveCount(2);
       }
@@ -74,7 +75,7 @@ for (const sample of [{ width: 1440, locale: "vi", theme: "light" }, { width: 39
       await page.screenshot({ path: resolve(dir, `full-${suffix}.png`), fullPage: true, animations: "disabled", style: "nextjs-portal {visibility:hidden !important}" });
       await section.screenshot({ path: resolve(dir, `section-${suffix}.png`), animations: "disabled", style: ".site-header, nextjs-portal {visibility:hidden !important}" });
     }
-    await page.goto("/");
+    await gotoLanding(page, "/");
     await expect(page.locator(".pricing-introduction #landing-pricing-title")).toHaveText(messages.landing.pricing.title);
     expect(errors).toEqual([]);
   });

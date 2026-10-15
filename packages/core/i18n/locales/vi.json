@@ -7717,7 +7717,7 @@
       "sub": "Nền tảng làm việc số nơi con người và nhân sự AI cùng tạo ra kết quả.",
       "product": "Sản phẩm",
       "company": "Công ty",
-      "copyright": "© 2026 Unicom JSC",
+      "copyright": "© 2026 UniWork",
       "resources": "Tài nguyên",
       "roadmap": "Lộ trình",
       "security": "Bảo mật",
@@ -8202,7 +8202,7 @@
         "sub": "UniWork Office dùng chung tài khoản và phân quyền với UniWork, nên file của nhóm vẫn theo quyền truy cập của tổ chức.",
         "account": {
           "title": "AI qua tài khoản UniWork",
-          "description": "Công cụ AI trên cloud hiện có là tìm kiếm web, tìm kiếm ảnh và chuyển giọng nói thành văn bản, chạy qua UniWork theo gói của tổ chức. Nếu dùng khóa API của riêng bạn, ứng dụng gọi thẳng nhà cung cấp bạn chọn mà không qua máy chủ UniWork."
+          "description": "Công cụ AI trên cloud chạy qua UniWork theo cấu hình và gói của tổ chức. Khi dùng khóa API riêng trên web, yêu cầu vẫn đi qua UniWork tới nhà cung cấp bạn chọn. Luồng desktop có cấu hình riêng; kiểm tra trong ứng dụng trước khi gửi nội dung."
         },
         "files": {
           "title": "File của nhóm lưu trong workspace",
@@ -9770,5 +9770,12 @@
       "range": "{{from}} – {{to}}",
       "before_graph": "trước khi có đồ thị"
     }
+  },
+  "marketingSeo": {
+    "guidesTitle": "Hướng dẫn thực hành",
+    "about": "Giới thiệu UniWork",
+    "data": "Dữ liệu và AI",
+    "privacy": "Chính sách quyền riêng tư",
+    "terms": "Điều khoản sử dụng"
   }
 }

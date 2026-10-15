@@ -1,10 +1,10 @@
 import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 test("online meetings are a view of the same workspace", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#hop");
+  await gotoLanding(page, "/#hop");
   await landingReady(page);
   const workspace = page.locator("#product-preview");
   await openManualPreview(page);
@@ -28,7 +28,7 @@ test("meeting controls are accessible local simulations, with conditional AI fol
   page.on("request", (request) => {
     if (request.method() !== "GET" && /\/api\/v1\/.*meeting/.test(request.url())) writes.push(request.url());
   });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   await selectWorkspaceFeature(page, "meetings");
   const room = page.locator(".meeting-room");

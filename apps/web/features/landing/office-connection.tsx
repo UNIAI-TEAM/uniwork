@@ -1,6 +1,6 @@
 "use client";
 import { ArrowLeftRight, ArrowRight, Cloud, KeyRound, Laptop, ShieldCheck, UserRound } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@uniwork/ui/components/ui/accordion";

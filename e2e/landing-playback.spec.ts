@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { selectWorkspaceFeature, workspaceGroups } from "./landing-catalog-helpers";
@@ -7,7 +7,7 @@ import { auditText } from "./contrast";
 
 test("preview plays a real sequence, pauses and stops outside the viewport", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/#du-an");
+  await gotoLanding(page, "/#du-an");
   await landingReady(page);
   const player = page.locator(".product-playback");
   await player.scrollIntoViewIfNeeded();
@@ -28,7 +28,7 @@ test("preview plays a real sequence, pauses and stops outside the viewport", asy
 
 test("reduced motion is still by default and manual exploration retains local actions", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#du-an");
+  await gotoLanding(page, "/#du-an");
   await landingReady(page);
   const player = page.locator(".product-playback");
   await expect(player).toHaveAttribute("data-running", "false");
@@ -52,7 +52,7 @@ for (const width of [1440]) {
     test.setTimeout(240_000);
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/#du-an");
+    await gotoLanding(page, "/#du-an");
     await landingReady(page);
     await page.clock.install();
     for (const key of ["tasks", "meetings", "chat", "ask", "email"]) {
@@ -99,7 +99,7 @@ for (const width of [1440]) {
 test("storyboards become readable three-step stories at 390px", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#du-an");
+  await gotoLanding(page, "/#du-an");
   await landingReady(page);
   for (const key of ["tasks", "meetings", "chat", "ask", "email"]) {
     await selectWorkspaceFeature(page, key, false);
@@ -120,7 +120,7 @@ test("storyboards become readable three-step stories at 390px", async ({ page })
 
 test("original UNI wears the shared mark and retains its static fallback", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const character = page.locator('[data-scene="character"]');
   await character.scrollIntoViewIfNeeded();
@@ -139,7 +139,7 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "
       await context.addCookies([{ name: "uniwork-locale", value: locale, url: baseURL! }]);
       await page.setViewportSize(viewport);
       await page.emulateMedia({ reducedMotion: "reduce" });
-      await page.goto("/#platform");
+      await gotoLanding(page, "/#platform");
       await landingReady(page);
       for (const theme of ["light", "dark"]) {
         await page.evaluate(value => document.documentElement.classList.toggle("dark", value === "dark"), theme);

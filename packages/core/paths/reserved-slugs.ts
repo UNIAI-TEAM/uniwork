@@ -1,6 +1,7 @@
 // GENERATED from server/internal/service/reserved_slugs.json — pnpm generate:reserved-slugs
 export const RESERVED_SLUGS = [
   "_next",
+  "about",
   "admin",
   "api",
   "assets",
@@ -37,6 +38,7 @@ export const RESERVED_SLUGS = [
   "register",
   "request-demo",
   "reset-password",
+  "security",
   "settings",
   "share",
   "solutions",
@@ -44,6 +46,7 @@ export const RESERVED_SLUGS = [
   "tasks",
   "uploads",
   "verify",
+  "vi",
   "why-uniwork",
   "workspaces",
   "ws"

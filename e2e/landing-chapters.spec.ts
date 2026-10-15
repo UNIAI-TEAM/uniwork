@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 const overview = ["learn", "features", "solutions", "solutions/product", "solutions/operations", "pricing", "enterprise"];
 const features = ["dashboard", "tasks", "projects", "today", "calendar", "workflows", "meetings", "chat", "email", "outputs", "documents", "approvals", "knowledge", "ask", "agents", "automation", "organization", "audit"];
@@ -22,7 +22,7 @@ for (const sample of samples) {
     page.on("pageerror", error => errors.push(error.message));
     const leaves = sample.all ? features : ["tasks", "chat", "automation"];
     for (const route of [...overview, ...leaves.map(key => `features/${key}`)]) {
-      const response = await page.goto(`/${route}`);
+      const response = await gotoLanding(page, `/${route}`);
       await landingReady(page);
       expect(response?.status(), route).toBe(200);
       await expect(page.locator("main")).toHaveCount(1);
@@ -62,7 +62,7 @@ for (const sample of samples) {
       }
       if (route === "features") {
         await expect(page.locator(".feature-family-nav a")).toHaveCount(6);
-        await expect(page.locator('.feature-directory-visual a[href^="/features/"]')).toHaveCount(18);
+        await expect(page.locator('.feature-directory-visual a[href*="/features/"]')).toHaveCount(18);
         await page.locator('.feature-family-nav a[href="#family-ai"]').click();
         await expect(page).toHaveURL(/#family-ai$/);
         await expect(page.locator("#family-ai")).toBeInViewport();
@@ -81,9 +81,9 @@ for (const sample of samples) {
       }
     }
     expect(errors).toEqual([]);
-    await page.goto("/solutions");
+    await gotoLanding(page, "/solutions");
     await landingReady(page);
-    await page.locator('.chapter-table a[href="/solutions/product"]').click();
+    await page.locator('.chapter-table a[href$="/solutions/product"]').click();
     await expect(page).toHaveURL(/\/solutions\/product$/);
     await expect(page.locator(".chapter-row")).toHaveCount(3);
   });
@@ -98,7 +98,7 @@ test("contextual closing demo links open their actual preview", async ({ page, c
     ["solutions/product", "tasks"], ["solutions/operations", "organization"],
   ] as const;
   for (const [route, feature] of destinations) {
-    await page.goto(`/${route}`);
+    await gotoLanding(page, `/${route}`);
     await landingReady(page);
     const demo = page.locator(".final-compact-demo");
     await expect(demo).toHaveAttribute("href", `/features/${feature}#feature-preview`);

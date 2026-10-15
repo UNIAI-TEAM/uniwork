@@ -25,7 +25,8 @@ function routeTemplates(dir: string): string[] {
         const segs = rel
           .split("/")
           .filter((s) => s && !s.startsWith("(")) // route groups are invisible
-          .map((s) => (s.startsWith("[") ? ":" + s.slice(1, -1) : s));
+          .map((s) => (s.startsWith("[") ? ":parameter" : s));
+        if (rel.includes("[[...")) out.push("/" + segs.slice(0, -1).join("/"));
         out.push("/" + segs.join("/"));
       }
     }
@@ -69,6 +70,11 @@ function builderTemplates(): string[] {
     paths.enterprise(),
     paths.requestDemo(),
     paths.office(),
+    paths.about(),
+    paths.security(),
+    paths.guide(ID),
+    paths.vietnamese(),
+    paths.vietnamese([ID]),
     paths.solutions.operations(),
     paths.whyUniwork(),
     paths.admin.root(),

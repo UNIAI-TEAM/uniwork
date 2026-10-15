@@ -1,6 +1,6 @@
 "use client";
 import { ArrowRight } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@uniwork/ui/brand";

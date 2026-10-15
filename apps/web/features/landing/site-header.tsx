@@ -1,12 +1,12 @@
 "use client";
 import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useKnownSession } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { useHomeDestination } from "@uniwork/core/workspaces";
-import { LocaleMenu, ThemeMenu } from "@uniwork/views/layout/preference-menus";
+import { MarketingPreferences } from "../../platform/marketing-preferences";
 import { Logo } from "@uniwork/ui/brand";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -74,7 +74,7 @@ export function SiteHeader() {
         {LINKS.map(item => <Link key={item.to} className="header-nav-link" href={item.to} onClick={close}>{t(item.label)}</Link>)}
       </nav>
       <div className="header-actions">
-        <div className="header-preferences"><ThemeMenu size="icon-lg" /><LocaleMenu size="icon-lg" /></div>
+        <div className="header-preferences"><MarketingPreferences /></div>
         {authed ? (
           <Link href={home} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "header-start")}>{t("landing.nav.home")}<ArrowRight aria-hidden /></Link>
         ) : (

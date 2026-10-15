@@ -1,10 +1,10 @@
 import { openManualPreview, workspaceGroups } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 test("catalog covers 25 reference entries without implying illustrations are working modules", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#platform");
+  await gotoLanding(page, "/#platform");
   await landingReady(page);
   const stage = page.locator("#product-preview");
   await openManualPreview(page);
@@ -29,7 +29,7 @@ test("catalog covers 25 reference entries without implying illustrations are wor
 
 test("project and organization previews work locally and source links stay within the showcase", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#du-an-tong-quan");
+  await gotoLanding(page, "/#du-an-tong-quan");
   await landingReady(page);
   const stage = page.locator("#product-preview");
   await openManualPreview(page);

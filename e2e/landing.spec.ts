@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { auditText } from "./contrast";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding, landingHref } from "./landing-ready";
 
 /**
  * Mọi section dưới màn hình đầu vào trang ở `opacity: 0` cho tới khi
@@ -46,7 +46,7 @@ async function revealEverything(page: Page) {
  */
 test.describe("landing", () => {
   test("dải tin cậy, FAQ và hai trang giải pháp", async ({ page }) => {
-    await page.goto("/");
+    await gotoLanding(page, "/");
     await landingReady(page);
     // Trang công khai nằm trong `Providers` của ứng dụng, nên khi tải nó vẫn
     // gọi GET /config (trang marketing không còn gọi /auth/refresh). Lúc request
@@ -101,7 +101,7 @@ test.describe("landing", () => {
       page.getByRole("heading", { level: 1, name: "Từ cuộc họp đến công việc. Giữ ngữ cảnh để đi tiếp." }),
     ).toBeVisible();
 
-    await page.goto("/solutions/operations");
+    await gotoLanding(page, "/solutions/operations");
     await landingReady(page);
     await expect(
       page.getByRole("heading", { level: 1, name: "Phân công rõ ràng. Tìm lại được dấu vết." }),
@@ -110,17 +110,13 @@ test.describe("landing", () => {
     // trống trong chính tài liệu này. Nhân sự AI nằm trong danh mục Sản phẩm
     // của header, không còn là link riêng trên thanh điều hướng.
     await page.getByRole("banner").getByRole("button", { name: "Sản phẩm", exact: true }).click();
-    await expect(page.locator("#header-directory-products").getByRole("link", { name: "Nhân sự AI", exact: true })).toHaveAttribute(
-      "href",
-      "/features/agents",
+    await expect(page.locator("#header-directory-products").getByRole("link", { name: "Nhân sự AI", exact: true })).toHaveAttribute("href", await landingHref(page, "/features/agents"),
     );
-    await expect(page.getByRole("contentinfo").getByRole("link", { name: "Tính năng", exact: true })).toHaveAttribute(
-      "href",
-      "/features",
+    await expect(page.getByRole("contentinfo").getByRole("link", { name: "Tính năng", exact: true })).toHaveAttribute("href", await landingHref(page, "/features"),
     );
 
     // Khối khoảng trống thị trường dẫn sang trang phân tích, và trang đó mở được.
-    await page.goto("/");
+    await gotoLanding(page, "/");
     await landingReady(page);
     await page.waitForLoadState("networkidle");
     const gap = page.getByRole("link", { name: "Đọc phân tích đầy đủ" });
@@ -139,7 +135,7 @@ test.describe("landing", () => {
   });
 
   test("đổi ngôn ngữ và chế độ sáng tối ngay trên header", async ({ page }) => {
-    await page.goto("/");
+    await gotoLanding(page, "/");
     await landingReady(page);
     await page.waitForLoadState("networkidle");
 
@@ -149,7 +145,7 @@ test.describe("landing", () => {
 
     // Ngôn ngữ: nhãn nút vẫn là tiếng Việt lúc này, vì đó là ngôn ngữ đang bật.
     await header.getByRole("button", { name: "Ngôn ngữ", exact: true }).click();
-    await page.getByRole("menuitemradio", { name: "English" }).click();
+    await page.getByRole("menuitem", { name: "English" }).click();
     await expect(header.getByRole("button", { name: "Product", exact: true })).toBeVisible();
     // Lựa chọn phải sống qua một lần tải lại, nếu không nó chỉ là hiệu ứng.
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -180,15 +176,15 @@ test.describe("landing", () => {
     for (const locale of ["vi", "en", "vi", "en", "vi", "en"] as const) {
       const ctx = await playwright.request.newContext({
         baseURL,
-        extraHTTPHeaders: { Cookie: `uniwork-locale=${locale}` },
+        extraHTTPHeaders: { Cookie: `uniwork-locale=${locale === "vi" ? "en" : "vi"}` },
       });
-      const html = await (await ctx.get("/")).text();
+      const html = await (await ctx.get(locale === "vi" ? "/vi" : "/")).text();
       await ctx.dispose();
       // Đọc đúng chữ đã render, không phải `html.includes(...)`: từ điển tiếng
       // Anh đi kèm trong payload của máy chủ, nên cả trang tiếng Việt cũng
       // chứa chuỗi "Features" và phép thử cả tài liệu luôn xanh.
       const lang = html.match(/<html lang="([a-z]+)"/)?.[1];
-      const nav = html.match(/href="\/features\/agents"[^>]*>([^<]*)/)?.[1];
+      const nav = html.match(/href="(?:\/vi)?\/features\/agents"[^>]*>([^<]*)/)?.[1];
       expect(lang, "sai <html lang>").toBe(locale);
       expect(nav, `cookie ${locale} nhưng máy chủ render "${nav}"`).toBe(expected[locale]);
     }
@@ -197,7 +193,7 @@ test.describe("landing", () => {
   for (const mode of ["light", "dark"] as const) {
     test(`tương phản chữ đạt WCAG AA — ${mode}`, async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
-      await page.goto("/");
+      await gotoLanding(page, "/");
       await landingReady(page);
       await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
       await revealEverything(page);
@@ -209,13 +205,13 @@ test.describe("landing", () => {
       expect(home.checked, "không đo được node chữ nào — selector đã trượt").toBeGreaterThan(150);
       expect(home.fails, `trang chủ (${mode}): ${home.fails.join(" | ")}`).toEqual([]);
 
-      await page.goto("/solutions/product");
+      await gotoLanding(page, "/solutions/product");
       await landingReady(page);
       await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
       const solution = await auditText(page);
       expect(solution.fails, `trang giải pháp (${mode}): ${solution.fails.join(" | ")}`).toEqual([]);
 
-      await page.goto("/why-uniwork");
+      await gotoLanding(page, "/why-uniwork");
       await landingReady(page);
       await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
       await revealEverything(page);

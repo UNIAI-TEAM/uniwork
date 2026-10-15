@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 for (const width of [1280, 390]) {
   for (const locale of ["en", "vi"] as const) {
@@ -9,7 +9,7 @@ for (const width of [1280, 390]) {
       await context.addCookies([{ name: "uniwork-locale", value: locale, url: baseURL! }]);
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ reducedMotion: "reduce", colorScheme: locale === "en" ? "dark" : "light" });
-      await page.goto("/");
+      await gotoLanding(page, "/");
       await landingReady(page);
       await expect(page.locator('#landing-title')).toBeVisible();
       await page.evaluate(() => document.fonts.ready);

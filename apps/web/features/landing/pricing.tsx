@@ -1,6 +1,6 @@
 "use client";
 import { Check, Gauge, Sparkles, UsersRound, Video } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";

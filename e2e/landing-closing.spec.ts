@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding, landingHref } from "./landing-ready";
 
 const samples = [
   { width: 1440, locale: "en", mode: "light", route: "/features/tasks" },
@@ -21,7 +21,7 @@ for (const sample of samples) {
     await context.addCookies([{ name: "uniwork-locale", value: sample.locale, url: baseURL! }]);
     await page.setViewportSize({ width: sample.width, height: 1050 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: sample.mode });
-    await page.goto(sample.route);
+    await gotoLanding(page, sample.route);
     await landingReady(page);
     const closing = page.locator(".final-section");
     await expect(closing).toHaveCount(1);
@@ -29,7 +29,7 @@ for (const sample of samples) {
     await page.evaluate(() => document.fonts.ready);
     const compact = sample.route !== "/";
     const title = closing.getByRole("heading", { level: 2 });
-    const action = closing.locator('a[href="/register"]');
+    const action = closing.locator('a[href$="/register"]');
     await expect(action).toHaveAttribute("href", "/register");
     await expect(closing.getByRole("button")).toHaveCount(0);
     if (compact) {
@@ -39,15 +39,15 @@ for (const sample of samples) {
       const demoHref = sample.route.startsWith("/features/") ? "#feature-preview"
         : sample.route === "/solutions/product" ? "/features/tasks#feature-preview"
         : sample.route === "/solutions/operations" ? "/features/organization#feature-preview" : "/#platform";
-      await expect(demo).toHaveAttribute("href", demoHref);
+      await expect(demo).toHaveAttribute("href", await landingHref(page, demoHref));
       if (sample.route === "/solutions/product") await expect(title).toHaveText("Cùng xây dựng sản phẩm, trong một workspace.");
       if (sample.route === "/solutions/operations") await expect(title).toHaveText("Bring daily operations into one place.");
       if (sample.route.startsWith("/features/")) {
         await expect(page.locator(".feature-page-related")).not.toContainText("in_progress");
         if (sample.route === "/features/documents") {
           const related = page.locator(".feature-page-related");
-          await expect(related.locator('a[href="/features/outputs"]')).toBeVisible();
-          await expect(related.locator('a[href="/features/approvals"]')).toBeVisible();
+          await expect(related.locator('a[href$="/features/outputs"]')).toBeVisible();
+          await expect(related.locator('a[href$="/features/approvals"]')).toBeVisible();
           await expect(related.locator(".feature-related-preview")).toHaveCount(2);
         }
         await demo.click();

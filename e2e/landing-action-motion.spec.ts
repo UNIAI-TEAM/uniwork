@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 for (const sample of [
   { width: 1440, locale: "vi", theme: "light" },
@@ -15,7 +15,7 @@ for (const sample of [
     await context.addCookies([{ name: "uniwork-locale", value: sample.locale, url: baseURL! }]);
     await page.setViewportSize({ width: sample.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: sample.theme });
-    await page.goto("/#du-an");
+    await gotoLanding(page, "/#du-an");
     await landingReady(page);
     await page.waitForLoadState("networkidle");
     await page.evaluate(theme => document.documentElement.classList.toggle("dark", theme === "dark"), sample.theme);
@@ -93,7 +93,7 @@ for (const sample of [
 
 test("reduced motion keeps click results without spatial effects", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#du-an");
+  await gotoLanding(page, "/#du-an");
   await landingReady(page);
   await page.waitForLoadState("networkidle");
   const player = page.locator(".product-playback");

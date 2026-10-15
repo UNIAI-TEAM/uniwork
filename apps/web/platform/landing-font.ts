@@ -6,4 +6,5 @@ export const landingFont = Be_Vietnam_Pro({
   weight: ["400", "500", "600", "700", "800"],
   variable: "--font-landing",
   display: "swap",
+  preload: false,
 });
