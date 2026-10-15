@@ -1,0 +1,20 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r14f2" OFFICE_FORK_SHA=c321a746 timeout -k 15 420 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-50 --exits 4 --run-dir .harness-run-r14f2; rc=$?; echo; echo "APP_CASE_FQ_50_4_EXIT=$rc"; f=.harness-run-r14f2/fault/FQ-50/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",JSON.stringify(r.exitRange||""),(r.assertions||[]).map(a=>(a.ok?"ok ":"FAIL ")+a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "),JSON.stringify(r.exits||r.run_execution||"").slice(0,3000))' "$PWD/$f"; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:40249 app_api=http://127.0.0.1:37527 proxy_upstream=http://127.0.0.1:40249
+FQ-50 [1/5] permission_revoked → queued: SKIPPED - outside --exits 4-4
+FQ-50 [2/5] document_deleted → queued: SKIPPED - outside --exits 4-4
+FQ-50 [3/5] document_archived → queued: SKIPPED - outside --exits 4-4
+FQ-50 [4/5] organization_suspended → queued: running
+dbus-daemon[20386]: [session uid=1000 pid=20386] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20474 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20386]: [session uid=1000 pid=20386] Successfully activated service 'org.a11y.Bus'
+FQ-50 [5/5] member_deactivated → queued: SKIPPED - outside --exits 4-4
+FQ-50: FAIL partial 4-4 of 5
+  FQ-50 [organization_suspended → queued] trace 2026-10-15T21:03:18.362Z ∅ -> queued
+  FQ-50 [organization_suspended → queued] trace 2026-10-15T21:03:18.378Z queued -> blocked code=organization_suspended http=403
+  FQ-50 [organization_suspended → queued] proxy 2026-10-15T21:03:18.374Z upload POST 403 key=a23a1a43c6a8 rule=-
+FQ-50 (G5-A08): FAIL
+/workspace/.harness-run-r14f2/fault
+APP_CASES_EXIT=1
+
+APP_CASE_FQ_50_4_EXIT=1
+FQ-50 FAIL   {"from":4,"to":4,"of":5,"skipped":[1,2,3,5]} ok blocked_reason: expected "blocked:organization_suspended" actual "blocked:organization_suspended" | FAIL client_path: expected "* → blocked → queued → * → committed" actual "queued → blocked" | FAIL committed_after_lift: expected "committed" actual "never" | ok no_commit_while_blocked: expected 0 actual 0 | ok one_intent: expected 1 actual 1 | FAIL one_key_for_commits: expected 1 actual "0 keyTag(s) over 0 request(s)" | FAIL version_delta: expected 1 actual 0 [{"n":4,"label":"organization_suspended → queued","result":"FAIL","assertions":[{"name":"blocked_reason","expected":"blocked:organization_suspended","actual":"blocked:organization_suspended","ok":true},{"name":"client_path","expected":"* → blocked → queued → * → committed","actual":"queued → blocked","ok":false},{"name":"committed_after_lift","expected":"committed","actual":"never","ok":false},{"name":"no_commit_while_blocked","expected":0,"actual":0,"ok":true},{"name":"one_intent","expected":1,"actual":1,"ok":true},{"name":"one_key_for_commits","expected":1,"actual":"0 keyTag(s) over 0 request(s)","ok":false},{"name":"version_delta","expected":1,"actual":0,"ok":false}],"evidence":{"documentId":"01M50NZJJRTET1D2W606WFCJTR","trace":[{"ts":"2026-10-15T21:03:18.362Z","intentId":"office-intent-02339b3b-7f95-4200-80b9-44ae5ab744d3","from":null,"to":"queued"},{"ts":"2026-10-15T21:03:18.378Z","intentId":"office-intent-02339b3b-7f95-4200-80b9-44ae5ab744d3","from":"queued","to":"blocked","code":"organization_suspended","httpStatus":403}],"requests":[{"kind":"upload","ts":"2026-10-15T21:03:18.374Z","method":"POST","status":403,"keyTag":"a23a1a43c6a8","ruleId":null}]}}]
