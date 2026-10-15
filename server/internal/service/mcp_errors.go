@@ -27,7 +27,7 @@ var mcpToolMessages = map[string]string{
 	"cross_workspace_reference": "tasks, projects and parents must all be in the same workspace",
 	"invalid_meeting_state":     "the meeting's current status does not allow this",
 	"not_meeting_host":          "only the meeting's host or a workspace admin may do this",
-	"participant_removed":       "that person was removed from this meeting earlier; add them back in UniWork",
+	"participant_removed":       "that person was removed from this meeting earlier and cannot be invited to it again",
 	"not_project_editor":        "only the project's creator, its lead or a workspace admin may edit it",
 	"conflict":                  "it changed while this call ran; read it again and retry",
 }

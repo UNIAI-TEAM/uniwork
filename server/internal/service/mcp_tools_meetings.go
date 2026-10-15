@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -59,8 +60,9 @@ type McpMeetingList struct {
 const (
 	mcpMaxRange = 92 * 24 * time.Hour
 
-	// A meeting title holds at most this many characters here, the most a
-	// model's undo can carry back uncut in changes.
+	// A meeting title holds at most this many characters here. The tools'
+	// own limit, not the service's (the web has none): changes cuts a title
+	// at mcpMaxHitRunes, so one stored longer cannot be restored from from.
 	mcpMaxMeetingTitleRunes = 300
 	mcpMaxAttendees         = 50
 	mcpMaxInvites           = 20
@@ -238,8 +240,9 @@ func mcpZone(tz string) (string, error) {
 }
 
 // timezoneOf is the zone a new meeting is set in: the one given, else the
-// person's own (users.timezone, read as the home screen reads it: one Go cannot
-// load is Vietnam's). The zone is a label; starts_at already names the moment.
+// person's own (users.timezone; one that is empty or not a usable zone is
+// Vietnam's, as on the home screen). The zone is a label; starts_at already
+// names the moment.
 func (s *McpToolService) timezoneOf(ctx context.Context, userID, given string) (string, error) {
 	if tz := strings.TrimSpace(given); tz != "" {
 		return mcpZone(tz)
@@ -248,8 +251,12 @@ func (s *McpToolService) timezoneOf(ctx context.Context, userID, given string) (
 	if err != nil {
 		return "", err
 	}
-	_, tz := homeLocation(u.Timezone)
-	return tz, nil
+	// A profile zone update_meeting would refuse to send back ("Local" loads)
+	// is not a label to give a meeting.
+	if tz, err := mcpZone(u.Timezone); err == nil {
+		return tz, nil
+	}
+	return homeDefaultTimezone, nil
 }
 
 // mcpVersion is the meeting revision a model sent, as the int32 the service
@@ -510,10 +517,19 @@ func mcpInviteRefusal(err error) string {
 	return mcpStepError(err)
 }
 
+// mcpCallRefusal is a refusal that holds for the whole invite call, whoever is
+// named: the person may not invite, the meeting does not take invitations, or
+// it is gone. Read as the first invitation's, it is the tool's error; a refusal
+// about the person (not a member, removed) is only theirs.
+func mcpCallRefusal(err error) bool {
+	return codedIs(err, "not_meeting_host") || codedIs(err, "invalid_meeting_state") || errors.Is(mcpMapError(err), ErrNotFound)
+}
+
 // InviteToMeeting invites each person in turn, as the service does for one:
 // each person invited is notified (participant.invited, ruleParticipantInvited),
-// one already on the meeting again. A refusal is that person's result and does
-// not stop the others.
+// one already on the meeting again. A refusal about one person is that person's
+// result and does not stop the others; one about the whole call fails the call
+// at the first person, before anyone is invited.
 func (s *McpToolService) InviteToMeeting(ctx context.Context, p McpPrincipal, in mcpInviteIn) (McpWriteResult, error) {
 	if len(in.UserIDs) == 0 || len(in.UserIDs) > mcpMaxInvites {
 		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("user_ids must hold 1-%d user_id values from list_members", mcpMaxInvites)}
@@ -533,9 +549,12 @@ func (s *McpToolService) InviteToMeeting(ctx context.Context, p McpPrincipal, in
 		return McpWriteResult{}, err
 	}
 	outcomes := make([]McpInviteOutcome, 0, len(ids))
-	for _, id := range ids {
+	for i, id := range ids {
 		result := "invited"
 		if _, err := s.ask.meetings.Invite(ctx, p.UserID, m.ID, id); err != nil {
+			if i == 0 && mcpCallRefusal(err) {
+				return McpWriteResult{}, mcpMapError(err)
+			}
 			result = mcpInviteRefusal(err)
 		}
 		outcomes = append(outcomes, McpInviteOutcome{UserID: id, Result: result})
@@ -576,7 +595,7 @@ func mcpMeetingTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpUpdateMeetingIn) (any, error) {
 				return s.UpdateMeeting(ctx, p, in)
 			}),
-		mcpWriteTool("invite_to_meeting", "Invite to meeting", "Invites workspace members to a meeting, by user_id from list_members (1-"+strconv.Itoa(mcpMaxInvites)+" per call, each once). Each person invited gets an in-app notification, unless they turned that kind off; someone already on the meeting is notified again. Only the meeting's host or a workspace owner or admin may invite, and only to a scheduled or in-progress meeting. invites holds the outcome for each person: invited, or why not. Someone who is not a member of the workspace, or was removed from the meeting earlier (participant_removed), is refused, and one refusal does not stop the others. The meeting comes back with its attendees and its revision.", "the host removes the person from the meeting in UniWork", false, mcpSchemaInviteToMeeting,
+		mcpWriteTool("invite_to_meeting", "Invite to meeting", "Invites workspace members to a meeting, by user_id from list_members (1-"+strconv.Itoa(mcpMaxInvites)+" per call, each once). Each person invited gets an in-app notification, unless they turned that kind off; someone already on the meeting is notified again. Only the meeting's host or a workspace owner or admin may invite, and only to a scheduled or in-progress meeting. invites holds the outcome for each person: invited, or why not. Someone who is not a member of the workspace, or was removed from the meeting earlier (participant_removed, cannot be invited again), is refused, and one refusal does not stop the others. A refusal that covers everyone (not_meeting_host, invalid_meeting_state, or a meeting that is gone) fails as a whole: the call returns that error and nobody is invited. The meeting comes back with its attendees and its revision.", "the host removes the person from the meeting in UniWork", false, mcpSchemaInviteToMeeting,
 			func(ctx context.Context, p McpPrincipal, in mcpInviteIn) (any, error) {
 				return s.InviteToMeeting(ctx, p, in)
 			}),

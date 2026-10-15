@@ -600,10 +600,13 @@ func TestMcpScheduleMeetingTimezone(t *testing.T) {
 			t.Errorf("zone %v = %s, want %s", tc.given, got, tc.want)
 		}
 	}
-	// A profile zone Go cannot load falls back to Vietnam's rather than failing.
-	profile("Nowhere/Land")
-	if got := zone(nil); got != "Asia/Ho_Chi_Minh" {
-		t.Errorf("an unknown profile zone: %s", got)
+	// A profile zone Go cannot load, or one update_meeting would refuse to send
+	// back ("Local" loads and means nothing elsewhere), falls back to Vietnam's.
+	for _, bad := range []string{"Nowhere/Land", "Local", ""} {
+		profile(bad)
+		if got := zone(nil); got != "Asia/Ho_Chi_Minh" {
+			t.Errorf("profile zone %q: %s, want Asia/Ho_Chi_Minh", bad, got)
+		}
 	}
 }
 
@@ -942,13 +945,11 @@ func TestMcpMeetingWritesNeedTheHostOrAWorkspaceAdmin(t *testing.T) {
 	if !errors.As(err, &te) || te.Code != "not_meeting_host" {
 		t.Fatalf("member update: %v, want not_meeting_host", err)
 	}
-	raw, err := x.callJSON(t, member, "invite_to_meeting", map[string]any{"workspace_id": x.w.ID, "meeting_id": m.ID, "user_ids": []string{x.ua.ID}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out invitedAnswer
-	if err := json.Unmarshal(raw, &out); err != nil || len(out.Item.Invites) != 1 || !strings.HasPrefix(out.Item.Invites[0].Result, "not_meeting_host:") {
-		t.Fatalf("member invite = %s (%v), want not_meeting_host for the person", raw, err)
+	// A refusal that holds for the whole call is the tool's error, not N
+	// identical results a model that reads only isError would call a success.
+	raw, err := x.callJSON(t, member, "invite_to_meeting", map[string]any{"workspace_id": x.w.ID, "meeting_id": m.ID, "user_ids": []string{x.ua.ID, util.NewID()}})
+	if !errors.As(err, &te) || te.Code != "not_meeting_host" {
+		t.Fatalf("member invite = %s (%v), want the tool error not_meeting_host", raw, err)
 	}
 	if x.meetingRow(t, m.ID).Version != version || x.meetingEvents(t, "participant.invited", m.ID) != 0 {
 		t.Fatal("a refused call wrote")
@@ -1104,7 +1105,8 @@ func TestMcpInviteResultsDoNotRevealWhoExists(t *testing.T) {
 	}
 }
 
-// Every refusal is a person's own result, and the call still returns the meeting.
+// A refusal about one person is that person's result, and the call still returns
+// the meeting; one about the whole call is the tool's error.
 func TestMcpInviteReportsEachPersonsRefusal(t *testing.T) {
 	x := newMcpToolWorld(t)
 	ctx := context.Background()
@@ -1129,15 +1131,19 @@ func TestMcpInviteReportsEachPersonsRefusal(t *testing.T) {
 		}
 	}
 	got := x.invite(t, x.p, m.ID, x.ub.ID).Item.Invites[0].Result
-	if !strings.HasPrefix(got, "participant_removed:") || !strings.Contains(got, "UniWork") {
+	if !strings.HasPrefix(got, "participant_removed:") || !strings.Contains(got, "removed") || !strings.Contains(got, "cannot be invited") || strings.Contains(got, "UniWork") {
 		t.Errorf("a removed person's result = %q", got)
 	}
-	// A meeting that was cancelled takes no invitations; the result says why.
+	// A meeting that was cancelled takes no invitations: the call fails, once,
+	// for everyone named, and nobody is invited.
 	if err := x.tools.ask.meetings.Cancel(ctx, x.ua.ID, m.ID, "test"); err != nil {
 		t.Fatal(err)
 	}
-	if got := x.invite(t, x.p, m.ID, x.ub.ID).Item.Invites[0].Result; !strings.HasPrefix(got, "invalid_meeting_state:") {
-		t.Errorf("a cancelled meeting's result = %q", got)
+	before := x.meetingEvents(t, "participant.invited", m.ID)
+	raw, err := x.callJSON(t, x.p, "invite_to_meeting", map[string]any{"workspace_id": x.w.ID, "meeting_id": m.ID, "user_ids": []string{x.ub.ID, util.NewID()}})
+	var te McpToolError
+	if !errors.As(err, &te) || te.Code != "invalid_meeting_state" || x.meetingEvents(t, "participant.invited", m.ID) != before {
+		t.Errorf("a cancelled meeting = %s (%v), want the tool error invalid_meeting_state and no invitation", raw, err)
 	}
 }
 

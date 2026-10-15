@@ -83,7 +83,7 @@ func TestMCPToolCatalogue(t *testing.T) {
 		// invitation notifies the person invited, a schedule or an update nobody.
 		"schedule_meeting":  {"host", "Everyone in the workspace", "not notified", "invite_to_meeting", "list_members", "offset", "Asia/Ho_Chi_Minh", strconv.Itoa(mcpMaxItemRunes)},
 		"update_meeting":    {"revision_conflict", "not_meeting_host", "workspace owner or admin", "invalid_meeting_state", "times cannot change once it has started", "Attendees are not notified", "project_id", "null", "does not move starts_at", "too long", strconv.Itoa(mcpMaxItemRunes)},
-		"invite_to_meeting": {"in-app notification", "notified again", "workspace owner or admin", "scheduled or in-progress", "participant_removed", "list_members", "invites", "1-20"},
+		"invite_to_meeting": {"in-app notification", "notified again", "workspace owner or admin", "not_meeting_host", "invalid_meeting_state", "fails as a whole", "participant_removed", "cannot be invited again", "list_members", "invites", "1-20"},
 	} {
 		tool, _ := r.Get(name)
 		for _, w := range words {
