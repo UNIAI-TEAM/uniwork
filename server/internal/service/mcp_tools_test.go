@@ -13,6 +13,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/document"
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -80,14 +81,14 @@ func TestMCPToolCatalogue(t *testing.T) {
 		"list_members":   {"query", "truncated"},
 		"update_task":    {"revision_conflict", "add_label_ids and remove_label_ids", "too long", strconv.Itoa(mcpMaxItemRunes)},
 		"add_comment":    {"assignee", "creator", "earlier commenters", "@"},
-		"search":         {"documents", "page text and file names", "whole query", "most recently updated first", "excerpt", "get_document", "Chat is not searched"},
+		"search":         {"documents", "page text and file names", "whole query", "most recently updated first", "excerpt", "get_document", "Chat is not searched", "cannot be searched", "without them"},
 		"list_documents": {"top level", "order of the document tree", "siblings by position, then id", "next_cursor", "cursor", "doc_kind", "revision", "get_document", "trash", strconv.Itoa(mcpMaxList)},
-		"get_document":   {"Markdown", "revision", "lossy", "blank paragraph", "merged table cell", "appended to", "never replaced", "more than " + strconv.Itoa(document.MaxMarkdownRunes) + " characters", "truncated", "cut page cannot be replaced", strconv.Itoa(mcpMaxItemRunes), "text file", "filename and mime_type", "folder", "parent_id"},
+		"get_document":   {"Markdown", "revision", "lossy", "blank paragraph", "merged table cell", "appended to", "never replaced", "more than " + strconv.Itoa(document.MaxMarkdownRunes) + " characters", "truncated", "cut page cannot be replaced", strconv.Itoa(mcpMaxItemRunes), "text file", "filename and mime_type", "cannot be read", "folder", "parent_id"},
 		// Who sees a page and who is told about it is DocumentService's and the
 		// notification rules' (rules.go): a page created or changed has no rule,
 		// a comment notifies the people its body names as mention://member/<id>.
-		"create_document":      {"Markdown", strconv.Itoa(document.MaxMarkdownRunes), "in parts", "https", "an image becomes a link", "parent_id", "reads as not found", "restricted", "parent's own shares are not copied", "No one is notified", "doc_kind", "revision", "uniwork://user/"},
-		"update_document":      {"revision_conflict", "lossy_document", "lossy", "blank paragraph", "merged table cell", "append still works", "mode append", strconv.Itoa(mcpMaxItemRunes), strconv.Itoa(document.MaxMarkdownRunes), "in parts", "version of the page as it was", "unless the latest version already is that page", "A rename saves none", "https", "no one is notified", "reads as not found", "not files or folders", "cannot be renamed here", "changes shows"},
+		"create_document":      {"Markdown", strconv.Itoa(document.MaxMarkdownRunes), "in parts", "Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link", "an image becomes a link", "parent_id", "reads as not found", "restricted", "parent's own shares are not copied", "No one is notified", "doc_kind", "revision", "uniwork://user/", "no duplicate guard", "second page", "list_documents or search"},
+		"update_document":      {"revision_conflict", "lossy_document", "lossy", "blank paragraph", "merged table cell", "append still works", "mode append", strconv.Itoa(mcpMaxItemRunes), strconv.Itoa(document.MaxMarkdownRunes), "in parts", "version of the page as it was", "unless the latest version already is that page", "A rename saves none", "Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link", "no one is notified", "reads as not found", "not files or folders", "cannot be renamed here", "changes shows", "for append", "from is empty", "Markdown that was added"},
 		"add_document_comment": {"cannot reply", "right to edit", "reads as not found", "Everyone who can read the document sees the comment", "No one is notified unless", "mention://member/", "list_members", "can read the document", "never notified of their own mention", "plain text notifies no one", strconv.Itoa(mcpMaxBodyRunes)},
 		"get_task":             {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
 		"get_project":          {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count", "and status to narrow"},
@@ -213,6 +214,7 @@ type mcpToolWorld struct {
 	projectID string
 	docID     string
 	flags     *mcpFlagFake
+	files     *filesfake.Fake // the file store behind the documents, once docs() wires it
 }
 
 func newMcpToolWorld(t *testing.T) *mcpToolWorld {

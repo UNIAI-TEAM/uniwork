@@ -30,6 +30,9 @@ var mcpToolMessages = map[string]string{
 	"participant_removed":       "that person was removed from this meeting earlier and cannot be invited to it again",
 	"not_project_editor":        "only the project's creator, its lead or a workspace admin may edit it",
 	"conflict":                  "it changed while this call ran; read it again and retry",
+	// The service words these for its screens, in Vietnamese; the model reads English.
+	"document_parent_kind": "a page goes at the top level, inside a folder or inside another page, never inside a file",
+	"document_too_deep":    "documents nest at most 5 levels; put it higher up in the tree",
 }
 
 // mcpMapError turns a service error into what a tool returns. Refusals that

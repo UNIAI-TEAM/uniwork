@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -225,7 +226,10 @@ func (s *McpToolService) Search(ctx context.Context, p McpPrincipal, workspaceID
 	}
 	docs, err := s.searchDocuments(ctx, p, workspaceID, query)
 	if err != nil {
-		return nil, err
+		// The tasks and meetings are already found: a document source that fails
+		// costs the model the documents, not the rest.
+		slog.WarnContext(ctx, "mcp search: documents not searched", "error", err, "workspace_id", workspaceID)
+		return out, nil
 	}
 	return append(out, docs...), nil
 }
@@ -358,7 +362,7 @@ func McpTools(s *McpToolService) ai.Registry {
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.MyWork(ctx, p, a.WorkspaceID)
 			}),
-		tool("search", "Search UniWork", "Tasks and meetings in one workspace matching a keyword query, then up to "+strconv.Itoa(mcpSearchDocuments)+" documents the user may read, found by page text and file names (a page's title counts as its text; the whole query as one phrase), most recently updated first; a page's excerpt is the start of its text, a file has none, and call get_document for the rest. Chat is not searched.", mcpSchemaSearch, []string{"workspace_id", "query"},
+		tool("search", "Search UniWork", "Tasks and meetings in one workspace matching a keyword query, then up to "+strconv.Itoa(mcpSearchDocuments)+" documents the user may read, found by page text and file names (a page's title counts as its text; the whole query as one phrase), most recently updated first; a page's excerpt is the start of its text, a file has none, and call get_document for the rest. If the documents cannot be searched at that moment, the answer holds the tasks and meetings without them. Chat is not searched.", mcpSchemaSearch, []string{"workspace_id", "query"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.Search(ctx, p, a.WorkspaceID, a.Query)
 			}),

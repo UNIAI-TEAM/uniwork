@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"path"
 	"strconv"
 	"strings"
@@ -199,7 +200,11 @@ func (s *McpToolService) GetDocument(ctx context.Context, p McpPrincipal, in mcp
 		}
 		raw, err := s.fileHead(ctx, p, v.Document.ID)
 		if err != nil {
-			return McpDocument{}, err
+			// The name and type were readable; the bytes not being so (storage down,
+			// a file not ready) is no reason to fail the call.
+			slog.WarnContext(ctx, "mcp get_document: file text not read", "error", err, "document_id", v.Document.ID)
+			out.Note = "the text of this file could not be read just now, so only its name and type are shown; try again later"
+			break
 		}
 		text, truncated, ok := mcpFileText(raw)
 		if !ok {
@@ -440,6 +445,7 @@ func (s *McpToolService) UpdateDocument(ctx context.Context, p McpPrincipal, in 
 	}
 	var content json.RawMessage
 	var beforeMD string
+	var shown *mcpContentEdit
 	if in.Content != nil {
 		var lossy bool
 		if beforeMD, lossy, err = document.PageToMarkdown(before.Content); err != nil {
@@ -450,8 +456,10 @@ func (s *McpToolService) UpdateDocument(ctx context.Context, p McpPrincipal, in 
 				return McpWriteResult{}, McpToolError{Code: "lossy_document", Msg: "this page holds content Markdown cannot carry or is longer than one read, so replacing it could lose part of it; use mode append, or edit it in UniWork"}
 			}
 			content, err = document.MarkdownToPage(*in.Content, document.AssetsOf(before.Content))
+			shown = &mcpContentEdit{replace: true, beforeMD: beforeMD}
 		} else {
 			content, err = document.AppendMarkdown(before.Content, *in.Content)
+			shown = &mcpContentEdit{appended: *in.Content}
 		}
 		if err != nil {
 			return McpWriteResult{}, McpInvalidArgs{Msg: "content could not be stored: " + err.Error()}
@@ -471,10 +479,10 @@ func (s *McpToolService) UpdateDocument(ctx context.Context, p McpPrincipal, in 
 		// The version is taken only for a change that will be written. When the
 		// page already equals its latest version none is added, and the note says
 		// so rather than name a label that does not exist.
-		label := versionLabel(ctx)
-		switch _, err := s.docs.CreateDocumentVersion(ctx, actor, before.ID, CreateDocumentVersionInput{Label: label}); {
+		// The note quotes the label the row holds: the service trims what is sent.
+		switch saved, err := s.docs.CreateDocumentVersion(ctx, actor, before.ID, CreateDocumentVersionInput{Label: versionLabel(ctx)}); {
 		case err == nil:
-			note = fmt.Sprintf("the page as it was is saved as the version %q in its history", label)
+			note = fmt.Sprintf("the page as it was is saved as the version %q in its history", saved.Label.String)
 		case codedIs(err, "document_version_unchanged"):
 			note = "the page as it was is already the latest version in its history"
 		default:
@@ -487,16 +495,31 @@ func (s *McpToolService) UpdateDocument(ctx context.Context, p McpPrincipal, in 
 	if err != nil {
 		return McpWriteResult{}, err
 	}
-	return s.documentUpdated(base, before, after.Document, beforeMD, in.Content != nil, note), nil
+	return s.documentUpdated(base, before, after.Document, shown, note), nil
+}
+
+// mcpContentEdit is what update_document did to the content, as the result
+// shows it. A replace shows the page's Markdown before and, read back from the
+// saved page, after. An append shows only the Markdown it added, from empty:
+// on a long page the start of the page before and after would be the same text.
+type mcpContentEdit struct {
+	replace  bool
+	beforeMD string // replace: the page as Markdown before
+	appended string // append: the Markdown sent
 }
 
 // documentUpdated is what update_document returns once the page is saved. It
 // never fails: a model that read an error would write the page again, so a
-// part that cannot be shown goes into the note, after what was saved.
-func (s *McpToolService) documentUpdated(base string, before, after db.Document, beforeMD string, contentSent bool, note string) McpWriteResult {
+// part that cannot be shown goes into the note, after what was saved. content
+// is nil when no content was sent.
+func (s *McpToolService) documentUpdated(base string, before, after db.Document, content *mcpContentEdit, note string) McpWriteResult {
 	res := McpWriteResult{Item: s.docOf(base, after), Revision: after.Revision, Note: note}
 	changes := []McpChange{{"title", before.Title, after.Title}}
-	if contentSent {
+	switch {
+	case content == nil:
+	case !content.replace:
+		changes = append(changes, McpChange{"content", "", content.appended})
+	default:
 		if afterMD, _, err := document.PageToMarkdown(after.Content); err != nil {
 			unread := "the page was saved, but its new Markdown could not be read back; call get_document to see it"
 			if res.Note != "" {
@@ -504,7 +527,7 @@ func (s *McpToolService) documentUpdated(base string, before, after db.Document,
 			}
 			res.Note = unread
 		} else {
-			changes = append(changes, McpChange{"content", beforeMD, afterMD})
+			changes = append(changes, McpChange{"content", content.beforeMD, afterMD})
 		}
 	}
 	res.Changes = mcpChanges(changes...)
@@ -560,15 +583,15 @@ func mcpDocumentTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpListDocumentsIn) (any, error) {
 				return s.ListDocuments(ctx, p, in)
 			}),
-		mcpReadTool("get_document", "Get document", "One document the user may read. A page comes as Markdown in content, with its revision. lossy true means the page holds something Markdown cannot carry back exactly (a blank paragraph, a merged table cell, formatting Markdown cannot express, or more than "+strconv.Itoa(document.MaxMarkdownRunes)+" characters), so it can only be appended to, never replaced. content is cut at "+strconv.Itoa(mcpMaxItemRunes)+" characters and truncated says so; a cut page cannot be replaced either. A text file (md, html, txt) comes as text, cut the same way; any other file comes as filename and mime_type only, with a note saying why. A folder has no content: list_documents with its id as parent_id shows what is in it.", mcpSchemaDocument,
+		mcpReadTool("get_document", "Get document", "One document the user may read. A page comes as Markdown in content, with its revision. lossy true means the page holds something Markdown cannot carry back exactly (a blank paragraph, a merged table cell, formatting Markdown cannot express, or more than "+strconv.Itoa(document.MaxMarkdownRunes)+" characters), so it can only be appended to, never replaced. content is cut at "+strconv.Itoa(mcpMaxItemRunes)+" characters and truncated says so; a cut page cannot be replaced either. A text file (md, html, txt) comes as text, cut the same way; any other file comes as filename and mime_type only, with a note saying why, and so does a text file whose text cannot be read at that moment. A folder has no content: list_documents with its id as parent_id shows what is in it.", mcpSchemaDocument,
 			func(ctx context.Context, p McpPrincipal, in mcpDocumentRef) (any, error) {
 				return s.GetDocument(ctx, p, in)
 			}),
-		mcpWriteTool("create_document", "Create document", "Creates a page from Markdown as the user, at the top level of the workspace or inside a folder or page (parent_id, one the user may edit; any other reads as not found). title is 1-"+strconv.Itoa(mcpMaxDocumentTitleRunes)+" characters. content is Markdown (headings, lists, task lists, tables, code, quotes, https links, [@Name](uniwork://user/<user_id>) mentions) of at most "+strconv.Itoa(document.MaxMarkdownRunes)+" characters: for a longer page create it with the first part and append the rest in parts with update_document. A link that is not https keeps its text and loses the link, and an image becomes a link. The page is visible to everyone in the workspace; one created inside a restricted folder or page is restricted too, visible only to the user, workspace admins and the people it is shared with, and the parent's own shares are not copied. No one is notified, a mention in the page included. It comes back with its doc_kind, revision and url.", "the user moves it to the trash in UniWork, where it can be restored", false, mcpSchemaCreateDocument,
+		mcpWriteTool("create_document", "Create document", "Creates a page from Markdown as the user, at the top level of the workspace or inside a folder or page (parent_id, one the user may edit; any other reads as not found). title is 1-"+strconv.Itoa(mcpMaxDocumentTitleRunes)+" characters. content is Markdown (headings, lists, task lists, tables, code, quotes, https links, [@Name](uniwork://user/<user_id>) mentions) of at most "+strconv.Itoa(document.MaxMarkdownRunes)+" characters: for a longer page create it with the first part and append the rest in parts with update_document. Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link, and an image becomes a link. The page is visible to everyone in the workspace; one created inside a restricted folder or page is restricted too, visible only to the user, workspace admins and the people it is shared with, and the parent's own shares are not copied. No one is notified, a mention in the page included. There is no duplicate guard: sending the same call again creates a second page, so if you are not sure a call went through, look with list_documents or search before sending it again. It comes back with its doc_kind, revision and url.", "the user moves it to the trash in UniWork, where it can be restored", false, mcpSchemaCreateDocument,
 			func(ctx context.Context, p McpPrincipal, in mcpCreateDocumentIn) (any, error) {
 				return s.CreateDocument(ctx, p, in)
 			}),
-		mcpWriteTool("update_document", "Update document", "Edits a page as the user: title renames it, content changes it as Markdown of at most "+strconv.Itoa(document.MaxMarkdownRunes)+" characters (a longer text is sent in parts, each one appended with a call of its own). mode append, the default, adds content after the page's own. mode replace swaps the whole content, and is refused with lossy_document, nothing written, when the page is lossy or its Markdown is longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters (get_document would have shown it cut), because replacing it could lose what you never read: a blank paragraph, a merged table cell, formatting Markdown cannot carry; append still works on such a page. revision must be the one get_document returned; if the page changed since, nothing is written and the call fails with revision_conflict. Before a change to the content, a version of the page as it was is saved in the page's history, unless the latest version already is that page; the note says which. A rename saves none. A link that is not https keeps its text and loses the link. Everyone who can read the page sees the change, and no one is notified. It needs the right to edit the page; one the user can only read reads as not found. Only pages can be edited, not files or folders, and a page whose title is longer than "+strconv.Itoa(mcpMaxDocumentTitleRunes)+" characters cannot be renamed here; edit those in UniWork. changes shows the title, and the start of the content, before and after.", "restore the version saved before this change from the page's history in UniWork; for a rename, call update_document with the from title", true, mcpSchemaUpdateDocument,
+		mcpWriteTool("update_document", "Update document", "Edits a page as the user: title renames it, content changes it as Markdown of at most "+strconv.Itoa(document.MaxMarkdownRunes)+" characters (a longer text is sent in parts, each one appended with a call of its own). mode append, the default, adds content after the page's own. mode replace swaps the whole content, and is refused with lossy_document, nothing written, when the page is lossy or its Markdown is longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters (get_document would have shown it cut), because replacing it could lose what you never read: a blank paragraph, a merged table cell, formatting Markdown cannot carry; append still works on such a page. revision must be the one get_document returned; if the page changed since, nothing is written and the call fails with revision_conflict. Before a change to the content, a version of the page as it was is saved in the page's history, unless the latest version already is that page; the note says which. A rename saves none. Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link. Everyone who can read the page sees the change, and no one is notified. It needs the right to edit the page; one the user can only read reads as not found. Only pages can be edited, not files or folders, and a page whose title is longer than "+strconv.Itoa(mcpMaxDocumentTitleRunes)+" characters cannot be renamed here; edit those in UniWork. changes shows the title before and after and, when content was sent, the start of the content: for replace before and after, for append the start of the Markdown that was added is to and from is empty.", "restore the version saved before this change from the page's history in UniWork; for a rename, call update_document with the from title", true, mcpSchemaUpdateDocument,
 			func(ctx context.Context, p McpPrincipal, in mcpUpdateDocumentIn) (any, error) {
 				return s.UpdateDocument(ctx, p, in)
 			}),

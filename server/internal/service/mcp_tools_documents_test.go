@@ -8,7 +8,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 	"unicode/utf8"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -27,7 +30,8 @@ func (x *mcpToolWorld) docs(t *testing.T) *DocumentService {
 		return x.tools.docs
 	}
 	docs := NewDocumentService(x.tools.ask.pool, x.tools.q, x.tools.ask.orgs, x.tools.ws)
-	docs.SetFiles(filesfake.New(filesfake.Options{}))
+	x.files = filesfake.New(filesfake.Options{})
+	docs.SetFiles(x.files)
 	docs.SetEntitlements(NewEntitlementService(x.tools.ask.pool, x.tools.q))
 	docs.store.spoolDir = t.TempDir()
 	x.tools.SetDocuments(docs)
@@ -1039,8 +1043,9 @@ func TestMcpUpdateDocumentAppendsWithAVersionBefore(t *testing.T) {
 	if res.Revision <= rev || res.Revision != row.Revision || item["revision"] != float64(row.Revision) || item["id"] != v.Document.ID || item["doc_kind"] != "page" || item["title"] != "Kế hoạch" {
 		t.Fatalf("update_document = %s", raw)
 	}
-	// Only the content changed, and the change carries the Markdown before and after.
-	if len(res.Changes) != 1 || res.Changes[0].Field != "content" || res.Changes[0].From != old || res.Changes[0].To != old+"\n\n## Rủi ro\n\nThiếu người" {
+	// Only the content changed, and an append shows what it added: from is empty,
+	// to is the Markdown that was appended.
+	if len(res.Changes) != 1 || res.Changes[0].Field != "content" || res.Changes[0].From != "" || res.Changes[0].To != "## Rủi ro\n\nThiếu người" {
 		t.Errorf("changes = %+v", res.Changes)
 	}
 	// The version holds the page as it was and says who changed it.
@@ -1278,6 +1283,177 @@ func TestMcpUpdateDocumentNamesTheVersionItTook(t *testing.T) {
 	}
 }
 
+// An append shows the Markdown it added, not the start of the page: on a page
+// longer than a change can show, the start of "before" and of "after" are the
+// same text, which would read as nothing changed.
+func TestMcpUpdateDocumentAppendShowsWhatItAddedOnALongPage(t *testing.T) {
+	x := newMcpToolWorld(t)
+	long := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"` + strings.Repeat("a", 3*mcpMaxHitRunes) + `"}]}]}`
+	_, v := x.withDocs(t, "Dài", long)
+	raw, err := x.updateDoc(t, v.Document.ID, v.Document.Revision, map[string]any{"content": "## Rủi ro\n\nThiếu người"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, _ := writeResult(t, raw)
+	if len(res.Changes) != 1 || res.Changes[0] != (McpChange{"content", "", "## Rủi ro\n\nThiếu người"}) {
+		t.Errorf("changes = %+v, want the appended Markdown as to", res.Changes)
+	}
+}
+
+// What the descriptions promise about links is what the converter does: only
+// https, mailto: and UniWork-relative links stay links; any other keeps its
+// text and loses the link.
+func TestMcpDocumentLinksKeepOnlyWhatTheDescriptionSays(t *testing.T) {
+	x := newMcpToolWorld(t)
+	x.docs(t)
+	md := "[a](https://uniwork.vn/a) [b](mailto:a@b.vn) [c](/vi/docs) [d](http://x.vn) [e](javascript:alert(1)) [f](ftp://x.vn) [g](//x.vn/p) [h](tel:123)"
+	raw, err := x.callJSON(t, x.p, "create_document", map[string]any{"workspace_id": x.w.ID, "title": "Liên kết", "content": md})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, item := writeResult(t, raw)
+	if got, want := x.pageMarkdown(t, item["id"].(string)), "[a](https://uniwork.vn/a) [b](mailto:a@b.vn) [c](/vi/docs) d e f g h"; got != want {
+		t.Errorf("links after create = %q, want %q", got, want)
+	}
+	// An append goes through the same reader.
+	_, v := x.withDocs(t, "Trang", mcpTestPage)
+	if _, err := x.updateDoc(t, v.Document.ID, v.Document.Revision, map[string]any{"content": "[b](mailto:a@b.vn) [d](http://x.vn)"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := x.pageMarkdown(t, v.Document.ID); !strings.HasSuffix(got, "[b](mailto:a@b.vn) d") {
+		t.Errorf("links after append = %q", got)
+	}
+}
+
+// One failing half of search does not take the other with it: a document
+// source that errors leaves the tasks and meetings already found.
+func TestMcpSearchSurvivesAFailingDocumentHalf(t *testing.T) {
+	x := newMcpToolWorld(t)
+	task := x.task(t, x.ua.ID, x.w.ID, "Doanh thu tháng mười")
+	_, v := x.withDocs(t, "Kế hoạch doanh thu", mcpTestPage)
+	if ids := x.searchIDs(t, x.p, "doanh thu"); len(ids) != 2 || ids[0] != task.ID || ids[1] != v.Document.ID {
+		t.Fatalf("control: search = %v, want the task and the page", ids)
+	}
+	// Documents run on a pool that is closed; tasks and meetings keep the open one.
+	broken, err := pgxpool.NewWithConfig(context.Background(), x.tools.ask.pool.Config().Copy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	broken.Close()
+	x.tools.SetDocuments(NewDocumentService(broken, db.New(broken), x.tools.ask.orgs, x.tools.ws))
+	if _, err := x.tools.searchDocuments(context.Background(), x.p, x.w.ID, "doanh thu"); err == nil {
+		t.Fatal("the document half does not fail on a closed pool, so this test proves nothing")
+	}
+	if ids := x.searchIDs(t, x.p, "doanh thu"); len(ids) != 1 || ids[0] != task.ID {
+		t.Errorf("search with failing documents = %v, want the task alone", ids)
+	}
+}
+
+// A text file whose bytes cannot be opened is still a document: its name and
+// type come back with a note, never an error.
+func TestMcpGetDocumentSurvivesAnUnreadableTextFile(t *testing.T) {
+	x := newMcpToolWorld(t)
+	id := x.textFile(t, "ghi-chu.md", []byte("# Ghi chú"))
+	if d := x.getDoc(t, id); d.Format != "text" || d.Content != "# Ghi chú" {
+		t.Fatalf("control: %+v", d)
+	}
+	x.files.SetStorageDown(true)
+	d := x.getDoc(t, id)
+	if d.ID != id || d.DocKind != "file" || d.Filename != "ghi-chu.md" || d.MimeType == "" || d.Format != "" || d.Content != "" || !strings.Contains(d.Note, "could not be read") {
+		t.Errorf("file with its storage down = %+v", d)
+	}
+	x.files.SetStorageDown(false)
+	if d := x.getDoc(t, id); d.Format != "text" || d.Content != "# Ghi chú" || d.Note != "" {
+		t.Errorf("file with its storage back = %+v", d)
+	}
+}
+
+// The note quotes the label the version row holds, which the service trims:
+// a client name that ends the label on a space is not quoted with it.
+func TestMcpUpdateDocumentQuotesTheLabelThatWasStored(t *testing.T) {
+	x := newMcpToolWorld(t)
+	_, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	// The cut at 200 characters falls right after the space.
+	name := strings.Repeat("a", maxDocumentVersionLabel-len([]rune("Trước khi sửa qua "))-1) + " b"
+	ctx := audit.WithVia(context.Background(), audit.Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: name})
+	raw, err := x.callCtx(t, ctx, x.p, "update_document", map[string]any{"workspace_id": x.w.ID, "document_id": v.Document.ID, "revision": v.Document.Revision, "content": "thêm"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, _ := writeResult(t, raw)
+	versions := x.docVersions(t, v.Document.ID)
+	if len(versions) != 1 || !versions[0].Label.Valid || strings.HasSuffix(versions[0].Label.String, " ") || !strings.HasPrefix(versions[0].Label.String, "Trước khi sửa qua aaa") {
+		t.Fatalf("the case is not what it says: versions = %+v", versions)
+	}
+	if want := "the page as it was is saved as the version " + strconv.Quote(versions[0].Label.String) + " in its history"; res.Note != want {
+		t.Errorf("note = %q, want it to quote the stored label: %q", res.Note, want)
+	}
+}
+
+// The undo each content edit names works: restoring the version it saved gives
+// the page back as it was, for an append and for a replace.
+func TestMcpUpdateDocumentUndoRestoresThePageAsItWas(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	docs, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	id := v.Document.ID
+	const old = "## Mục tiêu\n\nTăng doanh thu quý bốn"
+	rev := v.Document.Revision
+	for name, args := range map[string]map[string]any{
+		"append":  {"content": "## Rủi ro\n\nThiếu người"},
+		"replace": {"content": "# Kế hoạch mới\n\nBản thay thế", "mode": "replace"},
+	} {
+		raw, err := x.updateDoc(t, id, rev, args)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if res, _ := writeResult(t, raw); x.pageMarkdown(t, id) == old || res.Note == "" {
+			t.Fatalf("%s did not change the page: %s", name, raw)
+		}
+		var saved int32 // the newest version an AI edit saved
+		for _, ver := range x.docVersions(t, id) {
+			if strings.HasPrefix(ver.Label.String, "Trước khi sửa qua") {
+				saved = ver.Version
+				break
+			}
+		}
+		if saved == 0 {
+			t.Fatalf("%s saved no version: %+v", name, x.docVersions(t, id))
+		}
+		if _, err := docs.RestoreDocumentVersion(ctx, Human(x.ua.ID), id, RestoreDocumentVersionInput{Version: saved}); err != nil {
+			t.Fatalf("%s: restore version %d: %v", name, saved, err)
+		}
+		if md := x.pageMarkdown(t, id); md != old {
+			t.Errorf("after undoing the %s the page holds %q, want %q", name, md, old)
+		}
+		rev = x.docRow(t, id).Revision
+	}
+}
+
+// A refusal of the document tree reaches the model in English and names no
+// row: the service's own Vietnamese text is for its screens.
+func TestMcpMapErrorGivesDocumentTreeRefusalsInEnglish(t *testing.T) {
+	for code, err := range map[string]error{"document_parent_kind": errDocumentParentKind(), "document_too_deep": errDocumentTooDeep()} {
+		var te McpToolError
+		got := mcpMapError(err)
+		if !errors.As(got, &te) || te.Code != code || te.Msg == "" || te.Msg == mcpToolMessages["conflict"] {
+			t.Fatalf("%s → %#v", code, got)
+		}
+		for _, r := range te.Msg {
+			if r > unicode.MaxASCII {
+				t.Errorf("%s message %q is not plain English", code, te.Msg)
+				break
+			}
+		}
+	}
+	if msg := mcpToolMessages["document_parent_kind"]; !strings.Contains(msg, "file") || !strings.Contains(msg, "folder") {
+		t.Errorf("document_parent_kind = %q, want it to say a page goes in a folder or a page, not a file", msg)
+	}
+	if msg := mcpToolMessages["document_too_deep"]; !strings.Contains(msg, "5") {
+		t.Errorf("document_too_deep = %q, want the depth", msg)
+	}
+}
+
 // A call that would change nothing writes nothing: no revision, no version.
 func TestMcpUpdateDocumentThatChangesNothing(t *testing.T) {
 	x := newMcpToolWorld(t)
@@ -1302,7 +1478,7 @@ func TestMcpDocumentUpdatedResultSurvivesAnUnreadablePage(t *testing.T) {
 	before := db.Document{ID: "d1", WorkspaceID: "w1", Kind: DocumentKindPage, Title: "Cũ", Revision: 2}
 	after := before
 	after.Title, after.Revision, after.Content = "Mới", 3, []byte(`{`)
-	res := s.documentUpdated("/o/w", before, after, "trước", true, "the page as it was is saved")
+	res := s.documentUpdated("/o/w", before, after, &mcpContentEdit{replace: true, beforeMD: "trước"}, "the page as it was is saved")
 	if res.Revision != 3 || res.Item == nil || !strings.Contains(res.Note, "the page as it was is saved") || !strings.Contains(res.Note, "could not be read back") {
 		t.Errorf("result = %+v", res)
 	}
