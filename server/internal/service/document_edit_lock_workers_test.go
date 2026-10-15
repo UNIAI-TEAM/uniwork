@@ -251,6 +251,52 @@ func TestArchiveReleasesEditLock(t *testing.T) {
 	wantNotFound(t, err)
 }
 
+// CBE-1c-1: the archive releases every node it stamps, not only the root's
+// tenure. A folder whose CHILD is being edited must end that child's tenure
+// (document_archived) with the child's own audit row and lock_changed frame,
+// while the root, which holds no lock, writes no release row.
+func TestArchiveFolderReleasesChildEditLock(t *testing.T) {
+	w := newLockWorld(t)
+	folder := listablePage(t, w, treeDocSpec{kind: DocumentKindFolder, title: "Thư mục đang sửa"})
+	child := listablePage(t, w, treeDocSpec{parent: folder.ID, title: "Trang con"})
+	sibling := listablePage(t, w, treeDocSpec{parent: folder.ID, title: "Trang em"})
+	held := w.acquire(t, w.tn.member, child.ID, "e")
+	if _, err := w.svc.ArchiveDocument(w.ctx, human(w.tn.aclOwner), folder.ID, ArchiveDocumentInput{}); err != nil {
+		t.Fatal(err)
+	}
+	w.wantEnded(t, held.Lock.ID, "document_archived")
+	if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, child.ID); n != 1 {
+		t.Fatalf("child's released rows %d, want 1 (the row names the child)", n)
+	}
+	if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, folder.ID); n != 0 {
+		t.Fatalf("folder's released rows %d, want 0 (the tenure was the child's)", n)
+	}
+	if meta := w.auditMeta(t, audit.ActionDocumentEditLockReleased, child.ID); meta["reason"] != "document_archived" || meta["lock_id"] != held.Lock.ID {
+		t.Fatalf("child release audit %v", meta)
+	}
+	var orgID string
+	if err := w.env.f.pool.QueryRow(w.ctx,
+		`SELECT organization_id FROM audit_events WHERE action = $1 AND resource_id = $2`,
+		audit.ActionDocumentEditLockReleased, child.ID).Scan(&orgID); err != nil {
+		t.Fatal(err)
+	}
+	if orgID != folder.OrganizationID {
+		t.Fatalf("release audit organization %s, want the folder's %s", orgID, folder.OrganizationID)
+	}
+	// One lock_changed frame for the child (acquire + the archive release);
+	// the untouched sibling carries none.
+	if n := w.countOutbox(t, topicDocumentLockChanged, child.ID); n != 2 {
+		t.Fatalf("child lock_changed rows %d, want 2 (acquire + archive release)", n)
+	}
+	if n := w.countOutbox(t, topicDocumentLockChanged, sibling.ID); n != 0 {
+		t.Fatalf("sibling lock_changed rows %d, want 0", n)
+	}
+	// The child's holder heartbeats after the folder archive exactly as the
+	// single-doc test expects: the document reads gone (404 / lost).
+	_, err := w.svc.HeartbeatDocumentEditLock(w.ctx, human(w.tn.member), child.ID, held.Lock.ID)
+	wantNotFound(t, err)
+}
+
 func TestDeleteReleasesEditLock(t *testing.T) {
 	w := newLockWorld(t)
 	d := w.page(t)
