@@ -26,6 +26,7 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   quota_exceeded: "quota",
   forbidden: "permission",
   member_deactivated: "permission",
+  workspace_seat_required: "permission",
   organization_suspended: "permission",
   not_meeting_host: "permission",
   ai_context_forbidden: "permission",
