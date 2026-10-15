@@ -222,9 +222,9 @@ export function LibraryRowView({
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}
         </span>
-        {/* Below `xl` the My access / Visibility columns are hidden, so the level and the restricted mark ride on this line; below `md` it also carries editor, date and size. */}
+        {/* While the main area is narrower than 80rem the My access / Visibility columns are hidden, so the level and the restricted mark ride on this line; below `md` it also carries editor, date and size. */}
         {metaLine || accessKey || restricted ? (
-          <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground xl:hidden">
+          <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground @7xl:hidden">
             {metaLine ? <span className="truncate md:hidden">{metaLine}</span> : null}
             {metaLine && (accessKey || restricted) ? (
               <span aria-hidden className="shrink-0 md:hidden">·</span>
@@ -282,11 +282,11 @@ export function LibraryRowView({
         </td>
         <td className="hidden px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground md:table-cell">{updated || "—"}</td>
         <td className="hidden px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground md:table-cell">{size || "—"}</td>
-        {/* Wide screens only (xl): below it the fixed columns leave Name too little room, and the secondary line carries this. */}
-        <td className="hidden px-3 py-2 text-caption text-foreground xl:table-cell">
+        {/* Wide main area only (container >= 80rem, not the viewport: the docs aside and sidebar take ~500px of it): below it the 800px of fixed columns would squeeze Name to nothing, and the secondary line carries this. */}
+        <td className="hidden px-3 py-2 text-caption text-foreground @7xl:table-cell">
           {accessKey ? <span className="block truncate">{t(accessKey)}</span> : <span className="text-muted-foreground">—</span>}
         </td>
-        <td className="hidden px-3 py-2 text-caption xl:table-cell">
+        <td className="hidden px-3 py-2 text-caption @7xl:table-cell">
           {visibilityKey ? (
             <span className="flex items-center gap-1.5 text-foreground">
               {restricted ? <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}

@@ -144,15 +144,18 @@ export function DocumentsLibraryList({
   };
 
   return (
-    <div className="flex flex-col">
+    <div className="@container flex flex-col">
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.page.title")}>
           {/*
             Below `md` only Name and Actions exist: the other columns are
             display:none, so the group header spans two columns there and all
-            columns from `md`, and My access + Visibility from `xl` (a colSpan
-            wider than the visible columns would add implicit columns that
-            squeeze Name to nothing). Name takes what the fixed columns leave.
+            columns from `md` (a colSpan wider than the visible columns would
+            add implicit columns that squeeze Name to nothing). My access +
+            Visibility join only when the main area itself is 80rem wide
+            (`@7xl`, a container query on this list: with the docs aside and
+            the sidebar a 1280px viewport leaves ~768px, less than their 800px
+            of fixed columns). Name takes what the fixed columns leave.
           */}
           <colgroup>
             <col />
@@ -161,8 +164,8 @@ export function DocumentsLibraryList({
             <col className="hidden w-36 md:table-column" />
             <col className="hidden w-24 md:table-column" />
             <col className="hidden w-24 md:table-column" />
-            <col className="hidden w-28 xl:table-column" />
-            <col className="hidden w-36 xl:table-column" />
+            <col className="hidden w-28 @7xl:table-column" />
+            <col className="hidden w-36 @7xl:table-column" />
             <col className="w-14 md:w-24" />
           </colgroup>
           <thead className="hidden bg-muted/50 md:table-header-group">
@@ -173,8 +176,8 @@ export function DocumentsLibraryList({
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.editor")}</th>
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.updated")}</th>
               <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.size")}</th>
-              <th scope="col" className="hidden px-3 py-2 font-medium xl:table-cell">{t("documents.home.columns.my_access")}</th>
-              <th scope="col" className="hidden px-3 py-2 font-medium xl:table-cell">{t("documents.home.columns.visibility")}</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium @7xl:table-cell">{t("documents.home.columns.my_access")}</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium @7xl:table-cell">{t("documents.home.columns.visibility")}</th>
               <th scope="col" className="px-3 py-2"><span className="sr-only">{t("documents.home.columns.actions")}</span></th>
             </tr>
           </thead>
@@ -187,7 +190,7 @@ export function DocumentsLibraryList({
                     <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
                   </th>
                   <th aria-hidden colSpan={showType ? 5 : 4} className="hidden md:table-cell" />
-                  <th aria-hidden colSpan={2} className="hidden xl:table-cell" />
+                  <th aria-hidden colSpan={2} className="hidden @7xl:table-cell" />
                 </tr>
               ) : null}
               {group.rows.map((row) => (

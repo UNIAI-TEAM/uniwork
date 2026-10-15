@@ -93,18 +93,37 @@ describe("library table access columns", () => {
     expect(within(row).getAllByText("Bình luận")).toHaveLength(2);
   });
 
-  it("shows the two columns only from xl, and keeps the colgroup in step", () => {
+  it("shows the two columns only when the main area is wide (container width), and keeps the colgroup in step", () => {
     renderList([documentRow(item("a", "A.docx", { my_level: "manage" }))]);
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    const cell = within(row).getAllByText("Quản lý").map((el) => el.closest("td")).find((td) => td?.className.includes("xl:table-cell"))!;
+    const cell = within(row).getAllByText("Quản lý").map((el) => el.closest("td")).find((td) => td?.className.includes("@7xl:table-cell"))!;
     expect(cell.className).toContain("hidden");
     expect(document.querySelectorAll("colgroup col")).toHaveLength(8);
-    expect(document.querySelectorAll("colgroup col.xl\\:table-column")).toHaveLength(2);
-    expect(document.querySelector("th.xl\\:table-cell")).toBeTruthy();
+    expect(document.querySelectorAll("colgroup col.\\@7xl\\:table-column")).toHaveLength(2);
+    expect(document.querySelector("th.\\@7xl\\:table-cell")).toBeTruthy();
     expect(document.querySelector("th.lg\\:table-cell")).toBeNull();
+    // No viewport breakpoint decides these columns any more.
+    expect(document.querySelector(".xl\\:table-cell, .xl\\:table-column, .xl\\:hidden")).toBeNull();
   });
 
-  it("carries the level and the restricted lock on the row's secondary line below xl", () => {
+  it("measures the extra columns against the main area, so Name keeps room beside the docs aside", () => {
+    renderList([documentRow(item("a", "A.docx", { my_level: "manage" }))]);
+    // At a 1280px viewport the docs aside and the app sidebar leave ~768px: the table sits in a
+    // size container and the 800px of fixed columns only join once that container is >= 80rem.
+    const table = document.querySelector("table") as HTMLElement;
+    expect(table.closest(".\\@container")).toBeTruthy();
+    // Name never gets a width class of its own, so it takes what the fixed columns leave.
+    const first = document.querySelector("colgroup col") as HTMLElement;
+    expect(first.className).toBe("");
+    // Header, colgroup and cells hide together: no orphan header over a missing cell.
+    const headers = document.querySelectorAll("thead th.\\@7xl\\:table-cell");
+    const cells = document.querySelectorAll('[data-library-row="a"] td.\\@7xl\\:table-cell');
+    expect(headers).toHaveLength(2);
+    expect(cells).toHaveLength(2);
+    for (const el of [...headers, ...cells]) expect(el).toHaveClass("hidden");
+  });
+
+  it("carries the level and the restricted lock on the row's secondary line while the main area is narrow", () => {
     renderList([
       documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted" })),
       documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace" })),
@@ -112,7 +131,7 @@ describe("library table access columns", () => {
     ]);
     const line = (id: string) => {
       const row = document.querySelector(`[data-library-row="${id}"]`) as HTMLElement;
-      return row.querySelector("span.xl\\:hidden") as HTMLElement | null;
+      return row.querySelector("span.\\@7xl\\:hidden") as HTMLElement | null;
     };
     const lineA = line("a")!;
     expect(lineA.textContent).toContain("Quản lý");
