@@ -232,3 +232,46 @@ func TestGetTaskByIdentifierAfterPrefixChange(t *testing.T) {
 		}
 	}
 }
+
+// A prefix one workspace gave up and another took now names the new owner's
+// tasks; the old owner's alias answers only while nobody uses it currently.
+func TestGetTaskByIdentifierPrefersCurrentPrefixOverAlias(t *testing.T) {
+	s, _, ua, _, w1 := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	w2, err := s.ws.CreateInOrg(ctx, ua.ID, w1.OrganizationID, "Beta", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t1, err := s.Create(ctx, actor, w1.ID, CreateTaskInput{Title: "In W1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := w1.TaskPrefix
+	ref := old + "-" + strconv.FormatInt(t1.Number, 10)
+	moved := "MKT"
+	if _, err := s.ws.Update(ctx, ua.ID, w1.ID, UpdateWorkspaceInput{TaskPrefix: &moved}); err != nil {
+		t.Fatal(err)
+	}
+	// Nobody uses the old prefix today: the alias still resolves W1's task.
+	if got, err := s.GetByRef(ctx, actor, ref); err != nil || got.ID != t1.ID {
+		t.Fatalf("GetByRef(%q) via alias: err=%v id=%s, want %s", ref, err, got.ID, t1.ID)
+	}
+	if _, err := s.ws.Update(ctx, ua.ID, w2.ID, UpdateWorkspaceInput{TaskPrefix: &old}); err != nil {
+		t.Fatal(err)
+	}
+	t2, err := s.Create(ctx, actor, w2.ID, CreateTaskInput{Title: "In W2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if t2.Number != t1.Number {
+		t.Fatalf("numbers = %d / %d, want the same for a colliding ref", t1.Number, t2.Number)
+	}
+	if got, err := s.GetByRef(ctx, actor, ref); err != nil || got.ID != t2.ID {
+		t.Fatalf("GetByRef(%q) after W2 took the prefix: err=%v id=%s, want W2's %s", ref, err, got.ID, t2.ID)
+	}
+	movedRef := moved + "-" + strconv.FormatInt(t1.Number, 10)
+	if got, err := s.GetByRef(ctx, actor, movedRef); err != nil || got.ID != t1.ID {
+		t.Fatalf("GetByRef(%q): err=%v id=%s, want %s", movedRef, err, got.ID, t1.ID)
+	}
+}
