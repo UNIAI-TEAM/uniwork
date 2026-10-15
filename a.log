@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; echo "INSTALL_EXIT=$?"
+e0f3ed04b803f0aa12e8ff38a03473006c9d7ab8
+e0f3ed04b docs(office): holdout README for sessions, reviews, strict anchors and exit codes
+dae343ba6 test(office): cover G712-1..15 for the holdout runner and report
+025e9abfd fix(office): holdout report gives a verdict only on a complete, known and reviewed run set
+5279c5c04 fix(office): holdout runner writes one verifiable session, redacts instead of dropping runs and keeps the asks it finished
+c3bc17b35 fix(office): holdout backend offers every case the same module tools and answers bad arguments like the real tool
+5558c8b60 docs(office): how to run the holdout eval and what "chua co nguong" means
+INSTALL_EXIT=0
