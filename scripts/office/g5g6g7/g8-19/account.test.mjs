@@ -158,8 +158,8 @@ test("decideG8A09: many failures never leave a reason cut in the middle of a che
   assert.equal(joined.status, "FAIL");
   assert.ok(joined.reason.length <= 240, `${joined.reason.length}: ${joined.reason}`);
   assert.doesNotMatch(joined.reason, /\.\.\.$/);
-  assert.match(joined.reason, /deactivatedLibraryRefused|deactivatedCreateRefused/, "the last check is not what gets lost");
-  assert.match(joined.reason, /more/);
+  assert.match(joined.reason, /^org: choiceShown: /, "the first failed check leads");
+  assert.match(joined.reason, /\+\d+ more/, "what does not fit is counted, not cut");
 });
 
 // ---- the flow, through runRowModule and the fake world ------------------------

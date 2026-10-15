@@ -15,6 +15,7 @@ export const A09_ORG_ERROR = "member_deactivated";
  *   createAddsNothing, createMakesCopy, extraWorkingCopy, renameNotReflected,
  *   webRenameNeverArrives, archiveNotReflected, restoreNotReflected,
  *   propertiesVersionOff, sharedMissing, deactivatedStillWorks,
+ *   selectOrgRejects (a message: the app's accountSelectOrg call is rejected with it, as on a malformed membership body),
  *   statusByPathGone (the app renames the working copy on a web rename, so uniworkDocStatus(old path) is null;
  *   the title is then only in binding.json, as the real service writes it)
  */
@@ -81,6 +82,7 @@ export function a09Scenario(fake, { stamp = "t1", viewerKey = "M", userDataDir, 
   });
   script.respond("app.selectOrg", (call) => {
     const orgId = call.args[0];
+    if (faults.selectOrgRejects) throw new Error(faults.selectOrgRejects);
     state.selectedOrg = orgId;
     state.remembered = orgId;
     return { loggedIn: true, state: "signed-in", needsOrgChoice: false, org: { id: orgId }, orgs };
