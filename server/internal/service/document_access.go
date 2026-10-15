@@ -132,10 +132,11 @@ func EffectiveDocumentAccessLogLimit(limit int) int {
 	return limit
 }
 
-// ListDocumentAccessLogs is the manage-only access log (C-01 §5.4). An owned
+// ListDocumentAccessLogs is the manage-only access log (C-01 §5.4), open to
+// AdminScope too (DOC-05: administering is not reading). An owned
 // document's log stays readable at the level its owner grants (§13.4).
 func (s *DocumentService) ListDocumentAccessLogs(ctx context.Context, actor Actor, documentID string, in DocumentAccessLogQuery) ([]db.DocumentAccessLog, error) {
-	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelManage)
+	doc, _, err := s.authorizeDocumentAdminister(ctx, actor, documentID)
 	if err != nil {
 		return nil, err
 	}

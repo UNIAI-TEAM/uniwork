@@ -595,8 +595,14 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 	}
 
 	var out DocumentView
-	err = s.withDocumentMutationLocked(ctx, actor, documentID, treeLockWorkspace, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	// The outer gate admits an AdminScope caller (DOC-05) so they can narrow
+	// visibility; every content field still needs edit, and an admin-only
+	// caller is told the content is restricted.
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, treeLockWorkspace, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if in.Title != nil || in.Icon != nil || in.Content != nil {
+			if access.Level == DocumentLevelNone && access.AdminScope {
+				return errDocumentRestricted()
+			}
 			if !access.Level.AtLeast(DocumentLevelEdit) {
 				return ErrForbidden
 			}
@@ -605,8 +611,14 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			if doc.OwnerKind.Valid {
 				return errDocumentOwned()
 			}
-			if !access.Level.AtLeast(DocumentLevelManage) {
+			if !access.canAdminister() {
 				return ErrForbidden
+			}
+			// Opening a restricted document to the workspace would hand the
+			// admin read access by role: manage only, never AdminScope.
+			if doc.Visibility == documentVisibilityRestricted && *in.Visibility != documentVisibilityRestricted &&
+				!access.Level.AtLeast(DocumentLevelManage) {
+				return errBreakGlassRequired()
 			}
 		}
 		if doc.ArchivedAt.Valid {
