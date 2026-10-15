@@ -1,0 +1,4 @@
+$ cd packages/views; pnpm exec vitest run --coverage > /tmp/r22-views-cov.log 2>&1; echo "VIEWS_COV_EXIT=$?"; grep -E 'Test Files|Tests |FAIL|×|Unable to find|ERROR: Coverage' /tmp/r22-views-cov.log | head -30; true
+VIEWS_COV_EXIT=0
+ Test Files  560 passed (560)
+      Tests  4700 passed (4700)

@@ -1,0 +1,3 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; pnpm install --frozen-lockfile >/dev/null 2>&1; echo "INSTALL_EXIT=$?"
+6736d1361487693e05b183ab167fd96c15382b70
+INSTALL_EXIT=0

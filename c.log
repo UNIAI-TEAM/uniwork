@@ -1,0 +1,4 @@
+$ cd packages/views; pnpm exec vitest run > /tmp/r22-views.log 2>&1; echo "VIEWS_ALL_EXIT=$?"; grep -E 'Test Files|Tests |FAIL|×|Unable to find' /tmp/r22-views.log | head -30; true
+VIEWS_ALL_EXIT=0
+ Test Files  560 passed (560)
+      Tests  4700 passed (4700)
