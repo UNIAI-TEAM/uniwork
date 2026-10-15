@@ -8361,7 +8361,7 @@
       "cancel": "Later"
     },
     "editLock": {
-      "bannerOther": "{{name}} has been editing since {{time}}. You’re viewing read-only.",
+      "bannerOther": "{{name}} has been editing since {{time}}. You’re viewing read‑only.",
       "bannerOfflineHold": "{{name}} is keeping editing offline until {{time}}.",
       "bannerSelfElsewhere": "You’re editing this document in another window.",
       "editHere": "Edit here",

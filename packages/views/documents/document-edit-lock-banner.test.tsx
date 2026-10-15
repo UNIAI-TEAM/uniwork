@@ -197,4 +197,13 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
     fireEvent.click(decline);
     expect(onDecline).not.toHaveBeenCalled();
   });
+
+  it("rate limited: each sentence is its own line in the visible strip (V-6)", () => {
+    const { region } = renderBanner({ session: session("other"), lockState: r1(), rateLimitedMinutes: 3 });
+    const wrapper = region.parentElement as HTMLElement;
+    const lines = Array.from(wrapper.querySelectorAll("[aria-hidden='true'] > .block")).map((el) => el.textContent);
+    expect(lines).toEqual([`An đang sửa từ ${hhmm(SINCE)}. Bạn đang xem ở chế độ chỉ đọc.`, "Bạn đã yêu cầu nhiều lần. Thử lại sau 3 phút."]);
+    // The status region still reads them as one sentence run.
+    expect(region.textContent).toBe(lines.join(" "));
+  });
 });

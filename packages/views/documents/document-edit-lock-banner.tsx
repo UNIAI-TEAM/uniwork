@@ -39,6 +39,8 @@ export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRe
   );
 
   let body: ReactNode = null;
+  // The sentences, each on its own line in the strip (V-6); the status region reads them joined.
+  let lines: string[] = [];
   let actions: ReactNode[] = [];
   let icon = Eye;
   let tone: "info" | "warning" = "info";
@@ -82,6 +84,7 @@ export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRe
         const label = view.request?.state === "notReleased" ? t("documents.editLock.requestAgain") : t("documents.editLock.request");
         actions.push(action(label, onRequest));
       }
+      lines = sentences;
       body = sentences.join(" ");
       break;
     }
@@ -91,7 +94,8 @@ export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRe
   if (body !== null && view.kind !== "none" && view.kind !== "error" && view.lost) {
     tone = "warning";
     icon = TriangleAlert;
-    body = `${t(lostCopyKey(view.lost.reason), { name: view.lost.byName || t("documents.editLock.lostSomeone") })} ${String(body)}`;
+    lines = [t(lostCopyKey(view.lost.reason), { name: view.lost.byName || t("documents.editLock.lostSomeone") }), ...(lines.length ? lines : [String(body)])];
+    body = lines.join(" ");
   }
 
   return (
@@ -101,7 +105,11 @@ export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRe
       </div>
       {body !== null ? (
         <Notice tone={tone} icon={icon} live="off" action={actions.length ? <div className="flex flex-wrap gap-2">{actions}</div> : undefined}>
-          <span aria-hidden="true">{body}</span>
+          <span aria-hidden="true">
+            {(lines.length ? lines : [String(body)]).map((line) => (
+              <span key={line} className="block">{line}</span>
+            ))}
+          </span>
         </Notice>
       ) : null}
     </div>
