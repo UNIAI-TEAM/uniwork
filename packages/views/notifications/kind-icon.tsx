@@ -4,6 +4,7 @@ import {
   Bell,
   Bookmark,
   CircleCheck,
+  CircleX,
   FileDown,
   Lock,
   MessageSquare,
@@ -46,8 +47,12 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   chat_thread_replied: MessageSquare,
 };
 
-/** One glyph per kind; an unknown kind from a newer server gets the bell. */
-export function kindIcon(kind: string): LucideIcon {
+/**
+ * One glyph per kind; an unknown kind from a newer server gets the bell. An
+ * edit-request answer that was declined is not a success: it gets CircleX.
+ */
+export function kindIcon(kind: string, params?: Record<string, string | undefined>): LucideIcon {
+  if (kind === "document_edit_request_answered" && params?.decision === "decline") return CircleX;
   return (ICONS as Record<string, LucideIcon>)[kind] ?? Bell;
 }
 

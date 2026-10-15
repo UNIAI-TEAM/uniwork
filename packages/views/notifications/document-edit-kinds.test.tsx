@@ -40,6 +40,14 @@ describe("document edit-lock notifications", () => {
     expect(notificationTitleKey(notification("document_edit_request_answered", {}))).toBe("notifications.kind.document_edit_request_answered");
   });
 
+  it("draws a declined answer with a decline glyph, not the accepted one's check (V-3)", () => {
+    const accepted = kindIcon("document_edit_request_answered", { decision: "accept" });
+    const declined = kindIcon("document_edit_request_answered", { decision: "decline" });
+    expect(declined).not.toBe(accepted);
+    expect(declined).not.toBe(Bell);
+    expect(kindIcon("document_edit_request_answered")).toBe(accepted);
+  });
+
   it("never swaps an edit-lock kind to a title-less sentence the locale does not have", () => {
     const blank = notification("document_edit_taken_over", { document: "" });
     expect(notificationTitleKey(blank)).toBe("notifications.kind.document_edit_taken_over");
