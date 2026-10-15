@@ -46,7 +46,7 @@ step_go() {
   (cd "$REPO_ROOT/server" && go test -count=1 -v "$@") > "$log" 2>&1
   local rc=$?
   echo "server-row: $line"
-  grep -E '^(--- (FAIL|SKIP)|PASS$|FAIL|ok |panic)' "$log" | tail -n 80
+  grep -E '^(\s*--- (FAIL|SKIP)|PASS$|FAIL|ok |panic)' "$log" | tail -n 80
   if [ "$rc" -eq 0 ] && ! grep -q '^--- PASS' "$log"; then
     echo "server-row: no test passed (a pattern that matches nothing is not a PASS)"
     rc=1
@@ -90,7 +90,7 @@ case "$ROW" in
     ;;
   G8-A08)
     step_go 1 ./internal/handler -run 'IsolationMatrix|IsolationRealtime|EveryBodyIDFieldHasAReferenceCase'
-    step_go 1 ./internal/service -run AuditCoverage
+    step_go 1 ./internal/service -run 'EveryAuditedCommandWritesItsRow|ReusedAuditActionCommandsWriteTheirOwnRows'
     step_node scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs
     ;;
   *)
