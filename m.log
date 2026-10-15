@@ -1,0 +1,598 @@
+$ if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0; fi; DEBUG= xvfb-run --auto-servernum -- npm run test:e2e; rc=$?; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+
+> genoffice@0.1.0 test:e2e
+> playwright test --config e2e/playwright.config.ts
+
+
+Running 231 tests using 1 worker
+
+(node:10802) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓    1 e2e/ai-panel-open-in-new-docs.spec.ts:31:7 › #1589 the "open the AI panel in new documents" setting › a new document from the Home screen opens collapsed after the toggle is turned off (3.2s)
+  ✓    2 e2e/ai-panel-open-in-new-docs.spec.ts:59:7 › #1589 the "open the AI panel in new documents" setting › the same new document still opens with the panel when the setting is left on (1.9s)
+  ✓    3 e2e/ai-panel-side-settings.spec.ts:6:5 › AI panel side persists across restart and updates an open Docs tab without losing the draft (4.8s)
+  ✓    4 e2e/ai-panel-side.spec.ts:8:7 › docs: switching AI panel sides preserves navigation and the collapsed rail (625ms)
+  ✓    5 e2e/ai-panel-side.spec.ts:8:7 › sheets: switching AI panel sides preserves navigation and the collapsed rail (538ms)
+  ✓    6 e2e/ai-panel-side.spec.ts:8:7 › slides: switching AI panel sides preserves navigation and the collapsed rail (599ms)
+  ✓    7 e2e/ai-panel-side.spec.ts:8:7 › pdf: switching AI panel sides preserves navigation and the collapsed rail (582ms)
+  ✓    8 e2e/ai-panel-side.spec.ts:8:7 › markdown: switching AI panel sides preserves navigation and the collapsed rail (574ms)
+  ✓    9 e2e/ai-panel-side.spec.ts:8:7 › html: switching AI panel sides preserves navigation and the collapsed rail (567ms)
+  ✓   10 e2e/cli-control.spec.ts:48:7 › cli control channel › goto selects a slide element and selection reads it back (1.4s)
+  ✓   11 e2e/cli-control.spec.ts:109:7 › cli control channel › goto selects a docx block and selection reports the block range (1.4s)
+  ✓   12 e2e/cli-control.spec.ts:142:7 › cli control channel › goto activates a worksheet range and selection reads it back (1.7s)
+  ✓   13 e2e/docs-cell-page-break.spec.ts:82:7 › page break inside a table cell › breaks the row so the content below lands on a new page (3.4s)
+[cjk-compose] EA face for the fixture: MS Mincho
+[cjk-compose] rendered: lines 14, 14, 14, 14 px, paraH 47.94px, spans 1, family ""MS Mincho", "MS Mincho GO", "Yu Mincho", "GenOffice Hiragin", composing=false
+[cjk-compose] composing: lines 18, 18, 18, 18 px (line delta 4, 4, 4, 4), paraH 43.94px (para delta -4px), family "Calibri, "Carlito GO", "Latin Sans GO", "MS Mincho", "MS Min"
+  ✓   14 e2e/docs-cjk-compose-scope.spec.ts:113:5 › the composing font rule leaves rendered lines byte-identical and reports its delta (6.7s)
+  ✓   15 e2e/docs-context-menu-word-items.spec.ts:51:5 › hyperlink context menu items and Review comment navigation (4.0s)
+  ✓   16 e2e/docs-contextual-tabs.spec.ts:67:7 › docs contextual ribbon tabs › existing table keeps the tab, new table and pictures activate theirs (2.5s)
+
+  ✓   17 e2e/docs-edit-save.spec.ts:25:7 › docs: edit and save an external document › typed text round-trips through save and reopen (3.5s)
+  ✓   18 e2e/docs-find-replace.spec.ts:11:5 › find, wildcards, regex replace, go to and the Editing group (4.2s)
+  ✓   19 e2e/docs-font-combos.spec.ts:16:7 › docs font and size combos › type-ahead commits on Enter while Esc and blur restore (3.3s)
+  ✓   20 e2e/docs-font-dialog-advanced.spec.ts:54:7 › docs font dialog advanced tab › character spacing and small caps apply, save and read back (2.7s)
+  ✓   21 e2e/docs-header-footer-edit.spec.ts:75:7 › docs header/footer rich editing › bold header text, page field, unlinked section header and header distance save (3.9s)
+  ✓   22 e2e/docs-justify-pagegap.spec.ts:71:5 › page-crossing justified lines keep natural word gaps across reflows (21.2s)
+  ✓   23 e2e/docs-layout-breaks.spec.ts:59:7 › docs layout breaks menu › page, column, text wrapping and section breaks save as OOXML; cover page removal (2.2s)
+  ✓   24 e2e/docs-list-completion.spec.ts:56:7 › docs list completion › set numbering value, adjust indents and define a number format reach numbering.xml (2.6s)
+  ✓   25 e2e/docs-measurement-units.spec.ts:53:7 › docs measurement unit preference › ruler, margin dialog and indent fields follow the chosen unit (1.8s)
+  ✓   26 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (3.8s)
+  ✓   27 e2e/docs-nav-pane.spec.ts:13:5 › headings tree, search results, pages and heading edits (5.1s)
+  ✓   28 e2e/docs-paste-options.spec.ts:25:7 › docs paste options chip › chip re-applies merge/text/source modes and remembers the default (4.0s)
+  ✓   29 e2e/docs-paste-split-button.spec.ts:21:7 › docs paste split button › menu modes paste the clipboard in the chosen mode (2.5s)
+  ✓   30 e2e/docs-ribbon-compact-clipping.spec.ts:25:5 › compact ribbon fits every tab without clipping (11.3s)
+  ✓   31 e2e/docs-ruler-indent.spec.ts:72:7 › docs ruler indent and margin handles › markers write paragraph indents, margin handle writes page margins (2.3s)
+  ✓   32 e2e/docs-selection-bar-painter.spec.ts:128:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (1.6s)
+  ✓   33 e2e/docs-selection-bar-painter.spec.ts:198:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (2.5s)
+  ✓   34 e2e/docs-simple-markup.spec.ts:81:7 › docs Simple Markup view › opens in Simple Markup with change bars and balloons; a bar click shows All Markup (1.9s)
+  ✘   35 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (21.4s)
+(node:13807) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   36 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (retry #1) (21.4s)
+(node:13896) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   37 e2e/docs-spellcheck-reenable.spec.ts:51:5 › re-enabling spellcheck respells existing text without user input (5.3s)
+  ✓   38 e2e/docs-spellcheck-reenable.spec.ts:105:5 › toggling spellcheck never scrolls the view to the caret (9.8s)
+  ✓   39 e2e/docs-style-gallery.spec.ts:40:7 › docs quick style gallery › lists Word’s set in order, applies by id and opens the Styles pane (2.0s)
+  ✓   40 e2e/docs-table-float-click.spec.ts:78:7 › docs floating table click › clicking a cell of a floating table puts the caret in that cell (1.6s)
+  ✓   41 e2e/docs-table-gap-flicker.spec.ts:21:7 › docs table page-gap stability › colgroup-less table straddling a page boundary keeps pages and column widths stable (10.8s)
+  ✓   42 e2e/docs-table-ops.spec.ts:68:7 › docs table operations › split cells, split table, cell alignment, border style and alt text save as OOXML (2.6s)
+  ✓   43 e2e/docs-table-resize-live.spec.ts:48:5 › column border drag previews the width before mouseup (4.1s)
+  ✓   44 e2e/docs-table-ribbon-word.spec.ts:65:7 › docs table ribbon (Word layout) › group order, Select ▾ row, Borders ▾ default, Shading palette, Cell Margins (2.1s)
+  ✓   45 e2e/docs-textbox-draw.spec.ts:13:5 › draw text box inserts a box of the dragged size ready to type (3.1s)
+  ✓   46 e2e/docs-unequal-cols-zoom-sweep.spec.ts:78:5 › unequal-column sections never collapse and pagination ignores zoom (1.3m)
+CORRUPT_COLS []
+  ✓   47 e2e/docs-unequal-cols-zoom-sweep.spec.ts:179:5 › a corrupt w:cols count flows as one full-width column, not character slivers (4.3s)
+  ✘   48 e2e/docs-visual.spec.ts:63:9 › docs visual regression › kitchen-sink renders pixel-identical pages (4.1s)
+(node:14871) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   49 e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-inline renders pixel-identical pages (4.1s)
+(node:14965) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   50 e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-float renders pixel-identical pages (4.1s)
+(node:15058) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   51 e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-pct renders pixel-identical pages (3.5s)
+(node:15153) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   52 e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-page-anchor renders pixel-identical pages (4.0s)
+(node:15252) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   53 e2e/docs-web-paste-font.spec.ts:36:7 › docs web-HTML paste fonts › web pastes follow the caret font when generic and keep concrete site fonts (3.0s)
+  ✓   54 e2e/docs-word-interaction-smoke.spec.ts:275:7 › docs Word interaction smoke › 1 new document: Word gallery, title, heading, body and list (1.4s)
+  ✓   55 e2e/docs-word-interaction-smoke.spec.ts:318:7 › docs Word interaction smoke › 2 selection bar: line, paragraph, Strong, document, bold toggles (267ms)
+  ✓   56 e2e/docs-word-interaction-smoke.spec.ts:353:7 › docs Word interaction smoke › 3 format painter: locked Heading 1 brush, Esc, undo across steps (626ms)
+  ✓   57 e2e/docs-word-interaction-smoke.spec.ts:390:7 › docs Word interaction smoke › 4 list keys: staged Backspace, Tab inside text, Enter on an empty item (977ms)
+  ✓   58 e2e/docs-word-interaction-smoke.spec.ts:428:7 › docs Word interaction smoke › 5 font and size boxes: type-ahead, Esc, stepping past 72, mixed selection (2.0s)
+  ✓   59 e2e/docs-word-interaction-smoke.spec.ts:471:7 › docs Word interaction smoke › 6 table: grid insert activates Table Design, Select Row, Bottom Border, tab reverts (602ms)
+  ✓   60 e2e/docs-word-interaction-smoke.spec.ts:506:7 › docs Word interaction smoke › 7 ruler: first-line marker, inches in Preferences, ruler and margins dialog follow (905ms)
+  ✓   61 e2e/docs-word-interaction-smoke.spec.ts:567:7 › docs Word interaction smoke › 8 layout galleries: Next Page section break, Mirrored margins, A5 (273ms)
+  -   62 e2e/docs-word-interaction-smoke.spec.ts:596:7 › docs Word interaction smoke › 8b undo reverts the page setup changes
+  ✓   63 e2e/docs-word-interaction-smoke.spec.ts:603:7 › docs Word interaction smoke › 9 paste: Keep Text Only drops bold, the context menu Paste keeps it (765ms)
+  ✓   64 e2e/docs-word-interaction-smoke.spec.ts:648:7 › docs Word interaction smoke › 10 zoom dialog, slider floor, view buttons (424ms)
+  ✓   65 e2e/docs-word-interaction-smoke.spec.ts:685:7 › docs Word interaction smoke › 11 navigation pane: heading click moves the caret, search counts hits (376ms)
+  ✓   66 e2e/docs-word-interaction-smoke.spec.ts:714:7 › docs Word interaction smoke › 12 hyperlink: Cmd/Ctrl+K inserts, the context menu offers Word’s items, Remove keeps the text (342ms)
+  ✓   67 e2e/docs-word-interaction-smoke.spec.ts:744:7 › docs Word interaction smoke › 13 save and reopen: styles, table, section break and list survive (286ms)
+  ✓   68 e2e/docs-zoom-status-bar.spec.ts:12:5 › zoom 10–500, zoom dialog, page counter, view buttons and track changes (3.0s)
+  ✓   69 e2e/helpers-close.spec.ts:7:7 › app cleanup waits for process exit (ignores SIGTERM: false) (23ms)
+  ✓   70 e2e/helpers-close.spec.ts:7:7 › app cleanup waits for process exit (ignores SIGTERM: true) (20.0s)
+  ✓   71 e2e/home-folders.spec.ts:37:7 › home folders panel › shows the tree, opens a folder, then creates / moves / renames / deletes on disk (3.1s)
+  ✓   72 e2e/home-folders.spec.ts:127:7 › home folders panel › an added folder joins the tree in place and leaves the list without touching disk (1.5s)
+  ✓   73 e2e/home-folders.spec.ts:182:7 › home folders panel › a folder menu survives a scroll event that moved nothing and follows a row that did move (1.1s)
+  ✓   74 e2e/home-folders.spec.ts:225:7 › home folders panel › a file created from a folder view lands in that folder (1.1s)
+  ✓   75 e2e/home-menu-position.spec.ts:27:7 › home row menu position › the tree row menu opens below its button and inside the window (950ms)
+  ✓   76 e2e/home-row-menu-layout.spec.ts:13:7 › bottom row flips upward (234ms)
+  ✓   77 e2e/home-row-menu-layout.spec.ts:13:7 › top row opens downward (272ms)
+  ✓   78 e2e/home-row-menu-layout.spec.ts:13:7 › short window keeps every action reachable (232ms)
+  ✓   79 e2e/home-search.spec.ts:56:7 › home file search › finds files by content and name, highlights hits, opens a result (4.4s)
+  ✓   80 e2e/home.spec.ts:5:7 › home screen › shows hero, quick-create cards and tab bar (995ms)
+  ✓   81 e2e/home.spec.ts:26:7 › home screen › renders localized UI when GENOFFICE_LANG=zh-CN (1.0s)
+  ✓   82 e2e/html-insert-drag.spec.ts:8:7 › html editor: insert, resize, drag › Insert menu adds elements, handles resize, dragging the grip reorders (3.1s)
+  ✓   83 e2e/html-redact-demo.spec.ts:82:5 › a reader can withhold a value in the source view without changing the page (1.7s)
+  ✓   84 e2e/html-tab.spec.ts:8:7 › html editor › AI HTML quick card opens an html editor tab in preview view with a ribbon (1.4s)
+  ✓   85 e2e/html-tab.spec.ts:42:7 › html editor › opens an .html file from argv, renders it in the preview, edits and saves it back (1.3s)
+  ✓   86 e2e/html-tab.spec.ts:98:7 › html editor › relative stylesheets and images next to the file load in the preview (2.5s)
+  ✓   87 e2e/html-tab.spec.ts:162:7 › html editor › saving without edits keeps BOM, CRLF and the missing trailing newline byte-identical (976ms)
+  ✓   88 e2e/html-tab.spec.ts:187:7 › html editor › AI panel toggles from the toolbar and accepts an instruction (1.7s)
+  ✓   89 e2e/html-tab.spec.ts:272:7 › html editor › preview inspector: click selects, double-click edits text, toolbar deletes, Ask AI drafts (4.1s)
+  ✓   90 e2e/html-tab.spec.ts:444:7 › html editor › Ctrl+Z inside the preview undoes the last edit; pinch over the frame zooms the stage (2.0s)
+  ✓   91 e2e/html-tab.spec.ts:498:7 › html editor › Ctrl+F searches the source pane and Replace All saves the rewritten markup (1.6s)
+  ✓   92 e2e/markdown-image-export.spec.ts:24:5 › Markdown File menu exports paginated PNG files with formula and local image (2.5s)
+  ✓   93 e2e/markdown-tab.spec.ts:8:7 › markdown editor › newly opened long Markdown starts at the title (1.0s)
+  ✓   94 e2e/markdown-tab.spec.ts:41:7 › markdown editor › AI Markdown quick card opens a markdown editor tab (1.3s)
+  ✓   95 e2e/markdown-tab.spec.ts:61:7 › markdown editor › legacy fenced divs degrade on open; slash menu inserts a GFM task list (1.2s)
+  ✓   96 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+  ✓   97 e2e/markdown-tab.spec.ts:182:7 › markdown editor › ribbon AI preset button opens the panel and sends the instruction (1.1s)
+  ✓   98 e2e/markdown-tab.spec.ts:212:7 › markdown editor › ribbon bold serializes as GFM; quick-access save and undo work (1.2s)
+  ✓   99 e2e/markdown-tab.spec.ts:253:7 › markdown editor › renders a relative assets/ image through the md-asset protocol (1.1s)
+  ✓  100 e2e/markdown-tab.spec.ts:283:7 › markdown editor › Ctrl+F finds across the document and Replace All rewrites the saved file (1.4s)
+  ✓  101 e2e/markdown-theme-picker.spec.ts:20:5 › markdown theme picker applies, persists and restarts (3.9s)
+  ✓  102 e2e/mcp-headless.spec.ts:60:7 › MCP headless generation › spawns the bundled CLI to create docx/pptx/xlsx (2.8s)
+  ✓  103 e2e/mcp-open-documents.spec.ts:107:7 › MCP open documents › lists, reads and closes a document the app opened (1.2s)
+  ✓  104 e2e/mcp-open-documents.spec.ts:205:7 › MCP open documents › reads a Word document the app opened, through the docs bridge (3.7s)
+  ✓  105 e2e/mcp-open-documents.spec.ts:292:7 › MCP open documents › saves unsaved edits before closing when asked to close a dirty document (1.3s)
+  ✓  106 e2e/mcp-read-pdf.spec.ts:55:7 › MCP read_pdf › extracts pdf text through the real app server (823ms)
+  ✓  107 e2e/mcp-sheet-values.spec.ts:140:7 › MCP sheet values and addressing › a repeating formula stays a number in the result, the read and the file (3.4s)
+  ✓  108 e2e/mcp-sheet-values.spec.ts:214:7 › MCP sheet values and addressing › addresses worksheets by name after a reopen (ids do not survive) (3.7s)
+  ✓  109 e2e/mcp-visible-deck.spec.ts:105:7 › MCP visible deck session › creates, edits and saves a pptx through a visible slides tab (1.6s)
+  ✓  110 e2e/mcp-visible-doc.spec.ts:105:7 › MCP visible document session › creates, formats and saves a docx through a visible tab (2.1s)
+  ✓  111 e2e/mcp-visible-sheet.spec.ts:106:7 › MCP visible grid session › creates, fills and saves an xlsx through a visible sheets tab (3.4s)
+  ✓  112 e2e/md-text-surface-demo.spec.ts:47:7 › the same bytes under three names › as .md (5.3s)
+  ✓  113 e2e/md-text-surface-demo.spec.ts:123:7 › the same bytes under three names › as .txt (1.9s)
+  ✓  114 e2e/md-text-surface-demo.spec.ts:147:7 › the same bytes under three names › as .json (1.9s)
+  ✓  115 e2e/new-file-tab.spec.ts:5:7 › new file from home › AI Docs quick card opens a docs editor tab (1.4s)
+  ✓  116 e2e/office-bridge.spec.ts:10:7 › office bridge: UniWork open and save › DOCX opens from a launch token and saves a new version (3.0s)
+  ✓  117 e2e/onboarding.spec.ts:7:7 › first-run onboarding › fresh install walks all slides and persists the seen flag (2.6s)
+  ✓  118 e2e/onboarding.spec.ts:62:7 › first-run onboarding › skip dismisses the onboarding and persists the seen flag (1.1s)
+  ✓  119 e2e/open-empty-file-save.spec.ts:19:7 › empty .docx opens blank and saves back to its own path (2.9s)
+  ✓  120 e2e/open-empty-file-save.spec.ts:19:7 › empty .xlsx opens blank and saves back to its own path (2.9s)
+  ✓  121 e2e/open-empty-file-save.spec.ts:19:7 › empty .pptx opens blank and saves back to its own path (2.9s)
+  ✓  122 e2e/open-focus-typing.spec.ts:194:5 › docs: typing works immediately after opening a file from Home (2.0s)
+  ✓  123 e2e/open-focus-typing.spec.ts:216:5 › sheets: typing works when a spare view opens the next workbook (9.3s)
+  -  124 e2e/packaged-linux-smoke.spec.ts:27:9 › installed Linux package › docs opens a new document
+  -  125 e2e/packaged-linux-smoke.spec.ts:27:9 › installed Linux package › sheets opens a new document
+  -  126 e2e/packaged-linux-smoke.spec.ts:27:9 › installed Linux package › slides opens a new document
+  -  127 e2e/packaged-linux-smoke.spec.ts:27:9 › installed Linux package › markdown opens a new document
+  -  128 e2e/packaged-linux-smoke.spec.ts:27:9 › installed Linux package › html opens a new document
+  -  129 e2e/packaged-linux-smoke.spec.ts:27:9 › installed Linux package › pdf opens a new document
+  ✓  130 e2e/pdf-fit-zoom.spec.ts:27:5 › image-sized PDF opens at true fit-to-width, not the old 50% zoom floor (1.2s)
+  ✓  131 e2e/pdf-outline-layout.spec.ts:5:5 › long PDF outlines scroll without compressing entries (133ms)
+  ✓  132 e2e/pdf-redaction-workflow.spec.ts:8:5 › redaction stays in the current tab and accumulates on its working copy (2.1s)
+  ✓  133 e2e/pdf-shift-arrow-selection.spec.ts:38:5 › Shift+ArrowRight extends the text selection instead of flipping the page (1.1s)
+  ✓  134 e2e/rtl-document-direction.spec.ts:31:5 › the UI chrome itself mirrors under ar (908ms)
+  ✓  135 e2e/rtl-document-direction.spec.ts:42:7 › docs: a new document's surface stays ltr (1.5s)
+  ✓  136 e2e/rtl-document-direction.spec.ts:42:7 › sheets: a new document's surface stays ltr (2.1s)
+  ✓  137 e2e/rtl-document-direction.spec.ts:42:7 › slides: a new document's surface stays ltr (1.4s)
+  ✓  138 e2e/rtl-document-direction.spec.ts:42:7 › markdown: a new document's surface stays ltr (1.4s)
+  ✓  139 e2e/rtl-document-direction.spec.ts:42:7 › html: a new document's surface stays ltr (1.3s)
+  ✓  140 e2e/rtl-document-direction.spec.ts:42:7 › pdf: a new document's surface stays ltr (1.3s)
+
+  ✓  141 e2e/rtl-slides-png-export.spec.ts:126:5 › a PNG export under ar is byte-equal to the same export under en (1.9s)
+  ✓  142 e2e/settings-media-search.spec.ts:6:5 › Jev reranking lives in the AI Media & Search pane, saves with it, and reports its own test verdict (1.7s)
+  ✓  143 e2e/sheets-arrow-collapse.spec.ts:47:7 › sheets: arrow collapses a multi-cell selection to the active cell › after selecting two cells and cutting, ArrowRight lands next to the active cell (3.6s)
+  ✓  144 e2e/sheets-csv-export.spec.ts:53:7 › sheets: export the active sheet as CSV › File > Export CSV writes a BOM-prefixed CSV of the grid (5.2s)
+  ✓  145 e2e/sheets-csv-export.spec.ts:96:7 › sheets: export the active sheet as CSV › Export CSV with formulas: Continue on the loss warning writes the file and toasts (5.0s)
+  ✓  146 e2e/sheets-csv-export.spec.ts:141:7 › sheets: export the active sheet as CSV › Save As with a .csv pick rides the formula warning through to the file (5.0s)
+  ✓  147 e2e/sheets-csv-inplace-save.spec.ts:30:7 › sheets: a CSV keeps its identity through Save › blank-line CSV opens with one friendly notice and an open action (2.1s)
+  ✓  148 e2e/sheets-csv-inplace-save.spec.ts:56:7 › sheets: a CSV keeps its identity through Save › Cmd+S writes the edit back to the original .csv (5.6s)
+  ✓  149 e2e/sheets-ctrl-drag-fill.spec.ts:91:7 › sheets: modifier-drag on the fill handle flips copy and series › a lone number repeats on a plain drag and counts up under the modifier (6.6s)
+  ✓  150 e2e/sheets-edit-polish.spec.ts:19:7 › sheets: manual visual inserts are undoable › undo removes an icon inserted from the ribbon (4.3s)
+
+  ✓  151 e2e/sheets-edit-polish.spec.ts:64:7 › sheets: freeze journal follows undo › freezing then undoing leaves no pane in the saved file (5.0s)
+
+  ✓  152 e2e/sheets-edit-polish.spec.ts:114:7 › sheets: Data → From Text/CSV › imports a CSV file at the selection and saves the values (3.7s)
+  ✓  153 e2e/sheets-edit-polish.spec.ts:152:7 › sheets: comment navigation › previous/next surface the empty-sheet message without notes (3.6s)
+
+  ✓  154 e2e/sheets-edit-save.spec.ts:47:7 › sheets: edit and save an external workbook › cell edit round-trips through save and reopen (7.5s)
+  ✓  155 e2e/sheets-filter-outline.spec.ts:100:7 › sheets: no outline around a filtered range › creating a filter draws funnel buttons but no range border (5.2s)
+
+  ✓  156 e2e/sheets-filter-reopen.spec.ts:22:7 › sheets: filter criteria survive save and reopen › criteria restore, rows stay filtered, and re-filtering unhides (6.9s)
+  ✓  157 e2e/sheets-find-replace.spec.ts:71:5 › sheets: Excel-style Find & Replace panel (6.7s)
+  ✓  158 e2e/sheets-format-cells-overflow.spec.ts:23:7 › sheets: Format Cells dialog content stays inside the card (fr) (4.0s)
+  ✓  159 e2e/sheets-format-cells-overflow.spec.ts:23:7 › sheets: Format Cells dialog content stays inside the card (en) (4.0s)
+  ✓  160 e2e/sheets-function-arguments.spec.ts:26:5 › Insert Function leads into Function Arguments; fx reopens the call pre-filled (5.9s)
+
+  ✓  161 e2e/sheets-grid-growth.spec.ts:35:7 › sheets: the grid grows ahead of the viewport › the cursor can travel past column Z, and a cell written there survives save (3.9s)
+
+  ✓  162 e2e/sheets-insert-gallery.spec.ts:37:7 › sheets: Insert → Recommended Charts and Icons › recommends charts for a time series and inserts an icon (5.5s)
+
+  ✓  163 e2e/sheets-insert-screenshot.spec.ts:19:7 › sheets: Insert → Screenshot › captures a screen source and saves it into the workbook (3.8s)
+
+  ✓  164 e2e/sheets-insert-tier2.spec.ts:44:7 › sheets: Insert → Equation and Checkbox › renders LaTeX to a picture and saves it into the workbook (3.9s)
+
+  ✓  165 e2e/sheets-insert-tier2.spec.ts:86:7 › sheets: Insert → Equation and Checkbox › inserts a checkbox rule that saves as a two-value list validation (3.6s)
+  ✓  166 e2e/sheets-insert-tier2.spec.ts:118:7 › sheets: Insert → Timeline › filters a pivot by month range through the timeline panel (9.6s)
+  ✓  167 e2e/sheets-jump-scroll.spec.ts:46:7 › sheets: ctrl+shift+arrow scroll follow › extending the selection to the sheet edge scrolls the moving edge into view (3.6s)
+  ✓  168 e2e/sheets-menu-input-enter.spec.ts:121:7 › sheets: Enter runs the context-menu insert-N action › insert 3 columns left of B via the count box and Enter (4.2s)
+  ✓  169 e2e/sheets-menu-input-enter.spec.ts:159:7 › sheets: cell context menu Excel entries › Pick From Drop-down List writes the pick and Filter by value hides the rest (4.2s)
+
+  ✓  170 e2e/sheets-move-rows.spec.ts:39:7 › sheets: whole-row move › drag-moving a row persists the new order and undo restores it (12.5s)
+
+  ✓  171 e2e/sheets-new-blank.spec.ts:17:7 › sheets: new blank workbook › quick-create saves the first edit through Save As and leaves the default folder empty (3.9s)
+  ✓  172 e2e/sheets-open-tsv.spec.ts:41:7 › sheets: opening a .tsv › splits on tabs, keeps comma-heavy annotations in one cell, and saves as .xlsx (3.3s)
+  ✓  173 e2e/sheets-paste-anchor-tile.spec.ts:40:7 › sheets: paste repeats into an anchor-shaped target › a copied 1×3 row tiles down a 4×1 selection (3.9s)
+
+  ✓  174 e2e/sheets-paste-shared-formula-save.spec.ts:19:7 › sheets: tiled paste of formulas survives save › followers keep their (shifted) formula in the saved xlsx (4.8s)
+  ✓  175 e2e/sheets-paste-special.spec.ts:33:5 › paste special: transpose, add operation, paste link, undo (5.9s)
+
+  ✓  176 e2e/sheets-ribbon-batch.spec.ts:36:7 › sheets: ribbon batch-1 features › headings toggle, zoom to selection, names, watch window, calc options (7.6s)
+  ✓  177 e2e/sheets-ribbon-batch.spec.ts:126:7 › sheets: ribbon batch-2 features › error checking, goal seek, refresh all (5.5s)
+
+  ✓  178 e2e/sheets-ribbon-batch.spec.ts:201:7 › sheets: ribbon batch-3 features › page breaks + preview, workbook protection, allow edit ranges, theme (4.2s)
+  ✓  179 e2e/sheets-rtl-toggle.spec.ts:15:5 › the View tab toggles the sheet grid direction (3.6s)
+
+  ✓  180 e2e/sheets-rtl-toggle.spec.ts:51:5 › a save after toggling carries rightToLeft in the file (2.1s)
+
+  ✓  181 e2e/sheets-xlsm.spec.ts:45:7 › sheets: macro-enabled workbook (.xlsm) › opens, edits, and saves with the VBA project preserved verbatim (7.3s)
+
+  ✓  182 e2e/slides-clipboard-image.spec.ts:10:5 › Slides copy provides an OS image while internal paste stays editable and stale captures are rejected (1.1s)
+
+  ✓  183 e2e/slides-edit-save.spec.ts:31:7 › slides: edit and save an external deck › find/replace round-trips through save and reopen (2.5s)
+
+  ✓  184 e2e/slides-font-manager.spec.ts:29:5 › font download UI follows CDN configuration (1.1s)
+  ✓  185 e2e/slides-redact-demo.spec.ts:103:5 › a reader can withhold a picture from the model without losing it (1.6s)
+  ✓  186 e2e/slides-selection-image.spec.ts:56:5 › selection PNG keeps z-order, excludes unselected shapes and page background (2.7s)
+  ✓  187 e2e/slides-selection-image.spec.ts:83:5 › rotated groups outside the page are not clipped and include their shadows (544ms)
+  ✓  188 e2e/slides-selection-image.spec.ts:119:5 › pictures not yet present in the editor image cache are decoded before capture (548ms)
+  ✓  189 e2e/slides-selection-image.spec.ts:148:7 › table picture fills are loaded even with an empty image cache (546ms)
+  ✓  190 e2e/slides-selection-image.spec.ts:148:7 › chart picture fills are loaded even with an empty image cache (554ms)
+  ✓  191 e2e/slides-show-media-play.spec.ts:50:5 › click-sequence video plays on the first click of the show (2.1s)
+  ✓  192 e2e/tab-tear-off-dock.spec.ts:27:7 › tab tear-off and dock › a torn-off markdown tab docks back without a reload; Open in New Window covers it too (951ms)
+  ✓  193 e2e/text-source.spec.ts:19:7 › source text files › a .txt picked on Home opens as source and saves back byte-identical (1.4s)
+  ✓  194 e2e/text-source.spec.ts:59:7 › source text files › editing a BOM + CRLF .txt keeps the BOM, the CRLF and the missing trailing newline (1.1s)
+  ✓  195 e2e/theme-pipeline.spec.ts:38:7 › theme pipeline › setTheme reaches home and editor tabs, persists across relaunch (1.9s)
+  ✓  196 e2e/theme-visual-slides.spec.ts:25:5 › slides chrome darkens while the slide canvas stays paper-white (1.5s)
+  ✓  197 e2e/theme-visual.spec.ts:61:7 › theme visual adoption › html editor surface follows dark theme (1.1s)
+  ✓  198 e2e/theme-visual.spec.ts:93:7 › theme visual adoption › markdown editor surface follows dark theme (1.1s)
+  ✓  199 e2e/theme-visual.spec.ts:124:7 › theme visual adoption › docs renders a dark page in dark theme; View ▸ Dark Mode switches back to white paper (2.2s)
+  ✓  200 e2e/theme-visual.spec.ts:175:7 › theme visual adoption › sheets chrome and Univer grid follow dark theme (2.5s)
+  ✓  201 e2e/theme-visual.spec.ts:208:7 › theme visual adoption › pdf chrome follows dark theme while the page stays paper-white (1.1s)
+  -  202 e2e/uniwork-documents.spec.ts:321:7 › UniWork documents › a. open from the UniWork picker, edit, Ctrl+S: one upload, one commit, Saved, recents
+  -  203 e2e/uniwork-documents.spec.ts:375:7 › UniWork documents › b. launch from the web: the link opens the right document once, a reused link does nothing
+  -  204 e2e/uniwork-documents.spec.ts:408:7 › UniWork documents › b2. launch from the web: an expired link is refused with a message, a view link opens read-only
+  -  205 e2e/uniwork-documents.spec.ts:441:7 › UniWork documents › c. no autosave: an edit left alone for over 35 s sends nothing and keeps a local recovery copy
+  -  206 e2e/uniwork-documents.spec.ts:505:7 › UniWork documents › d. conflict: 409 keeps the local edit and the base, Save refuses, overwrite commits on the new base
+  -  207 e2e/uniwork-documents.spec.ts:562:7 › UniWork documents › d2. conflict: "Discard my changes and open the latest" asks twice, then shows the web version
+  -  208 e2e/uniwork-documents.spec.ts:585:7 › UniWork documents › d3. conflict: "Save a copy on this computer" writes a plain local file and the document stays in conflict
+  -  209 e2e/uniwork-documents.spec.ts:620:7 › UniWork documents › e. view-only: opens read-only, typing changes nothing, Ctrl+S sends nothing
+  -  210 e2e/uniwork-documents.spec.ts:654:7 › UniWork documents › f. offline: a dropped commit keeps the intent, Retry reuses the same key and succeeds
+  -  211 e2e/uniwork-documents.spec.ts:696:7 › UniWork documents › f2. offline: a commit that landed but lost its answer is replayed by Retry without a second version
+  -  212 e2e/uniwork-documents.spec.ts:836:9 › UniWork documents › g1. xlsx: open, edit, explicit Save: one upload, one commit
+  -  213 e2e/uniwork-documents.spec.ts:836:9 › UniWork documents › g2. pptx: open, edit, explicit Save: one upload, one commit
+  -  214 e2e/uniwork-documents.spec.ts:836:9 › UniWork documents › g3. md: open, edit, explicit Save: one upload, one commit
+  -  215 e2e/uniwork-documents.spec.ts:836:9 › UniWork documents › g4. html: open, edit, explicit Save: one upload, one commit
+  -  216 e2e/uniwork-documents.spec.ts:854:7 › UniWork documents › g9. pdf: opens, an explicit Save settles with at most one intent
+  -  217 e2e/uniwork-documents.spec.ts:872:7 › UniWork documents › g10. pdf: a view-only pdf opens read-only and a Save sends nothing
+  -  218 e2e/uniwork-documents.spec.ts:892:7 › UniWork documents › h. a local file saves exactly as before and nothing goes to UniWork
+  -  219 e2e/uniwork-documents.spec.ts:1024:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (en)
+  -  220 e2e/uniwork-documents.spec.ts:1024:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (vi)
+  -  221 e2e/uniwork-documents.spec.ts:1119:9 › UniWork documents › i1. xlsx: offline, then Retry from the chip saves with the same key
+  -  222 e2e/uniwork-documents.spec.ts:1119:9 › UniWork documents › i2. pptx: offline, then Retry from the chip saves with the same key
+  -  223 e2e/uniwork-documents.spec.ts:1119:9 › UniWork documents › i3. md: offline, then Retry from the chip saves with the same key
+  -  224 e2e/uniwork-documents.spec.ts:1119:9 › UniWork documents › i4. html: offline, then Retry from the chip saves with the same key
+  ✓  225 e2e/uniwork-org-keys.spec.ts:165:7 › UniWork keys on the desktop › a key saved on UniWork serves Claude: read-only row, proxy turn with the device bearer (6.7s)
+  ✓  226 e2e/uniwork-org-keys.spec.ts:219:7 › UniWork keys on the desktop › with keys off on UniWork there is no org row and no proxy request (6.7s)
+  -  227 e2e/uniwork-signin.spec.ts:76:7 › UniWork account sign-in › signs in through the callback handoff, shows the profile, signs out
+  -  228 e2e/uniwork-signin.spec.ts:131:7 › UniWork account sign-in › a revoked device session at restart shows the session-revoked state
+  -  229 e2e/uniwork-signin.spec.ts:171:7 › UniWork account sign-in › a stored sign-in this computer cannot decrypt offers retry and sign in again
+  ✓  230 e2e/uniwork-signin.spec.ts:217:7 › UniWork account sign-in › without an OS keyring sign-in is refused and nothing is written (1.1s)
+  ✓  231 e2e/workbench-desk-tools.spec.ts:59:5 › Desk tools merge, split, convert and export PDFs (10.2s)
+  -  232 e2e/workbench-desk.spec.ts:55:7 › Workbench Desk › Desk shows its five sections and opens an in-progress document
+
+
+  1) e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+
+    Error: squiggle gone after Add to Dictionary
+
+    squiggle gone after Add to Dictionary
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 33
+
+    Call Log:
+    - Timeout 15000ms exceeded while waiting on the predicate
+
+      176 |         message: 'squiggle gone after Add to Dictionary',
+      177 |       })
+    > 178 |       .toBe(0)
+          |        ^
+      179 |     // the other misspelling keeps its marker: the dictionary changed, not the checker
+      180 |     expect(await redUnder(editor, targetRect!)).toBeGreaterThan(0)
+      181 |
+        at /home/ubuntu/work/uniwork-office/e2e/docs-spell-suggestions.spec.ts:178:8
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: squiggle gone after Add to Dictionary
+
+    squiggle gone after Add to Dictionary
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 43
+
+    Call Log:
+    - Timeout 15000ms exceeded while waiting on the predicate
+
+      176 |         message: 'squiggle gone after Add to Dictionary',
+      177 |       })
+    > 178 |       .toBe(0)
+          |        ^
+      179 |     // the other misspelling keeps its marker: the dictionary changed, not the checker
+      180 |     expect(await redUnder(editor, targetRect!)).toBeGreaterThan(0)
+      181 |
+        at /home/ubuntu/work/uniwork-office/e2e/docs-spell-suggestions.spec.ts:178:8
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one-retry1/error-context.md
+
+  2) e2e/docs-visual.spec.ts:63:9 › docs visual regression › kitchen-sink renders pixel-identical pages 
+
+    Error: expect(locator).toHaveScreenshot(expected) failed
+
+    Locator: locator('.doc-page').first()
+      5260 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: kitchen-sink-p1.png
+
+    Call log:
+      - Expect "toHaveScreenshot(kitchen-sink-p1.png)" with timeout 15000ms
+        - verifying given screenshot expectation
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - 5260 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - captured a stable screenshot
+      - 5260 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      90 |           await pageEl.scrollIntoViewIfNeeded()
+      91 |           expect(Math.round((await pageEl.boundingBox())?.height ?? 0)).toBe(1123)
+    > 92 |           await expect(pageEl).toHaveScreenshot(`${doc.name}-p${i + 1}.png`, {
+         |                                ^
+      93 |             maxDiffPixels: 0,
+      94 |             animations: 'disabled',
+      95 |           })
+        at /home/ubuntu/work/uniwork-office/e2e/docs-visual.spec.ts:92:32
+
+    attachment #1: kitchen-sink-p1 (image/png) ─────────────────────────────────────────────────────
+    Expected: e2e/visual-baselines/kitchen-sink-p1.png
+    Received: e2e/test-results/docs-visual-docs-visual-re-bf7e6-nders-pixel-identical-pages/kitchen-sink-p1-actual.png
+    Diff:     e2e/test-results/docs-visual-docs-visual-re-bf7e6-nders-pixel-identical-pages/kitchen-sink-p1-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/test-results/docs-visual-docs-visual-re-bf7e6-nders-pixel-identical-pages/error-context.md
+
+  3) e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-inline renders pixel-identical pages 
+
+    Error: expect(locator).toHaveScreenshot(expected) failed
+
+    Locator: locator('.doc-page').first()
+      5020 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: captable-inline-p1.png
+
+    Call log:
+      - Expect "toHaveScreenshot(captable-inline-p1.png)" with timeout 15000ms
+        - verifying given screenshot expectation
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - 5020 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - captured a stable screenshot
+      - 5020 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      90 |           await pageEl.scrollIntoViewIfNeeded()
+      91 |           expect(Math.round((await pageEl.boundingBox())?.height ?? 0)).toBe(1123)
+    > 92 |           await expect(pageEl).toHaveScreenshot(`${doc.name}-p${i + 1}.png`, {
+         |                                ^
+      93 |             maxDiffPixels: 0,
+      94 |             animations: 'disabled',
+      95 |           })
+        at /home/ubuntu/work/uniwork-office/e2e/docs-visual.spec.ts:92:32
+
+    attachment #1: captable-inline-p1 (image/png) ──────────────────────────────────────────────────
+    Expected: e2e/visual-baselines/captable-inline-p1.png
+    Received: e2e/test-results/docs-visual-docs-visual-re-07956-nders-pixel-identical-pages/captable-inline-p1-actual.png
+    Diff:     e2e/test-results/docs-visual-docs-visual-re-07956-nders-pixel-identical-pages/captable-inline-p1-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/test-results/docs-visual-docs-visual-re-07956-nders-pixel-identical-pages/error-context.md
+
+  4) e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-float renders pixel-identical pages 
+
+    Error: expect(locator).toHaveScreenshot(expected) failed
+
+    Locator: locator('.doc-page').first()
+      6341 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: captable-float-p1.png
+
+    Call log:
+      - Expect "toHaveScreenshot(captable-float-p1.png)" with timeout 15000ms
+        - verifying given screenshot expectation
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - 6341 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - captured a stable screenshot
+      - 6341 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      90 |           await pageEl.scrollIntoViewIfNeeded()
+      91 |           expect(Math.round((await pageEl.boundingBox())?.height ?? 0)).toBe(1123)
+    > 92 |           await expect(pageEl).toHaveScreenshot(`${doc.name}-p${i + 1}.png`, {
+         |                                ^
+      93 |             maxDiffPixels: 0,
+      94 |             animations: 'disabled',
+      95 |           })
+        at /home/ubuntu/work/uniwork-office/e2e/docs-visual.spec.ts:92:32
+
+    attachment #1: captable-float-p1 (image/png) ───────────────────────────────────────────────────
+    Expected: e2e/visual-baselines/captable-float-p1.png
+    Received: e2e/test-results/docs-visual-docs-visual-re-840b7-nders-pixel-identical-pages/captable-float-p1-actual.png
+    Diff:     e2e/test-results/docs-visual-docs-visual-re-840b7-nders-pixel-identical-pages/captable-float-p1-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/test-results/docs-visual-docs-visual-re-840b7-nders-pixel-identical-pages/error-context.md
+
+  5) e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-pct renders pixel-identical pages 
+
+    Error: expect(locator).toHaveScreenshot(expected) failed
+
+    Locator: locator('.doc-page').first()
+      2310 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: captable-pct-p1.png
+
+    Call log:
+      - Expect "toHaveScreenshot(captable-pct-p1.png)" with timeout 15000ms
+        - verifying given screenshot expectation
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - 2310 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - captured a stable screenshot
+      - 2310 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      90 |           await pageEl.scrollIntoViewIfNeeded()
+      91 |           expect(Math.round((await pageEl.boundingBox())?.height ?? 0)).toBe(1123)
+    > 92 |           await expect(pageEl).toHaveScreenshot(`${doc.name}-p${i + 1}.png`, {
+         |                                ^
+      93 |             maxDiffPixels: 0,
+      94 |             animations: 'disabled',
+      95 |           })
+        at /home/ubuntu/work/uniwork-office/e2e/docs-visual.spec.ts:92:32
+
+    attachment #1: captable-pct-p1 (image/png) ─────────────────────────────────────────────────────
+    Expected: e2e/visual-baselines/captable-pct-p1.png
+    Received: e2e/test-results/docs-visual-docs-visual-re-219e1-nders-pixel-identical-pages/captable-pct-p1-actual.png
+    Diff:     e2e/test-results/docs-visual-docs-visual-re-219e1-nders-pixel-identical-pages/captable-pct-p1-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/test-results/docs-visual-docs-visual-re-219e1-nders-pixel-identical-pages/error-context.md
+
+  6) e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-page-anchor renders pixel-identical pages 
+
+    Error: expect(locator).toHaveScreenshot(expected) failed
+
+    Locator: locator('.doc-page').first()
+      5689 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: captable-page-anchor-p1.png
+
+    Call log:
+      - Expect "toHaveScreenshot(captable-page-anchor-p1.png)" with timeout 15000ms
+        - verifying given screenshot expectation
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - 5689 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - waiting for locator('.doc-page').first()
+        - locator resolved to <div tabindex="0" translate="no" spellcheck="true" contenteditable="true" class="tiptap ProseMirror doc-page ProseMirror-focused">…</div>
+      - taking element screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        - waiting for element to be stable
+      - captured a stable screenshot
+      - 5689 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      90 |           await pageEl.scrollIntoViewIfNeeded()
+      91 |           expect(Math.round((await pageEl.boundingBox())?.height ?? 0)).toBe(1123)
+    > 92 |           await expect(pageEl).toHaveScreenshot(`${doc.name}-p${i + 1}.png`, {
+         |                                ^
+      93 |             maxDiffPixels: 0,
+      94 |             animations: 'disabled',
+      95 |           })
+        at /home/ubuntu/work/uniwork-office/e2e/docs-visual.spec.ts:92:32
+
+    attachment #1: captable-page-anchor-p1 (image/png) ─────────────────────────────────────────────
+    Expected: e2e/visual-baselines/captable-page-anchor-p1.png
+    Received: e2e/test-results/docs-visual-docs-visual-re-25200-nders-pixel-identical-pages/captable-page-anchor-p1-actual.png
+    Diff:     e2e/test-results/docs-visual-docs-visual-re-25200-nders-pixel-identical-pages/captable-page-anchor-p1-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/test-results/docs-visual-docs-visual-re-25200-nders-pixel-identical-pages/error-context.md
+
+  6 failed
+    e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+    e2e/docs-visual.spec.ts:63:9 › docs visual regression › kitchen-sink renders pixel-identical pages 
+    e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-inline renders pixel-identical pages 
+    e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-float renders pixel-identical pages 
+    e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-pct renders pixel-identical pages 
+    e2e/docs-visual.spec.ts:63:9 › docs visual regression › captable-page-anchor renders pixel-identical pages 
+  34 skipped
+  191 passed (12.2m)
+E2E_EXIT=1

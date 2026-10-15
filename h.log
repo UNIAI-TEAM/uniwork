@@ -1,0 +1,284 @@
+$ AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-sync-lease-store.test.ts tests/uniwork-sync-lease-clock.test.ts tests/uniwork-sync-lease-client.test.ts tests/uniwork-sync-lease-manager.test.ts tests/uniwork-sync-lease-runtime.test.ts tests/uniwork-sync-lease-wiring.test.ts tests/uniwork-sync-store.test.ts tests/uniwork-sync-runtime.test.ts tests/uniwork-docs-sync-runtime.test.ts tests/uniwork-lock-while-open-bar.test.ts tests/uniwork-remote-bar.test.ts tests/uniwork-docs-lock-wiring.test.ts tests/uniwork-docs-save-queue-wiring.test.ts tests/uniwork-docs-actions-wiring.test.ts tests/uniwork-docs-wiring-owner.test.ts tests/uniwork-docs-account-boundary.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > renew at < 50 % only when online, never offline; new expiry is not cumulative 24ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > renew response version mismatch -> needs_refresh 7ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > revoke via feed event while online -> locked at once and marks committed cache for deletion 6ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > renew 403 offline_lease_revoked -> re-grant once then revoked 9ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > archived -> keeps existing lease until expiry then locks as expired 8ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > capability off keeps existing lease until expiry 8ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > view level reported (including edit -> view downgrade on renewal) 5ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > logout locks immediately as signed_out (not revoked) and prevents offline cold-login without a session 4ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > clock rollback > 5 min locks manager state as clock_rollback until online check clears it 9ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-5: logout sends no awaited DELETE and emits no cache-delete notice 7ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-4: a null scope after logout reads none, not revoked 6ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-4: the same account signing in again resets the boundary and a fresh grant works 7ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > pulls every (org, workspace) whose capability says sync_feed, and nothing else 19ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a crash mid-page keeps the cursor on the applied page; the replay is idempotent 13ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a full resync keeps drafts and evicts documents the snapshot no longer lists 13ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a torn page commit keeps the previous page whole: no orphan row (G504-be-2) 11ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a store_full page apply never moves the cursor, and the page is retried (G504-be-1) 11ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > another account or deployment never sees this stream 16ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a locked keychain or an off capability never asks the feed server 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a capability 401 is handed to the session 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > start polls on the injected schedule and stop cancels it 8ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-4: a new session of the same account resets the boundary even when the null scope was never observed 5ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-4: another account signing in after logout starts unlocked 8ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: sign-out through lockBoundary while the session is live locks as signed_out and refuses a grant 3ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: account switch locks the outgoing account at once, sends no DELETE and leaves the incoming one unlocked 5ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: deployment switch locks the outgoing deployment at once and sends no DELETE 7ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: keystore locked at manager level -> keystore_locked, no grant request, unlock restores the lease 8ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: store full at manager level -> store_full, nothing kept 3ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: device_required and limit_reached -> failed with that kind, nothing stored, no revoke notice 4ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: renew 401 session_expired locks as session_expired, reports the session once, sends no DELETE 3ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-4: offline renew makes zero grant, renew or release calls 8ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-6: a clock rollback the store refuses to persist stays latched in memory 5ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-7: a document queried without a stored lease is not read on the next reconnect pass 3ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-5: the lease-revoked entry point locks only for the signed-in user and ignores others 5ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-4: an event for another lease than the held one is ignored; the matching one revokes 7ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-4: an event for a document that holds no lease still locks it and emits the notice 3ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-3: a store that answers keyring_unavailable -> keyring_unavailable state (with its reason) and no grant request 0ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-3: a store that answers no_session -> none (state and grant), no grant request 0ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > stop() ends the pass in flight and the next start runs at once (G504-be-7) 8ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the full resync keeps drafts through the real hasLocalDraft (wiring keepDraft) > keeps dirty, saving, intent-held and editor-dirty copies; evicts a clean unlisted one 16ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the full resync keeps drafts through the real hasLocalDraft (wiring keepDraft) > keeps a copy whose editor turns dirty while the intent store is answering (R5-be-1) 13ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > writes a record and reads it back without plaintext at rest 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > a sign-out locks every handle and wipes the scope 6ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > an account switch locks only the switched-out scope 6ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > counts the budget in encrypted bytes and refuses past it 9ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > writes a record and reads it back without plaintext at rest 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > a sign-out locks every handle and wipes the scope 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > an account switch locks only the switched-out scope 8ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > counts the budget in encrypted bytes and refuses past it 7ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > G506-be-3: only a failed feed round trip reports the queue offline > a pass with no org to feed (nothing attempted) reports no verdict 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > G506-be-3: only a failed feed round trip reports the queue offline > a failed feed round trip parks the queue offline 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces every document of a page the doc cache committed, exactly once 8ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces a document with two changes in one page exactly once 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces nothing when the cache refuses the page 3ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > the production wiring registers the 3 queue stores and dispatches on the poll 124ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > startup replays a stored intent exactly once and never lists the drafts folder 56ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > sign-out stops dispatch (no request after) and releases the lock 39ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-2: a grant answered after a sign-out lock is dropped: not locked open, not kept 52ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-2: a renewal answered after a session_expired lock does not lift it 57ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > two windows of the same document -> the second is read-only through the service 41ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-2: a grant answered after an account switch is not served to the incoming account 54ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-2: a grant refused after a sign-out lock is dropped: no revoke, no notice 51ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-2: a lock that lands while the store keeps the answer still drops the answer 4ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > a user pause survives a service restart (durable per account) 108ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > cancel on a closed tab -> the snapshot becomes a kept draft 47ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > Overwrite supersedes the pending intent before the new one 54ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > reopen with edit again clears a permission_revoked copy 41ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > writes a record into the scope namespace and reads it back encrypted 9ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > encrypts each record with its own random IV 4ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > replaces a record in place and leaves no temp file 10ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a missing record and deletes idempotently 5ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > opens as keystore_locked or keyring_unavailable when the keyring is not usable 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record that needs a newer store level and leaves it alone 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record older than the store minimum 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record with a newer schema 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses writes from a store registered at a newer level 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a tampered record as corrupt and keeps the file 2ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a record written under another key as corrupt 8ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > counts the budget per account in encrypted bytes and refuses past it 6ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a sign-out locks every handle and wipes the scope 4ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a write in flight at lockAndWipe resolves interrupted and leaves nothing readable 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > scrubs temp files a crash left behind at open 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > retries the publish when the filesystem refuses the replace 54ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > rejects unregistered stores, duplicate registrations and invalid registrations 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > rejects a malformed scope 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a wipe between the flush and the publish interrupts the write (G504-be-11) 2ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a wipe that removes the folder mid-write is an interruption, not a throw (G504-be-11) 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a wipe while the read is suspended never yields the plaintext (G504-be-11) 2ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > a connectivity change wakes a parked intent (setOnline) on the next poll 160ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > sync_write off -> paused_admin through the service 36ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-1: an inline 409 conflict leaves the record non-dispatchable (poll sends nothing) 41ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > lease record codec: preserves opaque signed lease, plaintext SDO fields, scope, clock anchors and compares revision with BigInt 3ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > lease record codec: malformed or newer-schema records are refused 1ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > keystore locked -> keystore_locked, no write, no plaintext file anywhere under the store root 17ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > store full -> no write 5ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > tampered/forged lease file on disk is not read 8ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > survives a lock-and-keep (records stay encrypted, unreadable until reopen) 5ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease store outcomes and on-disk hygiene (W1f) > R1BE-8: no usable keyring surfaces as keyring_unavailable, not keystore_locked 1ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease store outcomes and on-disk hygiene (W1f) > R1BE-8: no session surfaces as no_session, distinct from a locked keychain 0ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease store outcomes and on-disk hygiene (W1f) > T1-6: no plaintext SDO field reaches the disk 4ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease store outcomes and on-disk hygiene (W1f) > T1-6: a truncated or empty lease record is refused 10ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > writes a record and reads it back without plaintext at rest 4ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > a sign-out locks every handle and wipes the scope 3ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > an account switch locks only the switched-out scope 9ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > refuses a record that requires a newer store level and keeps it 7ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > refuses a record older than the store minimum 4ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > counts the budget in encrypted bytes and refuses past it 15ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 3ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G5-06 fix-C item 4 / AC-4: uploading at rest re-sends the same key, no lookup 46ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G5-06 fix-C item 4 / AC-4: committing at rest is settled by lookup 64ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-4: teardownSaveQueue awaits the in-flight poll and nothing lands after it resolves 88ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-7: binding writes for one document serialize, so the later state wins 60ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-1: a poll during an in-flight inline save does not upload the same key twice 98ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > registers locks / dismissLock and answers an empty list 139ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a refusal pushes the lock on the lock channel and the list reports it 28ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > the service openPath never reaches the module router for a locked path 28ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-1: a settle left in flight is not sent after teardown resolves 69ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-2: a read-only window status does not rewrite the holder's binding.json 38ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a sign-in as another account forgets the previous account's locks (R1-be-6) 29ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a schema-1 working copy still opens through the router 28ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the durable store at the account boundary (W3b) > an explicit Sign out locks and wipes the outgoing scope 31ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > a cold locked restore at the wiring (R1-be-4) > the account keystore-locked state locks the saved account copy with no session 27ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the lock list push when a keystore lock clears (R1-fe-1 BE) > main pushes the cleared list after the store opens, so the S11 panel can go away 32ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-3: an inline Save during the poll's tick is excluded (one writer) 105ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-1: the account-boundary wipe awaits teardownSaveQueue before the wipe 26ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G8-12 comments seam on queue-settled saves > a parked Save that a later poll commits moves baseVersionId and pushes saved once 154ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G8-12 comments seam on queue-settled saves > a record left committing at rest that a lookup finds committed pushes saved once 112ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G8-12 comments seam on queue-settled saves > a dispatched Save refused with 403 pushes nothing and caps the level at view 162ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the production lease wiring (W1f) > R1BE-2: the production store layer registers offline-leases and a granted lease round-trips 91ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > workingCopyOwner > reads the account from the working-copy path; null outside the root 2ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > closes every UniWork document tab and deletes their AI history; local tabs stay 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > forgets the S11 locks of every working copy, and never a local file (R1-be-6) 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > a cancelled prompt closes nothing and keeps the locks: the account did not go away (R1-be-6) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > a cancelled unsaved-changes prompt closes nothing, not even the clean tabs (GOA9-r4-02) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > asks every prompt before it closes the first tab 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > signOutUniwork logs out only after every document closed, then clears 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > the durable store at the account boundary (W3b) > sign-out wipes the outgoing scope, after the locks and with a live owner 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > the durable store at the account boundary (W3b) > a cancelled sign-out keeps the store: the account did not go away 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > the durable store at the account boundary (W3b) > a sign-in as another account wipes only the switched-out scope 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > closes the previous account's tabs and deletes their AI history; own and local stay 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > forgets the S11 locks of the account that went away, keeping its own (R1-be-6) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > forgets the locks before it closes anything: panel state must not wait on a save prompt (F4 residual) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > runs once per account, and again after a switch 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > a cancelled prompt leaves the boundary open, so the next status push asks again 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > a status push while prompts are open does not start a second pass 0ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the production lease wiring (W1f) > R1BE-3: the lease client uses the authenticated feed profile and an online poll renews a due lease once 19ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the account boundary locks leases on sign-out only (W1f) > R1BE-1/T2-1: an org change does not lock leases: a granted lease still reads valid, no DELETE 116ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the account boundary locks leases on sign-out only (W1f) > R1BE-1/R1BE-10/T2-2: sign-out locks the leases at once at the account boundary 65ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > last owner follows the session identity (R2-5) > the account status callback records the signed-in account 61ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > the newer-store guard reaches the wiring (G5-04g) > the service openPath refuses a locked path before the module router is asked 2ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the account boundary locks leases on sign-out only (W1f) > T2-2: an account switch drops the outgoing lease at the boundary and never locks the incoming account 68ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the account boundary locks leases on sign-out only (W1f) > T2-2: a deployment switch drops the outgoing lease at the boundary and never locks the incoming deployment 83ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > has no bar without a remote 13ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > updated: the no-revision sentence until author and time exist, then the full one 2ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > newer-dirty: Reload + Later; a save in flight or a stuck one disables Reload with its reason 2ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > newer-ai: Reload is disabled until a stop channel exists (D3) 1ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > now-clean, reload-failed, revoked and deleted 1ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > every key the bar uses has a vi and an en sentence 56ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > a sign-in as another account (GOA9-r3-04) > closes the previous account's open documents and deletes their AI history 52ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > G8-16 S16: the feed starts only for the chosen org (F-1) > a two-org account fetches nothing before the choice, then only the chosen org 77ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > updated (en): region label, sentence, buttons 101ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > newer-dirty (en): region label, sentence, buttons 18ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > newer-ai (en): region label, sentence, buttons 19ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > now-clean (en): region label, sentence, buttons 17ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > reload-failed (en): region label, sentence, buttons 16ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > revoked (en): region label, sentence, buttons 15ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > deleted (en): region label, sentence, buttons 14ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > G8-16 S16: the feed starts only for the chosen org (F-1) > an org change stops the old pass and starts the new org 105ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > G8-16 S16: the feed starts only for the chosen org (F-1) > sign-out stops the feed 73ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > updated (vi): region label, sentence, buttons 16ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > newer-dirty (vi): region label, sentence, buttons 18ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > newer-ai (vi): region label, sentence, buttons 12ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > now-clean (vi): region label, sentence, buttons 13ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > reload-failed (vi): region label, sentence, buttons 12ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > revoked (vi): region label, sentence, buttons 11ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > deleted (vi): region label, sentence, buttons 12ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > shows no bar for a status without a remote, or no status 2ms
+stderr | tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > {"kind":"newer-dirty","version":2,"wait":"commit"}: Reload is aria-disabled, focusable, and the reason is its description
+An update to UniworkRemoteBar inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > {"kind":"newer-dirty","version":2,"wait":"stuck"}: Reload is aria-disabled, focusable, and the reason is its description
+An update to UniworkRemoteBar inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > one bar only: a newer notice replaces the version, another kind replaces the bar 32ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > {"kind":"newer-dirty","version":2,"wait":"commit"}: Reload is aria-disabled, focusable, and the reason is its description 20ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > {"kind":"newer-dirty","version":2,"wait":"stuck"}: Reload is aria-disabled, focusable, and the reason is its description 9ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > newer-ai: Reload is aria-disabled and described by the sentence of the bar 9ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > an enabled Reload (dirty, nothing in flight) calls the bridge 10ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > Later calls the bridge, hides the bar at once and takes the status main answers with 16ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > Later holds for the notice, not for its wait: a settled commit keeps the bar hidden, a newer version brings it back 18ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > the feed runtime capability cache across an account boundary (R1-be-8) > clears on a same-origin account switch instead of serving the old account’s flags 92ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > the feed runtime capability cache across an account boundary (R1-be-8) > keeps serving the cache inside the TTL for one account 4ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > a two-org picker fetches nothing until the org is chosen 5ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > a chosen org is the only one ever touched 7ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > a pending choice blocks the pass even with an org already set 4ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > no org chosen (every org blocked) still fetches nothing 4ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G506-be-3: the queue online verdict is a real transport result, not a feed no-op > no chosen org + a queued intent -> the poll dispatches it 8ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > Close (updated, revoked) calls the bridge and hides the bar 18ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > a closed bar shows again when the same kind comes back after the bar was gone 20ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > Retry (reload failed) and Reload (now clean) call the bridge and keep the bar until main answers 17ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > the bar region is aria-busy while an action is in flight, buttons aria-disabled 8ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > a bridge that rejects leaves the bar as it was 9ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: announcements > a newer version is announced once, politely 10ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: announcements > switching tabs away and back does not announce the same bar again 19ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: announcements > a newer version of the same notice is announced again, and the live text is cleared when the bar hides 15ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: announcements > an error kind is announced as an alert 7ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: announcements > the live nodes are in the DOM before any bar shows 3ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: auto-hide of the information bar > hides after 8 s and tells main it was closed 9ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: auto-hide of the information bar > hover holds the bar; leaving restarts the full 8 s 10ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: auto-hide of the information bar > focus inside the bar holds it; moving the focus out restarts the timer 9ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: auto-hide of the information bar > warn, error and now-clean bars never hide on their own 29ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > reports the rendered height, then 0 when the bar goes away 15ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > reports 0 for no document tab (Home) and again for every tab switch 14ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > follows a resize of the bar (wrapping at a narrow width) and rounds up 13ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > reports 0 when the bar is closed, and on unmount 13ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > survives a host without the inset channel 8ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > divides the zoomed bounding-rect height by --ui-scale so main receives unscaled CSS px (R4-2) 12ms
+ ✓ tests/uniwork-sync-lease-clock.test.ts > uniwork-sync lease clock (G5-08c) > clock rollback > 5 min locks, < 5 min does not, online check clears it 2ms
+ ✓ tests/uniwork-sync-lease-clock.test.ts > uniwork-sync lease clock (G5-08c) > offline expiry -> expired 0ms
+ ✓ tests/uniwork-sync-lease-clock.test.ts > uniwork-sync lease clock (G5-08c) > effective expiry from server time + monotonic clock while the process lives, and wall clock with max_wall_clock_seen across restarts 0ms
+ ✓ tests/uniwork-sync-lease-clock.test.ts > uniwork-sync lease clock (G5-08c) > expiring_soon (< 4 h) badge state and < 50 % TTL renewal threshold 0ms
+ ✓ tests/uniwork-sync-lease-client.test.ts > uniwork-sync lease client (G5-08c) > PUT grant sends empty body, PUT renew sends {"lease": "<previous signed lease>"}, DELETE releases, and parses SDO 18ms
+ ✓ tests/uniwork-sync-lease-client.test.ts > uniwork-sync lease client (G5-08c) > maps contract-p0 errors: offline_lease_revoked, offline_lease_device_required, offline_lease_limit_reached, document_archived, office_capability_off, 401 session, network/offline 2ms
+ ✓ tests/uniwork-sync-lease-client.test.ts > uniwork-sync lease client (G5-08c) > refuses malformed SDO responses 0ms
+ ✓ tests/uniwork-sync-lease-client.test.ts > uniwork-sync lease client (G5-08c) > R1BE-9: a numeric revision is kept as its exact decimal string, small or above 2^53 0ms
+ ✓ tests/uniwork-sync-lease-runtime.test.ts > the lease manager inside the feed runtime (W1f) > R1BE-1: an org switch stop()/start() pair keeps a lease valid and sends no DELETE 35ms
+ ✓ tests/uniwork-sync-lease-runtime.test.ts > the lease manager inside the feed runtime (W1f) > R1BE-3: an online pass renews a due lease once 24ms
+ ✓ tests/uniwork-sync-lease-runtime.test.ts > the lease manager inside the feed runtime (W1f) > R1BE-3: an offline pass makes zero grant, renew or release calls 24ms
+ ✓ tests/uniwork-sync-lease-runtime.test.ts > the lease manager inside the feed runtime (W1f) > R1BE-12: the runtime builds its one lease manager from the lease options 0ms
+ ✓ tests/uniwork-docs-actions-wiring.test.ts > the S18 action IPC > registers every channel of the contract 71ms
+ ✓ tests/uniwork-docs-actions-wiring.test.ts > the S18 action IPC > answers the action-result shape, never throwing across IPC 2ms
+ ✓ tests/uniwork-docs-actions-wiring.test.ts > the S18 action IPC > the upload dialog seam answers null when cancelled 1ms
+ ✓ tests/uniwork-docs-actions-wiring.test.ts > the S18 action IPC > refuses every action while signed out, before any request 1ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > remoteBarModelOf: lock while open > store mode: an error bar with the uwLockWhileOpen sentence under the document-status landmark 9ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > remoteBarModelOf: lock while open > ram mode: the uwLockWhileOpenRam sentence 1ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > remoteBarModelOf: lock while open > every reason shows the sentence of its mode 1ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > remoteBarModelOf: lock while open > outranks every remote-newer bar 1ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > remoteBarModelOf: lock while open > without the field the previous behaviour is unchanged 1ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > remoteBarModelOf: lock while open > both sentences and the landmark exist in vi and en 4ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > store mode (en): region label, uwLockWhileOpen, no buttons 101ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > ram mode (en): uwLockWhileOpenRam 14ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > store mode (vi): region label, uwLockWhileOpen, no buttons 13ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > ram mode (vi): uwLockWhileOpenRam 12ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > outranks a remote-newer bar on the same document: one bar, the lock sentence 11ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > the bar carries no role=status, role=alert or aria-live; the sentence is not live 9ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > writes its sentence once to the window alert node, and says nothing again on a repeat push 11ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > a ram-mode lock replacing a store-mode one is announced again, once 15ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > never hides on its own 8ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > goes away with the field and the live text is cleared 10ms
+ ✓ tests/uniwork-lock-while-open-bar.test.ts > UniworkRemoteBar: lock while open > absent field: the remote-newer bar renders exactly as before 9ms
+
+ Test Files  16 passed (16)
+      Tests  250 passed (250)
+   Start at  05:39:06
+   Duration  3.90s (transform 2.40s, setup 0ms, import 3.79s, tests 5.06s, environment 843ms)
+

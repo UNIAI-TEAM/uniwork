@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 3251676b HEAD && echo base-ok; git merge-base --is-ancestor 7d665a54 HEAD && echo main-synced
+25283364e5d0aba800660c4a565e6172bc42a577
+7d665a54241c48f803cd24746bf81771d17e0741
+25283364 merge: fork main 7d665a54 into the G5-08c lane (UNI-1353)
+3af78891 test(uniwork-sync): drive the lease boundary through the production wiring
+7f2808aa test(uniwork-sync): pin the lease generation guards and the store-unavailable mapping
+ae3cbee3 fix(uniwork-sync): lease revoke matches the held lease, session() is required, drop the dead keystore lock
+0e8004e6 fix(uniwork-docs): register the lease store and wire lease renewal and the boundary lock
+e2f138bb fix(uniwork-sync): lock leases at the account boundary only and renew on the poll
+e500f60e test(uniwork-sync): pin the numeric revision branch of the lease SDO parser
+ccaa0aae refactor(uniwork-sync): drop the unused LEASE_MAX_TTL_MS export
+base-ok
+main-synced

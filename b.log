@@ -1,0 +1,16 @@
+$ FORMAT_BASE_REF=$(git merge-base HEAD origin/main); export FORMAT_BASE_REF; npm run format:check
+
+> genoffice@0.1.0 format:check
+> node tools/format-changed.mjs --check
+
+Checking formatting...
+[warn] apps/shell/src/main/uniwork-sync/lease/client.ts
+[warn] apps/shell/src/main/uniwork-sync/lease/manager.ts
+[warn] apps/shell/src/main/uniwork-sync/lease/record.ts
+[warn] apps/shell/src/main/uniwork-sync/lease/store.ts
+[warn] apps/shell/tests/uniwork-sync-lease-client.test.ts
+[warn] apps/shell/tests/uniwork-sync-lease-manager.test.ts
+[warn] apps/shell/tests/uniwork-sync-lease-runtime.test.ts
+[warn] apps/shell/tests/uniwork-sync-lease-store.test.ts
+[warn] apps/shell/tests/uniwork-sync-lease-wiring.test.ts
+[warn] Code style issues found in 9 files. Run Prettier with --write to fix.
