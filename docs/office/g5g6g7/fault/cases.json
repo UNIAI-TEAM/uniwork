@@ -1,0 +1,2520 @@
+{
+  "schemaVersion": 1,
+  "kind": "office-fault-cases",
+  "issue": "UNI-1380",
+  "cards": {
+    "G7-03a": {
+      "issue": "UNI-1380",
+      "ac": [
+        "G5-A05",
+        "G5-A06",
+        "G5-A08",
+        "G6-A04",
+        "G7-A02"
+      ],
+      "prefix": "FQ"
+    },
+    "G7-03b": {
+      "issue": "UNI-1382",
+      "ac": [
+        "G5-A04",
+        "G5-A07"
+      ],
+      "prefix": "FL"
+    }
+  },
+  "matrix": "docs/office/g5g6g7/fault/matrix.md",
+  "forkRead": {
+    "repo": "uniwork-office",
+    "ref": "origin/main",
+    "sha": "3251676b8ff48f1954c0930f4b52decf2d91c023"
+  },
+  "layers": {
+    "server": "HTTP protocol of the D server through the fault proxy, no app",
+    "app": "fork Electron app via the G7-01 harness, D server behind the fault proxy"
+  },
+  "cases": [
+    {
+      "id": "FQ-01",
+      "layer": "server",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "timeout-after-commit: commit đã vào server nhưng phản hồi mất; tra intent rồi thử lại cùng key",
+      "source": "spec §5.2 bước 7; §10.2 idempotency_in_flight; EXPERIENCE Queue rows › committing → reconciling",
+      "proxyRules": [
+        {
+          "id": "lose-commit-answer",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "drop_response_after_forward"
+          },
+          "once": true
+        }
+      ],
+      "faults": [],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "lookup": "committed (version, revision = phiên bản vừa tạo)",
+          "retry": "POST cùng Idempotency-Key → 200 replay, cùng version_id",
+          "statuses": [
+            "client socket error",
+            "GET lookup 200 committed",
+            "POST replay 200"
+          ]
+        },
+        "client": [
+          "driver: committing → reconciling (lỗi socket) → committed (lookup)"
+        ],
+        "proxyLog": "upstream thấy đúng 1 POST commit trước retry; mọi POST commit cùng keyTag"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-02",
+      "layer": "server",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "mất mạng: request commit không tới server; tra intent trả \"không biết\"; gửi lại cùng key",
+      "source": "spec §5.2 bước 7 + \"Hợp đồng resume\"; EXPERIENCE Queue rows › reconciling (không biết → reconciling-stuck)",
+      "proxyRules": [
+        {
+          "id": "drop-commit",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "drop_request"
+          },
+          "once": true
+        }
+      ],
+      "faults": [],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "lookup": "410 commit_intent_unknown, body outcome=unknown (không bao giờ not_committed)",
+          "retry": "POST lại cùng key → 200, một version",
+          "statuses": [
+            "client socket error",
+            "GET lookup 410 commit_intent_unknown",
+            "POST 200"
+          ]
+        },
+        "client": [
+          "driver: committing → reconciling → (lookup unknown) ghi nhận \"stuck\" theo EXPERIENCE; bước gửi lại cùng key chỉ là bằng chứng server (OQ-F1)"
+        ],
+        "proxyLog": "POST thứ nhất ghi dropped, không có upstream status; tổng 1 POST tới upstream"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-03",
+      "layer": "server",
+      "ac": [
+        "G6-A04",
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "double click: hai POST commit cùng key, cùng upload, gần như đồng thời",
+      "source": "card G7-03a \"double click/retry không nhân đôi version\"; spec §5.2 bước 6",
+      "proxyRules": [
+        {
+          "id": "slow-first",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "delay",
+            "ms": 400
+          },
+          "once": true
+        }
+      ],
+      "faults": [],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "lookup": "committed",
+          "statuses": [
+            "hai câu trả lời 200 cùng version_id, hoặc một 200 + một 409 idempotency_in_flight (chờ quá 5 s)"
+          ]
+        },
+        "client": [
+          "driver: hai attempt cùng keyTag; không attempt nào tạo key mới"
+        ],
+        "proxyLog": "2 POST commit, cùng keyTag"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-04",
+      "layer": "server",
+      "ac": [
+        "G6-A04",
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "retry sau lỗi tạm thời: 503 tổng hợp ở lần commit đầu, thử lại cùng key",
+      "source": "spec §5.2 bước 5 (lỗi tạm thời/vĩnh viễn); EXPERIENCE Save pill › error",
+      "proxyRules": [
+        {
+          "id": "fake-503",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "status",
+            "code": 503,
+            "body": {
+              "error": {
+                "code": "service_unavailable"
+              }
+            }
+          },
+          "once": true
+        }
+      ],
+      "faults": [],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "lookup": "committed",
+          "statuses": [
+            "503 synthetic (không forward)",
+            "POST 200"
+          ]
+        },
+        "client": [
+          "driver: committing → queued (backoff) → committing → committed"
+        ],
+        "proxyLog": "POST đầu synthetic, POST thứ hai upstream 200, cùng keyTag"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-05",
+      "layer": "server",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "mất phản hồi upload: thử lại upload cùng Idempotency-Key, không lưu byte hai lần",
+      "source": "spec §5.2 bước 4; route uploads (\"retry tìm lại cùng upload\"); AC G5-A06 \"no duplicate upload\"",
+      "proxyRules": [
+        {
+          "id": "lose-upload-answer",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/uploads$",
+            "nth": 1
+          },
+          "action": {
+            "type": "drop_response_after_forward"
+          },
+          "once": true
+        }
+      ],
+      "faults": [],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "uploads": "retry trả cùng upload_id; commit một lần",
+          "statuses": [
+            "client socket error",
+            "POST uploads 201 cùng upload_id",
+            "POST commit 200"
+          ]
+        },
+        "client": [
+          "driver: uploading → (lỗi) → uploading → committing → committed"
+        ],
+        "proxyLog": "2 POST uploads cùng keyTag, upstream thấy cả hai; 1 POST commit"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-06",
+      "layer": "server",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "cancel race: client hủy request commit, request vẫn tới server sau đó (late commit hợp lệ khi claim còn sống)",
+      "source": "spec §5.2 bước 7 (\"hủy sau khi bắt đầu commit → reconciling\"); EXPERIENCE Superseded (không superseded intent đang committing)",
+      "proxyRules": [
+        {
+          "id": "hold-commit",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "hold",
+            "until": "release"
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "driver",
+          "step": "abort client request, then POST /__fault/release/hold-commit"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "lookup": "committed sau khi release (không được coi là cancelled)",
+          "statuses": [
+            "client abort",
+            "upstream 200 (không ai nhận)",
+            "GET lookup 200 committed"
+          ]
+        },
+        "client": [
+          "driver: committing → (hủy) reconciling → committed; không tạo key mới trước khi lookup trả lời"
+        ],
+        "proxyLog": "1 POST commit tới upstream sau release; không POST commit nào với keyTag khác"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-07",
+      "layer": "server",
+      "ac": [
+        "G5-A06",
+        "G5-A08"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "late request: commit của thiết bị A bị giữ, thiết bị B commit trước, A tới sau với base cũ",
+      "source": "AC G5-A06 \"late response không overwrite\"; spec §5.3 \"không có đường ghi nào bỏ kiểm revision\"",
+      "proxyRules": [
+        {
+          "id": "hold-a",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "hold",
+            "until": "release"
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "deviceB",
+          "step": "upload + commit trên cùng base (đi thẳng tới server, không qua rule)"
+        },
+        {
+          "kind": "driver",
+          "step": "release hold-a"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "statuses": [
+            "B 200",
+            "A 409 document_version_conflict, fields.current_revision = revision của B"
+          ],
+          "lookup": "key của A → not_committed (claim đã nhả)"
+        },
+        "client": [
+          "driver A: committing → conflict"
+        ],
+        "proxyLog": "POST của A upstream 409"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-08",
+      "layer": "server",
+      "ac": [
+        "G5-A08",
+        "G6-A04"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "conflict hai thiết bị: 409 giữ upload cục bộ; \"Ghi đè\" đọc lại head và commit bằng intent mới trên base mới",
+      "source": "spec §5.3 (Ghi đè = intent mới trên base mới); EXPERIENCE Queue rows › conflict",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "deviceB",
+          "step": "commit trước trên base r"
+        },
+        {
+          "kind": "driver",
+          "step": "A commit base r → 409; A đọc head; A commit cùng upload với base mới và key MỚI"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 2,
+          "statuses": [
+            "B 200",
+            "A 409 document_version_conflict",
+            "A (key mới, base mới) 200"
+          ],
+          "versions": "danh sách giữ cả version của B và của A; checksum version của A = checksum upload của A"
+        },
+        "client": [
+          "driver A: committing → conflict → (Ghi đè) intent cũ cancelled/superseded, intent mới committed"
+        ],
+        "proxyLog": "3 POST commit, 2 keyTag khác nhau của A"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-09",
+      "layer": "server",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "tra intent sau một attempt bị từ chối sau claim: not_committed chỉ khi không attempt nào còn commit được",
+      "source": "spec §5.2 \"Hợp đồng resume\"; route lookup (not_committed); EXPERIENCE reconciling → queued",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "deviceB",
+          "step": "commit trước để base của A cũ"
+        },
+        {
+          "kind": "driver",
+          "step": "A commit base cũ (409, claim nhả) rồi GET lookup cùng key"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "lookup": "200 not_committed (không unknown, không committed)",
+          "statuses": [
+            "A 409",
+            "GET 200 not_committed"
+          ]
+        },
+        "client": [
+          "driver: conflict; lookup not_committed"
+        ],
+        "proxyLog": "1 POST + 1 GET versions/commit cùng keyTag"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-10",
+      "layer": "server",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "intent lạ hoặc của người khác: tra trả 410 commit_intent_unknown, không lộ gì",
+      "source": "route lookup (\"của người khác → 410\"); AC G5-A06 \"unknown with its own code\"",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "deviceB",
+          "step": "thành viên khác GET lookup với key của A; A GET lookup với key chưa từng gửi"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0,
+          "lookup": "cả hai 410 commit_intent_unknown, body không có version/revision",
+          "statuses": [
+            "410",
+            "410"
+          ]
+        },
+        "client": [
+          "driver: reconciling → reconciling-stuck (theo EXPERIENCE)"
+        ],
+        "proxyLog": "2 GET versions/commit"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-11",
+      "layer": "server",
+      "ac": [
+        "G6-A04"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "none",
+      "scenario": "Lưu sau AI đúng base_revision (phần server): một lượt UniWork AI không tạo upload/version; Lưu sau đó với revision lúc mở thành công",
+      "source": "spec §6.4 (lượt AI không tạo upload, version hay intent); card \"Lưu sau AI đúng base_revision\"",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "env",
+          "step": "AI_PROVIDER=fake, office_ai_uniwork + office_ai_uniwork_docx bật cho tổ chức của run"
+        },
+        {
+          "kind": "api",
+          "step": "một lượt POST /documents/{id}/ai/uniwork/chat/completions, rồi upload + commit với revision của lần mở"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "statuses": [
+            "AI 200",
+            "commit 200"
+          ],
+          "versions": "sau lượt AI: delta 0, không POST uploads nào; sau Lưu: delta 1"
+        },
+        "client": [
+          "driver: dirty → committing → committed"
+        ],
+        "proxyLog": "không POST uploads/commit nào giữa đầu và cuối lượt AI"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-12",
+      "layer": "server",
+      "ac": [
+        "G7-A02"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "none",
+      "scenario": "revoke giữa các lượt AI: lượt AI kế tiếp bị 403, không version mới",
+      "source": "AC G7-A02 \"revocation answers the next AI turn with 403\"; EXPERIENCE S6 › Revoke",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "env",
+          "step": "như FQ-11"
+        },
+        {
+          "kind": "api",
+          "as": "owner",
+          "step": "thu hồi quyền của user A (gỡ khỏi workspace) giữa hai lượt"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0,
+          "statuses": [
+            "lượt 1 200",
+            "lượt 2 403 (hoặc 404 không lộ tồn tại)",
+            "commit của A 403/404"
+          ]
+        },
+        "client": [
+          "driver: lượt 2 bị từ chối; commit bị từ chối"
+        ],
+        "proxyLog": "không POST commit nào tới upstream thành công"
+      },
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-13",
+      "layer": "server",
+      "ac": [
+        "G5-A08"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "đổi chỉ metadata (lưu trữ rồi bỏ lưu trữ, di chuyển) không gây xung đột: commit với base nội dung cũ thành công",
+      "source": "OQ-P1 (a) / contentBaseCurrent; EXPERIENCE Lý do bị chặn › document_archived (\"không gây xung đột\"); Queue rows › moved",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "owner",
+          "step": "lưu trữ tài liệu; A commit; bỏ lưu trữ; di chuyển sang thư mục khác; A commit lại cùng key"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "statuses": [
+            "commit khi đang lưu trữ: 410 document_deleted (server hôm nay, xem OQ-F6)",
+            "commit sau bỏ lưu trữ + di chuyển: 200, không 409"
+          ]
+        },
+        "client": [
+          "driver: blocked → queued → committed"
+        ],
+        "proxyLog": "2 POST commit cùng keyTag"
+      },
+      "notes": "mã khi đang lưu trữ lệch EXPERIENCE (OQ-F6)",
+      "status": "ready",
+      "serverOnly": true,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-20",
+      "layer": "app",
+      "ac": [
+        "G5-A05"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "none",
+      "scenario": "crash: Lưu khi mất mạng → kill app → khởi động lại → có mạng: một receipt, một version; N+1 vẫn dirty",
+      "source": "spec §5.2 bước 1, 2, 6; AC G5-A05",
+      "proxyRules": [
+        {
+          "id": "unreachable",
+          "match": {
+            "method": null,
+            "path": "^/api/v1/"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
+      "faults": [
+        {
+          "kind": "process",
+          "step": "sửa → Lưu (N) → sửa tiếp (N+1) → kill -9 nhóm tiến trình app"
+        },
+        {
+          "kind": "process",
+          "step": "khởi động lại app, xóa rule unreachable"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "versions": "checksum version mới = checksum snapshot N trong intent-log",
+          "statuses": [
+            "1 chuỗi uploads + commit 200"
+          ]
+        },
+        "client": [
+          "paused_offline → (restart) paused_offline → queued → validating → uploading → committing → committed",
+          "editor vẫn dirty với N+1; không intent thứ hai"
+        ],
+        "proxyLog": "mọi POST commit cùng keyTag; không request ghi nào trước khi xóa rule"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-21",
+      "layer": "app",
+      "ac": [
+        "G5-A05"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "none",
+      "scenario": "mất mạng giữa lúc upload, có mạng lại: tiếp tục cùng intent, một version",
+      "source": "spec §5.2 bước 3; EXPERIENCE Queue rows › validating/uploading",
+      "proxyRules": [
+        {
+          "id": "cut-upload",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/uploads$",
+            "nth": 1
+          },
+          "action": {
+            "type": "reset"
+          },
+          "once": true
+        }
+      ],
+      "faults": [],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "statuses": [
+            "upload đầu reset",
+            "upload lại 201",
+            "commit 200"
+          ]
+        },
+        "client": [
+          "uploading → paused_offline hoặc queued (backoff) → uploading → committing → committed"
+        ],
+        "proxyLog": "uploads và commit cùng keyTag của intent"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-22",
+      "layer": "app",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới",
+      "source": "spec §5.2 bước 7; EXPERIENCE Queue rows › reconciling → committed",
+      "proxyRules": [
+        {
+          "id": "lose-commit-answer",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "drop_response_after_forward"
+          },
+          "once": true
+        }
+      ],
+      "faults": [],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "lookup": "committed",
+          "statuses": [
+            "upstream 200, client socket error",
+            "GET lookup 200 committed"
+          ]
+        },
+        "client": [
+          "committing → reconciling → committed"
+        ],
+        "proxyLog": "đúng 1 POST commit; ≥1 GET versions/commit cùng keyTag; không POST commit với keyTag khác"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-23",
+      "layer": "app",
+      "ac": [
+        "G5-A06",
+        "G5-A08"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "G5-10",
+      "scenario": "cancel race trên app: người dùng bấm \"Hủy lần lưu…\" khi intent đang committing; request tới server sau đó",
+      "source": "EXPERIENCE Superseded (\"không superseded được intent đang committing/reconciling\"); spec §5.2 bảng › cancelled \"chỉ khi biết chưa commit\"",
+      "proxyRules": [
+        {
+          "id": "hold-commit",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "hold",
+            "until": "release"
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "ui",
+          "step": "S2 \"Hủy lần lưu…\" trong lúc hold; release"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "lookup": "committed"
+        },
+        "client": [
+          "committing (hủy bị từ chối hoặc chờ) → committed; không bao giờ cancelled; nháp không mất"
+        ],
+        "proxyLog": "1 POST commit"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-10",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-24",
+      "layer": "app",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "claim upload hết hạn trước khi thiết bị online: resume theo logical intent, chỉ re-upload sau khi attempt cũ bị fence, một version",
+      "source": "spec §5.2 \"Hợp đồng resume\"; §10.2 document_upload_invalid với claim expired",
+      "proxyRules": [
+        {
+          "id": "hold-before-commit",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "hold",
+            "until": "release"
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "db",
+          "step": "trong DB riêng của run: đặt claim_expires_at của file đã upload về quá khứ (OQ-F3), rồi release"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "statuses": [
+            "commit đầu 409 document_upload_invalid (reason file_claim_expired)",
+            "upload lại 201",
+            "commit 200"
+          ]
+        },
+        "client": [
+          "committing → reconciling → queued (attempt mới, cùng logical intent) → … → committed (dự báo hôm nay: reconciling-stuck, OQ-F4)"
+        ],
+        "proxyLog": "không POST commit nào với payload cũ sau khi upload lại"
+      },
+      "notes": "fault claim_expires_at là setup test trên DB riêng của run (lead đồng ý, OQ-F3); predicted FAIL F4",
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-25",
+      "layer": "app",
+      "ac": [
+        "G5-A08"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "conflict hai thiết bị: intent offline của app gặp version mới của thiết bị B khi dispatch → conflict, giữ bản cục bộ, không tự retry",
+      "source": "spec §5.3; EXPERIENCE Ctrl/⌘+S › remote-newer (offline) và Queue rows › conflict",
+      "proxyRules": [
+        {
+          "id": "unreachable",
+          "match": {
+            "method": null,
+            "path": "^/api/v1/"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "deviceB",
+          "step": "commit trong lúc app offline"
+        },
+        {
+          "kind": "driver",
+          "step": "xóa rule unreachable"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "statuses": [
+            "B 200",
+            "app 409 document_version_conflict"
+          ],
+          "versions": "chỉ version của B; không version nào từ app"
+        },
+        "client": [
+          "paused_offline → queued → … → committing → conflict; không rời conflict khi không có hành động người dùng"
+        ],
+        "proxyLog": "đúng 1 POST commit từ app cho intent này (không retry tự động)"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-26",
+      "layer": "app",
+      "ac": [
+        "G5-A08"
+      ],
+      "fixture": "fx-pptx-deck-vi",
+      "dependency": "G5-09",
+      "scenario": "giải quyết conflict trên desktop (S5): Ghi đè / Tải lại / Lưu thành bản sao",
+      "source": "spec §5.3; EXPERIENCE S5 + Queue rows › conflict + Superseded",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "ui",
+          "step": "S5 từng lựa chọn, mỗi lựa chọn một lần chạy"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": "Ghi đè +1 (key mới, base mới, version của B còn); Tải lại 0; Lưu thành bản sao: 0 trên tài liệu gốc, tài liệu mới giữ owner/ACL/provenance (G5-12)",
+          "statuses": [
+            "Ghi đè gặp 409 lần nữa → vẫn conflict với head mới"
+          ]
+        },
+        "client": [
+          "conflict → cancelled(superseded) + intent mới committed (Ghi đè)",
+          "conflict → cancelled(superseded), editor nạp head (Tải lại)"
+        ],
+        "proxyLog": "Ghi đè: GET head trước POST commit; keyTag mới"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-09",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-27",
+      "layer": "app",
+      "ac": [
+        "G6-A04"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G6-05u",
+      "scenario": "Lưu sau AI đúng base_revision trên app; 409 giữ bản cục bộ",
+      "source": "spec §6.4; AC G6-A04",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "ui",
+          "step": "lượt UniWork AI (provider fake) sửa tài liệu → Lưu; chạy lần hai với thiết bị B commit trước khi Lưu"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": "lần 1: +1, không 409; lần 2: 0 từ app, 409",
+          "statuses": [
+            "lần 1 commit 200",
+            "lần 2 commit 409"
+          ]
+        },
+        "client": [
+          "lần 1: dirty → … → committed",
+          "lần 2: committing → conflict; nội dung AI còn trong editor/nháp"
+        ],
+        "proxyLog": "không POST uploads/commit nào trong lượt AI"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G6-05u",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-28",
+      "layer": "app",
+      "ac": [
+        "G7-A02"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "G6-05u",
+      "scenario": "remote update giữa lượt AI: kết quả AI chỉ thuộc bản đang mở, Lưu sau đó gặp 409",
+      "source": "spec §4.2 hàng \"AI đang chạy\"; EXPERIENCE S6 › \"Clean nhưng một lượt AI đang chạy\"",
+      "proxyRules": [
+        {
+          "id": "slow-ai",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/ai/uniwork/chat/completions$",
+            "nth": 1
+          },
+          "action": {
+            "type": "delay",
+            "ms": 8000
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "deviceB",
+          "step": "commit trong lúc lượt AI bị delay"
+        },
+        {
+          "kind": "ui",
+          "step": "sau lượt AI: Lưu"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "statuses": [
+            "B 200",
+            "app 409"
+          ],
+          "versions": "chỉ version của B"
+        },
+        "client": [
+          "aiRun running + remote newer → không nạp (uwRemoteNewerAi)",
+          "Lưu → conflict, không tự rebase"
+        ],
+        "proxyLog": "không GET download version của B trong lượt AI"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G6-05u",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-29",
+      "layer": "app",
+      "ac": [
+        "G7-A02"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G6-05u",
+      "scenario": "bản mới đến khi editor sạch nhưng AI đang chạy → không nạp; AI idle và vẫn sạch → nạp",
+      "source": "EXPERIENCE S6 › \"Clean nhưng một lượt AI đang chạy\" và \"Thanh AI đang hiện, nhận aiRun idle\"",
+      "proxyRules": [
+        {
+          "id": "slow-ai",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/ai/uniwork/chat/completions$",
+            "nth": 1
+          },
+          "action": {
+            "type": "delay",
+            "ms": 8000
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "deviceB",
+          "step": "commit trong lúc lượt AI (chỉ đọc, không công cụ ghi) chạy"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "statuses": [
+            "B 200"
+          ]
+        },
+        "client": [
+          "clean + aiRun running → thanh uwRemoteNewerAi, không nạp",
+          "aiRun idle, vẫn sạch → nạp (uwRemoteUpdated)"
+        ],
+        "proxyLog": "GET nội dung version của B chỉ xuất hiện sau khi request AI trả lời"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G6-05u",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-30",
+      "layer": "app",
+      "ac": [
+        "G7-A02",
+        "G5-A05"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G6-05u",
+      "scenario": "AI sửa trong editor rồi Lưu khi đang có intent G5: không intent mới, intent N chỉ commit snapshot N",
+      "source": "spec §5.2 bước 2; EXPERIENCE Ctrl/⌘+S › \"Đã có intent ở bất kỳ trạng thái nào (gồm khi AI đang ghi)\"",
+      "proxyRules": [
+        {
+          "id": "hold-commit",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "hold",
+            "until": "release"
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "ui",
+          "step": "Lưu (N) → trong lúc hold: lượt AI sửa (N+1) → Ctrl+S → release"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "versions": "checksum version mới = checksum snapshot N"
+        },
+        "client": [
+          "Ctrl+S khi có intent → không intent mới (uwQueueBlockedSave)",
+          "committing → committed; editor còn dirty với N+1"
+        ],
+        "proxyLog": "đúng 1 POST commit trong cả ca"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G6-05u",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-31",
+      "layer": "app",
+      "ac": [
+        "G6-A04"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G6-05u",
+      "scenario": "Lưu khi AI đang ghi (chưa có intent): chờ ranh giới bước công cụ rồi mới chụp snapshot",
+      "source": "EXPERIENCE Ctrl/⌘+S › \"AI đang ghi\"; Save pill › \"đang chờ AI xong bước\"",
+      "proxyRules": [
+        {
+          "id": "slow-ai",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/ai/uniwork/chat/completions$",
+            "nth": 2
+          },
+          "action": {
+            "type": "delay",
+            "ms": 5000
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "ui",
+          "step": "Ctrl+S giữa hai bước công cụ ghi"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1
+        },
+        "client": [
+          "pill uwChipSaving + uwTipWaitAi tới ranh giới bước; snapshot sau bước đã xong; không commit giữa bước"
+        ],
+        "proxyLog": "POST uploads chỉ sau khi request AI của bước hiện tại trả lời"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G6-05u",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-32",
+      "layer": "app",
+      "ac": [
+        "G7-A02"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "G6-05u",
+      "scenario": "revoke trong lượt AI: lượt kế tiếp bị 403, không version; kết quả muộn không áp lên bản mới",
+      "source": "AC G7-A02; EXPERIENCE S6 › Revoke",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "owner",
+          "step": "thu hồi quyền sửa của user app trong lượt AI"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0,
+          "statuses": [
+            "lượt kế 403"
+          ]
+        },
+        "client": [
+          "editor chỉ đọc (mất quyền sửa) hoặc S11 (mất quyền đọc); không intent mới"
+        ],
+        "proxyLog": "không POST commit"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G6-05u",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-40",
+      "layer": "app",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "lối ra của reconciling theo kết quả tra: committed / not_committed / in_flight",
+      "source": "EXPERIENCE Queue rows › reconciling (cột Thoát)",
+      "exits": [
+        {
+          "exit": "reconciling → committed",
+          "assert": "lookup committed → receipt, versionDelta 1"
+        },
+        {
+          "exit": "reconciling → queued (attempt mới)",
+          "assert": "lookup not_committed (dựng bằng 409 sau claim như FQ-09) → attempt+1 cùng key"
+        },
+        {
+          "exit": "reconciling → paused_admin",
+          "assert": "như trên khi office_sync_write tắt cho tổ chức"
+        },
+        {
+          "exit": "reconciling → paused_offline",
+          "assert": "như trên khi rule unreachable bật"
+        },
+        {
+          "exit": "reconciling ở lại (in_flight)",
+          "assert": "lookup tổng hợp 200 {outcome:\"in_flight\"} → vẫn reconciling, tra lại theo backoff"
+        }
+      ],
+      "proxyRules": [
+        {
+          "id": "lose-commit-answer",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "drop_response_after_forward"
+          },
+          "once": true
+        },
+        {
+          "id": "fake-in-flight",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "status",
+            "code": 200,
+            "body": {
+              "outcome": "in_flight"
+            }
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "env",
+          "step": "office_sync_write tắt (override tổ chức) cho lối ra paused_admin"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": "1 mỗi lần chạy kết thúc committed; 0 khi dừng ở paused_*"
+        },
+        "client": [
+          "một chuyển trạng thái mỗi lối ra như cột exits"
+        ],
+        "proxyLog": "không POST commit với keyTag mới ở mọi lối ra"
+      },
+      "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9)",
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-41",
+      "layer": "app",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "reconciling → reconciling-stuck khi tra trả \"không biết\" (410), không bao giờ queued",
+      "source": "EXPERIENCE Queue rows › reconciling (\"không biết/đã bị dọn → reconciling-stuck\")",
+      "exits": [
+        {
+          "exit": "reconciling → reconciling-stuck",
+          "assert": "lookup 410 commit_intent_unknown → stuck; không POST commit nào sau đó"
+        }
+      ],
+      "proxyRules": [
+        {
+          "id": "drop-commit",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "drop_request"
+          },
+          "once": true
+        }
+      ],
+      "faults": [],
+      "expect": {
+        "server": {
+          "versionDelta": 0,
+          "statuses": [
+            "GET lookup 410"
+          ]
+        },
+        "client": [
+          "committing → reconciling → reconciling-stuck"
+        ],
+        "proxyLog": "sau 410: 0 POST commit (xem OQ-F1)"
+      },
+      "notes": "giữ EXPERIENCE: không gửi lại khi unknown (OQ-F1, câu hỏi cho owner G5-06)",
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-42",
+      "layer": "app",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "F-clock",
+      "scenario": "reconciling → reconciling-stuck sau 1 giờ đối soát không có kết quả xác định",
+      "source": "EXPERIENCE Queue rows › reconciling (\"đã 1 giờ … → reconciling-stuck\"); fork QUEUE_LIMITS.stuckAfterMs",
+      "exits": [
+        {
+          "exit": "reconciling → reconciling-stuck (hết giờ)",
+          "assert": "lookup luôn in_flight (synthetic); sau stuckAfterMs → stuck"
+        }
+      ],
+      "proxyRules": [
+        {
+          "id": "always-in-flight",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$"
+          },
+          "action": {
+            "type": "status",
+            "code": 200,
+            "body": {
+              "outcome": "in_flight"
+            }
+          }
+        }
+      ],
+      "faults": [
+        {
+          "kind": "clock",
+          "step": "cần núm thời gian cho QUEUE_LIMITS (OQ-F5)"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "reconciling → reconciling-stuck"
+        ],
+        "proxyLog": "0 POST commit sau lần đầu"
+      },
+      "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9)",
+      "clientAssertions": "pending F-trace",
+      "status": "pending F-clock",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-43",
+      "layer": "app",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "reconciling → blocked theo mã lỗi của lần tra",
+      "source": "EXPERIENCE Queue rows › reconciling (401 / 403 theo mã / 410)",
+      "exits": [
+        {
+          "exit": "reconciling → blocked session_expired",
+          "assert": "lookup 401",
+          "lookup": {
+            "code": 401,
+            "errorCode": "token_expired"
+          }
+        },
+        {
+          "exit": "reconciling → blocked organization_suspended",
+          "assert": "lookup 403 organization_suspended",
+          "lookup": {
+            "code": 403,
+            "errorCode": "organization_suspended"
+          }
+        },
+        {
+          "exit": "reconciling → blocked member_deactivated",
+          "assert": "lookup 403 member_deactivated",
+          "lookup": {
+            "code": 403,
+            "errorCode": "member_deactivated"
+          }
+        },
+        {
+          "exit": "reconciling → blocked document_archived",
+          "assert": "lookup 403 document_archived (dự báo hôm nay: permission_revoked, OQ-F6)",
+          "lookup": {
+            "code": 403,
+            "errorCode": "document_archived"
+          }
+        },
+        {
+          "exit": "reconciling → blocked permission_revoked",
+          "assert": "lookup 403 forbidden",
+          "lookup": {
+            "code": 403,
+            "errorCode": "forbidden"
+          }
+        },
+        {
+          "exit": "reconciling → blocked document_deleted",
+          "assert": "lookup 410 document_deleted",
+          "lookup": {
+            "code": 410,
+            "errorCode": "document_deleted"
+          }
+        }
+      ],
+      "proxyRules": [
+        {
+          "id": "lose-commit-answer",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "drop_response_after_forward"
+          },
+          "once": true
+        },
+        {
+          "id": "lookup-verdict",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$"
+          },
+          "action": {
+            "type": "status",
+            "code": "per-exit",
+            "note": "runner replaces code and body.error.code from exits[].lookup"
+          }
+        }
+      ],
+      "faults": [
+        {
+          "kind": "driver",
+          "step": "mỗi lối ra một lần chạy; thêm một lần chạy với điều kiện thật trên server (đình chỉ tổ chức, vô hiệu thành viên, xóa tài liệu) thay cho status tổng hợp"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": "1 (commit đã vào trước khi lookup bị chặn) — blocked không xóa nháp"
+        },
+        "client": [
+          "reconciling → blocked {reason} đúng bảng Lý do bị chặn"
+        ],
+        "proxyLog": "0 POST commit sau lối ra blocked"
+      },
+      "notes": "lối ra document_archived lệch ở fork (OQ-F6)",
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-44",
+      "layer": "app",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "reconciling-stuck: tự kiểm lại không tạo attempt mới; đối soát thành công → như reconciling; 403/410 → blocked",
+      "source": "EXPERIENCE Queue rows › reconciling-stuck (cột Thoát)",
+      "exits": [
+        {
+          "exit": "reconciling-stuck → committed",
+          "assert": "lookup lần sau trả committed → committed (dựng: 410 tổng hợp rồi bỏ rule, commit thật đã vào)"
+        },
+        {
+          "exit": "reconciling-stuck → blocked",
+          "assert": "lookup 403/410 → blocked như hàng reconciling"
+        },
+        {
+          "exit": "reconciling-stuck ở lại",
+          "assert": "trong suốt ca: 0 POST commit, 0 POST uploads cho intent"
+        }
+      ],
+      "proxyRules": [
+        {
+          "id": "lose-commit-answer",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "drop_response_after_forward"
+          },
+          "once": true
+        },
+        {
+          "id": "fake-unknown",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "status",
+            "code": 410,
+            "body": {
+              "error": {
+                "code": "commit_intent_unknown",
+                "fields": {
+                  "outcome": "unknown"
+                }
+              }
+            }
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "trigger",
+          "step": "lần kiểm lại: qua app restart (tick khi khởi động) hoặc núm thời gian (OQ-F5); \"Kiểm tra lại\" ở S2 thuộc FQ-45"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1
+        },
+        "client": [
+          "reconciling-stuck → committed / blocked"
+        ],
+        "proxyLog": "0 POST commit sau khi vào stuck"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-45",
+      "layer": "app",
+      "ac": [
+        "G5-A06",
+        "G5-A08"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "G5-10",
+      "scenario": "reconciling-stuck: hành động ở S2 — Kiểm tra lại, Tải bản của tôi về máy, Bỏ lần lưu… (kể cả bị từ chối khi đủ 3 nháp / store đầy)",
+      "source": "EXPERIENCE Queue rows › reconciling-stuck (cột Hành động/Thoát)",
+      "exits": [
+        {
+          "exit": "\"Kiểm tra lại\" → một lookup ngay",
+          "assert": "proxy thấy đúng 1 GET versions/commit sau thao tác"
+        },
+        {
+          "exit": "\"Bỏ lần lưu…\" → kept draft",
+          "assert": "intent rời queue, snapshot thành Nháp đã giữ, version không đổi"
+        },
+        {
+          "exit": "\"Bỏ lần lưu…\" bị từ chối",
+          "assert": "đã có 3 nháp → uwConflictDraftCapReached, intent giữ nguyên"
+        },
+        {
+          "exit": "\"Tải bản của tôi về máy\"",
+          "assert": "hộp thoại Lưu hệ điều hành, tên \"{tên} (bản của tôi).{ext}\"; không request ghi"
+        }
+      ],
+      "proxyRules": [
+        {
+          "id": "always-unknown",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$"
+          },
+          "action": {
+            "type": "status",
+            "code": 410,
+            "body": {
+              "error": {
+                "code": "commit_intent_unknown"
+              }
+            }
+          }
+        }
+      ],
+      "faults": [
+        {
+          "kind": "ui",
+          "step": "S2 tab \"Cần xử lý\""
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "reconciling-stuck → kept draft (hoặc giữ nguyên khi bị từ chối)"
+        ],
+        "proxyLog": "0 POST commit"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-10",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-46",
+      "layer": "app",
+      "ac": [
+        "G5-A06"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "G5-09",
+      "scenario": "reconciling / reconciling-stuck chặn Tải lại và Ghi đè (S6, S5): aria-disabled với lý do chờ",
+      "source": "EXPERIENCE S6 › \"Intent đang committing/reconciling\" và \"Intent reconciling-stuck\"; Superseded",
+      "exits": [
+        {
+          "exit": "reconciling: Tải lại bị chặn",
+          "assert": "uwRemoteWaitCommit; chạy được sau receipt"
+        },
+        {
+          "exit": "reconciling-stuck: Tải lại bị chặn",
+          "assert": "uwRemoteWaitStuck + \"Mở trung tâm đồng bộ\""
+        }
+      ],
+      "proxyRules": [
+        {
+          "id": "always-in-flight",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$"
+          },
+          "action": {
+            "type": "status",
+            "code": 200,
+            "body": {
+              "outcome": "in_flight"
+            }
+          }
+        }
+      ],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "deviceB",
+          "step": "commit để có remote newer"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1
+        },
+        "client": [
+          "intent không bị superseded khi đang reconciling/stuck"
+        ],
+        "proxyLog": "0 GET download version của B trước khi intent ra khỏi reconciling"
+      },
+      "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9)",
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-09",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-50",
+      "layer": "app",
+      "ac": [
+        "G5-A08"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "blocked → queued khi server gỡ lý do (biết qua feed), intent gửi tiếp đúng một lần",
+      "source": "EXPERIENCE Lý do bị chặn (cột Thoát); spec §5.2 bước 3",
+      "exits": [
+        {
+          "exit": "permission_revoked → queued",
+          "assert": "cấp lại quyền → feed → queued → committed, versionDelta 1"
+        },
+        {
+          "exit": "document_deleted → queued",
+          "assert": "khôi phục tài liệu → queued → committed"
+        },
+        {
+          "exit": "document_archived → queued",
+          "assert": "bỏ lưu trữ → queued → committed, không 409 (OQ-F6 về mã khi đang lưu trữ)"
+        },
+        {
+          "exit": "organization_suspended → queued",
+          "assert": "mở lại tổ chức (admin API, reason ≥ 10 ký tự) → queued → committed"
+        },
+        {
+          "exit": "member_deactivated → queued",
+          "assert": "kích hoạt lại thành viên → queued → committed"
+        }
+      ],
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "api",
+          "as": "owner/admin",
+          "step": "đặt điều kiện thật trên server trước dispatch, gỡ sau khi app vào blocked"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1,
+          "statuses": [
+            "dispatch đầu 403/410 theo lý do",
+            "sau khi gỡ: commit 200"
+          ]
+        },
+        "client": [
+          "queued → … → blocked {reason} → queued → committed"
+        ],
+        "proxyLog": "không POST commit nào khi đang blocked; cùng keyTag trước và sau"
+      },
+      "notes": "lối ra document_archived lệch ở server (OQ-F6)",
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-51",
+      "layer": "app",
+      "ac": [
+        "G5-A08"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "none",
+      "scenario": "blocked session_expired / signed_out: đăng nhập lại cùng tài khoản → queued; tài khoản khác không mở được",
+      "source": "EXPERIENCE Lý do bị chặn › session_expired, signed_out, foreign_account",
+      "exits": [
+        {
+          "exit": "session_expired → queued",
+          "assert": "phiên hết hạn (401 thật hoặc tổng hợp) → đăng nhập cùng tài khoản → queued → committed"
+        },
+        {
+          "exit": "signed_out → mở khóa",
+          "assert": "đăng xuất có intent → blocked signed_out; đăng nhập cùng tài khoản/deployment → mở khóa"
+        },
+        {
+          "exit": "foreign_account ở lại",
+          "assert": "đăng nhập tài khoản khác → hàng khóa, không tên tài liệu, 0 request ghi"
+        }
+      ],
+      "proxyRules": [
+        {
+          "id": "fake-401",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/documents/[^/]+/versions/commit$",
+            "nth": 1
+          },
+          "action": {
+            "type": "status",
+            "code": 401,
+            "body": {
+              "error": {
+                "code": "token_expired"
+              }
+            }
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "ui",
+          "step": "đăng nhập lại qua luồng đăng nhập desktop (cần OS keyring trên VM, như document-step của G7-01)"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1
+        },
+        "client": [
+          "blocked session_expired → queued → committed"
+        ],
+        "proxyLog": "cùng keyTag trước và sau đăng nhập lại"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-52",
+      "layer": "app",
+      "ac": [
+        "G5-A08"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "G5-10",
+      "scenario": "blocked: \"Bỏ nháp…\" có xác nhận là đường kết thúc duy nhất khi lý do không được gỡ; blocked không tự xóa nháp",
+      "source": "EXPERIENCE Lý do bị chặn (permission_revoked, document_deleted, document_archived, member_deactivated: \"Bỏ nháp…\")",
+      "exits": [
+        {
+          "exit": "blocked → (Bỏ nháp… xác nhận) kết thúc",
+          "assert": "intent cancelled, nháp bỏ chỉ sau xác nhận; trước đó nháp còn sau restart app"
+        }
+      ],
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "ui",
+          "step": "S2 \"Bỏ nháp…\" + Discard confirm"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "blocked → cancelled (sau xác nhận)"
+        ],
+        "proxyLog": "0 POST commit"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-10",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-53",
+      "layer": "app",
+      "ac": [
+        "G5-A05"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "none",
+      "scenario": "blocked store_full: Lưu không tạo intent; còn chỗ → người dùng Lưu lại",
+      "source": "EXPERIENCE Lý do bị chặn › store_full; Ctrl/⌘+S › keystore_locked/store_full",
+      "exits": [
+        {
+          "exit": "store_full → (giải phóng) Lưu lại → queued",
+          "assert": "Ctrl+S khi đầy: 0 request; sau khi giải phóng: một intent, versionDelta 1"
+        }
+      ],
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "store",
+          "step": "đầy ngân sách store (1 GiB/tài khoản) bằng nháp tổng hợp trong userData của run — cần cách nạp nhanh (OQ-F5)"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1
+        },
+        "client": [
+          "dirty → (blocked store_full, không intent) → queued → committed"
+        ],
+        "proxyLog": "0 POST khi đầy"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "ready",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-54",
+      "layer": "app",
+      "ac": [
+        "G5-A05"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G7-05",
+      "scenario": "blocked store_newer: store cần bản app mới hơn → không tạo intent; cập nhật app mở lại",
+      "source": "EXPERIENCE Lý do bị chặn › store_newer (G5-04g)",
+      "exits": [
+        {
+          "exit": "store_newer → (cập nhật app) mở khóa",
+          "assert": "bản cũ: S11 uwLockNewerStore, 0 request ghi; bản mới: intent cũ còn và gửi được"
+        }
+      ],
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "install",
+          "step": "hạ bản cài N′ ↔ N+1 (máy và kênh theo G7-05)"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 1
+        },
+        "client": [
+          "blocked store_newer → (bản mới) queued → committed"
+        ],
+        "proxyLog": "0 POST từ bản cũ"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G7-05",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FQ-55",
+      "layer": "app",
+      "ac": [
+        "G5-A08"
+      ],
+      "fixture": "fx-xlsx-revenue-xyz",
+      "dependency": "G5-10",
+      "scenario": "hủy intent đang queued không mất nháp",
+      "source": "AC G5-A08 \"cancelling a queued intent loses no draft\"; spec §5.2 bảng › cancelled",
+      "proxyRules": [
+        {
+          "id": "unreachable",
+          "match": {
+            "method": null,
+            "path": "^/api/v1/"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
+      "faults": [
+        {
+          "kind": "ui",
+          "step": "S2 \"Hủy lần lưu…\" khi paused_offline"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "paused_offline → cancelled; nháp/checkpoint còn, editor vẫn dirty"
+        ],
+        "proxyLog": "0 POST commit"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-10",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FL-01",
+      "layer": "app",
+      "ac": [
+        "G5-A04"
+      ],
+      "fixture": "fx-pdf-invoice-vi",
+      "dependency": "G5-05",
+      "blockedGate": "G5-D1",
+      "scenario": "tải thư viện offline bị gián đoạn: không báo \"sẵn sàng\"",
+      "source": "spec §5.1; EXPERIENCE Offline library rows › interrupted",
+      "proxyRules": [
+        {
+          "id": "cut-download",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$",
+            "nth": 1
+          },
+          "action": {
+            "type": "reset"
+          },
+          "once": true
+        }
+      ],
+      "faults": [
+        {
+          "kind": "g7-03b",
+          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "downloading → interrupted; Thử lại → ready chỉ khi đủ file/asset/checksum"
+        ],
+        "store": "trạng thái store trước/sau + ảnh S3/S11",
+        "proxyLog": "không request ghi ngoài chính sách"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-05",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FL-02",
+      "layer": "app",
+      "ac": [
+        "G5-A04"
+      ],
+      "fixture": "fx-html-page-vi",
+      "dependency": "G5-05",
+      "blockedGate": "G5-D1",
+      "scenario": "disk full khi tải lần đầu: giữ bản cũ, hiện lỗi",
+      "source": "spec §5.1 (\"Disk full giữ bản cũ\"); S3 › disk-full",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "g7-03b",
+          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "downloading → disk-full; không ready"
+        ],
+        "store": "trạng thái store trước/sau + ảnh S3/S11",
+        "proxyLog": "không request ghi ngoài chính sách"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-05",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FL-03",
+      "layer": "app",
+      "ac": [
+        "G5-A04"
+      ],
+      "fixture": "fx-pdf-invoice-vi",
+      "dependency": "G5-05",
+      "blockedGate": "G5-D1",
+      "scenario": "cache hỏng / checksum lệch: pin thất bại, không phục vụ từ cache dở",
+      "source": "AC G5-A04; S3 › corrupt",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "g7-03b",
+          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "verifying → corrupt; không ready"
+        ],
+        "store": "trạng thái store trước/sau + ảnh S3/S11",
+        "proxyLog": "không request ghi ngoài chính sách"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-05",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FL-04",
+      "layer": "app",
+      "ac": [
+        "G5-A07"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G5-08c",
+      "blockedGate": "G5-D1",
+      "scenario": "lease hết hạn (kể cả khi đang mở dirty): khóa cloud payload, giữ ciphertext + checkpoint; gia hạn khi online",
+      "source": "spec §5.1 Gate G5-D1; EXPERIENCE Lý do bị chặn › lease_expired (+ khi offline_library tắt)",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "g7-03b",
+          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "ready → blocked lease_expired → (online, ACL còn) gia hạn → mở; offline_library tắt → S11 uwLockLibraryOff"
+        ],
+        "store": "trạng thái store trước/sau + ảnh S3/S11",
+        "proxyLog": "không request ghi ngoài chính sách"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-08c",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FL-05",
+      "layer": "app",
+      "ac": [
+        "G5-A07"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G5-08c",
+      "blockedGate": "G5-D1",
+      "scenario": "lùi đồng hồ: không kéo dài quyền offline",
+      "source": "spec §5.1; EXPERIENCE › clock_rollback",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "g7-03b",
+          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "blocked clock_rollback → (online, kiểm giờ server) mở"
+        ],
+        "store": "trạng thái store trước/sau + ảnh S3/S11",
+        "proxyLog": "không request ghi ngoài chính sách"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-08c",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FL-06",
+      "layer": "app",
+      "ac": [
+        "G5-A07"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G5-08c",
+      "blockedGate": "G5-D1",
+      "scenario": "revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa",
+      "source": "spec §5.1; S3 › revoked",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "g7-03b",
+          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "ready → revoked; 0 plaintext"
+        ],
+        "store": "trạng thái store trước/sau + ảnh S3/S11",
+        "proxyLog": "không request ghi ngoài chính sách"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-08c",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FL-07",
+      "layer": "app",
+      "ac": [
+        "G5-A07"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G5-11",
+      "blockedGate": "G5-D1",
+      "scenario": "logout A → B: không còn khóa/plaintext/ciphertext đọc được của A",
+      "source": "spec §5.3; AC G5-A07",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "g7-03b",
+          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "queue A khóa (signed_out), B không thấy tên tài liệu"
+        ],
+        "store": "trạng thái store trước/sau + ảnh S3/S11",
+        "proxyLog": "không request ghi ngoài chính sách"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-11",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FL-08",
+      "layer": "app",
+      "ac": [
+        "G5-A07"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G5-11",
+      "blockedGate": "G5-D1",
+      "scenario": "deployment switch: phạm vi A không cập nhật cursor/cache B",
+      "source": "spec §4.1 dòng cuối; AC G5-A07",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "g7-03b",
+          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "store theo deployment tách biệt"
+        ],
+        "store": "trạng thái store trước/sau + ảnh S3/S11",
+        "proxyLog": "không request ghi ngoài chính sách"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-11",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    },
+    {
+      "id": "FL-09",
+      "layer": "app",
+      "ac": [
+        "G5-A07"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "G5-08c",
+      "blockedGate": "G5-D1",
+      "scenario": "keystore khóa: chặn đường Lưu, không hạ xuống store không bảo vệ; mở khóa → về đúng trạng thái trước (reconciling vẫn reconciling)",
+      "source": "EXPERIENCE Lý do bị chặn › keystore_locked; spec §5.1",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "g7-03b",
+          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "client": [
+          "overlay keystore_locked → trạng thái trước đó; không bao giờ queued chỉ vì mở khóa"
+        ],
+        "store": "trạng thái store trước/sau + ảnh S3/S11",
+        "proxyLog": "không request ghi ngoài chính sách"
+      },
+      "clientAssertions": "pending F-trace",
+      "status": "pending G5-08c",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json"
+      ]
+    }
+  ]
+}
