@@ -1,0 +1,3 @@
+$ cd server && go test -count=1 ./internal/service/ 2>&1 | grep -E '^(--- (FAIL|SKIP)|FAIL|ok|panic)' | tail -40; echo "SVC_PKG_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/service	373.359s
+SVC_PKG_EXIT=0

@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -5; git diff --stat 24af6910d HEAD | tail -3
+272800f15e560ba89e3e1648cb180f1a11ece447
+24af6910d26dc49a413f832f2bf07b9f0114be3b
+272800f15 test(server): verify 403 document_archived on archived commit, upload, restore (UNI-1345)
+ae17f4efa fix(server): return 403 document_archived on archived file saves (UNI-1345)
+6cbde390a docs(office): document 403 document_archived on archived file saves (UNI-1345)
+24af6910d docs(office): correct the commit route description to 409 document_version_conflict
+b96f39ff1 chore: merge G8-18 + DOC-05 permission levels addendum (UNI-1413) into the G5-G7 root
+ server/internal/service/document_metrics.go      |  2 +-
+ server/internal/service/document_metrics_test.go |  1 +
+ 8 files changed, 81 insertions(+), 20 deletions(-)

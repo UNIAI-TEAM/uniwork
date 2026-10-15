@@ -1,0 +1,13 @@
+$ cd server && go test -count=1 -v ./internal/service/ -run 'TestArchivedDocumentCommitUploadRestore|TestDocumentSaveResultClassification|TestDocumentCommit|TestCommitIntent|TestDocumentFiles|TestDocumentUpload|TestOfficeLease|TestDocumentOffice' 2>&1 | grep -E '^(--- (FAIL|SKIP)|=== RUN   TestArchived|--- PASS: TestArchived|PASS|FAIL|ok|panic)'; echo "SVC_TARGET_EXIT=${PIPESTATUS[0]}"
+=== RUN   TestArchivedDocumentCommitUploadRestore
+=== RUN   TestArchivedDocumentCommitUploadRestore/manager
+=== RUN   TestArchivedDocumentCommitUploadRestore/workspace_peer
+--- PASS: TestArchivedDocumentCommitUploadRestore (0.28s)
+--- SKIP: TestDocumentOfficeIntegration (0.00s)
+--- SKIP: TestDocumentOfficeQ7Integration (0.00s)
+--- SKIP: TestDocumentOfficeUpgradeReplay (0.00s)
+--- SKIP: TestDocumentOfficeJobRedispatchAfterEngineDown (0.00s)
+--- SKIP: TestDocumentOfficeXlsxIntegration (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	26.230s
+SVC_TARGET_EXIT=0

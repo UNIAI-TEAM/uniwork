@@ -1,0 +1,422 @@
+$ pnpm install --frozen-lockfile >/dev/null 2>&1; node --test scripts/governance.test.mjs scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs scripts/office-g0/engine-contract.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs; echo "CHECK_NODE_EXIT=$?"
+TAP version 13
+# Subtest: the Go catalogue and the documented table agree
+ok 1 - the Go catalogue and the documented table agree
+  ---
+  duration_ms: 10.043042
+  ...
+# Subtest: every catalogue row has the one-line shape this file parses
+ok 2 - every catalogue row has the one-line shape this file parses
+  ---
+  duration_ms: 1.157919
+  ...
+# Subtest: the client knows every event that has a realtime audience
+ok 3 - the client knows every event that has a realtime audience
+  ---
+  duration_ms: 0.821306
+  ...
+# Subtest: event names follow <entity>.<verb> and carry no version
+ok 4 - event names follow <entity>.<verb> and carry no version
+  ---
+  duration_ms: 1.251989
+  ...
+# Subtest: payload keys are ids or revisions; content travels only through Patch
+ok 5 - payload keys are ids or revisions; content travels only through Patch
+  ---
+  duration_ms: 1.752786
+  ...
+# Subtest: the patchable task fields are exactly the ones ADR 0015 accepted
+ok 6 - the patchable task fields are exactly the ones ADR 0015 accepted
+  ---
+  duration_ms: 0.590264
+  ...
+# Subtest: the client decodes exactly the fields task.updated lists in Patch
+ok 7 - the client decodes exactly the fields task.updated lists in Patch
+  ---
+  duration_ms: 0.875587
+  ...
+# Subtest: every event has a scope or is explicitly infrastructure
+ok 8 - every event has a scope or is explicitly infrastructure
+  ---
+  duration_ms: 1.409205
+  ...
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 9 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 5.993035
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 10 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 3.728254
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 11 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.341303
+  ...
+# Subtest: both hooks exist and are executable
+ok 12 - both hooks exist and are executable
+  ---
+  duration_ms: 0.185675
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 13 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 0.771614
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 14 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 184.911723
+  ...
+# Subtest: historical message exceptions only allow their immutable commit and subject
+ok 15 - historical message exceptions only allow their immutable commit and subject
+  ---
+  duration_ms: 0.48797
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 16 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 1.810158
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 17 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.376767
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 18 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 9.697652
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 19 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.377552
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 20 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 16.427007
+  ...
+# Subtest: every plan says whether it shipped
+ok 21 - every plan says whether it shipped
+  ---
+  duration_ms: 38.442019
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 22 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 0.858298
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 23 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 282.355219
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 24 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 1.138192
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 25 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 50.146067
+  ...
+# Subtest: the mandatory case list cannot shrink or silently duplicate
+ok 26 - the mandatory case list cannot shrink or silently duplicate
+  ---
+  duration_ms: 1.302082
+  ...
+# Subtest: every mandatory case matches its oracle
+ok 27 - every mandatory case matches its oracle
+  ---
+  duration_ms: 9.749474
+  ...
+# Subtest: limits are finite, safe integers inside a sane envelope
+ok 28 - limits are finite, safe integers inside a sane envelope
+  ---
+  duration_ms: 0.468386
+  ...
+# Subtest: checksum is recomputed from bytes by an independent implementation
+ok 29 - checksum is recomputed from bytes by an independent implementation
+  ---
+  duration_ms: 0.56202
+  ...
+# Subtest: a failed case leaves the current version and the input untouched
+ok 30 - a failed case leaves the current version and the input untouched
+  ---
+  duration_ms: 0.257737
+  ...
+# Subtest: serialize declaration refusals make no ledger, storage or commit calls, including replay
+ok 31 - serialize declaration refusals make no ledger, storage or commit calls, including replay
+  ---
+  duration_ms: 0.482862
+  ...
+# Subtest: a malformed request is refused before a job exists, with the revision intact
+ok 32 - a malformed request is refused before a job exists, with the revision intact
+  ---
+  duration_ms: 0.140752
+  ...
+# Subtest: the fingerprint ignores request_id but tracks decisive payload changes
+ok 33 - the fingerprint ignores request_id but tracks decisive payload changes
+  ---
+  duration_ms: 0.194203
+  ...
+# Subtest: cancel and complete linearize to exactly one winner
+ok 34 - cancel and complete linearize to exactly one winner
+  ---
+  duration_ms: 0.457988
+  ...
+# Subtest: a restart turns a running job into crashed and cannot commit it
+ok 35 - a restart turns a running job into crashed and cannot commit it
+  ---
+  duration_ms: 0.463259
+  ...
+# Subtest: terminal states are immutable
+ok 36 - terminal states are immutable
+  ---
+  duration_ms: 0.454846
+  ...
+# Subtest: idempotency is keyed on the payload fingerprint, not the key alone
+ok 37 - idempotency is keyed on the payload fingerprint, not the key alone
+  ---
+  duration_ms: 0.395864
+  ...
+# Subtest: an orphan delete failure is surfaced and retried, never swallowed
+ok 38 - an orphan delete failure is surfaced and retried, never swallowed
+  ---
+  duration_ms: 0.106991
+  ...
+# Subtest: every error code carries a status, a class, a kind and a retryable flag
+ok 39 - every error code carries a status, a class, a kind and a retryable flag
+  ---
+  duration_ms: 0.171669
+  ...
+# Subtest: wire fields on the frozen examples are snake_case
+ok 40 - wire fields on the frozen examples are snake_case
+  ---
+  duration_ms: 0.166965
+  ...
+# Subtest: no browser-facing projection leaks a path, a storage key or a credential
+ok 41 - no browser-facing projection leaks a path, a storage key or a credential
+  ---
+  duration_ms: 0.565599
+  ...
+# Subtest: the engine can be injected, which is the seam task 4.4 wires
+ok 42 - the engine can be injected, which is the seam task 4.4 wires
+  ---
+  duration_ms: 0.361167
+  ...
+# Subtest: the runtime map cannot claim a proven runtime it has not earned
+ok 43 - the runtime map cannot claim a proven runtime it has not earned
+  ---
+  duration_ms: 2.905176
+  ...
+# Subtest: proposed namespaces are marked as new G0 outputs, not deployed resources
+ok 44 - proposed namespaces are marked as new G0 outputs, not deployed resources
+  ---
+  duration_ms: 0.129399
+  ...
+# Subtest: documentation references the runtime map and the harness by real paths
+ok 45 - documentation references the runtime map and the harness by real paths
+  ---
+  duration_ms: 0.513358
+  ...
+# Subtest: the doc opening points at the real adapter without denying it, and never cites a volatile file digest
+ok 46 - the doc opening points at the real adapter without denying it, and never cites a volatile file digest
+  ---
+  duration_ms: 0.495817
+  ...
+# Subtest: the doc's mandatory-case table names every script case, and adds no case the script lacks
+ok 47 - the doc's mandatory-case table names every script case, and adds no case the script lacks
+  ---
+  duration_ms: 0.536012
+  ...
+# Subtest: the doc's fingerprint fence matches the fields the code actually hashes
+ok 48 - the doc's fingerprint fence matches the fields the code actually hashes
+  ---
+  duration_ms: 0.582267
+  ...
+# Subtest: input bytes are measured at submit: a lying digest, a lying length, and non-canonical base64 never reach the ledger
+ok 49 - input bytes are measured at submit: a lying digest, a lying length, and non-canonical base64 never reach the ledger
+  ---
+  duration_ms: 0.358282
+  ...
+# Subtest: run enforces the accepted deadline from the trusted clock
+ok 50 - run enforces the accepted deadline from the trusted clock
+  ---
+  duration_ms: 0.224138
+  ...
+# Subtest: one millisecond inside the accepted deadline still runs
+ok 51 - one millisecond inside the accepted deadline still runs
+  ---
+  duration_ms: 0.155747
+  ...
+# Subtest: a caller job object is not execution authority
+ok 52 - a caller job object is not execution authority
+  ---
+  duration_ms: 0.389305
+  ...
+# Subtest: the mandatory read-grant scope case reports the public refusal
+ok 53 - the mandatory read-grant scope case reports the public refusal
+  ---
+  duration_ms: 2.624438
+  ...
+# Subtest: an implicit run propagates the accepted actor to grant authorization
+ok 54 - an implicit run propagates the accepted actor to grant authorization
+  ---
+  duration_ms: 0.327151
+  ...
+# Subtest: accepted metadata is private: a mutated handle cannot change output, identity or warnings
+ok 55 - accepted metadata is private: a mutated handle cannot change output, identity or warnings
+  ---
+  duration_ms: 0.38685
+  ...
+# Subtest: serialize consumes the accepted model content, not a reference label
+ok 56 - serialize consumes the accepted model content, not a reference label
+  ---
+  duration_ms: 0.449211
+  ...
+# Subtest: a model handle replaced, rescoped or mutated in place after acceptance cannot change committed bytes
+ok 57 - a model handle replaced, rescoped or mutated in place after acceptance cannot change committed bytes
+  ---
+  duration_ms: 1.108248
+  ...
+# Subtest: copied jobs and expired grants stay rejected before consume or commit on a model serialize
+ok 58 - copied jobs and expired grants stay rejected before consume or commit on a model serialize
+  ---
+  duration_ms: 0.446297
+  ...
+# Subtest: an injected engine edit result is what a later serialize commits
+ok 59 - an injected engine edit result is what a later serialize commits
+  ---
+  duration_ms: 0.426301
+  ...
+# Subtest: the default fake engine commits the edit transform, not the opened upload
+ok 60 - the default fake engine commits the edit transform, not the opened upload
+  ---
+  duration_ms: 0.343264
+  ...
+# Subtest: open registers the produced model bytes, never a reference label
+ok 61 - open registers the produced model bytes, never a reference label
+  ---
+  duration_ms: 0.161791
+  ...
+# Subtest: the fingerprint prefers the MEASURED digest and length over the declared pair
+ok 62 - the fingerprint prefers the MEASURED digest and length over the declared pair
+  ---
+  duration_ms: 0.149907
+  ...
+# Subtest: classify maps an unreachable host to a retryable engine failure, never a success
+ok 63 - classify maps an unreachable host to a retryable engine failure, never a success
+  ---
+  duration_ms: 0.121826
+  ...
+# Subtest: classify reads a refusal from the envelope code, and a 200 with ok:false is still a refusal
+ok 64 - classify reads a refusal from the envelope code, and a 200 with ok:false is still a refusal
+  ---
+  duration_ms: 0.075644
+  ...
+# Subtest: an unparseable or unmapped error is a caller fault, never waved through
+ok 65 - an unparseable or unmapped error is a caller fault, never waved through
+  ---
+  duration_ms: 0.055716
+  ...
+# Subtest: the adapter error map is complete, typed, and uses the contract vocabulary
+ok 66 - the adapter error map is complete, typed, and uses the contract vocabulary
+  ---
+  duration_ms: 0.220033
+  ...
+# Subtest: every adapter code a fault case expects is in the error map
+ok 67 - every adapter code a fault case expects is in the error map
+  ---
+  duration_ms: 0.15327
+  ...
+# Subtest: assertInside refuses a sibling-prefix escape and a traversal, and never writes first
+ok 68 - assertInside refuses a sibling-prefix escape and a traversal, and never writes first
+  ---
+  duration_ms: 0.1813
+  ...
+# Subtest: prepareLab copies only the DOC-003 fixtures it finds, and refuses a lab outside its root
+ok 69 - prepareLab copies only the DOC-003 fixtures it finds, and refuses a lab outside its root
+  ---
+  duration_ms: 2.296358
+  ...
+# Subtest: runAdapterCase compares only the oracle keys and records real_engine_evidence
+ok 70 - runAdapterCase compares only the oracle keys and records real_engine_evidence
+  ---
+  duration_ms: 0.353164
+  ...
+# Subtest: H1: a grantless byte-carrying submit cannot replace an established session model
+ok 71 - H1: a grantless byte-carrying submit cannot replace an established session model
+  ---
+  duration_ms: 0.375395
+  ...
+# Subtest: H1: only run registers a trusted model, and only under a server-minted ref
+ok 72 - H1: only run registers a trusted model, and only under a server-minted ref
+  ---
+  duration_ms: 0.181812
+  ...
+# Subtest: M3: a grant max_output_bytes ceiling refuses an over-size result before any commit
+ok 73 - M3: a grant max_output_bytes ceiling refuses an over-size result before any commit
+  ---
+  duration_ms: 0.29759
+  ...
+# Subtest: M4: a grant whose organization or workspace differs from the job is refused
+ok 74 - M4: a grant whose organization or workspace differs from the job is refused
+  ---
+  duration_ms: 0.34727
+  ...
+# Subtest: M2: the registry pins a STABLE adapter oracle digest, not the volatile evidence file
+ok 75 - M2: the registry pins a STABLE adapter oracle digest, not the volatile evidence file
+  ---
+  duration_ms: 0.169683
+  ...
+# Subtest: acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+ok 76 - acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+  ---
+  duration_ms: 3.51442
+  ...
+# Subtest: acceptance.md says the requirements are an interpretation, not the verbatim spec
+ok 77 - acceptance.md says the requirements are an interpretation, not the verbatim spec
+  ---
+  duration_ms: 0.150645
+  ...
+# Subtest: a PASS row that runs on several fixtures needs one PASS record per fixture
+ok 78 - a PASS row that runs on several fixtures needs one PASS record per fixture
+  ---
+  duration_ms: 19.407272
+  ...
+# Subtest: the summary numbers are checked against the candidate, not the committed matrix (N6)
+ok 79 - the summary numbers are checked against the candidate, not the committed matrix (N6)
+  ---
+  duration_ms: 24.262585
+  ...
+# Subtest: the ledger is read only when the caller names it, and only its own records
+ok 80 - the ledger is read only when the caller names it, and only its own records
+  ---
+  duration_ms: 2.086879
+  ...
+# Subtest: a ledger that is named and does not exist is an error, not a green gate (N5)
+ok 81 - a ledger that is named and does not exist is an error, not a green gate (N5)
+  ---
+  duration_ms: 1.981975
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 82 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 55.274503
+  ...
+1..82
+# tests 82
+# suites 0
+# pass 82
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 597.115226
+CHECK_NODE_EXIT=0
