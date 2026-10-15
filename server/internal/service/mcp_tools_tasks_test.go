@@ -471,6 +471,58 @@ func TestMcpAddCommentRepliesAndValidates(t *testing.T) {
 	}
 }
 
+// get_task lists a task's comments with their ids, so a model can answer one
+// it did not write: here another member's, found by its author's name.
+func TestMcpGetTaskCommentIdsLetAModelReplyToAnyone(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	addMember(t, x.tools.ask.meetings, x.w.ID, x.ub.ID)
+	theirs, err := x.tools.ask.tasks.AddComment(ctx, Human(x.ub.ID), x.taskID, "Ai duyệt bản nháp?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func() (string, []map[string]any) {
+		t.Helper()
+		raw, err := callMcpTool(t, x.tools, x.p, "get_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`"}`)
+		var got struct {
+			Excerpt  string
+			Comments []map[string]any
+		}
+		if err != nil || json.Unmarshal(raw, &got) != nil {
+			t.Fatalf("get_task = %s (%v)", raw, err)
+		}
+		for _, c := range got.Comments {
+			onlyKeys(t, "get_task comment", c, "id", "author", "created_at", "body", "reply_to")
+			if at, err := time.Parse(time.RFC3339, c["created_at"].(string)); err != nil || at.IsZero() {
+				t.Errorf("created_at = %v (%v)", c["created_at"], err)
+			}
+		}
+		return got.Excerpt, got.Comments
+	}
+	excerpt, comments := read()
+	if len(comments) != 1 || comments[0]["id"] != theirs.ID || comments[0]["author"] != "B" || comments[0]["body"] != "Ai duyệt bản nháp?" || comments[0]["reply_to"] != nil {
+		t.Fatalf("get_task comments = %v, want B's comment with its id", comments)
+	}
+	if strings.Contains(excerpt, "Ai duyệt bản nháp?") {
+		t.Errorf("the comment is repeated in the excerpt: %q", excerpt)
+	}
+
+	// The model answers B with the id it read.
+	raw, err := callMcpTool(t, x.tools, x.p, "add_comment", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","body":"Mình duyệt","reply_to":"`+comments[0]["id"].(string)+`"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, reply := writeResult(t, raw)
+	c, err := x.tools.ask.tasks.GetComment(ctx, Human(x.ua.ID), reply["id"].(string))
+	if err != nil || c.ParentCommentID.String != theirs.ID || c.AuthorID != x.ua.ID {
+		t.Fatalf("reply = %+v (%v), want A's answer to %s", c, err, theirs.ID)
+	}
+	_, comments = read()
+	if len(comments) != 2 || comments[1]["id"] != reply["id"] || comments[1]["reply_to"] != theirs.ID || comments[1]["author"] != "A" {
+		t.Fatalf("get_task comments after the reply = %v, want it last, answering %s", comments, theirs.ID)
+	}
+}
+
 // Phase 0 review gate: whatever a write tool refuses with, the model reads
 // nothing about a row it cannot see. Rows of another organization (the person
 // is in it, the grant is not for it) and of another workspace of the grant's

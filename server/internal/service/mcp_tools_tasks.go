@@ -57,6 +57,20 @@ type McpTask struct {
 	// edits from the real text and not from the excerpt.
 	Description          *string `json:"description,omitempty"`
 	DescriptionTruncated bool    `json:"description_truncated,omitempty"`
+	// Comments are also get_task's alone: the latest mcpMaxList, oldest first,
+	// with CommentsTruncated when older ones were left out.
+	Comments          []McpTaskComment `json:"comments,omitempty"`
+	CommentsTruncated bool             `json:"comments_truncated,omitempty"`
+}
+
+// McpTaskComment is a comment as get_task lists it; its id is what
+// add_comment's reply_to takes. Author is a name, never an email.
+type McpTaskComment struct {
+	ID        string `json:"id"`
+	Author    string `json:"author"`
+	CreatedAt string `json:"created_at"`
+	Body      string `json:"body"`
+	ReplyTo   string `json:"reply_to,omitempty"`
 }
 
 // McpMemberList and McpTaskList are what the list tools return: the rows,
@@ -125,6 +139,27 @@ func (s *McpToolService) labelsOf(ctx context.Context, p McpPrincipal, taskID st
 		out = append(out, McpLabel{ID: l.ID, Name: l.Name})
 	}
 	return out, nil
+}
+
+// commentsOf lists the latest mcpMaxList comments of a task, oldest first as
+// the task screen shows them, each body cut like a search hit; truncated says
+// older ones were left out.
+func (s *McpToolService) commentsOf(ctx context.Context, p McpPrincipal, taskID string) (out []McpTaskComment, truncated bool, err error) {
+	rows, err := s.ask.tasks.Comments(ctx, p.UserID, taskID)
+	if err != nil {
+		return nil, false, err
+	}
+	if truncated = len(rows) > mcpMaxList; truncated {
+		rows = rows[len(rows)-mcpMaxList:]
+	}
+	out = make([]McpTaskComment, 0, len(rows))
+	for _, c := range rows {
+		out = append(out, McpTaskComment{
+			ID: c.ID, Author: c.DisplayName, CreatedAt: c.CreatedAt.Time.UTC().Format(time.RFC3339),
+			Body: capRunes(c.Body, mcpMaxHitRunes, mcpHitCut), ReplyTo: c.ParentCommentID.String,
+		})
+	}
+	return out, truncated, nil
 }
 
 type mcpListMembersIn struct {
@@ -678,7 +713,7 @@ var (
 	mcpSchemaListTasks   = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"status":{"type":"string","description":"A status key from task_options."},"project_id":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},"required":["workspace_id"],"additionalProperties":false}`)
 	mcpSchemaCreateTask  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"title":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","maxLength":` + strconv.Itoa(mcpMaxItemRunes) + `,"description":"Markdown."},"status":{"type":"string","description":"A status key from task_options. Omit for the default open status."},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"assignee_id":{"type":"string","description":"A user_id from list_members."},"start_date":{"type":"string","description":"YYYY-MM-DD"},"due_date":{"type":"string","description":"YYYY-MM-DD"},"project_id":{"type":"string"},"parent_task_id":{"type":"string","description":"Id or PREFIX-N of the parent task."},"label_ids":{"type":"array","items":{"type":"string"},"maxItems":20}},"required":["workspace_id","title"],"additionalProperties":false}`)
 	mcpSchemaUpdateTask  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"task_id":{"type":"string","description":"Id or PREFIX-N."},"revision":{"type":"integer","description":"The revision you read with get_task or list_tasks."},"title":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","maxLength":` + strconv.Itoa(mcpMaxItemRunes) + `,"description":"Markdown; replaces the whole description. Edit from the description get_task returns."},"status":{"type":"string","description":"A status key from task_options."},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"assignee_id":{"type":["string","null"],"description":"A user_id from list_members; null unassigns."},"start_date":{"type":["string","null"],"description":"YYYY-MM-DD; null clears it."},"due_date":{"type":["string","null"],"description":"YYYY-MM-DD; null clears it."},"project_id":{"type":["string","null"],"description":"null takes the task out of its project."},"parent_task_id":{"type":["string","null"],"description":"Id or PREFIX-N of the parent task; null clears it."},"add_label_ids":{"type":"array","items":{"type":"string"},"maxItems":20,"description":"Label ids from task_options."},"remove_label_ids":{"type":"array","items":{"type":"string"},"maxItems":20,"description":"Ids of labels on the task."}},"required":["workspace_id","task_id","revision"],"additionalProperties":false}`)
-	mcpSchemaAddComment  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"task_id":{"type":"string","description":"Id or PREFIX-N."},"body":{"type":"string","minLength":1,"maxLength":20000,"description":"Markdown."},"reply_to":{"type":"string","description":"Id of the comment this answers."}},"required":["workspace_id","task_id","body"],"additionalProperties":false}`)
+	mcpSchemaAddComment  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"task_id":{"type":"string","description":"Id or PREFIX-N."},"body":{"type":"string","minLength":1,"maxLength":20000,"description":"Markdown."},"reply_to":{"type":"string","description":"Id of the comment this answers, from get_task's comments."}},"required":["workspace_id","task_id","body"],"additionalProperties":false}`)
 )
 
 func mcpTaskTools(s *McpToolService) []ai.Tool {
