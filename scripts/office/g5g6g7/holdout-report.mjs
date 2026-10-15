@@ -173,6 +173,8 @@ export function summarizeRun(run, flaky = new Set()) {
       writeBacked: sum((a) => a.adapter?.writeBacked ?? 0),
       writeUnbacked: sum((a) => a.adapter?.writeUnbacked ?? 0),
       writeSelfReported: sum((a) => a.adapter?.writeSelfReported ?? 0),
+      writeSelfPreserved: sum((a) => a.adapter?.writeSelfPreserved ?? 0),
+      noAppliedWriteAsks: run.asks.filter((a) => a.adapter?.noAppliedWrite === true).length,
       invalidArgumentAsks: run.asks.filter((a) => (a.invalidArguments ?? []).length > 0).length,
     },
     redactedAsks: run.asks.filter((a) => (a.redactions ?? []).length > 0).length,
@@ -217,6 +219,30 @@ function listAsks(runs, pick) {
   const counts = new Map();
   for (const run of runs) for (const ask of run.asks) { const n = pick(ask); if (n > 0) counts.set(askKey(ask), (counts.get(askKey(ask)) ?? 0) + n); }
   return [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([key, n]) => ({ key, count: n }));
+}
+
+/**
+ * Per edit case (an ask that expects a write), over all runs and both languages: asks without an applied write that carries
+ * the edit, and the items split into backed by the write arguments / unbacked / self-reported because the document already held
+ * them (preserved) / self-reported counts and format probes (G712-16).
+ */
+function editCaseSplit(runs) {
+  const byId = new Map();
+  for (const run of runs) {
+    for (const ask of run.asks) {
+      if (!((ask.expects?.writes ?? 0) > 0)) continue;
+      const row = byId.get(ask.id) ?? { id: ask.id, asks: 0, noAppliedWrite: 0, backed: 0, unbacked: 0, selfPreserved: 0, selfOther: 0 };
+      const a = ask.adapter ?? {};
+      row.asks += 1;
+      row.noAppliedWrite += a.noAppliedWrite === true ? 1 : 0;
+      row.backed += a.writeBacked ?? 0;
+      row.unbacked += a.writeUnbacked ?? 0;
+      row.selfPreserved += a.writeSelfPreserved ?? 0;
+      row.selfOther += (a.writeSelfReported ?? 0) - (a.writeSelfPreserved ?? 0);
+      byId.set(ask.id, row);
+    }
+  }
+  return [...byId.values()].sort((x, y) => x.id.localeCompare(y.id));
 }
 
 const TUPLE_FIELDS = ['dSha', 'dirty', 'framePin', 'promptIds', 'providers', 'resolvedModels', 'redis'];
@@ -526,6 +552,8 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     lenientAsks: listAsks(runs, (a) => a.adapter?.anchorLenient ?? 0),
     proseMismatchAsks: listAsks(runs, (a) => ((a.adapter?.proseFigureMismatch ?? 0) > 0 ? 1 : 0)),
     unbackedEditAsks: listAsks(runs, (a) => a.adapter?.writeUnbacked ?? 0),
+    noAppliedWriteAsks: listAsks(runs, (a) => (a.adapter?.noAppliedWrite === true ? 1 : 0)),
+    editCases: editCaseSplit(runs),
     invalidArgumentAsks: listAsks(runs, (a) => ((a.invalidArguments ?? []).length > 0 ? 1 : 0)),
     notMeasured: ['silent overwrite', 'lost acknowledged draft'],
   };
@@ -708,15 +736,22 @@ export function renderReport(report) {
   w();
   w('## 7. Giới hạn của bộ chạy (đáp án suy ra từ dòng báo cáo, adapter v1)');
   w();
-  w('| Lần | Thiếu dòng UNIWORK_ANSWER | Dòng không hợp lệ | Giá trị đúng nhưng sai neo (chỉ khi --anchors lenient) | Số thừa | Lượt hỏi lời văn lệch dòng báo cáo | Tham số công cụ sai | Sửa đổi: ô chứng minh bằng đối số ghi / không có bằng chứng ghi / chỉ tự báo cáo |');
-  w('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |');
-  report.summaries.forEach((s) => w(`| ${s.runIndex} | ${s.adapter.reportMissing} | ${s.adapter.reportInvalid} | ${s.adapter.anchorLenient} | ${s.adapter.extraFigures} | ${s.adapter.proseMismatchAsks} | ${s.adapter.invalidArgumentAsks} | ${s.adapter.writeBacked} / ${s.adapter.writeUnbacked} / ${s.adapter.writeSelfReported} |`));
+  w('| Lần | Thiếu dòng UNIWORK_ANSWER | Dòng không hợp lệ | Giá trị đúng nhưng sai neo (chỉ khi --anchors lenient) | Số thừa | Lượt hỏi lời văn lệch dòng báo cáo | Tham số công cụ sai | Sửa đổi: lượt hỏi không có lần ghi đã áp mang nội dung sửa | Sửa đổi: mục chứng minh bằng đối số ghi / không có bằng chứng ghi / tự báo cáo (giữ nguyên) / tự báo cáo (số đếm, dò định dạng) |');
+  w('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |');
+  report.summaries.forEach((s) => w(`| ${s.runIndex} | ${s.adapter.reportMissing} | ${s.adapter.reportInvalid} | ${s.adapter.anchorLenient} | ${s.adapter.extraFigures} | ${s.adapter.proseMismatchAsks} | ${s.adapter.invalidArgumentAsks} | ${s.adapter.noAppliedWriteAsks} | ${s.adapter.writeBacked} / ${s.adapter.writeUnbacked} / ${s.adapter.writeSelfPreserved} / ${s.adapter.writeSelfReported - s.adapter.writeSelfPreserved} |`));
   w();
-  w('Một lượt hỏi thiếu dòng báo cáo bị chấm lệch đáp án (đóng theo hướng an toàn); cột này tách lỗi giao thức khỏi lỗi trả lời. Với ca sửa đổi, một ô chỉ được tính khi đối số của một lần ghi đã áp (backend giả lập) mang giá trị hoặc phủ địa chỉ ô; ô trống, dò định dạng, số đếm và tiêu đề chỉ có tự báo cáo của model.');
+  w('Một lượt hỏi thiếu dòng báo cáo bị chấm lệch đáp án (đóng theo hướng an toàn); cột này tách lỗi giao thức khỏi lỗi trả lời. Ca sửa đổi chỉ đạt khi có ít nhất một lần ghi ĐÃ ÁP (không phải chạy thử, không bị từ chối, không rỗng `{}`) của công cụ ghi bắt buộc, mang nội dung và đưa vào tài liệu một thứ tài liệu chưa có. Giá trị mà bản sửa đưa vào (ô, tiêu đề, ô bảng, định dạng phần trăm) phải nằm trong đối số của lần ghi đã áp, nếu không mục đó trượt. Giá trị tài liệu vốn đã có (tiêu đề hay tổng không đụng tới, ô trống để nguyên) và số đếm chỉ có tự báo cáo của model: được tính và gắn nhãn "tự báo cáo (giữ nguyên)" hoặc "tự báo cáo (số đếm, dò định dạng)", không phải bằng chứng. Bộ chạy không phân biệt được một lần ghi văn bản MỚI nhưng sai chỗ ở ca chỉ có giá trị giữ nguyên và số đếm; ở ca đó nội dung bản sửa chỉ có tự báo cáo của model làm bằng chứng (giới hạn đã biết).');
+  if (report.editCases.length > 0) {
+    w();
+    w('| Ca sửa đổi | Lượt hỏi | Không có lần ghi đã áp mang nội dung sửa | Chứng minh bằng đối số ghi | Không có bằng chứng ghi | Tự báo cáo (giữ nguyên) | Tự báo cáo (số đếm, dò định dạng) |');
+    w('| --- | ---: | ---: | ---: | ---: | ---: | ---: |');
+    for (const c of report.editCases) w(`| ${c.id} | ${c.asks} | ${c.noAppliedWrite} | ${c.backed} | ${c.unbacked} | ${c.selfPreserved} | ${c.selfOther} |`);
+  }
   const listLine = (title, items) => { if (items.length > 0) { w(); w(`${title} ${items.map((i) => `${i.key} ×${i.count}`).join(', ')}`); } };
   listLine('Lượt hỏi được chấm nới neo (mỗi ca/ngôn ngữ, số lần trên mọi lần chạy):', report.lenientAsks);
   listLine('Lượt hỏi mà lời văn không nêu một con số có trong dòng báo cáo (cảnh báo, không tự làm sai):', report.proseMismatchAsks);
-  listLine('Lượt hỏi sửa đổi bị loại vì đối số ghi không chứng minh được ô đã báo cáo:', report.unbackedEditAsks);
+  listLine('Lượt hỏi sửa đổi không có lần ghi đã áp mang nội dung sửa (chạy thử, bị từ chối, rỗng, hoặc ghi lại đúng thứ tài liệu đã có):', report.noAppliedWriteAsks);
+  listLine('Lượt hỏi sửa đổi bị loại vì đối số ghi không chứng minh được giá trị mà bản sửa đưa vào:', report.unbackedEditAsks);
   listLine('Lượt hỏi bị coi là lỗi vì model gọi công cụ với tham số không hợp lệ:', report.invalidArgumentAsks);
   if (report.unobtainable.length > 0) {
     w();
