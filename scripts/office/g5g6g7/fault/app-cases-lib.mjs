@@ -254,15 +254,36 @@ export function expandExits(row) {
   return row.exits.map((exit, index) => ({ index: index + 1, label: exit.exit, exit }));
 }
 
-/** Result of one run: BLOCKED when a blocker is named, else PASS only when every assertion holds. */
+/** The assertions the runner itself adds when it never got to the product: an unhandled run error, a harness that did not start. */
+export const INFRA_ASSERTIONS = Object.freeze(["run_execution", "harness_started"]);
+
+/**
+ * Why a run failed without reaching a product assertion: every failing
+ * assertion is a runner/infra one (`INFRA_ASSERTIONS`). null when any product
+ * assertion failed, or when nothing failed (review r2 R2-1).
+ */
+export function infraFailureOf(assertions = []) {
+  const failed = assertions.filter((a) => a.ok !== true);
+  if (failed.length === 0 || !failed.every((a) => INFRA_ASSERTIONS.includes(a.name))) return null;
+  return failed.map((a) => `${a.name}: ${a.actual}`).join("; ");
+}
+
+/**
+ * Result of one run: BLOCKED when a blocker is named, else PASS only when every
+ * assertion holds. A FAIL that only the runner/infra caused carries
+ * `infraFailure` and never `predicted`: a predicted FAIL is a claim about the
+ * product, and a run that never reached it proves nothing about it.
+ */
 export function runResult({ label = null, assertions = [], blocker = null, predicted = null, evidence = null }) {
   const result = blocker ? "BLOCKED" : assertions.length > 0 && assertions.every((a) => a.ok === true) ? "PASS" : "FAIL";
+  const infraFailure = result === "FAIL" ? infraFailureOf(assertions) : null;
   return {
     label,
     result,
     assertions,
     ...(blocker ? { blocker: String(blocker) } : {}),
-    ...(predicted && result === "FAIL" ? { predicted } : {}),
+    ...(infraFailure ? { infraFailure } : {}),
+    ...(predicted && result === "FAIL" && !infraFailure ? { predicted } : {}),
     ...(evidence ? { evidence } : {}),
   };
 }
@@ -280,6 +301,8 @@ export function caseResult(row, runs) {
   // the case is "predicted" only when every failing run is: one unpredicted FAIL must not hide behind another run's tag
   const failed = runs.filter((run) => run.result === "FAIL");
   const predicted = failed.every((run) => run.predicted) ? failed.map((run) => run.predicted) : [];
+  // the runner/infra failures stay apart from the product ones: never folded into `predicted`
+  const infra = failed.filter((run) => run.infraFailure).map((run) => (run.label ? `${run.label}: ${run.infraFailure}` : run.infraFailure));
   return {
     case: row.id,
     ac: [...(row.ac ?? [])],
@@ -288,9 +311,30 @@ export function caseResult(row, runs) {
     result,
     ...(blockers.length ? { blocker: blockers.join("; ") } : {}),
     ...(predicted.length ? { predicted: [...new Set(predicted)].join(", ") } : {}),
+    ...(infra.length ? { infraFailure: infra.join("; ") } : {}),
     exits: runs.map((run, i) => ({ n: runs.length > 1 ? i + 1 : 0, ...run })),
     assertions: runs.flatMap((run) => run.assertions.map((a) => ({ ...a, ...(runs.length > 1 ? { exit: run.label } : {}) }))),
   };
+}
+
+/**
+ * The BLOCKED reason of an unreachable D server in the precondition probe. It
+ * names the origin the runner actually probed (the mapped one) and, when that
+ * differs, the `API_ORIGIN` the harness published (review r2 R2-6).
+ */
+export function noServerReason({ probed, apiOrigin, error = null }) {
+  const named = probed === apiOrigin ? probed : `${probed} (API_ORIGIN ${apiOrigin})`;
+  return `no D server on ${named}${error ? `: ${error}` : ""}`;
+}
+
+/**
+ * N-1: once an exit of a row has FAILed, a later exit starts on a state the
+ * failed one may have polluted, so it is reported BLOCKED instead of run. null
+ * while no earlier exit failed (a complete PASS is untouched).
+ */
+export function blockedAfterFailure(run, runResults) {
+  const failed = runResults.find((r) => r.result === "FAIL");
+  return failed ? runResult({ label: run.label, blocker: `earlier exit ${failed.label} failed` }) : null;
 }
 
 /** Result of a row that never ran (pending dependency, missing precondition). */

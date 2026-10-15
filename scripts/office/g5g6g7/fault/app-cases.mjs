@@ -28,13 +28,13 @@ import { DEFAULT_FORK_SHA, harnessPaths, isMainModule, readStartStatus, startGat
 import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
 import { BLOCKED_DRIVERS, EXTRA_EXITS } from "./app-case-drivers-blocked.mjs";
 import {
-  BLOCKED_EXIT_CODE, appTraceArtifacts, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
-  parseTraceText, predictedFor, runEvidenceOf, runExitCode, runResult, selectAppCases,
+  BLOCKED_EXIT_CODE, appTraceArtifacts, blockedAfterFailure, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
+  noServerReason, parseTraceText, predictedFor, runEvidenceOf, runExitCode, runResult, selectAppCases,
 } from "./app-cases-lib.mjs";
 import { guardCaseResult, harnessDownReason } from "./app-process-guard.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
-  causeSuffix, clearSyncWrite, createFileDocument, enrollTotp, freshToken, grantPlatformAdmin, login, runnerApiOrigin, seedAppTenant, setSyncWrite,
+  clearSyncWrite, createFileDocument, enrollTotp, errorText, freshToken, grantPlatformAdmin, login, runnerApiOrigin, seedAppTenant, setSyncWrite,
 } from "./app-tenant.mjs";
 import { caseExpect } from "./case-expect.mjs";
 import { EMPTY_SERVER_VERSIONS, collectServerVersions } from "./collect.mjs";
@@ -93,11 +93,12 @@ async function preconditions({ runDir, ports, playwright }) {
   if (!ports.ELECTRON_BIN || !ports.SHELL_APP_DIR) return "the harness run did not build the fork app (no ELECTRON_BIN/SHELL_APP_DIR in ports.env; run start.sh without --skip-app)";
   if (!playwright) return "Playwright is not installed (the e2e workspace's @playwright/test)";
   if (!process.env.DBUS_SESSION_BUS_ADDRESS) return "no D-Bus session: run under `dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node …` (the app keeps its session in the OS keyring)";
+  const probed = runnerApiOrigin(ports.API_ORIGIN);
   try {
-    const res = await fetch(`${runnerApiOrigin(ports.API_ORIGIN)}/healthz`, { signal: AbortSignal.timeout(5_000) });
-    if (!res.ok) return `the D server answered ${res.status} on /healthz`;
-  } catch {
-    return `no D server on ${ports.API_ORIGIN}`;
+    const res = await fetch(`${probed}/healthz`, { signal: AbortSignal.timeout(5_000) });
+    if (!res.ok) return `the D server answered ${res.status} on ${probed}/healthz`;
+  } catch (error) {
+    return noServerReason({ probed, apiOrigin: ports.API_ORIGIN, error: errorText(error) });
   }
   return null;
 }
@@ -133,7 +134,7 @@ async function harnessDown(runnerApi, runDir) {
     const res = await fetch(`${runnerApi}/healthz`, { signal: AbortSignal.timeout(5_000) });
     probe = { ok: res.ok, status: res.ok ? null : res.status };
   } catch (error) {
-    probe = { ok: false, error: `${error.message}${causeSuffix(error)}` };
+    probe = { ok: false, error: errorText(error) };
   }
   if (probe.ok) return null;
   const serverLog = join(paths.logDir, "server.log");
@@ -250,7 +251,7 @@ async function runOne({ row, run, runs, caseDir, shared }) {
   } catch (error) {
     outcome = error instanceof AppBlocked
       ? { documentId: null, assertions: [], blocker: error.message }
-      : { documentId: null, assertions: [{ name: "run_execution", expected: "no unhandled error", actual: `${error.message}${causeSuffix(error)}`, ok: false }] };
+      : { documentId: null, assertions: [{ name: "run_execution", expected: "no unhandled error", actual: errorText(error), ok: false }] };
   } finally {
     for (const session of sessions) await closeApp(session).catch(() => {});
     await fetch(`${proxy.origin}/__fault/rules`, { method: "DELETE" }).catch(() => {});
@@ -338,6 +339,13 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
       for (const run of runs) {
         // a multi-exit row stops at the first exit that would start against a dead server
         if (run !== runs[0] && (await harnessDown(runnerApi, runDir))) break;
+        // N-1: an exit after a FAILed one would start on a state the failure may have polluted
+        const skipped = blockedAfterFailure(run, runResults);
+        if (skipped) {
+          process.stdout.write(`${row.id} [${run.index}/${runs.length}] ${run.label}: BLOCKED — ${skipped.blocker}\n`);
+          runResults.push(skipped);
+          continue;
+        }
         process.stdout.write(`${row.id}${runs.length > 1 ? ` [${run.index}/${runs.length}] ${run.label}` : ""}: running\n`);
         runResults.push(await runOne({ row, run, runs: runs.length, caseDir, shared }));
       }
@@ -345,7 +353,7 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
       downReason = await harnessDown(runnerApi, runDir);
       const result = finishCase(row, guardCaseResult(caseResult(row, runResults), downReason, { complete: runResults.length === runs.length }), caseDir, runDir, forkSha);
       if (downReason) process.stdout.write(`HARNESS_DOWN after ${row.id}: ${downReason}; no further app row runs\n`);
-      process.stdout.write(`${row.id}: ${result.result}${result.predicted ? ` (predicted ${result.predicted})` : ""}\n`);
+      process.stdout.write(`${row.id}: ${result.result}${result.predicted ? ` (predicted ${result.predicted})` : ""}${result.infraFailure ? ` (infra: ${result.infraFailure})` : ""}\n`);
       // a FAIL is read from the log: its full trace and sync requests, not a truncated dump
       for (const run of runResults) for (const text of failEvidenceLines(row.id, run)) process.stdout.write(`${text}\n`);
       results.push(result);

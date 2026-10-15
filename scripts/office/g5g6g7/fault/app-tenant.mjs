@@ -15,11 +15,23 @@ const REQUEST_TIMEOUT_MS = 30_000;
 
 export class TenantError extends Error {}
 
-/** The origin the runner itself uses for direct D calls: Node resolves `localhost` to ::1 first, the server listens on 127.0.0.1. Other hosts are left alone. */
+// the loopback names the runner must not hand to Node: `localhost` resolves to ::1 first and the server listens on 127.0.0.1 only
+const LOOPBACK_HOSTS = new Set(["localhost", "[::1]", "::1"]);
+const BARE_LOOPBACK = /^(?:localhost|\[::1\]|::1)(:\d+)?$/;
+
+/**
+ * The origin the runner itself uses for direct D calls: `localhost` and the
+ * IPv6 loopback (`[::1]`, bare `::1`) map to the IPv4 loopback, whose server
+ * listener is the one that exists. Other hosts are left alone (review r2 R2-6).
+ */
 export function runnerApiOrigin(apiOrigin) {
+  const text = String(apiOrigin ?? "").trim();
+  // a bare loopback host without a scheme ("::1", "[::1]:8080", "localhost:8080"; `new URL` reads the last as a scheme)
+  const bare = BARE_LOOPBACK.exec(text);
+  if (bare) return `http://127.0.0.1${bare[1] ?? ""}`;
   try {
-    const url = new URL(apiOrigin);
-    if (url.hostname !== "localhost") return apiOrigin;
+    const url = new URL(text);
+    if (!LOOPBACK_HOSTS.has(url.hostname)) return apiOrigin;
     url.hostname = "127.0.0.1";
     return url.origin;
   } catch {
@@ -72,14 +84,28 @@ function causeOf(error) {
   return out;
 }
 
-/** " (<message>; cause <code|name>: <message> <address>:<port>)" for an unreachable result or an Error with a cause; "" otherwise. */
+const causeClause = (cause) => {
+  const where = cause?.address !== undefined || cause?.port !== undefined ? ` ${cause.address ?? ""}:${cause.port ?? ""}` : "";
+  return `cause ${cause.code ?? cause.name ?? "error"}: ${cause.message ?? ""}${where}`;
+};
+
+/** " (<message>; cause <code|name>: <message> <address>:<port>)" for an unreachable result; "" for a result without message or cause. */
 export function causeSuffix(source) {
   const message = source?.message;
   const cause = source instanceof Error ? causeOf(source) : source?.cause;
   if (!message && !cause) return "";
-  const where = cause?.address !== undefined || cause?.port !== undefined ? ` ${cause.address ?? ""}:${cause.port ?? ""}` : "";
-  const why = cause ? `; cause ${cause.code ?? cause.name ?? "error"}: ${cause.message ?? ""}${where}` : "";
-  return ` (${message ?? ""}${why})`;
+  return ` (${message ?? ""}${cause ? `; ${causeClause(cause)}` : ""})`;
+}
+
+/**
+ * An error as one evidence line: its message once, plus its fetch cause when it
+ * has one. A TenantError already carries the cause of the unreachable result it
+ * was thrown for (`must`), so it is never given the clause a second time (review r2 R2-5).
+ */
+export function errorText(error) {
+  const message = error?.message ?? String(error);
+  const cause = error instanceof TenantError ? undefined : causeOf(error);
+  return cause ? `${message} (${causeClause(cause)})` : message;
 }
 
 // ---- held sessions --------------------------------------------------------------
