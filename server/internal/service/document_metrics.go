@@ -35,11 +35,12 @@ const (
 	documentOutcomeGone        = "gone"
 	documentOutcomeInvalid     = "invalid"
 	documentOutcomeUnavailable = "unavailable"
-	// documentOutcomeLocked is a save refused by the edit lock (423
-	// document_locked, UNI-1645): not a lost base race, never a conflict.
-	documentOutcomeLocked = "locked"
-	documentOutcomeError  = "error"
+	documentOutcomeError       = "error"
 )
+
+// documentOutcomeLocked is a save refused by the edit lock (423
+// document_locked, UNI-1645): not a lost base race, never a conflict.
+const documentOutcomeLocked = "locked"
 
 // documentConflictCodes are the two answers that mean "another save moved the
 // base first" (C-01 §7 matrix "hai save cùng base"). Other conflict-class
