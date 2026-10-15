@@ -230,15 +230,17 @@ export function DocumentDetailView({
       return;
     }
     try {
-      setGrantExpiredOrEnded(true);
+      // The banner stays up (button busy) until the DELETE resolves; the
+      // expired card only appears once the grant is really gone (R22 N3).
       await revokeBreakGlass.mutateAsync(grantId);
-      setActiveGrant(null);
-      setGrantPending(false);
-      await query.refetch();
     } catch {
-      setGrantExpiredOrEnded(false);
       setEndAccessError(t("documents.breakGlass.endAccessFailed"));
+      return;
     }
+    setGrantExpiredOrEnded(true);
+    setActiveGrant(null);
+    setGrantPending(false);
+    await query.refetch();
   };
 
   // The share dialog and the access log take a narrow reference: the real

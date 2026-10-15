@@ -694,6 +694,59 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     expect(calls.join()).not.toContain("current");
   });
 
+  it("keeps the active banner until the DELETE resolves, then shows the expired card (R22 N3)", async () => {
+    const future = new Date(Date.now() + 3_600_000).toISOString();
+    let finish: (() => void) | undefined;
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/documents/d1" && !opts?.method) {
+        return Promise.resolve({
+          document: pageDocument({ my_level: "view", via: "break_glass", break_glass_expires_at: future } as never),
+        });
+      }
+      if (path === "/api/v1/documents/d1/admin-summary") {
+        return Promise.resolve(summaryBody({ my_level: "view", my_grant: grantBody("bg-88", future) }));
+      }
+      if (opts?.method === "DELETE") {
+        return new Promise((resolve) => {
+          finish = () => resolve({ status: "ok" });
+        });
+      }
+      return Promise.resolve({ versions: [], next_cursor: null, favorites: [] });
+    });
+    renderView("d1");
+    const end = await screen.findByRole("button", { name: t("documents.breakGlass.endAccessButton") });
+    await waitFor(() => expect(end).toBeEnabled());
+    fireEvent.click(end);
+    await waitFor(() => expect(finish).toBeDefined());
+    expect(screen.getByTestId("break-glass-active-banner")).toBeInTheDocument();
+    expect(screen.queryByTestId("break-glass-expired-banner")).toBeNull();
+    finish?.();
+    expect(await screen.findByTestId("break-glass-expired-banner")).toBeInTheDocument();
+  });
+
+  it("keeps the active banner with an inline error when the DELETE fails (R22 N3)", async () => {
+    const future = new Date(Date.now() + 3_600_000).toISOString();
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/documents/d1" && !opts?.method) {
+        return Promise.resolve({
+          document: pageDocument({ my_level: "view", via: "break_glass", break_glass_expires_at: future } as never),
+        });
+      }
+      if (path === "/api/v1/documents/d1/admin-summary") {
+        return Promise.resolve(summaryBody({ my_level: "view", my_grant: grantBody("bg-88", future) }));
+      }
+      if (opts?.method === "DELETE") return Promise.reject(new ApiError("boom", "internal", 500));
+      return Promise.resolve({ versions: [], next_cursor: null, favorites: [] });
+    });
+    renderView("d1");
+    const end = await screen.findByRole("button", { name: t("documents.breakGlass.endAccessButton") });
+    await waitFor(() => expect(end).toBeEnabled());
+    fireEvent.click(end);
+    expect(await screen.findByText(t("documents.breakGlass.endAccessFailed"))).toBeInTheDocument();
+    expect(screen.getByTestId("break-glass-active-banner")).toBeInTheDocument();
+    expect(screen.queryByTestId("document-locked-card")).toBeNull();
+  });
+
   it("sends no request and says so when no grant id can be found (H3)", async () => {
     const future = new Date(Date.now() + 3_600_000).toISOString();
     const deletes: string[] = [];
