@@ -36,7 +36,7 @@ func (q *Queries) DeleteExpiredOfficeLaunchSessions(ctx context.Context, arg Del
 }
 
 const getOfficeLaunchSessionByHash = `-- name: GetOfficeLaunchSessionByHash :one
-SELECT id, ticket_hash, account_id, organization_id, workspace_id, document_id, operation, version, client_id, deployment_id, device_session_id, created_at, expires_at, redeemed_at, revoked_at, created_by, created_by_kind FROM office_launch_sessions
+SELECT id, ticket_hash, account_id, organization_id, workspace_id, document_id, operation, version, client_id, deployment_id, device_session_id, created_at, expires_at, redeemed_at, revoked_at, created_by, created_by_kind, comment_id FROM office_launch_sessions
 WHERE ticket_hash = $1
 `
 
@@ -62,12 +62,13 @@ func (q *Queries) GetOfficeLaunchSessionByHash(ctx context.Context, ticketHash s
 		&i.RevokedAt,
 		&i.CreatedBy,
 		&i.CreatedByKind,
+		&i.CommentID,
 	)
 	return i, err
 }
 
 const getOfficeLaunchSessionByID = `-- name: GetOfficeLaunchSessionByID :one
-SELECT id, ticket_hash, account_id, organization_id, workspace_id, document_id, operation, version, client_id, deployment_id, device_session_id, created_at, expires_at, redeemed_at, revoked_at, created_by, created_by_kind FROM office_launch_sessions
+SELECT id, ticket_hash, account_id, organization_id, workspace_id, document_id, operation, version, client_id, deployment_id, device_session_id, created_at, expires_at, redeemed_at, revoked_at, created_by, created_by_kind, comment_id FROM office_launch_sessions
 WHERE id = $1
 `
 
@@ -93,6 +94,7 @@ func (q *Queries) GetOfficeLaunchSessionByID(ctx context.Context, id string) (Of
 		&i.RevokedAt,
 		&i.CreatedBy,
 		&i.CreatedByKind,
+		&i.CommentID,
 	)
 	return i, err
 }
@@ -101,16 +103,16 @@ const insertOfficeLaunchSession = `-- name: InsertOfficeLaunchSession :one
 
 INSERT INTO office_launch_sessions (
   id, ticket_hash, account_id, organization_id, workspace_id, document_id,
-  operation, version, client_id, deployment_id, expires_at, created_by,
-  created_by_kind
+  operation, version, client_id, deployment_id, comment_id, expires_at,
+  created_by, created_by_kind
 ) VALUES (
   $1, $2, $3,
   $4, $5, $6,
   $7, $8, $9,
   $10, $11, $12,
-  $13
+  $13, $14
 )
-RETURNING id, ticket_hash, account_id, organization_id, workspace_id, document_id, operation, version, client_id, deployment_id, device_session_id, created_at, expires_at, redeemed_at, revoked_at, created_by, created_by_kind
+RETURNING id, ticket_hash, account_id, organization_id, workspace_id, document_id, operation, version, client_id, deployment_id, device_session_id, created_at, expires_at, redeemed_at, revoked_at, created_by, created_by_kind, comment_id
 `
 
 type InsertOfficeLaunchSessionParams struct {
@@ -124,6 +126,7 @@ type InsertOfficeLaunchSessionParams struct {
 	Version        int32              `json:"version"`
 	ClientID       string             `json:"client_id"`
 	DeploymentID   string             `json:"deployment_id"`
+	CommentID      pgtype.Text        `json:"comment_id"`
 	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
 	CreatedBy      string             `json:"created_by"`
 	CreatedByKind  string             `json:"created_by_kind"`
@@ -143,6 +146,7 @@ func (q *Queries) InsertOfficeLaunchSession(ctx context.Context, arg InsertOffic
 		arg.Version,
 		arg.ClientID,
 		arg.DeploymentID,
+		arg.CommentID,
 		arg.ExpiresAt,
 		arg.CreatedBy,
 		arg.CreatedByKind,
@@ -166,6 +170,7 @@ func (q *Queries) InsertOfficeLaunchSession(ctx context.Context, arg InsertOffic
 		&i.RevokedAt,
 		&i.CreatedBy,
 		&i.CreatedByKind,
+		&i.CommentID,
 	)
 	return i, err
 }
@@ -183,7 +188,7 @@ WHERE ticket_hash = $2
   AND redeemed_at IS NULL
   AND revoked_at IS NULL
   AND expires_at > now() - INTERVAL '30 seconds'
-RETURNING id, ticket_hash, account_id, organization_id, workspace_id, document_id, operation, version, client_id, deployment_id, device_session_id, created_at, expires_at, redeemed_at, revoked_at, created_by, created_by_kind
+RETURNING id, ticket_hash, account_id, organization_id, workspace_id, document_id, operation, version, client_id, deployment_id, device_session_id, created_at, expires_at, redeemed_at, revoked_at, created_by, created_by_kind, comment_id
 `
 
 type RedeemOfficeLaunchSessionParams struct {
@@ -227,6 +232,7 @@ func (q *Queries) RedeemOfficeLaunchSession(ctx context.Context, arg RedeemOffic
 		&i.RevokedAt,
 		&i.CreatedBy,
 		&i.CreatedByKind,
+		&i.CommentID,
 	)
 	return i, err
 }

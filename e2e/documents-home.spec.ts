@@ -71,26 +71,34 @@ test("create card, folder, move and the other-modules section on the owner's hom
   // module's own text, so the check is the frame element, not what it renders.
   await expect(page.locator('iframe[src*="/office-frame/"]').first()).toBeAttached({ timeout: 60_000 });
 
-  // 2. A folder: created with its default name, opened, and named in the breadcrumb.
+  // 2. A folder: named in the folder-name dialog (the default name kept), then opened,
+  // listed in the sidebar tree and named in the breadcrumb.
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await sidebar(page).getByRole("button", { name: "Tạo thư mục" }).click();
+  const nameDialog = page.getByRole("dialog", { name: "Thư mục mới ở Tài liệu (gốc)" });
+  await expect(nameDialog.getByLabel("Tên thư mục")).toHaveValue(FOLDER_TITLE);
+  await nameDialog.getByRole("button", { name: "Tạo", exact: true }).click();
+  await expect(nameDialog).toBeHidden({ timeout: 30_000 });
+  await expect(sidebar(page).getByRole("treeitem", { name: new RegExp(FOLDER_TITLE) })).toBeVisible({ timeout: 30_000 });
   const crumbs = page.getByRole("navigation", { name: "Đường dẫn thư mục" });
   await expect(crumbs).toBeVisible({ timeout: 30_000 });
   await expect(crumbs.getByText(FOLDER_TITLE, { exact: true })).toHaveAttribute("aria-current", "page");
   await crumbs.getByRole("button", { name: "Tài liệu" }).click();
 
-  // 3. Move the docx into the folder from its row menu, then find it inside.
+  // 3. Move the docx into the folder from its row menu (tree picker), then find it inside.
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Thao tác cho ${DOCX_TITLE}` }).click();
   await page.getByRole("menuitem", { name: "Di chuyển" }).click();
   const dialog = page.getByRole("dialog");
-  const folderOption = dialog.getByRole("button", { name: FOLDER_TITLE });
+  const folderOption = dialog
+    .getByRole("tree", { name: "Chọn thư mục đích" })
+    .getByRole("treeitem", { name: FOLDER_TITLE, exact: true });
   await folderOption.click();
-  await expect(folderOption).toHaveAttribute("aria-pressed", "true");
-  await dialog.getByRole("button", { name: "Di chuyển" }).click();
-  await expect(page.getByText("Đã di chuyển.")).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("treeitem", { name: new RegExp(FOLDER_TITLE) }).click();
+  await expect(folderOption).toHaveAttribute("aria-selected", "true");
+  await dialog.getByRole("button", { name: "Di chuyển", exact: true }).click();
+  await expect(page.getByText(`Đã chuyển tới ${FOLDER_TITLE}`)).toBeVisible({ timeout: 30_000 });
+  await sidebar(page).getByRole("treeitem", { name: new RegExp(FOLDER_TITLE) }).click();
   await expect(page.getByRole("navigation", { name: "Đường dẫn thư mục" }).getByText(FOLDER_TITLE, { exact: true })).toBeVisible();
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
 

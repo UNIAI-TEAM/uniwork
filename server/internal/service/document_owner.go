@@ -82,13 +82,11 @@ func (s *DocumentService) CreateOwnedDocumentInTx(
 	if !validActor(actor) {
 		return db.Document{}, Invalid("actor không hợp lệ")
 	}
-	in.Title = strings.TrimSpace(in.Title)
-	if in.Title == "" {
-		return db.Document{}, Invalid("tên tài liệu không được để trống")
+	title, err := normalizeDocumentTitle(in.Kind, in.Title)
+	if err != nil {
+		return db.Document{}, err
 	}
-	if len([]rune(in.Title)) > 500 {
-		return db.Document{}, Invalid("tên tài liệu tối đa 500 ký tự")
-	}
+	in.Title = title
 	if strings.TrimSpace(in.OrganizationID) == "" {
 		return db.Document{}, Invalid("organization_id bắt buộc")
 	}

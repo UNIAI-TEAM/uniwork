@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -29,12 +30,19 @@ type DigestScheduler struct {
 	metrics  Metrics
 	now      func() time.Time
 	log      *slog.Logger
+	docs     DocumentPageChecker
 }
 
 // NewDigestScheduler wires the job.
 func NewDigestScheduler(q *db.Queries, renderer mail.Renderer, m mail.Enqueuer) *DigestScheduler {
 	return &DigestScheduler{q: q, renderer: renderer, mail: m, now: time.Now, log: slog.Default()}
 }
+
+// SetDocumentReaders wires the same document read gate Service.List marks
+// inbox rows through. The digest build skips a document row the recipient may
+// no longer read instead of mailing the title List deliberately drops.
+// Unwired, every document row is treated as access_lost (fail closed).
+func (s *DigestScheduler) SetDocumentReaders(d DocumentPageChecker) { s.docs = d }
 
 // SetMetrics attaches counters.
 func (s *DigestScheduler) SetMetrics(m Metrics) { s.metrics = m }
@@ -117,6 +125,15 @@ func (s *DigestScheduler) sendTo(ctx context.Context, user db.User, since pgtype
 	if err != nil {
 		return false, err
 	}
+	if len(data.Groups) == 0 {
+		// Every row was hidden by the document gate (access_lost or gone):
+		// there is nothing to say, so send no mail, but consume the rows so
+		// the next window does not ask about them again.
+		if err := s.q.MarkNotificationsDigested(ctx, ids); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
 	msg, err := s.renderer.NotificationDigest(user.Email, user.Locale, user.ID, data)
 	if err != nil {
 		return false, err
@@ -143,11 +160,50 @@ func (s *DigestScheduler) build(ctx context.Context, user db.User, rows []db.Not
 	names := map[string]string{}
 	var current *mail.DigestGroup
 	shown := 0
+	// The digest applies the same document read gate as Service.List, over
+	// the rows the mail can still render: one batched call for the page (the
+	// cap is digestMax, inside the gate's own bound of 100). A document row
+	// the recipient may no longer read is dropped rather than mailed with the
+	// title List deliberately withholds; unwired, every document row counts
+	// as access_lost, so a missing wiring never leaks a title.
+	docState := map[string]service.DocumentReadState{}
+	docIDs := make([]string, 0, digestMax)
+	for i := 0; i < len(rows) && i < digestMax; i++ {
+		if rows[i].ResourceType == "document" {
+			docIDs = append(docIDs, rows[i].ResourceID)
+		}
+	}
+	if len(docIDs) > 0 {
+		if s.docs == nil {
+			for _, id := range docIDs {
+				docState[id] = service.DocumentAccessLost
+			}
+		} else {
+			states, err := s.docs.FilterReadableDocuments(ctx, user.ID, docIDs)
+			if err != nil {
+				return data, nil, err
+			}
+			docState = states
+		}
+	}
 	for _, n := range rows {
 		ids = append(ids, n.ID)
 		if shown >= digestMax {
 			data.More++
 			continue
+		}
+		if n.ResourceType == "document" {
+			state := docState[n.ResourceID]
+			if state == "" {
+				state = service.DocumentAccessLost
+			}
+			if state != service.DocumentReadable {
+				// The slot is consumed so the batch above stays sufficient,
+				// but nothing is rendered: the title and snippet are content
+				// the recipient may no longer read, and the link is refused.
+				shown++
+				continue
+			}
 		}
 		wsKey := n.WorkspaceID.String
 		if current == nil || current.Key != wsKey {

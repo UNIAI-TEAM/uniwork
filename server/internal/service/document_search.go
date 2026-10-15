@@ -30,6 +30,13 @@ import (
 const (
 	defaultDocumentListPage = 50
 	maxDocumentListPage     = 100
+
+	// DocumentKindDocument is the list filter for every non-folder document
+	// (pages and files; E6/FD-05, UNI-1465).
+	DocumentKindDocument = "document"
+	// DocumentMatchTitle switches workspace search from search_text to
+	// uw_fold_search(title).
+	DocumentMatchTitle = "title"
 )
 
 // ListDocumentsInput is GET /workspaces/{ws}/documents.
@@ -43,12 +50,20 @@ type ListDocumentsInput struct {
 	ParentID    *string
 	Query       string
 	Kind        string
+	Match       string
 	Archived    bool
 	UpdatedBy   string
 	UpdatedFrom time.Time
 	UpdatedTo   time.Time
 	Cursor      string
 	Limit       int
+}
+
+// DocumentPathItem is one ancestor step from root to direct parent on a
+// workspace list result row (E6/FD-05, UNI-1465).
+type DocumentPathItem struct {
+	ID    string
+	Title string
 }
 
 // DocumentListItem is one result row. Snippet is a short excerpt of
@@ -61,6 +76,7 @@ type DocumentListItem struct {
 	// Access is the actor's level on the row (document_list_access.go); the
 	// zero value means the service did not compute it.
 	Access DocumentAccess
+	Path   []DocumentPathItem
 }
 
 // DocumentListPage is one page plus the cursor for the next.
@@ -247,17 +263,27 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	if limit > maxDocumentListPage {
 		limit = maxDocumentListPage
 	}
+	var matchTitle bool
+	switch in.Match {
+	case "":
+	case DocumentMatchTitle:
+		matchTitle = true
+	default:
+		return DocumentListPage{}, Invalid("match phải là title")
+	}
 	query := pgtype.Text{}
 	if q := escapeLikeQuery(in.Query); q != "" {
 		query = pgtype.Text{String: q, Valid: true}
 	}
-	kind := pgtype.Text{}
+	var kind, excludeKind pgtype.Text
 	switch in.Kind {
 	case "":
 	case DocumentKindPage, DocumentKindFile, DocumentKindFolder:
 		kind = pgtype.Text{String: in.Kind, Valid: true}
+	case DocumentKindDocument:
+		excludeKind = pgtype.Text{String: DocumentKindFolder, Valid: true}
 	default:
-		return DocumentListPage{}, Invalid("kind phải là page, file hoặc folder")
+		return DocumentListPage{}, Invalid("kind phải là page, file, folder hoặc document")
 	}
 	updatedBy := nullText(in.UpdatedBy)
 	var from, to pgtype.Timestamptz
@@ -268,6 +294,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		to = pgtype.Timestamptz{Time: in.UpdatedTo, Valid: true}
 	}
 	cursorID := nullText(cursor.ID)
+	agent := actor.Kind == audit.KindAgent
 
 	out := DocumentListPage{Items: []DocumentListItem{}}
 	switch {
@@ -282,7 +309,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
 			SeeAll: scope.seeAll, AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
 			AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
-			Kind: kind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to, Query: query,
+			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Query: query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
 		if err != nil {
@@ -295,7 +323,6 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			}
 			out.Items = append(out.Items, DocumentListItem{Document: d})
 		}
-		return out, s.attachListAccess(ctx, scope, workspaceID, actor.Kind == audit.KindAgent, out.Items)
 
 	case in.ParentID != nil && !query.Valid:
 		// One level of the tree, position order. q present searches the
@@ -309,7 +336,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
-			Kind: kind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Query: query, MatchTitle: matchTitle,
 			CursorPosition: cursorPos, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
 		if err != nil {
@@ -322,7 +350,6 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			}
 			out.Items = append(out.Items, DocumentListItem{Document: d})
 		}
-		return out, s.attachListAccess(ctx, scope, workspaceID, actor.Kind == audit.KindAgent, out.Items)
 
 	default:
 		var cursorAt pgtype.Timestamptz
@@ -334,7 +361,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
-			Kind: kind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to, Query: query,
+			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Query: query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
 		if err != nil {
@@ -347,8 +375,121 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			}
 			out.Items = append(out.Items, DocumentListItem{Document: listRowDocument(r), Snippet: r.Snippet})
 		}
-		return out, s.attachListAccess(ctx, scope, workspaceID, actor.Kind == audit.KindAgent, out.Items)
 	}
+	if err := s.attachListAccess(ctx, scope, workspaceID, agent, out.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	if !query.Valid {
+		return out, nil
+	}
+	return out, s.attachListPaths(ctx, scope, workspaceID, agent, out.Items)
+}
+
+// attachListPaths resolves Path (root -> direct parent) for one page of list
+// items in a fixed number of queries (E6/FD-05, UNI-1465): one recursive CTE
+// loads every ancestor of the page inside the same tenant + workspace, and one
+// share query evaluates access for any restricted/archived ancestors when
+// seeAll is false. Each item's walk up parent_id stops at the first missing or
+// unreadable ancestor, matching documentBreadcrumbs.
+func (s *DocumentService) attachListPaths(ctx context.Context, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	seenParents := make(map[string]struct{}, len(items))
+	parentIDs := make([]string, 0, len(items))
+	for _, it := range items {
+		if !it.Document.ParentID.Valid || it.Document.ParentID.String == "" {
+			continue
+		}
+		pid := it.Document.ParentID.String
+		if _, ok := seenParents[pid]; !ok {
+			seenParents[pid] = struct{}{}
+			parentIDs = append(parentIDs, pid)
+		}
+	}
+	if len(parentIDs) == 0 {
+		return nil
+	}
+	ancRows, err := s.q.ListDocumentAncestors(ctx, db.ListDocumentAncestorsParams{
+		OrganizationID: scope.organizationID,
+		WorkspaceID:    workspaceID,
+		Ids:            parentIDs,
+		MaxLevel:       int32(2 * maxDocumentDepth),
+	})
+	if err != nil {
+		return err
+	}
+	if len(ancRows) == 0 {
+		return nil
+	}
+	ancByID := make(map[string]db.ListDocumentAncestorsRow, len(ancRows))
+	var shareCheckIDs []string
+	for _, r := range ancRows {
+		ancByID[r.ID] = r
+		if scope.allowShares && !scope.seeAll && !r.OwnerKind.Valid {
+			if r.Visibility == documentVisibilityRestricted || r.ArchivedAt.Valid || !scope.memberVisible {
+				shareCheckIDs = append(shareCheckIDs, r.ID)
+			}
+		}
+	}
+	var shares map[string][]db.ListLiveSharesForDocumentsRow
+	if len(shareCheckIDs) > 0 {
+		shRows, err := s.q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
+			OrganizationID: scope.organizationID,
+			WorkspaceID:    workspaceID,
+			DocumentIds:    shareCheckIDs,
+		})
+		if err != nil {
+			return err
+		}
+		shares = make(map[string][]db.ListLiveSharesForDocumentsRow, len(shRows))
+		for _, sh := range shRows {
+			shares[sh.DocumentID] = append(shares[sh.DocumentID], sh)
+		}
+	}
+	for i := range items {
+		if !items[i].Document.ParentID.Valid {
+			continue
+		}
+		var up []DocumentPathItem
+		seen := map[string]struct{}{items[i].Document.ID: {}}
+		curID := items[i].Document.ParentID.String
+		for curID != "" && len(up) < 2*maxDocumentDepth {
+			if _, loop := seen[curID]; loop {
+				break
+			}
+			seen[curID] = struct{}{}
+			anc, ok := ancByID[curID]
+			if !ok || anc.OwnerKind.Valid {
+				break
+			}
+			doc := db.Document{
+				ID:             anc.ID,
+				OrganizationID: scope.organizationID,
+				WorkspaceID:    workspaceID,
+				Visibility:     anc.Visibility,
+				AclOwnerID:     anc.AclOwnerID,
+				ArchivedAt:     anc.ArchivedAt,
+			}
+			acc := listRowAccess(scope, agent, doc, shares[anc.ID])
+			if decideDocumentAccess(doc, acc, DocumentLevelView) != nil {
+				break
+			}
+			up = append(up, DocumentPathItem{ID: anc.ID, Title: anc.Title})
+			if !anc.ParentID.Valid {
+				break
+			}
+			curID = anc.ParentID.String
+		}
+		if len(up) > 0 {
+			path := make([]DocumentPathItem, len(up))
+			for j, p := range up {
+				path[len(up)-1-j] = p
+			}
+			items[i].Path = path
+		}
+	}
+	return nil
 }
 
 // ListRecentDocuments is GET /workspaces/{ws}/documents/recent: documents the
@@ -373,6 +514,11 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	cursor, err := decodeDocumentCursor(in.Cursor)
 	if err != nil {
 		return DocumentListPage{}, err
+	}
+	switch in.Match {
+	case "", DocumentMatchTitle:
+	default:
+		return DocumentListPage{}, Invalid("match phải là title")
 	}
 	limit := in.Limit
 	if limit <= 0 {

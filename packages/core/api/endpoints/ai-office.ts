@@ -33,6 +33,7 @@ const DISABLED_CLOUD: AiCloudStatus = {
   reason: "",
   tools: { web_search: false, image_search: false, image_generate: false, media_analyze: false, transcribe: false, chat: false },
   credits: { unit: "ai.tokens", used: 0, limit: null, remaining: null, period_end: null },
+  uniwork_model: "",
 };
 const EMPTY_SEARCH: AiCloudSearchResponse = { results: [] };
 const EMPTY_IMAGES: AiCloudImageResponse = { images: [], model: "" };

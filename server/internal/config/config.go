@@ -143,6 +143,10 @@ type Config struct {
 	// API nodes deliver each other's events. A single replica turns it off
 	// (REALTIME_RELAY=false) and every event goes straight to the local hub.
 	RealtimeRelay bool
+	// FileGCMode is the FileService collector's mode (FILE_GC_MODE):
+	// destructive (default) deletes unreferenced files, dry_run only reports,
+	// off skips the sweep. Load rejects any other value.
+	FileGCMode string
 }
 
 // PushEnabled: both VAPID keys present.
@@ -316,6 +320,12 @@ func Load() (Config, error) {
 		AdminRateLimitPerMin:          int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
 		HTTPMaxInFlight:               int(parseInt32(os.Getenv("HTTP_MAX_IN_FLIGHT"), 128)),
 		RealtimeRelay:                 !strings.EqualFold(strings.TrimSpace(os.Getenv("REALTIME_RELAY")), "false"),
+		FileGCMode:                    strings.ToLower(strings.TrimSpace(getenv("FILE_GC_MODE", "destructive"))),
+	}
+	switch c.FileGCMode {
+	case "destructive", "dry_run", "off":
+	default:
+		return c, fmt.Errorf("FILE_GC_MODE must be destructive, dry_run or off, got %q", c.FileGCMode)
 	}
 	if c.VAPIDSubject == "" {
 		c.VAPIDSubject = c.FrontendOrigin

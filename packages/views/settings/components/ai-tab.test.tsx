@@ -84,6 +84,9 @@ describe("AiTab", () => {
       { day: today, capability: "copilot_answer", actor_kind: "human", calls: 3, input_tokens: 300, output_tokens: 30, cost_micros: 4500 },
       { day: today, capability: "copilot_answer", actor_kind: "human", calls: 1, input_tokens: 100, output_tokens: 10, cost_micros: 1500 },
       { day: today, capability: "meeting_summarization", actor_kind: "human", calls: 1, input_tokens: 1000, output_tokens: 200, cost_micros: 30000 },
+      { day: today, capability: "office_uniwork_ai", actor_kind: "human", calls: 2, input_tokens: 500, output_tokens: 100, cost_micros: 10000 },
+      { day: today, capability: "office.byok", actor_kind: "human", calls: 1, input_tokens: 200, output_tokens: 50, cost_micros: 0 },
+      { day: today, capability: "office.byok_desktop", actor_kind: "human", calls: 1, input_tokens: 150, output_tokens: 25, cost_micros: 0 },
     ]);
     render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
     expect(await screen.findByRole("img", { name: "Token mỗi ngày" })).toBeInTheDocument();
@@ -91,12 +94,18 @@ describe("AiTab", () => {
     const todayLabel = new Intl.DateTimeFormat("vi", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${today}T00:00:00Z`));
     expect(screen.getByRole("cell", { name: todayLabel })).toBeInTheDocument();
     expect(screen.queryByRole("cell", { name: today })).toBeNull();
-    expect(screen.getByText("5")).toBeInTheDocument(); // calls
-    expect(screen.getByText("1.400")).toBeInTheDocument(); // tokens in
+    expect(screen.getByText("9")).toBeInTheDocument(); // calls
+    expect(screen.getByText("2.250")).toBeInTheDocument(); // tokens in
     const byCapability = screen.getAllByRole("table").at(-1)!;
     const rows = within(byCapability).getAllByRole("row");
-    expect(rows).toHaveLength(3); // header + 2 groups
+    expect(rows).toHaveLength(6); // header + 5 groups
     expect(rows[1]).toHaveTextContent("Hỏi UNI");
     expect(rows[1]).toHaveTextContent("440");
+    expect(rows[3]).toHaveTextContent("UniWork AI trong Office");
+    expect(rows[4]).toHaveTextContent("Office trên web (khóa riêng)");
+    expect(rows[5]).toHaveTextContent("Ứng dụng Office (khóa riêng)");
+    expect(within(byCapability).queryByText("office_uniwork_ai")).toBeNull();
+    expect(within(byCapability).queryByText("office.byok")).toBeNull();
+    expect(within(byCapability).queryByText("office.byok_desktop")).toBeNull();
   });
 });

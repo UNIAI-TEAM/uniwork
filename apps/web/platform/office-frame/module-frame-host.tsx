@@ -3,6 +3,7 @@
 import { paths } from "@uniwork/core/paths";
 import type { Document } from "@uniwork/core/types/document";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { launchCommentId } from "@uniwork/core/office";
 import { officeModuleSpec, officeModuleTooLarge } from "@uniwork/core/office/office-modules";
 import { useReportFrameComments } from "@uniwork/views/documents";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
@@ -73,7 +74,9 @@ async function downloadFile(document: Document) {
  */
 export function OfficeModuleHost(props: ModuleHostProps) {
   const { module, document, readonly } = props;
-  const desktopOpen = useFrameDesktopOpen(document);
+  const { searchParams } = useNavigation();
+  // A `?comment=` link hands its comment to the app too, so "Open in UniWork Office" lands on the thread.
+  const desktopOpen = { ...useFrameDesktopOpen(document), commentId: launchCommentId(searchParams.get("comment")) };
   const frameVersion = pinnedFrameVersion(module);
   const actions = {
     desktopAction: desktopOpenAllowed({ open: true, readonly })

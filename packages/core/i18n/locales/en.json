@@ -1146,7 +1146,10 @@
         "agent_planning": "Agent planning",
         "agent_generation": "Agent generation",
         "agent_evaluation": "Agent evaluation",
-        "embedding": "Embedding"
+        "embedding": "Embedding",
+        "office_uniwork_ai": "UniWork AI in Office",
+        "office_byok": "Office on the web (own key)",
+        "office_byok_desktop": "Office desktop app (own key)"
       },
       "actor": {
         "human": "Human",
@@ -4917,11 +4920,17 @@
       "chat_reminder": "Reminder: {{body}}",
       "email_hub_new_mail": "You have {{count}} unread message(s) · {{mailbox}}",
       "document_commented": "{{actor}} commented on “{{document}}”",
+      "document_commented_untitled": "{{actor}} commented on a document",
       "document_mentioned": "{{actor}} mentioned you in a comment on “{{document}}”.",
+      "document_mentioned_untitled": "{{actor}} mentioned you in a comment on a document.",
       "document_comment_replied": "{{actor}} replied to your comment in “{{document}}”.",
+      "document_comment_replied_untitled": "{{actor}} replied to your comment in a document.",
       "document_discussion_mentioned": "{{actor}} mentioned you in a discussion on “{{document}}”.",
+      "document_discussion_mentioned_untitled": "{{actor}} mentioned you in a discussion on a document.",
       "document_discussion_replied": "{{actor}} replied to your discussion post in “{{document}}”.",
+      "document_discussion_replied_untitled": "{{actor}} replied to your discussion post in a document.",
       "document_comment_resolved": "{{actor}} marked your comment in “{{document}}” as resolved.",
+      "document_comment_resolved_untitled": "{{actor}} marked your comment in a document as resolved.",
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
       "chat_dm": "{{actor}} sent you a message",
       "chat_thread_replied": "{{actor}} replied to a thread in {{room}}"
@@ -8894,6 +8903,14 @@
           "restored": "Restored {{title}}"
         }
       },
+      "rename": {
+        "title": "Rename",
+        "label": "Document name",
+        "name_placeholder": "e.g. Plan 2026",
+        "name_empty": "Enter a document name.",
+        "name_too_long": "A document name is at most {{max}} characters.",
+        "failed": "Could not rename the document. Try again."
+      },
       "greeting": {
         "morning": "Good morning. What would you like to create today?",
         "morning_named": "Good morning, {{name}}. What would you like to create today?",
@@ -9138,7 +9155,7 @@
         "path_root": "Documents (root)",
         "loading": "Searching…",
         "empty_title": "No results",
-        "empty_description": "Try another name or change the filter. Press Esc to go back to the folder.",
+        "empty_description": "Try another name or change the filter. Clear the search to go back to the folder.",
         "error_title": "Couldn't search",
         "error_description": "Check your connection and try again."
       }
@@ -9382,7 +9399,7 @@
         "download_failed": "Download failed. Please try again.",
         "downloading": "Preparing…",
         "title": "Get UniWork Office for desktop",
-        "not_installed": "The desktop app didn't respond. Install the right version, then select Open again.",
+        "not_installed": "The desktop app didn't respond. If UniWork Office already opened, you can close this dialog. If not, install the right version, then select Open again.",
         "expired": "That desktop handoff expired. Try opening it again.",
         "error": "The desktop handoff did not complete. Your editor and draft are unchanged.",
         "unavailable": "Install link unavailable",

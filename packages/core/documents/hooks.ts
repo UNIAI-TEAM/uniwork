@@ -34,11 +34,19 @@ import {
 // "result not verifiable" — the caller keeps its draft and idempotency key,
 // and a malformed answer never reads as saved.
 
-export function useDocument(wsId: string, documentId: string, opts?: { enabled?: boolean }) {
+export function useDocument(
+  wsId: string,
+  documentId: string,
+  opts?: {
+    enabled?: boolean;
+    retry?: boolean | number | ((failureCount: number, error: unknown) => boolean);
+  },
+) {
   return useQuery({
     queryKey: documentKeys.detail(wsId, documentId),
     queryFn: ({ signal }) => getDocument(documentId, signal),
     enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
+    ...(opts?.retry !== undefined ? { retry: opts.retry } : {}),
   });
 }
 

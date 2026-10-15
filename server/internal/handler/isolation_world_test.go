@@ -658,6 +658,18 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		"content": map[string]any{"type": "doc", "content": []any{map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": m + " page body"}}}}},
 	})
 	tn.ids["document"] = isoID(t, out, "document")
+	// The folder kind (E6 FD-02): a live folder a create or a move can name as
+	// a parent, and one sitting in the trash for the restore route, whose name
+	// the restore has to place back among its live siblings.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Folder", "kind": "folder",
+	})
+	tn.ids["folder"] = isoID(t, out, "document")
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Trash folder", "kind": "folder",
+	})
+	tn.ids["archivedFolder"] = isoID(t, out, "document")
+	w.call(t, "POST", "/api/v1/documents/"+tn.ids["archivedFolder"]+"/archive", tn.token, nil)
 	dp := "/api/v1/documents/" + tn.ids["document"]
 	out = w.call(t, "POST", dp+"/comments", tn.token, map[string]any{"body": m + " doc comment", "type": "comment"})
 	tn.ids["docComment"] = isoID(t, out, "comment")
@@ -689,6 +701,11 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		content: []byte("# " + m + " file body\n"),
 	})
 	tn.ids["fileDocument"] = isoID(t, out, "document")
+	// A comment on the file document itself: the office launch session's
+	// own-rows control must name a comment of the document its path names
+	// (R1-1 binds the ticket's comment to its document).
+	out = w.call(t, "POST", "/api/v1/documents/"+tn.ids["fileDocument"]+"/comments", tn.token, map[string]any{"body": m + " file doc comment", "type": "comment"})
+	tn.ids["fileDocComment"] = isoID(t, out, "comment")
 	status, raw := w.do(t, http.MethodPost, "/api/v1/documents/"+tn.ids["fileDocument"]+"/office/jobs", tn.token, isoBody{
 		json: map[string]any{"operation": "serialize"}, headers: map[string]string{"Idempotency-Key": util.NewID()},
 	})

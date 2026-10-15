@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -70,9 +71,10 @@ func errFolderTooLarge() error {
 // requireManageOnSubtree refuses (ErrForbidden) unless the actor holds manage
 // on every live node of the subtree. One query names the nodes a human actor
 // does not trivially manage (workspace owner/admin, ACL owner, a user or
-// organization manage share); only those get the full effectiveLevel, and the
-// first refusal ends the walk. Anyone else is checked node by node, bounded by
-// documentArchiveMaxNodes.
+// organization manage share) over the bounded id set the archive walk already
+// read - it never walks the tree a second time; only those get the full
+// effectiveLevel, and the first refusal ends the walk. Anyone else is checked
+// node by node, bounded by documentArchiveMaxNodes.
 func (s *DocumentService) requireManageOnSubtree(ctx context.Context, q *db.Queries, actor Actor, root db.Document, live []string) error {
 	check := live
 	if actor.Kind == audit.KindHuman {
@@ -82,7 +84,7 @@ func (s *DocumentService) requireManageOnSubtree(ctx context.Context, q *db.Quer
 		}
 		check, err = q.ListDocumentSubtreeNeedingAccessCheck(ctx, db.ListDocumentSubtreeNeedingAccessCheckParams{
 			IsWsAdmin: isAdmin, IsWsMember: isMember, ActorID: actor.ID,
-			OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, RootID: root.ID,
+			OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, Ids: live,
 		})
 		if err != nil {
 			return err
@@ -210,10 +212,11 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 			return DocumentArchiveResult{View: view, BatchID: doc.ArchiveBatchID.String}, nil
 		}
 		// One bounded read of the live subtree: a huge folder is refused before
-		// any lock-holding work, and the access check below is one query.
+		// any lock-holding work, and the access check below is one query over
+		// the same ids. The walk stops after the bound is passed.
 		live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
-			MaxRows: int32(s.archiveBound()) + 1,
+			MaxRows: int32(s.archiveBound()) + 1, MaxLevel: subtreeMaxLevel(),
 		})
 		if err != nil {
 			return DocumentArchiveResult{}, err
@@ -221,6 +224,10 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 		if len(live) > s.archiveBound() {
 			return DocumentArchiveResult{}, errFolderTooLarge()
 		}
+		// The walk cannot sort (that would evaluate the whole CTE), so the
+		// command sorts the ids it did read: the refusal order and the log
+		// stay stable however the planner returns them.
+		sort.Strings(live)
 		// Never archive a restricted child the caller cannot manage: refuse the
 		// whole command, never leave the child orphaned live.
 		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
@@ -268,6 +275,114 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 	})
 }
 
+// documentArchiveImpactTx is the FD-04 test seam: it runs inside the impact
+// read transaction, after the subtree walk and before the bound check, the
+// manage gate and the count, so a test can read the transaction's own
+// isolation and access mode (SHOW transaction_isolation / transaction_read_only)
+// or commit a writer in between and pin that the numbers still describe the
+// one snapshot the walk opened. Never set in production.
+var documentArchiveImpactTx func(ctx context.Context, tx pgx.Tx)
+
+// DocumentArchiveImpact is what one ArchiveDocument of a subtree would move
+// (FD-04, addendum §3.4): the shape the delete dialog warns with.
+type DocumentArchiveImpact struct {
+	// Folders and Documents count the live subtree WITHOUT the root, by kind:
+	// a page inside a page counts as a document.
+	Folders   int
+	Documents int
+	// Total is the rows the archive would stamp, the root included.
+	Total int
+	// MaxNodes is the bound one archive accepts.
+	MaxNodes int
+	// TooLarge replaces the counts when the subtree passes the bound; the
+	// walk stopped after the bound, so no count is known and none is claimed.
+	TooLarge bool
+}
+
+// ArchiveImpact answers what ArchiveDocument would do to a subtree without
+// doing it. The checks run the archive command's own root gate (not found,
+// owned, then manage - the same order, so the read can never show counts for a
+// delete the command refuses), then the same bounded subtree walk, then the
+// same manage gate on every node of that id set, then the count. All three
+// steps after the root gate run in ONE REPEATABLE READ, read-only transaction:
+// under READ COMMITTED each statement takes its own snapshot, and the promise
+// that the ids, the access check and the numbers describe one moment would not
+// hold. Reading writes nothing - no audit row, no event.
+func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, documentID string) (DocumentArchiveImpact, error) {
+	if !validActor(actor) || documentID == "" {
+		return DocumentArchiveImpact{}, ErrNotFound
+	}
+	bound := s.archiveBound()
+	out := DocumentArchiveImpact{MaxNodes: bound}
+	// (1) the archive command's own root gate, in its order: an id the caller
+	// cannot see is not found, an owned root is refused with
+	// document_owned_by_work_product (so the dialog never shows counts for a
+	// delete the command refuses), and only then must manage be held.
+	doc, err := s.q.GetDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DocumentArchiveImpact{}, ErrNotFound
+	}
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	access, err := s.effectiveLevel(ctx, s.q, actor, doc)
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	if err := decideArchiveRootAccess(doc, access); err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	// (2) the same bounded walk as the archive command, one row past the
+	// bound: the walk stops early, so an oversized subtree is refused before
+	// any per-node work or count.
+	live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
+		MaxRows: int32(bound) + 1, MaxLevel: subtreeMaxLevel(),
+	})
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	if documentArchiveImpactTx != nil {
+		documentArchiveImpactTx(ctx, tx)
+	}
+	if len(live) > bound {
+		out.TooLarge = true
+		return out, nil
+	}
+	// The walk cannot sort (that would evaluate the whole CTE): sorting here
+	// keeps the gate's refusal order as stable as the command's.
+	sort.Strings(live)
+	// (3) the archive command's own gate on exactly this id set: one node the
+	// caller cannot manage refuses the whole read, and the body never carries
+	// a number.
+	if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	// (4) count on exactly that id set. page and file are both "documents" to
+	// the dialog; the root is counted only in the total.
+	rows, err := q.CountLiveDocumentSubtreeByKind(ctx, db.CountLiveDocumentSubtreeByKindParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, Ids: live, RootID: doc.ID,
+	})
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	for _, row := range rows {
+		if row.Kind == DocumentKindFolder {
+			out.Folders += int(row.N)
+			continue
+		}
+		out.Documents += int(row.N)
+	}
+	out.Total = out.Folders + out.Documents + 1
+	return out, nil
+}
+
 // RestoreDocument brings back exactly the batch the archive stamped. A node
 // whose parent stayed in the trash (or was purged) re-roots itself so it is
 // reachable again.
@@ -303,6 +418,39 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 		if err := s.requireManageOnArchived(ctx, q, actor, members); err != nil {
 			return DocumentArchiveResult{}, err
 		}
+		// The final parent of every member and the final name of every member
+		// that lands in a live parent are decided while the rows are still
+		// archived: the partial unique index of PR 2 only covers live rows, so
+		// the batch is named first and cleared second, and an error on the way
+		// leaves the whole batch in the trash (§3.3).
+		names, err := s.restoreNames(ctx, q, doc, members)
+		if err != nil {
+			return DocumentArchiveResult{}, err
+		}
+		for _, n := range names {
+			if n.title == n.member.Title && n.parentID == n.member.ParentID.String {
+				continue // comes back exactly as it left: nothing to write
+			}
+			if !n.member.ParentID.Valid || n.parentID != "" {
+				if _, err := q.RenameArchivedDocument(ctx, db.RenameArchivedDocumentParams{
+					ID: n.member.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+					Title: n.title, SearchText: documentSearchText(n.title, n.member.ContentText),
+					UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
+				}); err != nil {
+					return DocumentArchiveResult{}, err
+				}
+				continue
+			}
+			// A member whose parent did not come back with it re-roots itself:
+			// parent, position and name in one write, so it is reachable again.
+			if _, err := q.DetachDocumentToRoot(ctx, db.DetachDocumentToRootParams{
+				ID: n.member.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+				Position: n.position, Title: n.title, SearchText: documentSearchText(n.title, n.member.ContentText),
+				UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
+			}); err != nil {
+				return DocumentArchiveResult{}, err
+			}
+		}
 		var restored []string
 		if batch != "" {
 			rows, err := q.ClearDocumentArchiveBatch(ctx, db.ClearDocumentArchiveBatchParams{
@@ -323,42 +471,20 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 			}
 			restored = []string{doc.ID}
 		}
-		inBatch := make(map[string]bool, len(restored))
-		for _, id := range restored {
-			inBatch[id] = true
-		}
-		// A member whose parent is not in the batch comes back orphaned:
-		// detach it to the root so it is reachable again.
-		for _, m := range members {
-			if !inBatch[m.ID] || !m.ParentID.Valid || inBatch[m.ParentID.String] {
-				continue // a parent restored in the same batch is live again: nothing to look up
-			}
-			parent, err := q.GetDocument(ctx, db.GetDocumentParams{
-				ID: m.ParentID.String, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-			})
-			switch {
-			case errors.Is(err, pgx.ErrNoRows):
-				// Purged while the batch sat in the trash.
-			case err != nil:
-				return DocumentArchiveResult{}, err
-			case !parent.ArchivedAt.Valid:
-				continue // the parent came back earlier in this batch, or was never archived
-			}
-			pos, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
-				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, ParentID: pgtype.Text{},
-			})
-			if err != nil {
-				return DocumentArchiveResult{}, err
-			}
-			if _, err := q.DetachDocumentToRoot(ctx, db.DetachDocumentToRootParams{
-				ID: m.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-				Position: pos, UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
-			}); err != nil {
-				return DocumentArchiveResult{}, err
-			}
-		}
 		recs := make([]audit.Recorded, 0, len(restored))
+		named := make(map[string]restoreName, len(names))
+		for _, n := range names {
+			named[n.member.ID] = n
+		}
 		for _, id := range restored {
+			n := named[id]
+			before, after := map[string]any{}, map[string]any{}
+			if n.title != n.member.Title {
+				before["title"], after["title"] = n.member.Title, n.title
+			}
+			if n.parentID != n.member.ParentID.String {
+				before["parent_id"], after["parent_id"] = textOrNil(n.member.ParentID), textOrNil(nullText(n.parentID))
+			}
 			recs = append(recs, audit.Recorded{
 				Entry: audit.Entry{
 					OrganizationID: doc.OrganizationID,
@@ -367,6 +493,7 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 					Action:         audit.ActionDocumentRestored,
 					ResourceType:   "document",
 					ResourceID:     id,
+					Changes:        audit.Diff(before, after),
 					Metadata:       map[string]any{"archive_batch_id": batch},
 				},
 				Events: []audit.Event{{Topic: "document.restored", Payload: map[string]string{
@@ -389,6 +516,133 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 		}
 		return DocumentArchiveResult{View: view, BatchID: batch, Affected: restored}, nil
 	})
+}
+
+// restoreName is one batch member's final slot: the parent it comes back under
+// ("" is the root), the position it takes there, and the name it comes back
+// with. Both are decided while the row is still archived.
+type restoreName struct {
+	member   db.Document
+	parentID string
+	position float64
+	title    string
+}
+
+// restoreNames decides the final parent and the final name of every member of a
+// batch (§3.3).
+//
+// Parent: the batch root comes back under its old parent when that parent is
+// live and outside the batch, and re-roots otherwise; every other member keeps
+// its parent when the batch brings that parent back or when it is still live,
+// and re-roots when it was purged or is still in the trash. A member that
+// re-roots takes a fresh position at the end of the root list.
+//
+// Name: members are taken in the one stable order (final parent, position,
+// created_at, id) and each name is compared against the live documents of its
+// final parent and against the names this batch has already given out for that
+// parent and kind - an old batch may hold a duplicate pair, and its second half
+// moves aside rather than coming back as a duplicate.
+func (s *DocumentService) restoreNames(ctx context.Context, q *db.Queries, root db.Document, members []db.Document) ([]restoreName, error) {
+	inBatch := make(map[string]bool, len(members))
+	for _, m := range members {
+		inBatch[m.ID] = true
+	}
+	plan := make([]restoreName, 0, len(members))
+	for _, m := range members {
+		final := ""
+		position := m.Position
+		if m.ParentID.Valid && !inBatch[m.ParentID.String] {
+			parent, err := q.GetDocument(ctx, db.GetDocumentParams{
+				ID: m.ParentID.String, OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID,
+			})
+			switch {
+			case errors.Is(err, pgx.ErrNoRows):
+				// Purged while the batch sat in the trash: re-root it.
+			case err != nil:
+				return nil, err
+			case !parent.ArchivedAt.Valid:
+				final = m.ParentID.String
+			}
+			if final == "" {
+				pos, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
+					OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, ParentID: pgtype.Text{},
+				})
+				if err != nil {
+					return nil, err
+				}
+				position = pos
+			}
+		} else if m.ParentID.Valid {
+			final = m.ParentID.String
+		}
+		plan = append(plan, restoreName{member: m, parentID: final, position: position, title: m.Title})
+	}
+	sort.SliceStable(plan, func(i, j int) bool {
+		a, b := plan[i], plan[j]
+		if a.parentID != b.parentID {
+			return a.parentID < b.parentID
+		}
+		if a.position != b.position {
+			return a.position < b.position
+		}
+		if !a.member.CreatedAt.Time.Equal(b.member.CreatedAt.Time) {
+			return a.member.CreatedAt.Time.Before(b.member.CreatedAt.Time)
+		}
+		return a.member.ID < b.member.ID
+	})
+	// given holds, per (final parent, kind), the keys SQL computed for the
+	// names this batch has already handed out: a later member collides with
+	// them exactly as it collides with a live sibling, and the allocator skips
+	// them.
+	given := map[string]map[string]bool{}
+	for i := range plan {
+		group := plan[i].parentID + "\x00" + plan[i].member.Kind
+		keys := given[group]
+		if keys == nil {
+			keys = map[string]bool{}
+			given[group] = keys
+		}
+		scope := documentNameScope{
+			OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID,
+			ParentID: plan[i].parentID, Kind: plan[i].member.Kind,
+		}
+		rows, err := s.nameKeys(ctx, q, scope, []string{plan[i].title})
+		if err != nil {
+			return nil, err
+		}
+		if len(rows) != 1 {
+			return nil, errors.New("documents: restore name lookup returned no row")
+		}
+		if rows[0].Taken || keys[rows[0].Key] {
+			decision, err := s.allocateDocumentTitle(ctx, q, scope, plan[i].title, keys)
+			if err != nil {
+				return nil, err
+			}
+			plan[i].title = decision.Title
+			rows[0].Key = decision.Key
+		}
+		keys[rows[0].Key] = true
+	}
+	return plan, nil
+}
+
+// decideArchiveRootAccess is the archive command's root decision, shared with
+// the archive-impact read so the two can never drift: a caller with nothing
+// readable is not found (never a confirmation of the id), an owned root is
+// refused with document_owned_by_work_product, and only then must manage be
+// held. The owned refusal sits between the two on purpose - an owned document
+// is not the public archive path's business whatever level the caller holds, so
+// the answer is 409 rather than the 403 a bare manage gate would give.
+func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
+	if access.Level == DocumentLevelNone {
+		// Nothing readable at all is not found - the owned refusal below
+		// must never confirm an id to a caller who cannot see it.
+		return ErrNotFound
+	}
+	if doc.OwnerKind.Valid {
+		return errDocumentOwned()
+	}
+	return decideDocumentAccess(doc, access, DocumentLevelManage)
 }
 
 // documentBatchLifecycle is the shared envelope of archive and restore: one
@@ -460,15 +714,7 @@ func (s *DocumentService) documentBatchLifecycle(
 	if err != nil {
 		return DocumentArchiveResult{}, err
 	}
-	if access.Level == DocumentLevelNone {
-		// Nothing readable at all is not found - the owned refusal below
-		// must never confirm an id to a caller who cannot see it.
-		return DocumentArchiveResult{}, ErrNotFound
-	}
-	if doc.OwnerKind.Valid {
-		return DocumentArchiveResult{}, errDocumentOwned()
-	}
-	if err := decideDocumentAccess(doc, access, DocumentLevelManage); err != nil {
+	if err := decideArchiveRootAccess(doc, access); err != nil {
 		return DocumentArchiveResult{}, err
 	}
 	out, err := fn(q, doc, access)

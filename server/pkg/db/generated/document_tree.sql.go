@@ -201,22 +201,82 @@ func (q *Queries) ClearDocumentArchiveBatch(ctx context.Context, arg ClearDocume
 	return items, nil
 }
 
+const countLiveDocumentSubtreeByKind = `-- name: CountLiveDocumentSubtreeByKind :many
+SELECT d.kind, count(*) AS n
+FROM documents d
+WHERE d.organization_id = $1
+  AND d.workspace_id = $2
+  AND d.id = ANY($3::text[])
+  AND d.id <> $4
+  AND d.archived_at IS NULL
+GROUP BY d.kind
+`
+
+type CountLiveDocumentSubtreeByKindParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+	RootID         string   `json:"root_id"`
+}
+
+type CountLiveDocumentSubtreeByKindRow struct {
+	Kind string `json:"kind"`
+	N    int64  `json:"n"`
+}
+
+// The live rows of the bounded id set the archive walk returned, counted by
+// kind and WITHOUT the root: GET /documents/{documentID}/archive-impact
+// answers folders/documents over the subtree and adds the root back in total
+// only (FD-04, addendum §3.4). The caller hands the ids
+// ListLiveDocumentSubtreeIDs read inside the same REPEATABLE READ, read-only
+// transaction, so the id set, the manage gate and these counts all come from
+// one snapshot; archived_at IS NULL repeats the archive command's own write
+// predicate, so the count is exactly the rows it would stamp besides the root.
+func (q *Queries) CountLiveDocumentSubtreeByKind(ctx context.Context, arg CountLiveDocumentSubtreeByKindParams) ([]CountLiveDocumentSubtreeByKindRow, error) {
+	rows, err := q.db.Query(ctx, countLiveDocumentSubtreeByKind,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Ids,
+		arg.RootID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountLiveDocumentSubtreeByKindRow{}
+	for rows.Next() {
+		var i CountLiveDocumentSubtreeByKindRow
+		if err := rows.Scan(&i.Kind, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const detachDocumentToRoot = `-- name: DetachDocumentToRoot :one
 UPDATE documents
 SET parent_id = NULL,
     position = $1,
+    title = $2,
+    search_text = $3,
     revision = revision + 1,
-    updated_by = $2,
-    updated_by_kind = $3,
+    updated_by = $4,
+    updated_by_kind = $5,
     updated_at = now()
-WHERE id = $4
-  AND organization_id = $5
-  AND workspace_id = $6
+WHERE id = $6
+  AND organization_id = $7
+  AND workspace_id = $8
 RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision
 `
 
 type DetachDocumentToRootParams struct {
 	Position       float64 `json:"position"`
+	Title          string  `json:"title"`
+	SearchText     string  `json:"search_text"`
 	UpdatedBy      string  `json:"updated_by"`
 	UpdatedByKind  string  `json:"updated_by_kind"`
 	ID             string  `json:"id"`
@@ -225,10 +285,15 @@ type DetachDocumentToRootParams struct {
 }
 
 // A restored node whose parent did not come back with it (still archived, or
-// purged) re-roots itself so it is reachable again.
+// purged) re-roots itself so it is reachable again. The restore writes the
+// final title here too, while the row is still in the trash: the partial
+// unique index does not apply to archived rows, so the batch is named first
+// and cleared second (§3.3).
 func (q *Queries) DetachDocumentToRoot(ctx context.Context, arg DetachDocumentToRootParams) (Document, error) {
 	row := q.db.QueryRow(ctx, detachDocumentToRoot,
 		arg.Position,
+		arg.Title,
+		arg.SearchText,
 		arg.UpdatedBy,
 		arg.UpdatedByKind,
 		arg.ID,
@@ -372,7 +437,7 @@ WITH RECURSIVE sub AS (
   JOIN sub ON d.parent_id = sub.id
   WHERE d.organization_id = $1
     AND d.workspace_id = $2
-    AND sub.lvl < 10
+    AND sub.lvl < $4::int
 )
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, sub.lvl AS subtree_depth
 FROM sub
@@ -383,6 +448,7 @@ type ListDocumentSubtreeParams struct {
 	OrganizationID string `json:"organization_id"`
 	WorkspaceID    string `json:"workspace_id"`
 	RootID         string `json:"root_id"`
+	MaxLevel       int32  `json:"max_level"`
 }
 
 type ListDocumentSubtreeRow struct {
@@ -436,12 +502,17 @@ type ListDocumentSubtreeRow struct {
 // tree command keeps (N-01).
 // The subtree rooted at one document: the root row itself plus every
 // descendant, each with its distance from the root (1 = the root). The
-// recursion is capped at twice the tree bound so a corrupted parent chain is
-// reported by the service, not walked forever. Archived nodes stay in the
-// result - a cycle or a depth check through an already-archived node is
-// still one.
+// recursion is capped at max_level (twice the tree bound, from
+// subtreeMaxLevel) so a corrupted parent chain is reported by the service,
+// not walked forever. Archived nodes stay in the result - a cycle or a depth
+// check through an already-archived node is still one.
 func (q *Queries) ListDocumentSubtree(ctx context.Context, arg ListDocumentSubtreeParams) ([]ListDocumentSubtreeRow, error) {
-	rows, err := q.db.Query(ctx, listDocumentSubtree, arg.OrganizationID, arg.WorkspaceID, arg.RootID)
+	rows, err := q.db.Query(ctx, listDocumentSubtree,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.RootID,
+		arg.MaxLevel,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -503,32 +574,20 @@ func (q *Queries) ListDocumentSubtree(ctx context.Context, arg ListDocumentSubtr
 }
 
 const listDocumentSubtreeNeedingAccessCheck = `-- name: ListDocumentSubtreeNeedingAccessCheck :many
-WITH RECURSIVE sub AS (
-  SELECT r.id, 1 AS lvl
-  FROM documents r
-  WHERE r.organization_id = $4
-    AND r.workspace_id = $5
-    AND r.id = $6
-  UNION ALL
-  SELECT d.id, sub.lvl + 1
-  FROM documents d
-  JOIN sub ON d.parent_id = sub.id
-  WHERE d.organization_id = $4
-    AND d.workspace_id = $5
-    AND sub.lvl < 10
-)
 SELECT d.id
-FROM sub
-JOIN documents d ON d.id = sub.id
-WHERE d.archived_at IS NULL
+FROM documents d
+WHERE d.organization_id = $1
+  AND d.workspace_id = $2
+  AND d.id = ANY($3::text[])
+  AND d.archived_at IS NULL
   AND (
     d.owner_kind IS NOT NULL
     OR NOT (
-      $1::boolean
+      $4::boolean
       -- acl_owner_id is NULL for agent/system-created documents: without the
       -- IS NOT NULL guard the comparison is NULL, NOT NULL stays NULL and the
       -- row would drop out of the result as if it were manageable.
-      OR ($2::boolean AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3::text)
+      OR ($5::boolean AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $6::text)
       OR EXISTS (
         SELECT 1
         FROM document_shares s
@@ -538,7 +597,7 @@ WHERE d.archived_at IS NULL
           AND s.revoked_at IS NULL
           AND s.level = 'manage'
           AND (
-            (s.principal_type = 'user' AND s.principal_id = $3::text)
+            (s.principal_type = 'user' AND s.principal_id = $6::text)
             OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
           )
       )
@@ -548,30 +607,33 @@ ORDER BY d.id
 `
 
 type ListDocumentSubtreeNeedingAccessCheckParams struct {
-	IsWsAdmin      bool   `json:"is_ws_admin"`
-	IsWsMember     bool   `json:"is_ws_member"`
-	ActorID        string `json:"actor_id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	RootID         string `json:"root_id"`
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+	IsWsAdmin      bool     `json:"is_ws_admin"`
+	IsWsMember     bool     `json:"is_ws_member"`
+	ActorID        string   `json:"actor_id"`
 }
 
-// The live nodes of a subtree the actor does not hold manage on through a path
-// plain SQL can read: a workspace owner/admin (is_ws_admin), the ACL owner
-// (a workspace member only, is_ws_member), or a live user/organization share at
-// manage. A node it returns is not refused - it still needs the full
-// effectiveLevel (workspace-principal shares, work-product owners); a node it
-// omits is manageable, so one query replaces a per-node access loop for the
-// common archive. Owned documents are always returned: the owner resolver
-// decides them, never these columns.
+// The live nodes of the bounded id set the archive walk returned that the
+// actor does not hold manage on through a path plain SQL can read: a workspace
+// owner/admin (is_ws_admin), the ACL owner (a workspace member only,
+// is_ws_member), or a live user/organization share at manage. A node it
+// returns is not refused - it still needs the full effectiveLevel
+// (workspace-principal shares, work-product owners); a node it omits is
+// manageable, so one query replaces a per-node access loop for the common
+// archive. Owned documents are always returned: the owner resolver decides
+// them, never these columns. It never walks the tree itself: the caller hands
+// it the bounded id set ListLiveDocumentSubtreeIDs returned, so the gate runs
+// on at most one archive bound of rows whatever the tree size.
 func (q *Queries) ListDocumentSubtreeNeedingAccessCheck(ctx context.Context, arg ListDocumentSubtreeNeedingAccessCheckParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, listDocumentSubtreeNeedingAccessCheck,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Ids,
 		arg.IsWsAdmin,
 		arg.IsWsMember,
 		arg.ActorID,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.RootID,
 	)
 	if err != nil {
 		return nil, err
@@ -604,13 +666,12 @@ WITH RECURSIVE sub AS (
   JOIN sub ON d.parent_id = sub.id
   WHERE d.organization_id = $2
     AND d.workspace_id = $3
-    AND sub.lvl < 10
+    AND sub.lvl < $5::int
 )
 SELECT d.id
 FROM sub
 JOIN documents d ON d.id = sub.id
 WHERE d.archived_at IS NULL
-ORDER BY d.id
 LIMIT $1
 `
 
@@ -619,18 +680,27 @@ type ListLiveDocumentSubtreeIDsParams struct {
 	OrganizationID string `json:"organization_id"`
 	WorkspaceID    string `json:"workspace_id"`
 	RootID         string `json:"root_id"`
+	MaxLevel       int32  `json:"max_level"`
 }
 
 // The live (not archived) ids of a subtree, at most max_rows of them: the
 // archive command asks for one row past its bound to learn the subtree is too
-// big without walking all of it. The recursion walks through archived nodes
-// like ListDocumentSubtree and only the output is filtered.
+// big without walking all of it. The walk STOPS after max_rows live rows:
+// UNION ALL, the live filter in the outer query over the primary key, and no
+// ORDER BY before LIMIT - an ordering step would force the whole CTE to be
+// evaluated, while Postgres only computes the CTE rows the outer query really
+// takes. Archived nodes on the way are still walked (a live child of an
+// archived parent must stay reachable) but do not count against the cap. The
+// ids come back in no particular order; a caller that needs a stable order
+// sorts them itself. max_level is the corrupted-chain guard from
+// subtreeMaxLevel.
 func (q *Queries) ListLiveDocumentSubtreeIDs(ctx context.Context, arg ListLiveDocumentSubtreeIDsParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, listLiveDocumentSubtreeIDs,
 		arg.MaxRows,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.RootID,
+		arg.MaxLevel,
 	)
 	if err != nil {
 		return nil, err
@@ -702,14 +772,16 @@ const moveDocument = `-- name: MoveDocument :one
 UPDATE documents
 SET parent_id = $1,
     position = $2,
+    title = $3,
+    search_text = $4,
     revision = revision + 1,
-    updated_by = $3,
-    updated_by_kind = $4,
+    updated_by = $5,
+    updated_by_kind = $6,
     updated_at = now()
-WHERE id = $5
-  AND organization_id = $6
-  AND workspace_id = $7
-  AND revision = $8
+WHERE id = $7
+  AND organization_id = $8
+  AND workspace_id = $9
+  AND revision = $10
   AND archived_at IS NULL
 RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision
 `
@@ -717,6 +789,8 @@ RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visib
 type MoveDocumentParams struct {
 	ParentID         pgtype.Text `json:"parent_id"`
 	Position         float64     `json:"position"`
+	Title            string      `json:"title"`
+	SearchText       string      `json:"search_text"`
 	UpdatedBy        string      `json:"updated_by"`
 	UpdatedByKind    string      `json:"updated_by_kind"`
 	ID               string      `json:"id"`
@@ -725,19 +799,108 @@ type MoveDocumentParams struct {
 	ExpectedRevision int64       `json:"expected_revision"`
 }
 
-// The move write (C-01 §5.1 POST .../move): parent and position change, the
-// revision guard is the optimistic check the service already made under the
-// row and tree locks. Archived rows refuse through archived_at IS NULL.
+// The move write (C-01 §5.1 POST .../move): parent, position, title and the
+// folded search text change, the revision guard is the optimistic check the
+// service already made under the row and tree locks. The title is written on
+// every move - the service renames "(n)" when the destination holds the name
+// (§3.3) - and search_text follows it in the same statement so a rename is
+// findable at once. Archived rows refuse through archived_at IS NULL.
 func (q *Queries) MoveDocument(ctx context.Context, arg MoveDocumentParams) (Document, error) {
 	row := q.db.QueryRow(ctx, moveDocument,
 		arg.ParentID,
 		arg.Position,
+		arg.Title,
+		arg.SearchText,
 		arg.UpdatedBy,
 		arg.UpdatedByKind,
 		arg.ID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.ExpectedRevision,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArchiveBatchID,
+		&i.ContentRevision,
+	)
+	return i, err
+}
+
+const renameArchivedDocument = `-- name: RenameArchivedDocument :one
+UPDATE documents
+SET title = $1,
+    search_text = $2,
+    revision = revision + 1,
+    updated_by = $3,
+    updated_by_kind = $4,
+    updated_at = now()
+WHERE id = $5
+  AND organization_id = $6
+  AND workspace_id = $7
+  AND archived_at IS NOT NULL
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision
+`
+
+type RenameArchivedDocumentParams struct {
+	Title          string `json:"title"`
+	SearchText     string `json:"search_text"`
+	UpdatedBy      string `json:"updated_by"`
+	UpdatedByKind  string `json:"updated_by_kind"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// The restore's other name write: a batch member keeps its parent and only its
+// title moves. Written while the row is still archived, for the same reason as
+// the detach above.
+func (q *Queries) RenameArchivedDocument(ctx context.Context, arg RenameArchivedDocumentParams) (Document, error) {
+	row := q.db.QueryRow(ctx, renameArchivedDocument,
+		arg.Title,
+		arg.SearchText,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
 	)
 	var i Document
 	err := row.Scan(

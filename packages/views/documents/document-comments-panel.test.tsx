@@ -1,7 +1,7 @@
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { useDocumentCommentDraftStore } from "@uniwork/core/documents/comment-drafts";
@@ -301,12 +301,145 @@ describe("S12 anchored comments", () => {
     await waitFor(() => expect(within(thread("d1x")).getByRole("heading")).toHaveFocus());
   });
 
+  // S15 / G8-07: a link that opens the panel beside a live editor must not take the editor's focus.
+  describe("when something outside the panel holds focus", () => {
+    const scrolled = vi.fn();
+    let editor: HTMLButtonElement;
+    beforeEach(() => {
+      Element.prototype.scrollIntoView = scrolled;
+      scrolled.mockClear();
+      // Stand-in for the page editor: it holds focus before the deep-linked list arrives.
+      editor = document.createElement("button");
+      editor.textContent = "editor";
+      document.body.appendChild(editor);
+      editor.focus();
+    });
+    afterEach(() => {
+      editor.remove();
+      // jsdom has no scrollIntoView; the thread calls it optionally.
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    });
+
+    it("scrolls to and tints the deep-linked thread but leaves focus where it is", async () => {
+      installApi({
+        comments: [
+          row({ id: "c1", kind: "comment", type: "comment", anchor: { format: "docx", v: 1, path: [0], start: 0, end: 1, quote: "q", prefix: "", suffix: "" }, anchor_state: "exact" }),
+          row({ id: "d1x", body: "Bài thảo luận", resolved_at: "2026-10-13T04:00:00Z" }),
+        ],
+      });
+      renderPanel({ doc: docxDoc(), search: "comment=d1x" });
+      await screen.findByTestId("document-comments-pane");
+      await waitFor(() => expect(thread("d1x")).toHaveAttribute("data-highlighted", "true"));
+      expect(scrolled).toHaveBeenCalled();
+      expect(scrolled.mock.contexts.some((el) => thread("d1x").contains(el as Element))).toBe(true);
+      expect(editor).toHaveFocus();
+    });
+
+    it("leaves focus on the editor for a deleted frame too, and still shows the reveal line", async () => {
+      installApi({
+        comments: [row({ id: "root", body: "", deleted_at: "2026-10-13T06:00:00Z" }), row({ id: "r1", parent_id: "root", body: "Còn sống" })],
+      });
+      renderPanel({ search: "comment=root" });
+      const message = await screen.findByTestId("document-comments-reveal");
+      expect(message).toHaveTextContent(t(K.collabDiscussionDeleted));
+      await waitFor(() => expect(thread("root")).toHaveAttribute("data-highlighted", "true"));
+      expect(editor).toHaveFocus();
+      expect(message).not.toHaveFocus();
+    });
+
+    it("leaves focus on the editor when the linked comment is gone", async () => {
+      installApi({ comments: [] });
+      renderPanel({ doc: docxDoc(), search: "comment=gone" });
+      const message = await screen.findByTestId("document-comments-reveal");
+      expect(message).toHaveTextContent(t(K.collabCommentDeleted));
+      expect(editor).toHaveFocus();
+    });
+  });
+
+  // S15 (G8-07): a resolved comment opens readable and stays resolved; a lost anchor opens only
+  // its own thread. Opening never writes: the panel only lists.
+  it("opens a reply in a resolved, anchor-lost thread on its root, without reopening it or opening another", async () => {
+    const anchor = { format: "docx", v: 1, path: [0], start: 0, end: 1, quote: "q", prefix: "", suffix: "" };
+    installApi({
+      comments: [
+        row({ id: "c0", kind: "comment", type: "comment", anchor, anchor_state: "exact", body: "Còn mở" }),
+        row({ id: "c1", kind: "comment", type: "comment", anchor, anchor_state: "lost", body: "Đã chốt", resolved_at: "2026-10-13T04:00:00Z" }),
+        row({ id: "c1r", kind: "comment", type: "comment", parent_id: "c1", body: "Trả lời cũ" }),
+      ],
+    });
+    renderPanel({ doc: docxDoc(), search: "comment=c1r" });
+    await screen.findByTestId("document-comments-pane");
+    await waitFor(() => expect(within(thread("c1")).getByRole("heading")).toHaveFocus());
+    expect(thread("c1")).toHaveTextContent(t(K.collabAnchorLost));
+    expect(thread("c1")).toHaveTextContent("Trả lời cũ");
+    expect(within(thread("c1")).getByRole("button", { name: t(K.collabReopen) })).toBeInTheDocument();
+    expect(screen.queryByTestId("document-comments-reveal")).toBeNull();
+    const writes = requestMock.mock.calls.filter(([, init]) => ((init as Init | undefined)?.method ?? "GET") !== "GET");
+    expect(writes).toEqual([]);
+  });
+
+  // S15 resolved row: opened from a notification the thread is readable, its edit history opens,
+  // and the status stays resolved - the open itself sends no resolve or reopen.
+  it("opens a resolved comment from a notification with its group expanded, its history readable and its status unchanged", async () => {
+    installApi(
+      {
+        comments: [
+          row({ id: "r1", author_id: ME, display_name: "Minh", body: "Bản 2", revision: 2, resolved_at: "2026-10-13T04:00:00Z", updated_at: "2026-10-13T03:30:00Z" }),
+          row({ id: "open", body: "Còn mở" }),
+        ],
+      },
+      (method, path) =>
+        method === "GET" && path.endsWith("/r1/revisions")
+          ? Promise.resolve({ revisions: [{ id: "v1", revision: 1, body: "Bản 1", created_by_id: ME, created_at: "2026-10-13T03:00:00Z" }] })
+          : undefined,
+    );
+    renderPanel({ search: "comment=r1" });
+    const pane = await screen.findByTestId("document-comments-pane");
+    await waitFor(() => expect(within(thread("r1")).getByRole("heading")).toHaveFocus());
+    // The Resolved group is expanded and the thread is open inside it, still resolved (Reopen, not Resolve).
+    const fold = within(pane).getByRole("button", { name: t(K.collabLabelCount, { label: t(K.collabResolved), count: 1 }) });
+    expect(fold).toHaveAttribute("aria-expanded", "true");
+    expect(thread("r1")).toHaveTextContent(t(K.collabResolved));
+    expect(within(thread("r1")).getByRole("button", { name: t(K.collabReopen) })).toBeInTheDocument();
+    expect(within(thread("r1")).queryByRole("button", { name: t(K.collabResolve) })).toBeNull();
+    // The edit history of the resolved thread is readable, newest first under the current text.
+    fireEvent.click(within(thread("r1")).getByRole("button", { expanded: false, name: new RegExp(t(K.collabEdited, { time: "" }).trim().split(" ")[0]!) }));
+    const history = await within(thread("r1")).findByTestId("document-comment-history-r1");
+    await within(history).findByText("Bản 1");
+    expect(within(history).getAllByTestId("document-comment-body").map((b) => b.textContent)).toEqual(["Bản 2", "Bản 1"]);
+    // Nothing was written: no resolve, reopen or any other non-GET request.
+    const writes = requestMock.mock.calls.filter(([, init]) => ((init as Init | undefined)?.method ?? "GET") !== "GET");
+    expect(writes).toEqual([]);
+    expect(thread("r1")).toHaveTextContent(t(K.collabResolved));
+  });
+
   it("says a deep-linked comment is gone when the list no longer has it", async () => {
     installApi({ comments: [] });
     renderPanel({ doc: docxDoc(), search: "comment=gone" });
     const message = await screen.findByTestId("document-comments-reveal");
     expect(message).toHaveTextContent(t(K.collabCommentDeleted));
     await waitFor(() => expect(message).toHaveFocus());
+  });
+
+  // V7 F3 / ruling g5g8-web_ux:6: the link's kind names the tab a missing post lived in.
+  it("opens the Discussion tab with the discussion line when a kind=discussion post is not in the list", async () => {
+    installApi({ comments: [] });
+    renderPanel({ doc: docxDoc(), search: "comment=gone&kind=discussion" });
+    const message = await screen.findByTestId("document-comments-reveal");
+    expect(message).toHaveTextContent(t(K.collabDiscussionDeleted));
+    await waitFor(() => expect(screen.getByRole("tab", { name: discussionTitle() })).toHaveAttribute("aria-selected", "true"));
+    await waitFor(() => expect(message).toHaveFocus());
+  });
+
+  it("stays on the Comments tab with the comment line when the link names no kind or an unknown one", async () => {
+    for (const search of ["comment=gone", "comment=gone&kind=other"]) {
+      installApi({ comments: [] });
+      const { unmount } = renderPanel({ doc: docxDoc(), search });
+      const message = await screen.findByTestId("document-comments-reveal");
+      expect(message).toHaveTextContent(t(K.collabCommentDeleted));
+      expect(screen.getByRole("tab", { name: commentsTitle() })).toHaveAttribute("aria-selected", "true");
+      unmount();
+    }
   });
 });
 

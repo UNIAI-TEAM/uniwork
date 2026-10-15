@@ -28,6 +28,7 @@ import (
 //	PATCH  /api/v1/documents/{documentID}
 //	POST   /api/v1/documents/{documentID}/move                    (G1-05b)
 //	POST   /api/v1/documents/{documentID}/archive                 (G1-05b)
+//	GET    /api/v1/documents/{documentID}/archive-impact          (FD-04)
 //	POST   /api/v1/documents/{documentID}/restore                 (G1-05b)
 //	GET    /api/v1/documents/{documentID}/shares                  (G1-05b)
 //	POST   /api/v1/documents/{documentID}/shares                  (G1-05b)
@@ -137,7 +138,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/documents/{documentID}/versions/commit", h.CommitDocumentVersion, apiOp{
 		summary: "Commit a staged file version",
 		description: "Hình thức save duy nhất của file document (C-01 §14): {upload_id, base_revision} + Idempotency-Key. Server kiểm quyền, claim upload, quota, rồi append version mới (restored_from/engine được service gán). " +
-			"Office engine (G2-02) dùng cùng endpoint với file_id từ RegisterProviderOutput. Replay cùng key trả kết quả đã lưu; base_revision cũ -> 422 revision_conflict.",
+			"Office engine (G2-02) dùng cùng endpoint với file_id từ RegisterProviderOutput. Replay cùng key trả kết quả đã lưu; base_revision cũ -> 409 document_version_conflict.",
 		tags: []string{"documents"},
 		sdi:  sdi.CommitDocumentVersionSDI{},
 		sdo:  sdo.DocumentVersionResultSDO{},
@@ -463,7 +464,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Get("/workspaces/{workspaceID}/documents/tree", h.DocumentTree, apiOp{
 		summary:     "Read the document tree",
-		description: "Cây sidebar tối đa 5 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được -> 404.",
+		description: "Cây sidebar tối đa 20 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh, folders_only=1 chỉ trả thư mục. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được (hoặc không phải thư mục khi folders_only) -> 404.",
 		tags:        []string{"documents"},
 		sdi:         sdi.DocumentTreeSDI{},
 		sdo:         sdo.DocumentTreeSDO{},
@@ -471,7 +472,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/move", h.MoveDocument, apiOp{
 		summary:     "Move a document",
-		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình (kể cả thư mục vào chính nó hoặc thư mục con) -> 422 document_cycle, cha sai loại -> 422 document_parent_kind, quá 5 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
+		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình (kể cả thư mục vào chính nó hoặc thư mục con) -> 422 document_cycle, cha sai loại -> 422 document_parent_kind, quá 20 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
 		tags:        []string{"documents"},
 		sdi:         sdi.MoveDocumentSDI{},
 		sdo:         sdo.DocumentSDO{},
@@ -483,6 +484,15 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
+	})
+	d.Get("/documents/{documentID}/archive-impact", h.ArchiveImpact, apiOp{
+		summary: "Read the archive impact of a subtree",
+		description: "Số đếm cho hộp thoại xóa (FD-04): {folders, documents, total, max_nodes, too_large}, đọc trong một transaction RepeatableRead read-only nên id, quyền và số đến từ một snapshot. " +
+			"Cùng thứ tự kiểm với lệnh lưu trữ: manage trên gốc (không đủ -> cùng 403/404), cây con sống giới hạn 1000 nút, manage trên từng nút của đúng tập id đó. " +
+			"folders/documents không gồm gốc (trang con trong trang tính là documents); total gồm gốc = số dòng lệnh lưu trữ sẽ ghi. Vượt trần -> {too_large: true, max_nodes: 1000}, không có số đếm. Không ghi audit.",
+		tags: []string{"documents"},
+		sdo:  sdo.DocumentArchiveImpactSDO{},
+		auth: true,
 	})
 	d.Post("/documents/{documentID}/restore", h.RestoreDocument, apiOp{
 		summary:     "Restore an archived document",

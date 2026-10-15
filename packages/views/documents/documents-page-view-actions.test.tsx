@@ -1,9 +1,12 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
+import enLocale from "@uniwork/core/i18n/locales/en.json";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
@@ -348,7 +351,7 @@ describe("library views", () => {
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) }));
     expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
   });
 
   it("lists one module's files from the sidebar and names the view after it", async () => {
@@ -409,5 +412,138 @@ describe("navigation sheet", () => {
 
     expect(await screen.findByText("Vừa mở")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});
+
+describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
+  const archivedFolder = (over: Record<string, unknown> = {}) =>
+    summary({ id: "f1", kind: "folder", title: "Dự án CCB", archived_at: "2026-10-01T00:00:00Z", ...over });
+  const archivedList = (rows: unknown[]) => (path: string) =>
+    new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? rows : [];
+
+  async function openArchiveScope() {
+    fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
+  }
+
+  /** The name button of the row's first cell (the row's primary action), or null when the cell is inert. */
+  const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td:first-child button");
+
+  async function openMenu(title: string) {
+    const row = await rowOf(title);
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+  }
+
+  it("offers Restore, not Open folder, on a trashed folder in the Archive scope", async () => {
+    route({ list: archivedList([archivedFolder()]) });
+    renderView();
+    await openArchiveScope();
+    await openMenu("Dự án CCB");
+    expect(await screen.findByRole("menuitem", { name: t("documents.actions.restore") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_folder") })).toBeNull();
+  });
+
+  it("hides Restore from a viewer who cannot manage the trashed folder (no menu at all)", async () => {
+    route({ list: archivedList([archivedFolder({ my_level: "edit" })]) });
+    renderView();
+    await openArchiveScope();
+    const row = await rowOf("Dự án CCB");
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
+  });
+
+  it("opens the restore dialog, and does not navigate, on click of a trashed folder row", async () => {
+    route({ list: archivedList([archivedFolder()]) });
+    const adapter = renderView();
+    await openArchiveScope();
+    const row = await rowOf("Dự án CCB");
+    fireEvent.click(primaryOf(row)!);
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(t("documents.archive.restore_title"))).toBeInTheDocument();
+    expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
+  });
+
+  it("opens the restore dialog, and does not navigate, on Enter over a trashed folder row", async () => {
+    route({ list: archivedList([archivedFolder()]) });
+    const adapter = renderView();
+    await openArchiveScope();
+    const row = await rowOf("Dự án CCB");
+    const open = primaryOf(row)!;
+    open.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
+  });
+
+  it("makes a trashed folder row inert for a viewer who cannot manage it: no link, no dialog, no navigation", async () => {
+    route({ list: archivedList([archivedFolder({ my_level: "edit" })]) });
+    const adapter = renderView();
+    await openArchiveScope();
+    const row = await rowOf("Dự án CCB");
+    expect(primaryOf(row)).toBeNull();
+    fireEvent.click(within(row).getByText("Dự án CCB"));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
+  });
+
+  it("keeps an archived document's menu as it was: Open on the web, no Restore", async () => {
+    route({ list: archivedList([summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z" })]) });
+    renderView();
+    await openArchiveScope();
+    await openMenu("Cũ");
+    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.restore") })).toBeNull();
+  });
+
+  it("restores through the dialog, toasts the returned title and drops the row from the Archive list", async () => {
+    let restored = false;
+    route({
+      list: (path) => (restored ? [] : archivedList([archivedFolder()])(path)),
+      post: (path) => {
+        if (path !== "/api/v1/documents/f1/restore") return {};
+        restored = true;
+        return { document: archivedFolder({ title: "Dự án CCB (2)", archived_at: null }), batch_id: "b1", affected: ["f1"] };
+      },
+    });
+    renderView();
+    await openArchiveScope();
+    await openMenu("Dự án CCB");
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.actions.restore") }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(t("documents.archive.restore_title"))).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.archive.restore_confirm") }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.home.folders.toast.restored", { title: "Dự án CCB (2)" })));
+    expect(calls("POST").map(([path]) => path)).toContain("/api/v1/documents/f1/restore");
+    await waitFor(() => expect(screen.queryByText("Dự án CCB")).toBeNull());
+  });
+
+  it("names the same actions the same way on a folder row and in the tree menu", async () => {
+    route({ list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })] });
+    renderView();
+    await openMenu("Hợp đồng");
+    expect(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.delete") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
+  });
+
+  it("uses Move to… on a document row too and keeps Archive for it", async () => {
+    route({ list: () => [summary()] });
+    renderView();
+    await openMenu("Kế hoạch Q4");
+    expect(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.home.row.archive") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
+  });
+
+  it("carries the same words in English: Move to… and Delete", () => {
+    expect(enLocale.documents.tree.menu.move_to).toBe("Move to…");
+    expect(enLocale.documents.tree.menu.delete).toBe("Delete");
+    expect(enLocale.documents.actions.restore).toBe("Restore");
+  });
+
+  it("carries the same words in Vietnamese: Di chuyển tới… and Xóa", () => {
+    const tree = viLocale.documents.tree.menu;
+    expect(tree.move_to).toBe("Di chuyển tới…");
+    expect(tree.delete).toBe("Xóa");
+    expect(viLocale.documents.actions.restore).toBe("Khôi phục");
   });
 });

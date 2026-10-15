@@ -184,3 +184,59 @@ func TestMeetingReminderOnce(t *testing.T) {
 		t.Fatal("a meeting already started was picked up")
 	}
 }
+
+// R1-2: the email digest applies the same document read gate as Service.List.
+// A recipient who lost the document after delivery must not receive its title
+// (or snippet) by email: the row is dropped, and when that leaves nothing to
+// render no digest goes out at all. A row the recipient can still read keeps
+// its title; an archived (gone) document is dropped the same way.
+func TestDigestAppliesTheDocumentReadGate(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "restricted", "Tiêu Đề Của Tài Liệu Được Chia Sẻ")
+	recipient, recipientShare := f.sharedCommentAuthor(t, docID, "digest-recipient@example.com", "Người Nhận Digest")
+
+	// Row 1 is written and delivered while the share lives: mailed with its
+	// title, proving the gate does not hide a readable document.
+	f.commentOf(t, f.owner.ID, docID, mentionOf(recipient)+" xem giúp", "comment")
+	f.handleComment(t)
+
+	out := &fakeOutbox{}
+	s := NewDigestScheduler(f.q, mail.Renderer{AppURL: "http://app.test"}, out)
+	s.SetDocumentReaders(f.docs)
+	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC) // 08:05 in Asia/Ho_Chi_Minh.
+	if n, err := s.RunOnce(f.ctx, at); err != nil || n != 1 {
+		t.Fatalf("readable digest = %d, %v", n, err)
+	}
+	if !contains(out.sent[0].Text, "Tiêu Đề Của Tài Liệu Được Chia Sẻ") {
+		t.Fatalf("readable document lost its title:\n%s", out.sent[0].Text)
+	}
+
+	// Row 2 is written while the share lives, then the share is revoked: the
+	// window must drop it, and with nothing else to render send no mail.
+	f.commentOf(t, f.owner.ID, docID, mentionOf(recipient)+" lần nữa", "comment")
+	f.handleComment(t)
+	f.revokeShare(t, recipientShare, docID)
+	out.sent = nil
+	if n, err := s.RunOnce(f.ctx, at.Add(time.Minute)); err != nil || n != 0 {
+		t.Fatalf("access_lost digest = %d, %v", n, err)
+	}
+	if len(out.sent) != 0 {
+		t.Fatalf("digest mailed a document the recipient cannot read:\n%s", out.sent[0].Text)
+	}
+
+	// A document archived before the window is gone; a workspace member who
+	// never lost a share is dropped just the same.
+	goneDocID := f.document(t, "workspace", "Tài Liệu Sắp Bị Lưu Trữ")
+	f.commentOf(t, f.owner.ID, goneDocID, mentionOf(f.member)+" đọc thử", "comment")
+	f.handleComment(t)
+	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET archived_at = now() WHERE id = $1`, goneDocID); err != nil {
+		t.Fatal(err)
+	}
+	out.sent = nil
+	if n, err := s.RunOnce(f.ctx, at.Add(2*time.Minute)); err != nil || n != 0 {
+		t.Fatalf("gone digest = %d, %v", n, err)
+	}
+	if len(out.sent) != 0 {
+		t.Fatalf("digest mailed an archived document:\n%s", out.sent[0].Text)
+	}
+}

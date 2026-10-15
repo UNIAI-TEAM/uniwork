@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { errorCode } from "@uniwork/core/api";
-import { useSession } from "@uniwork/core/auth";
+import { hasSessionHint, useSession } from "@uniwork/core/auth";
 import { authStepPath, paths, pendingAuthStep } from "@uniwork/core/paths";
 import type { User, Workspace } from "@uniwork/core/types";
 import { rememberLastWorkspace, useWorkspace } from "@uniwork/core/workspaces";
@@ -17,7 +17,10 @@ import {
  * Auth + workspace gate for every /{org}/{ws}/* screen.
  *
  *  - session loading            → wait
- *  - anonymous                  → /login?next=<current path>
+ *  - anonymous                  → /login?next=<current path + query>
+ *                                 (a ?comment= deep link survives sign-in);
+ *                                 &reason=session_expired when this browser
+ *                                 held a session a moment ago
  *  - signed in, email unverified → /verify
  *  - signed in, not onboarded   → /onboarding (onboarded_at is the single
  *                                 source of truth, never the workspace count)
@@ -32,8 +35,15 @@ export function useDashboardGuard(
   orgSlug: string,
   wsSlug: string,
 ): { user: User | null; workspace: Workspace | null; isLoading: boolean; block: OrganizationBlock } {
-  const { pathname, searchParams, replace } = useNavigation();
+  const { pathname, replace, searchParams } = useNavigation();
+  const query = searchParams.toString();
+  const here = query ? `${pathname}?${query}` : pathname;
   const { user, status } = useSession();
+  // Whether a session existed: the browser's hint is read on the first render,
+  // before the start-up refresh fails and clears it, or the page saw it authed.
+  const hadSession = useRef<boolean | null>(null);
+  hadSession.current ??= hasSessionHint();
+  if (status === "authed") hadSession.current = true;
   const {
     data: workspace,
     error,
@@ -43,7 +53,7 @@ export function useDashboardGuard(
   useEffect(() => {
     if (status === "loading") return;
     if (status === "anon") {
-      replace(`${paths.login()}?next=${encodeURIComponent(pathname)}`);
+      replace(`${paths.login()}?next=${encodeURIComponent(here)}${hadSession.current ? "&reason=session_expired" : ""}`);
       return;
     }
     const step = pendingAuthStep(user);
@@ -55,7 +65,7 @@ export function useDashboardGuard(
     // A drifted response resolves to null rather than an error; both mean
     // "this URL is not a workspace you can see".
     if (error || (!workspaceLoading && workspace === null)) replace(paths.workspaces());
-  }, [status, user, error, workspace, workspaceLoading, replace, pathname]);
+  }, [status, user, error, workspace, workspaceLoading, replace, here]);
 
   const ready = status === "authed" && !!user && pendingAuthStep(user) === null && !!workspace;
 

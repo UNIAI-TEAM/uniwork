@@ -16,11 +16,19 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useQueryClient } from "@tanstack/react-query";
+import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import { useDocumentTree, useMoveDocument } from "@uniwork/core/documents/hooks-collections";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { documentErrorMessage } from "./document-error-message";
+import {
+  DocumentTreeRowMenu,
+  isRowMenuShortcut,
+  TREE_ROW_KEYSHORTCUTS,
+  useTreeRowMenuDialogs,
+  type TreeRowMenuActions,
+} from "./document-tree-row-menu";
 import { documentIconFormat, DocumentTypeIcon } from "./document-type-icon";
 import {
   findTreeNode,
@@ -31,13 +39,28 @@ import {
   moveTooDeep,
   siblingMovePosition,
   siblingsOf,
-  TREE_MAX_LEVEL,
+  subtreeIds,
   type TreeRow,
 } from "./document-tree-model";
+import { useTreeReveal } from "./use-tree-reveal";
 
 /* ---- rows --------------------------------------------------------------- */
 
+/**
+ * Caps visual indent so deep branches (up to TREE_MAX_LEVEL = 20) keep a
+ * readable label inside the 256px sidebar without horizontal scroll:
+ * 12px/level through depth 6, 4px/level through depth 14, and 2px/level past
+ * that (120px at depth 19).
+ */
+function treeRowPaddingLeft(depth: number): number {
+  const full = Math.min(depth, 6) * 12;
+  const medium = Math.min(Math.max(depth - 6, 0), 8) * 4;
+  const compact = Math.max(depth - 14, 0) * 2;
+  return 4 + full + medium + compact;
+}
+
 interface TreeRowItemProps {
+  wsId: string;
   row: TreeRow;
   expanded: boolean;
   focused: boolean;
@@ -45,6 +68,7 @@ interface TreeRowItemProps {
   tabbable: boolean;
   moving: boolean;
   dragDisabled: boolean;
+  menuActions: TreeRowMenuActions;
   registerRef: (id: string, el: HTMLDivElement | null) => void;
   onFocusRequest: () => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
@@ -53,6 +77,7 @@ interface TreeRowItemProps {
 }
 
 function TreeRowItem({
+  wsId,
   row,
   expanded,
   focused,
@@ -60,6 +85,7 @@ function TreeRowItem({
   tabbable,
   moving,
   dragDisabled,
+  menuActions,
   registerRef,
   onFocusRequest,
   onKeyDown,
@@ -67,6 +93,7 @@ function TreeRowItem({
   onOpen,
 }: TreeRowItemProps) {
   const { t } = useTranslation();
+  const [menuOpen, setMenuOpen] = useState(false);
   const drag = useDraggable({ id: `doc:${row.node.id}`, disabled: dragDisabled });
   const drop = useDroppable({ id: `drop:${row.node.id}`, data: { id: row.node.id } });
   const { setNodeRef: setDragRef, isDragging } = drag;
@@ -75,6 +102,7 @@ function TreeRowItem({
   // The dnd-kit `attributes` are not spread: they force role="button", which
   // is the wrong role inside a tree. Keyboard navigation is the tree's own.
   const { listeners } = drag;
+  const label = row.node.title || t("documents.detail.untitled");
 
   return (
     <div
@@ -89,18 +117,31 @@ function TreeRowItem({
       aria-selected={focused}
       aria-current={current || undefined}
       aria-busy={moving || undefined}
-      aria-keyshortcuts="Control+ArrowUp Control+ArrowDown Control+ArrowLeft Control+ArrowRight Meta+ArrowUp Meta+ArrowDown Meta+ArrowLeft Meta+ArrowRight"
+      aria-keyshortcuts={TREE_ROW_KEYSHORTCUTS}
       data-tree-node={row.node.id}
       tabIndex={tabbable ? 0 : -1}
       {...listeners}
       onFocus={onFocusRequest}
-      onKeyDown={onKeyDown}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onFocusRequest();
+        setMenuOpen(true);
+      }}
+      onKeyDown={(event) => {
+        if (isRowMenuShortcut(event)) {
+          event.preventDefault();
+          setMenuOpen(true);
+          return;
+        }
+        if (event.target !== event.currentTarget) return;
+        onKeyDown(event);
+      }}
       onClick={(event) => {
-        if ((event.target as HTMLElement).closest("[data-chevron]")) return;
+        if ((event.target as HTMLElement).closest("[data-chevron], [data-row-menu]")) return;
         onOpen();
       }}
       className={cn(
-        "group/row flex min-h-9 w-full cursor-pointer items-center gap-1 rounded-md pr-2 text-body",
+        "group/row flex min-h-9 w-full cursor-pointer items-center gap-1 rounded-md pr-1 text-body",
         "pointer-coarse:min-h-11",
         "hover:bg-accent/60",
         (focused || current) && "bg-accent",
@@ -108,7 +149,7 @@ function TreeRowItem({
         isOver && "ring-2 ring-ring",
         (isDragging || moving) && "opacity-60",
       )}
-      style={{ paddingLeft: `${row.depth * 12 + 4}px` }}
+      style={{ paddingLeft: `${treeRowPaddingLeft(row.depth)}px` }}
     >
       {row.hasChildren ? (
         <button
@@ -141,7 +182,16 @@ function TreeRowItem({
           <DocumentTypeIcon format={documentIconFormat(row.node.kind, row.node.title)} className="size-4" />
         )}
       </span>
-      <span className="truncate">{row.node.title || t("documents.detail.untitled")}</span>
+      <span title={label} className="min-w-0 flex-1 truncate">{label}</span>
+      <DocumentTreeRowMenu
+        wsId={wsId}
+        node={row.node}
+        focused={focused}
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        onOpen={onOpen}
+        actions={menuActions}
+      />
       {moving ? <span className="sr-only">{t("documents.tree.moving")}</span> : null}
     </div>
   );
@@ -156,6 +206,8 @@ export interface DocumentTreeProps {
   /** Opens a document; Enter or a click on the row. */
   onOpen?: (documentId: string) => void;
   enabled?: boolean;
+  /** False while a host container (such as a closed sheet) hides the tree. */
+  visible?: boolean;
   className?: string;
   /** Show folders only (the Documents sidebar); pages and files stay in the library. */
   folders?: boolean;
@@ -185,9 +237,9 @@ export interface DocumentTreeProps {
  * changes when that answer lands and the workspace keys are invalidated. A
  * refused or failed move therefore leaves every position exactly where it was.
  */
-export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, folders = false, currentId = null, emptyLabel }: DocumentTreeProps) {
+export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = true, className, folders = false, currentId = null, emptyLabel }: DocumentTreeProps) {
   const { t } = useTranslation();
-  const query = useDocumentTree(wsId, rootId, { enabled });
+  const query = useDocumentTree(wsId, rootId, { enabled, foldersOnly: folders });
   const move = useMoveDocument(wsId);
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -201,6 +253,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
     return folders ? foldersOnly(forest) : forest;
   }, [query.data, folders]);
   const rows = useMemo(() => flattenTree(nodes, expanded), [nodes, expanded]);
+  useTreeReveal({ wsId, currentId, enabled, visible, rows, rowRefs, setExpanded });
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const registerRef = (id: string, el: HTMLDivElement | null) => {
@@ -215,6 +268,9 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
   };
 
   const toggle = (id: string) => {
+    if (expanded.has(id) && focusedId && focusedId !== id && subtreeIds(nodes, id).has(focusedId)) {
+      focusRow(id);
+    }
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -245,9 +301,12 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
     }
   };
 
-  /** Refusals that need no request: a cycle or a move past five levels. */
+  /** Refusals that need no request: a cycle or a move past the depth limit. */
   const refuseMove = (draggedId: string, targetId: string): boolean => {
-    if (moveRefused(nodes, draggedId, targetId)) return true;
+    if (moveRefused(nodes, draggedId, targetId)) {
+      toast.error(t("documents.tree.cycle_blocked"));
+      return true;
+    }
     if (moveTooDeep(nodes, draggedId, targetId)) {
       toast.error(t("documents.tree.too_deep", { max: TREE_MAX_LEVEL }));
       return true;
@@ -362,6 +421,13 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
       }
     };
 
+  const rowMenu = useTreeRowMenuDialogs({
+    wsId,
+    tree: nodes,
+    currentId,
+    onCreatedSubfolder: (parentId) => setExpanded((prev) => new Set(prev).add(parentId)),
+  });
+
   if (!enabled) return null;
 
   if (query.isPending) {
@@ -390,6 +456,12 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
     return <p className={cn("px-3 py-4 text-caption text-muted-foreground", className)}>{emptyLabel ?? t("documents.tree.empty")}</p>;
   }
 
+  const activeStopId =
+    (focusedId && rows.some((row) => row.node.id === focusedId) ? focusedId : null) ??
+    (currentId && rows.some((row) => row.node.id === currentId) ? currentId : null) ??
+    rows[0]?.node.id ??
+    null;
+
   return (
     <div className={cn("min-h-0 overflow-y-auto p-2", className)} aria-busy={movingId ? true : undefined}>
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -397,13 +469,15 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
           {rows.map((row, index) => (
             <TreeRowItem
               key={row.node.id}
+              wsId={wsId}
               row={row}
               expanded={expanded.has(row.node.id)}
               focused={focusedId === row.node.id}
               current={currentId === row.node.id}
-              tabbable={focusedId ? focusedId === row.node.id : index === 0}
+              tabbable={row.node.id === activeStopId}
               moving={movingId === row.node.id}
               dragDisabled={movingId !== null}
+              menuActions={rowMenu.actions}
               registerRef={registerRef}
               onFocusRequest={() => setFocusedId(row.node.id)}
               onKeyDown={rowKeyDown(row, index)}
@@ -425,6 +499,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
           {t("documents.tree.moving")}
         </p>
       ) : null}
+      {rowMenu.dialogs}
     </div>
   );
 }

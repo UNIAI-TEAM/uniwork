@@ -9,6 +9,11 @@ type CreateOfficeLaunchSessionSDI struct {
 	DeploymentID string `json:"deployment_id" minLength:"1" description:"Mã deployment profile đã cấu hình" example:"production-eu"`
 	ClientID     string `json:"client_id" minLength:"1" description:"Mã client Office công khai nằm trong allowlist" example:"uniwork-office"`
 	ReturnHint   string `json:"return_hint,omitempty" description:"Handoff: office hoặc none (không offer)" example:"office"`
+	// CommentID is the comment the page was opened on (G8-07 §3). Optional;
+	// absent keeps the pre-G8 behaviour. Present, the handler refuses a blank
+	// or oversized value (the tags below document the ULID bound) and the
+	// service proves the comment belongs to the document before it is stored.
+	CommentID *string `json:"comment_id,omitempty" minLength:"1" maxLength:"26" description:"ULID bình luận cần mở trong tài liệu; bỏ trống = mở tài liệu" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
 }
 
 // ExchangeOfficeLaunchSessionSDI is POST /api/v1/office/sessions/exchange.

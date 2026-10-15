@@ -31,6 +31,7 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 	q := r.URL.Query()
 	in := service.ListDocumentsInput{
 		Query:     strings.TrimSpace(q.Get("q")),
+		Match:     strings.TrimSpace(q.Get("match")),
 		Kind:      strings.TrimSpace(q.Get("kind")),
 		UpdatedBy: strings.TrimSpace(q.Get("updated_by")),
 		Cursor:    strings.TrimSpace(q.Get("cursor")),
@@ -165,15 +166,26 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDocumentTree is GET /workspaces/{workspaceID}/documents/tree?root=: the
-// sidebar forest to five levels, metadata only. An unreadable root is not
-// found; its children are not leaked through it.
+// sidebar forest to the depth bound, metadata only. An unreadable root is not
+// found; its children are not leaked through it. folders_only serves the
+// FOLDERS sidebar: the same nodes cut to kind=folder.
 func (h *handlers) getDocumentTree(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	root := strings.TrimSpace(r.URL.Query().Get("root"))
-	nodes, err := h.Documents.DocumentTree(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), root)
+	q := r.URL.Query()
+	root := strings.TrimSpace(q.Get("root"))
+	foldersOnly := false
+	if raw := strings.TrimSpace(q.Get("folders_only")); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", "folders_only must be 0/1 or true/false")
+			return
+		}
+		foldersOnly = v
+	}
+	nodes, err := h.Documents.DocumentTree(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), root, foldersOnly)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -182,8 +194,8 @@ func (h *handlers) getDocumentTree(w http.ResponseWriter, r *http.Request) {
 }
 
 // moveDocument is POST /documents/{documentID}/move: reparent/reorder inside
-// one workspace. A stale revision, a cycle, a depth past five or a foreign
-// parent is refused by the service; Idempotency-Key replays a retry.
+// one workspace. A stale revision, a cycle, a depth past the bound or a
+// foreign parent is refused by the service; Idempotency-Key replays a retry.
 func (h *handlers) moveDocument(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -215,6 +227,23 @@ func (h *handlers) moveDocument(w http.ResponseWriter, r *http.Request) {
 // to the trash in one transaction after the manage check on every node.
 func (h *handlers) archiveDocument(w http.ResponseWriter, r *http.Request) {
 	h.documentLifecycleCommand(w, r, false)
+}
+
+// archiveImpact is GET /documents/{documentID}/archive-impact: what the
+// archive command would move, without moving it (FD-04, addendum §3.4). The
+// service answers the same refusals the command would, so the dialog never
+// shows numbers for a delete that cannot happen.
+func (h *handlers) archiveImpact(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	impact, err := h.Documents.ArchiveImpact(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, documentArchiveImpactSDO(impact))
 }
 
 // restoreDocument is POST /documents/{documentID}/restore: only the nodes a
@@ -255,7 +284,14 @@ func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 		if item.Access.Level != service.DocumentLevelNone {
 			access = &item.Access
 		}
-		out.Documents = append(out.Documents, documentSummaryDTO(item.Document, item.Facts, item.Snippet, access))
+		dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
+		if len(item.Path) > 0 {
+			dto.Path = make([]sdo.DocumentPathItemSDO, len(item.Path))
+			for i, p := range item.Path {
+				dto.Path[i] = sdo.DocumentPathItemSDO{ID: p.ID, Title: p.Title}
+			}
+		}
+		out.Documents = append(out.Documents, dto)
 	}
 	if page.NextCursor != "" {
 		out.NextCursor = &page.NextCursor
@@ -344,6 +380,17 @@ func documentArchiveSDO(res service.DocumentArchiveResult) sdo.DocumentArchiveSD
 		out.BatchID = &batch
 	}
 	return out
+}
+
+// documentArchiveImpactSDO renders the counts the delete dialog shows.
+func documentArchiveImpactSDO(impact service.DocumentArchiveImpact) sdo.DocumentArchiveImpactSDO {
+	return sdo.DocumentArchiveImpactSDO{
+		Folders:   impact.Folders,
+		Documents: impact.Documents,
+		Total:     impact.Total,
+		MaxNodes:  impact.MaxNodes,
+		TooLarge:  impact.TooLarge,
+	}
 }
 
 // documentAccessLogCursor pins the (occurred_at, id) keyset of the last row

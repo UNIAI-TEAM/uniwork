@@ -199,7 +199,7 @@ export function AiUsageSection({ workspaceId, aiEnabled }: { workspaceId: string
             <TableBody>
               {[...grouped.values()].map((r) => (
                 <TableRow key={`${r.capability}|${r.actor_kind}`}>
-                  <TableCell>{t(`capability.${r.capability}`, { defaultValue: r.capability })}</TableCell>
+                  <TableCell>{t(`capability.${r.capability.replaceAll(".", "_")}`, { defaultValue: r.capability })}</TableCell>
                   <TableCell>{t(`actor.${r.actor_kind}`, { defaultValue: r.actor_kind })}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.calls.toLocaleString(locale)}</TableCell>
                   <TableCell className="text-right tabular-nums">{(r.input_tokens + r.output_tokens).toLocaleString(locale)}</TableCell>

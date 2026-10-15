@@ -57,12 +57,13 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 	if !ok {
 		return DocumentFileResult{}, errConversionNotAccepted("target_format")
 	}
-	title := strings.TrimSpace(in.Title)
-	if title == "" {
-		title = copyTitle(src.Title)
+	raw := in.Title
+	if strings.TrimSpace(raw) == "" {
+		raw = copyTitle(src.Title)
 	}
-	if len([]rune(title)) > 500 {
-		return DocumentFileResult{}, Invalid("tên tài liệu tối đa 500 ký tự")
+	title, err := normalizeDocumentTitle(DocumentKindFile, raw)
+	if err != nil {
+		return DocumentFileResult{}, err
 	}
 	if in.ParentID != "" {
 		if err := s.authorizeParentIn(ctx, actor, in.ParentID, src.WorkspaceID); err != nil {

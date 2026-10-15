@@ -81,7 +81,7 @@ func TestDocumentFolders(t *testing.T) {
 		if inner.ParentID.String != outer.ID || p.ParentID.String != inner.ID || file.Document.ParentID.String != inner.ID {
 			t.Fatalf("parents: inner=%v page=%v file=%v", inner.ParentID, p.ParentID, file.Document.ParentID)
 		}
-		tree, err := env.svc.DocumentTree(ctx, member, env.tn.wsA, outer.ID)
+		tree, err := env.svc.DocumentTree(ctx, member, env.tn.wsA, outer.ID, false)
 		if err != nil {
 			t.Fatal(err)
 		}
