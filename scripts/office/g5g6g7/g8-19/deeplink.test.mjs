@@ -140,14 +140,19 @@ test("decideDesktopReveal: xlsx PASS needs the ticket comment, the opened docume
 
 // ---- the five exceptions (UNI-1389) --------------------------------------------------------------
 
+const noAccessOk = () => ({
+  stranger: { web: { status: "not-found" } },
+  revoked: { web: { status: "no-access" }, notification: { resource_access_lost: true } },
+});
+
 test("DEEP_LINK_EXCEPTIONS lists the five UNI-1389 cases", () => {
   assert.deepEqual(Object.keys(DEEP_LINK_EXCEPTIONS).sort(), ["anchor_lost", "comment_deleted", "deleted", "no_access", "session_expired"]);
 });
 
 test("decideException maps each observed state", () => {
   const pin = framePinVerdict(null);
-  assert.equal(decideException("no_access", { web: { status: "no-access" } }, { pin }).status, "PASS");
-  assert.equal(decideException("no_access", { web: { status: "ok" } }, { pin }).status, "FAIL");
+  assert.equal(decideException("no_access", noAccessOk(), { pin }).status, "PASS");
+  assert.equal(decideException("no_access", { ...noAccessOk(), revoked: { ...noAccessOk().revoked, web: { status: "ok" } } }, { pin }).status, "FAIL");
 
   const gone = { web: { status: "not-found" }, notification: { resource_deleted: true, params: { comment_id: "c1" } } };
   assert.equal(decideException("deleted", gone, { pin }).status, "PASS");
@@ -159,7 +164,7 @@ test("decideException maps each observed state", () => {
   assert.equal(decideException("comment_deleted", { ...cd, notification: { comment_deleted: false } }, { pin }).status, "FAIL");
   assert.equal(decideException("comment_deleted", { ...cd, desktop: { ...cd.desktop, focusedThreadId: "c2" } }, { pin }).status, "FAIL");
 
-  const lost = { commentId: "c3", desktop: { focusedThreadId: "c3", anchorState: "lost" } };
+  const lost = { commentId: "c3", listedBeforeLaunch: true, desktop: { focusedThreadId: "c3", anchorState: "lost" } };
   assert.equal(decideException("anchor_lost", lost, { pin }).status, "PASS");
   assert.equal(decideException("anchor_lost", { ...lost, desktop: { focusedThreadId: "c3", anchorState: "exact" } }, { pin }).status, "FAIL");
   assert.equal(decideException("anchor_lost", { notApplicable: "docx has no B7 anchor" }, { pin }).status, "N/A");
@@ -167,6 +172,49 @@ test("decideException maps each observed state", () => {
   assert.equal(decideException("session_expired", { web: { url: "http://127.0.0.1:2/login?next=%2Forg-x" } }, { pin }).status, "PASS");
   assert.equal(decideException("session_expired", { web: { url: "http://127.0.0.1:2/org-x/ws-w2/documents/doc-1" } }, { pin }).status, "FAIL");
   assert.equal(decideException("session_expired", undefined, { pin }).status, "FAIL");
+});
+
+test("decideException no_access: C (never shared) gets the gone page, B (revoked, row reads resource_access_lost) gets S15 no-access", () => {
+  const pin = framePinVerdict(null);
+  // C never had access and has no row: the server's 404 (Backend ID Rules) is the S15 gone page, never no-access
+  const leak = decideException("no_access", { ...noAccessOk(), stranger: { web: { status: "no-access" } } }, { pin });
+  assert.equal(leak.status, "FAIL");
+  assert.match(leak.reason, /C, who was never given the document/);
+  assert.equal(decideException("no_access", { ...noAccessOk(), stranger: null }, { pin }).status, "FAIL");
+  // B after the revoke: the gone page while the row reads resource_access_lost is the product finding of revoke.mjs
+  const gone = decideException("no_access", { ...noAccessOk(), revoked: { web: { status: "not-found" }, notification: { resource_access_lost: true } } }, { pin });
+  assert.equal(gone.status, "FAIL");
+  assert.match(gone.reason, /^product: /);
+  assert.match(gone.reason, /owner candidate Lead D/);
+  const notRun = decideException("no_access", { ...noAccessOk(), revoked: null }, { pin });
+  assert.equal(notRun.status, "FAIL");
+  assert.match(notRun.reason, /revoked recipient was not observed/);
+});
+
+test("decideException comment_deleted: a refused launch ticket is a product FAIL citing the contract's silent drop; the row flag is judged first", () => {
+  const pin = framePinVerdict(null);
+  const refused = { notification: { comment_deleted: true }, launch: { refused: true, status: 404, error: "not_found: not found" }, desktop: null, web: null };
+  const out = decideException("comment_deleted", refused, { pin });
+  assert.equal(out.status, "FAIL");
+  assert.match(out.reason, /^product: /);
+  assert.match(out.reason, /404 not_found/);
+  assert.match(out.reason, /contract-collab\.md §2\.9/);
+  assert.match(out.reason, /OQ-C6/);
+  assert.match(out.reason, /S15 row 3/);
+  assert.match(out.reason, /office_launch\.go:168-188/);
+  assert.match(out.reason, /owner candidate Lead D/);
+  const noFlag = decideException("comment_deleted", { ...refused, notification: { comment_deleted: false } }, { pin });
+  assert.equal(noFlag.reason, "the row does not read comment_deleted");
+});
+
+test("decideException anchor_lost: a thread the open panel never listed before the re-launch is not judged as a reveal miss", () => {
+  const pin = framePinVerdict(null);
+  const unlisted = decideException("anchor_lost", { commentId: "c3", listedBeforeLaunch: false, desktop: { focusedThreadId: null, anchorState: null } }, { pin });
+  assert.equal(unlisted.status, "FAIL");
+  assert.match(unlisted.reason, /did not list c3/);
+  const missed = decideException("anchor_lost", { commentId: "c3", listedBeforeLaunch: true, desktop: { focusedThreadId: null, anchorState: "lost" } }, { pin });
+  assert.match(missed.reason, /focus none/);
+  assert.match(missed.reason, /listed it before the launch/);
 });
 
 test("decideException: the web half of comment_deleted inside an old frame is BLOCKED(R1), never PASS", () => {
@@ -182,10 +230,10 @@ test("decideException: the web half of comment_deleted inside an old frame is BL
 // ---- decideG8A07 -----------------------------------------------------------------------------------
 
 const exceptionsOk = () => ({
-  no_access: { web: { status: "no-access" } },
+  no_access: noAccessOk(),
   deleted: { web: { status: "not-found" }, notification: { resource_deleted: true, params: {} } },
   comment_deleted: { notification: { comment_deleted: true }, desktop: { openedDocumentId: "doc-1", documentId: "doc-1", focusedThreadId: null }, web: { status: "error", panelCount: 1, focusedCommentId: null } },
-  anchor_lost: { commentId: "c3", desktop: { focusedThreadId: "c3", anchorState: "lost" } },
+  anchor_lost: { commentId: "c3", listedBeforeLaunch: true, desktop: { focusedThreadId: "c3", anchorState: "lost" } },
   session_expired: { web: { url: "http://127.0.0.1:2/login" } },
 });
 const a07 = (extra = {}) => ({
@@ -256,7 +304,7 @@ beforeEach(() => {
 afterEach(() => rmSync(runDir, { recursive: true, force: true }));
 
 /** Scripts a fake server where every mention reaches B and every revoke/archive flips the row flags. */
-function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
+function scriptedWorld({ hrefWorkspace = "ws-w2", launchRefusesGoneComment = false, revokedShowsGone = false } = {}) {
   const fake = createFakeWorld();
   const { world, script } = fake;
   let commentSeq = 0;
@@ -279,10 +327,12 @@ function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
     archived.add(call.args.pathParams.documentID);
     return { status: 200, body: {} };
   });
-  script.respond("api.mintLaunch", (call) => ({
-    status: 201,
-    body: { launch_ticket: "ticket_x", launch_url: `uniwork-office-dev://open?ticket=ticket_${call.args.body.comment_id ?? "none"}` },
-  }));
+  script.respond("api.mintLaunch", (call) => {
+    const cid = call.args.body.comment_id;
+    // D office_launch.go:168-188 refuses a comment that is gone; the contract (§2.9, OQ-C6) drops it silently
+    if (launchRefusesGoneComment && cid && comments.get(cid)?.deleted) return { status: 404, body: { error: { code: "not_found", message: "not found" } } };
+    return { status: 201, body: { launch_ticket: "ticket_x", launch_url: `uniwork-office-dev://open?ticket=ticket_${cid ?? "none"}` } };
+  });
   script.respond("api.listDocumentComments", (call) =>
     call.user === "B" && Object.values(world.shares).some((s) => s.documentId === call.args.pathParams.documentID && s.revoked)
       ? { status: 404, body: { error: "not_found" } }
@@ -318,18 +368,39 @@ function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
       return ctrl;
     },
   };
-  // the editor's thread reading: a live comment is revealed (focused), a deleted one is not
-  script.respond("app.evalBounded", (call) => {
-    const [, commentId] = call.args;
-    const c = comments.get(commentId);
-    if (!c || c.deleted) return { present: false, focusedThreadId: null, anchorState: null };
-    return { present: true, focusedThreadId: commentId, anchorState: commentId === "c3" ? "lost" : "exact" };
+  // the open panel lists what existed when its document opened, then refreshes on a focus (fork comments-poll);
+  // a launch reveal of an id the panel has not listed is dropped (fork SheetsServerComments.tsx:282-287)
+  const listed = new Set();
+  const revealed = new Set();
+  const openedDocs = new Set();
+  const listAll = () => {
+    for (const [id, c] of comments) if (!c.deleted) listed.add(id);
+  };
+  script.respond("app.focus", () => {
+    listAll();
+    return { activated: true, pages: 1 };
   });
-  script.respond("app.selection", { status: "ok", result: { sheet: B7_SHEET_NAME, range: "B7" } });
+  // the editor's thread reading: a listed live comment the launch revealed holds focus
+  script.respond("app.evalBounded", (call) => {
+    const [, arg, label] = call.args;
+    if (label === "__genofficeControl.selection") return { status: "ok", result: { sheet: B7_SHEET_NAME, range: "B7" } };
+    const c = comments.get(arg);
+    if (!c || c.deleted || !listed.has(arg)) return { present: false, focusedThreadId: null, anchorState: null };
+    return { present: true, focusedThreadId: revealed.has(arg) ? arg : null, anchorState: arg === "c3" ? "lost" : "exact" };
+  });
+  // the first sheets window of the app shows another workbook (an earlier row's tab)
+  script.respond("app.selection", { status: "ok", result: { sheet: "Doanh thu Q1", range: "A1" } });
   let docPathSeq = 0;
   script.respond("app.openByTicket", (call) => {
     docPathSeq += 1;
-    return { path: `/fake/wc-${docPathSeq}`, documentId: call.args[1]?.documentId ?? null, kind: "sheets" };
+    const documentId = call.args[1]?.documentId ?? null;
+    if (!openedDocs.has(documentId)) {
+      openedDocs.add(documentId);
+      listAll();
+    }
+    const cid = /ticket=ticket_(c\d+)/.exec(call.args[0])?.[1];
+    if (cid && listed.has(cid)) revealed.add(cid);
+    return { path: `/fake/wc-${docPathSeq}`, documentId, kind: "sheets" };
   });
   script.respond("app.comments.list", (call) =>
     Object.values(world.shares).some((s) => s.revoked) ? { ok: false, error: { code: "forbidden", message: "x" } } : { ok: true, value: { comments: [] } },
@@ -348,7 +419,9 @@ function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
     openDocument: async (page, opts) => {
       opens.push({ user: page.user, documentId: opts.documentId, comment: opts.comment ?? null, archived: archived.has(opts.documentId) });
       const revoked = Object.values(world.shares).some((s) => s.documentId === opts.documentId && s.revoked);
-      if (page.user === "C" || revoked) return { url: "u", status: "no-access", panelCount: 0, focusedCommentId: null };
+      // C was never given the W1 document: 404, the gone page (Backend ID Rules); B after the revoke: S15 no-access
+      if (page.user === "C") return { url: "u", status: "not-found", panelCount: 0, focusedCommentId: null };
+      if (revoked) return { url: "u", status: revokedShowsGone ? "not-found" : "no-access", panelCount: 0, focusedCommentId: null };
       if (archived.has(opts.documentId)) return { url: "u", status: "not-found", panelCount: 0, focusedCommentId: null };
       const c = comments.get(opts.comment);
       if (c?.deleted) return { url: "u", status: "error", panelCount: 1, focusedCommentId: null };
@@ -425,7 +498,48 @@ test("decideG8A07: a cross-workspace row filed under the document's workspace is
   assert.match(reason, /inbox-view\.tsx:71/);
   assert.match(reason, /notifications\.sql:37/);
   assert.match(reason, /owner candidate/);
+  // the AC clause the row breaks, so the finding reads on its own
+  assert.match(reason, /AC G8-A07: .*fall-back to the open workspace for a direct share from another workspace/);
   // a row already in B's workspace that is still not listed is not blamed on the filter
   const same = decideG8A07(a07({ crossWorkspace: { ...cw, notificationWorkspaceId: "ws-id-w2" } }));
   assert.doesNotMatch(same.checks["cross-workspace"].reason, /inbox-view\.tsx/);
+});
+
+test("runDeeplink: the B7 selection is read in the page that shows the document, not the app's first sheets window", async () => {
+  const { fake, deps } = scriptedWorld();
+  await runA07({ ...deps, world: fake.world });
+  const a = artifact();
+  assert.equal(a.steps["desktop-reveal"].status, "PASS", JSON.stringify(a.steps["observe-desktop"], null, 1));
+  assert.equal(a.steps["observe-desktop"].details.selectionSource, "document page");
+  assert.equal(fake.calls.app.filter((c) => c.key === "selection").length, 0);
+});
+
+test("runDeeplink: the lost-anchor comment is listed by the open panel (focus refresh) before the re-launch reveals it", async () => {
+  const { fake, deps } = scriptedWorld();
+  await runA07({ ...deps, world: fake.world });
+  const a = artifact();
+  assert.equal(a.steps["observe-anchor-lost"].details.listedBeforeLaunch, true, JSON.stringify(a.steps["observe-anchor-lost"], null, 1));
+  assert.equal(a.steps.exceptions.details.checks.anchor_lost.status, "PASS");
+});
+
+test("runDeeplink: a launch refused for the deleted comment is a product FAIL, and the row's comment_deleted is still recorded", async () => {
+  const { fake, deps } = scriptedWorld({ launchRefusesGoneComment: true });
+  assert.equal(await runA07({ ...deps, world: fake.world }), 1);
+  const a = artifact();
+  const step = a.steps["observe-comment-deleted"];
+  assert.equal(step.status, "PASS", JSON.stringify(step, null, 1));
+  assert.equal(step.details.notification.comment_deleted, true);
+  assert.equal(step.details.launch.refused, true);
+  assert.equal(step.details.launch.status, 404);
+  assert.match(a.steps.exceptions.reason, /comment_deleted: product: /);
+  assert.doesNotMatch(a.steps.exceptions.reason, /does not read comment_deleted/);
+});
+
+test("runDeeplink: C's link shows the gone page (PASS); B's revoked link on the gone page is the product FAIL in revoke and no_access", async () => {
+  const { fake, deps } = scriptedWorld({ revokedShowsGone: true });
+  assert.equal(await runA07({ ...deps, world: fake.world }), 1);
+  const a = artifact();
+  assert.equal(a.steps["observe-no-access"].details.web, "not-found");
+  assert.match(a.steps.revoke.reason, /web-no-access: product: /);
+  assert.match(a.steps.exceptions.reason, /no_access: product: /);
 });

@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 
 import { createFakeWorld, serverCommentCreateRefusal } from "./fake-world.mjs";
-import { LOCKED_DESKTOP_CODES, decideRevoke, runRevoke } from "./revoke.mjs";
+import { LOCKED_DESKTOP_CODES, REVOKED_NO_ACCESS_OWNER, decideRevoke, runRevoke } from "./revoke.mjs";
 import { rowArtifactPath, runRowModule } from "./run-row.mjs";
 
 const notif = (extra = {}) => ({
@@ -65,6 +65,21 @@ test("decideRevoke: REST still 200, or the deep link still opens -> FAIL", () =>
   assert.equal(decideRevoke(withAfter({ rest: { status: 200 } })).status, "FAIL");
   assert.equal(decideRevoke(withAfter({ web: { status: "ok" } })).status, "FAIL");
   assert.equal(decideRevoke(withAfter({ web: { status: "not-found" } })).status, "FAIL");
+});
+
+test("decideRevoke: the S15 gone page for a row that reads resource_access_lost is a product FAIL naming the D page, the server 404 and an owner", () => {
+  const out = decideRevoke(withAfter({ web: { status: "not-found" } }));
+  const reason = out.checks["web-no-access"].reason;
+  assert.match(reason, /^product: /);
+  assert.match(reason, /resource_access_lost/);
+  assert.match(reason, /EXPERIENCE-G8\.md S15 row 2/);
+  assert.match(reason, /document-detail-view\.tsx:92-93/);
+  assert.match(reason, /document_permissions\.go/);
+  assert.match(reason, /owner candidate Lead D/);
+  assert.equal(REVOKED_NO_ACCESS_OWNER, "owner candidate Lead D (G8-07 deep link: D web Inbox row / document page)");
+  // a row that does not read resource_access_lost gives the page nothing to go on: no product claim
+  const noFlag = decideRevoke(withAfter({ web: { status: "not-found" }, notification: notif({ resource_access_lost: false, params: lostParams }) }));
+  assert.doesNotMatch(noFlag.checks["web-no-access"].reason, /^product: /);
 });
 
 test("decideRevoke: a snippet or document name left on the row, or no resource_access_lost -> FAIL", () => {

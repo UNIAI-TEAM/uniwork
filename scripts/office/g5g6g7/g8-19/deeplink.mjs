@@ -19,7 +19,9 @@
 //   a finding for L23, not this row (lead decision Q3).
 // - cross-workspace: a W1 document shared directly with B (W2 only) and a mention of B; the
 //   row must be in B's Inbox and link into W2, B's open workspace (resource-href.ts:10-12).
-// - the five UNI-1389 exceptions: no access (S15 no_access, document-detail-view.tsx:92-93),
+// - the five UNI-1389 exceptions: no access (S15 row 2 no_access, document-detail-view.tsx:92-93) for B
+//   once A revoked the share (the row reads resource_access_lost), while C - never given the W1 document,
+//   no row - must get the gone page: the server answers 404 to a non-reader (CLAUDE.md Backend ID Rules),
 //   deleted/archived (S15 gone :108-109 + resource_deleted, notification/service.go:238-244),
 //   comment deleted (comment_deleted, service.go:250; the document opens, no thread),
 //   anchor lost (the reveal opens the thread only, use-collab-threads.ts:373-376), session expired (/login).
@@ -46,13 +48,14 @@ import {
   pollOpts,
   pollUntil,
   readThread,
+  readThreadInPage,
   resolveDeps,
   rowsForComment,
   signInDesktop,
   verdictStep,
   waitForRows,
 } from "./inbox.mjs";
-import { revokeSteps } from "./revoke.mjs";
+import { decideRevokedLink, revokeSteps } from "./revoke.mjs";
 import { B7_ANCHOR, B7_SHEET_NAME, WEB_FRAME_PIN_BLOCKER, WEB_FRAME_PIN_OWNER, rowMain } from "./run-row.mjs";
 
 export const formatOfFixture = formatOf;
@@ -63,6 +66,10 @@ export const FRAME_PIN_FILE = Object.freeze({ docx: "docs.pin.json", xlsx: "shee
 export const KNOWN_PRE_G812_FRAME_SHAS = Object.freeze(["05fd209", "0d03b18"]);
 const PIN_DIR = "apps/web/platform/office-frame";
 const DELETED_THREAD_WAIT_MS = 5_000;
+/** How long the B7 selection may trail the thread focus before it is read as final. */
+const SELECTION_WAIT_MS = 5_000;
+/** How long the open panel gets to list a comment created after it opened (focus refresh, fork comments-poll). */
+const LISTED_WAIT_MS = 15_000;
 const WEB_SHORT_TIMEOUT_MS = 15_000;
 
 /** `{file, gitSha}` of the format's frame pin, or null when the format has no pinned frame. */
@@ -153,7 +160,7 @@ export function normalizeSelection(reply) {
 
 /** The five UNI-1389 exceptions and what each must show. */
 export const DEEP_LINK_EXCEPTIONS = Object.freeze({
-  no_access: { web: "S15 no-access (document-detail-view.tsx:92-93)" },
+  no_access: { web: "B after the revoke: S15 no-access (EXPERIENCE-G8 S15 row 2, document-detail-view.tsx:92-93); C, never given it: the gone page (404)" },
   deleted: { web: "S15 gone (document-detail-view.tsx:108-109)", notification: "resource_deleted, no snippet/document (notification/service.go:238-244)" },
   comment_deleted: { notification: "comment_deleted (notification/service.go:250)", desktop: "the document opens, no thread takes focus", web: "one panel, no thread focused (in-frame: R1)" },
   anchor_lost: { desktop: "the thread opens with the lost label, no jump (use-collab-threads.ts:373-376)", web: "in-frame: R1" },
@@ -162,13 +169,33 @@ export const DEEP_LINK_EXCEPTIONS = Object.freeze({
 
 const hasSnippet = (params) => params && (Object.hasOwn(params, "snippet") || Object.hasOwn(params, "document"));
 
+/** Who answers the launch ticket refused for a deleted comment. */
+export const COMMENT_DELETED_LAUNCH_OWNER = "owner candidate Lead D (G8-07 launch ticket, server/internal/service/office_launch.go)";
+
+/** The product reading of a launch refused because its comment_id names a deleted comment. */
+export function commentDeletedLaunchReason(launch) {
+  return (
+    `product: the launch ticket for the deleted comment is refused (POST office/sessions answered ${launch?.status ?? "?"} ${launch?.error ?? ""}`.trimEnd() +
+    "); contract-collab.md §2.9 + OQ-C6 drop an unknown comment_id silently and EXPERIENCE-G8.md S15 row 3 opens the document with the panel line, " +
+    "but D server/internal/service/office_launch.go:168-188 answers ErrNotFound when the comment is gone (one with no reply is removed for real, " +
+    "document_comments.go deleteDocumentCommentOn), so the page's ?comment= (apps/web/platform/office-frame/module-frame-host.tsx:78-79) " +
+    `stops "Open in UniWork Office" for the whole document; ${COMMENT_DELETED_LAUNCH_OWNER}`
+  );
+}
+
 /** One exception's verdict from what was observed; `pin` = framePinVerdict of the fixture's frame. */
 export function decideException(name, observed, { pin } = {}) {
   const o = observed ?? null;
   if (o?.notApplicable) return { status: "N/A", reason: o.notApplicable };
   switch (name) {
-    case "no_access":
-      return o?.web?.status === "no-access" ? pass() : fail(`the link shows ${o?.web?.status ?? "nothing"}, want S15 no-access`);
+    case "no_access": {
+      const stranger = o?.stranger?.web?.status;
+      if (stranger !== "not-found") {
+        return fail(`C, who was never given the document, sees ${stranger ?? "nothing"}; want the gone page (the server answers 404 to a non-reader, CLAUDE.md Backend ID Rules)`);
+      }
+      if (!o?.revoked?.web) return fail("the revoked recipient was not observed (revoke-after did not run)");
+      return decideRevokedLink(o.revoked.web, o.revoked.notification);
+    }
     case "deleted": {
       if (o?.web?.status !== "not-found") return fail(`the link shows ${o?.web?.status ?? "nothing"}, want S15 gone`);
       if (o?.notification?.resource_deleted !== true) return fail("the row does not read resource_deleted");
@@ -177,6 +204,7 @@ export function decideException(name, observed, { pin } = {}) {
     }
     case "comment_deleted": {
       if (o?.notification?.comment_deleted !== true) return fail("the row does not read comment_deleted");
+      if (o.launch?.refused) return fail(commentDeletedLaunchReason(o.launch));
       const dk = o.desktop ?? {};
       if (!dk.openedDocumentId || dk.openedDocumentId !== dk.documentId) return fail("the desktop did not open the document");
       if (dk.focusedThreadId) return fail(`the desktop focused thread ${dk.focusedThreadId} for a deleted comment`);
@@ -187,7 +215,15 @@ export function decideException(name, observed, { pin } = {}) {
     }
     case "anchor_lost": {
       const dk = o?.desktop ?? {};
-      if (!o?.commentId || dk.focusedThreadId !== o.commentId) return fail(`the desktop did not open the lost-anchor thread (focus ${dk.focusedThreadId ?? "none"})`);
+      if (o?.commentId && o.listedBeforeLaunch === false) {
+        return fail(
+          `the open panel did not list ${o.commentId} within the bound after a focus refresh, so the launch reveal was not judged ` +
+            "(the desktop drops a reveal of an id its panel has not listed: fork apps/sheets/src/renderer/server-comments/SheetsServerComments.tsx:287-289)",
+        );
+      }
+      if (!o?.commentId || dk.focusedThreadId !== o.commentId) {
+        return fail(`the desktop did not open the lost-anchor thread (focus ${dk.focusedThreadId ?? "none"})${o?.listedBeforeLaunch ? " although the open panel listed it before the launch" : ""}`);
+      }
       if (dk.anchorState !== "lost") return fail(`the thread reads anchor state ${dk.anchorState ?? "none"}, want lost`);
       if (frameBlocked(pin)) return blocked(pin);
       return pass();
@@ -250,7 +286,9 @@ export function decideG8A07(record) {
   else if (!cw.inboxListed && cw.notificationWorkspaceId && cw.openWorkspaceId && cw.notificationWorkspaceId !== cw.openWorkspaceId) {
     checks["cross-workspace"] = fail(
       `product: the shared document's row is filed under workspace ${cw.notificationWorkspaceId}, which B is not in, and B's Inbox lists only its open workspace ${cw.openWorkspaceId} ` +
-        `(D packages/views/notifications/inbox-view.tsx:71 useNotificationPages({workspaceId}) -> server/pkg/db/queries/notifications.sql:37); ${CROSS_WORKSPACE_OWNER}`,
+        `(D packages/views/notifications/inbox-view.tsx:71 useNotificationPages({workspaceId}) -> server/pkg/db/queries/notifications.sql:37), ` +
+        "so the row never reaches resource-href's fall-back (resource-href.ts:10-12); " +
+        `AC G8-A07: the slug comes from the recipient workspace list with a fall-back to the open workspace for a direct share from another workspace; ${CROSS_WORKSPACE_OWNER}`,
     );
   } else if (!cw.inboxListed) checks["cross-workspace"] = fail("the shared document's row is not listed in B's Inbox (B's open workspace)");
   else if (cw.href !== cw.expectedHref) checks["cross-workspace"] = fail(`the Inbox links ${cw.href}, want ${cw.expectedHref} (B's workspace)`);
@@ -280,6 +318,32 @@ export async function openSignedOut(browser, url, { timeoutMs = 30_000 } = {}) {
   } finally {
     await context.close().catch(() => {});
   }
+}
+
+/** The sheets control `selection` of the page that shows the document (never the app's first sheets window). */
+export function readSelection(ctrl, page) {
+  return ctrl.evalBounded(page, () => globalThis.__genofficeControl?.({ cmd: "selection" }) ?? null, undefined, "__genofficeControl.selection");
+}
+
+/** Reads the selection until it is `want` or the bound passes (the reveal's cell may trail its thread focus). */
+async function settledSelection(ctrl, page, want, d) {
+  const opts = pollOpts(d);
+  const out = await pollUntil(async () => {
+    const reply = await readSelection(ctrl, page);
+    return { done: normalizeSelection(reply) === want, reply };
+  }, { ...opts, timeoutMs: Math.min(SELECTION_WAIT_MS, opts.timeoutMs ?? SELECTION_WAIT_MS) });
+  return out.reply ?? null;
+}
+
+/** Focuses the working copy (the panel refreshes on focus) until `commentId`'s thread is listed; true when it is. */
+async function listedAfterFocus(ctrl, opened, commentId, d) {
+  const opts = pollOpts(d);
+  const out = await pollUntil(async () => {
+    await ctrl.focus(opened.path);
+    const read = await ctrl.evalBounded(opened.page, readThreadInPage, commentId, `read thread ${commentId}`);
+    return { done: read?.present === true, present: read?.present === true };
+  }, { ...opts, timeoutMs: Math.min(LISTED_WAIT_MS, opts.timeoutMs ?? LISTED_WAIT_MS) });
+  return out.present === true;
 }
 
 /** The row module (contract §8) for G8-A07. */
@@ -351,8 +415,15 @@ export async function runDeeplink(ctx, deps = {}) {
       const opened = await openOnDesktop(ctrl, world, "B", s.main.documentId, format, ticketCommentId);
       s.mainOpened = opened;
       const thread = await readThread(ctrl, opened.page, s.c1, d);
-      const selection = format === "xlsx" ? await ctrl.selection(opened.kind) : null;
-      rec.desktop = { ticketCommentId, ticketCommentSource: fromHref ? "inbox-href" : "notification", openedDocumentId: opened.openedDocumentId, thread, selection };
+      const selection = format === "xlsx" ? await settledSelection(ctrl, opened.page, `${B7_SHEET_NAME}!${B7_ANCHOR.range}`, d) : null;
+      rec.desktop = {
+        ticketCommentId,
+        ticketCommentSource: fromHref ? "inbox-href" : "notification",
+        openedDocumentId: opened.openedDocumentId,
+        thread,
+        selection,
+        ...(selection ? { selectionSource: "document page" } : {}),
+      };
       return { details: { ...rec.desktop } };
     }))) return finishDecisions(ctx, rec);
 
@@ -366,9 +437,10 @@ export async function runDeeplink(ctx, deps = {}) {
     });
 
     await ctx.step("observe-no-access", async () => {
-      // C (W2 only, never shared) follows a link to the W1 document
-      rec.exceptions.no_access = { web: await openWeb(s.webC.page, s.shared.documentId, s.c2) };
-      return { details: { web: rec.exceptions.no_access.web?.status ?? null } };
+      // C (W2 only, never shared) follows a link to the W1 document: the gone page (404, no existence leak);
+      // B's S15 no-access half is observed after the revoke (revokeSteps)
+      rec.exceptions.no_access = { stranger: { web: await openWeb(s.webC.page, s.shared.documentId, s.c2) } };
+      return { details: { web: rec.exceptions.no_access.stranger.web?.status ?? null } };
     });
 
     await ctx.step("observe-anchor-lost", async () => {
@@ -379,9 +451,17 @@ export async function runDeeplink(ctx, deps = {}) {
       const c3 = await createCommentRest(world, "A", s.main.documentId, `Neo sẽ mất (G8-19 ${tag})`, commentAnchor(d.repoRoot, ctx.fixture, s.main.versionId));
       const put = await world.session("A").call("putDocumentCommentAnchors", { documentID: s.main.documentId }, { version_id: s.main.versionId, anchors: [{ comment_id: c3, anchor: B7_ANCHOR, state: "lost" }] });
       if (put.status < 200 || put.status >= 300) throw new Error(`PUT anchors answered ${apiErrorText(put)}`);
+      // the document is already open: its panel lists c3 only after a refresh, and the desktop drops a reveal
+      // of an id it has not listed, so the lost-anchor reveal is judged once the panel lists c3
+      const listedBeforeLaunch = await listedAfterFocus(ctrl, s.mainOpened, c3, d);
       const opened = await openOnDesktop(ctrl, world, "B", s.main.documentId, format, c3);
       const thread = await readThread(ctrl, opened.page, c3, d);
-      rec.exceptions.anchor_lost = { commentId: c3, desktop: { focusedThreadId: thread?.focusedThreadId ?? null, anchorState: thread?.anchorState ?? null }, put: { status: put.status, skipped: put.body?.skipped ?? null } };
+      rec.exceptions.anchor_lost = {
+        commentId: c3,
+        listedBeforeLaunch,
+        desktop: { focusedThreadId: thread?.focusedThreadId ?? null, anchorState: thread?.anchorState ?? null },
+        put: { status: put.status, skipped: put.body?.skipped ?? null },
+      };
       return { details: rec.exceptions.anchor_lost };
     });
 
@@ -394,14 +474,22 @@ export async function runDeeplink(ctx, deps = {}) {
         const n = rowsForComment(await notificationsOf(world, "B"), s.main.documentId, c4)[0] ?? null;
         return { done: n?.comment_deleted === true, n };
       }, pollOpts(d));
-      const opened = await openOnDesktop(ctrl, world, "B", s.main.documentId, format, c4);
-      const thread = await readThread(ctrl, opened.page, c4, d, { timeoutMs: Math.min(DELETED_THREAD_WAIT_MS, d.pollTimeoutMs ?? DELETED_THREAD_WAIT_MS) });
-      const web = frameBlocked(framePin) ? null : await openWeb(s.webB.page, s.main.documentId, c4, { timeoutMs: WEB_SHORT_TIMEOUT_MS });
-      rec.exceptions.comment_deleted = {
-        notification: flagged.n ? { comment_deleted: flagged.n.comment_deleted } : null,
-        desktop: { openedDocumentId: opened.openedDocumentId, documentId: s.main.documentId, focusedThreadId: thread?.focusedThreadId ?? null },
-        web,
-      };
+      // the row flag is recorded before the desktop half, so a refused launch cannot hide it
+      rec.exceptions.comment_deleted = { notification: flagged.n ? { comment_deleted: flagged.n.comment_deleted } : null, launch: null, desktop: null, web: null };
+      let opened = null;
+      try {
+        opened = await openOnDesktop(ctrl, world, "B", s.main.documentId, format, c4);
+      } catch (err) {
+        if (typeof err?.launchStatus !== "number") throw err;
+        // the server refused the ticket itself (contract §2.9 wants the comment dropped): a product finding, decided by decideException
+        rec.exceptions.comment_deleted.launch = { refused: true, status: err.launchStatus, error: err.launchError ?? "" };
+      }
+      if (opened) {
+        const thread = await readThread(ctrl, opened.page, c4, d, { timeoutMs: Math.min(DELETED_THREAD_WAIT_MS, d.pollTimeoutMs ?? DELETED_THREAD_WAIT_MS) });
+        rec.exceptions.comment_deleted.launch = { refused: false };
+        rec.exceptions.comment_deleted.desktop = { openedDocumentId: opened.openedDocumentId, documentId: s.main.documentId, focusedThreadId: thread?.focusedThreadId ?? null };
+      }
+      rec.exceptions.comment_deleted.web = frameBlocked(framePin) ? null : await openWeb(s.webB.page, s.main.documentId, c4, { timeoutMs: WEB_SHORT_TIMEOUT_MS });
       return { details: rec.exceptions.comment_deleted };
     });
 
@@ -425,6 +513,7 @@ export async function runDeeplink(ctx, deps = {}) {
         shared: { documentId: s.shared.documentId, shareId: s.shareId, commentId: s.c2, path: s.sharedOpened.path, page: s.sharedOpened.page },
         archive: { documentId: s.main.documentId, commentId: s.c1 },
       });
+      if (revoked.after?.web) rec.exceptions.no_access = { ...rec.exceptions.no_access, revoked: { web: revoked.after.web, notification: revoked.after.notification } };
       if (revoked.archive) rec.exceptions.deleted = { web: revoked.archive.web, notification: revoked.archive.notification };
     }
     return finishDecisions(ctx, rec);
