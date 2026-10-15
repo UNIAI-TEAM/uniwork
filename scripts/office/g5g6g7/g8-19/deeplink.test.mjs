@@ -169,6 +169,22 @@ test("decideException maps each observed state", () => {
   assert.equal(decideException("session_expired", undefined, { pin }).status, "FAIL");
 });
 
+test("decideException comment_deleted: a refused launch ticket is a product FAIL citing the contract's silent drop; the row flag is judged first", () => {
+  const pin = framePinVerdict(null);
+  const refused = { notification: { comment_deleted: true }, launch: { refused: true, status: 404, error: "not_found: not found" }, desktop: null, web: null };
+  const out = decideException("comment_deleted", refused, { pin });
+  assert.equal(out.status, "FAIL");
+  assert.match(out.reason, /^product: /);
+  assert.match(out.reason, /404 not_found/);
+  assert.match(out.reason, /contract-collab\.md §2\.9/);
+  assert.match(out.reason, /OQ-C6/);
+  assert.match(out.reason, /S15 row 3/);
+  assert.match(out.reason, /office_launch\.go:168-188/);
+  assert.match(out.reason, /owner candidate Lead D/);
+  const noFlag = decideException("comment_deleted", { ...refused, notification: { comment_deleted: false } }, { pin });
+  assert.equal(noFlag.reason, "the row does not read comment_deleted");
+});
+
 test("decideException anchor_lost: a thread the open panel never listed before the re-launch is not judged as a reveal miss", () => {
   const pin = framePinVerdict(null);
   const unlisted = decideException("anchor_lost", { commentId: "c3", listedBeforeLaunch: false, desktop: { focusedThreadId: null, anchorState: null } }, { pin });
@@ -266,7 +282,7 @@ beforeEach(() => {
 afterEach(() => rmSync(runDir, { recursive: true, force: true }));
 
 /** Scripts a fake server where every mention reaches B and every revoke/archive flips the row flags. */
-function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
+function scriptedWorld({ hrefWorkspace = "ws-w2", launchRefusesGoneComment = false } = {}) {
   const fake = createFakeWorld();
   const { world, script } = fake;
   let commentSeq = 0;
@@ -289,10 +305,12 @@ function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
     archived.add(call.args.pathParams.documentID);
     return { status: 200, body: {} };
   });
-  script.respond("api.mintLaunch", (call) => ({
-    status: 201,
-    body: { launch_ticket: "ticket_x", launch_url: `uniwork-office-dev://open?ticket=ticket_${call.args.body.comment_id ?? "none"}` },
-  }));
+  script.respond("api.mintLaunch", (call) => {
+    const cid = call.args.body.comment_id;
+    // D office_launch.go:168-188 refuses a comment that is gone; the contract (§2.9, OQ-C6) drops it silently
+    if (launchRefusesGoneComment && cid && comments.get(cid)?.deleted) return { status: 404, body: { error: { code: "not_found", message: "not found" } } };
+    return { status: 201, body: { launch_ticket: "ticket_x", launch_url: `uniwork-office-dev://open?ticket=ticket_${cid ?? "none"}` } };
+  });
   script.respond("api.listDocumentComments", (call) =>
     call.user === "B" && Object.values(world.shares).some((s) => s.documentId === call.args.pathParams.documentID && s.revoked)
       ? { status: 404, body: { error: "not_found" } }
@@ -476,4 +494,17 @@ test("runDeeplink: the lost-anchor comment is listed by the open panel (focus re
   const a = artifact();
   assert.equal(a.steps["observe-anchor-lost"].details.listedBeforeLaunch, true, JSON.stringify(a.steps["observe-anchor-lost"], null, 1));
   assert.equal(a.steps.exceptions.details.checks.anchor_lost.status, "PASS");
+});
+
+test("runDeeplink: a launch refused for the deleted comment is a product FAIL, and the row's comment_deleted is still recorded", async () => {
+  const { fake, deps } = scriptedWorld({ launchRefusesGoneComment: true });
+  assert.equal(await runA07({ ...deps, world: fake.world }), 1);
+  const a = artifact();
+  const step = a.steps["observe-comment-deleted"];
+  assert.equal(step.status, "PASS", JSON.stringify(step, null, 1));
+  assert.equal(step.details.notification.comment_deleted, true);
+  assert.equal(step.details.launch.refused, true);
+  assert.equal(step.details.launch.status, 404);
+  assert.match(a.steps.exceptions.reason, /comment_deleted: product: /);
+  assert.doesNotMatch(a.steps.exceptions.reason, /does not read comment_deleted/);
 });

@@ -167,6 +167,20 @@ export const DEEP_LINK_EXCEPTIONS = Object.freeze({
 
 const hasSnippet = (params) => params && (Object.hasOwn(params, "snippet") || Object.hasOwn(params, "document"));
 
+/** Who answers the launch ticket refused for a deleted comment. */
+export const COMMENT_DELETED_LAUNCH_OWNER = "owner candidate Lead D (G8-07 launch ticket, server/internal/service/office_launch.go)";
+
+/** The product reading of a launch refused because its comment_id names a deleted comment. */
+export function commentDeletedLaunchReason(launch) {
+  return (
+    `product: the launch ticket for the deleted comment is refused (POST office/sessions answered ${launch?.status ?? "?"} ${launch?.error ?? ""}`.trimEnd() +
+    "); contract-collab.md §2.9 + OQ-C6 drop an unknown comment_id silently and EXPERIENCE-G8.md S15 row 3 opens the document with the panel line, " +
+    "but D server/internal/service/office_launch.go:168-188 answers ErrNotFound when the comment is gone (one with no reply is removed for real, " +
+    "document_comments.go deleteDocumentCommentOn), so the page's ?comment= (apps/web/platform/office-frame/module-frame-host.tsx:78-79) " +
+    `stops "Open in UniWork Office" for the whole document; ${COMMENT_DELETED_LAUNCH_OWNER}`
+  );
+}
+
 /** One exception's verdict from what was observed; `pin` = framePinVerdict of the fixture's frame. */
 export function decideException(name, observed, { pin } = {}) {
   const o = observed ?? null;
@@ -182,6 +196,7 @@ export function decideException(name, observed, { pin } = {}) {
     }
     case "comment_deleted": {
       if (o?.notification?.comment_deleted !== true) return fail("the row does not read comment_deleted");
+      if (o.launch?.refused) return fail(commentDeletedLaunchReason(o.launch));
       const dk = o.desktop ?? {};
       if (!dk.openedDocumentId || dk.openedDocumentId !== dk.documentId) return fail("the desktop did not open the document");
       if (dk.focusedThreadId) return fail(`the desktop focused thread ${dk.focusedThreadId} for a deleted comment`);
@@ -448,14 +463,22 @@ export async function runDeeplink(ctx, deps = {}) {
         const n = rowsForComment(await notificationsOf(world, "B"), s.main.documentId, c4)[0] ?? null;
         return { done: n?.comment_deleted === true, n };
       }, pollOpts(d));
-      const opened = await openOnDesktop(ctrl, world, "B", s.main.documentId, format, c4);
-      const thread = await readThread(ctrl, opened.page, c4, d, { timeoutMs: Math.min(DELETED_THREAD_WAIT_MS, d.pollTimeoutMs ?? DELETED_THREAD_WAIT_MS) });
-      const web = frameBlocked(framePin) ? null : await openWeb(s.webB.page, s.main.documentId, c4, { timeoutMs: WEB_SHORT_TIMEOUT_MS });
-      rec.exceptions.comment_deleted = {
-        notification: flagged.n ? { comment_deleted: flagged.n.comment_deleted } : null,
-        desktop: { openedDocumentId: opened.openedDocumentId, documentId: s.main.documentId, focusedThreadId: thread?.focusedThreadId ?? null },
-        web,
-      };
+      // the row flag is recorded before the desktop half, so a refused launch cannot hide it
+      rec.exceptions.comment_deleted = { notification: flagged.n ? { comment_deleted: flagged.n.comment_deleted } : null, launch: null, desktop: null, web: null };
+      let opened = null;
+      try {
+        opened = await openOnDesktop(ctrl, world, "B", s.main.documentId, format, c4);
+      } catch (err) {
+        if (typeof err?.launchStatus !== "number") throw err;
+        // the server refused the ticket itself (contract §2.9 wants the comment dropped): a product finding, decided by decideException
+        rec.exceptions.comment_deleted.launch = { refused: true, status: err.launchStatus, error: err.launchError ?? "" };
+      }
+      if (opened) {
+        const thread = await readThread(ctrl, opened.page, c4, d, { timeoutMs: Math.min(DELETED_THREAD_WAIT_MS, d.pollTimeoutMs ?? DELETED_THREAD_WAIT_MS) });
+        rec.exceptions.comment_deleted.launch = { refused: false };
+        rec.exceptions.comment_deleted.desktop = { openedDocumentId: opened.openedDocumentId, documentId: s.main.documentId, focusedThreadId: thread?.focusedThreadId ?? null };
+      }
+      rec.exceptions.comment_deleted.web = frameBlocked(framePin) ? null : await openWeb(s.webB.page, s.main.documentId, c4, { timeoutMs: WEB_SHORT_TIMEOUT_MS });
       return { details: rec.exceptions.comment_deleted };
     });
 

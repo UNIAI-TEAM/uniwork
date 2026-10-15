@@ -275,7 +275,13 @@ export async function mintLaunchUrl(world, userKey, documentId, commentId) {
   if (commentId) body.comment_id = commentId;
   const res = await world.session(userKey).call("mintLaunch", { documentID: documentId }, body);
   const url = res.body?.launch_url;
-  if (res.status < 200 || res.status >= 300 || !url) throw new Error(`office/sessions as ${userKey} answered ${apiErrorText(res)}`);
+  if (res.status < 200 || res.status >= 300 || !url) {
+    const err = new Error(`office/sessions as ${userKey} answered ${apiErrorText(res)}`);
+    // the server's own refusal, so a caller can tell it from a harness/app failure (deeplink comment_deleted)
+    err.launchStatus = res.status;
+    err.launchError = apiErrorText(res);
+    throw err;
+  }
   return url;
 }
 
