@@ -127,9 +127,9 @@ function editProof(expected, applied, sheetNames, sourceText) {
   }
   if (expected.kind === 'cell' || expected.kind === 'formula') {
     if (parseRangeText(base.slice(base.lastIndexOf('!') + 1)) !== null) {
-      const proof = cellProof(applied, base, value, { sheetNames });
-      // A formula at the cell proves only the address, never the value (the harness cannot evaluate it): it backs an item whose
-      // expectation IS a formula, and nothing else (G712-23).
+      const proof = cellProof(applied, base, value, { sheetNames, expectFormula: expected.kind === 'formula' });
+      // A formula at the cell backs only an item whose expectation IS a formula, and only when it equals the expected formula
+      // after normalising case, spaces, `$` and the leading `=` (G712-23, G712-25); the harness cannot evaluate formulas.
       if (proof === 'formula') return expected.kind === 'formula' ? backed('formula') : unbacked;
       return proof ? backed(proof) : unbacked;
     }
