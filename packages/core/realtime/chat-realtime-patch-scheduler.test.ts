@@ -10,8 +10,10 @@ import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-schedule
 
 /** Debounce plus the largest jitter. */
 const FLUSH_MAX_MS = 500;
+/** Sidebar reload floor. */
+const ROOMS_REFRESH_MIN_MS = 5_000;
 /** Sidebar reload floor plus its largest jitter. */
-const ROOMS_HOLD_MAX_MS = 5_000 + 2_000;
+const ROOMS_HOLD_MAX_MS = ROOMS_REFRESH_MIN_MS + 2_000;
 
 vi.mock("../chat/realtime-cache", () => ({
   fetchAndPatchChatMessage: vi.fn(),
@@ -27,7 +29,8 @@ describe("createChatRealtimePatchScheduler", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     qc = new QueryClient();
-    vi.clearAllMocks();
+    // reset, not clear: a test's slow GET implementation must not leak into the next one.
+    vi.resetAllMocks();
   });
 
   afterEach(() => {
@@ -154,6 +157,29 @@ describe("createChatRealtimePatchScheduler", () => {
     await vi.advanceTimersByTimeAsync(4 * ROOMS_HOLD_MAX_MS);
     expect(roomsCalls()).toBe(2);
     await scheduler.dispose();
+  });
+
+  it("keeps the sidebar floor while a flush waits on its message GETs", async () => {
+    vi.mocked(fetchAndPatchChatMessage).mockImplementation(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 300)),
+    );
+    const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const roomsKey = JSON.stringify(chatKeys.rooms("ws1"));
+    const runMs = 60_000;
+    // 10 msg/s in a room whose timeline is loaded: an upsert and an activity frame each.
+    for (let i = 0; i < runMs / 100; i++) {
+      scheduler.scheduleUpsert("room1", `m${i}`, true, "u2");
+      scheduler.scheduleRoomActivity();
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    const roomsCalls = invalidate.mock.calls.filter(
+      ([filters]) => JSON.stringify(filters?.queryKey) === roomsKey,
+    ).length;
+    expect(roomsCalls).toBeLessThanOrEqual(runMs / ROOMS_REFRESH_MIN_MS);
+    const disposed = scheduler.dispose();
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    await disposed;
   });
 
   it("a held sidebar reload does not hold back message upserts", async () => {

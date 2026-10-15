@@ -46,6 +46,8 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
     deletes.clear();
     mentions.clear();
     roomsActivityPending = false;
+    // Stamp before the GETs: a frame landing while they run must wait out the floor too.
+    if (refreshRooms) lastRoomsRefresh = Date.now();
 
     for (const entry of deleteBatch) {
       patchChatMessageDeleted(qc, wsId, entry.roomId, entry.messageId);
@@ -65,7 +67,6 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
     // cancelRefetch: false — a sidebar load already in flight answers this
     // frame too; aborting it would not stop the server from running it.
     if (refreshRooms) {
-      lastRoomsRefresh = Date.now();
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) }, { cancelRefetch: false });
     }
   };
