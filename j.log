@@ -1,0 +1,3 @@
+$ git checkout HEAD -- . && git status --short | cat; echo RESTORED
+?? dump.rdb
+RESTORED

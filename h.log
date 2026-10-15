@@ -1,0 +1,44 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18900 FRONTEND_ORIGIN=http://localhost:13800 API_PUBLIC_URL=http://localhost:18900 PREVIEW_ORIGIN=http://localhost:13801 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18900 NEXT_PUBLIC_WS_URL=ws://localhost:18900 NEXT_PUBLIC_APP_URL=http://localhost:13800 E2E_BASE_URL=http://localhost:13800 E2E_API_URL=http://localhost:18900; cd e2e; pnpm exec playwright test landing-density.spec.ts landing-scenes.spec.ts landing-trust.spec.ts files-chat.spec.ts --repeat-each=2 --workers=2 --retries=0 --reporter=line > /tmp/r16-base.log 2>&1; echo "BASE_EXIT=$?"; grep -E '^ +[0-9]+ (passed|failed|flaky|skipped|did not run)' /tmp/r16-base.log; grep -E '^ +[0-9]+ (passed|failed|flaky|skipped|did not run)|^ +[0-9]+\) |Error:|Expected|Received' /tmp/r16-base.log | grep -vE '^ +[0-9]+ (passed|failed|flaky|skipped|did not run)' | head -150; true
+BASE_EXIT=1
+  12 failed
+  30 passed (6.4m)
+  1) files-chat.spec.ts:265:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions 
+    Error: locator.click: Target page, context or browser has been closed
+  2) files-chat.spec.ts:265:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions 
+    Error: locator.click: Target page, context or browser has been closed
+  3) landing-density.spec.ts:5:3 › product stage shares the landing frame at 1440px ────────────────
+    Error: expect(received).toBeGreaterThan(expected)
+    Expected: > 1100
+    Received:   1078
+  4) landing-density.spec.ts:5:3 › product stage shares the landing frame at 768px ─────────────────
+    Error: expect(received).toBeGreaterThan(expected)
+    Expected: > 700
+    Received:   666
+  5) landing-scenes.spec.ts:6:1 › original UNI artwork and face stay unchanged while the foreleg waves 
+    Error: expect(received).toBeLessThanOrEqual(expected)
+    Expected: <= 2
+    Received:    3
+  6) landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px ─────────────────
+    Error: expect(received).toBeGreaterThan(expected)
+    Expected: > 350
+    Received:   340
+  7) landing-density.spec.ts:5:3 › product stage shares the landing frame at 1440px ────────────────
+    Error: expect(received).toBeGreaterThan(expected)
+    Expected: > 1100
+    Received:   1078
+  8) landing-density.spec.ts:5:3 › product stage shares the landing frame at 768px ─────────────────
+    Error: expect(received).toBeGreaterThan(expected)
+    Expected: > 700
+    Received:   666
+  9) landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px ─────────────────
+    Error: expect(received).toBeGreaterThan(expected)
+    Expected: > 350
+    Received:   340
+  10) landing-scenes.spec.ts:6:1 › original UNI artwork and face stay unchanged while the foreleg waves 
+    Error: expect(received).toBeLessThanOrEqual(expected)
+    Expected: <= 2
+    Received:    3
+  11) landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1280 vi dark ────────────
+    Error: locator.click: Test timeout of 60000ms exceeded.
+  12) landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1280 vi dark ────────────
+    Error: locator.click: Test timeout of 60000ms exceeded.
