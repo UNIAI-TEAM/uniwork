@@ -87,6 +87,39 @@ func TestChatMessagesReachTheInbox(t *testing.T) {
 	}
 }
 
+// A merged chat row points at the newest message, so deleting the first one
+// does not close the inbox's way into the ones that arrived after it.
+func TestMergedChatRowPointsAtTheNewestMessage(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "nhầm"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	if err := chat.DeleteChatMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	second, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "hợp đồng ký chưa?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+
+	items, err := NewService(f.q, PushConfig{}).List(f.ctx, f.member.ID, ListInput{WorkspaceID: f.wsID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].Count != 2 || items[0].ResourceID != second.ID ||
+		items[0].ResourceDeleted || items[0].ResourceParentID != dm.ID {
+		t.Fatalf("merged dm item = %+v", items)
+	}
+}
+
 // A DM or group spans the organization: a recipient outside the workspace the
 // room was opened from still hears it, linked to a workspace of their own,
 // while a recipient inside it keeps that workspace (UNI-1074, UNI-1089).

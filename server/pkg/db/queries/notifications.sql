@@ -13,6 +13,7 @@ INSERT INTO notifications (
 ON CONFLICT (user_id, group_key) WHERE read_at IS NULL AND archived_at IS NULL
 DO UPDATE SET
   count = notifications.count + 1,
+  resource_id = EXCLUDED.resource_id,
   params = EXCLUDED.params,
   actor_kind = EXCLUDED.actor_kind,
   actor_id = EXCLUDED.actor_id,
@@ -225,6 +226,7 @@ FROM (SELECT unnest(sqlc.arg('ids')::text[]) AS id, unnest(sqlc.arg('user_ids'):
 ON CONFLICT (user_id, group_key) WHERE read_at IS NULL AND archived_at IS NULL
 DO UPDATE SET
   count = notifications.count + 1,
+  resource_id = EXCLUDED.resource_id,
   params = EXCLUDED.params,
   actor_kind = EXCLUDED.actor_kind,
   actor_id = EXCLUDED.actor_id,
