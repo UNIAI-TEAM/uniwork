@@ -279,7 +279,8 @@ describe('thresholds file', () => {
       }
     };
     for (const dir of ['docs/office', 'scripts/office']) walk(path.join(repoRoot, dir));
-    assert.deepEqual(found.map((f) => path.relative(repoRoot, f)), ['docs/office/g5g6g7/holdout/thresholds-G7-D1.json']);
+    // G712-W1: win32 separates with a backslash, so compare the relative path in POSIX form on every host.
+    assert.deepEqual(found.map((f) => path.relative(repoRoot, f).split(path.sep).join('/')), ['docs/office/g5g6g7/holdout/thresholds-G7-D1.json']);
   });
 });
 
