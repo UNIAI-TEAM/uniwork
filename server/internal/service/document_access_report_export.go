@@ -250,7 +250,7 @@ func accessReportLines(items []DocumentAccessReportItem, withPerson bool) ([]str
 	return header, lines
 }
 
-// writeAccessReportCSV writes strict RFC 4180 with a UTF-8 BOM (Excel on a
+// writeAccessReportCSV writes RFC 4180 (CRLF records) with a UTF-8 BOM (Excel on a
 // Vietnamese Windows reads BOM-less UTF-8 as Windows-1252). The generation
 // time and the filter ride two trailing columns of every line, so no
 // preamble breaks a parser and any row-wise import keeps them.
@@ -259,6 +259,7 @@ func writeAccessReportCSV(w io.Writer, header []string, lines [][]string, meta a
 		return err
 	}
 	cw := csv.NewWriter(w)
+	cw.UseCRLF = true
 	filter := meta.filter()
 	if err := cw.Write(append(append([]string(nil), header...), "report_generated_at", "report_filter")); err != nil {
 		return err
