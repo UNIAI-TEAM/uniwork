@@ -681,8 +681,23 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
       extraBlockers.push(`the run set was made over a different case set than the one the thresholds were signed for (${seen?.caseCount ?? '?'} cases, sha256 ${String(seen?.caseSetSha256 ?? 'unknown').slice(0, 12)} vs signed ${thresholds.caseCount}, ${String(thresholds.caseSetSha256).slice(0, 12)})`);
     }
     const reviewerBlockers = refusal.map((reason) => `the reviews file was refused and applied to nothing: ${reason}`);
-    const heldBack = reviewed.pending.length + reviewed.rejected.length;
-    if (waiting.length - heldBack > 0) reviewerBlockers.push(`${waiting.length - heldBack} ask(s) still wait for a reviewer (no review for them in --reviews)`);
+    // G712-28: the asks that still wait are counted in ONE unit — the ask, one per run — and the pairs (case + language)
+    // with no entry at all are named; a pair count was subtracted from a per-run count before, so the line could be wrong
+    // or absent. An applied entry resolves its ask, a refused file reviewed nothing, and a pending or rejected entry keeps
+    // its own blocker, so none of those count as "no entry" here.
+    const entries = refusal.length === 0 && reviews ? reviews.reviews : [];
+    const unreviewed = [];
+    for (const run of runs) {
+      for (const ask of run.asks) {
+        if (ask.status !== 'needs_reviewer') continue;
+        if (entries.some((r) => r.id === ask.id && r.lang === ask.lang && (r.run === run.runIndex || r.run === undefined))) continue;
+        unreviewed.push({ id: ask.id, lang: ask.lang });
+      }
+    }
+    if (unreviewed.length > 0) {
+      const pairs = [...new Set(unreviewed.map((a) => `${a.id} (${a.lang})`))];
+      reviewerBlockers.push(`${unreviewed.length} ask(s) still wait for a reviewer (no review for them in --reviews): ${pairs.join(', ')}`);
+    }
     if (reviewed.pending.length > 0) reviewerBlockers.push(`${reviewed.pending.length} graded ask(s) are "chưa kết luận": borderline, an injection pass or a file without the user's spot-check (${GRADING_WORDING.en})`);
     if (reviewed.rejected.length > 0) reviewerBlockers.push(`${reviewed.rejected.length} graded ask(s) were rejected: the quote is not a verbatim part of the answer`);
     const awaitingByGroup = new Map();

@@ -617,7 +617,7 @@ describe('reviewer input (G712-4)', () => {
     assert.match(o.metrics.successRateOverall.reasons.join(' '), /still wait for a reviewer/);
     assert.equal(o.metrics.leaks.verdict, 'pass', 'a criterion that no reviewer case feeds is judged');
     assert.equal(o.status, 'INCONCLUSIVE');
-    assert.match(o.blockers.join(' '), /40 ask\(s\) still wait for a reviewer/);
+    assert.match(o.blockers.join(' '), /120 ask\(s\) still wait for a reviewer/);
     const md = renderReport(buildReport(runs(), { session: makeSession(runs()) }));
     assert.match(md, /không bao giờ đạt/);
     assert.match(md, /không có --reviews/);
@@ -638,7 +638,34 @@ describe('reviewer input (G712-4)', () => {
     const partial = parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, ...BOUND, reviews: [{ id: 'HO-B-041', lang: 'vi', verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' }] });
     const o = judge(partial);
     assert.equal(o.status, 'INCONCLUSIVE');
-    assert.match(o.blockers.join(' '), /39 ask\(s\) still wait/);
+    assert.match(o.blockers.join(' '), /117 ask\(s\) still wait/);
+  });
+
+  it('counts the asks that still wait in one unit and names the pairs with no entry (G712-28)', () => {
+    const answerOf = (a, runIndex) => `stub answer ${a.id}/${a.lang}/run ${runIndex}`;
+    const input = [1, 2, 3].map((i) => {
+      const r = run(i, bigSuite(rubric));
+      return { ...r, asks: r.asks.map((a) => (a.status === 'needs_reviewer' ? { ...a, answer: { text: answerOf(a, i) } } : a)) };
+    });
+    const docxVi = input[0].asks.filter((a) => a.status === 'needs_reviewer' && a.lang === 'vi').map((a) => ({ id: a.id, lang: a.lang }));
+    const [pending, oneRun] = docxVi;
+    const entry = (pair, runIndex, over = {}) => ({ ...pair, run: runIndex, verdict: 'pass', reason: 'r', quote: answerOf(pair, runIndex), ...over });
+    const reviews = parseReviews({
+      schemaVersion: 1, kind: REVIEWS_KIND, ...BOUND, grader: { kind: 'model-session', name: 'Opus 5.5 grader' },
+      reviews: [
+        ...[1, 2, 3].map((n) => entry(pending, n, { verdict: 'borderline' })),
+        entry(oneRun, 1, { spotCheck: { by: 'user', date: '2026-10-21', verdict: 'pass' } }),
+      ],
+    });
+    const o = buildReport(input, { thresholds: signed(limits), session: makeSession(input), reviews }).overall;
+    const line = o.blockers.find((b) => /still wait for a reviewer/.test(b));
+    // 20 docx cases × 2 languages × 3 runs = 120 asks wait, an ask being one run: the borderline pair's 3 asks are pending
+    // (their own entry, so not "no entry") and the second pair's run 1 is resolved, so 116 asks over 39 pairs have no entry.
+    assert.match(line, /^116 ask\(s\) still wait for a reviewer \(no review for them in --reviews\): /);
+    assert.ok(line.includes(`${oneRun.id} (vi)`), 'a pair whose only entry covers a single run is still named');
+    assert.ok(!line.includes(`${pending.id} (vi)`), 'a pair whose every entry is pending is named by the pending blocker instead');
+    assert.equal(new Set(line.slice(line.indexOf(': ') + 2).split(', ')).size, 39, 'every pair with no entry is named, once');
+    assert.match(o.blockers.join(' '), /3 graded ask\(s\) are "chưa kết luận"/);
   });
 
   it('applies a per-run review to that run only and lets it win over a general one; never rescues a deterministic fail', () => {
@@ -731,7 +758,7 @@ describe('reviewer input (G712-4)', () => {
       assert.equal(r.reviews.applied, 0);
       assert.match(r.reviews.refused.join(' '), /for session s-other, this run set is session s-1/);
       assert.match(r.overall.blockers.join(' '), /reviews file was refused and applied to nothing/);
-      assert.match(r.overall.blockers.join(' '), /40 ask\(s\) still wait for a reviewer/, 'the asks still wait');
+      assert.match(r.overall.blockers.join(' '), /120 ask\(s\) still wait for a reviewer/, 'the asks still wait');
       assert.match(renderReport(r), /Tệp duyệt BỊ TỪ CHỐI/);
     });
 
