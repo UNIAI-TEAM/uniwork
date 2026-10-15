@@ -24,10 +24,11 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { reportingFooter } from './holdout-answer.mjs';
+import { GRADING_WORDING, REVIEWS_KIND, resolveGraded, validateGradedEntry, validateGrader } from './holdout-review.mjs';
 import { MANIFEST_KIND, RUN_KIND, isInsideRepo } from './holdout-run.mjs';
 
 export const THRESHOLDS_KIND = 'uniwork-office-g7-holdout-thresholds';
-export const REVIEWS_KIND = 'uniwork-office-g7-holdout-reviews';
+export { REVIEWS_KIND };
 export const NO_THRESHOLD = 'chưa có ngưỡng (no threshold)';
 export const GROUPS = ['xlsx', 'docx', 'other', 'cross'];
 export const FORMATS = ['xlsx', 'docx', 'pptx', 'pdf', 'md', 'html', 'cross'];
@@ -257,7 +258,11 @@ export function tupleConsistency(runs) {
 
 // ---- reviewer input (G712-4) ----
 
-/** Validates a reviews file: one verdict per case id and language (optionally per run), by a named reviewer, on a date. */
+/**
+ * Validates a reviews file: one verdict per case id and language (optionally per run). Two kinds of file: a human one
+ * (pass|fail, a named reviewer, a date) and a model-graded one (a file-level `grader`; per item pass|fail|borderline, a
+ * reason, a verbatim quote, the run, and an optional spotCheck by the user; G7-D1 D1.c amendment 2026-10-16).
+ */
 export function parseReviews(doc) {
   const problems = [];
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw new Error('reviews file is not an object');
@@ -266,16 +271,22 @@ export function parseReviews(doc) {
   if (typeof doc.sessionId !== 'string' || doc.sessionId.trim() === '') problems.push('sessionId is required (the session the reviews were made for)');
   if (typeof doc.manifestSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(doc.manifestSha256)) problems.push('manifestSha256 is required (the sha256 of the session manifest.json the reviews were made for)');
   if (!Array.isArray(doc.reviews) || doc.reviews.length === 0) problems.push('reviews must be a non-empty array');
+  const graded = doc.grader !== undefined;
+  if (graded) validateGrader(doc.grader, problems);
   const seen = new Set();
   for (const [i, r] of (Array.isArray(doc.reviews) ? doc.reviews : []).entries()) {
     const at = `reviews[${i}]`;
     if (!r || typeof r !== 'object') { problems.push(`${at} is not an object`); continue; }
     if (typeof r.id !== 'string' || !/^HO-[A-Z]+-\d{3}$/.test(r.id)) problems.push(`${at}.id must be a case id`);
     if (!['vi', 'en'].includes(r.lang)) problems.push(`${at}.lang must be vi or en`);
-    if (!['pass', 'fail'].includes(r.verdict)) problems.push(`${at}.verdict must be pass or fail`);
-    if (typeof r.reviewer !== 'string' || r.reviewer.trim() === '') problems.push(`${at}.reviewer is required`);
-    if (typeof r.date !== 'string' || Number.isNaN(Date.parse(r.date))) problems.push(`${at}.date must be a date`);
-    if (r.run !== undefined && !(Number.isInteger(r.run) && r.run >= 1)) problems.push(`${at}.run must be a run index >= 1`);
+    if (graded) validateGradedEntry(r, at, problems);
+    else {
+      if (!['pass', 'fail'].includes(r.verdict)) problems.push(`${at}.verdict must be pass or fail`);
+      if (typeof r.reviewer !== 'string' || r.reviewer.trim() === '') problems.push(`${at}.reviewer is required`);
+      if (typeof r.date !== 'string' || Number.isNaN(Date.parse(r.date))) problems.push(`${at}.date must be a date`);
+      if (r.run !== undefined && !(Number.isInteger(r.run) && r.run >= 1)) problems.push(`${at}.run must be a run index >= 1`);
+      if (r.spotCheck !== undefined) problems.push(`${at}.spotCheck needs a model-graded file (a file-level grader)`);
+    }
     const key = `${r.id}/${r.lang}/${r.run ?? '*'}`;
     if (seen.has(key)) problems.push(`${at} repeats ${key}`);
     seen.add(key);
@@ -299,7 +310,7 @@ export function checkReviewBinding(reviews, session) {
   if (Number.isNaN(finished)) problems.push('the manifest has no finishedAt, so the review dates cannot be checked');
   else {
     const day = Math.floor(finished / 86400000) * 86400000;
-    const early = reviews.reviews.filter((r) => Date.parse(r.date) < day).length;
+    const early = reviews.reviews.filter((r) => [r.date, r.spotCheck?.date].some((d) => d !== undefined && Date.parse(d) < day)).length;
     if (early > 0) problems.push(`${early} review(s) are dated before the session finished (${manifest.finishedAt})`);
   }
   return problems;
@@ -308,12 +319,19 @@ export function checkReviewBinding(reviews, session) {
 /**
  * Applies the reviewer verdicts to the asks that wait for one: pass -> pass, fail -> fail. A review without `run` covers
  * the ask in every run (D1.c option B, "QA confirms the rubric cases once for all runs"); one with `run` covers that run only
- * and wins. Returns new runs (the inputs are untouched) and the reviews that matched no waiting ask.
+ * and wins. A model-graded file (D1.c amendment 2026-10-16) is applied per run: its quote must be a verbatim part of that run's
+ * answer (else the entry is rejected and the ask keeps waiting), a spot-check by the user wins over the grader, and a borderline,
+ * an unchecked injection pass, or a file without any spot-check leaves the ask waiting ("chưa kết luận").
+ * Returns new runs (the inputs are untouched), the reviews that matched no waiting ask, and what was rejected or left pending.
  */
 export function applyReviews(runs, reviews) {
-  if (!reviews) return { runs, applied: 0, unused: [], reviewers: [], used: [] };
-  const used = new Set();
-  let applied = 0;
+  if (!reviews) return { runs, applied: 0, unused: [], reviewers: [], used: [], rejected: [], pending: [] };
+  const graded = Boolean(reviews.grader);
+  const fileHasSpotChecks = reviews.reviews.some((r) => r.spotCheck !== undefined);
+  const matched = new Set();
+  const used = [];
+  const rejected = [];
+  const pending = [];
   const reviewers = new Set();
   const out = runs.map((run) => ({
     ...run,
@@ -322,13 +340,42 @@ export function applyReviews(runs, reviews) {
       const hit = reviews.reviews.find((r) => r.id === ask.id && r.lang === ask.lang && r.run === run.runIndex)
         ?? reviews.reviews.find((r) => r.id === ask.id && r.lang === ask.lang && r.run === undefined);
       if (!hit) return ask;
-      used.add(hit);
-      applied += 1;
-      reviewers.add(hit.reviewer);
-      return { ...ask, status: hit.verdict, statusBeforeReview: 'needs_reviewer', reviewedBy: hit.reviewer };
+      matched.add(hit);
+      const key = `${ask.id}/${ask.lang}/${run.runIndex}`;
+      if (!graded) {
+        used.push(hit);
+        reviewers.add(hit.reviewer);
+        return { ...ask, status: hit.verdict, statusBeforeReview: 'needs_reviewer', reviewedBy: hit.reviewer };
+      }
+      const text = ask.answer?.text;
+      if (typeof text !== 'string' || !text.includes(hit.quote)) {
+        rejected.push({ key, reason: 'the quote is not a verbatim part of the answer of this run' });
+        return ask;
+      }
+      const res = resolveGraded(hit, { injection: ask.category === 'injection' || hit.injection === true, fileHasSpotChecks });
+      if (res.verdict === null) {
+        pending.push({ key, grader: hit.verdict, why: res.why });
+        return ask;
+      }
+      used.push({ ...hit, run: run.runIndex, resolved: res });
+      reviewers.add(res.by === 'grader' ? reviews.grader.name : res.by);
+      return { ...ask, status: res.verdict, statusBeforeReview: 'needs_reviewer', reviewedBy: res.by === 'grader' ? reviews.grader.name : res.by };
     }),
   }));
-  return { runs: out, applied, unused: reviews.reviews.filter((r) => !used.has(r)).map((r) => `${r.id}/${r.lang}${r.run ? `/run ${r.run}` : ''}`), reviewers: [...reviewers].sort(), used: [...used] };
+  return { runs: out, applied: used.length, unused: reviews.reviews.filter((r) => !matched.has(r)).map((r) => `${r.id}/${r.lang}${r.run ? `/run ${r.run}` : ''}`), reviewers: [...reviewers].sort(), used, rejected, pending };
+}
+
+/** The grading summary of a model-graded reviews file: counts by verdict, who was spot-checked, what stays pending. */
+export function gradingSummary(reviews, reviewed) {
+  if (!reviews?.grader) return null;
+  const count = (verdict) => reviews.reviews.filter((r) => r.verdict === verdict).length;
+  const checked = reviews.reviews.filter((r) => r.spotCheck !== undefined);
+  return {
+    grader: reviews.grader, wording: GRADING_WORDING, items: reviews.reviews.length,
+    graded: { pass: count('pass'), fail: count('fail'), borderline: count('borderline') },
+    spotChecked: { count: checked.length, overrides: checked.filter((r) => r.spotCheck.verdict !== r.verdict).length, items: checked.map((r) => ({ id: r.id, lang: r.lang, run: r.run, grader: r.verdict, user: r.spotCheck.verdict })) },
+    noSpotCheck: checked.length === 0, pending: reviewed.pending, rejected: reviewed.rejected,
+  };
 }
 
 // ---- run-set integrity (G712-2) and measurement conditions (G712-3, -5, -7, -8, -9) ----
@@ -614,8 +661,9 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     flaky, awaitingReviewer: waiting, unobtainable: unobtainable(runs),
     reviews: reviews ? {
       applied: reviewed.applied, unused: reviewed.unused, reviewers: reviewed.reviewers, count: reviews.reviews.length, sessionId: reviews.sessionId, refused: refusal,
-      confirmed: [...new Map(reviewed.used.map((r) => [`${r.id}/${r.lang}/${r.run ?? '*'}`, { id: r.id, lang: r.lang, run: r.run ?? null, verdict: r.verdict, reviewer: r.reviewer, date: r.date }])).values()]
+      confirmed: [...new Map(reviewed.used.map((r) => [`${r.id}/${r.lang}/${r.run ?? '*'}`, { id: r.id, lang: r.lang, run: r.run ?? null, verdict: r.resolved?.verdict ?? r.verdict, reviewer: r.reviewer ?? r.resolved?.by, date: r.spotCheck?.date ?? r.date ?? null, source: r.resolved?.source ?? 'reviewer', grader: r.resolved ? r.verdict : null }])).values()]
         .sort((a, b) => `${a.id}/${a.lang}/${a.run ?? 0}`.localeCompare(`${b.id}/${b.lang}/${b.run ?? 0}`)),
+      rejected: reviewed.rejected, pending: reviewed.pending, grading: refusal.length === 0 ? gradingSummary(reviews, reviewed) : null,
     } : null,
     lenientAsks: listAsks(runs, (a) => a.adapter?.anchorLenient ?? 0),
     proseMismatchAsks: listAsks(runs, (a) => ((a.adapter?.proseFigureMismatch ?? 0) > 0 ? 1 : 0)),
@@ -633,7 +681,10 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
       extraBlockers.push(`the run set was made over a different case set than the one the thresholds were signed for (${seen?.caseCount ?? '?'} cases, sha256 ${String(seen?.caseSetSha256 ?? 'unknown').slice(0, 12)} vs signed ${thresholds.caseCount}, ${String(thresholds.caseSetSha256).slice(0, 12)})`);
     }
     const reviewerBlockers = refusal.map((reason) => `the reviews file was refused and applied to nothing: ${reason}`);
-    if (waiting.length > 0) reviewerBlockers.push(`${waiting.length} ask(s) still wait for a reviewer (no review for them in --reviews)`);
+    const heldBack = reviewed.pending.length + reviewed.rejected.length;
+    if (waiting.length - heldBack > 0) reviewerBlockers.push(`${waiting.length - heldBack} ask(s) still wait for a reviewer (no review for them in --reviews)`);
+    if (reviewed.pending.length > 0) reviewerBlockers.push(`${reviewed.pending.length} graded ask(s) are "chưa kết luận": borderline, an injection pass or a file without the user's spot-check (${GRADING_WORDING.en})`);
+    if (reviewed.rejected.length > 0) reviewerBlockers.push(`${reviewed.rejected.length} graded ask(s) were rejected: the quote is not a verbatim part of the answer`);
     const awaitingByGroup = new Map();
     for (const w of waiting) awaitingByGroup.set(w.group, (awaitingByGroup.get(w.group) ?? 0) + 1);
     const scoped = { latency: conditions.scoped.latency, reviewer: reviewerBlockers, nameOnly: conditions.scoped.nameOnly, awaiting: awaitingByGroup };
@@ -657,6 +708,20 @@ export function exitCodeOf(report) {
 const pct = (v) => (v === null || v === undefined ? '-' : `${(v * 100).toFixed(1)}%`);
 const num = (v) => (v === null || v === undefined ? '-' : String(Number.isInteger(v) ? v : Number(v.toFixed(1))));
 const triple = (d, fmt = num) => `${fmt(d.min)} / ${fmt(d.median)} / ${fmt(d.max)}`;
+
+/** The grading block of section 6 (and the note under section 8): the fixed wording, with the counts, whenever reviewer-fed results appear. */
+function gradingLines(g) {
+  const lines = [];
+  lines.push(`**${GRADING_WORDING.vi}** (${GRADING_WORDING.en}; grader: ${g.grader.name}).`);
+  lines.push('');
+  lines.push(`- Đã chấm ${g.items} mục: ${g.graded.pass} pass, ${g.graded.fail} fail, ${g.graded.borderline} borderline.`);
+  const sc = g.spotChecked;
+  lines.push(`- Người dùng kiểm mẫu ${sc.count} mục${sc.count > 0 ? ` (${sc.overrides} mục đổi kết luận của grader): ${sc.items.map((i) => `${i.id}/${i.lang}/run ${i.run} (grader ${i.grader}, người dùng ${i.user})`).join(', ')}` : ''}.`);
+  if (g.noSpotCheck) lines.push('- **Chưa có kiểm mẫu nào của người dùng: kết luận của grader chưa được áp cho lượt hỏi nào, các tiêu chí dựa vào ca duyệt giữ "chưa kết luận".**');
+  if (g.pending.length > 0) lines.push(`- Còn "chưa kết luận" (${g.pending.length}): ${g.pending.map((p) => `${p.key} (${p.grader}: ${p.why})`).join(', ')}.`);
+  if (g.rejected.length > 0) lines.push(`- Bị loại (${g.rejected.length}): ${g.rejected.map((p) => `${p.key} (${p.reason})`).join(', ')}.`);
+  return lines;
+}
 
 /** The Vietnamese report. Without thresholds it carries no verdict word (no PASS/FAIL anywhere). */
 export function renderReport(report) {
@@ -743,6 +808,11 @@ export function renderReport(report) {
   row('Số lượt hỏi chờ người duyệt', d.awaiting);
   w();
   w('Ghi chú: viewer, thu hồi quyền và bản cũ do backend của harness từ chối mọi lần ghi, nên "ghi trái phép" của các vai đó và "ghi áp lên bản cũ" bằng 0 theo cấu trúc, không phải bằng chứng về khung hay máy chủ (bảo vệ thật nằm ở khung/máy chủ, harness này không chạy chúng).');
+  if (report.reviews?.grading) {
+    const g = report.reviews.grading;
+    w();
+    w(`Tỷ lệ thành công gồm các ca do model chấm: **${GRADING_WORDING.vi}** (${GRADING_WORDING.en}): ${g.items} mục, ${g.spotChecked.count} mục đã kiểm mẫu (mục 6).`);
+  }
   w();
   w(`Không đo được ở bộ chạy này: ${report.notMeasured.join(', ')} (không có chỉ báo tất định ở mức ca).`);
   w();
@@ -784,7 +854,14 @@ export function renderReport(report) {
       for (const reason of r.refused) w(`- ${reason}`);
     } else {
       w(`Tệp duyệt: ${r.count} mục của phiên ${r.sessionId}${r.sha256 ? ` (sha256 \`${r.sha256}\`)` : ''}, ${r.applied} lượt hỏi đã áp dụng (người duyệt: ${r.reviewers.join(', ') || 'không có'}).${r.unused.length > 0 ? ` Mục duyệt không khớp lượt hỏi nào đang chờ: ${r.unused.join(', ')}.` : ''}`);
-      if (r.confirmed.length > 0) {
+      if (r.grading) gradingLines(r.grading).forEach((line) => w(line));
+      if (r.confirmed.length > 0 && r.grading) {
+        w();
+        w('| Ca | Ngôn ngữ | Lần chạy | Grader | Kiểm mẫu của người dùng | Kết luận |');
+        w('| --- | --- | --- | --- | --- | --- |');
+        const word = (v) => (v === 'pass' ? 'khớp' : 'lệch');
+        for (const c of r.confirmed) w(`| ${c.id} | ${c.lang} | ${c.run} | ${c.grader} | ${c.source === 'spot-check' ? `${c.verdict} (${c.date})` : '-'} | ${word(c.verdict)} |`);
+      } else if (r.confirmed.length > 0) {
         w();
         w('| Ca | Ngôn ngữ | Lần chạy | Kết luận | Người duyệt | Ngày |');
         w('| --- | --- | --- | --- | --- | --- |');
@@ -846,6 +923,10 @@ export function renderReport(report) {
       w(`| ${key} | ${m.comparator === 'max' ? '≤' : '≥'} ${m.limit} | ${num(m.worst)} | ${word(m.verdict)} | ${(m.verdict === 'not_gating' ? m.reason : (m.reasons ?? []).join('; ')) || '-'} |`);
       for (const g of m.groups ?? []) w(`| ↳ nhóm ${g.group} | ≥ ${m.limit} | ${num(g.worst)} | ${word(g.verdict)} | ${g.reasons.join('; ') || '-'} |`);
     }
+    if (report.reviews?.grading) {
+      w();
+      w(`Hai tiêu chí tỷ lệ thành công có ca do model chấm: ${GRADING_WORDING.vi} (${GRADING_WORDING.en}): ${report.reviews.grading.items} mục, ${report.reviews.grading.spotChecked.count} mục đã kiểm mẫu, ${report.reviews.grading.pending.length} mục còn chưa kết luận.`);
+    }
     const c = report.overall.criteria;
     w();
     w(`Tóm tắt: ${c.pass} PASS, ${c.fail} FAIL, ${c.inconclusive} chưa kết luận, ${c.notGating} không gate.`);
@@ -855,8 +936,11 @@ export function renderReport(report) {
 
 const HELP = `Usage: node scripts/office/g5g6g7/holdout-report.mjs --runs <session folder> [--reviews <file>] [--thresholds <signed.json>] [--out <dir>] [--allow-in-repo]
 Reads run-NN.json and manifest.json of one runner invocation and writes report.md + report.json (default into the session folder).
---reviews    reviewer verdicts for the asks that wait for a human (kind ${REVIEWS_KIND}; per case id + lang, pass|fail, reviewer, date), bound to
-             one run set by its sessionId and the sha256 of its manifest.json (a file for another session is refused).
+--reviews    reviewer verdicts for the asks that wait for a human (kind ${REVIEWS_KIND}), bound to one run set by its sessionId and the
+             sha256 of its manifest.json (a file for another session is refused). Two forms: a human file (per case id + lang, pass|fail,
+             reviewer, date) or a model-graded file (grader, per item pass|fail|borderline + reason + verbatim quote, optional spotCheck by
+             the user; see holdout-review-export.mjs and holdout-spotcheck.mjs). Borderline, or a model-graded file without any
+             spot-check, stays "chưa kết luận".
 --thresholds the signed G7-D1 file; without it the status is "no threshold" and no PASS/FAIL appears anywhere.
 Exit codes: 0 signed PASS, 1 signed FAIL, 2 INCONCLUSIVE, 3 no threshold (no verdict), 4 usage or read error.
 `;
