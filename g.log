@@ -1,0 +1,9 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && AI_PROVIDER=fake go test -count=1 -v ./internal/handler -run 'TestDocumentShareBatch|TestDocumentSharesFlow|TestEveryBodyIDFieldHasAReferenceCase' 2>&1 | grep -E '^(=== RUN|--- FAIL|--- PASS|FAIL|ok|panic)'; echo "BATCH_HANDLER_EXIT=${PIPESTATUS[0]}"
+=== RUN   TestDocumentShareBatch
+--- PASS: TestDocumentShareBatch (0.22s)
+=== RUN   TestDocumentSharesFlow
+--- PASS: TestDocumentSharesFlow (0.22s)
+=== RUN   TestEveryBodyIDFieldHasAReferenceCase
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.00s)
+ok  	github.com/unicomhub/uniwork/server/internal/handler	0.462s
+BATCH_HANDLER_EXIT=0

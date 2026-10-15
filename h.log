@@ -1,0 +1,4 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && AI_PROVIDER=fake go test -count=1 -timeout 30m -v ./internal/service -run 'TestEveryAuditedCommandWritesItsRow' 2>&1 | grep -E '^(--- FAIL|--- PASS|FAIL|ok|panic)'; echo "AUDIT_COVERAGE_EXIT=${PIPESTATUS[0]}"
+--- PASS: TestEveryAuditedCommandWritesItsRow (19.35s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	19.371s
+AUDIT_COVERAGE_EXIT=0

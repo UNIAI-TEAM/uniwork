@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+7155fd450a9336c70cff1e2b8221bc59962b0618
+e6cd8172661633119401781cae9d05347d81b55e
+7155fd450 chore: merge the G5-G7 root (e6cd81726) into the UNI-1641 lane before cloud tests
+6979ebd7e chore(documents): merge W2 web batch share picker into the lane branch
+5d856179f test(documents): cover batch share in service, handler, audit and isolation
+ca3275dc8 feat(documents): share a document with up to 50 users in one request
+e6cd81726 chore: merge G6-05m model chip D part (UNI-1632) into the G5-G7 root
+6121a30f8 chore: merge G6-05k org keys D part (UNI-1637) into the G5-G7 root
