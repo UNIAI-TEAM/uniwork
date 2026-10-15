@@ -1,0 +1,57 @@
+$ cp .env /tmp/qaf.env && printf '\nAI_PROVIDER=fake\nAI_CONVERSATION_KEY=YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=\nFF_OFFICE_AI_UNIWORK=true\nFF_OFFICE_AI_UNIWORK_DOCX=true\n' >> /tmp/qaf.env && ENV_FILE=/tmp/qaf.env OFFICE_FORK_SHA=d65e549e bash scripts/office/g5g6g7/harness/start.sh; echo "HARNESS_START_EXIT $?"; grep -c . .harness-run/logs/server.log; true
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /workspace/.harness-run
+harness: D server  http://localhost:35909 (metrics 127.0.0.1:41991)
+harness: D web     http://localhost:40701
+harness: fork      d65e549e
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:35909 ...
+FAILED: the D web died while starting (see /workspace/.harness-run/logs/web.log)
+harness: exit 1; component log tails (/workspace/.harness-run/logs):
+harness: ---- tail -40 migrate.log ----
+06:11:50.889 INF migrate done component=server dir=up
+harness: ---- tail -40 server-build.log ----
+harness: ---- tail -40 server.log ----
+06:11:50.911 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+06:11:50.912 INF local storage adapter ready dir=/workspace/.harness-run/uploads
+06:11:50.912 INF metrics listening component=server addr=127.0.0.1:41991
+06:11:50.914 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/15 06:11:50 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+06:11:50.915 INF mail: log mode, messages are printed component=server
+06:11:50.915 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+06:11:50.915 INF ai gateway enabled component=server provider=fake
+06:11:51.488 INF listening component=server port=35909 swagger=http://localhost:35909/swagger/index.html
+06:11:51.488 INF mail: outbox worker started component=server tick=5s
+harness: ---- tail -40 web.log ----
+
+> @uniwork/web@0.0.0 dev /workspace/apps/web
+> node scripts/office-frame-sync.mjs --ensure && sh -c 'next dev --port "${FRONTEND_PORT:-3000}"'
+
+office-frame: docs 46 files verified, installed at /workspace/apps/web/public/office-frame/docs/0.1.0-05fd209
+office-frame: pdf 229 files verified, installed at /workspace/apps/web/public/office-frame/pdf/0.1.0-05fd209
+office-frame: markdown 90 files verified, installed at /workspace/apps/web/public/office-frame/markdown/0.1.0-05fd209
+office-frame: html 7 files verified, installed at /workspace/apps/web/public/office-frame/html/0.1.0-05fd209
+office-frame: slides 19 files verified, installed at /workspace/apps/web/public/office-frame/slides/0.1.0-05fd209
+office-frame: sheets 219 files verified, installed at /workspace/apps/web/public/office-frame/sheets/0.1.0-05fd209
+▲ Next.js 16.3.8 (Turbopack)
+- Local:         http://localhost:40701
+- Network:       http://172.30.0.2:40701
+✓ Ready in 252ms
+✓ Running next.config.mjs took 106ms
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:39477
+- PID:          47534
+- Dir:          /workspace/apps/web
+- Log:          .next/dev/logs/next-development.log
+
+You can access the existing server at http://localhost:39477,
+or run kill 47534 to stop it and start a new one.
+[?25h
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 dev: `node scripts/office-frame-sync.mjs --ensure && sh -c 'next dev --port "${FRONTEND_PORT:-3000}"'`
+Exit status 1
+HARNESS_START_EXIT 1
+10

@@ -1,0 +1,28 @@
+$ node scripts/office/g5g6g7/fault/server-cases.mjs; echo "SERVER_CASES_PASS1_EXIT $?"; for f in .harness-run/fault/FQ-0*/result.json .harness-run/fault/FQ-1*/result.json; do node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; rm -rf .fault-pass1; mkdir .fault-pass1; cp -r .harness-run/fault/FQ-0* .harness-run/fault/FQ-1* .fault-pass1/; true
+FQ-01 (G5-A06): PASS
+FQ-02 (G5-A06): PASS
+FQ-03 (G6-A04,G5-A06): PASS
+FQ-04 (G6-A04,G5-A06): PASS
+FQ-05 (G5-A06): PASS
+FQ-06 (G5-A06): PASS
+FQ-07 (G5-A06,G5-A08): PASS
+FQ-08 (G5-A08,G6-A04): PASS
+FQ-09 (G5-A06): PASS
+FQ-10 (G5-A06): PASS
+FQ-11 (G6-A04): PASS
+FQ-12 (G7-A02): PASS
+FQ-13 (G5-A08): PASS
+SERVER_CASES_PASS1_EXIT 0
+FQ-01 PASS 
+FQ-02 PASS 
+FQ-03 PASS 
+FQ-04 PASS 
+FQ-05 PASS 
+FQ-06 PASS 
+FQ-07 PASS 
+FQ-08 PASS 
+FQ-09 PASS 
+FQ-10 PASS 
+FQ-11 PASS 
+FQ-12 PASS 
+FQ-13 PASS 

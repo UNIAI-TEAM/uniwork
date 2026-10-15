@@ -1,0 +1,75 @@
+$ OFFICE_FORK_SHA=d65e549e dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --run-dir .harness-run; echo "APP_CASES_EXIT $?"; for f in .harness-run/fault/FQ-[2-5]*/result.json .harness-run/fault/FL-*/result.json; do [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+APP_KEYRING unlocked=yes
+FQ-20 (G5-A05): FAIL
+FQ-21 (G5-A05): FAIL
+FQ-22 (G5-A06): FAIL
+FQ-24 (G5-A06): FAIL
+FQ-25 (G5-A08): FAIL
+FQ-40 (G5-A06): FAIL
+FQ-41 (G5-A06): FAIL
+FQ-42 (G5-A06): FAIL
+FQ-43 (G5-A06): FAIL
+FQ-44 (G5-A06): FAIL
+FQ-50 (G5-A08): FAIL
+FQ-51 (G5-A08): FAIL
+FQ-53 (G5-A05): FAIL
+FQ-23 (G5-A06,G5-A08): BLOCKED — cancel race trên app: người dùng bấm "Hủy lần lưu…" khi intent đang committing; request tới server sau đó: pending G5-10
+FQ-26 (G5-A08): BLOCKED — giải quyết conflict trên desktop (S5): Ghi đè / Tải lại / Lưu thành bản sao: pending G5-09
+FQ-27 (G6-A04): BLOCKED — Lưu sau AI đúng base_revision trên app; 409 giữ bản cục bộ: pending G6-05u
+FQ-28 (G7-A02): BLOCKED — remote update giữa lượt AI: kết quả AI chỉ thuộc bản đang mở, Lưu sau đó gặp 409: pending G6-05u
+FQ-29 (G7-A02): BLOCKED — bản mới đến khi editor sạch nhưng AI đang chạy → không nạp; AI idle và vẫn sạch → nạp: pending G6-05u
+FQ-30 (G7-A02,G5-A05): BLOCKED — AI sửa trong editor rồi Lưu khi đang có intent G5: không intent mới, intent N chỉ commit snapshot N: pending G6-05u
+FQ-31 (G6-A04): BLOCKED — Lưu khi AI đang ghi (chưa có intent): chờ ranh giới bước công cụ rồi mới chụp snapshot: pending G6-05u
+FQ-32 (G7-A02): BLOCKED — revoke trong lượt AI: lượt kế tiếp bị 403, không version; kết quả muộn không áp lên bản mới: pending G6-05u
+FQ-45 (G5-A06,G5-A08): BLOCKED — reconciling-stuck: hành động ở S2 — Kiểm tra lại, Tải bản của tôi về máy, Bỏ lần lưu… (kể cả bị từ chối khi đủ 3 nháp / store đầy): pending G5-10
+FQ-46 (G5-A06): BLOCKED — reconciling / reconciling-stuck chặn Tải lại và Ghi đè (S6, S5): aria-disabled với lý do chờ: pending G5-09
+FQ-52 (G5-A08): BLOCKED — blocked: "Bỏ nháp…" có xác nhận là đường kết thúc duy nhất khi lý do không được gỡ; blocked không tự xóa nháp: pending G5-10
+FQ-54 (G5-A05): BLOCKED — blocked store_newer: store cần bản app mới hơn → không tạo intent; cập nhật app mở lại: pending G7-05
+FQ-55 (G5-A08): BLOCKED — hủy intent đang queued không mất nháp: pending G5-10
+FL-01 (G5-A04): BLOCKED — tải thư viện offline bị gián đoạn: không báo "sẵn sàng": pending G5-05
+FL-02 (G5-A04): BLOCKED — disk full khi tải lần đầu: giữ bản cũ, hiện lỗi: pending G5-05
+FL-03 (G5-A04): BLOCKED — cache hỏng / checksum lệch: pin thất bại, không phục vụ từ cache dở: pending G5-05
+FL-04 (G5-A07): BLOCKED — lease hết hạn (kể cả khi đang mở dirty): khóa cloud payload, giữ ciphertext + checkpoint; gia hạn khi online: pending G5-08c
+FL-05 (G5-A07): BLOCKED — lùi đồng hồ: không kéo dài quyền offline: pending G5-08c
+FL-06 (G5-A07): BLOCKED — revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa: pending G5-08c
+FL-07 (G5-A07): BLOCKED — logout A → B: không còn khóa/plaintext/ciphertext đọc được của A: pending G5-11
+FL-08 (G5-A07): BLOCKED — deployment switch: phạm vi A không cập nhật cursor/cache B: pending G5-11
+FL-09 (G5-A07): BLOCKED — keystore khóa: chặn đường Lưu, không hạ xuống store không bảo vệ; mở khóa → về đúng trạng thái trước (reconciling vẫn reconciling): pending G5-08c
+/workspace/.harness-run/fault
+APP_CASES_EXIT=1
+APP_CASES_EXIT 1
+FQ-20 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-21 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-22 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-23 BLOCKED  cancel race trên app: người dùng bấm "Hủy lần lưu…" khi intent đang committing; request tới server sau đó: pending G5-10 
+FQ-24 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-25 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-26 BLOCKED  giải quyết conflict trên desktop (S5): Ghi đè / Tải lại / Lưu thành bản sao: pending G5-09 
+FQ-27 BLOCKED  Lưu sau AI đúng base_revision trên app; 409 giữ bản cục bộ: pending G6-05u 
+FQ-28 BLOCKED  remote update giữa lượt AI: kết quả AI chỉ thuộc bản đang mở, Lưu sau đó gặp 409: pending G6-05u 
+FQ-29 BLOCKED  bản mới đến khi editor sạch nhưng AI đang chạy → không nạp; AI idle và vẫn sạch → nạp: pending G6-05u 
+FQ-30 BLOCKED  AI sửa trong editor rồi Lưu khi đang có intent G5: không intent mới, intent N chỉ commit snapshot N: pending G6-05u 
+FQ-31 BLOCKED  Lưu khi AI đang ghi (chưa có intent): chờ ranh giới bước công cụ rồi mới chụp snapshot: pending G6-05u 
+FQ-32 BLOCKED  revoke trong lượt AI: lượt kế tiếp bị 403, không version; kết quả muộn không áp lên bản mới: pending G6-05u 
+FQ-40 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-41 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-42 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-43 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-44 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-45 BLOCKED  reconciling-stuck: hành động ở S2 — Kiểm tra lại, Tải bản của tôi về máy, Bỏ lần lưu… (kể cả bị từ chối khi đủ 3 nháp / store đầy): pending G5-10 
+FQ-46 BLOCKED  reconciling / reconciling-stuck chặn Tải lại và Ghi đè (S6, S5): aria-disabled với lý do chờ: pending G5-09 
+FQ-50 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-51 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-52 BLOCKED  blocked: "Bỏ nháp…" có xác nhận là đường kết thúc duy nhất khi lý do không được gỡ; blocked không tự xóa nháp: pending G5-10 
+FQ-53 FAIL   harness_started: expected "start.sh up" actual "start.sh failed: the D web died while starting (see /workspace/.harness-run/logs/web.log); the stack is not up (see the run's logs)"
+FQ-54 BLOCKED  blocked store_newer: store cần bản app mới hơn → không tạo intent; cập nhật app mở lại: pending G7-05 
+FQ-55 BLOCKED  hủy intent đang queued không mất nháp: pending G5-10 
+FL-01 BLOCKED  tải thư viện offline bị gián đoạn: không báo "sẵn sàng": pending G5-05 
+FL-02 BLOCKED  disk full khi tải lần đầu: giữ bản cũ, hiện lỗi: pending G5-05 
+FL-03 BLOCKED  cache hỏng / checksum lệch: pin thất bại, không phục vụ từ cache dở: pending G5-05 
+FL-04 BLOCKED  lease hết hạn (kể cả khi đang mở dirty): khóa cloud payload, giữ ciphertext + checkpoint; gia hạn khi online: pending G5-08c 
+FL-05 BLOCKED  lùi đồng hồ: không kéo dài quyền offline: pending G5-08c 
+FL-06 BLOCKED  revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa: pending G5-08c 
+FL-07 BLOCKED  logout A → B: không còn khóa/plaintext/ciphertext đọc được của A: pending G5-11 
+FL-08 BLOCKED  deployment switch: phạm vi A không cập nhật cursor/cache B: pending G5-11 
+FL-09 BLOCKED  keystore khóa: chặn đường Lưu, không hạ xuống store không bảo vệ; mở khóa → về đúng trạng thái trước (reconciling vẫn reconciling): pending G5-08c 
