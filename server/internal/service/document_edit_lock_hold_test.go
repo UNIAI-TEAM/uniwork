@@ -6,7 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -135,22 +138,40 @@ func TestEditHoldVisibleToOthers(t *testing.T) {
 	}
 }
 
-// The edit hold is its own state: it neither needs nor writes an office
-// offline lease (the entitlement lease of the desktop app).
+// The edit hold and the office offline read lease (G5-D1) are independent:
+// revoking the lease leaves the hold, ending the hold leaves the lease.
 func TestEditHoldIndependentOfOfflineLease(t *testing.T) {
 	w := newLockWorld(t)
 	d := w.page(t)
-	count := func() int {
-		var n int
-		if err := w.env.f.pool.QueryRow(w.ctx, `SELECT count(*) FROM office_offline_leases`).Scan(&n); err != nil {
+	held, sid := w.holdDesktop(t, w.tn.member, d.ID)
+	lease := util.NewID()
+	w.exec(t, `INSERT INTO office_offline_leases (id, organization_id, workspace_id, document_id, user_id, device_session_id, deployment_id,
+		version, revision, level, policy_epoch, issued_at, expires_at, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 'default', 1, 1, 'edit', 1, now(), now() + interval '24 hours', $5, 'human')`,
+		lease, d.OrganizationID, d.WorkspaceID, d.ID, w.tn.member.ID, sid)
+	revoked := func() bool {
+		var at pgtype.Timestamptz
+		if err := w.env.f.pool.QueryRow(w.ctx, `SELECT revoked_at FROM office_offline_leases WHERE id = $1`, lease).Scan(&at); err != nil {
 			t.Fatal(err)
 		}
-		return n
+		return at.Valid
 	}
-	before := count()
-	held, _ := w.holdDesktop(t, w.tn.member, d.ID)
-	if !held.Lock.OfflineHoldUntil.Valid || count() != before {
-		t.Fatalf("hold %v, leases %d -> %d", held.Lock.OfflineHoldUntil, before, count())
+	// Ending the hold leaves the lease.
+	if _, err := w.svc.ClearDocumentEditHold(w.ctx, human(w.tn.member), d.ID, held.Lock.ID); err != nil {
+		t.Fatal(err)
+	}
+	if revoked() {
+		t.Fatal("clearing the hold revoked the lease")
+	}
+	// Revoking the lease leaves a hold.
+	if _, err := w.svc.PutDocumentEditHold(w.ctx, human(w.tn.member), d.ID, held.Lock.ID, sid); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := revokeOfficeLeasesForDevice(w.ctx, w.env.f.q, w.tn.member.ID, sid); err != nil || n != 1 || !revoked() {
+		t.Fatalf("lease revoke %d %v", n, err)
+	}
+	if got := w.lockRow(t, held.Lock.ID); got.EndedAt.Valid || !got.OfflineHoldUntil.Valid {
+		t.Fatalf("hold after lease revoke %+v", got)
 	}
 }
 
