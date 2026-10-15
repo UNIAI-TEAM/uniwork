@@ -1,0 +1,105 @@
+$ dbus-run-session -- bash -c 'eval "$(printf "probe\n" | gnome-keyring-daemon --unlock --components=secrets)"; export GNOME_KEYRING_CONTROL; export XDG_CURRENT_DESKTOP=GNOME; printf "probe" | secret-tool store --label=probe svc probe && secret-tool lookup svc probe && echo SECRET_SERVICE_OK; DEBUG= xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts e2e/uniwork-documents.spec.ts e2e/workbench-overview.spec.ts --reporter=list; rc=$?; echo "KEYRING_E2E_EXIT=$rc"; DEBUG= xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts e2e/uniwork-signin.spec.ts --reporter=list; echo "SIGNIN_INFO_EXIT=$? (informational: signin:171 is outside G5-09, not gating)"; exit $rc'
+dbus-daemon[8075]: [session uid=1000 pid=8075] Activating service name='org.freedesktop.secrets' requested by ':1.0' (uid=1000 pid=8085 comm="secret-tool store --label=probe svc probe" label="kernel")
+dbus-daemon[8075]: [session uid=1000 pid=8075] Successfully activated service 'org.freedesktop.secrets'
+GNOME_KEYRING_CONTROL=/home/ubuntu/.cache/keyring-3OHLX3
+probeSECRET_SERVICE_OK
+
+Running 24 tests using 1 worker
+
+(node:8140) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+dbus-daemon[8075]: [session uid=1000 pid=8075] Activating service name='org.a11y.Bus' requested by ':1.5' (uid=1000 pid=8152 comm="/home/ubuntu/work/uniwork-office/node_modules/elec" label="kernel")
+dbus-daemon[8075]: [session uid=1000 pid=8075] Successfully activated service 'org.a11y.Bus'
+  ✓   1 e2e/uniwork-documents.spec.ts:334:7 › UniWork documents › a. open from the UniWork picker, edit, Ctrl+S: one upload, one commit, Saved, recents (5.7s)
+  ✓   2 e2e/uniwork-documents.spec.ts:388:7 › UniWork documents › b. launch from the web: the link opens the right document once, a reused link does nothing (12.7s)
+  ✓   3 e2e/uniwork-documents.spec.ts:425:7 › UniWork documents › b2. launch from the web: an expired link is refused with a message, a view link opens read-only (10.2s)
+  ✓   4 e2e/uniwork-documents.spec.ts:458:7 › UniWork documents › c. no autosave: an edit left alone for over 35 s sends nothing and keeps a local recovery copy (38.2s)
+  ✓   5 e2e/uniwork-documents.spec.ts:603:7 › UniWork documents › d. conflict: 409 keeps the local edit and the base, Save refuses, S5 Overwrite commits on the new base (4.7s)
+  ✓   6 e2e/uniwork-documents.spec.ts:692:7 › UniWork documents › d2. conflict: S5 "Reload latest" keeps a draft by default and loads the server version (4.5s)
+  ✓   7 e2e/uniwork-documents.spec.ts:746:7 › UniWork documents › d2b. conflict: S5 "Reload latest" with "Discard my changes" loads the server version without keeping a draft (4.5s)
+  ✓   8 e2e/uniwork-documents.spec.ts:793:7 › UniWork documents › d3. conflict: S5 "Save as a copy…" is pending G5-12, shows the failure alert, and keeps the document in conflict (2.5s)
+  ✓   9 e2e/uniwork-documents.spec.ts:838:7 › UniWork documents › e. view-only: opens read-only, typing changes nothing, Ctrl+S sends nothing (4.7s)
+  ✓  10 e2e/uniwork-documents.spec.ts:872:7 › UniWork documents › f. offline: a dropped commit keeps the intent, Retry reuses the same key and succeeds (2.6s)
+  ✓  11 e2e/uniwork-documents.spec.ts:915:7 › UniWork documents › f2. offline: a commit that landed but lost its answer is replayed by Retry without a second version (2.5s)
+  ✘  12 e2e/uniwork-documents.spec.ts:1055:9 › UniWork documents › g1. xlsx: open, edit, explicit Save: one upload, one commit (1ms)
+  -  13 e2e/uniwork-documents.spec.ts:1055:9 › UniWork documents › g2. pptx: open, edit, explicit Save: one upload, one commit
+  -  14 e2e/uniwork-documents.spec.ts:1055:9 › UniWork documents › g3. md: open, edit, explicit Save: one upload, one commit
+  -  15 e2e/uniwork-documents.spec.ts:1055:9 › UniWork documents › g4. html: open, edit, explicit Save: one upload, one commit
+  -  16 e2e/uniwork-documents.spec.ts:1073:7 › UniWork documents › g9. pdf: opens, an explicit Save settles with at most one intent
+  -  17 e2e/uniwork-documents.spec.ts:1091:7 › UniWork documents › g10. pdf: a view-only pdf opens read-only and a Save sends nothing
+  -  18 e2e/uniwork-documents.spec.ts:1111:7 › UniWork documents › h. a local file saves exactly as before and nothing goes to UniWork
+  -  19 e2e/uniwork-documents.spec.ts:1243:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (en)
+  -  20 e2e/uniwork-documents.spec.ts:1243:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (vi)
+  -  21 e2e/uniwork-documents.spec.ts:1338:9 › UniWork documents › i1. xlsx: offline, then Retry from the chip saves with the same key
+  -  22 e2e/uniwork-documents.spec.ts:1338:9 › UniWork documents › i2. pptx: offline, then Retry from the chip saves with the same key
+  -  23 e2e/uniwork-documents.spec.ts:1338:9 › UniWork documents › i3. md: offline, then Retry from the chip saves with the same key
+  -  24 e2e/uniwork-documents.spec.ts:1338:9 › UniWork documents › i4. html: offline, then Retry from the chip saves with the same key
+
+
+  1) e2e/uniwork-documents.spec.ts:1055:9 › UniWork documents › g1. xlsx: open, edit, explicit Save: one upload, one commit 
+
+    Error: ENOENT: no such file or directory, open '/home/ubuntu/work/uniwork-office/apps/sheets/fixtures/generated/compatibility-basic.xlsx'
+
+      1055 |     test(`g${index + 1}. ${driver.key}: open, edit, explicit Save: one upload, one commit`, async () => {
+      1056 |       test.setTimeout(150_000)
+    > 1057 |       const doc = stub.addDocument({ filename: driver.filename, bytes: await driver.bytes() })
+           |                                                                        ^
+      1058 |       await withApp(`uniwork-docs-${driver.key}`, async (ctx) => {
+      1059 |         await openFromPicker(ctx.shell, driver.filename)
+      1060 |         const { save } = await driver.edit(ctx)
+        at /home/ubuntu/work/uniwork-office/e2e/uniwork-documents.spec.ts:1057:72
+
+    Error Context: e2e/test-results/uniwork-documents-UniWork--c6e9b--Save-one-upload-one-commit/error-context.md
+
+    Error Context: e2e/test-results/uniwork-documents-UniWork--c6e9b--Save-one-upload-one-commit/error-context.md
+
+  1 failed
+    e2e/uniwork-documents.spec.ts:1055:9 › UniWork documents › g1. xlsx: open, edit, explicit Save: one upload, one commit 
+  12 did not run
+  11 passed (1.7m)
+KEYRING_E2E_EXIT=1
+
+Running 4 tests using 1 worker
+
+(node:9456) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 e2e/uniwork-signin.spec.ts:76:7 › UniWork account sign-in › signs in through the callback handoff, shows the profile, signs out (5.9s)
+  ✓  2 e2e/uniwork-signin.spec.ts:131:7 › UniWork account sign-in › a revoked device session at restart shows the session-revoked state (6.4s)
+  ✘  3 e2e/uniwork-signin.spec.ts:171:7 › UniWork account sign-in › a stored sign-in this computer cannot decrypt offers retry and sign in again (30.9s)
+(node:9856) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -  4 e2e/uniwork-signin.spec.ts:217:7 › UniWork account sign-in › without an OS keyring sign-in is refused and nothing is written
+
+
+  1) e2e/uniwork-signin.spec.ts:171:7 › UniWork account sign-in › a stored sign-in this computer cannot decrypt offers retry and sign in again 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('.account-btn')
+    Expected: "keyring-unavailable"
+    Received: "keystore-locked"
+    Timeout:  30000ms
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 30000ms
+      - waiting for locator('.account-btn')
+        63 × locator resolved to <button type="button" class="account-btn" aria-expanded="false" aria-haspopup="dialog" data-state="keystore-locked" data-tip="Open account settings">…</button>
+           - unexpected value "keystore-locked"
+
+
+      185 |       test.skip(!(await hasOsKeyring(launched)), NO_KEYRING_SKIP)
+      186 |       const { page } = launched
+    > 187 |       await expect(accountButton(page)).toHaveAttribute('data-state', 'keyring-unavailable', {
+          |                                         ^
+      188 |         timeout: 30_000,
+      189 |       })
+      190 |       await accountButton(page).click()
+        at /home/ubuntu/work/uniwork-office/e2e/uniwork-signin.spec.ts:187:41
+
+    Error Context: e2e/test-results/uniwork-signin-UniWork-acc-ff220-ers-retry-and-sign-in-again/error-context.md
+
+  1 failed
+    e2e/uniwork-signin.spec.ts:171:7 › UniWork account sign-in › a stored sign-in this computer cannot decrypt offers retry and sign in again 
+  1 skipped
+  2 passed (45.1s)
+SIGNIN_INFO_EXIT=1 (informational: signin:171 is outside G5-09, not gating)
