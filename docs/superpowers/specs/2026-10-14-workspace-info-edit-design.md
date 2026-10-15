@@ -1,6 +1,6 @@
 # UniWork — Sửa thông tin workspace: mô tả, icon, slug, tiền tố mã task
 
-> **Trạng thái:** in-progress — spec đã duyệt (brainstorming 2026-10-14); plan `docs/superpowers/plans/2026-10-14-workspace-info-edit.md` chờ duyệt.
+> **Trạng thái:** in-progress — đã triển khai trên nhánh, chờ review/PR
 
 **Ngày:** 2026-10-14
 **Issue:** chưa có. Tạo issue UniAI trước khi mở nhánh `feature/UNI-nnn-…` (luật "No issue, no code").
