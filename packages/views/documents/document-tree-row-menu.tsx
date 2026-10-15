@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Ellipsis, FolderInput, FolderOpen, FolderPlus, Pencil, Trash2 } from "lucide-react";
+import { Ellipsis, FolderInput, FolderOpen, FolderPlus, Pencil, ShieldCheck, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useDocument } from "@uniwork/core/documents/hooks";
 import { documentKeys } from "@uniwork/core/documents/keys";
+import { paths } from "@uniwork/core/paths";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -16,6 +17,8 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOptionalWorkspace } from "../layout/workspace-context";
+import { useOptionalNavigation } from "../navigation";
 import { FolderNameDialog } from "./folder-name-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
 import { canArchiveRow, canMoveRow, rowLevel } from "./row-level";
@@ -36,6 +39,8 @@ export interface TreeRowMenuActions {
   onRename: (node: DocumentTreeNode) => void;
   onMoveTo: (node: DocumentTreeNode) => void;
   onDelete: (node: DocumentTreeNode) => void;
+  /** Opens the folder's access report; absent where the host cannot navigate. */
+  onAccessReport?: (node: DocumentTreeNode) => void;
 }
 
 export interface DocumentTreeRowMenuProps {
@@ -109,6 +114,8 @@ export function DocumentTreeRowMenu({
   const level = rowLevel({ my_level: resolvedLevel });
   const canEdit = canMoveRow(level);
   const canDelete = canArchiveRow(level);
+  // The report lists grants, which only a manager may read (the server decides again).
+  const canReport = canArchiveRow(level) && Boolean(actions?.onAccessReport);
   const title = node.title || t("documents.detail.untitled");
 
   return (
@@ -167,6 +174,15 @@ export function DocumentTreeRowMenu({
             </DropdownMenuItem>
           </>
         ) : null}
+        {canReport ? (
+          <DropdownMenuItem
+            className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+            onClick={() => actions?.onAccessReport?.(node)}
+          >
+            <ShieldCheck aria-hidden className="size-3.5" />
+            {t("documents.accessReport.menu_folder")}
+          </DropdownMenuItem>
+        ) : null}
         {canDelete ? (
           <>
             <DropdownMenuSeparator />
@@ -201,6 +217,8 @@ export function useTreeRowMenuDialogs({
   onCreatedSubfolder?: (parentId: string) => void;
 }): { actions: TreeRowMenuActions; dialogs: ReactNode } {
   const queryClient = useQueryClient();
+  const navigation = useOptionalNavigation();
+  const workspace = useOptionalWorkspace()?.workspace;
   const [creatingUnder, setCreatingUnder] = useState<DocumentTreeNode | null>(null);
   const [renamingNode, setRenamingNode] = useState<DocumentTreeNode | null>(null);
   const rowDialogs = useLibraryRowDialogs({ wsId, tree, folderId: currentId });
@@ -217,6 +235,11 @@ export function useTreeRowMenuDialogs({
     onRename: (node) => setRenamingNode(node),
     onMoveTo: (node) => rowDialogs.onMove(resolveSummaryRow(node)),
     onDelete: (node) => rowDialogs.onArchive(resolveSummaryRow(node)),
+    onAccessReport:
+      navigation && workspace
+        ? (node) =>
+            navigation.push(paths.workspace(workspace.organization_slug, workspace.slug).documentsAccessReport(node.id))
+        : undefined,
   };
 
   const dialogs = (
