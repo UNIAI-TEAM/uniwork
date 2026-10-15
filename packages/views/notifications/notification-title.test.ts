@@ -29,11 +29,12 @@ const notification = (over: Partial<Notification>): Notification => ({
 
 const { t } = initI18n();
 
-// Every document comment and break-glass kind of server/internal/notification/kinds.go.
+// Every document comment, break-glass and access-request kind of server/internal/notification/kinds.go
+// whose sentence quotes the document; a declined request never names it (own case below).
 const DOCUMENT_KINDS = [
   "document_commented", "document_mentioned", "document_comment_replied",
   "document_discussion_mentioned", "document_discussion_replied", "document_comment_resolved",
-  "document_break_glass",
+  "document_break_glass", "document_access_requested", "document_access_approved",
 ];
 
 describe("notificationTitleKey", () => {
@@ -55,6 +56,14 @@ describe("notificationTitleKey", () => {
     const key = notificationTitleKey(notification({ kind, title_key: `notifications.kind.${kind}`, params: {} }));
     expect(t(key, { defaultValue: "" })).not.toBe("");
     expect(t(key, { defaultValue: "" })).not.toMatch(/\{\{document\}\}/);
+  });
+
+  it("keeps the one sentence of a declined access request, which never names the document", () => {
+    const key = "notifications.kind.document_access_declined";
+    const cases: Record<string, string>[] = [{}, { document: "Kế hoạch" }];
+    for (const params of cases) {
+      expect(notificationTitleKey(notification({ kind: "document_access_declined", title_key: key, params }))).toBe(key);
+    }
   });
 
   it("renders document_break_glass with actor and document name in vi and en", () => {

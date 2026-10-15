@@ -331,6 +331,9 @@ describe("InboxView", () => {
       ["document_discussion_mentioned", "Bình đã nhắc đến bạn trong thảo luận của một tài liệu."],
       ["document_discussion_replied", "Bình đã phản hồi nội dung thảo luận của bạn trong một tài liệu."],
       ["document_comment_resolved", "Bình đã đánh dấu bình luận của bạn trong một tài liệu là đã giải quyết."],
+      ["document_break_glass", "Bình đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào một tài liệu."],
+      ["document_access_requested", "Bình xin quyền truy cập một tài liệu."],
+      ["document_access_approved", "Bình đã cấp cho bạn quyền truy cập một tài liệu."],
     ])("says %s without a name when the title is not in the params", async (kind, sentenceText) => {
       for (const document of [undefined, "", "  "]) {
         requestMock.mockReset();

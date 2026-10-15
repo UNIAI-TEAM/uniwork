@@ -246,6 +246,25 @@ describe("ShareDialog", () => {
     expect(screen.getByText(/3 lượt xem/)).toBeInTheDocument();
   });
 
+  it("labels a live comment grant, mine and a row's, as Comment and never as View", async () => {
+    const comment = {
+      ...accessPayload,
+      my_level: "comment",
+      shares: [{ ...accessPayload.shares[0], level: "comment", effective_level: "comment" }],
+    };
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1/shares") return Promise.resolve(comment);
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+
+    expect(await screen.findByText(t("documents.share.my_level", { level: t("documents.share.level_comment") }))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`^${t("documents.share.level_comment")}`))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.share.my_level", { level: t("documents.share.level_view") }))).toBeNull();
+  });
+
   it("keeps a failed read with a retry", async () => {
     let fail = true;
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
