@@ -1,0 +1,8 @@
+$ OFFICE_FORK_SHA=89ae7d14 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --run-dir .harness-run; echo "APP_CASES_EXIT $?"; for f in .harness-run/fault/FQ-[2-5]*/result.json .harness-run/fault/FL-*/result.json; do [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:40947 app_api=http://127.0.0.1:44539 proxy_upstream=http://127.0.0.1:40947
+FQ-20: running
+dbus-daemon[69698]: [session uid=1000 pid=69698] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=70034 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[69698]: [session uid=1000 pid=69698] Successfully activated service 'org.a11y.Bus'
+FQ-20: PASS
+FQ-21: running
