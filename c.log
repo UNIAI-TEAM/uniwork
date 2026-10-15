@@ -1,0 +1,16 @@
+$ git fetch -q origin main; rm -rf /tmp/g510-main; git worktree add --detach /tmp/g510-main origin/main && cd /tmp/g510-main && git rev-parse HEAD && npm ci --no-audit --no-fund > /tmp/g510-main-npmci.log 2>&1; echo "MAIN_NPMCI_EXIT=$?"; tail -5 /tmp/g510-main-npmci.log; npm run build:all > /tmp/g510-main-build.log 2>&1; rc=$?; echo "MAIN_BUILD_EXIT=$rc"; tail -5 /tmp/g510-main-build.log; [ $rc -eq 0 ]
+Preparing worktree (detached HEAD 5fbb71a2)
+HEAD is now at 5fbb71a2 fix(uniwork-sync): hand a feed archived flag to the library only for pinned documents (R6BE-1)
+5fbb71a20f2441b5e37d63aaf733b817e7c7463a
+MAIN_NPMCI_EXIT=0
+> genoffice@0.1.0 postinstall
+> install-electron
+
+
+added 1082 packages in 19s
+MAIN_BUILD_EXIT=0
+../../out/renderer/assets/index-DuBnfBbF.css                     252.20 kB
+../../out/renderer/assets/update-MrLAWrKO.js                       2.45 kB
+../../out/renderer/assets/pdf-password-BczXYSzC.js                 2.77 kB
+../../out/renderer/assets/index-CuWoGhKU.js                    3,483.38 kB
+✓ built in 1.89s

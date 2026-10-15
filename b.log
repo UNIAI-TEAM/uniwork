@@ -1,0 +1,13 @@
+$ cd apps/docs && AI_PROVIDER=fake npx vitest run tests/g5-10-draft-preview-recents.test.ts --reporter=verbose; rc=$?; echo "DOCS_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ✓ tests/g5-10-draft-preview-recents.test.ts > docs recents writer and a kept-draft preview > a preview path never lands in recent.json, with an empty list or an existing one 6ms
+ ✓ tests/g5-10-draft-preview-recents.test.ts > docs recents writer and a kept-draft preview > a normal document still becomes the head of the list 6ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  14:33:28
+   Duration  2.50s (transform 1.43s, setup 0ms, import 1.91s, tests 14ms, environment 468ms)
+
+DOCS_TARGETED_EXIT=0

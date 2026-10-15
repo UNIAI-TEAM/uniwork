@@ -1,0 +1,2 @@
+$ git worktree remove --force /tmp/g510-main 2>/dev/null; git worktree prune; echo CLEANED
+CLEANED

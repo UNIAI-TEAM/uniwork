@@ -1,0 +1,70 @@
+$ cd /tmp/g510-main && if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0; fi; DEBUG= xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts e2e/docs-spell-suggestions.spec.ts e2e/docs-spellcheck-reenable.spec.ts --reporter=list; rc=$?; echo "MAIN_SPELL_EXIT=$rc"; [ $rc -eq 0 ]
+
+Running 3 tests using 1 worker
+
+(node:134771) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (21.7s)
+(node:134869) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (retry #1) (21.8s)
+(node:134973) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 e2e/docs-spellcheck-reenable.spec.ts:51:5 › re-enabling spellcheck respells existing text without user input (5.5s)
+  ✓  4 e2e/docs-spellcheck-reenable.spec.ts:105:5 › toggling spellcheck never scrolls the view to the caret (10.1s)
+
+
+  1) e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+
+    Error: squiggle gone after Add to Dictionary
+
+    squiggle gone after Add to Dictionary
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 39
+
+    Call Log:
+    - Timeout 15000ms exceeded while waiting on the predicate
+
+      176 |         message: 'squiggle gone after Add to Dictionary',
+      177 |       })
+    > 178 |       .toBe(0)
+          |        ^
+      179 |     // the other misspelling keeps its marker: the dictionary changed, not the checker
+      180 |     expect(await redUnder(editor, targetRect!)).toBeGreaterThan(0)
+      181 |
+        at /tmp/g510-main/e2e/docs-spell-suggestions.spec.ts:178:8
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: squiggle gone after Add to Dictionary
+
+    squiggle gone after Add to Dictionary
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 41
+
+    Call Log:
+    - Timeout 15000ms exceeded while waiting on the predicate
+
+      176 |         message: 'squiggle gone after Add to Dictionary',
+      177 |       })
+    > 178 |       .toBe(0)
+          |        ^
+      179 |     // the other misspelling keeps its marker: the dictionary changed, not the checker
+      180 |     expect(await redUnder(editor, targetRect!)).toBeGreaterThan(0)
+      181 |
+        at /tmp/g510-main/e2e/docs-spell-suggestions.spec.ts:178:8
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one-retry1/error-context.md
+
+  1 failed
+    e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+  2 passed (1.0m)
+MAIN_SPELL_EXIT=1

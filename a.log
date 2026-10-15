@@ -1,0 +1,4 @@
+$ git rev-parse HEAD; node --version; npx electron --version 2>/dev/null || true
+e704e935d63a0d912ff351f93f11daaccde252b2
+v22.23.3
+v43.7.6
