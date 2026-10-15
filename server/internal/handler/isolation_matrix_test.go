@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -57,6 +58,9 @@ func TestIsolationMatrix(t *testing.T) {
 	if stale := isoStaleRows(routes); len(stale) > 0 {
 		t.Fatalf("isoRoutes rows that match no registered route:\n  %s", strings.Join(stale, "\n  "))
 	}
+
+	narrowed := strings.TrimSpace(os.Getenv("ISO_ONLY")) != ""
+	routes = isoOnly(routes, os.Getenv("ISO_ONLY"))
 
 	t.Run("control", func(t *testing.T) {
 		for _, r := range routes {
@@ -181,6 +185,9 @@ func TestIsolationMatrix(t *testing.T) {
 	// a project, a share principal. Each must be refused or ignored, and B's
 	// rows must not come to point at A's.
 	t.Run("references", func(t *testing.T) {
+		if narrowed {
+			t.Skip("ISO_ONLY narrows the run to routes; the reference cases are a fixed list")
+		}
 		w.referenceControls(t)
 		for _, c := range isoReferences {
 			path, ok := c.refPath(t, w.bravo)
@@ -225,6 +232,9 @@ func TestIsolationMatrix(t *testing.T) {
 			w.attackAs(t, both, "member-of-both mixed "+r.method+" "+r.pattern, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), refused)
 		}
 		for _, c := range isoReferences {
+			if narrowed {
+				break
+			}
 			path, ok := c.refPath(t, w.bravo)
 			if !ok {
 				continue
@@ -358,6 +368,27 @@ func TestIsolationMatrix(t *testing.T) {
 }
 
 type isoRoute struct{ method, pattern string }
+
+// isoOnly narrows a run to the routes whose "METHOD pattern" contains one of
+// the comma-separated substrings of ISO_ONLY. CI never sets it, so the full
+// matrix is what gates a merge; it lets a lane that may not run the whole
+// matrix on a shared box exercise just the routes it added. The routes are
+// still checked for a class and for staleness before this narrows them.
+func isoOnly(routes []isoRoute, only string) []isoRoute {
+	if strings.TrimSpace(only) == "" {
+		return routes
+	}
+	var out []isoRoute
+	for _, r := range routes {
+		for _, sub := range strings.Split(only, ",") {
+			if sub = strings.TrimSpace(sub); sub != "" && strings.Contains(r.method+" "+r.pattern, sub) {
+				out = append(out, r)
+				break
+			}
+		}
+	}
+	return out
+}
 
 func isoWalk(t *testing.T, h http.Handler) []isoRoute {
 	t.Helper()
@@ -595,6 +626,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if under("/download") || under("/office/") || under("/uploads") || under("/versions/commit") || under("/copies") {
 			return tn.get(t, "fileDocument")
 		}
+		// The break-glass routes act on a restricted page the tenant's owner
+		// administers without owning (DOC-05).
+		if under("/break-glass") {
+			return tn.get(t, "restrictedDocument")
+		}
 		return tn.get(t, "document")
 	case "{assetID}":
 		if under("/office-frame/") {
@@ -615,6 +651,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{deviceSessionID}":
 		return tn.get(t, "deviceSession")
 	case "{grantID}":
+		if under("/break-glass/") {
+			return tn.get(t, "breakGlassGrant")
+		}
 		return tn.get(t, "mcpGrant")
 	case "{attemptID}":
 		return tn.get(t, "mcpAttempt")
