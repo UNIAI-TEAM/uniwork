@@ -20,9 +20,15 @@ import { deviceBCommit, expireStagedClaims } from "./app-tenant.mjs";
 
 const NEVER = ["failed", "cancelled"];
 
-/** Opens a fresh document in a fresh app; installs `rules` after the open so the open itself is never faulted. */
-export async function openFresh(ctx, { rules = [], launch = {} } = {}) {
+/**
+ * Opens a fresh document in a fresh app; `prepare` runs on the new document
+ * before the app opens it (the server condition the open itself needs, e.g.
+ * FQ-50's restricted visibility and its edit share), `rules` after the open so
+ * the open is never faulted.
+ */
+export async function openFresh(ctx, { rules = [], launch = {}, prepare = null } = {}) {
   const doc = await ctx.newDocument();
+  if (prepare) await prepare(ctx, doc.id);
   const session = await ctx.launch(launch);
   const opened = await openDocument(session, doc.id, ctx.kind);
   await ctx.setRules(rules);

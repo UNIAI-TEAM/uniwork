@@ -321,10 +321,27 @@ export async function deviceBCommit(tenant, documentId, fixture) {
 
 // ---- real server conditions (set, then lifted) ---------------------------------
 
-export const removeAppFromWorkspace = (tenant) =>
-  must("remove member", tenant.apiOrigin, `/api/v1/workspaces/${tenant.workspaceId}/members/${tenant.app.userId}`,
-    { method: "DELETE", as: tenant.owner }, undefined, "/api/v1/workspaces/{workspaceID}/members/{userID}");
-export const readdAppToWorkspace = (tenant) => addWorkspaceMember(tenant.apiOrigin, tenant, tenant.app);
+/**
+ * Grants `principal` (default: the app's account) a live share of `documentId`
+ * at `level` (POST /documents/{id}/shares). The same principal at a new level
+ * replaces the live grant in one transaction, so this is both the grant and the
+ * role change (route: server/internal/handler/router/documents.go:528).
+ */
+export const shareDocumentLevel = (tenant, documentId, level, principal = tenant.app) =>
+  must("share document", tenant.apiOrigin, `/api/v1/documents/${documentId}/shares`,
+    { method: "POST", as: tenant.owner, json: { principal_type: "user", principal_id: principal.userId, level } },
+    undefined, "/api/v1/documents/{documentID}/shares");
+
+/**
+ * Sets a document's visibility (`workspace` | `restricted`); needs the head
+ * revision and manage (server/internal/service/document_pages.go:535-550,
+ * `validDocumentVisibility` :117-122).
+ */
+export const setDocumentVisibility = async (tenant, documentId, visibility) =>
+  must("set document visibility", tenant.apiOrigin, `/api/v1/documents/${documentId}`,
+    { method: "PATCH", as: tenant.owner, json: { revision: await headRevision(tenant, documentId), visibility } },
+    undefined, "/api/v1/documents/{documentID}");
+
 export const archiveDocument = (tenant, documentId) =>
   must("archive document", tenant.apiOrigin, `/api/v1/documents/${documentId}/archive`,
     { method: "POST", as: tenant.owner }, undefined, "/api/v1/documents/{documentID}/archive");

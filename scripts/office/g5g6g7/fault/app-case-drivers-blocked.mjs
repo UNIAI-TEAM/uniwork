@@ -13,8 +13,7 @@ import {
 import { countAssertion, deltaAssertion, editAndSave, oneIntent, openFresh, pathAssertion, sameKey } from "./app-case-drivers.mjs";
 import { accountStatus, docStatus, edit, save, signIn, signOut } from "./app-session.mjs";
 import {
-  archiveDocument, deactivateApp, readdAppToWorkspace, reactivateApp, removeAppFromWorkspace, restoreDocument,
-  suspendOrg, unsuspendOrg,
+  archiveDocument, deactivateApp, reactivateApp, restoreDocument, setDocumentVisibility, shareDocumentLevel, suspendOrg, unsuspendOrg,
 } from "./app-tenant.mjs";
 
 /** The blocked reason an exit label names ("reconciling → blocked member_deactivated" -> member_deactivated). */
@@ -24,12 +23,31 @@ export function reasonOf(label) {
 }
 
 /**
- * Real server conditions: `set` before the app meets them, `lift` after. The
- * archived and deleted exits both use the trash (`/archive`): the server has
- * one archive state and answers 410 document_deleted for it (OQ-F6).
+ * Real server conditions: `prepare` runs before the app opens the document (when
+ * the open itself needs the condition), `set` before the app meets it, `lift`
+ * after. The archived and deleted exits both use the trash (`/archive`): the
+ * server has one archive state and answers 410 document_deleted for it (OQ-F6).
+ *
+ * `permission_revoked` is a downgrade of the app's own write permission, not a
+ * workspace-member removal: EXPERIENCE › Save pill (:178) "quyền giảm … dispatch
+ * gặp 403 → blocked permission_revoked", and the client reads that label from a
+ * 403 `forbidden` (fork errors.ts:130). A member removal answers 404 not_found by
+ * the product rule (a non-member never learns an id exists:
+ * document_permissions.go:290-301) and can never produce the row's label, so the
+ * document goes `restricted` with the app's own `edit` share and only that share
+ * moves: as a workspace member the app reads it (share) but the member edit path
+ * no longer applies (resolveLevelInTenant :136-144), and an upload then asks for
+ * edit it does not hold -> 403 forbidden.
  */
-const CONDITIONS = {
-  permission_revoked: { set: (ctx) => removeAppFromWorkspace(ctx.tenant), lift: (ctx) => readdAppToWorkspace(ctx.tenant) },
+export const CONDITIONS = {
+  permission_revoked: {
+    prepare: async (ctx, docId) => {
+      await setDocumentVisibility(ctx.tenant, docId, "restricted");
+      await shareDocumentLevel(ctx.tenant, docId, "edit");
+    },
+    set: (ctx, docId) => shareDocumentLevel(ctx.tenant, docId, "view"),
+    lift: (ctx, docId) => shareDocumentLevel(ctx.tenant, docId, "edit"),
+  },
   document_deleted: { set: (ctx, doc) => archiveDocument(ctx.tenant, doc), lift: (ctx, doc) => restoreDocument(ctx.tenant, doc) },
   document_archived: { set: (ctx, doc) => archiveDocument(ctx.tenant, doc), lift: (ctx, doc) => restoreDocument(ctx.tenant, doc) },
   member_deactivated: { set: (ctx) => deactivateApp(ctx.tenant), lift: (ctx) => reactivateApp(ctx.tenant) },
@@ -150,7 +168,9 @@ async function fq50(ctx) {
     const blocker = await ctx.ensureAdmin();
     if (blocker) return { documentId: null, assertions: [], blocker };
   }
-  const { doc, session, opened } = await openFresh(ctx);
+  // `prepare` is the condition the app's own open needs (permission_revoked's
+  // restricted visibility + edit share); the others open an ordinary document
+  const { doc, session, opened } = await openFresh(ctx, { prepare: condition.prepare ?? null });
   const notes = [];
   await edit(opened, `${ctx.marker}L${ctx.run.index}`);
   await condition.set(ctx, doc.id);
