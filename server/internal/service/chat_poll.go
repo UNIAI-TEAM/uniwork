@@ -67,16 +67,22 @@ func pollFromMetadata(kind string, meta chatMessageMetadata, viewerID string) *C
 	if viewerKey != "" && meta.Poll.VotesByUser != nil {
 		viewerOptionIDs = meta.Poll.VotesByUser[viewerKey]
 	}
-	var votesByUser map[string][]string
-	if !meta.Poll.Settings.HideVoters {
-		viewerHasVoted := len(viewerOptionIDs) > 0
-		if !meta.Poll.Settings.HideResultsUntilVote || viewerHasVoted {
-			votesByUser = meta.Poll.VotesByUser
+	resultsHidden := meta.Poll.Settings.HideResultsUntilVote && len(viewerOptionIDs) == 0
+	options := meta.Poll.Options
+	if resultsHidden {
+		// A fresh slice: the counts must not reach the wire, and the stored metadata stays intact.
+		options = make([]ChatPollOption, len(meta.Poll.Options))
+		for i, o := range meta.Poll.Options {
+			options[i] = ChatPollOption{ID: o.ID, Label: o.Label}
 		}
+	}
+	var votesByUser map[string][]string
+	if !meta.Poll.Settings.HideVoters && !resultsHidden {
+		votesByUser = meta.Poll.VotesByUser
 	}
 	return &ChatPollInfo{
 		Question:        meta.Poll.Question,
-		Options:         meta.Poll.Options,
+		Options:         options,
 		Settings:        meta.Poll.Settings,
 		ViewerOptionIDs: viewerOptionIDs,
 		VotesByUser:     votesByUser,
