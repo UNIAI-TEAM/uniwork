@@ -121,6 +121,26 @@ describe("useChatPageActions", () => {
     });
   });
 
+  it("lets the server name a group left unnamed", async () => {
+    const deps = buildDeps();
+    const members = [
+      { user_id: "u1", email: "a@example.com", display_name: "A" },
+      { user_id: "u2", email: "b@example.com", display_name: "B" },
+    ];
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    act(() => {
+      result.current.handleCreateGroup(members, "  ");
+    });
+
+    await waitFor(() => {
+      expect(deps.createGroup.mutateAsync).toHaveBeenCalledWith({
+        name: "",
+        member_user_ids: ["u1", "u2"],
+      });
+    });
+  });
+
   it("provisions a workspace room before sending the first message", async () => {
     const deps = buildDeps({
       activeRoomId: null,

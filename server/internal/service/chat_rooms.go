@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -228,6 +229,9 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 		return ChatRoomSummary{}, err
 	}
 	name := strings.TrimSpace(in.Name)
+	if utf8.RuneCountInString(name) > chatRoomNameMaxRunes {
+		return ChatRoomSummary{}, Invalid("tên phòng tối đa 80 ký tự")
+	}
 	memberIDs := normalizeUserIDs(in.MemberUserIDs)
 	if len(memberIDs) < 2 {
 		return ChatRoomSummary{}, Invalid("nhóm cần ít nhất 2 thành viên")
@@ -765,8 +769,13 @@ func defaultGroupNameFromUsers(ctx context.Context, q *db.Queries, memberIDs []s
 	if len(names) == 0 {
 		return "Group"
 	}
+	name := strings.Join(names, ", ")
 	if len(names) > 3 {
-		return strings.Join(names[:3], ", ") + "…"
+		name = strings.Join(names[:3], ", ") + "…"
 	}
-	return strings.Join(names, ", ")
+	// Three long display names still overrun the limit a typed name obeys.
+	if r := []rune(name); len(r) > chatRoomNameMaxRunes {
+		name = string(r[:chatRoomNameMaxRunes-1]) + "…"
+	}
+	return name
 }

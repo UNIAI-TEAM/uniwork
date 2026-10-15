@@ -13,7 +13,6 @@ import { isChatSendRateLimited, isRetriableChatSendError } from "@uniwork/core/c
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type {
@@ -232,12 +231,10 @@ export function useChatPageActions({
       if (members.length < 2) return;
       setCreatingGroup(true);
       setConnectError(null);
-      const resolvedName =
-        name.trim() ||
-        members.map((member) => displayLabelForChatContact(member)).join(", ");
       void createGroup
         .mutateAsync({
-          name: resolvedName,
+          // Empty lets the server pick a short default from the members' names.
+          name: name.trim(),
           member_user_ids: members.map((member) => member.user_id),
         })
         .then((room) => {

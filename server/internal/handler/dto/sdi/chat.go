@@ -83,7 +83,7 @@ type CreateChatPostSDI struct {
 
 // CreateGroupSDI is POST /workspaces/{workspaceID}/chat/groups.
 type CreateGroupSDI struct {
-	Name          string   `json:"name" description:"Group display name" example:"Team Alpha"`
+	Name          string   `json:"name" maxLength:"80" description:"Group display name (up to 80 characters; empty takes a default)" example:"Team Alpha"`
 	MemberUserIDs []string `json:"member_user_ids" description:"Other member UniWork user ids (min 2)" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\",\"01J8X4USR0N1P2Q3R4S5T6U7V9\"]"`
 }
 

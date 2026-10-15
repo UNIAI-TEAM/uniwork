@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -381,6 +383,51 @@ func TestCreateGroupAndInvite(t *testing.T) {
 	}
 	if _, err := s.ListRoomMessages(ctx, ub.ID, w.ID, group.ID, ListChatMessagesInput{}); err != ErrForbidden {
 		t.Fatalf("left member list: %v", err)
+	}
+}
+
+func TestCreateGroupRejectsLongName(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, q, as, "chat-c@example.com", "C")
+	for _, u := range []db.User{ub, uc} {
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+	}
+
+	tooLong := strings.Repeat("ệ", chatRoomNameMaxRunes+1)
+	_, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: tooLong, MemberUserIDs: []string{ub.ID, uc.ID}})
+	requireValidationError(t, err, "overlong group name")
+	if err.Error() != "tên phòng tối đa 80 ký tự" {
+		t.Fatalf("message: %q", err.Error())
+	}
+
+	atLimit := strings.Repeat("ệ", chatRoomNameMaxRunes)
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: atLimit, MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil || group.Name != atLimit {
+		t.Fatalf("name at the limit: err=%v name=%q", err, group.Name)
+	}
+}
+
+func TestCreateGroupDefaultNameFitsTheLimit(t *testing.T) {
+	s, _, q, ua, _, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	ids := make([]string, 0, 3)
+	for i, letter := range []string{"x", "y", "z"} {
+		u := registerVerified(t, q, as, fmt.Sprintf("chat-long-%d@example.com", i), strings.Repeat(letter, 60))
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+		ids = append(ids, u.ID)
+	}
+
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{MemberUserIDs: ids})
+	if err != nil {
+		t.Fatalf("create unnamed group: %v", err)
+	}
+	if n := utf8.RuneCountInString(group.Name); n == 0 || n > chatRoomNameMaxRunes {
+		t.Fatalf("default name has %d runes: %q", n, group.Name)
 	}
 }
 
