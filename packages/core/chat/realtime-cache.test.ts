@@ -547,6 +547,23 @@ describe("thread reply cache patches", () => {
     expect(threadIds(qc)).toEqual(["root1", "r1"]);
   });
 
+  it("counts a reply once when more frames for it reach an unloaded thread", async () => {
+    const root = { ...sampleMessage("root1", "2026-01-01T10:00:00Z"), reply_count: 5, last_reply_at: "2026-01-01T10:00:30Z" };
+    const r1 = { ...sampleMessage("r1", "2026-01-01T10:01:00Z"), thread_root_id: "root1" };
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(r1);
+
+    const qc = new QueryClient();
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([root]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "r1", true);
+    // A second frame for the same reply (an edit or a reaction).
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "r1");
+
+    const main = flattenRoomTimeline(qc.getQueryData<RoomTimeline>(chatKeys.roomMessages("ws1", "room1"))!);
+    expect(main[0]?.reply_count).toBe(6);
+    expect(qc.getQueryData(chatKeys.threadMessages("ws1", "room1", "root1"))).toBeUndefined();
+  });
+
   it("does not seed a thread cache nobody loaded", async () => {
     vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(threadReply("r1", "2026-01-01T10:01:00Z"));
     const qc = new QueryClient();

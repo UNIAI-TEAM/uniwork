@@ -95,6 +95,8 @@ export function bumpThreadRootReplyCount(
   if (!existing || !rootId) return existing;
   return existing.map((entry) => {
     if (entry.id !== rootId) return entry;
+    // A root already past this reply has counted it: later frames for it (an edit, a reaction) bump nothing.
+    if (entry.last_reply_at && Date.parse(entry.last_reply_at) >= Date.parse(reply.created_at)) return entry;
     return {
       ...entry,
       reply_count: (entry.reply_count ?? 0) + 1,
