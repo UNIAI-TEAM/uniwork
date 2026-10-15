@@ -104,6 +104,14 @@ test('every tool is offered with its real schema; the partial descriptions are e
       assert.equal(sha256Hex(canonical(parameters)), entry.inputSchemaSha256, `${module}/${name}: schema hash`);
     }
   }
+  // RBD-7 / RBD-8: the block's own hash cell is the witness of the schema the file ships, so a schema body
+  // edited by hand — with its stored hash updated to match — fails here. The single documented divergence is
+  // docs/set_page_setup: its block cell pins the default evaluator's `+`-misread schema while the emit pass
+  // reads it whole (report-w10 residual 1). Any second divergent row fails.
+  for (const entry of file.catalogue) {
+    if (`${entry.module}/${entry.name}` === 'docs/set_page_setup') continue;
+    assert.equal(entry.inputSchemaSha256, entry.tableHash, `${entry.module}/${entry.name}: the block cell must witness the embedded schema`);
+  }
   const partial = file.catalogue.filter((e) => !e.descriptionComplete).map((e) => `${e.module}/${e.name}`);
   assert.deepEqual(partial.sort(), PARTIAL_DESCRIPTION_TOOLS);
   for (const key of PARTIAL_DESCRIPTION_TOOLS) {
