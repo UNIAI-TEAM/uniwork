@@ -4327,7 +4327,32 @@
       "status_deactivated": "Deactivated",
       "deactivate_title": "Deactivate {{name}}?",
       "deactivate_body": "{{name}} will not be able to get into the organization or any workspace in it until reactivated. Everything they created stays.",
-      "load_error": "Couldn't load the members."
+      "load_error": "Couldn't load the members.",
+      "transfer_docs": {
+        "title": "Transfer documents",
+        "body_one": "{{name}} owns {{count}} document.",
+        "body_other": "{{name}} owns {{count}} documents.",
+        "recipient_label": "Transfer to",
+        "recipient_placeholder": "Choose a member",
+        "recipients_loading": "Loading members…",
+        "recipients_error": "Couldn't load the members to choose from.",
+        "later": "Later",
+        "count_loading": "Counting documents…",
+        "count_failed": "Couldn't count the documents. You can still deactivate and transfer them later.",
+        "none": "{{name}} doesn't own any documents.",
+        "progress": "Transferring documents…",
+        "done_one": "Transferred {{count}} document to {{name}}.",
+        "done_other": "Transferred {{count}} documents to {{name}}.",
+        "skipped_not_member_one": "{{count}} document in a workspace {{name}} hasn't joined wasn't transferred.",
+        "skipped_not_member_other": "{{count}} documents in workspaces {{name}} hasn't joined weren't transferred.",
+        "skipped_self_one": "{{count}} restricted document can't be transferred to yourself.",
+        "skipped_self_other": "{{count}} restricted documents can't be transferred to yourself.",
+        "failed": "Couldn't transfer the documents. The account is deactivated; you can try again.",
+        "failed_active": "Couldn't transfer the documents. You can try again.",
+        "retry": "Try again",
+        "action": "Transfer documents",
+        "confirm": "Transfer"
+      }
     },
     "leave": {
       "title": "Leave this organization",
