@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+28cfd55f2011b41e4507d7083c7b61d3c59c6bab
+28cfd55f2 chore: merge G5-07 F6 archived-document commit (befebd0bd) into the G5-G7 root
+36fe075c1 chore: merge UNI-1642 library access columns (78f30dde5) into the G5-G7 root
+8c8e040bd docs(adr): accept 0034, desktop uses the keys saved on UniWork through the BYOK proxy

@@ -1,0 +1,7 @@
+$ pnpm --filter @uniwork/views exec vitest run 2>&1 | tail -5; echo "VIEWS_EXIT=${PIPESTATUS[0]}"
+ Test Files  552 passed (552)
+      Tests  4585 passed (4585)
+   Start at  09:43:11
+   Duration  287.77s (transform 19.51s, setup 98.44s, import 213.36s, tests 350.77s, environment 144.13s)
+
+VIEWS_EXIT=0

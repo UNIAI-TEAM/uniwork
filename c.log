@@ -1,0 +1,4 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL; AI_PROVIDER=fake go test -count=1 ./internal/ai/... 2>&1 | tail -4; echo "GO_AI_EXIT=${PIPESTATUS[0]}"; cd ..
+ok  	github.com/unicomhub/uniwork/server/internal/ai	6.541s
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	0.376s
+GO_AI_EXIT=0

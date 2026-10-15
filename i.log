@@ -1,0 +1,7 @@
+$ pnpm lint 2>&1 | tail -5; echo "LINT_EXIT=${PIPESTATUS[0]}"
+
+ Tasks:    7 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    1m7.316s 
+
+LINT_EXIT=0
