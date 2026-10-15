@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api/http";
@@ -11,6 +12,10 @@ const deleteMessage = vi.fn();
 const editMessage = vi.fn();
 const fetchNextPage = vi.fn().mockResolvedValue({ isFetchNextPageError: false });
 const fetchNextThreadPage = vi.fn().mockResolvedValue({ isFetchNextPageError: false });
+const markRead = vi.fn();
+// What the mocked virtual list reports on scroll, and the stick ref it was handed.
+let nearBottom = true;
+let listStickRef: { current: boolean } | null = null;
 
 type Row = {
   id: string;
@@ -66,6 +71,7 @@ vi.mock("@uniwork/core/chat", async (orig) => ({
   useToggleChatReaction: () => ({ mutateAsync: toggleReaction }),
   useDeleteChatMessage: () => ({ mutateAsync: deleteMessage, isPending: false }),
   useEditChatMessage: () => ({ mutateAsync: editMessage, isPending: false }),
+  useMarkChatRoomReadAtLatest: (...args: unknown[]) => markRead(...args),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
@@ -74,13 +80,19 @@ import { toast } from "sonner";
 // @tanstack/react-virtual needs layout measurements that jsdom cannot provide,
 // so render rows synchronously in this test.
 vi.mock("./virtual-chat-message-list", () => ({
-  updateStickToBottomFromScroll: () => true,
-  VirtualChatMessageList: ({ messages, header, empty, renderMessage }: any) => (
-    <>
-      {header}
-      {messages.length === 0 ? empty : messages.map((_: unknown, index: number) => renderMessage(index))}
-    </>
-  ),
+  updateStickToBottomFromScroll: (_el: HTMLElement, ref: { current: boolean }) => {
+    ref.current = nearBottom;
+    return nearBottom;
+  },
+  VirtualChatMessageList: ({ messages, header, empty, renderMessage, stickToBottomRef }: any) => {
+    listStickRef = stickToBottomRef;
+    return (
+      <>
+        {header}
+        {messages.length === 0 ? empty : messages.map((_: unknown, index: number) => renderMessage(index))}
+      </>
+    );
+  },
 }));
 
 beforeAll(() => {
@@ -89,6 +101,10 @@ beforeAll(() => {
 
 beforeEach(() => {
   rows = BASE_ROWS;
+  nearBottom = true;
+  listStickRef = null;
+  markRead.mockReset();
+  requestMock.mockReset();
   deleteMessage.mockReset();
   editMessage.mockReset();
   vi.mocked(toast.error).mockReset();
@@ -306,5 +322,53 @@ describe("NativeChatMessagePanel", () => {
 
     await waitFor(() => expect(fetchNextThreadPage).toHaveBeenCalledTimes(1));
     expect(fetchNextPage).not.toHaveBeenCalled();
+  });
+
+  it("goes back to the newest message and lets the room be marked read after 'Về tin mới nhất'", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path.includes("/messages/around/m0")
+        ? Promise.resolve({
+            messages: [
+              {
+                id: "m0",
+                room_id: "room1",
+                workspace_id: "ws1",
+                sender_id: "u2",
+                sender_display_name: "Binh",
+                body: "Old one",
+                kind: "text",
+                created_at: "2025-12-01T10:00:00.000Z",
+                reactions: {},
+              },
+            ],
+          })
+        : Promise.resolve(undefined),
+    );
+    // The newest message is someone else's, so nothing but the button can re-stick the list.
+    rows = [
+      ...BASE_ROWS,
+      { id: "m3", sender_id: "u2", body: "Newest", kind: "text", created_at: "2026-01-01T10:05:00.000Z", reactions: {} },
+    ];
+    // The page owns the anchor: clearing it drops the prop, as the chat page does.
+    // A stable reply callback, as on the page: a new one each render re-runs the room reset.
+    const onReplyToChange = vi.fn();
+    function Page() {
+      const [anchor, setAnchor] = useState<string | null>("m0");
+      return panel({ anchorMessageId: anchor, onClearAnchor: () => setAnchor(null), onReplyToChange });
+    }
+    render(wrap(<Page />));
+    expect(await screen.findByText("Old one")).toBeInTheDocument();
+
+    // Scrolling to the highlighted message leaves the reader away from the bottom.
+    nearBottom = false;
+    fireEvent.scroll(screen.getByRole("log"));
+    expect(listStickRef?.current).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Về tin mới nhất" }));
+
+    await waitFor(() => expect(screen.getByText("Newest")).toBeInTheDocument());
+    expect(listStickRef?.current).toBe(true);
+    expect(markRead.mock.calls.at(-1)?.[3]).toBe(true);
+    expect(screen.queryByRole("button", { name: "Về tin mới nhất" })).not.toBeInTheDocument();
   });
 });

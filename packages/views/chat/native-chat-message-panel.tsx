@@ -389,7 +389,11 @@ export function NativeChatMessagePanel({
     el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
   };
 
+  // The latest page replaces the anchor window; re-sticking lets the list pin
+  // it to the bottom and the room be marked read, as scrollToLatest does.
   const clearAnchor = () => {
+    stickToBottomRef.current = true;
+    setAwayFromLatest(false);
     setLocalAnchor(null);
     if (anchorMessageId) onClearAnchor?.();
   };
