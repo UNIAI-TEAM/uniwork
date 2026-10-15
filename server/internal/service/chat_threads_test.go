@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -495,4 +497,70 @@ func TestListRoomMessagesAroundKeepsThreadRepliesInTheThread(t *testing.T) {
 	check(mainA.ID)
 	check(mainB.ID)
 	check(r2.ID)
+}
+
+func TestListThreadMessagesPagesOlderReplies(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "ke hoach Q4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const total = 60
+	replies := make([]ChatMessageRow, 0, total)
+	for i := range total {
+		m, err := s.SendThreadReply(ctx, ub.ID, w.ID, room.RoomID, root.ID, SendChatMessageInput{Body: fmt.Sprintf("#%d", i+1)})
+		if err != nil {
+			t.Fatalf("reply %d: %v", i+1, err)
+		}
+		replies = append(replies, m)
+	}
+	// One reply a second after the root; #10 and #11 share an instant, so the
+	// page boundary falls between two rows with the same created_at.
+	base := root.CreatedAt.Add(time.Second)
+	for i, m := range replies {
+		at := base.Add(time.Duration(i) * time.Second)
+		if i == 10 {
+			at = base.Add(9 * time.Second)
+		}
+		if _, err := pool.Exec(ctx, `UPDATE chat_messages SET created_at = $1 WHERE id = $2`, at, m.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	first, err := s.ListThreadMessages(ctx, ua.ID, w.ID, room.RoomID, root.ID, ListChatMessagesInput{Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 51 || first[0].ID != root.ID {
+		t.Fatalf("first page: len=%d head=%v, want the root then 50 replies", len(first), first[0].ID)
+	}
+	older, err := s.ListThreadMessages(ctx, ua.ID, w.ID, room.RoomID, root.ID, ListChatMessagesInput{
+		Limit: 50, Cursor: first[1].Cursor(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(older) != 10 {
+		t.Fatalf("older page len=%d want 10", len(older))
+	}
+	seen := map[string]int{}
+	for _, m := range append(first[1:], older...) {
+		if m.ID == root.ID {
+			t.Fatal("root repeated on the older page")
+		}
+		seen[m.ID]++
+	}
+	for i, m := range replies {
+		if seen[m.ID] != 1 {
+			t.Fatalf("reply #%d seen %d times, want once", i+1, seen[m.ID])
+		}
+	}
 }

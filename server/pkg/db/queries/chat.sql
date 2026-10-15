@@ -668,12 +668,14 @@ INNER JOIN users u ON u.id = m.sender_id
 WHERE m.room_id = $1
   AND m.workspace_id = $2
   AND m.deleted_at IS NULL
-  AND (
-    m.id = sqlc.arg(thread_root_id)
-    OR m.thread_root_id = sqlc.arg(thread_root_id)
-  )
-  AND (sqlc.narg(before_at)::timestamptz IS NULL OR m.created_at < sqlc.narg(before_at))
-ORDER BY m.created_at DESC
+  AND m.thread_root_id = sqlc.arg(thread_root_id)::text
+  -- Replies only (the service puts the root on the first page), keyset page
+  -- older than (before_at, before_id) as in ListChatMessagesByRoom.
+  AND (sqlc.narg(before_at)::timestamptz IS NULL OR (
+    m.created_at <= sqlc.narg(before_at)::timestamptz
+    AND (m.created_at, m.id) < (sqlc.narg(before_at)::timestamptz, sqlc.arg(before_id)::text)
+  ))
+ORDER BY m.created_at DESC, m.id DESC
 LIMIT sqlc.arg(msg_limit);
 
 -- name: BumpChatThreadReplyStats :one

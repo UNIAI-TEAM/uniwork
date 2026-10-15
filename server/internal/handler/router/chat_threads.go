@@ -12,8 +12,9 @@ func registerChatThreads(r api, h Routes, chatWriteLimit func(http.Handler) http
 	r.Group(func(th api) {
 		th.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/threads/{messageID}/messages", h.ListChatThreadMessages, apiOp{
 			summary:     "List thread messages",
-			description: "Tin gốc và các câu trả lời trong thread (một cấp).",
+			description: "Một trang câu trả lời trong thread (một cấp), cũ trước; trang đầu có tin gốc đứng đầu.",
 			tags:        []string{"chat"},
+			sdi:         sdi.ListChatThreadMessagesSDI{},
 			sdo:         sdo.ChatMessageDTO{},
 			auth:        true,
 		})

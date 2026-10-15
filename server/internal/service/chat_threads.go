@@ -69,7 +69,9 @@ func (s *ChatService) resolveThreadRoot(
 	return msg, nil
 }
 
-// ListThreadMessages returns the root plus replies for a thread.
+// ListThreadMessages returns a page of a thread's replies, oldest first. The
+// first page (no cursor, no before) starts with the root; an older page is
+// asked for with the oldest reply's Cursor().
 func (s *ChatService) ListThreadMessages(
 	ctx context.Context, userID, workspaceID, roomID, threadRootID string, in ListChatMessagesInput,
 ) ([]ChatMessageRow, error) {
@@ -92,7 +94,15 @@ func (s *ChatService) ListThreadMessages(
 		limit = maxChatMessageLimit
 	}
 	var before pgtype.Timestamptz
-	if in.Before != nil {
+	var beforeID string
+	switch {
+	case in.Cursor != "":
+		at, id, err := decodeFeedCursor(in.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		before, beforeID = pgtype.Timestamptz{Time: at, Valid: true}, id
+	case in.Before != nil:
 		before = pgtype.Timestamptz{Time: *in.Before, Valid: true}
 	}
 	rows, err := s.q.ListChatThreadMessages(ctx, db.ListChatThreadMessagesParams{
@@ -100,34 +110,28 @@ func (s *ChatService) ListThreadMessages(
 		WorkspaceID:  roomAnchorWorkspaceID(room),
 		ThreadRootID: threadRootID,
 		BeforeAt:     before,
+		BeforeID:     beforeID,
 		MsgLimit:     int32(limit),
 	})
 	if err != nil {
 		return nil, err
 	}
 	out := make([]ChatMessageRow, 0, len(rows)+1)
-	for i := len(rows) - 1; i >= 0; i-- {
-		out = append(out, chatMessageRowFromThreadListRow(rows[i], userID))
-	}
-	// The root is the oldest row, so a busy thread's newest-first page drops it;
-	// the first page always leads with it because it carries the viewer's
-	// follow and unread state.
-	if in.Before == nil && (len(out) == 0 || out[0].ID != threadRootID) {
+	// The first page leads with the root, which carries the viewer's follow and
+	// unread state; the query lists replies only.
+	if !before.Valid {
 		sender, err := s.q.GetUserByID(ctx, root.SenderID)
 		if err != nil {
 			return nil, err
 		}
-		out = append([]ChatMessageRow{chatMessageRowFromDBForViewer(root, sender.DisplayName, userID)}, out...)
-	}
-	unread, following, err := s.threadViewerState(ctx, userID, threadRootID)
-	if err != nil {
-		return nil, err
-	}
-	for i := range out {
-		if out[i].ID == threadRootID {
-			out[i].ThreadUnread = unread
-			out[i].ThreadFollowing = following
+		head := chatMessageRowFromDBForViewer(root, sender.DisplayName, userID)
+		if head.ThreadUnread, head.ThreadFollowing, err = s.threadViewerState(ctx, userID, threadRootID); err != nil {
+			return nil, err
 		}
+		out = append(out, head)
+	}
+	for i := len(rows) - 1; i >= 0; i-- {
+		out = append(out, chatMessageRowFromThreadListRow(rows[i], userID))
 	}
 	s.signChatMedia(ctx, room, out)
 	return out, nil

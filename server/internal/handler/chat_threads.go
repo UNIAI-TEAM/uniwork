@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -14,7 +15,7 @@ import (
 )
 
 func (h *handlers) listChatThreadMessages(w http.ResponseWriter, r *http.Request) {
-	in := service.ListChatMessagesInput{Limit: 50}
+	in := service.ListChatMessagesInput{Limit: 50, Cursor: strings.TrimSpace(r.URL.Query().Get("cursor"))}
 	if v := r.URL.Query().Get("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			in.Limit = n

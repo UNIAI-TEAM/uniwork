@@ -2023,13 +2023,15 @@ INNER JOIN users u ON u.id = m.sender_id
 WHERE m.room_id = $1
   AND m.workspace_id = $2
   AND m.deleted_at IS NULL
-  AND (
-    m.id = $3
-    OR m.thread_root_id = $3
-  )
-  AND ($4::timestamptz IS NULL OR m.created_at < $4)
-ORDER BY m.created_at DESC
-LIMIT $5
+  AND m.thread_root_id = $3::text
+  -- Replies only (the service puts the root on the first page), keyset page
+  -- older than (before_at, before_id) as in ListChatMessagesByRoom.
+  AND ($4::timestamptz IS NULL OR (
+    m.created_at <= $4::timestamptz
+    AND (m.created_at, m.id) < ($4::timestamptz, $5::text)
+  ))
+ORDER BY m.created_at DESC, m.id DESC
+LIMIT $6
 `
 
 type ListChatThreadMessagesParams struct {
@@ -2037,6 +2039,7 @@ type ListChatThreadMessagesParams struct {
 	WorkspaceID  string             `json:"workspace_id"`
 	ThreadRootID string             `json:"thread_root_id"`
 	BeforeAt     pgtype.Timestamptz `json:"before_at"`
+	BeforeID     string             `json:"before_id"`
 	MsgLimit     int32              `json:"msg_limit"`
 }
 
@@ -2064,6 +2067,7 @@ func (q *Queries) ListChatThreadMessages(ctx context.Context, arg ListChatThread
 		arg.WorkspaceID,
 		arg.ThreadRootID,
 		arg.BeforeAt,
+		arg.BeforeID,
 		arg.MsgLimit,
 	)
 	if err != nil {
