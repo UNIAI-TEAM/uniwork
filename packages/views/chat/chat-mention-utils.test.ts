@@ -159,6 +159,13 @@ describe("chat-mention-utils", () => {
         ["ME", "u3"],
       ),
     ).toEqual([{ kind: "member", userId: "u3", label: "Three", email: "u3@x.com" }]);
+    const three = { u3: { user_id: "u3", display_name: "Three", email: "u3@x.com" } };
+    expect(
+      buildChatMentionCandidates("channel", "me", members, three, (m) => m.display_name, ["u3"]),
+    ).toEqual([{ kind: "member", userId: "u3", label: "Three", email: "u3@x.com" }]);
+    // A channel only I am in lists nobody else: workspace members outside it would get a chip but no notification.
+    expect(buildChatMentionCandidates("channel", "me", members, {}, (m) => m.display_name, [])).toEqual([]);
+    expect(buildChatMentionCandidates("channel", "me", members, {}, (m) => m.display_name)).toEqual([]);
   });
 
   it("does not nest a shorter name inside a longer one", () => {

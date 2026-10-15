@@ -135,6 +135,10 @@ export function buildChatMentionCandidates(
     });
   }
 
+  // A channel lists only its roster (the profiles read from its room-members
+  // call), even an empty one: the server notifies room members only, so anyone
+  // else would get a chip and no notification. The default channel is the
+  // workspace target, not "channel".
   const scoped =
     (targetKind === "group" || targetKind === "channel") && roomMemberIds && roomMemberIds.length > 0;
   const ids = scoped
