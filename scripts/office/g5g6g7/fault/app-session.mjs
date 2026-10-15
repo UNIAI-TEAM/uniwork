@@ -22,7 +22,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { appEnv } from "../harness/lib.mjs";
 import { attemptIdFromAuthorizationUrl, faultAppExtraEnv } from "./app-cases-lib.mjs";
-import { crashTargets, harnessPidsFromFile, ownGroupTarget } from "./app-process-guard.mjs";
+import { crashTargets, crashZeroCause, harnessPidsFromFile, ownGroupTarget } from "./app-process-guard.mjs";
 import { approveDesktopAttempt } from "./app-tenant.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -268,12 +268,19 @@ function harnessPids(session) {
 /**
  * Crash: SIGKILL the Electron this module launched and every descendant of it,
  * nothing else (crashTargets: still our child, no harness pid or group).
+ * Returns the number of pids signalled; `session.crashCause` says why when 0.
  */
 export function crash(session) {
-  if (session.dead) return 0;
+  if (session.dead) {
+    session.crashCause = "the session was already closed or crashed";
+    return 0;
+  }
   session.dead = true;
   const ps = spawnSync("ps", ["-eo", "pid=,ppid=,pgid="], { encoding: "utf8" });
-  const pids = crashTargets(ps.stdout ?? "", { root: session.pid, runnerPid: session.runnerPid ?? process.pid, protectedPids: harnessPids(session) });
+  const scope = { root: session.pid, runnerPid: session.runnerPid ?? process.pid, protectedPids: harnessPids(session) };
+  const pids = crashTargets(ps.stdout ?? "", scope);
+  // killed === 0 names its cause (review r2b FIX-6-3); the kill rule itself is unchanged
+  session.crashCause = pids.length > 0 ? null : (ps.stdout ? crashZeroCause(ps.stdout, scope) : `ps gave no process table (${ps.error?.message ?? `status ${ps.status}`})`);
   for (const pid of pids) {
     try {
       process.kill(pid, "SIGKILL");

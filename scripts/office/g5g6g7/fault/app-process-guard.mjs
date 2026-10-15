@@ -61,6 +61,23 @@ export function crashTargets(psText, { root, runnerPid, protectedPids = [] }) {
   return [...tree.reverse(), rootRow.pid];
 }
 
+/**
+ * Why `crashTargets` returned nothing for these inputs, in words (review r2b
+ * FIX-6-3), or null when it has targets. FQ-20's `app_process_tree_killed`
+ * carries it, so a crash that killed 0 pids names its cause.
+ */
+export function crashZeroCause(psText, { root, runnerPid, protectedPids = [] }) {
+  if (crashTargets(psText, { root, runnerPid, protectedPids }).length > 0) return null;
+  if (!isPid(Number(root))) return `no usable pid recorded for the launched app (${root})`;
+  if (!isPid(runnerPid)) return "the runner's own pid is unknown";
+  if (Number(root) === runnerPid) return `the recorded app pid ${root} is the runner itself`;
+  const table = parsePsTable(psText);
+  const rootRow = table.get(Number(root));
+  if (!rootRow) return `the recorded app pid ${root} is not in ps (already gone)`;
+  if (rootRow.ppid !== runnerPid) return `the recorded app pid ${root} is owned by ppid ${rootRow.ppid}, not the runner ${runnerPid} (reparented or reused pid)`;
+  return `the recorded app pid ${root} sits in a fenced pid or process group (harness, runner or init)`;
+}
+
 /** The negative pid that signals the group of a child this runner spawned detached, or null when the pid is unusable. */
 export function ownGroupTarget(pid) {
   return isPid(pid) ? -pid : null;

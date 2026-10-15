@@ -5,8 +5,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { blockedCase, caseResult, runResult } from "./app-cases-lib.mjs";
+import { crash } from "./app-session.mjs";
 import {
-  crashTargets, guardCaseResult, harnessDownReason, harnessPidsFromFile, ownGroupTarget, parsePsTable, seedBehindGuard, serverShutdownOf,
+  crashTargets, crashZeroCause, guardCaseResult, harnessDownReason, harnessPidsFromFile, ownGroupTarget, parsePsTable, seedBehindGuard, serverShutdownOf,
 } from "./app-process-guard.mjs";
 
 // pid ppid pgid. 500 = the runner (group 400, under dbus-run-session 400).
@@ -179,4 +180,24 @@ test("FIX-6-4: a failing seed against a server that died meanwhile is BLOCKED; w
   await assert.rejects(seedBehindGuard({ probe: async () => null, seed: async () => { throw new Error("signup refused"); } }), /signup refused/);
   const tenant = { owner: "o" };
   assert.deepEqual(await seedBehindGuard({ probe: async () => null, seed: async () => tenant }), { tenant });
+});
+
+test("FIX-6-3: crashZeroCause names why a crash had no target, and is null when it has one", () => {
+  const scope = { runnerPid: 500, protectedPids: HARNESS };
+  assert.equal(crashZeroCause(PS, { ...scope, root: 600 }), null);
+  assert.match(crashZeroCause(PS, { ...scope, root: 999 }), /pid 999 is not in ps/);
+  assert.match(crashZeroCause(PS, { ...scope, root: 700 }), /owned by ppid 1, not the runner 500/);
+  assert.match(crashZeroCause(PS, { ...scope, root: 500 }), /is the runner itself/);
+  assert.match(crashZeroCause(PS, { ...scope, root: undefined }), /no usable pid/);
+  assert.match(crashZeroCause(PS, { root: 600, runnerPid: undefined }), /runner's own pid is unknown/);
+  const inHarnessGroup = PS.replace("  600   500   600", "  600   500   700");
+  assert.match(crashZeroCause(inHarnessGroup, { ...scope, root: 600 }), /fenced pid or process group/);
+});
+
+test("FIX-6-3: crash() with a stale pid kills 0, records the cause, and an already closed session says so", () => {
+  const session = { pid: 2_000_000_000, app: { close: async () => {} }, dead: false };
+  assert.equal(crash(session), 0);
+  assert.match(session.crashCause, /not in ps/);
+  assert.equal(crash(session), 0);
+  assert.match(session.crashCause, /already closed/);
 });

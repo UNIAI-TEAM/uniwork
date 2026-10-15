@@ -97,7 +97,7 @@ async function fq20(ctx) {
     assertions: [
       assertion("intent_minted_offline", "a trace line after Save", first ? first.to : "none", Boolean(first)),
       assertion("paused_offline_before_crash", "paused_offline", parked?.to ?? "never", Boolean(parked)),
-      assertion("app_process_tree_killed", ">= 1 pid", killed, killed >= 1),
+      assertion("app_process_tree_killed", ">= 1 pid", killed >= 1 ? killed : `0 pids: ${session.crashCause ?? "no cause recorded"}`, killed >= 1),
       oneIntent(ctx, lines),
       pathAssertion(ctx, lines),
       assertNeverState("no_terminal_failure", lines, [...NEVER, "conflict"]),
