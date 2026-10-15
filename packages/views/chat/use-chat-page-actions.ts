@@ -292,7 +292,6 @@ export function useChatPageActions({
               channel: {
                 ...activeChannel,
                 ...room,
-                member_user_ids: room.member_user_ids,
               },
             });
           }

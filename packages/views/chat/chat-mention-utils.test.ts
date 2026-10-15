@@ -138,6 +138,16 @@ describe("chat-mention-utils", () => {
     expect(buildChatMentionCandidates("dm", "me", members, {}, (m) => m.display_name)).toEqual(
       [],
     );
+    // A channel offers its roster (the profiles), not the whole workspace.
+    expect(
+      buildChatMentionCandidates(
+        "channel",
+        "me",
+        members,
+        { u3: { user_id: "u3", display_name: "Three", email: "u3@x.com" } },
+        (m) => m.display_name,
+      ),
+    ).toEqual([{ kind: "member", userId: "u3", label: "Three", email: "u3@x.com" }]);
     expect(
       buildChatMentionCandidates(
         "group",

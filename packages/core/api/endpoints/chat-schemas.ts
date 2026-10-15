@@ -211,6 +211,8 @@ export const ChatRoomSchema = z.object({
     .array(z.string())
     .nullish()
     .transform((value) => value ?? []),
+  /** A channel's size, the caller included; channels send this instead of member_user_ids. */
+  member_count: z.number().catch(0),
   unread_count: z.number().optional().default(0),
   mention_unread_count: z.number().optional().default(0),
   peer_user_id: z.string().optional(),

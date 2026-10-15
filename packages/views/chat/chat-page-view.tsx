@@ -285,13 +285,10 @@ export function ChatPageView({
         workspaceMembers,
         groupMemberProfiles,
         (member) => resolveChatNicknameForUser(nicknamesByUserId, member.user_id) || memberDisplayLabel(member),
-        target.kind === "group"
-          ? activeGroup?.member_user_ids
-          : target.kind === "channel"
-            ? activeChannel?.member_user_ids
-            : undefined,
+        // A channel's members are the profiles above, read from its room roster.
+        target.kind === "group" ? activeGroup?.member_user_ids : undefined,
       ),
-    [activeChannel, activeGroup, currentUserId, groupMemberProfiles, nicknamesByUserId, target.kind, workspaceMembers],
+    [activeGroup, currentUserId, groupMemberProfiles, nicknamesByUserId, target.kind, workspaceMembers],
   );
   const mentionAllLabel = t("chat.mention_all");
   // The draft lives in the composer's store, keyed by conversation: typing

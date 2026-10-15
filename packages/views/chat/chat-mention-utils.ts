@@ -112,7 +112,7 @@ export function buildChatMentionCandidates(
     (targetKind === "group" || targetKind === "channel") && roomMemberIds && roomMemberIds.length > 0;
   const ids = scoped
     ? roomMemberIds
-    : targetKind === "group"
+    : targetKind === "group" || targetKind === "channel"
       ? Object.values(groupMemberProfiles).map((profile) => profile.user_id)
       : workspaceMembers.map((member) => member.user_id);
 

@@ -135,8 +135,10 @@ export function useInviteChatGroupMembers(workspaceId: string) {
   return useMutation({
     mutationFn: (input: { roomId: string; memberUserIds: string[] }) =>
       chat.inviteChatGroupMembers(workspaceId, input.roomId, input.memberUserIds),
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      // A channel's roster lives only here, not in the sidebar row.
+      void qc.invalidateQueries({ queryKey: chatKeys.roomMembers(workspaceId, input.roomId) });
     },
   });
 }

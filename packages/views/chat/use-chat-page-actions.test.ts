@@ -219,7 +219,8 @@ describe("useChatPageActions", () => {
       kind: "channel" as const,
       name: "dev",
       workspace_id: "ws1",
-      member_user_ids: ["u1"],
+      member_user_ids: [],
+      member_count: 2,
       unread_count: 0,
       mention_unread_count: 0,
       is_default: false,
@@ -231,7 +232,7 @@ describe("useChatPageActions", () => {
       inviteMembers: {
         mutateAsync: vi.fn().mockResolvedValue({
           ...channel,
-          member_user_ids: ["u1", "u2"],
+          member_count: 3,
         }),
       },
     });
@@ -250,7 +251,7 @@ describe("useChatPageActions", () => {
       expect(deps.setTarget).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: "channel",
-          channel: expect.objectContaining({ member_user_ids: ["u1", "u2"] }),
+          channel: expect.objectContaining({ id: "ch1", member_count: 3 }),
         }),
       );
     });

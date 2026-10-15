@@ -137,12 +137,32 @@ describe("chat endpoints", () => {
         name: "Peer",
         workspace_id: "ws1",
         member_user_ids: [],
+        member_count: 0,
         unread_count: 0,
         mention_unread_count: 0,
         peer_user_id: "user-b",
         peer_email: "b@test.com",
         peer_display_name: "B",
       },
+    ]);
+  });
+
+  it("listChatRooms reads a channel's member_count and degrades a missing or malformed one to 0", async () => {
+    const channel = { kind: "channel", workspace_id: "ws1", member_user_ids: [] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...channel, id: "c1", name: "big", member_count: 1000 },
+          { ...channel, id: "c2", name: "missing" },
+          { ...channel, id: "c3", name: "drifted", member_count: "12" },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((room) => [room.id, room.member_count])).toEqual([
+      ["c1", 1000],
+      ["c2", 0],
+      ["c3", 0],
     ]);
   });
 

@@ -25,6 +25,7 @@ const room = (over: Partial<ChatRoomRecord>): ChatRoomRecord => ({
   name: "Bob",
   workspace_id: "ws1",
   member_user_ids: [],
+  member_count: 0,
   unread_count: 2,
   mention_unread_count: 1,
   ...over,

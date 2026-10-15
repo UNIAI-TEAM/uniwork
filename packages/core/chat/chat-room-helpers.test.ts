@@ -4,7 +4,7 @@ import { chatUnreadBadge } from "./chat-room-helpers";
 
 const room = (id: string, unread: number, mentions: number) =>
   ({
-    id, kind: "channel", name: id, workspace_id: "ws", member_user_ids: [], unread_count: unread,
+    id, kind: "channel", name: id, workspace_id: "ws", member_user_ids: [], member_count: 0, unread_count: unread,
     mention_unread_count: mentions, notifications_muted: id === "muted",
   }) as ChatRoomRecord;
 
