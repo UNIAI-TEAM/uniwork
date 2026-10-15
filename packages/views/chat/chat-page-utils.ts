@@ -1,5 +1,9 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
+import {
+  displayLabelForChatContact,
+  isPlaceholderChatDisplayName,
+  resolveChatNicknameForUser,
+} from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { buildMemberAvatarUrlMap, lookupMemberAvatarUrl, memberAvatarUrl } from "./chat-member-avatar";
@@ -45,6 +49,14 @@ function pushNameEntry(
   if (existing) {
     if (avatar_url) existing.avatar_url = avatar_url;
     if (trimmedEmail && !existing.email) existing.email = trimmedEmail;
+    const next = display_name.trim();
+    if (
+      next &&
+      isPlaceholderChatDisplayName(existing.display_name, existing.user_id) &&
+      !isPlaceholderChatDisplayName(next, user_id)
+    ) {
+      existing.display_name = next;
+    }
     return;
   }
   if (seen.has(key)) return;

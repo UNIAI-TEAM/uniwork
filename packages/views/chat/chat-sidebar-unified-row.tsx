@@ -31,6 +31,7 @@ function DmPresenceAvatar({
   userId: string;
   label: string;
   memberAvatarByUserId: MemberAvatarUrlMap;
+  typingNameByUserId: Record<string, string>;
 }) {
   const online = usePresenceStore((state) => selectIsUserOnline(state, userId));
   return (
@@ -95,6 +96,7 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
   tabIndex,
   onRowFocus,
   memberAvatarByUserId,
+  typingNameByUserId,
 }: {
   entry: UnifiedSidebarEntry;
   active: boolean;
@@ -114,6 +116,7 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
   rowIndex: number;
   tabIndex: number;
   onRowFocus: (rowIndex: number) => void;
+  typingNameByUserId: Record<string, string>;
 }) {
   const { t } = useTranslation();
   const isGroup = entry.kind !== "dm";
@@ -152,6 +155,7 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
     unreadBadgesReady,
     pinned,
     notificationsMuted,
+    typingNameByUserId,
   };
 
   if (entry.kind === "workspace") {

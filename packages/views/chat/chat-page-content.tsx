@@ -227,7 +227,7 @@ export function ChatPageContent({
   };
 
   return (
-    <ChatPersonMessageProvider onMessage={messagePerson} onCall={callPerson}>
+    <ChatPersonMessageProvider onMessage={messagePerson} onCall={callPerson} roomId={activeRoomId}>
       <ChatPageContentDialogs
         target={target}
         setTarget={setTarget}
@@ -325,6 +325,7 @@ export function ChatPageContent({
               onRetry={onRefetchWorkspace}
               workspaceRoomTitle={workspaceRoomTitle}
               memberAvatarByUserId={memberAvatarByUserId}
+              knownPeople={nameContext}
               onCollapse={handleToggleSidebar}
               embedded
             />

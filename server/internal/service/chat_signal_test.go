@@ -25,7 +25,7 @@ func TestSignalVoiceAndTyping(t *testing.T) {
 		t.Fatalf("typing publish: %+v", pub.events)
 	}
 
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-1", false); err != nil {
 		t.Fatalf("voice invite: %v", err)
 	}
 	if pub.events[len(pub.events)-1].Type != "chat.voice.invite" {
@@ -97,7 +97,7 @@ func TestListPendingVoiceInviteWhileOffline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-1"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-1", false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 
@@ -124,7 +124,7 @@ func TestListPendingVoiceInviteWhileOffline(t *testing.T) {
 		t.Fatalf("hangup: %v", err)
 	}
 
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-2"); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-2", false); err != nil {
 		t.Fatalf("invite 2: %v", err)
 	}
 	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "offline-call-2"); err != nil {

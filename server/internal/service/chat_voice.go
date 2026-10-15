@@ -44,6 +44,7 @@ type VoiceCallLogInfo struct {
 	RecordingStatus string
 	RecordingURL    string
 	Participants    []VoiceCallParticipant
+	Video           bool
 }
 
 type voiceCallSession struct {
@@ -53,6 +54,7 @@ type voiceCallSession struct {
 	callerName     string
 	callKind       string
 	roomName       string
+	video          bool
 	invitedAt      time.Time
 	acceptedAt     *time.Time
 	participantIDs []string
@@ -157,7 +159,7 @@ func (s *ChatService) trackVoiceCallParticipant(roomID, callID, userID string) {
 	voiceCallSessions.Store(key, sess)
 }
 
-func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, callerName string) {
+func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, callerName string, video bool) {
 	now := time.Now()
 	sess := voiceCallSession{
 		roomID:         room.ID,
@@ -166,6 +168,7 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 		callerName:     callerName,
 		callKind:       room.Kind,
 		roomName:       strings.TrimSpace(room.Name),
+		video:          video,
 		invitedAt:      now,
 		participantIDs: []string{callerID},
 	}
@@ -541,6 +544,9 @@ func (s *ChatService) finalizeVoiceCall(
 		"duration_seconds": duration,
 		"caller_id":        sess.callerID,
 	}
+	if sess.video {
+		metaMap["video"] = true
+	}
 	if len(participants) > 0 {
 		rows := make([]map[string]string, 0, len(participants))
 		for _, p := range participants {
@@ -686,6 +692,7 @@ func voiceCallLogFromMetadata(kind string, raw []byte) *VoiceCallLogInfo {
 		RecordingID     string `json:"recording_id"`
 		RecordingStatus string `json:"recording_status"`
 		RecordingURL    string `json:"recording_url"`
+		Video           bool   `json:"video"`
 	}
 	if err := json.Unmarshal(raw, &meta); err != nil || meta.Outcome == "" {
 		return nil
@@ -698,6 +705,7 @@ func voiceCallLogFromMetadata(kind string, raw []byte) *VoiceCallLogInfo {
 		RecordingID:     meta.RecordingID,
 		RecordingStatus: meta.RecordingStatus,
 		RecordingURL:    meta.RecordingURL,
+		Video:           meta.Video,
 		Participants:    voiceCallParticipantsFromMetadata(raw),
 	}
 }
