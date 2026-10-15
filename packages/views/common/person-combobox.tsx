@@ -68,12 +68,12 @@ export function PersonCombobox({
       }}
       disabled={disabled}
     >
-      <ComboboxInput id={id} className="w-full" placeholder={placeholder} disabled={disabled} />
+      <ComboboxInput id={id} className="w-full pointer-coarse:h-11" placeholder={placeholder} disabled={disabled} />
       <ComboboxContent>
         <ComboboxEmpty>{emptyLabel}</ComboboxEmpty>
         <ComboboxList>
           {(o: PersonOption) => (
-            <ComboboxItem key={o.id} value={o}>
+            <ComboboxItem key={o.id} value={o} className="pointer-coarse:min-h-11">
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="break-words">{o.name}</span>
                 {o.email ? <span className="truncate text-caption text-muted-foreground">{o.email}</span> : null}
