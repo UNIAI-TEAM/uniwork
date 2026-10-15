@@ -193,6 +193,13 @@ SET deleted_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $4 AND deleted_at IS NULL
 RETURNING *;
 
+-- name: SoftDeleteChatReminderMessage :one
+-- A room moderator retires another member's reminder (its author may have left).
+UPDATE chat_messages
+SET deleted_at = now()
+WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND kind = 'reminder' AND deleted_at IS NULL
+RETURNING *;
+
 -- name: GetChatRoomByKindAndMemberSet :one
 SELECT * FROM chat_rooms
 WHERE organization_id = $1 AND kind = $2 AND member_set_key = $3

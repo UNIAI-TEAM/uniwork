@@ -315,3 +315,44 @@ func TestReminderInALargeRoomIsForModerators(t *testing.T) {
 		t.Fatalf("channel owner reminder in a large room: %v", err)
 	}
 }
+
+// A reminder outlives its author's membership: a room moderator can retire
+// it once the author has left, while an ordinary member cannot, and the
+// moderator gains no power over anyone else's plain messages.
+func TestRoomModeratorDeletesAReminderWhoseAuthorLeft(t *testing.T) {
+	s, _, q, ua, ub, w := reminderFixture(t)
+	ctx := context.Background()
+	peer := registerReminderPeer(t, s.pool, q, "reminder-left-peer@example.com", "Peer", w.OrganizationID, w.ID)
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "nhac-roi-kenh", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID, peer.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reminder, err := s.SendReminderMessage(ctx, ub.ID, w.ID, ch.ID, SendReminderMessageInput{
+		Body: "Họp hằng ngày", RemindAt: futureRemindAt(), Repeat: "daily",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := s.SendRoomMessage(ctx, ub.ID, w.ID, ch.ID, SendChatMessageInput{Body: "Tin thường"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.LeaveChatRoom(ctx, ub.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.DeleteChatMessage(ctx, peer.ID, w.ID, ch.ID, reminder.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("member deletes another's reminder: want ErrForbidden, got %v", err)
+	}
+	if err := s.DeleteChatMessage(ctx, ua.ID, w.ID, ch.ID, text.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("moderator deletes another's text: want ErrForbidden, got %v", err)
+	}
+	if err := s.DeleteChatMessage(ctx, ua.ID, w.ID, ch.ID, reminder.ID); err != nil {
+		t.Fatalf("moderator deletes the reminder of a member who left: %v", err)
+	}
+	if n, err := s.NewChatReminderWorker().RunOnce(ctx, time.Now().Add(3*time.Hour)); err != nil || n != 0 {
+		t.Fatalf("deleted reminder fired %d (err %v), want 0", n, err)
+	}
+}

@@ -2477,6 +2477,47 @@ func (q *Queries) SoftDeleteChatMessage(ctx context.Context, arg SoftDeleteChatM
 	return i, err
 }
 
+const softDeleteChatReminderMessage = `-- name: SoftDeleteChatReminderMessage :one
+UPDATE chat_messages
+SET deleted_at = now()
+WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND kind = 'reminder' AND deleted_at IS NULL
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
+`
+
+type SoftDeleteChatReminderMessageParams struct {
+	ID          string `json:"id"`
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+// A room moderator retires another member's reminder (its author may have left).
+func (q *Queries) SoftDeleteChatReminderMessage(ctx context.Context, arg SoftDeleteChatReminderMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, softDeleteChatReminderMessage, arg.ID, arg.RoomID, arg.WorkspaceID)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+		&i.ThreadRootID,
+		&i.ReplyCount,
+		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
+		&i.FileID,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
 const syncDefaultChatRoomRoles = `-- name: SyncDefaultChatRoomRoles :exec
 WITH room AS (
   SELECT id FROM chat_rooms

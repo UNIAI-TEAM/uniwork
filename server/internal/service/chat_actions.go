@@ -60,9 +60,10 @@ func (s *ChatService) EditChatMessage(
 	return chatMessageRowFromDB(updated, u.DisplayName), nil
 }
 
-// DeleteChatMessage soft-deletes the caller's own message and releases the
-// FileService reference in the same transaction; the bytes stay with the
-// garbage collector, which re-checks every reference provider.
+// DeleteChatMessage soft-deletes the caller's own message (or, for a room
+// moderator, anyone's reminder) and releases the FileService reference in the
+// same transaction; the bytes stay with the garbage collector, which
+// re-checks every reference provider.
 func (s *ChatService) DeleteChatMessage(
 	ctx context.Context, userID, workspaceID, roomID, messageID string,
 ) error {
@@ -81,7 +82,22 @@ func (s *ChatService) DeleteChatMessage(
 		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, SenderID: userID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrForbidden
+		// A repeating reminder outlives its author's membership, so a room
+		// moderator may retire someone else's; every other kind stays the
+		// sender's own.
+		moderator, merr := s.isChatRoomModerator(ctx, userID, room)
+		if merr != nil {
+			return merr
+		}
+		if !moderator {
+			return ErrForbidden
+		}
+		deleted, err = q.SoftDeleteChatReminderMessage(ctx, db.SoftDeleteChatReminderMessageParams{
+			ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrForbidden
+		}
 	}
 	if err != nil {
 		return err
