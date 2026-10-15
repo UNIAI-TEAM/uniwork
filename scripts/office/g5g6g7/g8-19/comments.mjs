@@ -25,6 +25,7 @@ import {
   anchorForFixture,
   forkAncestorChecker,
   framePinBlock,
+  openCommentsPanel,
   openOnDesktop,
   pollUntil,
   readFramePin,
@@ -119,9 +120,6 @@ export function typeDraft({ text }) {
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
   return { ok: true };
 }
-
-/** Opens the editor's comments panel through its own button when none is shown. */
-const OPEN_PANEL = [{ type: "click", selector: "button", name: "^(Comments|Bình luận)( \\(\\d+\\))?$", settleMs: 800 }];
 
 /**
  * Forces the desktop poll (ctrl.focus, contract §7) and probes until `pred`
@@ -390,13 +388,10 @@ export async function runG8A04(ctx, deps = {}) {
 
     s = await ctx.step("panel", async () => {
       versionId = unwrap(await desk.comments.context({ path: desk.path }), "comments.context").versionId;
-      let p = await probe();
-      if (!p?.panels) {
-        const opened = await runEditPlan(desk.ctrl, desk.page, OPEN_PANEL);
-        if (opened.status !== "ok") throw new Error(`open the comments panel: ${opened.reason}`);
-        p = await probe();
-      }
-      rec.panels = { desktop: p?.panels ?? 0 };
+      // the editor's own control (anchors.mjs PANEL_OPENERS: Review > Show Comments in docs/sheets)
+      const opened = await openCommentsPanel({ ctrl: desk.ctrl, page: desk.page, format, probe, sleep, now });
+      rec.panels = { desktop: opened.panels, opened: opened.opened };
+      if (opened.status !== "ok") throw new Error(`open the comments panel: ${opened.reason}`);
     });
     if (s.status !== "PASS") return out({ status: "FAIL", reason: `panel: ${s.reason}` });
 

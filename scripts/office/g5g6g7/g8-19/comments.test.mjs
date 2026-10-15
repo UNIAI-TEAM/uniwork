@@ -12,7 +12,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { zipStore } from "../fixtures-lib/zip.mjs";
-import { EDIT_DRIVERS } from "./anchors.mjs";
+import { EDIT_DRIVERS, PANEL_OPENERS } from "./anchors.mjs";
 import { createFakeWorld } from "./fake-world.mjs";
 import { WEB_FRAME_PIN_BLOCKER, WEB_FRAME_PIN_OWNER, exitCodeFor } from "./run-row.mjs";
 import {
@@ -411,4 +411,37 @@ test("runG8A04 (xlsx, fake): web create seen on desktop after focus, desktop cre
   assert.ok(fake.calls.app.filter((c) => c.key === "focus").length >= 2, "the desktop poll is forced by focus");
   const created = fake.calls.api.filter((c) => c.key === "createDocumentComment" && c.user === "B");
   assert.ok(created.length >= 2, "B creates over REST (web create) and in the concurrent pair");
+});
+
+test("runG8A04 opens the panel through the editor's own Review > Show Comments (r1: no bare Comments button) and waits for it", async () => {
+  const fake = createFakeWorld();
+  let shown = false;
+  fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
+  fake.script.respond("app.openByTicket", (call) => ({ path: "/wc/report.docx", documentId: call.args[1]?.documentId, kind: "docs" }));
+  fake.script.respond("app.comments.context", { ok: true, value: { documentId: "doc-1", versionId: "ver-1" } });
+  fake.script.respond("app.evalBounded", (call) => {
+    const [, arg, name] = call.args;
+    if (name === "probe:panel") return { panels: shown ? 1 : 0, commentIds: [], warn: false, composer: shown, draft: "", sendDisabled: false };
+    if (arg?.type === "click" && arg.selector === PANEL_OPENERS.docx.plan[1].selector && new RegExp(arg.name).test("Show Comments")) shown = true;
+    return { status: "ok" };
+  });
+  fake.script.respond("api.createDocumentComment", { status: 500, body: {} });
+  const ctx = fakeCtx(fake, "G8-A04", "fx-docx-report-vi");
+  const record = await runG8A04(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" }, setOnline: () => {} });
+  assert.equal(ctx.steps.panel?.status, "PASS", JSON.stringify(ctx.steps.panel));
+  assert.equal(record.details.panels.desktop, 1);
+  const actions = fake.calls.app.filter((c) => c.key === "evalBounded" && c.args[1]?.type === "click").map((c) => c.args[1]);
+  assert.deepEqual(actions.slice(0, 2), PANEL_OPENERS.docx.plan);
+});
+
+test("runG8A04: a panel that does not appear after the opener is FAIL at panel with the opener named", async () => {
+  const fake = createFakeWorld();
+  fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
+  fake.script.respond("app.openByTicket", (call) => ({ path: "/wc/rev.xlsx", documentId: call.args[1]?.documentId, kind: "sheets" }));
+  fake.script.respond("app.comments.context", { ok: true, value: { documentId: "doc-1", versionId: "ver-1" } });
+  fake.script.respond("app.evalBounded", (call) => (call.args[2] === "probe:panel" ? { panels: 0, commentIds: [] } : { status: "ok" }));
+  let t = 0;
+  const record = await runG8A04(fakeCtx(fake, "G8-A04", "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 2_000), framePin: { gitSha: "05fd209" }, setOnline: () => {} });
+  assert.equal(record.status, "FAIL");
+  assert.match(record.reason, /^panel: .*no comments panel .*Show Comments/);
 });

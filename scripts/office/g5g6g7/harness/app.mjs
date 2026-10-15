@@ -216,13 +216,44 @@ export async function connectApp({
         (input) => evalBounded(page, ([g, n, i]) => window[g][n](i), [globalName, name, input], `${globalName}.${name}`),
       ]),
     );
-  const editorPage = async (kind) => {
+  /**
+   * The editor page of `kind`. Without options: the first one (several documents of
+   * one kind each have their own page, fork apps/shell/src/main/tab-manager.ts:565-650).
+   * `{ path }` picks the page that SHOWS that working copy: its comments bridge answers
+   * `context({path})` only for the document the sender shows (fork
+   * apps/shell/src/main/uniwork-docs/comments-wiring.ts:226-247, `shownPath(event.sender)`);
+   * `documentId` also requires that context to name that document; `url` picks the page
+   * with exactly that URL. Two matches, or none within the step bound, throw.
+   */
+  const editorPage = async (kind, opts = {}) => {
     if (!EDITOR_KINDS.includes(kind)) throw new Error(`no ${kind} editor page`);
+    const { path = null, documentId = null, url = null } = opts ?? {};
+    if (documentId && !path) throw new Error(`editorPage(${kind}) needs the path to pick the page of document ${documentId}`);
     const deadline = Date.now() + resolveAppStepTimeoutMs(timeoutMs, portsEnv);
+    let misses = [];
     for (;;) {
-      const page = allPages().find((p) => editorKindOfUrl(p.url()) === kind);
-      if (page) return page;
-      if (Date.now() >= deadline) throw new Error(`no ${kind} editor page`);
+      const pages = allPages().filter((p) => editorKindOfUrl(p.url()) === kind && (!url || p.url() === url));
+      if (!path && !url) {
+        if (pages[0]) return pages[0];
+      } else if (!path) {
+        if (pages.length > 1) throw new Error(`${pages.length} ${kind} editor pages have the URL ${url}`);
+        if (pages.length === 1) return pages[0];
+      } else {
+        const matched = [];
+        misses = [];
+        for (const p of pages) {
+          const reply = await evalBounded(p, (i) => window.uniworkComments?.context?.(i) ?? null, { path }, "uniworkComments.context").catch((err) => ({ ok: false, error: { code: err?.isAppStepTimeout ? "timeout" : "error" } }));
+          const shows = reply?.ok === true && (!documentId || reply.value?.documentId === documentId);
+          if (shows) matched.push(p);
+          else misses.push(reply?.ok === true ? `document ${reply.value?.documentId ?? "none"}` : reply?.error?.code ?? "no bridge");
+        }
+        if (matched.length > 1) throw new Error(`${matched.length} ${kind} editor pages show ${path}${documentId ? ` as document ${documentId}` : ""}`);
+        if (matched.length === 1) return matched[0];
+      }
+      if (Date.now() >= deadline) {
+        const what = path ? ` shows ${path}${documentId ? ` as document ${documentId}` : ""}` : url ? ` has the URL ${url}` : "";
+        throw new Error(`no ${kind} editor page${what}${misses.length ? ` (${misses.length} asked: ${misses.join(", ")})` : ""}`);
+      }
       await sleep(250);
     }
   };

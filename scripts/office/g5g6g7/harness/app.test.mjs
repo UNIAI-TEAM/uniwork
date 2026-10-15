@@ -300,3 +300,52 @@ test("sanitizeAccountStatus drops emails; countOrgScopedRequests counts org/work
   assert.equal(countOrgScopedRequests(file, offset), 2);
   assert.equal(countOrgScopedRequests(join(runDir, "nope.log"), 0), null);
 });
+
+/** An editor page whose comments bridge answers context only for the path it shows (fork comments-wiring.ts:226-247). */
+function showingWindow(shownPath, documentId) {
+  return {
+    uniworkComments: {
+      context: async (input) =>
+        input?.path === shownPath
+          ? { ok: true, value: { documentId, versionId: "v1" } }
+          : { ok: false, error: { code: "forbidden", message: "comments: the sender does not show this document", retryable: false } },
+    },
+  };
+}
+
+test("editorPage(kind, {path}) picks the page that shows that document among two of one kind; without the option the first page as before", async () => {
+  const shell = fakePage("genoffice-app://shell/index.html", shellWindow());
+  const first = fakePage("genoffice-app://sheets/index.html", showingWindow("/wc/a.xlsx", "doc-a"));
+  const second = fakePage("genoffice-app://sheets/index.html", showingWindow("/wc/b.xlsx", "doc-b"));
+  const ctrl = await connect([shell, first, second], { timeoutMs: 1_000 });
+  assert.equal(await ctrl.editorPage("sheets"), first, "no option: today's behaviour");
+  assert.equal(await ctrl.editorPage("sheets", { path: "/wc/b.xlsx" }), second);
+  assert.equal(await ctrl.editorPage("sheets", { path: "/wc/a.xlsx", documentId: "doc-a" }), first);
+  await assert.rejects(ctrl.editorPage("sheets", { path: "/wc/b.xlsx", documentId: "doc-a" }), /no sheets editor page shows \/wc\/b\.xlsx as document doc-a/);
+});
+
+test("editorPage(kind, {path}): two pages that claim the document or none within the bound -> a clear error, never a page", async () => {
+  const shell = fakePage("genoffice-app://shell/index.html", shellWindow());
+  const a = fakePage("genoffice-app://docs/index.html?mode=tab", showingWindow("/wc/r.docx", "d1"));
+  const b = fakePage("genoffice-app://docs/index.html?mode=tab", showingWindow("/wc/r.docx", "d1"));
+  const ctrl = await connect([shell, a, b], { timeoutMs: 1_000, portsEnv: { ...portsEnv, HARNESS_APP_STEP_TIMEOUT_MS: "300" } });
+  await assert.rejects(ctrl.editorPage("docs", { path: "/wc/r.docx" }), /2 docs editor pages show \/wc\/r\.docx/);
+  const started = Date.now();
+  await assert.rejects(ctrl.editorPage("docs", { path: "/wc/none.docx" }), (err) => {
+    assert.match(err.message, /no docs editor page shows \/wc\/none\.docx/);
+    assert.match(err.message, /forbidden/, "the refusals are named");
+    return true;
+  });
+  assert.ok(Date.now() - started < 5_000, "bounded");
+  await assert.rejects(ctrl.editorPage("docs", { documentId: "d1" }), /needs the path/);
+});
+
+test("editorPage(kind, {url}) picks the one page with exactly that URL; two -> error", async () => {
+  const shell = fakePage("genoffice-app://shell/index.html", shellWindow());
+  const one = fakePage("genoffice-app://pdf/index.html?x=1", {});
+  const two = fakePage("genoffice-app://pdf/index.html?x=2", {});
+  const ctrl = await connect([shell, one, two], { timeoutMs: 1_000 });
+  assert.equal(await ctrl.editorPage("pdf", { url: "genoffice-app://pdf/index.html?x=2" }), two);
+  const dup = await connect([shell, one, fakePage("genoffice-app://pdf/index.html?x=1", {})], { timeoutMs: 1_000 });
+  await assert.rejects(dup.editorPage("pdf", { url: "genoffice-app://pdf/index.html?x=1" }), /2 pdf editor pages/);
+});
