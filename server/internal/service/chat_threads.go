@@ -337,11 +337,20 @@ func (s *ChatService) UnfollowThread(ctx context.Context, userID, workspaceID, t
 	})
 }
 
-// MarkThreadRead updates last_read_at for the caller on a thread.
-func (s *ChatService) MarkThreadRead(ctx context.Context, userID, workspaceID, threadRootID string) error {
+// MarkThreadRead updates last_read_at for the caller on a thread and returns
+// the pointer it replaced (the root's time when the caller never read it), so
+// a catch-up asked for right after opening still covers the unread replies.
+func (s *ChatService) MarkThreadRead(ctx context.Context, userID, workspaceID, threadRootID string) (time.Time, error) {
 	_, root, err := s.loadThreadRootAcrossRooms(ctx, userID, workspaceID, threadRootID)
 	if err != nil {
-		return err
+		return time.Time{}, err
+	}
+	previous := root.CreatedAt.Time.UTC()
+	f, err := s.q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{ThreadRootID: root.ID, UserID: userID})
+	if err == nil && f.LastReadAt.Valid {
+		previous = f.LastReadAt.Time.UTC()
+	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, err
 	}
 	// Reading is not following (UNI-1682): the UPDATE below touches only an
 	// existing follower row, so a reader who never followed gets no notifications.
@@ -356,12 +365,15 @@ func (s *ChatService) MarkThreadRead(ctx context.Context, userID, workspaceID, t
 		UserID:       userID,
 		LastReadAt:   pgtype.Timestamptz{Time: readAt, Valid: true},
 	}); err != nil {
-		return err
+		return time.Time{}, err
 	}
 	// Close the thread's reply row so the next reply pushes again (UNI-1665).
-	return s.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
+	if err := s.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
 		UserID: userID, GroupKeys: []string{ChatThreadNotifyGroup(root.ID)},
-	})
+	}); err != nil {
+		return time.Time{}, err
+	}
+	return previous, nil
 }
 
 // ListFollowedThreads returns threads the caller follows (optionally unread only).

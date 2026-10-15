@@ -42,9 +42,9 @@ func registerChatThreads(r api, h Routes, chatWriteLimit func(http.Handler) http
 		})
 		th.Post("/workspaces/{workspaceID}/chat/threads/{messageID}/read", h.MarkChatThreadRead, apiOp{
 			summary:     "Mark chat thread read",
-			description: "Cập nhật last_read_at cho caller trên thread.",
+			description: "Cập nhật last_read_at cho caller trên thread; trả con trỏ cũ để tóm tắt bắt đầu từ đó.",
 			tags:        []string{"chat"},
-			sdo:         sdo.StatusSDO{},
+			sdo:         sdo.ChatThreadReadSDO{},
 			auth:        true,
 		})
 		th.Get("/workspaces/{workspaceID}/chat/threads", h.ListChatThreads, apiOp{

@@ -3,6 +3,7 @@ import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import {
   listChatThreadMessages,
   listFollowedChatThreads,
+  markChatThreadRead,
   sendChatThreadMessage,
 } from "./chat-threads";
 
@@ -61,6 +62,16 @@ describe("chat thread endpoints", () => {
     await expect(
       sendChatThreadMessage("w1", "r1", "m1", { body: "hi" }),
     ).resolves.toBeNull();
+  });
+
+  it("markChatThreadRead returns the pointer it replaced", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ok: true, previous_read_at: "2026-09-05T00:00:00.123456Z" }));
+    await expect(markChatThreadRead("w1", "m1")).resolves.toBe("2026-09-05T00:00:00.123456Z");
+  });
+
+  it("markChatThreadRead degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ok: "yes", previous_read_at: 42 }));
+    await expect(markChatThreadRead("w1", "m1")).resolves.toBeNull();
   });
 
   it("listFollowedChatThreads degrades on malformed response", async () => {

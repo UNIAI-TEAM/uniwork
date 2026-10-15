@@ -104,17 +104,23 @@ export async function unfollowChatThread(
   });
 }
 
+const ThreadReadSchema = z.object({
+  previous_read_at: z.string().optional().catch(undefined),
+});
+
+/** Marks the thread read; resolves to the read pointer it replaced, or null. */
 export async function markChatThreadRead(
   workspaceId: string,
   threadRootId: string,
-): Promise<void> {
+): Promise<string | null> {
   const raw = await request(
     `/api/v1/workspaces/${enc(workspaceId)}/chat/threads/${enc(threadRootId)}/read`,
     { method: "POST" },
   );
-  parseWithFallback(raw, StatusSchema, { ok: true }, {
+  const out = parseWithFallback(raw, ThreadReadSchema, { previous_read_at: undefined }, {
     endpoint: "POST .../threads/{id}/read",
   });
+  return out.previous_read_at || null;
 }
 
 export async function listFollowedChatThreads(

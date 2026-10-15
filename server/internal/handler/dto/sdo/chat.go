@@ -216,6 +216,12 @@ type ChatThreadDTO struct {
 	Reason       string `json:"reason,omitempty" description:"Why the caller follows: author|replied|mentioned|manual"`
 }
 
+// ChatThreadReadSDO is POST .../chat/threads/{messageID}/read.
+type ChatThreadReadSDO struct {
+	OK             bool   `json:"ok" description:"true when the read pointer moved" example:"true"`
+	PreviousReadAt string `json:"previous_read_at" description:"Con trỏ đã đọc trước lần đánh dấu này (RFC3339; thời điểm tin gốc nếu chưa từng đọc), dùng làm since cho tóm tắt" example:"2026-09-05T00:00:00.123456Z"`
+}
+
 // ChatThreadListSDO is GET .../chat/threads.
 type ChatThreadListSDO struct {
 	Threads []ChatThreadDTO `json:"threads"`

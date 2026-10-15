@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import {
   useDeleteChatMessage,
   useEditChatMessage,
-  useMarkChatThreadRead,
   useToggleChatMessagePin,
   useToggleChatReaction,
 } from "@uniwork/core/chat";
@@ -71,7 +70,6 @@ export function useNativeChatMessageActions({
   const editMessage = useEditChatMessage(workspaceId);
   const deleteMessage = useDeleteChatMessage(workspaceId);
   const togglePinAsync = useToggleChatMessagePin(workspaceId).mutateAsync;
-  const markThreadReadAsync = useMarkChatThreadRead(workspaceId).mutateAsync;
   const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<ChatMessage | null>(null);
@@ -106,11 +104,10 @@ export function useNativeChatMessageActions({
     (message: ChatMessage) => {
       if (!threadsEnabled) return;
       onOpenThread(message);
+      // useChatCatchUpUi marks the open thread read and keeps the old pointer.
       onFocusComposer?.();
-      // Reading state is background bookkeeping; the thread is already open.
-      void markThreadReadAsync(message.id).catch(() => undefined);
     },
-    [markThreadReadAsync, onFocusComposer, onOpenThread, threadsEnabled],
+    [onFocusComposer, onOpenThread, threadsEnabled],
   );
 
   const onPin = useCallback(
