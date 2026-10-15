@@ -63,12 +63,14 @@ test("FQ-50 permission_revoked: set downgrades the same share to view, lift rest
   }
 });
 
-test("FQ-50's other exits keep their own conditions and no exit is predicted", () => {
+test("FQ-50's other exits keep their own conditions and carry the fix17 per-exit tags", () => {
   assert.deepEqual(Object.keys(CONDITIONS).sort(), ["document_archived", "document_deleted", "member_deactivated", "organization_suspended", "permission_revoked"]);
   assert.equal(CONDITIONS.permission_revoked.prepare.length, 2, "prepare takes (ctx, docId)");
   assert.equal(CONDITIONS.permission_revoked.set.length, 2, "set takes (ctx, docId)");
   assert.equal(CONDITIONS.permission_revoked.lift.length, 2, "lift takes (ctx, docId)");
-  assert.ok(row("FQ-50").exits.every((e) => e.predicted === undefined), "the row's exits carry no predicted tag");
+  // FIX-17 (Advisor qa-fault_local:46): the exits are tagged now - OQ-F12 on the four
+  // condition lifts the queue machine never makes, OQ-F6 on the two 403 exits
+  assert.deepEqual(row("FQ-50").exits.map((e) => e.predicted), ["OQ-F12", "OQ-F6", "OQ-F6", "OQ-F12", "OQ-F12"]);
 });
 
 test("the matrix row names FQ-50's permission downgrade and the 403 it produces", () => {

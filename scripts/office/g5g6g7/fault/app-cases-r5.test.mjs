@@ -33,10 +33,12 @@ test("the OQ-F11 tag is the exit's own field, never a row note on a multi-exit r
   assert.match(fq43.exits[3].exit, /document_archived/);
 });
 
-test("FQ-22, FQ-24 and FQ-50 tags are unchanged; no other row gains a tag", () => {
+test("FQ-22 and FQ-24 tags are unchanged, FQ-50 carries its fix17 tags; no other row gains a tag", () => {
   assert.deepEqual(tagsOf("FQ-22"), ["OQ-F11"]);
   assert.deepEqual(tagsOf("FQ-24"), ["F4"]);
-  assert.deepEqual(tagsOf("FQ-50"), [null, null, "OQ-F6", null, null]);
+  // FIX-17 (Advisor qa-fault_local:46): the four condition-lift exits are OQ-F12
+  // (the queue never moves blocked -> queued), the two server exits stay OQ-F6
+  assert.deepEqual(tagsOf("FQ-50"), ["OQ-F12", "OQ-F6", "OQ-F6", "OQ-F12", "OQ-F12"]);
   const tagged = rows.filter((r) => r.layer === "app" && runsOf(r).some((run) => predictedFor(r, run))).map((r) => r.id);
   assert.deepEqual(tagged, ["FQ-22", "FQ-24", "FQ-40", "FQ-41", "FQ-42", "FQ-43", "FQ-44", "FQ-50"]);
 });

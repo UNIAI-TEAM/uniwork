@@ -2415,23 +2415,28 @@
       "exits": [
         {
           "exit": "permission_revoked → queued",
-          "assert": "cấp lại quyền → feed → queued → committed, versionDelta 1"
+          "assert": "cấp lại quyền → feed → queued → committed, versionDelta 1",
+          "predicted": "OQ-F12"
         },
         {
           "exit": "document_deleted → queued",
-          "assert": "khôi phục tài liệu → queued → committed"
+          "assert": "khôi phục tài liệu → queued → committed",
+          "predicted": "OQ-F6"
         },
         {
           "exit": "document_archived → queued",
-          "assert": "bỏ lưu trữ → queued → committed, không 409 (OQ-F6 về mã khi đang lưu trữ)"
+          "assert": "bỏ lưu trữ → queued → committed, không 409 (OQ-F6 về mã khi đang lưu trữ)",
+          "predicted": "OQ-F6"
         },
         {
           "exit": "organization_suspended → queued",
-          "assert": "mở lại tổ chức (admin API, reason ≥ 10 ký tự) → queued → committed"
+          "assert": "mở lại tổ chức (admin API, reason ≥ 10 ký tự) → queued → committed",
+          "predicted": "OQ-F12"
         },
         {
           "exit": "member_deactivated → queued",
-          "assert": "kích hoạt lại thành viên → queued → committed"
+          "assert": "kích hoạt lại thành viên → queued → committed",
+          "predicted": "OQ-F12"
         }
       ],
       "proxyRules": [],
@@ -2470,7 +2475,7 @@
           ]
         }
       },
-      "notes": "lối ra document_archived lệch ở server (OQ-F6)",
+      "notes": "lối ra document_deleted và document_archived lệch ở server (OQ-F6); lối ra 1/4/5 không rời blocked khi gỡ điều kiện (OQ-F12) — nhãn theo từng lối ra, Advisor qa-fault_local:46",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
       "serverOnly": false,
