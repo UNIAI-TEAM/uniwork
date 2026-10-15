@@ -340,9 +340,11 @@ function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
     return { listed: true, href: `/org-x/${hrefWorkspace}/documents/${row.resource_id}?comment=${row.params.comment_id}`, text: "", ws };
   };
   const openSignedOut = async () => ({ url: "http://127.0.0.1:8/login" });
+  const opens = [];
   const web = {
     webLogin: fake.web.webLogin,
     openDocument: async (page, opts) => {
+      opens.push({ user: page.user, documentId: opts.documentId, comment: opts.comment ?? null, archived: archived.has(opts.documentId) });
       const revoked = Object.values(world.shares).some((s) => s.documentId === opts.documentId && s.revoked);
       if (page.user === "C" || revoked) return { url: "u", status: "no-access", panelCount: 0, focusedCommentId: null };
       if (archived.has(opts.documentId)) return { url: "u", status: "not-found", panelCount: 0, focusedCommentId: null };
@@ -351,7 +353,7 @@ function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
       return { url: "u", status: "ok", panelCount: 1, focusedCommentId: opts.comment ?? null };
     },
   };
-  return { fake, deps: { web, connectApp: app.connectApp, launchBrowser: async () => fake.browser, readInbox, openSignedOut, sleep: async () => {} } };
+  return { fake, opens, deps: { web, connectApp: app.connectApp, launchBrowser: async () => fake.browser, readInbox, openSignedOut, sleep: async () => {} } };
 }
 
 const runA07 = (deps, fixture = "fx-xlsx-revenue-xyz", pin = "7d665a5") => {
@@ -382,7 +384,7 @@ test("runDeeplink on a re-pinned frame: PASS with every check and the revoke ste
 });
 
 test("runDeeplink under the 05fd209 pin: exit 77 with the R1 blocker; the desktop B7 reveal still PASSes", async () => {
-  const { fake, deps } = scriptedWorld();
+  const { fake, opens, deps } = scriptedWorld();
   const exit = await runA07({ ...deps, world: fake.world }, "fx-xlsx-revenue-xyz", "05fd209");
   const a = artifact();
   assert.equal(exit, 77, JSON.stringify(a.steps, null, 1));
@@ -390,8 +392,9 @@ test("runDeeplink under the 05fd209 pin: exit 77 with the R1 blocker; the deskto
   assert.equal(a.owner, WEB_FRAME_PIN_OWNER);
   assert.equal(a.steps["web-open"].status, "BLOCKED");
   assert.equal(a.steps["desktop-reveal"].status, "PASS");
-  // the web page was never asked for the in-frame panel
-  assert.equal(fake.calls.web.filter((c) => c.key === "openDocument" && c.args[1]?.comment === "c1").length, 0);
+  // B's web page was never asked for the in-frame panel of the main thread; the
+  // only c1 open is the S15 gone check after the archive, which renders no frame
+  assert.deepEqual(opens.filter((o) => o.user === "B" && o.comment === "c1").map((o) => o.archived), [true]);
 });
 
 test("runDeeplink: the Inbox href in the document's workspace while the recipient is not a member there is FAIL", async () => {
