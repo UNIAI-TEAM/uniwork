@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor fa2ed957 HEAD && echo main-merged-ok
+5be37655fb29c007fdeecd39612c1d751b1c9a9d
+fa2ed957a653b838f8ddf42727a41e8caf12657e
+5be37655 test(e2e): assert reloaded server content in d2 and split discard flow into d2b (W12)
+e80797a9 fix(shell): re-queue docs tab file path before reloading WebContents (W12)
+0c67e30a fix(docs): export queueDocsForView to re-queue document path on tab reload (W12)
+4deb5109 merge: fork main fa2ed957 (kit fixes) into the G5-09 lane
+d75453a3 test(e2e): decode the kept-drafts record with the product store codec (W11)
+5f604f86 merge: fork main 9bbadb81 (G8 pdf comments lane) into the G5-09 lane
+d449c225 test(e2e): address the S5 head close button by role and name (W10)
+fa2ed957 merge: W8E2 keep an unedited AI draft on Esc into kit fixes lane
+main-merged-ok
