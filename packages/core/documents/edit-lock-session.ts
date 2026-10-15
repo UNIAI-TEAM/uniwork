@@ -181,6 +181,7 @@ export class EditLockSession {
   private slowTimer: ReturnType<typeof setTimeout> | undefined;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private beating = false;
+  private pendingBeat = false;
   private reclaiming = false;
   /** Bumped by every acquire and release: a late R2 answer of an older op is stale. */
   private op = 0;
@@ -358,9 +359,15 @@ export class EditLockSession {
 
   private async beat(): Promise<void> {
     const lock = this.state.lock;
-    if (this.disposed || this.state.phase !== "mine" || !lock || this.beating) return;
+    if (this.disposed || this.state.phase !== "mine" || !lock) return;
+    if (this.beating) {
+      // A wake while a beat flies is not lost: it runs once that beat settles.
+      this.pendingBeat = true;
+      return;
+    }
     if (this.expireIfDue()) return;
     this.beating = true;
+    let again = false;
     const sentAt = this.now();
     try {
       const hb = await this.opts.transport.heartbeat(lock.lock_id);
@@ -371,10 +378,20 @@ export class EditLockSession {
       }
     } catch (err) {
       if (!this.holds(lock)) return;
-      if (this.loseFrom(err)) return;
+      if (this.loseFrom(err)) {
+        // The server saw the lease lapse before the client deadline did: same road as the deadline.
+        if (this.state.lostReason === "expired") void this.reclaim();
+        return;
+      }
       // A network failure: keep trying until the TTL says otherwise.
     } finally {
       this.beating = false;
+      again = this.pendingBeat;
+      this.pendingBeat = false;
+    }
+    if (again && this.holds(lock) && !this.disposed) {
+      await this.beat();
+      return;
     }
     if (this.holds(lock) && !this.disposed && !this.expireIfDue()) {
       this.schedule();

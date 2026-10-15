@@ -504,6 +504,63 @@ describe("EditLockSession review fixes (CFE-1-8, CFE-1-9, CFE-1-10)", () => {
   });
 });
 
+describe("EditLockSession review fixes (CFE-1-4)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-15T03:12:00Z"));
+  });
+  afterEach(async () => {
+    vi.useRealTimers();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+    await releaseHeldEditLocks(0);
+    vi.unstubAllGlobals();
+  });
+
+  it("CFE-1-4: a heartbeat answered edit_lock_lost/expired reclaims quietly when the base is unchanged", async () => {
+    const transport = fakeTransport();
+    transport.heartbeat.mockRejectedValueOnce(lost("expired")).mockRejectedValueOnce(lost("expired"));
+    transport.acquire.mockResolvedValueOnce(lock()).mockResolvedValueOnce(lock({ lock_id: "L2" }));
+    const canReclaim = vi.fn(() => true);
+    const { session } = setup({ transport, canReclaim });
+    session.start();
+    await flush();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(canReclaim).toHaveBeenCalledTimes(1);
+    expect(transport.acquire).toHaveBeenCalledTimes(2);
+    expect(session.getState()).toMatchObject({ phase: "mine", lock: { lock_id: "L2" } });
+    expect(heldEditLocks()).toEqual([["d1", "L2"]]);
+  });
+
+  it("CFE-1-4: the same answer with a moved base stays lost for the conflict path", async () => {
+    const transport = fakeTransport();
+    transport.heartbeat.mockRejectedValueOnce(lost("expired")).mockRejectedValueOnce(lost("expired"));
+    const { session } = setup({ transport, canReclaim: () => false });
+    session.start();
+    await flush();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(transport.acquire).toHaveBeenCalledTimes(1);
+    expect(session.getState()).toMatchObject({ phase: "lost", lostReason: "expired", baseChanged: true });
+  });
+
+  it("CFE-1-4: a wake that arrives while a beat is in flight runs after it settles", async () => {
+    let answer: (value: ReturnType<typeof beat>) => void = () => undefined;
+    const transport = fakeTransport();
+    transport.heartbeat.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const { session, wake } = setup({ transport });
+    session.start();
+    await flush();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(transport.heartbeat).toHaveBeenCalledTimes(1);
+    wake();
+    await flush();
+    expect(transport.heartbeat).toHaveBeenCalledTimes(1);
+    answer(beat());
+    await flush();
+    expect(transport.heartbeat).toHaveBeenCalledTimes(2);
+    expect(session.getState().phase).toBe("mine");
+  });
+});
+
 describe("newEditorId", () => {
   it("mints a 26-character Crockford ULID that sorts by time", () => {
     const a = newEditorId(1_000);
