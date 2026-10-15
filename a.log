@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo; echo "INSTALL_EXIT=$rc"
+58e5021dcecd6c4a95613eb74e37f03380490778
+58e5021dc Merge root feature/UNI-923-office-g5-g6-g7 @ 49f578729 into G7-12
+0bbe448eb Merge feature/UNI-1384-g7-12-grader @ 6aaecb18c into G7-12
+a36918512 fix(office): holdout report lists base64_run/hex_run hits without voiding the run
+158facfe6 fix(office): holdout secret guard no longer flags paths, identifiers or a one-digit-lead dotted number
+c9af1acd6 fix(office): holdout formula item is judged by the expected spelling, not the leaf's leading =
+6aaecb18c docs(office): holdout README describes the graded review flow
+
+INSTALL_EXIT=0
