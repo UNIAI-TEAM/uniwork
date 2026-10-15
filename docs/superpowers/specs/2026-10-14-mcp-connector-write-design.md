@@ -258,8 +258,12 @@ Gắn task vào dự án qua `project_id` của `create_task` / `update_task`.
   id, đã có trong catalogue). Hủy hiện không có rule thông báo, nên khôi phục cũng không.
 - UI web có nút "Khôi phục" ở cuộc họp đã hủy cho host/admin (cùng lệnh, cùng gate).
 
-Description của `schedule_meeting` và `invite_to_meeting` nói rõ người được mời nhận thông
-báo trong app. Tạo lịch không mở phòng LiveKit, không gửi email, không ghi lịch Google.
+`invite_to_meeting` báo cho từng người được mời trong app (rule `participant.invited`), và
+description của nó nói rõ điều đó. `schedule_meeting` thêm người trong `attendee_ids` vào cuộc
+họp nhưng không báo ai, vì `MeetingService.Create` không phát `participant.invited` (đường tạo
+họp trên web cũng vậy). Description của nó nói rõ điều này và chỉ sang `invite_to_meeting`.
+Đổi giờ, hủy và khôi phục cũng không báo ai: không có rule cho `meeting.updated` hay
+`meeting.canceled`. Tạo lịch không mở phòng LiveKit và không ghi lịch Google.
 
 ### 5.4 Tài liệu (Phase 4)
 
