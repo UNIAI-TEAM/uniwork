@@ -169,6 +169,18 @@ describe("documents endpoints", () => {
     expect(part.name).toBe("brief.docx");
   });
 
+  it("createDocumentFile orders text fields before the file part while keeping the filename", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "file" }) }));
+    await createDocumentFile("w1", new File(["bytes"], "brief.docx"), {
+      parent_id: "p1",
+      title: "Báo cáo",
+    });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    const form = init?.body as FormData;
+    expect(Array.from(form.keys())).toEqual(["parent_id", "title", "file"]);
+    expect((form.get("file") as File).name).toBe("brief.docx");
+  });
+
   it("commitDocumentVersion sends upload_id + base_revision with the key", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ document: docBody({ revision: "42" }), version: versionBody() }),

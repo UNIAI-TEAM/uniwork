@@ -4,6 +4,12 @@ import { useRef, useState } from "react";
 import { ChevronRight, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import {
@@ -15,7 +21,7 @@ import {
 } from "@uniwork/ui/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
-import { GROUP_BY, TYPE_CHIPS, type GroupBy, type TypeChip } from "./library-rows";
+import { FOLDER_SORT, GROUP_BY, TYPE_CHIPS, type FolderSort, type GroupBy, type TypeChip } from "./library-rows";
 
 export const SCOPE_TABS = ["home", "recent", "shared", "archived"] as const;
 export type ScopeTab = (typeof SCOPE_TABS)[number];
@@ -29,18 +35,22 @@ export interface LibraryToolbarProps {
   onChip: (chip: TypeChip) => void;
   groupBy: GroupBy;
   onGroupBy: (groupBy: GroupBy) => void;
+  /** Present when an open folder (`?folder`) is displayed; replaces Group by. */
+  sort?: FolderSort | null;
+  onSort?: (sort: FolderSort) => void;
 }
 
-/** Scope tabs, the type chips and "Group by" above the table. */
-export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, onGroupBy }: LibraryToolbarProps) {
+/** Scope tabs, the type chips and "Group by" (or folder "Sort by") above the table. */
+export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, onGroupBy, sort, onSort }: LibraryToolbarProps) {
   const { t } = useTranslation();
   const groupItems = GROUP_BY.map((value) => ({ value, label: t(`documents.home.group_by.${value}`) }));
+  const sortItems = FOLDER_SORT.map((value) => ({ value, label: t(`documents.home.sort.${value}`) }));
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Tabs value={scope ?? ""} onValueChange={(next) => onScope(next as ScopeTab)}>
         <TabsList className="max-w-full overflow-x-auto" aria-label={t("documents.home.scope_label")}>
           {SCOPE_TABS.map((tab) => (
-            <TabsTrigger key={tab} value={tab}>
+            <TabsTrigger key={tab} value={tab} className="pointer-coarse:min-h-11 pointer-coarse:min-w-11">
               {t(`documents.home.scope.${tab}`)}
               {scope === tab && count && count.value > 0 ? (
                 <span className="font-mono text-caption tabular-nums text-muted-foreground">
@@ -60,7 +70,7 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
             aria-pressed={chip === value}
             onClick={() => onChip(value)}
             className={cn(
-              "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11",
+              "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
               chip === value
                 ? "border-foreground bg-foreground text-background"
                 : "border-border bg-background text-foreground hover:bg-accent",
@@ -71,21 +81,57 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
         ))}
       </div>
       <div className="ml-auto flex items-center gap-2">
-        <Label htmlFor="documents-group-by" className="text-caption text-muted-foreground">
-          {t("documents.home.group_by.label")}
-        </Label>
-        <Select value={groupBy} onValueChange={(next) => next && onGroupBy(next as GroupBy)} items={groupItems}>
-          <SelectTrigger id="documents-group-by" size="sm" variant="subtle" className="w-36">
-            <SelectValue>{groupItems.find((item) => item.value === groupBy)?.label}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {groupItems.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {sort && onSort ? (
+          <>
+            <Label htmlFor="documents-folder-sort" className="text-caption text-muted-foreground">
+              {t("documents.home.sort.label")}
+            </Label>
+            <Select
+              key="folder-sort"
+              value={sort}
+              onValueChange={(next) => {
+                if (next && next !== sort) onSort(next as FolderSort);
+              }}
+              items={sortItems}
+            >
+              <SelectTrigger id="documents-folder-sort" size="sm" variant="subtle" className="w-44">
+                <SelectValue>{sortItems.find((item) => item.value === sort)?.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {sortItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        ) : (
+          <>
+            <Label htmlFor="documents-group-by" className="text-caption text-muted-foreground">
+              {t("documents.home.group_by.label")}
+            </Label>
+            <Select
+              key="group-by"
+              value={groupBy}
+              onValueChange={(next) => {
+                if (next && next !== groupBy) onGroupBy(next as GroupBy);
+              }}
+              items={groupItems}
+            >
+              <SelectTrigger id="documents-group-by" size="sm" variant="subtle" className="w-36">
+                <SelectValue>{groupItems.find((item) => item.value === groupBy)?.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {groupItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
       </div>
     </div>
   );
@@ -101,7 +147,10 @@ export interface FolderBreadcrumbProps {
   onRename: (title: string) => void;
 }
 
-/** Documents › folder › subfolder; the open folder renames in place. */
+const MAX_UNCOLLAPSED_FOLDER_LEVELS = 3;
+const ELLIPSIS = "…";
+
+/** Documents › folder › subfolder; paths over 3 folder levels collapse intermediate ancestors into a "…" menu, and the open folder renames in place. */
 export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, onRename }: FolderBreadcrumbProps) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
@@ -118,24 +167,56 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
     setEditing(false);
     if (title && title !== leaf.title) onRename(title);
   };
-  const crumb = "rounded px-1 text-body text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:min-h-11";
+  const collapsed = path.length > MAX_UNCOLLAPSED_FOLDER_LEVELS;
+  const hiddenAncestors = collapsed ? path.slice(0, -2) : [];
+  const visibleAncestors = collapsed ? [path.at(-2)!] : path.slice(0, -1);
+  const crumb = "rounded px-1 text-body text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11";
   return (
-    <nav aria-label={t("documents.home.breadcrumb_label")} className="flex min-w-0 flex-wrap items-center gap-1">
-      <button type="button" className={crumb} onClick={onRoot}>
+    <nav aria-label={t("documents.home.breadcrumb_label")} className="flex min-w-0 items-center gap-1">
+      <button type="button" className={cn(crumb, "shrink-0")} onClick={onRoot}>
         {t("documents.page.title")}
       </button>
-      {path.slice(0, -1).map((node) => (
-        <span key={node.id} className="flex items-center gap-1">
-          <ChevronRight aria-hidden className="size-3.5 text-muted-foreground" />
-          <button type="button" className={crumb} onClick={() => onFolder(node.id)}>
+      {hiddenAncestors.length > 0 ? (
+        <span className="flex shrink-0 items-center gap-1">
+          <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={t("documents.home.breadcrumb_more")}
+              title={t("documents.home.breadcrumb_more")}
+              className={crumb}
+            >
+              {ELLIPSIS}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {hiddenAncestors.map((node) => (
+                <DropdownMenuItem
+                  key={node.id}
+                  className="px-2 py-2 pointer-coarse:min-h-11"
+                  onClick={() => onFolder(node.id)}
+                >
+                  {node.title}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </span>
+      ) : null}
+      {visibleAncestors.map((node) => (
+        <span key={node.id} className="flex min-w-0 items-center gap-1">
+          <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+          <button
+            type="button"
+            className={cn(crumb, "min-w-0 truncate")}
+            onClick={() => onFolder(node.id)}
+          >
             {node.title}
           </button>
         </span>
       ))}
-      <ChevronRight aria-hidden className="size-3.5 text-muted-foreground" />
+      <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
       {editing ? (
         <form
-          className="flex items-center gap-1"
+          className="flex min-w-0 items-center gap-1"
           onSubmit={(event) => {
             event.preventDefault();
             submit();
@@ -154,12 +235,12 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
                 setEditing(false);
               }
             }}
-            className="h-8 w-56"
+            className="h-8 w-56 max-w-full"
           />
         </form>
       ) : (
-        <span className="flex items-center gap-1">
-          <span aria-current="page" className="px-1 text-body font-medium text-foreground">
+        <span className="flex min-w-0 items-center gap-1">
+          <span aria-current="page" className="truncate px-1 text-body font-medium text-foreground">
             {leaf.title}
           </span>
           {canRename ? (

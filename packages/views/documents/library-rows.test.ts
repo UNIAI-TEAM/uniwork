@@ -4,16 +4,23 @@ import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { greetingPart } from "./documents-home-create";
 import {
   byUpdatedDesc,
+  DEFAULT_FOLDER_SORT,
   documentRow,
+  FOLDER_SORT_STORAGE_KEY,
   folderPath,
+  folderSortStorageKey,
   formatBytes,
   groupRows,
   indexTree,
   matchesChip,
   mergeNewestFirst,
+  readFolderSort,
   rowOrigin,
   rowSizeBytes,
+  rowTypeKey,
+  sortFolderRows,
   sourceRow,
+  writeFolderSort,
   type DocumentSummaryRow,
 } from "./library-rows";
 
@@ -146,4 +153,103 @@ describe("library rows", () => {
     expect(greetingPart(21)).toBe("evening");
     expect(greetingPart(2)).toBe("evening");
   });
+
+  it("places folders before documents in both sorts", () => {
+    const rows = [
+      documentRow(doc({ id: "doc-new", kind: "page", title: "An", updated_at: "2026-10-10T00:00:00Z" })),
+      documentRow(doc({ id: "fol-old", kind: "folder", title: "Zebra", updated_at: "2026-01-01T00:00:00Z" })),
+      documentRow(doc({ id: "doc-old", kind: "file", title: "Báo cáo.docx", updated_at: "2026-02-01T00:00:00Z" })),
+      documentRow(doc({ id: "fol-new", kind: "folder", title: "Alpha", updated_at: "2026-09-01T00:00:00Z" })),
+    ];
+    expect(sortFolderRows(rows, "updated").map((r) => r.id)).toEqual([
+      "fol-new",
+      "fol-old",
+      "doc-new",
+      "doc-old",
+    ]);
+    expect(sortFolderRows(rows, "name").map((r) => r.id)).toEqual([
+      "fol-new",
+      "fol-old",
+      "doc-new",
+      "doc-old",
+    ]);
+  });
+
+  it("sorts by Name using Vietnamese collation ('Ă' after 'A')", () => {
+    const rows = [
+      documentRow(doc({ id: "binh", kind: "page", title: "Bình" })),
+      documentRow(doc({ id: "an-circumflex", kind: "page", title: "Ân" })),
+      documentRow(doc({ id: "an-breve", kind: "page", title: "Ăn" })),
+      documentRow(doc({ id: "an-plain", kind: "page", title: "An" })),
+      documentRow(doc({ id: "fol-breve", kind: "folder", title: "Ăn uống" })),
+      documentRow(doc({ id: "fol-plain", kind: "folder", title: "An toàn" })),
+    ];
+    expect(sortFolderRows(rows, "name").map((r) => r.id)).toEqual([
+      "fol-plain",
+      "fol-breve",
+      "an-plain",
+      "an-breve",
+      "an-circumflex",
+      "binh",
+    ]);
+  });
+
+  it("maps each row kind and extension to its Type column translation key", () => {
+    expect(rowTypeKey(documentRow(doc({ kind: "folder", title: "Hợp đồng" })))).toBe("documents.file_types.folder");
+    expect(rowTypeKey(documentRow(doc({ kind: "page", title: "Ghi chú" })))).toBe("documents.file_types.page");
+    expect(rowTypeKey(documentRow(doc({ kind: "file", title: "Báo giá.docx" })))).toBe("documents.file_types.docx");
+    expect(rowTypeKey(documentRow(doc({ kind: "file", title: "Số liệu.xlsx" })))).toBe("documents.file_types.xlsx");
+    expect(rowTypeKey(documentRow(doc({ kind: "file", title: "archive.zip" })))).toBe("documents.file_types.file");
+  });
+
+  it("persists folder sort per viewer under uniwork_documents_folder_sort:<userId> and neither reads nor writes without a user", () => {
+    const map = new Map<string, string>();
+    const adapter = {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        map.set(k, v);
+      },
+      removeItem: (k: string) => {
+        map.delete(k);
+      },
+    };
+    expect(folderSortStorageKey("u1")).toBe(`${FOLDER_SORT_STORAGE_KEY}:u1`);
+    expect(readFolderSort("u1", adapter)).toBe(DEFAULT_FOLDER_SORT);
+    writeFolderSort("u1", "name", adapter);
+    expect(map.get(`${FOLDER_SORT_STORAGE_KEY}:u1`)).toBe("name");
+    expect(readFolderSort("u1", adapter)).toBe("name");
+
+    // A second viewer on the same browser does not share u1's choice.
+    expect(readFolderSort("u2", adapter)).toBe(DEFAULT_FOLDER_SORT);
+    writeFolderSort("u2", "updated", adapter);
+    expect(map.get(`${FOLDER_SORT_STORAGE_KEY}:u2`)).toBe("updated");
+    expect(readFolderSort("u1", adapter)).toBe("name");
+
+    // Without a session user, default is returned and nothing is written.
+    expect(readFolderSort(null, adapter)).toBe(DEFAULT_FOLDER_SORT);
+    expect(readFolderSort(undefined, adapter)).toBe(DEFAULT_FOLDER_SORT);
+    expect(readFolderSort("", adapter)).toBe(DEFAULT_FOLDER_SORT);
+    const sizeBefore = map.size;
+    writeFolderSort(null, "name", adapter);
+    writeFolderSort(undefined, "name", adapter);
+    writeFolderSort("", "name", adapter);
+    expect(map.size).toBe(sizeBefore);
+
+    const throwing = {
+      getItem: (): string | null => {
+        throw new Error("SecurityError");
+      },
+      setItem: () => {
+        throw new Error("QuotaExceededError");
+      },
+      removeItem: () => {
+        throw new Error("SecurityError");
+      },
+    };
+    expect(readFolderSort("u1", throwing)).toBe(DEFAULT_FOLDER_SORT);
+    expect(readFolderSort("u1", null)).toBe(DEFAULT_FOLDER_SORT);
+    expect(() => writeFolderSort("u1", "name", throwing)).not.toThrow();
+    expect(() => writeFolderSort("u1", "name", null)).not.toThrow();
+  });
 });
+

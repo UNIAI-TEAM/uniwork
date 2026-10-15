@@ -1,5 +1,7 @@
 import type { DocumentList, DocumentTreeNode } from "@uniwork/core/types/document";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
+import { defaultStorage } from "@uniwork/core/platform";
+import type { StorageAdapter } from "@uniwork/core/types/storage";
 import { documentIconFormat, fileExtension } from "./document-type-icon";
 
 // The library table's rows as one model: a workspace document or a file that
@@ -18,6 +20,12 @@ export type TypeChip = (typeof TYPE_CHIPS)[number];
 
 export const GROUP_BY = ["folder", "source", "type", "none"] as const;
 export type GroupBy = (typeof GROUP_BY)[number];
+
+export const FOLDER_SORT = ["name", "updated"] as const;
+export type FolderSort = (typeof FOLDER_SORT)[number];
+
+export const DEFAULT_FOLDER_SORT: FolderSort = "updated";
+export const FOLDER_SORT_STORAGE_KEY = "uniwork_documents_folder_sort";
 
 /**
  * Where a row came from, for the Source column and "group by source". A
@@ -80,6 +88,31 @@ export function isFolderRow(row: LibraryRow): boolean {
   return row.type === "document" && row.doc.kind === "folder";
 }
 
+/** The translation key (`documents.file_types.*`) for a row's Type column cell. */
+export function rowTypeKey(row: LibraryRow): string {
+  const format = isFolderRow(row) ? "folder" : rowFormat(row);
+  switch (format) {
+    case "folder":
+      return "documents.file_types.folder";
+    case "page":
+      return "documents.file_types.page";
+    case "docx":
+      return "documents.file_types.docx";
+    case "xlsx":
+      return "documents.file_types.xlsx";
+    case "pptx":
+      return "documents.file_types.pptx";
+    case "pdf":
+      return "documents.file_types.pdf";
+    case "md":
+      return "documents.file_types.md";
+    case "html":
+      return "documents.file_types.html";
+    default:
+      return "documents.file_types.file";
+  }
+}
+
 /**
  * The type chip keeps folders visible (they are how one gets to the files)
  * except under "Trang", which lists pages only.
@@ -95,6 +128,59 @@ export function byUpdatedDesc(a: LibraryRow, b: LibraryRow): number {
   const ta = Date.parse(rowUpdatedAt(a));
   const tb = Date.parse(rowUpdatedAt(b));
   return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
+}
+
+const viCollator = new Intl.Collator("vi");
+
+/**
+ * Folder contents ordering (FD-08): folders always precede documents in both
+ * sorts; within each kind rows sort by Vietnamese title collation (A→Z, "Ă"
+ * after "A") or by updated timestamp (newest first).
+ */
+export function sortFolderRows(rows: LibraryRow[], sort: FolderSort): LibraryRow[] {
+  return [...rows].sort((a, b) => {
+    const fa = isFolderRow(a);
+    const fb = isFolderRow(b);
+    if (fa !== fb) return fa ? -1 : 1;
+    if (sort === "name") return viCollator.compare(rowTitle(a), rowTitle(b));
+    return byUpdatedDesc(a, b);
+  });
+}
+
+function isFolderSort(value: unknown): value is FolderSort {
+  return value === "name" || value === "updated";
+}
+
+export function folderSortStorageKey(userId: string): string {
+  return `${FOLDER_SORT_STORAGE_KEY}:${userId}`;
+}
+
+/** Reads the viewer's folder sort choice from the core StorageAdapter; falls back safely when missing or throwing. */
+export function readFolderSort(
+  userId: string | null | undefined,
+  storage: Pick<StorageAdapter, "getItem"> | null | undefined = defaultStorage,
+): FolderSort {
+  if (!userId || !storage) return DEFAULT_FOLDER_SORT;
+  try {
+    const raw = storage.getItem(folderSortStorageKey(userId));
+    return isFolderSort(raw) ? raw : DEFAULT_FOLDER_SORT;
+  } catch {
+    return DEFAULT_FOLDER_SORT;
+  }
+}
+
+/** Persists the viewer's folder sort choice under one shared key for all folders; ignores storage failures. */
+export function writeFolderSort(
+  userId: string | null | undefined,
+  sort: FolderSort,
+  storage: Pick<StorageAdapter, "setItem"> | null | undefined = defaultStorage,
+): void {
+  if (!userId || !storage) return;
+  try {
+    storage.setItem(folderSortStorageKey(userId), sort);
+  } catch {
+    // Storage unavailable or blocked: keep the in-memory selection for this session.
+  }
 }
 
 function timeOf(row: LibraryRow): number {

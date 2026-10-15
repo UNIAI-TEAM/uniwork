@@ -1,6 +1,6 @@
 "use client";
 
-import { File, FileText, RotateCcwClock, Monitor, Moon, Sun } from "lucide-react";
+import { RotateCcwClock, Monitor, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDocumentList, useRecentDocuments } from "@uniwork/core/documents/hooks-collections";
@@ -21,10 +21,13 @@ import {
   CommandItem,
   CommandList,
 } from "@uniwork/ui/components/ui/command";
+import { cn } from "@uniwork/ui/lib/utils";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { usePreferenceSavedToast } from "../layout/preference-toast";
+import { DocumentTypeIcon, documentIconFormat } from "../documents/document-type-icon";
+import { formatSearchPath } from "../documents/documents-search-results";
 
 /** How many recent tasks the palette lists; the store keeps more. */
 const RECENT_TASKS_SHOWN = 5;
@@ -135,23 +138,50 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
           ) : null}
           {showDocuments ? (
             <CommandGroup heading={t("search.groups.documents")}>
-              {documentsGroup.map((doc) => (
-                <CommandItem
-                  key={doc.id}
-                  // The live term leads the value so cmdk keeps a hit visible
-                  // while the user is still typing past the debounce.
-                  value={`${trimmedQuery} ${doc.title} ${doc.id}`}
-                  onSelect={() => run(() => push(ws.document(doc.id)))}
-                >
-                  {doc.kind === "file" ? <File /> : <FileText />}
-                  <span className="truncate">{doc.title || t("documents.detail.untitled")}</span>
-                  {doc.snippet ? (
-                    <span className="min-w-0 flex-1 truncate text-caption text-muted-foreground">
-                      {doc.snippet}
-                    </span>
-                  ) : null}
-                </CommandItem>
-              ))}
+              {documentsGroup.map((doc) => {
+                const docTitle = doc.title || t("documents.detail.untitled");
+                const format = documentIconFormat(doc.kind, docTitle);
+                const { display: pathDisplay, full: pathFull } = formatSearchPath(doc.path);
+                return (
+                  <CommandItem
+                    key={doc.id}
+                    // The live term leads the value so cmdk keeps a hit visible
+                    // while the user is still typing past the debounce.
+                    value={`${trimmedQuery} ${doc.title} ${doc.id}`}
+                    onSelect={() =>
+                      run(() =>
+                        push(doc.kind === "folder" ? ws.documentsFolder(doc.id) : ws.document(doc.id)),
+                      )
+                    }
+                  >
+                    <DocumentTypeIcon
+                      format={format}
+                      decorative
+                      className={cn("size-4 shrink-0", doc.kind === "folder" && "text-muted-foreground")}
+                    />
+                    <span className="min-w-0 max-w-[70%] shrink-0 truncate">{docTitle}</span>
+                    {pathFull ? (
+                      <>
+                        <span
+                          aria-hidden
+                          title={pathFull}
+                          className="min-w-0 shrink truncate text-caption text-muted-foreground"
+                        >
+                          {pathDisplay}
+                        </span>
+                        <span className="sr-only">
+                          {t("documents.home.search.path", { path: pathFull })}
+                        </span>
+                      </>
+                    ) : null}
+                    {doc.snippet ? (
+                      <span className="min-w-0 flex-1 truncate text-caption text-muted-foreground">
+                        {doc.snippet}
+                      </span>
+                    ) : null}
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           ) : null}
           <CommandGroup heading={t("search.groups.pages")}>
