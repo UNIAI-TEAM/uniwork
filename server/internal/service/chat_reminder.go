@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -76,7 +77,7 @@ func (s *ChatService) SendReminderMessage(
 	if body == "" {
 		return ChatMessageRow{}, Invalid("nội dung nhắc hẹn không được để trống")
 	}
-	if len(body) > maxReminderBodyLen {
+	if utf8.RuneCountInString(body) > maxReminderBodyLen {
 		return ChatMessageRow{}, Invalid("nội dung nhắc hẹn quá dài")
 	}
 

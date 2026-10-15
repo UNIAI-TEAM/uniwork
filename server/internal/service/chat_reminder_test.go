@@ -181,6 +181,20 @@ func TestChatReminderValidationErrors(t *testing.T) {
 		requireReminderValidationError(t, err, "long body")
 	}
 
+	// The limit counts characters, not UTF-8 bytes ("ệ" is 3 bytes).
+	if _, err := s.SendReminderMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendReminderMessageInput{
+		Body: strings.Repeat("ệ", maxReminderBodyLen), RemindAt: futureRemindAt(),
+	}); err != nil {
+		t.Fatalf("Vietnamese body at the limit: %v", err)
+	}
+	if _, err := s.SendReminderMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendReminderMessageInput{
+		Body: strings.Repeat("ệ", maxReminderBodyLen+1), RemindAt: futureRemindAt(),
+	}); err == nil {
+		t.Fatal("long Vietnamese body should fail")
+	} else {
+		requireReminderValidationError(t, err, "long Vietnamese body")
+	}
+
 	if _, err := s.SendReminderMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendReminderMessageInput{
 		Body: "Nhắc việc",
 	}); err == nil {

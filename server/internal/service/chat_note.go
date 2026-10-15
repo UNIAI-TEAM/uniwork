@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -65,7 +66,7 @@ func (s *ChatService) SendNoteMessage(
 	if body == "" {
 		return ChatMessageRow{}, Invalid("nội dung ghi chú không được để trống")
 	}
-	if len(body) > maxNoteBodyLen {
+	if utf8.RuneCountInString(body) > maxNoteBodyLen {
 		return ChatMessageRow{}, Invalid("nội dung ghi chú quá dài")
 	}
 

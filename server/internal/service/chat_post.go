@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -80,13 +81,13 @@ func (s *ChatService) SendPostMessage(
 	if title == "" {
 		return ChatMessageRow{}, Invalid("tiêu đề bài đăng không được để trống")
 	}
-	if len(title) > maxPostTitleLen {
+	if utf8.RuneCountInString(title) > maxPostTitleLen {
 		return ChatMessageRow{}, Invalid("tiêu đề bài đăng quá dài")
 	}
 	if body == "" {
 		return ChatMessageRow{}, Invalid("nội dung bài đăng không được để trống")
 	}
-	if len(body) > maxPostBodyLen {
+	if utf8.RuneCountInString(body) > maxPostBodyLen {
 		return ChatMessageRow{}, Invalid("nội dung bài đăng quá dài")
 	}
 
