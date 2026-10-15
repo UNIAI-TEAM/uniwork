@@ -90,14 +90,20 @@ export function forkAncestorChecker(env = process.env, portsEnv = {}) {
 
 // ---- anchors per fixture (fork 7d665a54 codecs) --------------------------------------
 
-/** Top-level body blocks of a docx (w:p, w:tbl, w:sdt) and their text. */
+/** Top-level body blocks of a docx (w:p, w:tbl, w:sdt; an empty `<w:p/>` is one) and their text. */
 function docxBlocks(bytes) {
   const part = readZipParts(bytes).find((p) => p.name === "word/document.xml");
-  if (!part) throw new Error("docx fixture has no word/document.xml");
+  if (!part) throw new Error("docx has no word/document.xml");
   const xml = part.data.toString("utf8");
   const body = xml.slice(xml.indexOf("<w:body>") + 8, xml.lastIndexOf("</w:body>"));
-  const blocks = body.match(/<w:(p|tbl|sdt)\b[\s\S]*?<\/w:\1>/g) ?? [];
+  const blocks = body.match(/<w:(p|tbl|sdt)\b(?:[^>]*\/>|[\s\S]*?<\/w:\1>)/g) ?? [];
   return blocks.map((b) => [...b.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map((m) => m[1]).join(""));
+}
+
+/** The index of the first top-level block of a saved docx whose text holds `quote`, or null. */
+export function docxQuoteBlock(bytes, quote) {
+  const at = docxBlocks(bytes).findIndex((text) => text.includes(quote));
+  return at === -1 ? null : at;
 }
 
 const DOCX_BLOCK = 2;
@@ -416,7 +422,8 @@ export async function readServer(session, documentId) {
   if (!list.ok) throw new Error(`listDocumentComments answered ${list.status}`);
   const doc = await session.call("getDocument", { documentID: documentId });
   if (!doc.ok) throw new Error(`getDocument answered ${doc.status}`);
-  return { comments: list.body?.comments ?? [], listToken: list.body?.list_token ?? null, head: doc.body?.document?.file?.version_id ?? null };
+  const file = doc.body?.document?.file ?? {};
+  return { comments: list.body?.comments ?? [], listToken: list.body?.list_token ?? null, head: file.version_id ?? null, headVersion: file.version ?? null };
 }
 
 /** The server comments panel in the editor page: how many, and the comment ids it lists (fork CollabPanel.tsx:526-528, CollabThread.tsx:712). */
@@ -424,6 +431,16 @@ export function panelListing() {
   const panels = document.querySelectorAll("aside.collab-panel");
   const panel = panels[0] ?? null;
   return { panels: panels.length, commentIds: panel ? [...panel.querySelectorAll("[data-comment-id]")].map((el) => el.getAttribute("data-comment-id")) : [] };
+}
+
+/**
+ * The docx editor's in-document highlights of one server comment (fork
+ * apps/docs/src/renderer/server-comments/anchor-tracker.ts:49,58-61): drawn only while the tracker
+ * holds a live range for a listed, open root, so 0 after a Save means the range collapsed.
+ */
+export function serverCommentMark({ commentId }) {
+  const els = [...document.querySelectorAll("[data-server-comment]")].filter((el) => el.getAttribute("data-server-comment") === commentId);
+  return { marks: els.length, text: els.map((el) => el.textContent ?? "").join("").slice(0, 80) };
 }
 
 /** The bound for the editor's first list after the panel opens (the open itself polls once, comments-poll.ts:118-123). */
@@ -453,26 +470,70 @@ const rowState = (row) => (row ? { id: row.id, anchor: row.anchor ?? null, ancho
 
 // ---- G8-A02 decision ----------------------------------------------------------------------
 
-/** Owner candidate of a desktop that does not re-anchor on Save with the panel closed. */
+/** Owner candidate of a desktop whose Save round leaves an anchor behind. */
 export const CLOSED_PANEL_OWNER = "g8-fork_editors / Lead F";
 
-/**
- * Fork 7d665a54: the post-Save anchor round of each editor, built only from the roots its
- * collab controller has listed (that controller lists once at mount, use-collab-threads.ts:455-475,
- * and reloads only while the panel is open, comments-poll.ts:128-131).
- */
+/** Fork 7d665a54: the post-Save anchor round of each editor, built only from the roots its collab controller has listed. */
 export const ANCHOR_ROUND_CITES = Object.freeze({
   docx: "apps/docs/src/renderer/server-comments/ServerCommentsHost.tsx:194-203",
   xlsx: "apps/sheets/src/renderer/server-comments/SheetsServerComments.tsx:207-213",
   pptx: "apps/slides/src/renderer/use-server-comments.ts:158-166",
-  pdf: "apps/pdf/src/renderer/server-comments/PdfServerComments.tsx:179-188",
+  pdf: "apps/pdf/src/renderer/server-comments/PdfServerComments.tsx:178-202",
 });
+const LIST_ONCE_CITE = "packages/ui/src/collab/use-collab-threads.ts:455-475";
 const POLL_GATE_CITE = "packages/electron-utils/src/comments-poll.ts:128-131";
+const LOST_KEEPS_CITE = "server/internal/service/document_comment_anchors.go:434-440";
+
+/**
+ * Why the docx round reports lost after a Save (fork 7d665a54): the editor reloads the document
+ * from the saved bytes with one setContent, the tracker maps every live range through that
+ * whole-document replace and collapses it, and the round then sends `lost` for each root.
+ */
+export const DOCX_SAVE_RELOAD_CITES = Object.freeze([
+  "apps/docs/src/renderer/file-actions.ts:1125-1148 (after a Save: setContent from the saved bytes unless the doc is equal)",
+  "apps/docs/src/renderer/server-comments/anchor-tracker.ts:79-91 (a range whose text was replaced collapses to null)",
+  "apps/docs/src/renderer/server-comments/anchor-sync.ts:25-31 (a null tracked range is sent as lost)",
+]);
+
+const markTrail = (m) =>
+  m && ["beforeEdit", "afterEdit", "afterSave"].some((k) => typeof m[k] === "number")
+    ? `; highlight before edit ${m.beforeEdit ?? "?"}, after edit ${m.afterEdit ?? "?"}, after Save ${m.afterSave ?? "?"}`
+    : "";
+
+/**
+ * A docx edit plan must leave the quote in the saved head at the expected block; otherwise the
+ * harness moved or changed the anchored text itself (harness fault, not a product FAIL).
+ */
+function driverFault(part) {
+  const want = part?.expected?.format === "docx" ? part.expected.path?.[0] : undefined;
+  const hq = part?.headQuote;
+  if (want === undefined || !hq || !("block" in hq)) return null;
+  if (hq.block === null) return `edit driver: the saved head no longer holds the quote "${part.expected.quote}" (want block ${want})`;
+  if (hq.block !== want) return `edit driver: the saved head holds the quote at block ${hq.block}, want ${want}`;
+  return null;
+}
+
+/**
+ * A row the desktop reported lost: only the editor's anchor round writes `lost`, and the server
+ * keeps the last anchor and its version for it (R1-7), so the round ran. The docx reason names
+ * its post-Save reload; other formats get no cite they do not need.
+ */
+export function lostOnSaveReason(format, part) {
+  const head = part?.headQuote?.block !== undefined && part.headQuote.block !== null ? `the saved head holds the quote at block ${part.headQuote.block}, ` : "";
+  const why =
+    format === "docx"
+      ? `: ${head}yet after a Save the docs editor reloads the document from the saved bytes (${DOCX_SAVE_RELOAD_CITES.join("; ")}), so the round (${ANCHOR_ROUND_CITES.docx}) sends lost`
+      : "";
+  return `${why}; the server keeps the last anchor and version of a lost row (${LOST_KEEPS_CITE})${markTrail(part?.marks)}`;
+}
+
+const rowWhere = (row, part) => `row on ${row.anchor_version_id}, ${row.anchor_state}, at ${describeAnchor(row.anchor)}; head ${part.headVersionId}; owner candidate ${CLOSED_PANEL_OWNER}`;
 
 /**
  * check:closed-panel-save (pure): a comment made with the panel closed, a structural edit before
- * its anchor and a Save must leave the row exact on the new head at the moved place. A row still
- * on the old version is the product finding (never BLOCKED); a setup failure passes its reason.
+ * its anchor and a Save must leave the row exact on the new head at the moved place. A row the
+ * round reported lost and a row the round never covered are two different product findings (never
+ * BLOCKED); a docx head that lost the quote is the edit driver's fault; a setup failure passes its reason.
  */
 export function decideClosedPanel(part, format) {
   if (!part) return { status: "FAIL", reason: "the closed-panel Save did not run" };
@@ -482,13 +543,19 @@ export function decideClosedPanel(part, format) {
   const row = part.row;
   if (!row) return { status: "FAIL", reason: "the comment row is missing after Save" };
   if (!part.headVersionId || part.headVersionId === part.versionBefore) return { status: "FAIL", reason: `Save made no new version (head ${part.headVersionId ?? "none"})` };
+  const fault = driverFault(part);
+  if (fault) return { status: "FAIL", reason: fault };
+  if (row.anchor_state === "lost") {
+    return { status: "FAIL", reason: `desktop reported the anchor lost on Save${lostOnSaveReason(format, part)} (${rowWhere(row, part)})`, owner: CLOSED_PANEL_OWNER };
+  }
   if (row.anchor_version_id !== part.headVersionId) {
+    const late = part.createdAfterSave ? ", and this comment was made after the prepare Save, after that one list" : "";
     return {
       status: "FAIL",
       reason:
-        `desktop re-anchors on Save only the roots its open comments panel listed (${POLL_GATE_CITE}, ${ANCHOR_ROUND_CITES[format] ?? "the editor's anchor round"}); ` +
-        `with the panel closed the server anchor stays on the old version (row on ${row.anchor_version_id}, ${row.anchor_state}, at ${describeAnchor(row.anchor)}; head ${part.headVersionId}; ` +
-        `owner candidate ${CLOSED_PANEL_OWNER})`,
+        `desktop did not re-anchor this comment on Save: the editor's round covers only the roots its comments controller has listed (${ANCHOR_ROUND_CITES[format] ?? "the editor's anchor round"}), ` +
+        `which lists once when the editor mounts (${LIST_ONCE_CITE}) and with the panel closed never reloads (${POLL_GATE_CITE})${late}; ` +
+        `the server anchor stays on the old version (${rowWhere(row, part)})`,
       owner: CLOSED_PANEL_OWNER,
     };
   }
@@ -533,6 +600,9 @@ export function decideG8A02(rec) {
     const row = s.row;
     if (!row) return ["the comment row is missing after Save"];
     if (!s.headVersionId || s.headVersionId === s.versionBefore) reasons.push(`Save made no new version (head ${s.headVersionId ?? "none"})`);
+    const fault = driverFault(s);
+    if (fault) return [...reasons, fault];
+    if (row.anchor_state === "lost") return [...reasons, `desktop reported the anchor lost on Save, want exact at ${describeAnchor(s.expected)}${lostOnSaveReason(rec.format, s)}`];
     if (row.anchor_version_id !== s.headVersionId) reasons.push(`anchor stayed on version ${row.anchor_version_id}, head is ${s.headVersionId}`);
     if (row.anchor_state !== "exact") reasons.push(`anchor_state ${row.anchor_state}, want exact`);
     if (!anchorMatches(s.expected, row.anchor)) reasons.push(`anchor at ${describeAnchor(row.anchor)}, want ${describeAnchor(s.expected)}`);
@@ -556,6 +626,7 @@ export function decideG8A02(rec) {
   steps["check:remove-lost"] = decideEdit("remove", rec.remove, (r) => {
     const row = r.row;
     if (!row) return ["the thread is gone after the target was deleted (it must stay)"];
+    if (rec.shift?.row?.anchor_state === "lost") return ["not observed: the row was already lost after the shift Save, so deleting the target proves nothing"];
     const reasons = [];
     if (row.deleted_at) reasons.push("the thread was deleted with its target");
     if (row.anchor_state !== "lost") reasons.push(`anchor_state ${row.anchor_state}, want lost`);
