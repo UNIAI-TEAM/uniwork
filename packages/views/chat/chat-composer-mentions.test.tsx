@@ -72,4 +72,31 @@ describe("ChatComposer mentions", () => {
     });
     expect(onDraftChange).toHaveBeenCalledWith("@tran hoang long");
   });
+
+  it("counts the serialized mention tokens against the limit", () => {
+    const onSend = vi.fn();
+    // 3,960 visible characters fit, but each @label is sent as a ~45-character
+    // [@label](mention://member/<id>) token, which puts the body over 4,000.
+    const draft = `${"a".repeat(3950)} @Binh @An`;
+
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft={draft}
+          onDraftChange={vi.fn()}
+          onSend={onSend}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+          mentionCandidates={[
+            { kind: "member", userId: "01J9Z8Y7X6W5V4T3S2R1Q0P9N8", label: "Binh", email: "binh@example.com" },
+            { kind: "member", userId: "01J9Z8Y7X6W5V4T3S2R1Q0P9N9", label: "An", email: "an@example.com" },
+          ]}
+        />,
+      ),
+    );
+    expect(screen.getByText("Còn 0 ký tự")).toHaveClass("text-destructive");
+    fireEvent.keyDown(screen.getByLabelText("Nhập tin nhắn…"), { key: "Enter" });
+    expect(onSend).not.toHaveBeenCalled();
+  });
 });
