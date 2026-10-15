@@ -81,6 +81,44 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
     if (phase === "mine" && saveState.phase === "locked") save.lockRestored();
   }, [phase, saveState.phase, save]);
 
+  /* ---- read-only -> mine: start from the server's current revision (addendum §9) ---- */
+  // A content-only save emits no document.updated, so a read-only copy can be
+  // any number of saves behind the holder's. Whenever this editor comes to
+  // hold the lock after being read-only (a handover, a take-over, edit here,
+  // unheld -> mine), it rereads the document and adopts it before it turns
+  // editable. A kept draft is the user's and goes the lockRestored path instead.
+  const wasReadOnly = useRef(false);
+  const catchUpOp = useRef(0);
+  const [catchingUp, setCatchingUp] = useState(false);
+  const latest = useRef({ save, refetch, hasUnsavedWork, page });
+  latest.current = { save, refetch, hasUnsavedWork, page };
+  useEffect(() => {
+    if (phase === "other" || phase === "lost" || phase === "released") {
+      wasReadOnly.current = true;
+      return;
+    }
+    if (phase !== "mine" || !wasReadOnly.current) return;
+    wasReadOnly.current = false;
+    const now = latest.current;
+    if (!now.page || now.hasUnsavedWork()) return;
+    const op = ++catchUpOp.current;
+    setCatchingUp(true);
+    void now.refetch().then(
+      (fresh) => {
+        if (op !== catchUpOp.current) return;
+        const current = latest.current;
+        if (fresh.data && !fresh.isError && fresh.data.revision !== baseRef.current && !current.hasUnsavedWork()) {
+          editorRef.current?.adoptContent(fresh.data.content, fresh.data.revision);
+          current.save.updateBase(fresh.data.revision, fresh.data);
+        }
+        setCatchingUp(false);
+      },
+      () => {
+        if (op === catchUpOp.current) setCatchingUp(false);
+      },
+    );
+  }, [phase, editorRef]);
+
   /* ---- lost with unsaved changes: the dialog (page only; the frame keeps its drafts) ---- */
   const [lostOpen, setLostOpen] = useState(false);
   const prevPhase = useRef(phase);
@@ -175,6 +213,8 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
           editorRef.current?.adoptContent(fresh.data.content, fresh.data.revision);
           save.updateBase(fresh.data.revision, fresh.data);
         }
+        // Already caught up: the grant need not reread again.
+        if (fresh.data && !fresh.isError) wasReadOnly.current = false;
       }
       await lock.acquire();
     });
@@ -252,8 +292,8 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
 
   return {
     save,
-    /** Only the holder may type; acquiring blocks input without saying "read-only" (§9 FE-8). */
-    editable: canEdit && phase === "mine",
+    /** Only the holder may type; acquiring and the catch-up reread block input without saying "read-only" (§9 FE-8). */
+    editable: canEdit && phase === "mine" && !catchingUp,
     acquiringSlow: phase === "acquiring" && lock.state.slow,
     /** Someone else holds it: the header names them. */
     holder: r1?.lock && !(phase === "mine" && r1.lock.held_by_me) ? r1.lock : null,

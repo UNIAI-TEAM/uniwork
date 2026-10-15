@@ -5,7 +5,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
-import { defaultEditLockRoute, editLockRoute, lockState } from "../test/edit-lock-fake";
+import { defaultEditLockRoute, editLockRoute, grantedLock, lockState } from "../test/edit-lock-fake";
 import { DocumentWorkspace } from "./document-workspace";
 
 // UNI-1645 (addendum §9, §11.3): the document page with the edit lock wired in.
@@ -137,6 +137,32 @@ describe("DocumentWorkspace edit lock", () => {
     expect(refetch).toHaveBeenCalled();
     expect(lockCalls("POST")).toHaveLength(2);
     await waitFor(() => expect(banner).toBeEmptyDOMElement());
+  });
+
+  it("read-only -> mine (a take-over): rereads the document and adopts it before turning editable", async () => {
+    // The holder saved after this tab opened; a content-only save sends no document.updated.
+    editLockRoute.mockImplementation((path: string, opts: RouteOpts) => {
+      if (opts?.method === "POST" && path.endsWith("/edit-lock")) return Promise.reject(locked());
+      if (opts?.method === "POST" && path.endsWith("/edit-lock/take-over")) return Promise.resolve(grantedLock("d1", { granted_via: "take_over" }));
+      if ((opts?.method ?? "GET") === "GET") return Promise.resolve(lockState({ lock: { ...holder, lock_id: "L1" }, can_take_over: true }));
+      return defaultEditLockRoute(path, opts);
+    });
+    let answer: (value: { data: Document }) => void = () => undefined;
+    const refetch = vi.fn(() => new Promise<{ data: Document }>((resolve) => (answer = resolve)));
+    renderPage({ refetch });
+    const editor = await findEditor();
+    const banner = screen.getByTestId("edit-lock-banner");
+    await waitFor(() => expect(banner).toHaveTextContent("An đang sửa từ"));
+    expect(editor).toHaveTextContent("Nội dung A");
+    fireEvent.click(within(banner).getByRole("button", { name: "Lấy quyền sửa" }));
+    const confirm = await screen.findByRole("alertdialog", { name: "Lấy quyền sửa từ An?" });
+    fireEvent.click(within(confirm).getByRole("button", { name: "Lấy quyền sửa" }));
+    await waitFor(() => expect(refetch).toHaveBeenCalled());
+    // Held, but not editable on the stale body while the reread is in flight.
+    expect(editor).toHaveAttribute("contenteditable", "false");
+    answer({ data: pageDocument({ revision: "5", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "A trước khi nhường" }] }] } }) });
+    await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "true"));
+    expect(editor).toHaveTextContent("A trước khi nhường");
   });
 
   it("?edit_request=<id> opens the holder's prompt; Decline answers with the held lock id", async () => {
