@@ -28,6 +28,10 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if room.Kind != chatRoomKindDM && !voiceCallMultiPartyKind(room.Kind) {
 		return Invalid("cuộc gọi thoại chỉ khả dụng trong tin nhắn trực tiếp, nhóm hoặc kênh")
 	}
+	// A call rings every member and ends in a log message under the caller's name.
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return err
+	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
 		return err

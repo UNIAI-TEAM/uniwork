@@ -1229,3 +1229,40 @@ func TestSendWorkspaceMessageRejectsLongBody(t *testing.T) {
 		t.Fatalf("expected validation error, got %v", err)
 	}
 }
+
+// A send restriction closes every write that reaches the whole room: pinning,
+// voting and ringing the room, not only text.
+func TestSendRestrictedMemberCannotPinVoteOrCall(t *testing.T) {
+	s, _, q, ua, ub, w := noteFixture(t)
+	ctx := context.Background()
+	groupID := noteGroup(t, s, ua, ub, w, q, "Mute ghim", "mute-pin-peer@example.com")
+	poll := mustSendPoll(t, s, ctx, ua.ID, w.ID, groupID, SendPollMessageInput{
+		Question: "Ăn gì?", Options: []string{"Phở", "Bún"},
+	})
+	restrict := func(on bool) {
+		t.Helper()
+		if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+			RoomID: groupID, UserID: ub.ID, SendRestricted: on,
+		}); err != nil {
+			t.Fatalf("restrict=%v: %v", on, err)
+		}
+	}
+
+	restrict(true)
+	_, err := s.ToggleChatMessagePin(ctx, ub.ID, w.ID, groupID, poll.ID)
+	requireValidationError(t, err, "muted pin")
+	_, err = s.VoteChatPollMessage(ctx, ub.ID, w.ID, groupID, poll.ID, poll.Poll.Options[0].ID)
+	requireValidationError(t, err, "muted vote")
+	requireValidationError(t, s.SignalVoiceInvite(ctx, ub.ID, w.ID, groupID, "muted-call"), "muted call")
+
+	restrict(false)
+	if _, err := s.ToggleChatMessagePin(ctx, ub.ID, w.ID, groupID, poll.ID); err != nil {
+		t.Fatalf("pin after unmute: %v", err)
+	}
+	if _, err := s.VoteChatPollMessage(ctx, ub.ID, w.ID, groupID, poll.ID, poll.Poll.Options[0].ID); err != nil {
+		t.Fatalf("vote after unmute: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, groupID, "unmuted-call"); err != nil {
+		t.Fatalf("call after unmute: %v", err)
+	}
+}

@@ -167,6 +167,20 @@ func TestChatVoiceRecordingGuards(t *testing.T) {
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, callID); err != nil {
 		t.Fatalf("accept: %v", err)
 	}
+	if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+		RoomID: dm.ID, UserID: ua.ID, SendRestricted: true,
+	}); err != nil {
+		t.Fatalf("mute: %v", err)
+	}
+	var ve ValidationError
+	if _, err := s.StartVoiceRecording(ctx, ua.ID, w.ID, dm.ID, callID); !errors.As(err, &ve) {
+		t.Fatalf("muted member started a recording: %v", err)
+	}
+	if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+		RoomID: dm.ID, UserID: ua.ID, SendRestricted: false,
+	}); err != nil {
+		t.Fatalf("unmute: %v", err)
+	}
 	if _, err := s.StartVoiceRecording(ctx, ua.ID, w.ID, dm.ID, callID); err != nil {
 		t.Fatalf("start: %v", err)
 	}

@@ -229,6 +229,9 @@ func (s *ChatService) VoteChatPollMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return ChatMessageRow{}, err
+	}
 	updated, err := s.mutateChatMessageMetadata(ctx, messageID, room.ID, roomAnchorWorkspaceID(room),
 		func(msg db.ChatMessage) ([]byte, error) { return applyPollVote(msg, userID, optionID) })
 	if err != nil {
@@ -238,13 +241,7 @@ func (s *ChatService) VoteChatPollMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	s.publishChatRoomEvent(ctx, room.ID, Event{
-		Type: "chat.message.updated",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": updated.ID,
-		},
-	})
+	s.publishChatMessageUpdated(ctx, room, updated.ID)
 	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
 }
 

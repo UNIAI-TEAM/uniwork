@@ -58,6 +58,10 @@ func (s *ChatService) StartVoiceRecording(
 	if err := s.requireVoiceCallActor(ctx, room, userID, true); err != nil {
 		return db.ChatVoiceRecording{}, err
 	}
+	// The recording lands on the call's log message in the room.
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return db.ChatVoiceRecording{}, err
+	}
 	if !s.VoiceRecordingEnabled(ctx) {
 		return db.ChatVoiceRecording{}, coded(http.StatusServiceUnavailable, "recording_not_configured",
 			"ghi âm cuộc gọi chưa được cấu hình trên server")

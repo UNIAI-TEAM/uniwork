@@ -123,6 +123,9 @@ func (s *ChatService) ToggleChatMessagePin(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return ChatMessageRow{}, err
+	}
 	if err := s.memberCanPerformRoomAction(ctx, userID, roomID, room, func(p ChatRoomMemberPermissions) bool {
 		return p.AllowPinContent
 	}); err != nil {
