@@ -8,6 +8,7 @@ vi.mock("../api/endpoints/workspaces", async (importOriginal) => {
 });
 
 import * as workspaces from "../api/endpoints/workspaces";
+import type { Workspace } from "../types";
 import { usePatchWorkspace, useRemoveWorkspaceIcon, useUploadWorkspaceIcon } from "./hooks";
 import { workspaceKeys } from "./keys";
 
@@ -17,7 +18,7 @@ function setup<T>(hook: () => T) {
   const { result } = renderHook(hook, {
     wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
   });
-  return { result, invalidate };
+  return { result, invalidate, qc };
 }
 
 function expectWorkspaceRefreshed(invalidate: { mock: { calls: unknown[][] } }) {
@@ -37,6 +38,21 @@ describe("workspace profile mutations", () => {
     await result.current.mutateAsync({ wsId: "ws1", description: "Mô tả" });
     expect(workspaces.patchWorkspace).toHaveBeenCalledWith("ws1", { description: "Mô tả" });
     expectWorkspaceRefreshed(invalidate);
+  });
+
+  it("seeds the new slug's workspace so the redirect does not flash a loader", async () => {
+    const renamed = { id: "ws1", organization_slug: "acme", slug: "growth", name: "Team" } as Workspace;
+    vi.mocked(workspaces.patchWorkspace).mockResolvedValue(renamed);
+    const { result, qc } = setup(() => usePatchWorkspace("acme", "team"));
+    await result.current.mutateAsync({ wsId: "ws1", slug: "growth" });
+    expect(qc.getQueryData(workspaceKeys.bySlugs("acme", "growth"))).toBe(renamed);
+  });
+
+  it("does not seed a by-slug entry when the slug was not sent", async () => {
+    vi.mocked(workspaces.patchWorkspace).mockResolvedValue({ id: "ws1", organization_slug: "acme", slug: "team" } as Workspace);
+    const { result, qc } = setup(() => usePatchWorkspace("acme", "team"));
+    await result.current.mutateAsync({ wsId: "ws1", name: "Renamed" });
+    expect(qc.getQueryData(workspaceKeys.bySlugs("acme", "team"))).toBeUndefined();
   });
 
   it("uploads the icon and refreshes the workspace", async () => {

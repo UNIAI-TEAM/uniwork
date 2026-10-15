@@ -164,7 +164,14 @@ export function usePatchWorkspace(orgSlug: string, wsSlug: string) {
   return useMutation({
     mutationFn: ({ wsId, ...body }: { wsId: string } & workspaces.WorkspacePatch) =>
       workspaces.patchWorkspace(wsId, body),
-    onSuccess: () => refreshWorkspace(qc, orgSlug, wsSlug),
+    onSuccess: (updated, { slug }) => {
+      // The page redirects to the new slug next; seed its entry so the
+      // workspace shows at once instead of a loader.
+      if (slug !== undefined && updated) {
+        qc.setQueryData(workspaceKeys.bySlugs(updated.organization_slug, updated.slug), updated);
+      }
+      refreshWorkspace(qc, orgSlug, wsSlug);
+    },
   });
 }
 
