@@ -1,0 +1,328 @@
+package handler
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
+	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+// editLockWorld is the documents handler stack with a second workspace member
+// at edit (the other editor) and an outsider. The member is inserted by SQL:
+// the invite flow is not what these tests are about.
+type editLockWorld struct {
+	*docsWorld
+	pool        *pgxpool.Pool
+	editor      string
+	editorToken string
+}
+
+func newEditLockWorld(t *testing.T) *editLockWorld {
+	t.Helper()
+	d, pool := newTestDeps(t, nil, discardOutbox{})
+	q := db.New(pool)
+	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
+	docs.SetEntitlements(service.NewEntitlementService(pool, q))
+	docs.SetFiles(filesfake.New(filesfake.Options{}))
+	d.Documents = docs
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+	if _, err := q.UpsertFlagOverride(context.Background(), db.UpsertFlagOverrideParams{
+		ID: util.NewID(), FlagKey: "documents", ScopeType: featureflags.ScopeGlobal,
+		Enabled: true, Note: "edit lock handler tests", CreatedBy: "test",
+	}); err != nil {
+		t.Fatalf("enable documents flag: %v", err)
+	}
+	if testFlagOverrides != nil {
+		testFlagOverrides.Invalidate()
+	}
+	w := &editLockWorld{docsWorld: &docsWorld{srv: srv}, pool: pool}
+	w.token, w.userID = filesRegister(t, srv, "lock-owner@example.com")
+	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Lock Org", "slug": "lock-org"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create org: %d %v", res.StatusCode, out)
+	}
+	w.orgID = out["organization"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, srv, "POST", "/api/v1/orgs/"+w.orgID+"/workspaces", w.token, map[string]string{"name": "Lock WS", "slug": "lock-ws"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create ws: %d %v", res.StatusCode, out)
+	}
+	w.wsID = out["workspace"].(map[string]any)["id"].(string)
+	w.editorToken, w.editor = filesRegister(t, srv, "lock-editor@example.com")
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`, w.orgID, w.editor); err != nil {
+		t.Fatalf("org member: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO workspace_members (workspace_id, organization_id, user_id, role) VALUES ($1, $2, $3, 'member')`, w.wsID, w.orgID, w.editor); err != nil {
+		t.Fatalf("workspace member: %v", err)
+	}
+	w.outsider, _ = filesRegister(t, srv, "lock-outsider@example.com")
+	return w
+}
+
+func lockPath(id string, rest string) string { return "/api/v1/documents/" + id + "/edit-lock" + rest }
+
+func (w *editLockWorld) acquire(t *testing.T, token, docID, editor string) map[string]any {
+	t.Helper()
+	res, out := doJSON(t, w.srv, "POST", lockPath(docID, ""), token, map[string]any{"editor_id": editor, "client": "web_page"})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("acquire: %d %v", res.StatusCode, out)
+	}
+	return out
+}
+
+func pageContent(text string) map[string]any {
+	return map[string]any{"type": "doc", "content": []any{map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": text}}}}}
+}
+
+// wantLocked checks the 423 body: who holds it, never the lock id, no
+// error_class (document_locked is not a conflict).
+func wantLocked(t *testing.T, what string, res *http.Response, out map[string]any, holder string, heldByMe bool) {
+	t.Helper()
+	code, class := errCodeClass(out)
+	if res.StatusCode != http.StatusLocked || code != "document_locked" || class != "" {
+		t.Fatalf("%s: %d code=%q class=%q, want 423 document_locked with no class (%v)", what, res.StatusCode, code, class, out)
+	}
+	fields, _ := out["error"].(map[string]any)["fields"].(map[string]any)
+	for _, k := range []string{"holder_id", "holder_name", "since", "expires_at", "held_by_me", "current_revision"} {
+		if _, ok := fields[k]; !ok {
+			t.Errorf("%s: 423 fields miss %s: %v", what, k, fields)
+		}
+	}
+	if fields["holder_id"] != holder || fields["held_by_me"] != heldByMe {
+		t.Errorf("%s: holder %v held_by_me %v, want %s %v", what, fields["holder_id"], fields["held_by_me"], holder, heldByMe)
+	}
+	if _, ok := fields["current_revision"].(string); !ok {
+		t.Errorf("%s: current_revision must be a string: %v", what, fields["current_revision"])
+	}
+	for _, k := range []string{"lock_id", "offline_hold_until"} {
+		if _, ok := fields[k]; ok {
+			t.Errorf("%s: 423 carries %s: %v", what, k, fields)
+		}
+	}
+}
+
+// TestEditLockWritesRefusedWith423Handler is EL-A01 at the HTTP layer: while
+// the owner holds the page, the other editor's PATCH content and restore
+// answer 423 with the documented body, before any revision check, and the
+// holder's own PATCH with its edit_lock_id passes. A rename needs no lock.
+// The file commit and frame commit carry the same field into the same
+// service gate (service TestEditLockWritesRefusedWith423OnCommitFrameAndRestore).
+func TestEditLockWritesRefusedWith423Handler(t *testing.T) {
+	w := newEditLockWorld(t)
+	_, id := createPage(t, w.docsWorld, "Locked", nil)
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions", w.token, map[string]any{"label": "v1"})
+	if res.StatusCode != 201 {
+		t.Fatalf("version: %d %v", res.StatusCode, out)
+	}
+	lock := w.acquire(t, w.token, id, util.NewID())
+	lockID := lock["lock_id"].(string)
+
+	// The other editor, right base and stale base alike: 423, never 422.
+	for _, rev := range []string{"1", "0"} {
+		res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.editorToken, map[string]any{"revision": rev, "content": pageContent("theirs")})
+		wantLocked(t, "PATCH content base "+rev, res, out, w.userID, false)
+	}
+	// Naming the holder's lock id does not make the editor the holder.
+	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.editorToken, map[string]any{"revision": "1", "content": pageContent("theirs"), "edit_lock_id": lockID})
+	wantLocked(t, "PATCH content with the holder's id", res, out, w.userID, false)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/1/restore", w.editorToken, map[string]any{})
+	wantLocked(t, "restore", res, out, w.userID, false)
+	// The owner without its lock id (another tab): 423 held_by_me.
+	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.token, map[string]any{"revision": "1", "content": pageContent("mine")})
+	wantLocked(t, "owner without the lock id", res, out, w.userID, true)
+
+	// A rename needs no lock (Q5).
+	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.editorToken, map[string]any{"revision": "1", "title": "Renamed"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("rename by the other editor: %d %v", res.StatusCode, out)
+	}
+	// The holder writes with its lock id; a stale base is then the usual 422.
+	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.token, map[string]any{"revision": "2", "content": pageContent("mine"), "edit_lock_id": lockID})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("holder's write: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.token, map[string]any{"revision": "2", "content": pageContent("stale"), "edit_lock_id": lockID})
+	if code, _ := errCodeClass(out); res.StatusCode != 422 || code != "revision_conflict" {
+		t.Fatalf("holder's stale write: %d %v", res.StatusCode, out)
+	}
+}
+
+// TestEditLockRouteStatuses walks R1-R10 through HTTP: the documented
+// statuses and codes, the holder-only lock id, malformed bodies, and an
+// outsider who learns nothing.
+func TestEditLockRouteStatuses(t *testing.T) {
+	w := newEditLockWorld(t)
+	_, id := createPage(t, w.docsWorld, "Statuses", nil)
+	editorID := util.NewID()
+
+	// R1 with no lock.
+	res, out := doJSON(t, w.srv, "GET", lockPath(id, ""), w.editorToken, nil)
+	if res.StatusCode != 200 || out["lock"] != nil || out["can_request"] != false || res.Header.Get("Cache-Control") != "no-store" {
+		t.Fatalf("R1 free: %d %v cache=%q", res.StatusCode, out, res.Header.Get("Cache-Control"))
+	}
+	// R2: malformed bodies are 400, an unknown client too.
+	for _, body := range []any{"not an object", map[string]any{"editor_id": editorID, "client": "fax"}, map[string]any{"editor_id": "", "client": "web_page"}} {
+		res, out = doJSON(t, w.srv, "POST", lockPath(id, ""), w.token, body)
+		if res.StatusCode != http.StatusBadRequest {
+			t.Errorf("R2 malformed %v: %d %v", body, res.StatusCode, out)
+		}
+	}
+	// R2 201 then 200 for the same editor.
+	lock := w.acquire(t, w.token, id, editorID)
+	lockID := lock["lock_id"].(string)
+	if lock["holder_id"] != w.userID || lock["granted_via"] != "acquire" || lock["heartbeat_interval_ms"].(float64) != 30000 || lock["ttl_ms"].(float64) != 120000 {
+		t.Fatalf("R2 body: %v", lock)
+	}
+	res, out = doJSON(t, w.srv, "POST", lockPath(id, ""), w.token, map[string]any{"editor_id": editorID, "client": "web_page"})
+	if res.StatusCode != http.StatusOK || out["lock_id"] != lockID {
+		t.Fatalf("R2 idempotent: %d %v", res.StatusCode, out)
+	}
+	// R2 by the other editor (even with the holder's editor id): 423.
+	res, out = doJSON(t, w.srv, "POST", lockPath(id, ""), w.editorToken, map[string]any{"editor_id": editorID, "client": "web_page"})
+	wantLocked(t, "R2 other user", res, out, w.userID, false)
+
+	// R1 as the other editor: a summary without the lock id (not manage).
+	res, out = doJSON(t, w.srv, "GET", lockPath(id, ""), w.editorToken, nil)
+	sum, _ := out["lock"].(map[string]any)
+	if res.StatusCode != 200 || sum == nil || sum["holder_id"] != w.userID || out["can_request"] != true || out["can_take_over"] != false {
+		t.Fatalf("R1 locked: %d %v", res.StatusCode, out)
+	}
+	if _, ok := sum["lock_id"]; ok {
+		t.Fatalf("R1 shows the lock id to a non-manager: %v", sum)
+	}
+	// The outsider: 404 on every route, nothing of the document.
+	for _, c := range []struct{ method, path string }{
+		{"GET", lockPath(id, "")}, {"POST", lockPath(id, "/"+lockID+"/heartbeat")}, {"DELETE", lockPath(id, "/"+lockID)},
+		{"POST", "/api/v1/documents/" + id + "/edit-requests"},
+	} {
+		res, out = doJSON(t, w.srv, c.method, c.path, w.outsider, map[string]any{})
+		if res.StatusCode != http.StatusNotFound {
+			t.Errorf("outsider %s %s: %d %v", c.method, c.path, res.StatusCode, out)
+		}
+	}
+	// Unauthenticated: 401.
+	if res, _ = doJSON(t, w.srv, "GET", lockPath(id, ""), "", nil); res.StatusCode != http.StatusUnauthorized {
+		t.Errorf("anonymous R1: %d", res.StatusCode)
+	}
+
+	// R3 by the holder 200; by the other editor 409 edit_lock_lost; an id
+	// that is no tenure of this document 404.
+	res, out = doJSON(t, w.srv, "POST", lockPath(id, "/"+lockID+"/heartbeat"), w.token, nil)
+	if res.StatusCode != 200 || out["lock_id"] != lockID {
+		t.Fatalf("R3: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", lockPath(id, "/"+lockID+"/heartbeat"), w.editorToken, nil)
+	if code, class := errCodeClass(out); res.StatusCode != 409 || code != "edit_lock_lost" || class != "" {
+		t.Fatalf("R3 other user: %d %v", res.StatusCode, out)
+	}
+	res, _ = doJSON(t, w.srv, "POST", lockPath(id, "/"+util.NewID()+"/heartbeat"), w.token, nil)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("R3 unknown id: %d", res.StatusCode)
+	}
+	// R6 from a web session: 403 edit_hold_device_required; R7 200.
+	res, out = doJSON(t, w.srv, "PUT", lockPath(id, "/"+lockID+"/offline-hold"), w.token, map[string]any{})
+	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "edit_hold_device_required" {
+		t.Fatalf("R6 web: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "DELETE", lockPath(id, "/"+lockID+"/offline-hold"), w.token, nil)
+	if res.StatusCode != 200 || out["lock_id"] != lockID {
+		t.Fatalf("R7: %d %v", res.StatusCode, out)
+	}
+	// R5: below manage 403; the owner on its own lock 409 held_by_me.
+	takeOver := map[string]any{"editor_id": util.NewID(), "client": "web_page", "expected_lock_id": lockID}
+	res, out = doJSON(t, w.srv, "POST", lockPath(id, "/take-over"), w.editorToken, takeOver)
+	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "forbidden" {
+		t.Fatalf("R5 editor: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", lockPath(id, "/take-over"), w.token, takeOver)
+	if code, _ := errCodeClass(out); res.StatusCode != 409 || code != "edit_lock_held_by_me" {
+		t.Fatalf("R5 own lock: %d %v", res.StatusCode, out)
+	}
+
+	// R8: malformed 400, then 201, then 200 (the open request); the holder 409.
+	res, _ = doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/edit-requests", w.editorToken, "[]")
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("R8 malformed: %d", res.StatusCode)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/edit-requests", w.editorToken, map[string]any{})
+	if res.StatusCode != http.StatusCreated || out["status"] != "pending" || out["holder_id"] != w.userID {
+		t.Fatalf("R8: %d %v", res.StatusCode, out)
+	}
+	requestID := out["request_id"].(string)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/edit-requests", w.editorToken, map[string]any{})
+	if res.StatusCode != http.StatusOK || out["request_id"] != requestID {
+		t.Fatalf("R8 again: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/edit-requests", w.token, map[string]any{})
+	if code, _ := errCodeClass(out); res.StatusCode != 409 || code != "edit_request_to_self" {
+		t.Fatalf("R8 holder: %d %v", res.StatusCode, out)
+	}
+	// R1 as the holder lists the request.
+	res, out = doJSON(t, w.srv, "GET", lockPath(id, ""), w.token, nil)
+	if pending, _ := out["pending_requests"].([]any); res.StatusCode != 200 || len(pending) != 1 {
+		t.Fatalf("R1 holder pending: %d %v", res.StatusCode, out)
+	}
+	// R9: the requester is not the holder 404; a wrong lock id 409
+	// edit_lock_changed; decline 200.
+	answer := "/api/v1/documents/" + id + "/edit-requests/" + requestID + "/answer"
+	res, _ = doJSON(t, w.srv, "POST", answer, w.editorToken, map[string]any{"decision": "decline", "lock_id": lockID})
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("R9 by the requester: %d", res.StatusCode)
+	}
+	res, out = doJSON(t, w.srv, "POST", answer, w.token, map[string]any{"decision": "decline", "lock_id": util.NewID()})
+	if code, _ := errCodeClass(out); res.StatusCode != 409 || code != "edit_lock_changed" {
+		t.Fatalf("R9 wrong lock: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", answer, w.token, map[string]any{"decision": "decline", "lock_id": lockID})
+	if res.StatusCode != 200 || out["status"] != "declined" {
+		t.Fatalf("R9 decline: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", answer, w.token, map[string]any{"decision": "decline", "lock_id": lockID})
+	if code, _ := errCodeClass(out); res.StatusCode != 409 || code != "edit_request_closed" {
+		t.Fatalf("R9 twice: %d %v", res.StatusCode, out)
+	}
+	// R10: not the requester 404; the requester 204, idempotent.
+	cancel := "/api/v1/documents/" + id + "/edit-requests/" + requestID
+	if res, _ = doJSON(t, w.srv, "DELETE", cancel, w.token, nil); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("R10 by the holder: %d", res.StatusCode)
+	}
+	for i := 0; i < 2; i++ {
+		if res, _ = doJSON(t, w.srv, "DELETE", cancel, w.editorToken, nil); res.StatusCode != http.StatusNoContent {
+			t.Fatalf("R10 #%d: %d", i+1, res.StatusCode)
+		}
+	}
+	// R4: the other editor 404; the holder 204, idempotent; then R3 is lost.
+	if res, _ = doJSON(t, w.srv, "DELETE", lockPath(id, "/"+lockID), w.editorToken, nil); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("R4 other user: %d", res.StatusCode)
+	}
+	for i := 0; i < 2; i++ {
+		if res, _ = doJSON(t, w.srv, "DELETE", lockPath(id, "/"+lockID), w.token, nil); res.StatusCode != http.StatusNoContent {
+			t.Fatalf("R4 #%d: %d", i+1, res.StatusCode)
+		}
+	}
+	res, out = doJSON(t, w.srv, "POST", lockPath(id, "/"+lockID+"/heartbeat"), w.token, nil)
+	if code, _ := errCodeClass(out); res.StatusCode != 409 || code != "edit_lock_lost" {
+		t.Fatalf("R3 after release: %d %v", res.StatusCode, out)
+	}
+	if reason := out["error"].(map[string]any)["fields"].(map[string]any)["reason"]; reason != "released" {
+		t.Fatalf("lost reason = %v, want released", reason)
+	}
+	// R8 and R5 with no lock: 409 edit_lock_free.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/edit-requests", w.editorToken, map[string]any{})
+	if code, _ := errCodeClass(out); res.StatusCode != 409 || code != "edit_lock_free" {
+		t.Fatalf("R8 free: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", lockPath(id, "/take-over"), w.token, takeOver)
+	if code, _ := errCodeClass(out); res.StatusCode != 409 || code != "edit_lock_free" {
+		t.Fatalf("R5 free: %d %v", res.StatusCode, out)
+	}
+}
