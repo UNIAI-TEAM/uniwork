@@ -421,6 +421,11 @@ func (s *ChatService) LeaveChatRoom(ctx context.Context, userID, workspaceID, ro
 	if room.Kind == chatRoomKindWorkspace || room.IsDefault {
 		return Invalid("không thể rời kênh mặc định của workspace")
 	}
+	if room.Kind == chatRoomKindGroup || room.Kind == chatRoomKindChannel {
+		if err := s.refuseLastAdminLeaving(ctx, roomID, userID); err != nil {
+			return err
+		}
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err

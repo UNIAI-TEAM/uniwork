@@ -282,6 +282,7 @@ type ChatRoomMemberDTO struct {
 	SendRestricted bool   `json:"send_restricted" description:"Read-only when true" example:"false"`
 	Email          string `json:"email" description:"Account email" example:"member@example.com"`
 	DisplayName    string `json:"display_name" description:"Display name" example:"Nguyen Van A"`
+	IsCreator      bool   `json:"is_creator" description:"True for the member who created the room" example:"false"`
 }
 
 // ChatRoomMemberListSDO is GET .../rooms/{roomID}/members.

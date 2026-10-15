@@ -293,3 +293,70 @@ func TestJoinChannelKeepsSendRestriction(t *testing.T) {
 		t.Fatal("rejoin ignored the latest left row's send_restricted")
 	}
 }
+
+// The only admin of a channel or group that others still use cannot leave it,
+// by leaving or by removing themselves, until someone else is admin: nobody
+// would be left to invite, kick or promote.
+func TestLastAdminCannotLeaveARoomOthersStillUse(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := chatTestUser(t, q, w, "last-admin-c@example.com")
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "du-an-x", Visibility: chatVisibilityPrivate, MemberUserIDs: []string{ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Sales", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	admin := "admin"
+	for _, roomID := range []string{ch.ID, group.ID} {
+		if err := s.LeaveChatRoom(ctx, ua.ID, w.ID, roomID); !codedIs(err, "chat_last_admin") {
+			t.Fatalf("room %s: last admin leave = %v, want chat_last_admin", roomID, err)
+		}
+		if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: roomID, UserID: ua.ID}); err != nil {
+			t.Fatalf("room %s: refused leave must keep the admin: %v", roomID, err)
+		}
+		if err := s.UpdateChatRoomMember(ctx, ua.ID, w.ID, roomID, ub.ID, UpdateChatRoomMemberInput{Role: &admin}); err != nil {
+			t.Fatalf("room %s: promote: %v", roomID, err)
+		}
+		if err := s.LeaveChatRoom(ctx, ua.ID, w.ID, roomID); err != nil {
+			t.Fatalf("room %s: leave once another admin exists: %v", roomID, err)
+		}
+		// Removing oneself is leaving too.
+		if err := s.RemoveChatRoomMember(ctx, ub.ID, w.ID, roomID, ub.ID); !codedIs(err, "chat_last_admin") {
+			t.Fatalf("room %s: last admin self-removal = %v, want chat_last_admin", roomID, err)
+		}
+	}
+}
+
+// ListChatRoomMembers marks the room's creator, the one the client needs to
+// mirror canModerateChatRoom and canDemoteChatAdmin.
+func TestListChatRoomMembersMarksTheCreator(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := chatTestUser(t, q, w, "creator-flag-c@example.com")
+	group, err := s.CreateGroup(ctx, ub.ID, w.ID, CreateGroupInput{Name: "Sales", MemberUserIDs: []string{ua.ID, uc.ID}})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	members, err := s.ListChatRoomMembers(ctx, ua.ID, w.ID, group.ID)
+	if err != nil {
+		t.Fatalf("list members: %v", err)
+	}
+	if len(members) != 3 {
+		t.Fatalf("members = %d, want 3", len(members))
+	}
+	for _, m := range members {
+		if m.IsCreator != (m.UserID == ub.ID) {
+			t.Fatalf("member %s IsCreator = %v", m.UserID, m.IsCreator)
+		}
+	}
+}

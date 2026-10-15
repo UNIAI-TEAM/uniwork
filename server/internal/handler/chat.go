@@ -434,7 +434,7 @@ func (h *handlers) listChatRoomMembers(w http.ResponseWriter, r *http.Request) {
 	for _, m := range members {
 		out = append(out, sdo.ChatRoomMemberDTO{
 			UserID: m.UserID, Role: m.Role, SendRestricted: m.SendRestricted,
-			Email: m.Email, DisplayName: m.DisplayName,
+			Email: m.Email, DisplayName: m.DisplayName, IsCreator: m.IsCreator,
 		})
 	}
 	respondJSON(w, http.StatusOK, sdo.ChatRoomMemberListSDO{Members: out})
