@@ -161,7 +161,7 @@ function parseRequest(raw: unknown, endpoint: string): DocumentEditRequest | nul
 /**
  * R1 GET /api/v1/documents/{documentID}/edit-lock — who holds the document.
  * Null when the answer is malformed: the caller treats the state as unknown
- * (never as "free", which would offer "Edit now" over a live holder).
+ * (never as unheld, which would offer "Edit now" over a live holder).
  */
 export async function getDocumentEditLock(
   documentId: string,

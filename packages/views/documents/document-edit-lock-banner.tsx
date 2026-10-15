@@ -48,7 +48,7 @@ export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRe
       tone = "warning";
       body = t("documents.editLock.acquireFailed");
       break;
-    case "free":
+    case "unheld":
       icon = PencilLine;
       body = t("documents.editLock.bannerFree");
       actions = [action(t("documents.editLock.editNow"), onEditNow, "default")];

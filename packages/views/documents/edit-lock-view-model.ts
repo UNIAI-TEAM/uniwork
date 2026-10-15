@@ -5,7 +5,7 @@ type EditLockSessionState = ReturnType<typeof useDocumentEditLock>["state"];
 
 // What the edit-lock banner says (addendum §11.3), derived from this editor's
 // session and the R1 state. R1 is the truth once it is read: a lock frame
-// refetches it, so "free" and "someone else" follow the server, not the 423
+// refetches it, so "unheld" and "someone else" follow the server, not the 423
 // that first made the editor read-only.
 
 /** A lost lock the banner still names (the Office frame has no dialog of its own yet). */
@@ -23,7 +23,7 @@ export type EditLockBannerView =
   | { kind: "none" }
   /** R2 failed for another reason; the session retries by itself. */
   | { kind: "error" }
-  | { kind: "free"; lost?: EditLockLostNote }
+  | { kind: "unheld"; lost?: EditLockLostNote }
   | { kind: "selfElsewhere"; lost?: EditLockLostNote }
   | {
       kind: "other";
@@ -72,7 +72,7 @@ export function editLockBannerView(input: EditLockViewInput): EditLockBannerView
   if (!lockState) {
     // R1 not read yet (or malformed): the 423's holder is all there is.
     const holder = session.holder;
-    if (!holder) return withLost({ kind: "free" as const });
+    if (!holder) return withLost({ kind: "unheld" as const });
     if (holder.heldByMe) return withLost({ kind: "selfElsewhere" as const });
     return withLost({
       kind: "other" as const, holderName: holder.name, since: holder.since, offlineHoldUntil: holder.offlineHoldUntil,
@@ -81,7 +81,7 @@ export function editLockBannerView(input: EditLockViewInput): EditLockBannerView
   }
 
   const lock = lockState.lock;
-  if (!lock) return withLost({ kind: "free" as const });
+  if (!lock) return withLost({ kind: "unheld" as const });
   // A handover reserved for this user: the hook claims it now.
   if (lock.reserved && lock.held_by_me) return { kind: "none" };
   if (lock.held_by_me) return withLost({ kind: "selfElsewhere" as const });

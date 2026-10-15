@@ -84,14 +84,14 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
     expect(region).toHaveTextContent(`An đang sửa từ ${hhmm(SINCE)}.`);
   });
 
-  it("free (just released or expired): 'No one is editing' + 'Edit now'", () => {
+  it("unheld (just released or expired): 'No one is editing' + 'Edit now'", () => {
     const { region, onEditNow } = renderBanner({ session: session("other"), lockState: r1({ lock: null }) });
     expect(region).toHaveTextContent("Không còn ai sửa tài liệu này.");
     fireEvent.click(screen.getByRole("button", { name: "Sửa ngay" }));
     expect(onEditNow).toHaveBeenCalled();
   });
 
-  it("lost + clean (page): back to what R1 says, someone else or free, with no lost sentence", () => {
+  it("lost + clean (page): back to what R1 says, someone else or unheld, with no lost sentence", () => {
     renderBanner({ session: session("lost", { lostReason: "taken_over", lostBy: { id: "u2", name: "An" } }), lockState: r1({ can_take_over: true }) });
     expect(screen.getByTestId("edit-lock-banner")).toHaveTextContent(`An đang sửa từ ${hhmm(SINCE)}.`);
     expect(screen.getByTestId("edit-lock-banner")).not.toHaveTextContent("đã lấy quyền sửa");

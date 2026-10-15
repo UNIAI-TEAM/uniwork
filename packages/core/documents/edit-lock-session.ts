@@ -27,7 +27,7 @@ import { forgetHeldEditLock, registerHeldEditLock } from "./edit-lock-registry";
  * endpoint functions, tests a fake.
  */
 
-export type EditLockPhase =
+type EditLockPhase =
   /** Not started, or the caller cannot edit. */
   | "idle"
   /** R2 in flight. */
@@ -44,7 +44,7 @@ export type EditLockPhase =
   | "error";
 
 /** The holder a 423 named (no lock id: it is the holder's key). */
-export interface EditLockHolder {
+interface EditLockHolder {
   id: string;
   name: string;
   since: string;
