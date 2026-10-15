@@ -33,21 +33,38 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# NameHasOwner on the bus itself never activates a service; a call addressed to
+# org.freedesktop.secrets would, and the bus would start a second, locked
+# keyring that makes ours exit ("another secret service is running").
+name_owned() {
+  dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+    org.freedesktop.DBus.NameHasOwner string:org.freedesktop.secrets 2> /dev/null | grep -q 'boolean true'
+}
+if name_owned; then
+  echo "BLOCKED: org.freedesktop.secrets is already owned on this session bus before our keyring started; not racing it" >&2
+  exit 77
+fi
+
 KEYRING_PASSWORD="$(head -c 24 /dev/urandom | base64 | tr -d '\n=/+')"
 printf '%s' "$KEYRING_PASSWORD" | gnome-keyring-daemon --foreground --unlock --components=secrets > "$WORK/gkd.log" 2>&1 &
 GKD_PID=$!
 unset KEYRING_PASSWORD
 
-unlocked=no
+secrets_owned=no
 for _ in $(seq 1 30); do
-  if dbus-send --session --print-reply --dest=org.freedesktop.secrets /org/freedesktop/secrets/aliases/default \
-      org.freedesktop.DBus.Properties.Get string:org.freedesktop.Secret.Collection string:Locked 2> /dev/null | grep -q 'boolean false'; then
-    unlocked=yes
+  kill -0 "$GKD_PID" 2> /dev/null || break
+  if name_owned; then
+    secrets_owned=yes
     break
   fi
-  kill -0 "$GKD_PID" 2> /dev/null || break
   sleep 0.5
 done
+unlocked=no
+if [ "$secrets_owned" = yes ] && kill -0 "$GKD_PID" 2> /dev/null \
+  && dbus-send --session --print-reply --dest=org.freedesktop.secrets /org/freedesktop/secrets/aliases/default \
+    org.freedesktop.DBus.Properties.Get string:org.freedesktop.Secret.Collection string:Locked 2> /dev/null | grep -q 'boolean false'; then
+  unlocked=yes
+fi
 echo "APP_KEYRING unlocked=$unlocked"
 if [ "$unlocked" != yes ]; then
   echo "BLOCKED: the keyring daemon did not come up unlocked; its log tail:" >&2
