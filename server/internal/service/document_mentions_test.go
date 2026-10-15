@@ -255,23 +255,22 @@ func TestDocumentMentionCandidatesResolveFileBackedAvatar(t *testing.T) {
 	}
 }
 
-// A restricted document has no member leg: only the ACL owner, the implicit
-// admins and the live shares hold view, and the list says exactly that.
+// A restricted document has no member leg: only the ACL owner, the live
+// shares and the live break-glass grants hold view (DOC-05: organization and
+// workspace admins are not readers), and the list says exactly that.
 func TestDocumentMentionCandidatesRestrictedDocument(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "menrs")
 	doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 
 	got := mentionCandidatesOf(t, f, Human(tn.aclOwner.ID), doc.ID, MentionCandidateQuery{})
-	for name, id := range map[string]string{
-		"organization owner": tn.owner.ID, "organization admin": tn.orgAdmin.ID,
-		"workspace admin": tn.wsAdmin.ID, "acl owner": tn.aclOwner.ID,
-	} {
+	for name, id := range map[string]string{"acl owner": tn.aclOwner.ID} {
 		if _, ok := got[id]; !ok {
 			t.Errorf("%s holds view on the restricted document and is missing", name)
 		}
 	}
 	for name, id := range map[string]string{
+		"organization owner": tn.owner.ID, "organization admin": tn.orgAdmin.ID, "workspace admin": tn.wsAdmin.ID,
 		"plain workspace member": tn.member.ID, "creator": tn.creator.ID,
 		"member of another workspace": tn.bMember.ID, "deactivated member": tn.deact.ID,
 	} {
