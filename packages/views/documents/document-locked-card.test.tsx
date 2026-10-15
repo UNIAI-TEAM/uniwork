@@ -4,14 +4,12 @@ import { initI18n } from "@uniwork/core/i18n";
 import {
   DocumentBreakGlassBanner,
   DocumentLockedCard,
-  resetBreakGlassAdapterForTests,
 } from "./document-locked-card";
 
 initI18n();
 
 afterEach(() => {
   cleanup();
-  resetBreakGlassAdapterForTests();
 });
 
 describe("DocumentLockedCard", () => {

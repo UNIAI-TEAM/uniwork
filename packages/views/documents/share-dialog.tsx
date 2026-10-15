@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import {
+  useDocumentShares,
   useRevokeDocumentShare,
   useShareDocument,
 } from "@uniwork/core/documents/hooks-sharing";
@@ -37,7 +38,7 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useNavigation } from "../navigation";
-import { ShareDialogBreakGlassSection, hasAdminScope, shareErrorMessage, useShareAccessQuery, useShareWorkspace } from "./share-dialog-break-glass";
+import { ShareDialogBreakGlassSection, hasAdminScope, shareErrorMessage, useShareWorkspace } from "./share-dialog-break-glass";
 import { ShareLinksSection } from "./share-links-section";
 
 export interface ShareDialogProps {
@@ -74,7 +75,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, initialSection }: S
   const canManage = doc.my_level === "manage" || hasAdminScope(doc);
   const owned = !!doc.owner_kind;
 
-  const access = useShareAccessQuery(wsId, doc.id, { enabled: open && canManage && !owned });
+  const access = useDocumentShares(wsId, doc.id, { enabled: open && canManage && !owned });
   const share = useShareDocument(wsId, doc.id);
   const revokeShare = useRevokeDocumentShare(wsId, doc.id);
   const update = useUpdateDocument(wsId, doc.id);

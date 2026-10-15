@@ -4,147 +4,46 @@ import { useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Lock, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { ApiError, errorCode, request } from "@uniwork/core/api/http";
+import {
+  canBreakGlassFromError,
+  createDocumentBreakGlass,
+  getDocumentAdminSummary,
+  isBreakGlassReasonInvalidError,
+  isBreakGlassRequiredError,
+  isDocumentRestrictedError,
+  parseDocumentAccessError,
+  revokeDocumentBreakGlass,
+} from "@uniwork/core/api/endpoints/documents";
 import { documentKeys } from "@uniwork/core/documents/keys";
-import type { DocumentAccess, DocumentPersonAccess } from "@uniwork/core/types";
+import type {
+  BreakGlassReasonInvalidError,
+  BreakGlassRequiredError,
+  DocumentAccessError,
+  DocumentAdminSummary,
+  DocumentAdminSummaryDocument,
+  DocumentBreakGlassGrant,
+  DocumentRestrictedError,
+} from "@uniwork/core/types/document-access";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 
+export {
+  canBreakGlassFromError,
+  isBreakGlassReasonInvalidError,
+  isBreakGlassRequiredError,
+  isDocumentRestrictedError,
+  parseDocumentAccessError,
+  type BreakGlassReasonInvalidError,
+  type BreakGlassRequiredError,
+  type DocumentAccessError,
+  type DocumentAdminSummary,
+  type DocumentAdminSummaryDocument,
+  type DocumentBreakGlassGrant,
+  type DocumentRestrictedError,
+};
+
 export const BREAK_GLASS_REASON_MIN = 10;
 export const BREAK_GLASS_REASON_MAX = 500;
-
-/**
- * Wire shapes from server contract G8-18 / DOC-05
- * (/home/ubuntu/office-g5g6g7/reports/e6-server/contract-g8-18-doc-05.md).
- * Kept local to views so packages/core types never carry `admin_scope` (spec §11).
- */
-export interface DocumentBreakGlassGrant {
-  id: string;
-  document_id: string;
-  actor_id: string;
-  actor_name: string;
-  level: "view";
-  reason: string;
-  granted_at: string;
-  expires_at: string;
-}
-
-export interface DocumentAdminSummaryDocument {
-  id: string;
-  organization_id?: string;
-  workspace_id?: string;
-  parent_id?: string | null;
-  kind?: string;
-  title: string;
-  icon?: string | null;
-  visibility?: "workspace" | "restricted" | string;
-  size_bytes?: number;
-  archived_at?: string | null;
-  created_by?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface DocumentAdminSummary {
-  document: DocumentAdminSummaryDocument;
-  acl_owner: DocumentPersonAccess | null;
-  my_level: string;
-  via?: string;
-  admin_scope: boolean;
-  my_grant: DocumentBreakGlassGrant | null;
-}
-
-export type DocumentAccessWithBreakGlass = DocumentAccess & {
-  admin_scope?: boolean;
-  break_glass?: DocumentBreakGlassGrant[];
-};
-
-export interface BreakGlassAdapter {
-  getAdminSummary: (wsId: string, documentId: string) => Promise<DocumentAdminSummary>;
-  grantBreakGlass: (
-    wsId: string,
-    documentId: string,
-    reason: string,
-  ) => Promise<{ grant: DocumentBreakGlassGrant }>;
-  revokeBreakGlass: (
-    wsId: string,
-    documentId: string,
-    grantId: string,
-  ) => Promise<{ status: string }>;
-  getAccessWithBreakGlass: (
-    wsId: string,
-    documentId: string,
-  ) => Promise<DocumentAccessWithBreakGlass>;
-}
-
-const defaultBreakGlassAdapter: BreakGlassAdapter = {
-  getAdminSummary: (_wsId, documentId) =>
-    request<DocumentAdminSummary>(
-      `/api/v1/documents/${encodeURIComponent(documentId)}/admin-summary`,
-    ),
-  grantBreakGlass: (_wsId, documentId, reason) =>
-    request<{ grant: DocumentBreakGlassGrant }>(
-      `/api/v1/documents/${encodeURIComponent(documentId)}/break-glass`,
-      { method: "POST", body: { reason } },
-    ),
-  revokeBreakGlass: (_wsId, documentId, grantId) =>
-    request<{ status: string }>(
-      `/api/v1/documents/${encodeURIComponent(documentId)}/break-glass/${encodeURIComponent(grantId)}`,
-      { method: "DELETE" },
-    ),
-  getAccessWithBreakGlass: (_wsId, documentId) =>
-    request<DocumentAccessWithBreakGlass>(
-      `/api/v1/documents/${encodeURIComponent(documentId)}/shares`,
-    ),
-};
-
-let currentAdapter: BreakGlassAdapter = { ...defaultBreakGlassAdapter };
-
-export function setBreakGlassAdapterForTests(overrides: Partial<BreakGlassAdapter>): void {
-  currentAdapter = { ...currentAdapter, ...overrides };
-}
-
-export function resetBreakGlassAdapterForTests(): void {
-  currentAdapter = { ...defaultBreakGlassAdapter };
-}
-
-export function getBreakGlassAdapter(): BreakGlassAdapter {
-  return currentAdapter;
-}
-
-export function isDocumentRestrictedError(err: unknown): boolean {
-  if (errorCode(err) === "document_restricted") return true;
-  if (typeof err === "object" && err !== null) {
-    return (err as { code?: unknown }).code === "document_restricted";
-  }
-  return false;
-}
-
-export function canBreakGlassFromError(err: unknown): boolean {
-  if (!isDocumentRestrictedError(err)) return false;
-  const fields =
-    err instanceof ApiError
-      ? err.fields
-      : (err as { fields?: Record<string, unknown> } | null)?.fields;
-  const raw = fields?.can_break_glass;
-  return raw === true || raw === "true";
-}
-
-export function isBreakGlassRequiredError(err: unknown): boolean {
-  if (errorCode(err) === "break_glass_required") return true;
-  if (typeof err === "object" && err !== null) {
-    return (err as { code?: unknown }).code === "break_glass_required";
-  }
-  return false;
-}
-
-export function isBreakGlassReasonInvalidError(err: unknown): boolean {
-  if (errorCode(err) === "break_glass_reason_invalid") return true;
-  if (typeof err === "object" && err !== null) {
-    return (err as { code?: unknown }).code === "break_glass_reason_invalid";
-  }
-  return false;
-}
 
 export function hasAdminScope(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
@@ -160,28 +59,16 @@ export function getBreakGlassExpiresAt(value: unknown): string | undefined {
 export function useDocumentAdminSummary(wsId: string, documentId: string, enabled = true) {
   return useQuery({
     queryKey: [...documentKeys.detail(wsId, documentId), "admin-summary"] as const,
-    queryFn: () => currentAdapter.getAdminSummary(wsId, documentId),
+    queryFn: ({ signal }) => getDocumentAdminSummary(documentId, signal),
     enabled: Boolean(wsId) && Boolean(documentId) && enabled,
     retry: false,
-  });
-}
-
-export function useDocumentAccessWithBreakGlass(
-  wsId: string,
-  documentId: string,
-  enabled = true,
-) {
-  return useQuery({
-    queryKey: documentKeys.shares(wsId, documentId),
-    queryFn: () => currentAdapter.getAccessWithBreakGlass(wsId, documentId),
-    enabled: Boolean(wsId) && Boolean(documentId) && enabled,
   });
 }
 
 export function useGrantDocumentBreakGlass(wsId: string, documentId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (reason: string) => currentAdapter.grantBreakGlass(wsId, documentId, reason),
+    mutationFn: (reason: string) => createDocumentBreakGlass(documentId, { reason }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) });
       void qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) });
@@ -193,7 +80,7 @@ export function useGrantDocumentBreakGlass(wsId: string, documentId: string) {
 export function useRevokeDocumentBreakGlass(wsId: string, documentId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (grantId: string) => currentAdapter.revokeBreakGlass(wsId, documentId, grantId),
+    mutationFn: (grantId: string) => revokeDocumentBreakGlass(documentId, grantId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) });
       void qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) });

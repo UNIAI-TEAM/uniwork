@@ -3,9 +3,14 @@
 import { FolderX, ShieldAlert, CircleX, RefreshCw } from "lucide-react";
 import { useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  canBreakGlassFromError,
+  isDocumentRestrictedError,
+} from "@uniwork/core/api/endpoints/documents";
 import { useDocument } from "@uniwork/core/documents/hooks";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import type { Document } from "@uniwork/core/types/document";
+import type { DocumentBreakGlassGrant } from "@uniwork/core/types/document-access";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { CollectionPageState } from "../layout/collection-page";
@@ -16,16 +21,13 @@ import { DocumentCommentsPanel } from "./document-comments-panel";
 import { DocumentCommentsProvider } from "./document-comments-context";
 import { DocumentInboxState } from "./document-inbox-state";
 import {
-  canBreakGlassFromError,
   DocumentBreakGlassBanner,
   DocumentLockedCard,
   getBreakGlassExpiresAt,
   hasAdminScope,
-  isDocumentRestrictedError,
   useDocumentAdminSummary,
   useGrantDocumentBreakGlass,
   useRevokeDocumentBreakGlass,
-  type DocumentBreakGlassGrant,
 } from "./document-locked-card";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { DocumentWorkspace } from "./document-workspace";
@@ -160,8 +162,8 @@ export function DocumentDetailView({
   }
 
   const handleGrantBreakGlass = async (reason: string) => {
-    const res = await grantBreakGlass.mutateAsync(reason);
-    setActiveGrant(res.grant);
+    const grant = await grantBreakGlass.mutateAsync(reason);
+    setActiveGrant(grant);
     setHadBreakGlassSession(true);
     setGrantExpiredOrEnded(false);
     setEndAccessError(null);

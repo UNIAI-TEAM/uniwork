@@ -425,6 +425,8 @@ describe("DocumentDetailView", () => {
         return Promise.resolve({
           document: {
             id: "d1",
+            workspace_id: WS,
+            kind: "page",
             title: "Tài liệu Hạn chế",
             visibility: "restricted",
             size_bytes: 4096,
@@ -486,7 +488,7 @@ describe("DocumentDetailView", () => {
       }
       if (path === "/api/v1/documents/d1/admin-summary") {
         return Promise.resolve({
-          document: { id: "d1", title: "Tài liệu Khóa", visibility: "restricted", size_bytes: 512 },
+          document: { id: "d1", workspace_id: WS, kind: "page", title: "Tài liệu Khóa", visibility: "restricted", size_bytes: 512 },
           acl_owner: null,
           my_level: "manage",
           admin_scope: true,
@@ -531,7 +533,7 @@ describe("DocumentDetailView", () => {
       }
       if (path === "/api/v1/documents/d1/admin-summary") {
         return Promise.resolve({
-          document: { id: "d1", title: "Kế hoạch Q3", visibility: "restricted", size_bytes: 1024 },
+          document: { id: "d1", workspace_id: WS, kind: "page", title: "Kế hoạch Q3", visibility: "restricted", size_bytes: 1024 },
           acl_owner: { user_id: "u1", level: "manage" },
           my_level: "manage",
           admin_scope: true,

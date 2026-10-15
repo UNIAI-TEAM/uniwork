@@ -4,16 +4,15 @@ import { ShieldAlert } from "lucide-react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
+import { isBreakGlassRequiredError } from "@uniwork/core/api/endpoints/documents";
 import type { Document } from "@uniwork/core/types/document";
+import type { DocumentBreakGlassGrant } from "@uniwork/core/types/document-access";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import {
   formatBreakGlassTime,
   hasAdminScope,
-  isBreakGlassRequiredError,
-  useDocumentAccessWithBreakGlass,
   useRevokeDocumentBreakGlass,
-  type DocumentBreakGlassGrant,
 } from "./document-locked-card";
 
 export { hasAdminScope };
@@ -29,14 +28,6 @@ export function useShareWorkspace(doc: Document, wsId: string) {
       organization_name: doc.organization_id,
     }
   );
-}
-
-export function useShareAccessQuery(
-  wsId: string,
-  docId: string,
-  opts: { enabled: boolean },
-) {
-  return useDocumentAccessWithBreakGlass(wsId, docId, opts.enabled);
 }
 
 export function shareErrorMessage(err: unknown, t: TFunction): string | undefined {
