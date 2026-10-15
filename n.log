@@ -1,0 +1,649 @@
+$ for d in .harness-run-r10/fault/FQ-*/; do echo "=== $d"; ls "$d"; head -n 15 "$d/intent-log.jsonl" 2>/dev/null; head -n 15 "$d/proxy-log.jsonl" 2>/dev/null; head -c 800 "$d/server-versions.json" 2>/dev/null; echo; done; cat test-results/office-g5g6g7-evidence/evidence.jsonl 2>/dev/null; true
+=== .harness-run-r10/fault/FQ-01/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:23.205Z","case":"FQ-01","source":"driver","step":"upload","intent":"intent-1","keyTag":"489ef09400b7","attempt":1,"from":null,"to":null,"event":"upload","status":201,"outcome":"staged","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:23.216Z","case":"FQ-01","source":"driver","step":"commit_1","intent":"intent-1","keyTag":"c39b49d23f4a","attempt":1,"from":null,"to":null,"event":"commit_1","status":"dropped","outcome":"dropped","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:23.219Z","case":"FQ-01","source":"driver","step":"lookup","intent":"intent-1","keyTag":"c39b49d23f4a","attempt":1,"from":null,"to":null,"event":"lookup","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:23.223Z","case":"FQ-01","source":"driver","step":"commit_replay","intent":"intent-1","keyTag":"c39b49d23f4a","attempt":2,"from":null,"to":null,"event":"commit_replay","status":200,"outcome":"replayed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:23.204Z","method":"POST","path":"/api/v1/documents/01M4ZXFCTBR3S8XJHGY1WSKQ7R/uploads","status":201,"ms":8,"idempotencyKey":true,"keyTag":"717f5c5c5c29","ruleId":null}
+{"ts":"2026-10-15T13:54:23.214Z","method":"POST","path":"/api/v1/documents/01M4ZXFCTBR3S8XJHGY1WSKQ7R/versions/commit","status":"dropped","ms":9,"idempotencyKey":true,"keyTag":"2811117ce082","ruleId":"lose-commit-answer"}
+{"ts":"2026-10-15T13:54:23.218Z","method":"GET","path":"/api/v1/documents/01M4ZXFCTBR3S8XJHGY1WSKQ7R/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"2811117ce082","ruleId":null}
+{"ts":"2026-10-15T13:54:23.222Z","method":"POST","path":"/api/v1/documents/01M4ZXFCTBR3S8XJHGY1WSKQ7R/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"2811117ce082","ruleId":null}
+{
+  "document_id": "01M4ZXFCTBR3S8XJHGY1WSKQ7R",
+  "documentId": "01M4ZXFCTBR3S8XJHGY1WSKQ7R",
+  "readAt": "2026-10-15T13:54:23.227Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFCVCXG1H0R77C03PAM1B",
+      "document_id": "01M4ZXFCTBR3S8XJHGY1WSKQ7R",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFCTZ6TN7NDA7BCDNJJEP",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "b1af985844dabad51c9bce700aa101522ccb5baba9597368e304e838df2b46f0",
+      "download_url": "/api/v1/documents/01M4ZXFCTBR3S8XJHGY1WSKQ7R/download?version=2",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-02/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:23.319Z","case":"FQ-02","source":"driver","step":"commit_1_dropped","intent":"intent-1","keyTag":"69e420b688b3","attempt":1,"from":null,"to":null,"event":"commit_1_dropped","status":"dropped","outcome":"dropped","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:23.323Z","case":"FQ-02","source":"driver","step":"lookup_unknown","intent":"intent-1","keyTag":"69e420b688b3","attempt":1,"from":null,"to":null,"event":"lookup_unknown","status":410,"outcome":"unknown","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:23.330Z","case":"FQ-02","source":"driver","step":"commit_retry","intent":"intent-1","keyTag":"69e420b688b3","attempt":2,"from":null,"to":null,"event":"commit_retry","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:23.314Z","method":"POST","path":"/api/v1/documents/01M4ZXFCY1AHBPPQMTR4RJF3P7/uploads","status":201,"ms":7,"idempotencyKey":true,"keyTag":"de7197238604","ruleId":null}
+{"ts":"2026-10-15T13:54:23.316Z","method":"POST","path":"/api/v1/documents/01M4ZXFCY1AHBPPQMTR4RJF3P7/versions/commit","status":"dropped","ms":0,"idempotencyKey":true,"keyTag":"79f199ca7ede","ruleId":"drop-commit"}
+{"ts":"2026-10-15T13:54:23.322Z","method":"GET","path":"/api/v1/documents/01M4ZXFCY1AHBPPQMTR4RJF3P7/versions/commit","status":410,"ms":2,"idempotencyKey":true,"keyTag":"79f199ca7ede","ruleId":null}
+{"ts":"2026-10-15T13:54:23.329Z","method":"POST","path":"/api/v1/documents/01M4ZXFCY1AHBPPQMTR4RJF3P7/versions/commit","status":200,"ms":6,"idempotencyKey":true,"keyTag":"79f199ca7ede","ruleId":null}
+{
+  "document_id": "01M4ZXFCY1AHBPPQMTR4RJF3P7",
+  "documentId": "01M4ZXFCY1AHBPPQMTR4RJF3P7",
+  "readAt": "2026-10-15T13:54:23.332Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFCYZRXMYJXM58SG671HM",
+      "document_id": "01M4ZXFCY1AHBPPQMTR4RJF3P7",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFCYDJQQHD09MFR59910H",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "704ee2c79a11fabdd022e28ee183173bb5ca453dd725318831f1e9164cf3b610",
+      "download_url": "/api/v1/documents/01M4ZXFCY1AHBPPQMTR4RJF3P7/download?version=2",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-03/
+case-result.json
+evidence-g5-a06.log
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:23.832Z","case":"FQ-03","source":"driver","step":"commit_concurrent_1","intent":"intent-1","keyTag":"68efbd2a2fbb","attempt":1,"from":null,"to":null,"event":"commit_concurrent_1","status":200,"outcome":"ok","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:23.832Z","case":"FQ-03","source":"driver","step":"commit_concurrent_2","intent":"intent-1","keyTag":"68efbd2a2fbb","attempt":2,"from":null,"to":null,"event":"commit_concurrent_2","status":200,"outcome":"ok","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:23.836Z","case":"FQ-03","source":"driver","step":"lookup","intent":"intent-1","keyTag":"68efbd2a2fbb","attempt":1,"from":null,"to":null,"event":"lookup","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:23.423Z","method":"POST","path":"/api/v1/documents/01M4ZXFD1FX072F4CWXZSJQA6J/uploads","status":201,"ms":6,"idempotencyKey":true,"keyTag":"e1671c8dc94e","ruleId":null}
+{"ts":"2026-10-15T13:54:23.458Z","method":"POST","path":"/api/v1/documents/01M4ZXFD1FX072F4CWXZSJQA6J/versions/commit","status":200,"ms":7,"idempotencyKey":true,"keyTag":"ff6f5fa02b45","ruleId":null}
+{"ts":"2026-10-15T13:54:23.831Z","method":"POST","path":"/api/v1/documents/01M4ZXFD1FX072F4CWXZSJQA6J/versions/commit","status":200,"ms":407,"idempotencyKey":true,"keyTag":"ff6f5fa02b45","ruleId":"slow-first"}
+{"ts":"2026-10-15T13:54:23.836Z","method":"GET","path":"/api/v1/documents/01M4ZXFD1FX072F4CWXZSJQA6J/versions/commit","status":200,"ms":3,"idempotencyKey":true,"keyTag":"ff6f5fa02b45","ruleId":null}
+{
+  "document_id": "01M4ZXFD1FX072F4CWXZSJQA6J",
+  "documentId": "01M4ZXFD1FX072F4CWXZSJQA6J",
+  "readAt": "2026-10-15T13:54:23.843Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFD30402B2CMCTR6B67Y5",
+      "document_id": "01M4ZXFD1FX072F4CWXZSJQA6J",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFD1V9ZPBC4D9T5RWHNMD",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "932453ea0bbd273b422e5c046c27a13155d4f6e0516fe154e9a2317d14752a7e",
+      "download_url": "/api/v1/documents/01M4ZXFD1FX072F4CWXZSJQA6J/download?version=2",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-04/
+case-result.json
+evidence-g5-a06.log
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:24.009Z","case":"FQ-04","source":"driver","step":"commit_1_503","intent":"intent-1","keyTag":"0b0bd80e0522","attempt":1,"from":null,"to":null,"event":"commit_1_503","status":503,"outcome":"synthetic_503","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.019Z","case":"FQ-04","source":"driver","step":"commit_2_retry","intent":"intent-1","keyTag":"0b0bd80e0522","attempt":2,"from":null,"to":null,"event":"commit_2_retry","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.021Z","case":"FQ-04","source":"driver","step":"lookup","intent":"intent-1","keyTag":"0b0bd80e0522","attempt":1,"from":null,"to":null,"event":"lookup","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.007Z","method":"POST","path":"/api/v1/documents/01M4ZXFDKP3YMXA03450KVVAVT/uploads","status":201,"ms":8,"idempotencyKey":true,"keyTag":"b8926511cf5c","ruleId":null}
+{"ts":"2026-10-15T13:54:24.009Z","method":"POST","path":"/api/v1/documents/01M4ZXFDKP3YMXA03450KVVAVT/versions/commit","status":"synthetic","ms":0,"idempotencyKey":true,"keyTag":"4b8b01c03c2a","ruleId":"fake-503"}
+{"ts":"2026-10-15T13:54:24.019Z","method":"POST","path":"/api/v1/documents/01M4ZXFDKP3YMXA03450KVVAVT/versions/commit","status":200,"ms":9,"idempotencyKey":true,"keyTag":"4b8b01c03c2a","ruleId":null}
+{"ts":"2026-10-15T13:54:24.021Z","method":"GET","path":"/api/v1/documents/01M4ZXFDKP3YMXA03450KVVAVT/versions/commit","status":200,"ms":1,"idempotencyKey":true,"keyTag":"4b8b01c03c2a","ruleId":null}
+{
+  "document_id": "01M4ZXFDKP3YMXA03450KVVAVT",
+  "documentId": "01M4ZXFDKP3YMXA03450KVVAVT",
+  "readAt": "2026-10-15T13:54:24.025Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFDMGHN09RQVBHXVSGHBM",
+      "document_id": "01M4ZXFDKP3YMXA03450KVVAVT",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFDM1A5HD6RP09RGMJFNV",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "dfa922e2b97dd0366cb462f45585f0921788c50d4dfc762742164b890d13b172",
+      "download_url": "/api/v1/documents/01M4ZXFDKP3YMXA03450KVVAVT/download?version=2",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-05/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:24.164Z","case":"FQ-05","source":"driver","step":"upload_1_dropped","intent":"intent-1","keyTag":"cd2c9bfc490c","attempt":1,"from":null,"to":null,"event":"upload_1_dropped","status":"dropped","outcome":"dropped","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.167Z","case":"FQ-05","source":"driver","step":"upload_2_retry","intent":"intent-1","keyTag":"cd2c9bfc490c","attempt":2,"from":null,"to":null,"event":"upload_2_retry","status":201,"outcome":"staged","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.175Z","case":"FQ-05","source":"driver","step":"commit","intent":"intent-1","keyTag":"8db8c6ac7ce4","attempt":1,"from":null,"to":null,"event":"commit","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.163Z","method":"POST","path":"/api/v1/documents/01M4ZXFDRMX8GY795KSGKQAP99/uploads","status":"dropped","ms":6,"idempotencyKey":true,"keyTag":"4a4096cee2b0","ruleId":"lose-upload-answer"}
+{"ts":"2026-10-15T13:54:24.167Z","method":"POST","path":"/api/v1/documents/01M4ZXFDRMX8GY795KSGKQAP99/uploads","status":201,"ms":2,"idempotencyKey":true,"keyTag":"4a4096cee2b0","ruleId":null}
+{"ts":"2026-10-15T13:54:24.175Z","method":"POST","path":"/api/v1/documents/01M4ZXFDRMX8GY795KSGKQAP99/versions/commit","status":200,"ms":7,"idempotencyKey":true,"keyTag":"028f9e5c7041","ruleId":null}
+{
+  "document_id": "01M4ZXFDRMX8GY795KSGKQAP99",
+  "documentId": "01M4ZXFDRMX8GY795KSGKQAP99",
+  "readAt": "2026-10-15T13:54:24.178Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFDSD22F4P3PNW30SYANJ",
+      "document_id": "01M4ZXFDRMX8GY795KSGKQAP99",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFDRZ0CS3WXR9QTTPV1WR",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "add6ecd424bbc0260774f92da49a4a21cc09a9a077572208af629785663eeb1b",
+      "download_url": "/api/v1/documents/01M4ZXFDRMX8GY795KSGKQAP99/download?version=2",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-06/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:24.288Z","case":"FQ-06","source":"driver","step":"commit_aborted_while_held","intent":"intent-1","keyTag":"3caaf5b4232a","attempt":1,"from":null,"to":null,"event":"commit_aborted_while_held","status":"aborted","outcome":"aborted","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.314Z","case":"FQ-06","source":"driver","step":"lookup_after_release","intent":"intent-1","keyTag":"3caaf5b4232a","attempt":1,"from":null,"to":null,"event":"lookup_after_release","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.259Z","method":"POST","path":"/api/v1/documents/01M4ZXFDVMZT0PD9BQHS7X19CB/uploads","status":201,"ms":5,"idempotencyKey":true,"keyTag":"95c12d4f1d0e","ruleId":null}
+{"ts":"2026-10-15T13:54:24.299Z","method":"POST","path":"/api/v1/documents/01M4ZXFDVMZT0PD9BQHS7X19CB/versions/commit","status":200,"ms":38,"idempotencyKey":true,"keyTag":"3f8da860f49a","ruleId":"hold-commit"}
+{"ts":"2026-10-15T13:54:24.314Z","method":"GET","path":"/api/v1/documents/01M4ZXFDVMZT0PD9BQHS7X19CB/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"3f8da860f49a","ruleId":null}
+{
+  "document_id": "01M4ZXFDVMZT0PD9BQHS7X19CB",
+  "documentId": "01M4ZXFDVMZT0PD9BQHS7X19CB",
+  "readAt": "2026-10-15T13:54:24.318Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFDX801GKZNY0E9WX19XY",
+      "document_id": "01M4ZXFDVMZT0PD9BQHS7X19CB",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFDVZ0T03DKCQCWC33CZX",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "c2a76f66253247a59e4f5145d0a74a2bdeb73f2b50c1009d7e4e66cb41a0dd5b",
+      "download_url": "/api/v1/documents/01M4ZXFDVMZT0PD9BQHS7X19CB/download?version=2",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-07/
+case-result.json
+evidence-g5-a06.log
+evidence-g5-a08.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:24.470Z","case":"FQ-07","source":"driver","step":"commit_a_after_b","intent":"intent-1","keyTag":"8b507bf8754d","attempt":1,"from":null,"to":null,"event":"commit_a_after_b","status":409,"outcome":"document_version_conflict","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.472Z","case":"FQ-07","source":"driver","step":"lookup_a","intent":"intent-1","keyTag":"8b507bf8754d","attempt":1,"from":null,"to":null,"event":"lookup_a","status":200,"outcome":"not_committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.407Z","method":"POST","path":"/api/v1/documents/01M4ZXFE05FRX27Q2Q50ECZQH9/uploads","status":201,"ms":6,"idempotencyKey":true,"keyTag":"c32889daf705","ruleId":null}
+{"ts":"2026-10-15T13:54:24.470Z","method":"POST","path":"/api/v1/documents/01M4ZXFE05FRX27Q2Q50ECZQH9/versions/commit","status":409,"ms":61,"idempotencyKey":true,"keyTag":"7cdc94f16293","ruleId":"hold-a"}
+{"ts":"2026-10-15T13:54:24.472Z","method":"GET","path":"/api/v1/documents/01M4ZXFE05FRX27Q2Q50ECZQH9/versions/commit","status":200,"ms":1,"idempotencyKey":true,"keyTag":"7cdc94f16293","ruleId":null}
+{
+  "document_id": "01M4ZXFE05FRX27Q2Q50ECZQH9",
+  "documentId": "01M4ZXFE05FRX27Q2Q50ECZQH9",
+  "readAt": "2026-10-15T13:54:24.476Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFE2EVYW74ZB8YYWM5ZJ0",
+      "document_id": "01M4ZXFE05FRX27Q2Q50ECZQH9",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFE24553PHQHP1ZD7G52H",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18826,
+      "checksum_sha256": "d4485f4dd8ba3b0a312941ea04ee16e23f515720ea42b79f3ce63ce0c458d0c1",
+      "download_url": "/api/v1/documents/01M4ZXFE05FRX27Q2Q50ECZQH9/download?version=2",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-08/
+case-result.json
+evidence-g5-a08.log
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:24.664Z","case":"FQ-08","source":"driver","step":"commit_a_conflict","intent":"intent-1","keyTag":"c06e8207f0ba","attempt":1,"from":null,"to":null,"event":"commit_a_conflict","status":409,"outcome":"document_version_conflict","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.672Z","case":"FQ-08","source":"driver","step":"commit_a_overwrite_reuse_upload","intent":"intent-1","keyTag":"0550a0ed2a4e","attempt":2,"from":null,"to":null,"event":"commit_a_overwrite_reuse_upload","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.644Z","method":"POST","path":"/api/v1/documents/01M4ZXFE7K5KG9P93MHMT4JAX1/uploads","status":201,"ms":8,"idempotencyKey":true,"keyTag":"f5509f0d3bb5","ruleId":null}
+{"ts":"2026-10-15T13:54:24.659Z","method":"POST","path":"/api/v1/documents/01M4ZXFE7K5KG9P93MHMT4JAX1/versions/commit","status":200,"ms":7,"idempotencyKey":true,"keyTag":"18d9141334bc","ruleId":null}
+{"ts":"2026-10-15T13:54:24.663Z","method":"POST","path":"/api/v1/documents/01M4ZXFE7K5KG9P93MHMT4JAX1/versions/commit","status":409,"ms":3,"idempotencyKey":true,"keyTag":"862a435ed81f","ruleId":null}
+{"ts":"2026-10-15T13:54:24.665Z","method":"GET","path":"/api/v1/documents/01M4ZXFE7K5KG9P93MHMT4JAX1","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:24.672Z","method":"POST","path":"/api/v1/documents/01M4ZXFE7K5KG9P93MHMT4JAX1/versions/commit","status":200,"ms":5,"idempotencyKey":true,"keyTag":"9a2e68d7839e","ruleId":null}
+{
+  "document_id": "01M4ZXFE7K5KG9P93MHMT4JAX1",
+  "documentId": "01M4ZXFE7K5KG9P93MHMT4JAX1",
+  "readAt": "2026-10-15T13:54:24.675Z",
+  "head": {
+    "revision": "3"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFE8Y15AEEGPHM0ZDR0CV",
+      "document_id": "01M4ZXFE7K5KG9P93MHMT4JAX1",
+      "version": 3,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFE7XPJZXPZEQNH5B1K3T",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18828,
+      "checksum_sha256": "cfd16b88ba82cd4b54e4f7b4cfd96036848f6b0d518a973969cd43c8ea2aa8e3",
+      "download_url": "/api/v1/documents/01M4ZXFE7K5KG9P93MHMT4JAX1/download?version=3",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-09/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:24.859Z","case":"FQ-09","source":"driver","step":"commit_409","intent":"intent-1","keyTag":"5523d9d9ec59","attempt":1,"from":null,"to":null,"event":"commit_409","status":409,"outcome":"document_version_conflict","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.862Z","case":"FQ-09","source":"driver","step":"lookup_not_committed","intent":"intent-1","keyTag":"5523d9d9ec59","attempt":1,"from":null,"to":null,"event":"lookup_not_committed","status":200,"outcome":"not_committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.854Z","method":"POST","path":"/api/v1/documents/01M4ZXFEDM521P57T47DTVPCTT/uploads","status":201,"ms":7,"idempotencyKey":true,"keyTag":"62f7ae4d9c91","ruleId":null}
+{"ts":"2026-10-15T13:54:24.859Z","method":"POST","path":"/api/v1/documents/01M4ZXFEDM521P57T47DTVPCTT/versions/commit","status":409,"ms":4,"idempotencyKey":true,"keyTag":"66c068700f5b","ruleId":null}
+{"ts":"2026-10-15T13:54:24.861Z","method":"GET","path":"/api/v1/documents/01M4ZXFEDM521P57T47DTVPCTT/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"66c068700f5b","ruleId":null}
+{
+  "document_id": "01M4ZXFEDM521P57T47DTVPCTT",
+  "documentId": "01M4ZXFEDM521P57T47DTVPCTT",
+  "readAt": "2026-10-15T13:54:24.865Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFEEC3XGVRY0G9KXS2PE5",
+      "document_id": "01M4ZXFEDM521P57T47DTVPCTT",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFEDY91DMMQA12CG6582E",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18826,
+      "checksum_sha256": "c42b0f160e409d575742ac3844e0456b00b0307196e16ed3ee00da5684c63205",
+      "download_url": "/api/v1/documents/01M4ZXFEDM521P57T47DTVPCTT/download?version=2",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-10/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:24.954Z","case":"FQ-10","source":"driver","step":"lookup_foreign_member","intent":"intent-1","keyTag":"4cf12c1faa43","attempt":1,"from":null,"to":null,"event":"lookup_foreign_member","status":410,"outcome":"commit_intent_unknown","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.956Z","case":"FQ-10","source":"driver","step":"lookup_never_sent","intent":"intent-1","keyTag":"96c8ae8d5810","attempt":1,"from":null,"to":null,"event":"lookup_never_sent","status":410,"outcome":"commit_intent_unknown","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:24.953Z","method":"GET","path":"/api/v1/documents/01M4ZXFEH8ZBGA8V35DRMC1YD6/versions/commit","status":410,"ms":2,"idempotencyKey":true,"keyTag":"8523b9fb9caa","ruleId":null}
+{"ts":"2026-10-15T13:54:24.955Z","method":"GET","path":"/api/v1/documents/01M4ZXFEH8ZBGA8V35DRMC1YD6/versions/commit","status":410,"ms":1,"idempotencyKey":true,"keyTag":"b437514b4bc8","ruleId":null}
+{
+  "document_id": "01M4ZXFEH8ZBGA8V35DRMC1YD6",
+  "documentId": "01M4ZXFEH8ZBGA8V35DRMC1YD6",
+  "readAt": "2026-10-15T13:54:24.958Z",
+  "head": {
+    "revision": "1"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFEH8ZBGA8V35DS9V26RH",
+      "document_id": "01M4ZXFEH8ZBGA8V35DRMC1YD6",
+      "version": 1,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFEH04Y6145YV06V0WX2S",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18806,
+      "checksum_sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "download_url": "/api/v1/documents/01M4ZXFEH8ZBGA8V35DRMC1YD6/download?version=1",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-11/
+case-result.json
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:25.052Z","case":"FQ-11","source":"driver","step":"ai_turn_1","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_1","status":200,"outcome":"answered","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:25.059Z","case":"FQ-11","source":"driver","step":"ai_turn_2","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_2","status":200,"outcome":"answered","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:25.077Z","case":"FQ-11","source":"driver","step":"save_after_ai","intent":"intent-1","keyTag":"be37e215472e","attempt":1,"from":null,"to":null,"event":"save_after_ai","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:25.052Z","method":"POST","path":"/api/v1/documents/01M4ZXFEMCZR64EPJWCY5H4KVB/ai/uniwork/chat/completions","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:25.058Z","method":"POST","path":"/api/v1/documents/01M4ZXFEMCZR64EPJWCY5H4KVB/ai/uniwork/chat/completions","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:25.068Z","method":"POST","path":"/api/v1/documents/01M4ZXFEMCZR64EPJWCY5H4KVB/uploads","status":201,"ms":6,"idempotencyKey":true,"keyTag":"03facc74cf7b","ruleId":null}
+{"ts":"2026-10-15T13:54:25.076Z","method":"POST","path":"/api/v1/documents/01M4ZXFEMCZR64EPJWCY5H4KVB/versions/commit","status":200,"ms":8,"idempotencyKey":true,"keyTag":"2655812acc46","ruleId":null}
+{
+  "document_id": "01M4ZXFEMCZR64EPJWCY5H4KVB",
+  "documentId": "01M4ZXFEMCZR64EPJWCY5H4KVB",
+  "readAt": "2026-10-15T13:54:25.080Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFENK0MXDKFG1M88ZF3FP",
+      "document_id": "01M4ZXFEMCZR64EPJWCY5H4KVB",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFEN7XG3AMC4Y56PB3TMF",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 11211,
+      "checksum_sha256": "84fccfa7b5c1db9dd79ab6be2ad2734bcd11615ec7be6dc867d393baf39d8d14",
+      "download_url": "/api/v1/documents/01M4ZXFEMCZR64EPJWCY5H4KVB/download?version=2",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "crea
+=== .harness-run-r10/fault/FQ-12/
+case-result.json
+evidence-g7-a02.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:25.184Z","case":"FQ-12","source":"driver","step":"ai_turn_1","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_1","status":200,"outcome":"answered","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:25.190Z","case":"FQ-12","source":"driver","step":"ai_turn_2_after_revoke","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_2_after_revoke","status":404,"outcome":"not_found","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:25.192Z","case":"FQ-12","source":"driver","step":"commit_after_revoke","intent":"intent-1","keyTag":"13150213f05a","attempt":1,"from":null,"to":null,"event":"commit_after_revoke","status":404,"outcome":"not_found","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:25.183Z","method":"POST","path":"/api/v1/documents/01M4ZXFERDQ09BSVJ1JZC4C0FA/ai/uniwork/chat/completions","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:25.190Z","method":"POST","path":"/api/v1/documents/01M4ZXFERDQ09BSVJ1JZC4C0FA/ai/uniwork/chat/completions","status":404,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:25.191Z","method":"POST","path":"/api/v1/documents/01M4ZXFERDQ09BSVJ1JZC4C0FA/versions/commit","status":404,"ms":1,"idempotencyKey":true,"keyTag":"77beb3d2b550","ruleId":null}
+{
+  "document_id": "01M4ZXFERDQ09BSVJ1JZC4C0FA",
+  "documentId": "01M4ZXFERDQ09BSVJ1JZC4C0FA",
+  "readAt": "2026-10-15T13:54:25.194Z",
+  "head": {
+    "revision": "1"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFERDQ09BSVJ1K26M9WSF",
+      "document_id": "01M4ZXFERDQ09BSVJ1JZC4C0FA",
+      "version": 1,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFER6CH8SR0J154TF0NQZ",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 11187,
+      "checksum_sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "download_url": "/api/v1/documents/01M4ZXFERDQ09BSVJ1JZC4C0FA/download?version=1",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "crea
+=== .harness-run-r10/fault/FQ-13/
+case-result.json
+evidence-g5-a08.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:54:25.287Z","case":"FQ-13","source":"driver","step":"commit_while_archived","intent":"intent-1","keyTag":"62c5a99c0005","attempt":1,"from":null,"to":null,"event":"commit_while_archived","status":410,"outcome":"document_deleted","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:25.306Z","case":"FQ-13","source":"driver","step":"commit_after_restore_and_move","intent":"intent-1","keyTag":"62c5a99c0005","attempt":2,"from":null,"to":null,"event":"commit_after_restore_and_move","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T13:54:25.281Z","method":"POST","path":"/api/v1/documents/01M4ZXFEVME86YGR9EXTB15P1W/uploads","status":201,"ms":5,"idempotencyKey":true,"keyTag":"6438ed5d8e2f","ruleId":null}
+{"ts":"2026-10-15T13:54:25.287Z","method":"POST","path":"/api/v1/documents/01M4ZXFEVME86YGR9EXTB15P1W/versions/commit","status":410,"ms":1,"idempotencyKey":true,"keyTag":"78ca7dc717f8","ruleId":null}
+{"ts":"2026-10-15T13:54:25.305Z","method":"POST","path":"/api/v1/documents/01M4ZXFEVME86YGR9EXTB15P1W/versions/commit","status":200,"ms":5,"idempotencyKey":true,"keyTag":"78ca7dc717f8","ruleId":null}
+{
+  "document_id": "01M4ZXFEVME86YGR9EXTB15P1W",
+  "documentId": "01M4ZXFEVME86YGR9EXTB15P1W",
+  "readAt": "2026-10-15T13:54:25.309Z",
+  "head": {
+    "revision": "4"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXFEWR5TZ59BGQ0KYXP99X",
+      "document_id": "01M4ZXFEVME86YGR9EXTB15P1W",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXFEVXYQZH4WAZXSPRR334",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "cba14219447d7333991b513836a18904ced16fae991efa5595957b513d594e27",
+      "download_url": "/api/v1/documents/01M4ZXFEVME86YGR9EXTB15P1W/download?version=2",
+      "created_by": "01M4ZXFCM30AXH6ZZ9MBQ5X3QG",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-20/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T13:55:04.034Z","case":"FQ-20","source":"app-trace","intent":"office-intent-4b5671fc-09cf-40f7-8a16-a8ba3936df25","keyTag":"7d571faa7034","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T13:55:04.047Z","case":"FQ-20","source":"app-trace","intent":"office-intent-4b5671fc-09cf-40f7-8a16-a8ba3936df25","keyTag":"7d571faa7034","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T13:55:20.794Z","case":"FQ-20","source":"app-trace","intent":"office-intent-4b5671fc-09cf-40f7-8a16-a8ba3936df25","keyTag":"7d571faa7034","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T13:55:20.794Z","case":"FQ-20","source":"app-trace","intent":"office-intent-4b5671fc-09cf-40f7-8a16-a8ba3936df25","keyTag":"7d571faa7034","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T13:55:20.794Z","case":"FQ-20","source":"app-trace","intent":"office-intent-4b5671fc-09cf-40f7-8a16-a8ba3936df25","keyTag":"7d571faa7034","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T13:55:20.794Z","case":"FQ-20","source":"app-trace","intent":"office-intent-4b5671fc-09cf-40f7-8a16-a8ba3936df25","keyTag":"7d571faa7034","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T13:54:57.793Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":10,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.764Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.781Z","method":"GET","path":"/api/v1/me","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.789Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.796Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9lod2x-30cf/members/me","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.806Z","method":"GET","path":"/api/v1/orgs/01M4ZXFG9VSQCPXHB9D5G84BA9/billing","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.828Z","method":"GET","path":"/api/v1/orgs/01M4ZXFG9VSQCPXHB9D5G84BA9/ai/cloud","status":200,"ms":11,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.834Z","method":"GET","path":"/api/v1/orgs/01M4ZXFG9VSQCPXHB9D5G84BA9/office/capabilities","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.839Z","method":"GET","path":"/api/v1/orgs/01M4ZXFG9VSQCPXHB9D5G84BA9/workspaces","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.860Z","method":"GET","path":"/api/v1/workspaces/01M4ZXFGA3Q2MTR2F5PQWMW29G/documents/changes","status":200,"ms":16,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.863Z","method":"GET","path":"/api/v1/orgs/01M4ZXFG9VSQCPXHB9D5G84BA9/ai/credentials","status":503,"ms":12,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:54:58.880Z","method":"GET","path":"/api/v1/orgs/01M4ZXFG9VSQCPXHB9D5G84BA9/ai/cloud","status":200,"ms":25,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:55:02.793Z","method":"GET","path":"/api/v1/documents/01M4ZXFGBPV03A81R3V75HE2E8","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:55:02.798Z","method":"GET","path":"/api/v1/documents/01M4ZXFGBPV03A81R3V75HE2E8/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T13:55:02.840Z","method":"GET","path":"/api/v1/documents/01M4ZXFGBPV03A81R3V75HE2E8","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4ZXFGBPV03A81R3V75HE2E8",
+  "documentId": "01M4ZXFGBPV03A81R3V75HE2E8",
+  "readAt": "2026-10-15T13:55:21.402Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXH53TGF6THNET1WDXY4B8",
+      "document_id": "01M4ZXFGBPV03A81R3V75HE2E8",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXH537E6C9J3XHBS6B4B2X",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 4403,
+      "checksum_sha256": "2a46fde146c791ebaf18c3f72a48df5ff3442b9c1c1c6973f32158ca57bc9bc7",
+      "download_url": "/api/v1/documents/01M4ZXFGBPV03A81R3V75HE2E8/download?version=2",
+      "created_by": "01M4ZXFG76MTA2RWZQH3VM48JD",
+      "created_by_kind": "human",
+      "creat
+=== .harness-run-r10/fault/FQ-40/
+1
+2
+case-result.json
+evidence-g5-a06.log
+result.json
+
+=== .harness-run-r10/fault/FQ-41/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T14:00:15.177Z","case":"FQ-41","source":"app-trace","intent":"office-intent-ce22ff0f-8497-4d78-865e-cfe4392362d2","keyTag":"241b8f3adc17","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T14:00:15.224Z","case":"FQ-41","source":"app-trace","intent":"office-intent-ce22ff0f-8497-4d78-865e-cfe4392362d2","keyTag":"241b8f3adc17","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T14:01:07.381Z","case":"FQ-41","source":"app-trace","intent":"office-intent-ce22ff0f-8497-4d78-865e-cfe4392362d2","keyTag":"241b8f3adc17","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T14:01:07.381Z","case":"FQ-41","source":"app-trace","intent":"office-intent-ce22ff0f-8497-4d78-865e-cfe4392362d2","keyTag":"241b8f3adc17","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T14:01:07.381Z","case":"FQ-41","source":"app-trace","intent":"office-intent-ce22ff0f-8497-4d78-865e-cfe4392362d2","keyTag":"241b8f3adc17","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T14:01:07.381Z","case":"FQ-41","source":"app-trace","intent":"office-intent-ce22ff0f-8497-4d78-865e-cfe4392362d2","keyTag":"241b8f3adc17","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T14:00:06.648Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.331Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":10,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.338Z","method":"GET","path":"/api/v1/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.342Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.346Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9luzdr-4310/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.352Z","method":"GET","path":"/api/v1/orgs/01M4ZXRXX161RN3JNYP4PVRY98/billing","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.364Z","method":"GET","path":"/api/v1/orgs/01M4ZXRXX161RN3JNYP4PVRY98/ai/cloud","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.369Z","method":"GET","path":"/api/v1/orgs/01M4ZXRXX161RN3JNYP4PVRY98/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.374Z","method":"GET","path":"/api/v1/orgs/01M4ZXRXX161RN3JNYP4PVRY98/workspaces","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.380Z","method":"GET","path":"/api/v1/workspaces/01M4ZXRXX7ZJTQ7XMJHPN8DJ9Z/documents/changes","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.383Z","method":"GET","path":"/api/v1/orgs/01M4ZXRXX161RN3JNYP4PVRY98/ai/credentials","status":503,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:07.385Z","method":"GET","path":"/api/v1/orgs/01M4ZXRXX161RN3JNYP4PVRY98/ai/cloud","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:11.352Z","method":"GET","path":"/api/v1/documents/01M4ZXRXYVZ3F872CSBJDK7QCN","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:11.357Z","method":"GET","path":"/api/v1/documents/01M4ZXRXYVZ3F872CSBJDK7QCN/download","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:00:11.402Z","method":"GET","path":"/api/v1/documents/01M4ZXRXYVZ3F872CSBJDK7QCN","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4ZXRXYVZ3F872CSBJDK7QCN",
+  "documentId": "01M4ZXRXYVZ3F872CSBJDK7QCN",
+  "readAt": "2026-10-15T14:03:36.019Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZXVQJDXBG9SRBJPYDKTA61",
+      "document_id": "01M4ZXRXYVZ3F872CSBJDK7QCN",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZXT4K0CJQDPJGKYS26EFCQ",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 16584,
+      "checksum_sha256": "057e9392c918a9834c124255cbb9e458077160177f52192744759f4417e5e481",
+      "download_url": "/api/v1/documents/01M4ZXRXYVZ3F872CSBJDK7QCN/download?version=2",
+      "created_by": "01M4ZXRXTG64RF04E9Y4WESZS9",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-42/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T14:04:17.096Z","case":"FQ-42","source":"app-trace","intent":"office-intent-9cd82d1a-fb57-43f9-bd25-5c5a7158eadd","keyTag":"e2aabf800238","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T14:04:17.141Z","case":"FQ-42","source":"app-trace","intent":"office-intent-9cd82d1a-fb57-43f9-bd25-5c5a7158eadd","keyTag":"e2aabf800238","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T14:05:09.219Z","case":"FQ-42","source":"app-trace","intent":"office-intent-9cd82d1a-fb57-43f9-bd25-5c5a7158eadd","keyTag":"e2aabf800238","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T14:05:09.219Z","case":"FQ-42","source":"app-trace","intent":"office-intent-9cd82d1a-fb57-43f9-bd25-5c5a7158eadd","keyTag":"e2aabf800238","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T14:05:09.219Z","case":"FQ-42","source":"app-trace","intent":"office-intent-9cd82d1a-fb57-43f9-bd25-5c5a7158eadd","keyTag":"e2aabf800238","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T14:05:09.219Z","case":"FQ-42","source":"app-trace","intent":"office-intent-9cd82d1a-fb57-43f9-bd25-5c5a7158eadd","keyTag":"e2aabf800238","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T14:04:08.415Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.157Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.170Z","method":"GET","path":"/api/v1/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.175Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.180Z","method":"GET","path":"/api/v1/orgs/o-fault-mv9m05u0-bac7/members/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.189Z","method":"GET","path":"/api/v1/orgs/01M4ZY09WB30PWCV9E97ZK413N/billing","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.201Z","method":"GET","path":"/api/v1/orgs/01M4ZY09WB30PWCV9E97ZK413N/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.206Z","method":"GET","path":"/api/v1/orgs/01M4ZY09WB30PWCV9E97ZK413N/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.216Z","method":"GET","path":"/api/v1/orgs/01M4ZY09WB30PWCV9E97ZK413N/workspaces","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.224Z","method":"GET","path":"/api/v1/workspaces/01M4ZY09WF49AN94A2JMAPFETN/documents/changes","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.232Z","method":"GET","path":"/api/v1/orgs/01M4ZY09WB30PWCV9E97ZK413N/ai/credentials","status":503,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:09.239Z","method":"GET","path":"/api/v1/orgs/01M4ZY09WB30PWCV9E97ZK413N/ai/cloud","status":200,"ms":9,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:13.181Z","method":"GET","path":"/api/v1/documents/01M4ZY09XVRFCY4P3EP8HCZW23","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:13.186Z","method":"GET","path":"/api/v1/documents/01M4ZY09XVRFCY4P3EP8HCZW23/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T14:04:13.229Z","method":"GET","path":"/api/v1/documents/01M4ZY09XVRFCY4P3EP8HCZW23","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M4ZY09XVRFCY4P3EP8HCZW23",
+  "documentId": "01M4ZY09XVRFCY4P3EP8HCZW23",
+  "readAt": "2026-10-15T14:08:18.054Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M4ZY33QZTFFT8W85NV3D60DK",
+      "document_id": "01M4ZY09XVRFCY4P3EP8HCZW23",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M4ZY1GTP1P8EW3AV72A31K86",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 16584,
+      "checksum_sha256": "019cddd5645efe37dbee475a1f816ecc0d325ee7c27dca7a9ac837172eeee878",
+      "download_url": "/api/v1/documents/01M4ZY09XVRFCY4P3EP8HCZW23/download?version=2",
+      "created_by": "01M4ZY09SRWKDB8GHB4R79VZKN",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r10/fault/FQ-43/
+1
+case-result.json
+evidence-g5-a06.log
+result.json
+
+=== .harness-run-r10/fault/FQ-44/
+1
+case-result.json
+evidence-g5-a06.log
+result.json
+

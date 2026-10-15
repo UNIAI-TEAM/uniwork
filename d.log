@@ -1,0 +1,32 @@
+$ node --test scripts/env-example.test.mjs scripts/no-pii-log.test.mjs; echo "SCRIPTS_CONTRACT_EXIT $?"; true
+TAP version 13
+# Subtest: the Go env scanner recognizes literal readers without false positives
+ok 1 - the Go env scanner recognizes literal readers without false positives
+  ---
+  duration_ms: 1.883934
+  ...
+# Subtest: raw literal keys participate in the undocumented-variable contract
+ok 2 - raw literal keys participate in the undocumented-variable contract
+  ---
+  duration_ms: 0.387723
+  ...
+# Subtest: every variable the server reads is documented in .env.example
+ok 3 - every variable the server reads is documented in .env.example
+  ---
+  duration_ms: 312.704727
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 4 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 62.81485
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 364.365414
+SCRIPTS_CONTRACT_EXIT 0
