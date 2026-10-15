@@ -78,7 +78,8 @@ type ScopeReleaser interface {
 
 // ScopeRevoker is implemented by a ScopeAuthorizer that caches decisions:
 // RevokeScope forgets every decision held for userID on scopeID, whatever
-// workspace asked, or all of userID's when scopeID is "".
+// workspace asked, or all of userID's when scopeID is "", or every user's on
+// scopeID when userID is "".
 type ScopeRevoker interface {
 	RevokeScope(userID, scopeType, scopeID string)
 }
@@ -958,7 +959,8 @@ func (h *Hub) closeWhere(code int, text string, match func(*Client) bool) []*Cli
 // RevokeScope asks the authorizer afresh, past its cache, whether each of
 // userID's sockets holding (scopeType, scopeID) may keep it, and drops it
 // from those it no longer admits: a member kicked from a private room loses
-// it, one who left a public channel they can still read does not.
+// it, one who left a public channel they can still read does not. An empty
+// userID rechecks every socket holding the scope.
 func (h *Hub) RevokeScope(userID, scopeType, scopeID string) {
 	auth := h.scopeAuthorizer()
 	if r, ok := auth.(ScopeRevoker); ok {
@@ -967,7 +969,7 @@ func (h *Hub) RevokeScope(userID, scopeType, scopeID string) {
 	h.mu.RLock()
 	var holders []*Client
 	for c := range h.rooms[sk(scopeType, scopeID)] {
-		if c.userID == userID {
+		if userID == "" || c.userID == userID {
 			holders = append(holders, c)
 		}
 	}
