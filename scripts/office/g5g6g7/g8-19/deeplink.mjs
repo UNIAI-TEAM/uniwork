@@ -218,6 +218,9 @@ export function decideDesktopReveal(d) {
   return pass();
 }
 
+/** Who answers a cross-workspace row missing from the recipient's Inbox (the D web Inbox + notifications surface). */
+export const CROSS_WORKSPACE_OWNER = "owner candidate g8-collab (D web Inbox / notifications)";
+
 /**
  * G8-A07. `record`: { commentId, documentId, format, framePin, href:{observed, expected},
  * webOpen (openDocument result or null when not attempted), desktop (decideDesktopReveal input),
@@ -244,7 +247,12 @@ export function decideG8A07(record) {
 
   const cw = r.crossWorkspace;
   if (!cw) checks["cross-workspace"] = fail("the cross-workspace share was not observed");
-  else if (!cw.inboxListed) checks["cross-workspace"] = fail("the shared document's row is not listed in B's Inbox (B's open workspace)");
+  else if (!cw.inboxListed && cw.notificationWorkspaceId && cw.openWorkspaceId && cw.notificationWorkspaceId !== cw.openWorkspaceId) {
+    checks["cross-workspace"] = fail(
+      `product: the shared document's row is filed under workspace ${cw.notificationWorkspaceId}, which B is not in, and B's Inbox lists only its open workspace ${cw.openWorkspaceId} ` +
+        `(D packages/views/notifications/inbox-view.tsx:71 useNotificationPages({workspaceId}) -> server/pkg/db/queries/notifications.sql:37); ${CROSS_WORKSPACE_OWNER}`,
+    );
+  } else if (!cw.inboxListed) checks["cross-workspace"] = fail("the shared document's row is not listed in B's Inbox (B's open workspace)");
   else if (cw.href !== cw.expectedHref) checks["cross-workspace"] = fail(`the Inbox links ${cw.href}, want ${cw.expectedHref} (B's workspace)`);
   else if (["no-access", "not-found"].includes(cw.opened?.status)) checks["cross-workspace"] = fail(`the link shows S15 ${cw.opened.status}`);
   else if (frameBlocked(pin)) checks["cross-workspace"] = blocked(pin);
@@ -353,7 +361,7 @@ export async function runDeeplink(ctx, deps = {}) {
       const at = inbox.href ? hrefWorkspace(inbox.href) : null;
       let opened = null;
       if (inbox.listed && at && !frameBlocked(framePin)) opened = await d.web.openDocument(s.webB.page, { webOrigin: ctx.webOrigin, org: at.org, ws: at.ws, documentId: s.shared.documentId, comment: s.c2 });
-      rec.crossWorkspace = { inboxListed: inbox.listed, href: inbox.href, expectedHref: expectedDocumentHref(s.rowShared, w2, [w2]), opened, notificationWorkspaceId: s.rowShared.workspace_id };
+      rec.crossWorkspace = { inboxListed: inbox.listed, href: inbox.href, expectedHref: expectedDocumentHref(s.rowShared, w2, [w2]), opened, notificationWorkspaceId: s.rowShared.workspace_id, openWorkspaceId: W2.id };
       return { details: rec.crossWorkspace };
     });
 
