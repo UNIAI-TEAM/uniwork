@@ -11,6 +11,7 @@ import { runEvidence } from "../evidence.mjs";
 import { DEFAULT_FORK_SHA, harnessPaths, isMainModule, readStartStatus, startGate } from "../harness/lib.mjs";
 import { collectServerVersions, writeServerVersions } from "./collect.mjs";
 import { startFaultProxy } from "./proxy.mjs";
+import { readVerificationCode, seedFaultTenant } from "./server-cases-setup.mjs";
 import {
   BLOCKED_EXIT_CODE, DEFAULT_CASES_PATH, REPO_ROOT, aggregateExitCode, assertion, buildIntentLogEntry,
   computeKeyTag, evaluateCaseResult, loadFaultCases, renderCaseRules, runServerCaseDriver, selectServerCases,
@@ -110,79 +111,6 @@ async function httpMultipartFile(origin, path, { token, fileBytes, filename, mim
   }
 }
 
-async function registerAndVerifyUser(apiOrigin, tag) {
-  const suffix = `${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
-  const credential = `FaultPass!${suffix}`;
-  const addr = `fault-${tag}-${suffix}@uniwork.test`;
-  const reg = await httpJson(apiOrigin, "/api/v1/auth/register", {
-    method: "POST",
-    headers: { "user-agent": `UniWork-Fault-${tag}/1.0` },
-    body: { email: addr, password: credential, display_name: `Fault ${tag}` },
-  });
-  if (reg.status !== 201) throw new Error(`register ${tag} failed: status ${reg.status}`);
-  const token = reg.body?.access_token;
-  const userId = reg.body?.user?.id;
-  const ver = await httpJson(apiOrigin, "/api/v1/me/email/verify", { method: "POST", token, body: { code: "000000" } });
-  if (ver.status !== 200) throw new Error(`verify ${tag} failed: status ${ver.status}`);
-  const onb = await httpJson(apiOrigin, "/api/v1/me/onboarding/complete", { method: "POST", token, body: {} });
-  if (onb.status !== 200) throw new Error(`onboarding ${tag} failed: status ${onb.status}`);
-  return { userId, token, addr, credential };
-}
-
-async function seedFaultTenant(apiOrigin) {
-  const suffix = `${Date.now().toString(36)}-${crypto.randomBytes(2).toString("hex")}`;
-  const primary = await registerAndVerifyUser(apiOrigin, "deviceA");
-  const loginB = await httpJson(apiOrigin, "/api/v1/auth/login", {
-    method: "POST",
-    headers: { "user-agent": "UniWork-Fault-deviceB/1.0" },
-    body: { email: primary.addr, password: primary.credential },
-  });
-  if (loginB.status !== 200) throw new Error(`login deviceB failed: status ${loginB.status}`);
-  const orgRes = await httpJson(apiOrigin, "/api/v1/orgs", {
-    method: "POST",
-    token: primary.token,
-    body: { name: `Fault Org ${suffix}`, slug: `fault-org-${suffix}` },
-  });
-  if (orgRes.status !== 201) throw new Error(`create org failed: status ${orgRes.status}`);
-  const orgId = orgRes.body?.organization?.id;
-  const wsRes = await httpJson(apiOrigin, `/api/v1/orgs/${orgId}/workspaces`, {
-    method: "POST",
-    token: primary.token,
-    body: { name: `Fault WS ${suffix}`, slug: `fault-ws-${suffix}` },
-  });
-  if (wsRes.status !== 201) throw new Error(`create workspace failed: status ${wsRes.status}`);
-  const workspaceId = wsRes.body?.workspace?.id;
-  const memberB = await registerAndVerifyUser(apiOrigin, "memberB");
-
-  async function ensureMemberBInWorkspace() {
-    const invRes = await httpJson(apiOrigin, `/api/v1/workspaces/${workspaceId}/invitations`, {
-      method: "POST",
-      token: primary.token,
-      body: { emails: [memberB.addr], role: "member" },
-    });
-    if (invRes.status !== 200) throw new Error(`invite memberB failed: status ${invRes.status}`);
-    const myInvs = await httpJson(apiOrigin, "/api/v1/me/invitations", { method: "GET", token: memberB.token });
-    const pending = (myInvs.body?.invitations ?? []).find((item) => item.workspace?.id === workspaceId);
-    if (pending?.token) {
-      const acc = await httpJson(apiOrigin, `/api/v1/invitations/${pending.token}/accept`, {
-        method: "POST",
-        token: memberB.token,
-        body: {},
-      });
-      if (acc.status !== 200) throw new Error(`accept invite failed: status ${acc.status}`);
-    }
-  }
-  await ensureMemberBInWorkspace();
-
-  return {
-    orgId,
-    workspaceId,
-    tokens: { deviceA: primary.token, deviceB: loginB.body?.access_token, owner: primary.token, memberB: memberB.token },
-    users: { deviceA: primary.userId, memberB: memberB.userId },
-    ensureMemberBInWorkspace,
-  };
-}
-
 function writeCaseFiles(caseDir, { intentLog = [], beforeVersions = null, afterVersions = null, proxyLogRaw = "", caseResult }) {
   mkdirSync(caseDir, { recursive: true });
   const intentLines = intentLog.map((entry) => JSON.stringify(entry)).join("\n");
@@ -273,7 +201,11 @@ export async function runSelectedServerCases({ caseId = null, runDir, casesPath 
   const driverSalt = crypto.randomBytes(16).toString("hex");
 
   try {
-    const tenant = await seedFaultTenant(apiOrigin);
+    const tenant = await seedFaultTenant({
+      http: httpJson,
+      apiOrigin,
+      verificationCode: readVerificationCode(runDir, env),
+    });
     const results = [];
     for (const row of selected) {
       const caseDir = join(runDir, "fault", row.id);
