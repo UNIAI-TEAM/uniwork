@@ -9,7 +9,7 @@ import { afterEach, beforeEach, test } from "node:test";
 
 import { SQL_MEMBERSHIP_BLOCKER } from "../harness/world.mjs";
 import { a09Scenario } from "./a09-scenario.helper.mjs";
-import { decideG8A09, decideG8A09Org, runAccount } from "./account.mjs";
+import { decideG8A09, decideG8A09Org, diagnoseSelectOrgError, runAccount } from "./account.mjs";
 import { createFakeWorld } from "./fake-world.mjs";
 import { rowArtifactPath, runRowModule } from "./run-row.mjs";
 
@@ -96,6 +96,72 @@ test("decideG8A09: FAIL beats BLOCKED beats PASS", () => {
   assert.equal(decideG8A09(fail, pass).status, "FAIL");
 });
 
+const REJECTED = "page.evaluate: Error: Error invoking remote method 'home:account-select-org': TransportError: uniwork request failed: malformed_response";
+const FLAT_PROBE = { status: 200, keys: ["role"], membershipKeys: null };
+
+test("decideG8A09Org: the app rejected selectOrg:Y -> FAIL naming the call; what cannot be judged after it stays out of the reason", () => {
+  const record = goodOrg({
+    choose: { orgId: null, expectedOrgId: "org-Y", needsOrgChoice: null, error: REJECTED },
+    resignIn: { orgChoiceShown: true, orgId: null, expectedOrgId: "org-Y" },
+    deactivated: { deactivateStatus: 200, listWorkspacesError: null, createError: "member_deactivated" },
+  });
+  const d = decideG8A09Org(record);
+  assert.equal(d.status, "FAIL");
+  assert.match(d.reason, /^selectOrg:Y rejected by the app: .*malformed_response/);
+  assert.doesNotMatch(d.reason, /expected undefined/);
+  for (const name of ["rememberedNoStep", "rememberedOrgUsed", "deactivatedLibraryRefused"]) {
+    assert.equal(d.checks[name].ok, false, `${name} cannot pass without an organization`);
+    assert.equal(d.checks[name].notJudged, true, name);
+    assert.doesNotMatch(d.reason, new RegExp(name), `${name} is a cascade, not a finding`);
+  }
+  assert.equal(d.checks.deactivatedCreateRefused.ok, true);
+});
+
+test("decideG8A09Org: a deactivated member's list that answers ok IS judged when the pick worked", () => {
+  const d = decideG8A09Org(goodOrg({ deactivated: { deactivateStatus: 200, listWorkspacesError: null, createError: "member_deactivated" } }));
+  assert.equal(d.status, "FAIL");
+  assert.match(d.reason, /deactivatedLibraryRefused/);
+  assert.equal(d.checks.deactivatedLibraryRefused.notJudged, undefined);
+});
+
+test("diagnoseSelectOrgError: a flat D membership body against a fork that reads {membership:{role}} -> product finding with surfaces and an owner candidate", () => {
+  const d = diagnoseSelectOrgError({ message: REJECTED, probe: FLAT_PROBE });
+  assert.equal(d.verdict, "product");
+  assert.match(d.finding, /apps\/shell\/src\/main\/uniwork-auth\/transport\.ts/);
+  assert.match(d.finding, /server\/internal\/handler\/organization_members\.go/);
+  assert.match(d.finding, /\[role\]/);
+  assert.match(d.owner, /lead-f|G8-16/);
+});
+
+test("diagnoseSelectOrgError: the probe says the wrapper is there, or it could not be made, or the failure is another one -> undecided with the raw facts", () => {
+  const wrapped = diagnoseSelectOrgError({ message: REJECTED, probe: { status: 200, keys: ["membership"], membershipKeys: ["role"] } });
+  assert.equal(wrapped.verdict, "undecided");
+  assert.match(wrapped.finding, /membership/);
+  const noProbe = diagnoseSelectOrgError({ message: REJECTED, probe: { status: 0, error: "ECONNREFUSED" } });
+  assert.equal(noProbe.verdict, "undecided");
+  assert.match(noProbe.finding, /ECONNREFUSED/);
+  const other = diagnoseSelectOrgError({ message: "timeout", probe: FLAT_PROBE });
+  assert.equal(other.verdict, "undecided");
+});
+
+test("decideG8A09: many failures never leave a reason cut in the middle of a check (the artifact clips at 240 characters)", () => {
+  const org = decideG8A09Org(
+    goodOrg({
+      signIn: { orgChoiceShown: false, orgApiCallsBeforeChoice: 3, orgIds: [], expectedOrgIds: ["org-X", "org-Y"] },
+      choose: { orgId: null, expectedOrgId: "org-Y", needsOrgChoice: true },
+      resignIn: { orgChoiceShown: true, orgId: null, expectedOrgId: "org-Y" },
+      deactivated: { deactivateStatus: 500, listWorkspacesError: null, createError: null },
+    }),
+  );
+  const docs = { status: "FAIL", reason: "workspacesWithRole: ".padEnd(120, "w") + "; sharedListed: " + "s".repeat(120) };
+  const joined = decideG8A09(org, docs);
+  assert.equal(joined.status, "FAIL");
+  assert.ok(joined.reason.length <= 240, `${joined.reason.length}: ${joined.reason}`);
+  assert.doesNotMatch(joined.reason, /\.\.\.$/);
+  assert.match(joined.reason, /deactivatedLibraryRefused|deactivatedCreateRefused/, "the last check is not what gets lost");
+  assert.match(joined.reason, /more/);
+});
+
 // ---- the flow, through runRowModule and the fake world ------------------------
 
 let runDir;
@@ -179,4 +245,37 @@ test("runAccount: the app cannot be driven -> the reason of appUnavailable, FAIL
 test("runAccount writes the artifact under reports/g7-qa/g8-a09/<fixture>.json", async () => {
   await run();
   assert.ok(existsSync(join(runDir, "reports", "g7-qa", "g8-a09", "fx-docx-report-vi.json")));
+});
+
+test("runAccount: selectOrg:Y rejected by the app -> FAIL with the cause and the probe in the artifact; the library is not judged; deactivation still runs", async () => {
+  const probes = [];
+  const fake = createFakeWorld();
+  a09Scenario(fake, { stamp: "t1", viewerKey: "M", userDataDir: userData, faults: { selectOrgRejects: REJECTED } });
+  const exit = await runRowModule(
+    { row: "G8-A09", fixture: "fx-docx-report-vi", runDir, module: "account", timeoutMs: 5_000, worldFactory: () => fake.world },
+    (ctx) =>
+      runAccount(ctx, {
+        connectApp: fake.app.connectApp,
+        stamp: "t1",
+        pollMs: 0,
+        waitMs: 5,
+        probeMembership: async (arg) => {
+          probes.push(arg);
+          return FLAT_PROBE;
+        },
+      }),
+  );
+  const artifact = JSON.parse(readFileSync(rowArtifactPath(runDir, "G8-A09", "fx-docx-report-vi"), "utf8"));
+  assert.equal(exit, 1);
+  assert.equal(artifact.status, "FAIL");
+  assert.match(artifact.reason, /selectOrg:Y rejected by the app/);
+  assert.ok(artifact.reason.length <= 240, artifact.reason);
+  assert.equal(artifact.steps["selectOrg:Y"].status, "FAIL");
+  assert.deepEqual(probes.map((p) => p.slug), [fake.world.org("Y").slug]);
+  assert.equal(artifact.details.org.finding.verdict, "product");
+  assert.match(artifact.details.org.finding.finding, /organization_members\.go/);
+  assert.equal(artifact.steps["decide:docs"].status, "FAIL");
+  assert.match(artifact.steps["decide:docs"].reason, /not judged/);
+  assert.equal(artifact.steps.deactivate.status, "PASS");
+  assert.equal(fake.calls.app.some((c) => c.key === "aiOffice.uniworkCreateDocument" && c.args?.[0]?.name?.includes("renamed")), false);
 });
