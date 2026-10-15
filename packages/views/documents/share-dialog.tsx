@@ -41,6 +41,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import { ShareLinksSection } from "./share-links-section";
+import { ShareMembersErrorLine } from "./share-members-error";
 import { SharePeoplePicker, useSharePeople } from "./share-people-picker";
 import { useShareMembers } from "./use-share-members";
 
@@ -91,9 +92,9 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
   const [addError, setAddError] = useState<string | null>(null);
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
 
-  // Name, else a skeleton while pages load, else a neutral label; never the id.
+  // Name, else a skeleton while pages load or failed, else a neutral label; never the id.
   const memberName = (userId: string) =>
-    members.nameOf(userId) ?? (members.loading ? null : t("documents.share.person_unknown"));
+    members.nameOf(userId) ?? (members.namesPending ? null : t("documents.share.person_unknown"));
   const people = useSharePeople(wsId, doc.id, (id) => members.nameOf(id) ?? id, setAddError);
   const pending = share.isPending || people.isPending;
   const workspaceName = (id: string) =>
@@ -202,6 +203,9 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
             </div>
           ) : (
             <div className="flex flex-col gap-4">
+              {members.error ? (
+                <ShareMembersErrorLine error={members.error} retrying={members.retrying} onRetry={members.retry} />
+              ) : null}
               <section aria-labelledby="share-access-title" className="rounded-lg border border-border">
                 <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
                   <h3 id="share-access-title" className="text-label font-medium text-foreground">

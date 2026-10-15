@@ -24,6 +24,12 @@ import (
 // with a level only from a live share or a live break-glass grant, both read
 // once for the page.
 func (s *DocumentService) attachListAccess(ctx context.Context, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
+	return s.attachListAccessQ(ctx, s.q, scope, workspaceID, agent, items)
+}
+
+// attachListAccessQ is attachListAccess read through q, for a caller that
+// holds a snapshot transaction (the access report export).
+func (s *DocumentService) attachListAccessQ(ctx context.Context, q *db.Queries, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -39,7 +45,7 @@ func (s *DocumentService) attachListAccess(ctx context.Context, scope documentLi
 	}
 	var shares map[string][]db.ListLiveSharesForDocumentsRow
 	if scope.allowShares && len(shareIDs) > 0 {
-		rows, err := s.q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
+		rows, err := q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID, DocumentIds: shareIDs,
 		})
 		if err != nil {
@@ -50,7 +56,7 @@ func (s *DocumentService) attachListAccess(ctx context.Context, scope documentLi
 			shares[r.DocumentID] = append(shares[r.DocumentID], r)
 		}
 	}
-	grants, err := s.liveBreakGlassFor(ctx, s.q, scope, workspaceID, adminIDs)
+	grants, err := s.liveBreakGlassFor(ctx, q, scope, workspaceID, adminIDs)
 	if err != nil {
 		return err
 	}

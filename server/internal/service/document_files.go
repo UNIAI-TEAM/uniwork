@@ -37,6 +37,11 @@ type documentStore struct {
 	// after ClaimInTx, so a test can fail the transaction after the bytes
 	// are stored and the file is claimed. nil in production.
 	afterClaim func() error
+	// beforeSaveLock is a test seam: it runs after the preflight (and, for a
+	// commit, the intent claim) and right before the save transaction opens
+	// its row lock, so a test can change the row in that window. nil in
+	// production.
+	beforeSaveLock func()
 }
 
 var errDocumentStoreMissing = errors.New("documents: FileService is not wired")
@@ -122,15 +127,12 @@ func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, d
 	if err != nil {
 		return DocumentUpload{}, err
 	}
-	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelEdit)
+	doc, access, err := s.preflightDocument(ctx, actor, documentID)
 	if err != nil {
 		return DocumentUpload{}, err
 	}
-	if err := refuseFolder(doc); err != nil {
+	if err := decideDocumentAccess(doc, access, DocumentLevelEdit); err != nil {
 		return DocumentUpload{}, err
-	}
-	if doc.Kind != DocumentKindFile {
-		return DocumentUpload{}, Invalid("chỉ tài liệu file nhận phiên bản tải lên")
 	}
 	up, _, err := s.uploadChecked(ctx, fs, actor, files.DocumentFile, documentScope(doc.OrganizationID, doc.WorkspaceID),
 		fileUploadKey("documents.upload", doc.ID, in.IdempotencyKey), in)

@@ -368,12 +368,16 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/active": {query: "?call_id={callID}"},
 	"GET /api/v1/workspaces/{workspaceID}/chat/users/lookup":                          {query: "?email={peerEmail}"},
 	// The organization rides in the query; the installer profile is configured in the world, so the owner is served.
-	"GET /api/v1/office/desktop/download":                                        {query: "?organization_id={orgID}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/labels":                      {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends":             {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/sidebar-counts":              {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/threads":                     {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/projects/search":                       {query: "?q=Project"},
+	"GET /api/v1/office/desktop/download":                            {query: "?organization_id={orgID}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/labels":          {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends": {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/sidebar-counts":  {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/threads":         {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/projects/search":           {query: "?q=Project"},
+	// The access report (UNI-1643) over the tenant's folder: the mixed pass
+	// sends B's workspace with A's folder.
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report":               {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/export":        {query: "?folder_id={folderID}&format=csv"},
 	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                 {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/task-views":                            {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},

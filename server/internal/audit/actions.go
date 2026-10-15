@@ -154,6 +154,9 @@ const (
 	ActionDocumentLinkCreated       = "document.link_created"
 	ActionDocumentLinkRevoked       = "document.link_revoked"
 	ActionDocumentSettingsChanged   = "document.settings_changed"
+	// ActionDocumentsAccessReportExported is one access report export
+	// (UNI-1643): ids, the filter and counts, never a name.
+	ActionDocumentsAccessReportExported = "documents.access_report_exported"
 
 	// Document comments + favorites (UNI-681): the document half of the
 	// shared comment core. The reaction actions stay document-scoped so

@@ -317,14 +317,12 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 			}
 			entry.Effective = acc
 			entry.Active = acc.Level != DocumentLevelNone
-		case sh.PrincipalType == DocumentPrincipalWorkspace:
-			ok, err := workspaceInOrganization(ctx, s.q, sh.PrincipalID, doc.OrganizationID)
+		case sh.PrincipalType == DocumentPrincipalWorkspace || sh.PrincipalType == DocumentPrincipalOrganization:
+			ok, err := groupShareActive(ctx, s.q, doc.OrganizationID, sh.PrincipalType, sh.PrincipalID)
 			if err != nil {
 				return DocumentAccessOverview{}, err
 			}
 			entry.Active = ok
-		case sh.PrincipalType == DocumentPrincipalOrganization:
-			entry.Active = sh.PrincipalID == doc.OrganizationID
 		}
 		if entry.Active && sh.PrincipalType != DocumentPrincipalUser {
 			entry.Effective = DocumentAccess{Level: DocumentLevel(sh.Level), Via: DocumentViaShare}
@@ -344,6 +342,21 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 		}
 	}
 	return out, nil
+}
+
+// groupShareActive is whether a workspace or organization share still
+// reaches anyone: a workspace principal while it is a workspace of the
+// document's organization, an organization principal when it is that
+// organization. DocumentAccessList and the access report both answer
+// "active" through it.
+func groupShareActive(ctx context.Context, q *db.Queries, organizationID, principalType, principalID string) (bool, error) {
+	switch principalType {
+	case DocumentPrincipalWorkspace:
+		return workspaceInOrganization(ctx, q, principalID, organizationID)
+	case DocumentPrincipalOrganization:
+		return principalID == organizationID, nil
+	}
+	return false, nil
 }
 
 // personAccess is one person's level with a closed-tenant answer folded to

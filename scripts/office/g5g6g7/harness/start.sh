@@ -445,6 +445,12 @@ FORK_DIR="$(run_lib "resolve the fork cache dir" --fork-dir "$FORK_CACHE" "$FORK
   || fail "could not resolve the fork cache dir for $FORK_SHA (see the step above and $LOG_DIR/lib.log)"
 [ -n "$FORK_DIR" ] || fail "lib.mjs --fork-dir returned an empty path for $FORK_SHA"
 mkdir -p "$FORK_CACHE"
+# Defined before the clone, its first caller.
+fork_log_tail() { # fork_log_tail <log> <what> — the last 60 lines on stdout before a FAILED
+  echo "harness: ---- last 60 lines of $2 ($1) ----" >&2
+  tail -n 60 "$1" >&2 2> /dev/null || true
+  already_tailed="$already_tailed $1"
+}
 # Is the fork reachable? A VM without network is the one precondition that makes
 # every fork step impossible, so it is probed on its own and reported as BLOCKED;
 # with the network up, a clone or install that fails is this harness's step
@@ -505,11 +511,6 @@ git -C "$FORK_DIR" checkout -q --detach "$FORK_SHA"
 # do is for Windows packaging (electron-winstaller's 7z copy) or a version-scheme
 # warning (protobufjs) and is deliberately skipped.
 FORK_INSTALL_LOG="$RUN_DIR/logs/fork-install.log"
-fork_log_tail() { # fork_log_tail <log> <what> — the last 60 lines on stdout before a FAILED
-  echo "harness: ---- last 60 lines of $2 ($1) ----" >&2
-  tail -n 60 "$1" >&2 2> /dev/null || true
-  already_tailed="$already_tailed $1"
-}
 
 # The fork's dependency tree is complete when npm ci has run and esbuild links a
 # working binary; a cache from an older strategy (a plain `npm ci`, or one that

@@ -64,9 +64,12 @@ func officeLeaseLimitReached() error {
 // document that went to the trash (G5-D1 row 14): the app keeps its copy to
 // the lease's expiry instead of reading a not-found as lost access. Only a
 // holder of a live lease row, or a manager who can see the archived document
-// anyway, ever gets it, so it reveals nothing.
+// anyway, ever gets it, so it reveals nothing. The version-save routes (commit,
+// upload, restore, and the web frame's two save routes) answer it too, under
+// the same rule: only an actor who could save (edit or more), or a lease
+// holder / manager, ever gets it; below edit the document stays not_found.
 func documentArchived() error {
-	return CodedError{Code: "document_archived", Status: http.StatusForbidden, Msg: "this document is archived", Err: ErrDocumentArchived}
+	return CodedError{Code: "document_archived", Status: http.StatusForbidden, Msg: "tài liệu đã được lưu trữ", Err: ErrDocumentArchived}
 }
 
 // Lease levels: manage reads as edit offline (G5-D1 row 3).

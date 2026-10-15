@@ -564,6 +564,35 @@ func (s *DocumentService) withDocumentMutation(
 	return s.withDocumentMutationLocked(ctx, actor, documentID, "", required, fn)
 }
 
+// withFileSaveMutation is withDocumentMutation at edit for the version-save
+// commands (commit, restore). The only difference is the answer for a row
+// that was archived after the preflight: the gate gives it the preflight's
+// answer (decideFileSave: document_archived from edit up, not_found below)
+// instead of decideDocumentContent's manage-only not_found, so a race
+// never flips the refusal inside one retry. Other commands keep the plain gate.
+func (s *DocumentService) withFileSaveMutation(
+	ctx context.Context, actor Actor, documentID string,
+	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
+) error {
+	return s.withDocumentGateLocked(ctx, actor, documentID, "", decideFileSave, fn)
+}
+
+// decideFileSave is the locked gate of a version save. The archived answer
+// comes first: archivedSaveRefusal is what the preflight gave (readableDocument
+// refuses Level none with not_found before it), so a row archived after the
+// preflight keeps that answer, and an AdminScope caller with no read level on
+// an archived restricted document gets not_found - never more than the
+// preflight told them, and never document_restricted's can_break_glass offer
+// for a row in the trash. A live row takes the content gate at edit
+// (decideDocumentContent), so a level lost after the preflight answers as on
+// every other content command.
+func decideFileSave(doc db.Document, access DocumentAccess) error {
+	if doc.ArchivedAt.Valid {
+		return archivedSaveRefusal(access)
+	}
+	return decideDocumentContent(doc, access, DocumentLevelEdit)
+}
+
 // withDocumentMutationLocked is withDocumentMutation for a command that may
 // place a name into a parent: when treeWorkspaceID is set, the workspace tree
 // lock is taken once the transaction is open and before the document row lock

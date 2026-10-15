@@ -441,7 +441,7 @@ func isoWritePhase(r isoRoute) int {
 
 // isoQueryNamesRow: the query string carries a tenant row (not a date).
 func isoQueryNamesRow(q string) bool {
-	for _, p := range []string{"{emailAccount}", "{callID}", "{peerEmail}", "{peerID}", "{orgID}"} {
+	for _, p := range []string{"{emailAccount}", "{callID}", "{peerEmail}", "{peerID}", "{orgID}", "{folderID}"} {
 		if strings.Contains(q, p) {
 			return true
 		}
@@ -967,6 +967,8 @@ func isoQuery(q string, tn *isoTenant) string {
 		"{callID}", tn.ids["callID"],
 		"{peerID}", tn.peerID,
 		"{orgID}", tn.orgID,
+		// The access report's folder (UNI-1643) rides in ?folder_id=.
+		"{folderID}", tn.ids["folder"],
 		// The calendar window around the fixture's meetings (now + 24h).
 		"{fromDate}", time.Now().AddDate(0, 0, -30).Format("2006-01-02"),
 		"{toDate}", time.Now().AddDate(0, 0, 60).Format("2006-01-02"),
