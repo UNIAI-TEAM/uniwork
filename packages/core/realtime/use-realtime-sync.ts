@@ -128,6 +128,14 @@ function keysFor(
       // covers a workspace opened under an old slug.
       push(workspaceKeys.list());
       push(workspaceKeys.allBySlugs());
+      // Task identifiers carry the prefix; the payload does not say which
+      // field changed, so this workspace's task caches refetch too.
+      push(taskKeys.list(wsId));
+      push(taskKeys.myTasks(wsId));
+      push(taskKeys.queryRoot(wsId));
+      push(taskKeys.groupedRoot(wsId));
+      push(taskKeys.tableRoot(wsId));
+      push(taskKeys.details());
       break;
     }
     case "workspace_agent.added": {
