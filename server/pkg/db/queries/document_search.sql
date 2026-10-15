@@ -21,6 +21,10 @@
 -- an empty snippet and a query matches its title only, never search_text, so
 -- neither the snippet nor a body-only keyword leaks the content. The
 -- "content readable" predicate is inlined where it is used.
+-- acl_owner_id is NULL for agent/system-created documents: every ACL-owner leg of
+-- that predicate carries IS NOT NULL, or the comparison is NULL, NOT NULL stays
+-- NULL and the snippet CASE falls through to the body (same trap as
+-- document_tree.sql ListDocumentSubtreeNeedingAccessCheck).
 --
 -- Actor-kind guards (resolveLevel answers the same): agents are never share
 -- principals and never ACL owners, so callers pass allow_shares / acl_owner
@@ -33,7 +37,7 @@ SELECT d.*,
        COALESCE(CASE WHEN sqlc.narg(query)::text IS NULL THEN NULL::text
                      WHEN NOT (NOT sqlc.arg(see_all)::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id))
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -82,7 +86,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
        OR (NOT sqlc.arg(match_title)::boolean
            AND (NOT sqlc.arg(see_all)::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id))
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -105,7 +109,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
            AND d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
        OR ((sqlc.arg(match_title)::boolean OR NOT (NOT sqlc.arg(see_all)::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id))
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -164,7 +168,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
        OR (NOT sqlc.arg(match_title)::boolean
            AND (NOT sqlc.arg(see_all)::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id))
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -187,7 +191,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
            AND d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
        OR ((sqlc.arg(match_title)::boolean OR NOT (NOT sqlc.arg(see_all)::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id))
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -244,7 +248,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
        OR (NOT sqlc.arg(match_title)::boolean
            AND (NOT sqlc.arg(see_all)::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id))
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
@@ -267,7 +271,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
            AND d.search_text ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\')
        OR ((sqlc.arg(match_title)::boolean OR NOT (NOT sqlc.arg(see_all)::boolean
                  OR d.visibility <> 'restricted'
-                 OR d.acl_owner_id = sqlc.arg(actor_id)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id))
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
