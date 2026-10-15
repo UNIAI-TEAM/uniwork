@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useOptionalNavigation } from "../navigation";
+import { dropSearchParams } from "./drop-search-params";
 
 /**
  * `?access=requests` is the link a manager's inbox notification carries
@@ -27,16 +28,14 @@ export function useAccessRequestsDeepLink({
   const requested = nav?.searchParams.get("access") === "requests";
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
-  const pathname = nav?.pathname;
-  const search = nav?.searchParams.toString();
-  const replace = nav?.replace;
+  const navRef = useRef(nav);
+  navRef.current = nav;
+  const hasNav = !!nav;
 
   useEffect(() => {
-    if (!requested || !ready || !replace || pathname === undefined) return;
+    const current = navRef.current;
+    if (!requested || !ready || !current) return;
     if (allowed) onOpenRef.current();
-    const rest = new URLSearchParams(search);
-    rest.delete("access");
-    const query = rest.toString();
-    replace(query ? `${pathname}?${query}` : pathname);
-  }, [requested, ready, allowed, replace, pathname, search]);
+    dropSearchParams(current, ["access"]);
+  }, [requested, ready, allowed, hasNav]);
 }

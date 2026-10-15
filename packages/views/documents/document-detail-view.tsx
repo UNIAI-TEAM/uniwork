@@ -15,37 +15,10 @@ import { DocumentActionsMenu } from "./document-actions-menu";
 import { DocumentCommentsPanel } from "./document-comments-panel";
 import { DocumentCommentsProvider } from "./document-comments-context";
 import { DocumentInboxState } from "./document-inbox-state";
-import { DocumentLockedCard, type DocumentAccessRequestSource } from "./document-locked-card";
+import { DocumentLockedCard } from "./document-locked-card";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { DocumentWorkspace } from "./document-workspace";
-
-// A task id as the editor link carries it (`?from=task:<ULID>`, access addendum
-// §3.1). Meeting links are deferred (Q5); anything else is dropped silently.
-const FROM_TASK = /^task:([0-9A-HJKMNP-TV-Z]{26})$/i;
-
-function readFromParam(value: string | null | undefined): DocumentAccessRequestSource | null {
-  const match = FROM_TASK.exec(value ?? "");
-  return match?.[1] ? { kind: "task", id: match[1] } : null;
-}
-
-/**
- * Reads `?from=` once and takes it off the address (`replace`), so a copied
- * or shared URL never carries the task id; the value lives on in state for
- * the locked card's request.
- */
-function useRequestSourceFromUrl(): DocumentAccessRequestSource | null {
-  const nav = useOptionalNavigation();
-  const [source] = useState(() => readFromParam(nav?.searchParams.get("from")));
-  const hasFrom = nav?.searchParams.has("from") ?? false;
-  useEffect(() => {
-    if (!nav || !hasFrom) return;
-    const rest = new URLSearchParams(nav.searchParams);
-    rest.delete("from");
-    const query = rest.toString();
-    nav.replace(query ? `${nav.pathname}?${query}` : nav.pathname);
-  }, [nav, hasFrom]);
-  return source;
-}
+import { useRequestSourceFromUrl } from "./use-request-source-from-url";
 
 export interface DocumentDetailViewProps {
   wsId: string;
@@ -95,7 +68,7 @@ export function DocumentDetailView({
   // A link that names a comment came from the Inbox (or its push): its refusals are the
   // S15 page messages with the way back to the Inbox (UNI-1389 rows 1-2).
   const fromInbox = (useOptionalNavigation()?.searchParams.get("comment") ?? "") !== "";
-  const requestSource = useRequestSourceFromUrl();
+  const requestSource = useRequestSourceFromUrl(documentId);
   const loaded = !!query.data;
   // An open document ends any request this device sent for it (F-08).
   useEffect(() => {
@@ -129,7 +102,7 @@ export function DocumentDetailView({
     if (fromInbox) return <DocumentInboxState reason="no_access" className="mx-auto w-full max-w-3xl" />;
     // DOC-05: an admin is refused a restricted document's content, never its management.
     if (classifyDocumentError(error).code === "document_restricted") {
-      return <DocumentLockedCard variant="admin" wsId={wsId} documentId={documentId} onBack={onBackToList} />;
+      return <DocumentLockedCard key={documentId} variant="admin" wsId={wsId} documentId={documentId} onBack={onBackToList} />;
     }
     return (
       <CollectionPageState
@@ -153,6 +126,7 @@ export function DocumentDetailView({
     if (errorClass === "missing") {
       return (
         <DocumentLockedCard
+          key={documentId}
           variant="member"
           wsId={wsId}
           documentId={documentId}

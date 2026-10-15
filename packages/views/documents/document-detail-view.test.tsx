@@ -178,6 +178,45 @@ describe("DocumentDetailView", () => {
     expect(send?.[1]).toMatchObject({ body: { source_kind: "task", source_id: taskId } });
   });
 
+  it("resets the locked card and the from source when the route moves to another locked document", async () => {
+    const taskA = "01J8X4T9K0N1P2Q3R4S5T6V7W8";
+    const taskB = "01J8X4T9K0N1P2Q3R4S5T6V7W9";
+    requestMock.mockImplementation((path: string) =>
+      path.endsWith("/access-requests")
+        ? Promise.resolve({ status: "sent" })
+        : Promise.reject(new ApiError("not found", "not_found", 404)),
+    );
+    const nav = fakeNav(`/acme/doi/documents/d1?from=task:${taskA}`);
+    function Switcher() {
+      const [id, setId] = useState("d1");
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setId("d2");
+              nav.push(`/acme/doi/documents/d2?from=task:${taskB}`);
+            }}
+          >
+            go-d2
+          </button>
+          <DocumentDetailView wsId={WS} documentId={id} libraryHref={LIBRARY} onBackToList={vi.fn()} />
+        </>
+      );
+    }
+    render(withFlag(<Switcher />, true, nav));
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.access_request.send") }));
+    expect((await screen.findByRole("status")).textContent).toContain(t("documents.access_request.sent"));
+
+    fireEvent.click(screen.getByRole("button", { name: "go-d2" }));
+    const send = await screen.findByRole("button", { name: t("documents.access_request.send") });
+    expect(screen.queryByRole("status")).toBeNull();
+    fireEvent.click(send);
+    await screen.findByRole("status");
+    const second = requestMock.mock.calls.find(([path]) => path === "/api/v1/documents/d2/access-requests");
+    expect(second?.[1]).toMatchObject({ body: { source_kind: "task", source_id: taskB } });
+  });
+
   it("ignores a from value that is not a task id", async () => {
     requestMock.mockImplementation((path: string) =>
       path === "/api/v1/documents/d1/access-requests"
