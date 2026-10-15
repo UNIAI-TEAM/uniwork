@@ -189,7 +189,10 @@ export function summarizeRun(run, flaky = new Set()) {
       invalidArgumentAsks: run.asks.filter((a) => (a.invalidArguments ?? []).length > 0).length,
     },
     redactedAsks: run.asks.filter((a) => (a.redactions ?? []).length > 0).length,
+    // G712-61: `wallMs` sums the raw per-ask walls, renewal time included; `wallMsNoRenewals` is the wall a pilot uses
+    // for "server overhead (wall − model sum)". A run file from before the field counts its raw wall as the clean one.
     wallMs: sum((a) => a.wallMs),
+    wallMsNoRenewals: sum((a) => a.wallMsNoRenewals ?? a.wallMs),
   };
 }
 

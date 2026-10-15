@@ -562,6 +562,14 @@ describe('measurement conditions (G712-3, G712-5, G712-8, G712-9)', () => {
     assert.equal(o.status, 'PASS', o.blockers.join(' | '));
     assert.deepEqual(summarizeRun(runs[0]).load.renewals, { session: 1, frame: 1 });
     assert.deepEqual(summarizeRun(runs[1]).load.renewals, { session: 0, frame: 0 }, 'a run file without renewal notes counts as none');
+    // G712-61: the summary keeps both walls - the raw one and the one with the renewal time taken out - and a run file
+    // from before the field counts its raw wall as the clean one.
+    const weighted = (a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, wallMs: 20, renewalMs: 6, wallMsNoRenewals: 14 } : a);
+    const w = summarizeRun(run(1, bigSuite(weighted)));
+    const p = summarizeRun(run(2, bigSuite()));
+    assert.equal(w.wallMs - p.wallMs, 10, 'the raw wall is summed');
+    assert.equal(w.wallMsNoRenewals - p.wallMsNoRenewals, 4, 'the wall for server overhead has the renewal time out');
+    assert.equal(p.wallMsNoRenewals, p.wallMs, 'a run file without the field counts its raw wall');
     const md = renderReport(buildReport([runs[0]]));
     assert.match(md, /Gia hạn token \(phiên \/ khung\)/, 'the load table names the renewals');
     assert.match(md, /\| 1 \/ 1 \|/, 'the row carries the per-run counts');

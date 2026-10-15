@@ -615,8 +615,8 @@ describe('answer adapter', () => {
 const usageReader = async (ids) => new Map(ids.map((id, i) => [id, { promptId: 'office_uniwork_ai@test', provider: 'fake', model: 'stub-resolved', status: 'succeeded', latencyMs: 100 + (i % 7), inputTokens: 5, outputTokens: 2 }]));
 const noSleep = async () => {};
 
-async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
-  const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs });
+async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, mintDelayMs = 0, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
+  const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs, mintDelayMs });
   const session = await createServerSession({ serverUrl: facade.url });
   const mounts = [];
   const wrapped = { ...session, mount: (id, o) => { mounts.push({ id, ...o }); return mount ? mount(id, o, session, mounts.length) : session.mount(id, o); } };
@@ -1080,6 +1080,32 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
       assert.equal(doc.renewals.frame, 1, 'the printed count is the tokens minted, not the asks that asked for one');
       assert.equal(doc.asks.flatMap((a) => a.renewals).filter((r) => r.kind === 'frame').length, doc.renewals.frame, 'the frame notes equal the run summary');
       assert.ok(doc.asks.every((a) => a.calls.some((c) => c.renewed === 'frame')), 'both asks recorded the renewal action');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('keeps the renewal time out of the per-ask wall used for server overhead, and keeps the raw wall (G712-61)', async () => {
+    const fixtureId = one.fixtures[0].id;
+    const dir = path.join(tmpRoot, 'renew-wall');
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i === 0 ? { status: 401 } : null) }, mintDelayMs: 60 });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      // Warm the mount first: the asks' walls then carry no upload or first mint, only their own work.
+      await session.mount(fixtureId);
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-renew-wall', opts: { sleep: noSleep },
+      });
+      const [renewing, plain] = JSON.parse(fs.readFileSync(files[0], 'utf8')).asks;
+      assert.equal(renewing.renewals.length, 1);
+      assert.ok(renewing.renewalMs >= 60, `the held-back mint is part of the renewal time: ${renewing.renewalMs} ms`);
+      assert.equal(renewing.wallMsNoRenewals, Number((renewing.wallMs - renewing.renewalMs).toFixed(1)), 'the raw wall is kept beside the clean one');
+      const modelSum = (a) => a.calls.filter((c) => c.status === 200).reduce((n, c) => n + c.clientMs, 0);
+      const cleanOverhead = renewing.wallMsNoRenewals - modelSum(renewing);
+      const plainOverhead = plain.wallMs - modelSum(plain);
+      assert.ok(cleanOverhead - plainOverhead < renewing.renewalMs, `server overhead (wall − model sum) reads at the level of an ask that never renewed: ${cleanOverhead} vs ${plainOverhead}`);
+      assert.deepEqual([plain.renewalMs, plain.wallMsNoRenewals], [0, plain.wallMs], 'an ask that renewed nothing keeps its wall');
     } finally {
       await facade.close();
     }

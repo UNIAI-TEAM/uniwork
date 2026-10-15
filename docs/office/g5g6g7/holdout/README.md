@@ -249,8 +249,12 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
   lại khi máy chủ trả 404: tài liệu đã bị xoá), nên một lần gia hạn không tốn thêm tài liệu. Mỗi lần gia hạn là một ghi chú
   `{ kind: session|frame, ms }` trên lượt hỏi, tổng hợp thành `renewals` của lần chạy và thành cột "Gia hạn token (phiên / khung)"
   ở mục 2 báo cáo; lượt gọi thử lại giữ độ trễ của chính nó (thời gian gia hạn không tính vào độ trễ model) và **một lần gia hạn
-  không làm mất hiệu lực lần chạy**. Hội thoại không đổi khi gia hạn token khung — cùng một mã hội thoại; còn nếu máy chủ trả 409
-  `conversation_expired` thì đó là lỗi thật, bộ chạy ghi nhận chứ không che.
+  không làm mất hiệu lực lần chạy**. Gia hạn token khung được đếm theo **token thật sự được mint**: hai lượt hỏi cùng một tài liệu
+  gia hạn cùng lúc thì chỉ mint một token và chỉ ghi một ghi chú (G712-60). `wallMs` mỗi lượt hỏi là thời gian thô, gồm cả thời
+  gian gia hạn đã ghi trên lượt đó; `wallMsNoRenewals` đã trừ phần gia hạn ấy — dùng nó cho phép đo "server overhead (wall − model
+  sum)", còn báo cáo cộng cả hai theo từng lần chạy (`summaries[].wallMs` và `summaries[].wallMsNoRenewals`, G712-61).
+  Hội thoại không đổi khi gia hạn token khung — cùng một mã hội thoại; còn nếu máy chủ trả 409 `conversation_expired` thì đó là
+  lỗi thật, bộ chạy ghi nhận chứ không che.
 - Dòng báo cáo `UNIWORK_ANSWER <json>` được nối vào câu hỏi để model báo đáp án ở dạng máy đọc được; dòng này giống nhau
   cho mọi ca và không nêu gì về đáp án. Nó **thay đổi prompt**, nên là điều kiện của phép đo, không phải của sản phẩm;
   `report.md` in nguyên văn đoạn này cùng sha256, chính sách chấm, danh sách mô phỏng và bộ công cụ ở mục 0.

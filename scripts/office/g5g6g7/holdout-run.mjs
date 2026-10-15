@@ -371,6 +371,11 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
     ? answer.tools.used.filter((op) => !caseDoc.tools.allowed.includes(op))
     : scored.checks.filter((c) => c.id.startsWith('tool_allowed:') && c.status === 'fail').map((c) => c.id.slice(13));
   record.wallMs = Number((performance.now() - started).toFixed(1));
+  // G712-61: `wallMs` is the raw wall around the whole ask and therefore carries the renewal time noted on it;
+  // `wallMsNoRenewals` takes that time out, so a pilot's "server overhead (wall − model sum)" reads at the no-renewal
+  // level. Both are kept, the raw one beside the clean one.
+  record.renewalMs = Number(renewals.reduce((n, r) => n + (Number.isFinite(r.ms) ? r.ms : 0), 0).toFixed(1));
+  record.wallMsNoRenewals = Number(Math.max(0, record.wallMs - record.renewalMs).toFixed(1));
   return record;
 }
 
@@ -418,7 +423,7 @@ async function askSafely({ caseDoc, lang, ...rest }) {
       expects: { numeric: caseDoc.expected.numeric.length, writes: caseDoc.expected.writes, mustNotContain: caseDoc.expected.mustNotContain.length },
       counts: { rateLimited: 0, serverErrors: 0, retries: 0 }, renewals: [], tokens: { input: 0, output: 0, source: 'none' },
       adapter: { reportStatus: 'missing', anchorLenient: 0, extraFigures: 0 }, answer: null, unobtainableOps: [],
-      error: message, errored: true, status: scored.status, checks: scored.checks, outsideAllowlist: [], wallMs: 0, redactions: [],
+      error: message, errored: true, status: scored.status, checks: scored.checks, outsideAllowlist: [], wallMs: 0, renewalMs: 0, wallMsNoRenewals: 0, redactions: [],
     };
   }
 }
