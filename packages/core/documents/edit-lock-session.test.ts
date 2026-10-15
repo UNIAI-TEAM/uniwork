@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DocumentEditLock } from "../api/endpoints/documents-edit-lock";
 import { ApiError } from "../api/http";
-import { heldEditLocks, releaseHeldEditLocks } from "./edit-lock-registry";
+import { heldEditLockId, heldEditLocks, releaseHeldEditLocks } from "./edit-lock-registry";
 import { EditLockSession, newEditorId, type EditLockSessionState, type EditLockTransport } from "./edit-lock-session";
 
 // UNI-1645 addendum §9 and edges 6 / 13, against a fake transport. Fake timers
@@ -81,6 +81,9 @@ describe("EditLockSession", () => {
     expect(session.getState()).toMatchObject({ phase: "mine", editable: true, readOnly: false });
     expect(session.getState().lock?.lock_id).toBe("L1");
     expect(heldEditLocks()).toEqual([["d1", "L1"]]);
+    // A restore or a new file version sent from outside the editor names this lock.
+    expect(heldEditLockId("d1")).toBe("L1");
+    expect(heldEditLockId("d2")).toBeUndefined();
   });
 
   it("acquiring never emits a read-only state, and turns slow after 1 s", async () => {

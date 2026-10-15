@@ -5,6 +5,7 @@ import { Download, Eye, RotateCcwClock, RotateCcw, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
+import { heldEditLockId } from "@uniwork/core/documents/edit-lock-registry";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useDocumentDownload } from "@uniwork/core/documents/hooks";
 import {
@@ -136,6 +137,8 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
         // File restores name the base they intend to overwrite; page restores
         // replace the working copy and the server owns the revision.
         baseRevision: doc.kind === "file" ? doc.revision : undefined,
+        // The open editor holds the lock: the server refuses a content write without it (423).
+        editLockId: heldEditLockId(doc.id),
       });
       restoreKeyRef.current = null;
       setRestoreTarget(null);

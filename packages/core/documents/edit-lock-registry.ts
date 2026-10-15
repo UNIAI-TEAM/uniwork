@@ -16,6 +16,16 @@ export function forgetHeldEditLock(lockId: string): void {
   held.delete(lockId);
 }
 
+/**
+ * The lock this tab holds on `documentId`, if any: the `edit_lock_id` a
+ * content write sent from outside the editor (a version restore, a new file
+ * version) carries, so the server lets the holder through (addendum §2).
+ */
+export function heldEditLockId(documentId: string): string | undefined {
+  for (const [lockId, heldDocumentId] of held) if (heldDocumentId === documentId) return lockId;
+  return undefined;
+}
+
 /** The locks held now, as [documentId, lockId] pairs (tests and diagnostics). */
 export function heldEditLocks(): [string, string][] {
   return [...held].map(([lockId, documentId]) => [documentId, lockId]);

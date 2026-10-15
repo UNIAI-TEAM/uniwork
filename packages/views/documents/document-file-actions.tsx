@@ -5,6 +5,7 @@ import { Download, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
+import { heldEditLockId } from "@uniwork/core/documents/edit-lock-registry";
 import { useDocumentDownload, useUploadDocumentFile } from "@uniwork/core/documents/hooks";
 import { useCommitDocumentVersion } from "@uniwork/core/documents/hooks-versions";
 import type { Document } from "@uniwork/core/types/document";
@@ -72,9 +73,12 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
         idempotencyKey: idempotencyKey.current,
       });
       staged = true;
+      const lockId = heldEditLockId(doc.id);
       await commit.mutateAsync({
         upload_id: upload0.upload_id,
         base_revision: doc.revision,
+        // The mounted Office editor holds the lock; a new version replaces content (UNI-1645).
+        ...(lockId ? { edit_lock_id: lockId } : {}),
         idempotencyKey: idempotencyKey.current,
       });
       idempotencyKey.current = null;

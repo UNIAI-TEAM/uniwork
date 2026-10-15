@@ -70,6 +70,7 @@
     "./documents/folder-limits": "./documents/folder-limits.ts",
     "./documents/save-state": "./documents/save-state.ts",
     "./documents/hooks-edit-lock": "./documents/hooks-edit-lock.ts",
+    "./documents/edit-lock-registry": "./documents/edit-lock-registry.ts",
     "./office": "./office/index.ts",
     "./office/docs-frame-protocol": "./office/docs-frame-protocol.ts",
     "./office/docs-frame-endpoint": "./office/docs-frame-endpoint.ts",
