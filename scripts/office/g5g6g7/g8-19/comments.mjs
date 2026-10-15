@@ -106,6 +106,30 @@ export function panelProbe() {
   };
 }
 
+/**
+ * Opens the reply composer of one thread the way a user does: the kit renders a composer only
+ * under a thread whose Reply was pressed (fork packages/ui/src/collab/CollabThread.tsx:761-770
+ * Reply = button.collab-link, :851-852,911-933 showComposer -> CollabComposer; en "Reply", vi
+ * "Trả lời", i18n/panel/en.ts:39 vi.ts:39). Waits (bounded) for its textarea.
+ */
+export async function openReplyComposer({ threadId, anyThread = false, boundMs = 3_000 }) {
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const replyIn = (t) => [...t.querySelectorAll("button.collab-link")].find((b) => /^(Reply|Trả lời)$/.test((b.textContent || "").trim())) ?? null;
+  let thread = document.querySelector(`aside.collab-panel [data-thread-id="${threadId}"]`);
+  // the thread may not be listed yet (the desktop reloads on focus / every 30 s): any open thread takes a reply
+  if (!thread && anyThread) thread = [...document.querySelectorAll("aside.collab-panel [data-thread-id]")].find((t) => replyIn(t)) ?? null;
+  if (!thread) return { ok: false, reason: `no thread ${threadId} in the panel` };
+  const used = thread.getAttribute("data-thread-id");
+  const reply = replyIn(thread);
+  if (!reply) return { ok: false, reason: `no Reply button in thread ${used}` };
+  reply.click();
+  for (let waited = 0; waited <= boundMs; waited += 100) {
+    if (thread.querySelector("textarea.collab-composer-input")) return used === threadId ? { ok: true } : { ok: true, threadId: used };
+    await wait(100);
+  }
+  return { ok: false, reason: `no composer under thread ${used} ${boundMs} ms after Reply` };
+}
+
 /** Types `text` into the panel composer the way React sees input (native setter + input event). */
 export function typeDraft({ text }) {
   const textarea = document.querySelector("aside.collab-panel textarea.collab-composer-input");
@@ -303,7 +327,8 @@ export function decideG8A04(rec) {
   ]);
   const o = rec.offline ?? {};
   steps["check:offline"] = check([
-    ...(o.draftTyped ? [] : ["no draft could be typed into the composer"]),
+    ...(o.draftTyped ? [] : [`no draft could be typed into the composer${o.reason ? ` (${o.reason})` : ""}`]),
+    ...(!o.draftTyped || o.sendOnline ? [] : ["Send was already blocked online with a draft, so blocking it offline proves nothing"]),
     ...(o.readOnly ? [] : ["no offline status line while the server was unreachable"]),
     ...(o.sendBlocked ? [] : ["Send was not blocked offline"]),
     ...(o.draftKept ? [] : ["the draft was lost offline"]),
@@ -468,8 +493,22 @@ export async function runG8A04(ctx, deps = {}) {
 
     await ctx.step("offline", async () => {
       const draft = `G8-A04 draft ${tag}`;
+      // the draft goes where a user writes one: the Reply composer of the desktop's own (reopened) thread
+      const threadId = deskId;
+      rec.offline = { threadId, draftTyped: false };
+      const fail = (reason) => {
+        rec.offline.reason = reason;
+        return { status: "FAIL", reason };
+      };
+      if (!threadId) return fail("no desktop thread to reply to");
+      const opened = await desk.ctrl.evalBounded(desk.page, openReplyComposer, { threadId, anyThread: true }, "draft:open");
+      if (opened?.ok !== true) return fail(`could not open a reply composer: ${opened?.reason ?? "no answer"}`);
+      if (opened.threadId) rec.offline.threadId = opened.threadId;
       const typed = await desk.ctrl.evalBounded(desk.page, typeDraft, { text: draft }, "draft:type");
-      rec.offline = { draftTyped: typed?.ok === true };
+      if (typed?.ok !== true) return fail(`could not type the draft: ${typed?.reason ?? "no answer"}`);
+      const online = await probe();
+      if (online?.draft !== draft) return fail(`the composer reads ${JSON.stringify(online?.draft ?? null)} after typing, not the draft`);
+      Object.assign(rec.offline, { draftTyped: true, sendOnline: online.sendDisabled === false });
       setOnline(ctx.runDir, false);
       wentOffline = true;
       const off = await waitDesktopSees({ ctrl: desk.ctrl, path: desk.path, probe, pred: (v) => v?.warn === true, ...waitOpts });
@@ -479,6 +518,8 @@ export async function runG8A04(ctx, deps = {}) {
       const back = await waitDesktopSees({ ctrl: desk.ctrl, path: desk.path, probe, pred: (v) => v?.warn === false, ...waitOpts });
       Object.assign(rec.offline, { recovered: back.seen, draftKeptAfter: back.value?.draft === draft });
       rec.panels.desktop = back.value?.panels ?? rec.panels.desktop;
+      if (!off.value || !back.value) return fail("the panel could not be read while offline or after recovery");
+      return {};
     });
 
     rec.g8A03AddOn = await a03AddOn({ A, desk, documentId: doc.documentId, tag, sleep });
