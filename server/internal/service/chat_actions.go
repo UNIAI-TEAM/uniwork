@@ -86,6 +86,13 @@ func (s *ChatService) DeleteChatMessage(
 	if err := s.releaseChatMessageFile(ctx, q, deleted); err != nil {
 		return err
 	}
+	if deleted.ThreadRootID.Valid {
+		if err := q.DropChatThreadReplyStats(ctx, db.DropChatThreadReplyStatsParams{
+			ThreadRootID: deleted.ThreadRootID, RoomID: room.ID, WorkspaceID: anchorWS,
+		}); err != nil {
+			return err
+		}
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: room.OrganizationID,
 		WorkspaceID:    anchorWS,
@@ -101,6 +108,10 @@ func (s *ChatService) DeleteChatMessage(
 		return err
 	}
 	s.publishChatMessageDeleted(ctx, room, deleted.ID)
+	if deleted.ThreadRootID.Valid {
+		// The root's reply count changed; clients refetch it on this frame.
+		s.publishChatMessageUpdated(ctx, room, deleted.ThreadRootID.String)
+	}
 	return nil
 }
 

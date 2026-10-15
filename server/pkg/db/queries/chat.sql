@@ -733,6 +733,21 @@ WHERE id = sqlc.arg(thread_root_id)
   AND deleted_at IS NULL
 RETURNING *;
 
+-- name: DropChatThreadReplyStats :exec
+-- One reply was deleted (earlier in the same transaction): one fewer, and
+-- last_reply_at falls back to the newest reply still alive.
+UPDATE chat_messages root
+SET reply_count = GREATEST(root.reply_count - 1, 0),
+    last_reply_at = (
+      SELECT max(r.created_at) FROM chat_messages r
+      WHERE r.thread_root_id = sqlc.arg(thread_root_id)
+        AND r.room_id = sqlc.arg(room_id)
+        AND r.deleted_at IS NULL
+    )
+WHERE root.id = sqlc.arg(thread_root_id)
+  AND root.room_id = sqlc.arg(room_id)
+  AND root.workspace_id = sqlc.arg(workspace_id);
+
 -- name: UpsertChatThreadFollower :exec
 -- tenant: parent thread_root_id
 INSERT INTO chat_thread_followers (

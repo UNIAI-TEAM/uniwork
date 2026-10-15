@@ -488,6 +488,33 @@ func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoic
 	return i, err
 }
 
+const dropChatThreadReplyStats = `-- name: DropChatThreadReplyStats :exec
+UPDATE chat_messages root
+SET reply_count = GREATEST(root.reply_count - 1, 0),
+    last_reply_at = (
+      SELECT max(r.created_at) FROM chat_messages r
+      WHERE r.thread_root_id = $1
+        AND r.room_id = $2
+        AND r.deleted_at IS NULL
+    )
+WHERE root.id = $1
+  AND root.room_id = $2
+  AND root.workspace_id = $3
+`
+
+type DropChatThreadReplyStatsParams struct {
+	ThreadRootID pgtype.Text `json:"thread_root_id"`
+	RoomID       string      `json:"room_id"`
+	WorkspaceID  string      `json:"workspace_id"`
+}
+
+// One reply was deleted (earlier in the same transaction): one fewer, and
+// last_reply_at falls back to the newest reply still alive.
+func (q *Queries) DropChatThreadReplyStats(ctx context.Context, arg DropChatThreadReplyStatsParams) error {
+	_, err := q.db.Exec(ctx, dropChatThreadReplyStats, arg.ThreadRootID, arg.RoomID, arg.WorkspaceID)
+	return err
+}
+
 const getActiveChatRoomMember = `-- name: GetActiveChatRoomMember :one
 SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, notifications_muted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')

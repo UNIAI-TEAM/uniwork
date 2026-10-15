@@ -156,6 +156,107 @@ func TestChatThreadFollowMarkReadAndList(t *testing.T) {
 	}
 }
 
+// Deleting a reply takes it off the root's summary (UNI-1678): one fewer in
+// reply_count, last_reply_at falls back to the newest live reply, an empty
+// thread leaves the followed list, and the room hears about the root.
+func TestDeletingAThreadReplyUpdatesTheRoot(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "deploy luc may?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r1, err := s.SendThreadReply(ctx, ub.ID, w.ID, room.RoomID, root.ID, SendChatMessageInput{Body: "9pm"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2, err := s.SendThreadReply(ctx, ub.ID, w.ID, room.RoomID, root.ID, SendChatMessageInput{Body: "ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rootRow := func() ChatMessageRow {
+		t.Helper()
+		main, err := s.ListRoomMessages(ctx, ua.ID, w.ID, room.RoomID, ListChatMessagesInput{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range main {
+			if m.ID == root.ID {
+				return m
+			}
+		}
+		t.Fatal("root missing from main timeline")
+		return ChatMessageRow{}
+	}
+	rootUpdatedSince := func(from int) bool {
+		for _, ev := range pub.events[from:] {
+			if ev.Type == "chat.message.updated" && ev.Payload["message_id"] == root.ID {
+				return true
+			}
+		}
+		return false
+	}
+
+	mark := len(pub.events)
+	if err := s.DeleteChatMessage(ctx, ub.ID, w.ID, room.RoomID, r2.ID); err != nil {
+		t.Fatalf("delete r2: %v", err)
+	}
+	got := rootRow()
+	if got.ReplyCount != 1 {
+		t.Fatalf("after r2 delete: reply_count=%d want 1", got.ReplyCount)
+	}
+	if got.LastReplyAt == nil || !got.LastReplyAt.Equal(r1.CreatedAt) {
+		t.Fatalf("after r2 delete: last_reply_at=%v want %v", got.LastReplyAt, r1.CreatedAt)
+	}
+	if !rootUpdatedSince(mark) {
+		t.Fatal("no chat.message.updated for the root after deleting r2")
+	}
+
+	mark = len(pub.events)
+	if err := s.DeleteChatMessage(ctx, ub.ID, w.ID, room.RoomID, r1.ID); err != nil {
+		t.Fatalf("delete r1: %v", err)
+	}
+	got = rootRow()
+	if got.ReplyCount != 0 || got.LastReplyAt != nil {
+		t.Fatalf("after r1 delete: reply_count=%d last_reply_at=%v want 0, nil", got.ReplyCount, got.LastReplyAt)
+	}
+	if !rootUpdatedSince(mark) {
+		t.Fatal("no chat.message.updated for the root after deleting r1")
+	}
+	followed, err := s.ListFollowedThreads(ctx, ub.ID, w.ID, false, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, th := range followed {
+		if th.ThreadRootID == root.ID {
+			t.Fatal("empty thread still in the followed list")
+		}
+	}
+
+	// A main-timeline delete has no root to refresh.
+	plain, err := s.SendRoomMessage(ctx, ub.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "plain"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mark = len(pub.events)
+	if err := s.DeleteChatMessage(ctx, ub.ID, w.ID, room.RoomID, plain.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range pub.events[mark:] {
+		if ev.Type == "chat.message.updated" {
+			t.Fatalf("main-timeline delete published %s for %s", ev.Type, ev.Payload["message_id"])
+		}
+	}
+}
+
 func TestChatThreadRejectedOnDM(t *testing.T) {
 	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
