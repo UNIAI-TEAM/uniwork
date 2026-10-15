@@ -8,8 +8,15 @@
 //     a clarification or a number;
 //   - numbers: the figures the line reports are matched to the expected numeric items by value (tolerance and rounding
 //     of the case); a figure that matches nothing is an extra and fails the ask under the default "strict" policy;
-//   - cell/formula/heading/table_cell/count items: matched by kind and value; the model's own anchor is kept as
-//     `anchorExact` evidence (a value found at another anchor is counted, never hidden);
+//   - cell/formula/heading/table_cell/count items: matched by kind, value AND the scorer's own anchor rule (identity for
+//     cell/formula/table_cell), so a right value at another anchor fails (`--anchors strict`, the default); `--anchors
+//     lenient` opts into value-first matching and counts every ask it rescued (`anchorLenient`), which makes a signed
+//     verdict INCONCLUSIVE;
+//   - an edit case (it expects writes) is scored from what the write tool was actually given: a cell the reply claims
+//     is credited only when an applied write's arguments carry its value or cover its address (`writeBacked`), so a
+//     claimed edit that was never proposed fails; items the arguments cannot prove stay self-reported and are counted;
+//   - the prose and the reporting line are compared: a figure of the line that the prose never states is flagged per ask
+//     (`proseFigureMismatch`), counted by the report, never a pass or a failure by itself;
 //   - clarification / refusal / not_found / caveat items are observed behaviour: ask_clarification was called, the line
 //     says refused / not_found, or it lists a caveat. They carry a neutral value, never the case's reference text;
 //   - writes come from the backend (calls it let through), tools.used from the mapped operations of the calls, plus the
@@ -19,7 +26,7 @@
 // A reply without the line (or with an invalid one) reports nothing, so the scorer fails it closed; `reportStatus`
 // keeps that protocol failure apart from a wrong answer.
 
-import { toNumber } from './holdout-score.mjs';
+import { anchorMatches, splitAnchor, toNumber } from './holdout-score.mjs';
 import { opsOfTool } from './holdout-backend.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
@@ -88,11 +95,59 @@ function matchNumbers(expected, figures) {
   return { numeric, extras: free.map((f) => f.value) };
 }
 
+const NUMBER_TOKEN_RE = /\d[\d.,]*\d|\d/g;
+
+/** Figures of the line that the prose never states (compared as numbers, so "31.337.000" and 31337000 agree). */
+function proseFigureMismatch(text, figures) {
+  const prose = (String(text).match(NUMBER_TOKEN_RE) ?? []).map(toNumber).filter((n) => n !== null);
+  if (prose.length === 0) return [];
+  const states = (f) => prose.some((p) => Math.abs(p - f) <= 1e-6 * Math.max(1, Math.abs(f)) || Math.abs(Math.round(p * 100) / 100 - f) < 1e-9 || Math.abs(p - Math.round(f)) < 1e-9);
+  return figures.map(toNumber).filter((f) => f !== null && !states(f)).map(String);
+}
+
+const colNumber = (letters) => [...letters].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0);
+const RANGE_TOKEN_RE = /\b([A-Z]{1,3})(\d+)(?::([A-Z]{1,3})(\d+))?\b/g;
+
+/** Does the text of a write's arguments cover the cell (a range or an address that contains it)? */
+function coversCell(argsText, cellRef) {
+  const at = /^([A-Z]{1,3})(\d+)$/.exec(cellRef);
+  if (!at) return false;
+  const col = colNumber(at[1]);
+  const row = Number(at[2]);
+  for (const m of argsText.toUpperCase().matchAll(RANGE_TOKEN_RE)) {
+    const c1 = colNumber(m[1]);
+    const r1 = Number(m[2]);
+    const c2 = m[3] ? colNumber(m[3]) : c1;
+    const r2 = m[4] ? Number(m[4]) : r1;
+    if (col >= Math.min(c1, c2) && col <= Math.max(c1, c2) && row >= Math.min(r1, r2) && row <= Math.max(r1, r2)) return true;
+  }
+  return false;
+}
+
+/**
+ * Can the arguments of the applied writes prove this expected cell? Returns true/false for a provable item (a cell with a
+ * plain location and a non-empty value in a case that expects a write), or null when the arguments cannot say (a blank, a
+ * format probe, a count, a heading...), in which case the item stays self-reported.
+ */
+function writeBacks(caseDoc, expected, applied) {
+  if (caseDoc.expected.writes <= 0 || !caseDoc.tools.required.includes('write_range')) return null;
+  if (expected.kind !== 'cell' || splitAnchor(expected.anchor).probe) return null;
+  const value = String(expected.value ?? '').trim();
+  if (value === '') return null;
+  const text = applied.map((w) => JSON.stringify(w.args ?? {})).join('\n');
+  const wanted = toNumber(value);
+  const literal = wanted !== null
+    ? (text.match(NUMBER_TOKEN_RE) ?? []).map(toNumber).some((n) => n !== null && (Math.abs(n - wanted) < 1e-9 || Math.abs(n - wanted * 100) < 1e-9))
+    : text.toLowerCase().includes(value.toLowerCase());
+  const cell = splitAnchor(expected.anchor).base.split('!').pop().replace(/\$/g, '').toUpperCase();
+  return literal || coversCell(text, cell);
+}
+
 /**
  * deriveAnswer(caseDoc, ask) -> { answer, adapter }.
- * ask = { reply, calls: [{name}], writes, dropped: [name], modules: [module of every fixture] }
+ * ask = { reply, calls: [{name}], writes, writeLog: [{name, applied, args}], dropped: [name], modules: [module of every fixture] }
  */
-export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply = true } = {}) {
+export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply = true, anchors = 'strict' } = {}) {
   const parsed = parseReport(ask.reply);
   const report = parsed.report ?? {};
   const used = new Set();
@@ -113,20 +168,33 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   strictExtras.forEach((value, i) => { numeric[`extra_figure_${i + 1}`] = value; });
 
   const items = (Array.isArray(report.items) ? report.items : []).filter((it) => it && typeof it === 'object');
+  const applied = (ask.writeLog ?? []).filter((w) => w.applied);
   const taken = new Set();
   const structural = [];
-  let anchorLenient = 0;
+  const lenientAt = [];
+  let writeBacked = 0;
+  let writeUnbacked = 0;
+  let writeSelfReported = 0;
   const asked = ask.calls.some((c) => c.name === 'ask_clarification');
   const caveats = Array.isArray(report.caveats) && report.caveats.some((c) => typeof c === 'string' && c.trim());
   for (const expected of caseDoc.expected.structural) {
     if (VALUE_KINDS.has(expected.kind)) {
       const same = items.filter((it) => it.kind === expected.kind && !taken.has(it));
-      const pick =
-        same.find((it) => sameValue(it.value, expected.value)) ??
-        same.find((it) => norm(it.anchor) === norm(expected.anchor));
+      const proof = writeBacks(caseDoc, expected, applied);
+      const atAnchor = (it) => anchorMatches(expected.kind, expected.anchor, String(it.anchor ?? ''));
+      let pick = same.find((it) => sameValue(it.value, expected.value) && atAnchor(it));
+      let lenient = false;
+      if (!pick && anchors === 'lenient') {
+        pick = same.find((it) => sameValue(it.value, expected.value)) ?? same.find((it) => norm(it.anchor) === norm(expected.anchor));
+        lenient = Boolean(pick);
+      }
+      if (pick && caseDoc.expected.writes > 0) {
+        if (proof === null) writeSelfReported += 1;
+        else if (proof === false) { writeUnbacked += 1; taken.add(pick); pick = undefined; lenient = false; } else writeBacked += 1;
+      }
       if (!pick) continue;
       taken.add(pick);
-      if (norm(pick.anchor) !== norm(expected.anchor.replace(/#\w+$/, ''))) anchorLenient += 1;
+      if (lenient) lenientAt.push(expected.kind);
       structural.push({ kind: expected.kind, anchor: expected.anchor, value: pick.value });
     } else if (
       (expected.kind === 'clarification' && asked) ||
@@ -139,6 +207,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   }
   // The model's own unmatched items stay in the answer so the scorer's leak check still reads them.
   for (const it of items) if (!taken.has(it)) structural.push({ kind: String(it.kind), anchor: String(it.anchor ?? ''), value: it.value });
+  const mismatch = proseFigureMismatch(parsed.text, figures);
 
   return {
     answer: { numeric, structural, writes: ask.writes, tools: { used: [...used] }, text: parsed.text },
@@ -147,7 +216,11 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       figures: figures.length,
       extraFigures: extras.length,
       items: items.length,
-      anchorLenient,
+      anchorLenient: lenientAt.length,
+      writeBacked,
+      writeUnbacked,
+      writeSelfReported,
+      proseFigureMismatch: mismatch.length,
       refused: report.refused === true,
       notFound: report.not_found === true,
     },
