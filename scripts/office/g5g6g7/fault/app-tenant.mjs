@@ -149,7 +149,7 @@ export async function deviceBCommit(tenant, documentId, fixture) {
     method: "POST",
     token: tenant.owner.token,
     headers: { "Idempotency-Key": `g7-03a-b-commit-${crypto.randomUUID()}` },
-    json: { upload_id: up?.upload_id, base_revision: Number(base) },
+    json: { upload_id: up?.upload_id, base_revision: String(base) },
   });
   return { status: commit.status, versionId: commit.body?.version?.id ?? null };
 }

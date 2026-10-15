@@ -4,6 +4,7 @@
 // Run: node --test scripts/office/g5g6g7/fault/app-cases.test.mjs
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { createServer } from "node:http";
 import test from "node:test";
 import { appEnv } from "../harness/lib.mjs";
 import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
@@ -16,6 +17,7 @@ import {
   parseTraceText, predictedTag, reachedUpstream, runExitCode, runResult, selectAppCases, statePath,
   syncStoreScopeDir, uploadPosts,
 } from "./app-cases-lib.mjs";
+import { deviceBCommit } from "./app-tenant.mjs";
 import { loadFaultCases } from "./server-cases-lib.mjs";
 
 const DOC = "01JDOCAAAAAAAAAAAAAAAAAAAA";
@@ -214,4 +216,31 @@ test("parseAppCasesArgs reads --case, --run-dir, --cases-file and --verify-resul
   assert.equal(args.verifyResult, true);
   assert.match(parseAppCasesArgs([], { HARNESS_RUN_DIR: "/x/run" }).runDir.replace(/\\/g, "/"), /\/x\/run$/);
   assert.throws(() => parseAppCasesArgs(["--nope"], {}), /unknown argument/);
+});
+
+test("deviceBCommit sends base_revision as a decimal string, like CommitDocumentVersionSDI", async () => {
+  const seen = [];
+  const server = createServer((req, res) => {
+    let raw = "";
+    req.on("data", (c) => { raw += c; });
+    req.on("end", () => {
+      const send = (status, body) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
+      if (req.method === "GET") return send(200, { document: { revision: "7" } });
+      if (req.url.endsWith("/uploads")) return send(201, { upload_id: "up1" });
+      const body = JSON.parse(raw);
+      seen.push(body.base_revision);
+      if (typeof body.base_revision !== "string") return send(400, { error: { code: "invalid_request", message: "bad body" } });
+      return send(200, { version: { id: "v1" } });
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const apiOrigin = `http://127.0.0.1:${server.address().port}`;
+    const out = await deviceBCommit({ apiOrigin, owner: { token: "t" } }, DOC, { bytes: Buffer.from("x"), mime: "text/plain", path: "a.txt" });
+    assert.deepEqual(seen, ["7"]);
+    assert.equal(out.status, 200);
+    assert.equal(out.versionId, "v1");
+  } finally {
+    server.close();
+  }
 });
