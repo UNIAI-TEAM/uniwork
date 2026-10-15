@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, ArchiveRestore, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, Lock, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -28,10 +28,12 @@ import {
   formatBytes,
   isFolderRow,
   rowFormat,
+  rowAccessLabelKey,
   rowOrigin,
   rowSizeBytes,
   rowTitle,
   rowUpdatedAt,
+  rowVisibilityLabelKey,
   type DocumentSummaryRow,
   type LibraryRow,
 } from "./library-rows";
@@ -122,6 +124,8 @@ export function LibraryRowView({
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const level = rowLevel(doc);
+  const accessKey = rowAccessLabelKey(row);
+  const visibilityKey = rowVisibilityLabelKey(row);
 
   // A trashed folder is not browsable: its primary action is Restore when the
   // viewer may restore it, and without that the name is plain text, not a link.
@@ -262,6 +266,20 @@ export function LibraryRowView({
         </td>
         <td className="hidden px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground md:table-cell">{updated || "—"}</td>
         <td className="hidden px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground md:table-cell">{size || "—"}</td>
+        {/* Wide screens only (lg): at md the fixed columns already leave Name little room. */}
+        <td className="hidden px-3 py-2 text-caption text-foreground lg:table-cell">
+          {accessKey ? <span className="block truncate">{t(accessKey)}</span> : <span className="text-muted-foreground">—</span>}
+        </td>
+        <td className="hidden px-3 py-2 text-caption lg:table-cell">
+          {visibilityKey ? (
+            <span className="flex items-center gap-1.5 text-foreground">
+              {doc?.visibility === "restricted" ? <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+              <span className="truncate">{t(visibilityKey)}</span>
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </td>
         <td className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
             {quick ? (

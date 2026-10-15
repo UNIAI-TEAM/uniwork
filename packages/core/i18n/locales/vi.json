@@ -8824,6 +8824,23 @@
         "md": "MD",
         "html": "HTML"
       },
+      "access_filter_label": "Lọc theo quyền truy cập",
+      "access_filters": {
+        "all": "Tất cả",
+        "manage": "Tôi quản lý",
+        "edit": "Tôi sửa được",
+        "restricted": "Hạn chế"
+      },
+      "access": {
+        "view": "Xem",
+        "comment": "Bình luận",
+        "edit": "Sửa",
+        "manage": "Quản lý"
+      },
+      "visibility": {
+        "workspace": "Cả workspace",
+        "restricted": "Hạn chế"
+      },
       "group_by": {
         "label": "Nhóm theo",
         "folder": "Thư mục",
@@ -8852,7 +8869,9 @@
         "updated": "Cập nhật",
         "size": "Dung lượng",
         "actions": "Thao tác",
-        "type": "Loại"
+        "type": "Loại",
+        "my_access": "Quyền của tôi",
+        "visibility": "Hiển thị"
       },
       "row": {
         "open_folder": "Mở thư mục",
@@ -8892,6 +8911,8 @@
       "no_matches_description": "Không có file loại này. Tạo mới ở hàng thẻ phía trên hoặc bỏ lọc.",
       "no_matches_plain_description": "Không có file loại này. Bỏ lọc để xem tất cả.",
       "no_matches_more_description": "Chưa thấy file loại này trong phần đã tải. Tải thêm để tìm tiếp hoặc bỏ lọc.",
+      "no_matches_access_description": "Không có tài liệu nào khớp quyền truy cập này. Bỏ lọc để xem tất cả.",
+      "no_matches_access_more_description": "Chưa thấy tài liệu nào khớp quyền truy cập này trong phần đã tải. Tải thêm để tìm tiếp hoặc bỏ lọc.",
       "drop_hint": "Kéo thả file vào bảng để tải lên.",
       "drop_active": "Thả để tải lên thư mục đang mở",
       "drop_failed": "Không thể tải lên {{name}}.",
