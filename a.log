@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+b2e544935506ac15c11f49e3a35b22c2fc74bbdd
+b2e544935 fix(office): End access keeps the banner until the DELETE resolves
+7966e4e00 style(office): re-indent the archive-impact and access schemas
+070d18d94 fix(office): clear the views typecheck and lint reds from cloud D r2
