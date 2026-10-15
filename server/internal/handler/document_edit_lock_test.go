@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -153,6 +154,34 @@ func TestEditLockWritesRefusedWith423Handler(t *testing.T) {
 	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.token, map[string]any{"revision": "2", "content": pageContent("stale"), "edit_lock_id": lockID})
 	if code, _ := errCodeClass(out); res.StatusCode != 422 || code != "revision_conflict" {
 		t.Fatalf("holder's stale write: %d %v", res.StatusCode, out)
+	}
+}
+
+// TestEditLockRouteStatusesClientCancel (FA2 r1-500) is the wire-level pin:
+// a browser leaving the page aborts R1's in-flight read, the service fails on
+// the cancelled context before RequireMember stamps the tenant, and R1 must
+// not answer that as an internal failure (the ERR 500 the cloud round caught,
+// 6 ms after the same user's release). The access log follows the status, so
+// a client-closed answer is a WRN 499 line and never an ERR line.
+func TestEditLockRouteStatusesClientCancel(t *testing.T) {
+	w := newEditLockWorld(t)
+	_, id := createPage(t, w.docsWorld, "Cancelled", nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodGet, lockPath(id, ""), nil)
+	req.Header.Set("Authorization", "Bearer "+w.token)
+	rec := httptest.NewRecorder()
+	w.srv.Config.Handler.ServeHTTP(rec, req.WithContext(ctx))
+	if rec.Code != statusClientClosedRequest {
+		t.Fatalf("cancelled R1: status %d body %s, want %d client-closed (a 500 here is the r1-500 false internal error)",
+			rec.Code, rec.Body.String(), statusClientClosedRequest)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("cancelled R1 body %q: %v", rec.Body.String(), err)
+	}
+	if code, class := errCodeClass(out); code != "client_closed_request" || class != "" {
+		t.Fatalf("cancelled R1: code %q class %q, want client_closed_request with no class", code, class)
 	}
 }
 

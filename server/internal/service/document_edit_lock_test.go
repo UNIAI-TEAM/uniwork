@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"slices"
@@ -16,6 +17,26 @@ import (
 
 // UNI-1645 (addendum 2026-10-15): the edit lock commands R1-R10 and the
 // write gate, service level. Handler-level cases are A2's.
+
+// TestEditLockStateCancelledRequestFailsFast (FA2 r1-500) pins the cause of
+// the 500 a browser could mint by leaving the page: R1's first read is the
+// document row, and on a request the client already cancelled it fails with
+// context.Canceled before RequireMember resolves the tenant - which is why
+// the production line carried actor_id but no organization_id/workspace_id.
+func TestEditLockStateCancelledRequestFailsFast(t *testing.T) {
+	w := newLockWorld(t)
+	d := w.page(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	started := time.Now()
+	_, err := w.svc.GetDocumentEditLockState(ctx, human(w.tn.member), d.ID)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled R1: err = %v, want context.Canceled", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("cancelled R1 took %v: it must fail on the first read, not wait", elapsed)
+	}
+}
 
 func TestEditLockWritesRefusedWith423(t *testing.T) {
 	w := newLockWorld(t)
