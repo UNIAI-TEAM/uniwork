@@ -8602,6 +8602,7 @@
       "sending": "Sending…",
       "sent": "Request sent. You'll be notified when someone responds.",
       "already_pending": "Your request is waiting for a manager to respond.",
+      "sent_earlier": "You sent a request at {{time}}. You can send another if needed.",
       "cooldown": "Your earlier request was declined. You can ask again in {{minutes}} min.",
       "retry_open": "Try opening again",
       "send_failed": "Couldn't send the request. Try again.",

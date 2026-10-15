@@ -53,21 +53,21 @@ function writeSentFlag(documentId: string): void {
   }
 }
 
-/** Whether this device sent a request for the document in the last 24 hours. */
-export function readDocumentAccessRequestSent(documentId: string): boolean {
+/** When this device sent a request for the document in the last 24 hours (epoch ms), else null. */
+export function readDocumentAccessRequestSentAt(documentId: string): number | null {
   let raw: string | null = null;
   try {
     raw = defaultStorage.getItem(SENT_FLAG_PREFIX + documentId);
   } catch {
-    return false;
+    return null;
   }
   const until = raw === null ? NaN : Number(raw);
-  if (!Number.isFinite(until)) return false;
+  if (!Number.isFinite(until)) return null;
   if (until <= Date.now()) {
     clearDocumentAccessRequestSent(documentId);
-    return false;
+    return null;
   }
-  return true;
+  return until - SENT_FLAG_TTL_MS;
 }
 
 /** Drop the flag: the document loaded, or a decision on the request arrived (F-08). */

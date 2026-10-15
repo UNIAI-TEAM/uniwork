@@ -7,7 +7,7 @@ import { setAccessToken } from "../api/session";
 import {
   accessRequestOutcome,
   clearDocumentAccessRequestSent,
-  readDocumentAccessRequestSent,
+  readDocumentAccessRequestSentAt,
   useRequestDocumentAccess,
 } from "./hooks-access-requests";
 import { documentKeys } from "./keys";
@@ -80,13 +80,13 @@ describe("useRequestDocumentAccess", () => {
     const spy = vi.spyOn(qc, "invalidateQueries");
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "sent" }, 202));
     const { result } = renderHook(() => useRequestDocumentAccess("ws1", "d1"), { wrapper });
-    expect(readDocumentAccessRequestSent("d1")).toBe(false);
+    expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
     let out: unknown;
     await act(async () => {
       out = await result.current.mutateAsync({ requested_level: "view" });
     });
     expect(out).toEqual({ state: "sent" });
-    expect(readDocumentAccessRequestSent("d1")).toBe(true);
+    expect(readDocumentAccessRequestSentAt("d1")).not.toBeNull();
     expect(spy.mock.calls.map((c) => c[0]?.queryKey)).toContainEqual(documentKeys.accessRequests("ws1", "d1"));
   });
 
@@ -99,7 +99,7 @@ describe("useRequestDocumentAccess", () => {
       out = await result.current.mutateAsync({ requested_level: "edit" });
     });
     expect(out).toEqual({ state: "already_pending" });
-    expect(readDocumentAccessRequestSent("d1")).toBe(true);
+    expect(readDocumentAccessRequestSentAt("d1")).not.toBeNull();
   });
 
   it("rejects a cooldown with the outcome attached and leaves no flag", async () => {
@@ -111,7 +111,7 @@ describe("useRequestDocumentAccess", () => {
       out = await result.current.mutateAsync({}).catch((e: unknown) => accessRequestOutcome(e));
     });
     expect(out).toEqual({ state: "cooldown", retryAfterSeconds: 61 });
-    expect(readDocumentAccessRequestSent("d1")).toBe(false);
+    expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
   });
 
   it("treats an unverifiable 202 body as a failed send", async () => {
@@ -123,7 +123,7 @@ describe("useRequestDocumentAccess", () => {
       out = await result.current.mutateAsync({}).catch((e: unknown) => accessRequestOutcome(e));
     });
     expect(out).toEqual({ state: "send_failed" });
-    expect(readDocumentAccessRequestSent("d1")).toBe(false);
+    expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
   });
 });
 
@@ -137,17 +137,17 @@ describe("the sent flag", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-15T00:00:00Z"));
     localStorage.setItem("uniwork_document_access_request_sent:d1", String(Date.now() + 24 * 3600_000));
-    expect(readDocumentAccessRequestSent("d1")).toBe(true);
-    expect(readDocumentAccessRequestSent("d2")).toBe(false);
+    expect(readDocumentAccessRequestSentAt("d1")).toBe(Date.now());
+    expect(readDocumentAccessRequestSentAt("d2")).toBeNull();
     vi.setSystemTime(new Date("2026-10-16T00:00:01Z"));
-    expect(readDocumentAccessRequestSent("d1")).toBe(false);
+    expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
     localStorage.setItem("uniwork_document_access_request_sent:d1", String(Date.now() + 1000));
     clearDocumentAccessRequestSent("d1");
-    expect(readDocumentAccessRequestSent("d1")).toBe(false);
+    expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
   });
 
   it("ignores a garbled value", () => {
     localStorage.setItem("uniwork_document_access_request_sent:d1", "yes");
-    expect(readDocumentAccessRequestSent("d1")).toBe(false);
+    expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
   });
 });

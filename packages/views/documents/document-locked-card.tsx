@@ -7,7 +7,7 @@ import { LockKeyhole, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   accessRequestOutcome,
-  readDocumentAccessRequestSent,
+  readDocumentAccessRequestSentAt,
   useRequestDocumentAccess,
   type AccessRequestOutcome,
 } from "@uniwork/core/documents/hooks-access-requests";
@@ -54,6 +54,11 @@ type CardState = AccessRequestOutcome["state"] | "idle";
 
 const SHELL = "mx-auto flex w-full max-w-xl flex-col gap-5 px-6 py-12 md:py-16";
 
+/** "10:32" in the reader's clock, for the note about this device's earlier request. */
+function sentTime(at: number): string {
+  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(at));
+}
+
 /**
  * The screen a signed-in person sees instead of a document they cannot open.
  * `member` (DOC-07): a 404 — missing, unshared or another organization's,
@@ -84,7 +89,7 @@ function AdminLockedCard({ wsId, documentId, onBack, className }: CommonProps) {
             {tRoot("documents.share.admin_manage_button")}
           </Button>
         ) : null}
-        <Button type="button" variant="outline" size="sm" onClick={onBack}>
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
           {tRoot("documents.detail.back_to_library")}
         </Button>
       </div>
@@ -115,7 +120,7 @@ function MemberLockedCard({
   // server's answer (sent / 409 pending / 429 cooldown) decides the state, so
   // a request handled or expired elsewhere never leaves this device stuck.
   const [state, setState] = useState<CardState>("idle");
-  const [deviceSent, setDeviceSent] = useState(() => readDocumentAccessRequestSent(documentId));
+  const [deviceSentAt, setDeviceSentAt] = useState(() => readDocumentAccessRequestSentAt(documentId));
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
 
@@ -145,7 +150,7 @@ function MemberLockedCard({
       body.source_id = source.id;
     }
     setState("idle");
-    setDeviceSent(false);
+    setDeviceSentAt(null);
     send.mutate(body, {
       onSuccess: (outcome) => setState(outcome.state),
       onError: (err) => {
@@ -168,8 +173,8 @@ function MemberLockedCard({
         ? t("rate_limited")
         : state === "send_failed"
           ? t("send_failed")
-          : deviceSent
-            ? t("already_pending")
+          : deviceSentAt !== null
+            ? t("sent_earlier", { time: sentTime(deviceSentAt) })
             : null;
   const levelLabel = (l: string) => tRoot(`documents.share.level_${l === "edit" ? "edit" : "view"}`);
 

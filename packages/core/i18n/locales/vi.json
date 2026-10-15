@@ -8597,6 +8597,7 @@
       "sending": "Đang gửi…",
       "sent": "Đã gửi yêu cầu. Bạn sẽ nhận thông báo khi người quản lý trả lời.",
       "already_pending": "Yêu cầu của bạn đang chờ người quản lý trả lời.",
+      "sent_earlier": "Bạn đã gửi yêu cầu lúc {{time}}. Bạn có thể gửi lại nếu cần.",
       "cooldown": "Yêu cầu trước đã bị từ chối. Xin lại được sau {{minutes}} phút.",
       "retry_open": "Thử mở lại",
       "send_failed": "Chưa gửi được yêu cầu. Hãy thử lại.",

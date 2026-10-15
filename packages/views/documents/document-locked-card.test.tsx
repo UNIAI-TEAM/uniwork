@@ -55,6 +55,8 @@ function renderMember(over: { source?: { kind: "task"; id: string } | null; onRe
 
 const sendButton = () => screen.getByRole("button", { name: K("send") });
 const messageBox = () => screen.getByRole("textbox", { name: K("message_label") });
+// The flag holds the expiry (send time + 24 h); the note shows the send time in the reader's clock.
+const sentTime = (at: number) => new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(at));
 const sendCalls = () => requestMock.mock.calls.filter(([path]) => path === SEND_PATH);
 
 beforeEach(() => {
@@ -152,7 +154,10 @@ describe("DocumentLockedCard variant=member", () => {
     localStorage.setItem(FLAG, String(Date.now() + 3_600_000));
     requestMock.mockResolvedValue({ status: "sent" });
     renderMember();
-    expect(screen.getByRole("status")).toHaveTextContent(K("already_pending"));
+    // Past tense with the send time: it must not read as "waiting" above a usable form.
+    const note = screen.getByRole("status");
+    expect(note).toHaveTextContent(K("sent_earlier", { time: sentTime(Date.now() + 3_600_000 - 86_400_000) }));
+    expect(note).not.toHaveTextContent(K("already_pending"));
     expect(sendButton()).not.toHaveAttribute("aria-disabled", "true");
     fireEvent.click(sendButton());
     // The server would accept (the earlier request was handled elsewhere): sent, not pending.
