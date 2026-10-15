@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 71a2a227 HEAD && echo main-synced
+b56cec4fd47d3fe3e74eeb247c5ead7ec0521ee8
+71a2a22749abef2487c9c48365fa27bd4ee01602
+b56cec4f fix(uniwork-sync): merge the duplicate type import of ./store in runtime.ts (R5BE-12)
+1ada2500 fix(uniwork-sync): an idle deadline for downloadStream instead of a whole-exchange one (R5BE-9)
+527da7b2 fix(uniwork-sync): refuse a bodiless 200 in downloadStream instead of buffering it (R5BE-8, R5BE-14)
+613908b8 fix(uniwork-sync): route an archived pinned doc to the library from the feed (R5BE-1b, R5BE-15)
+a5a62c10 merge: fork main 71a2a227 into the G5-05 lane (UNI-1359)
+bbb6c3c3 fix(uniwork-sync): route a feed delete/revoke of a closed pinned doc to the library (T5-3)
+3e4e26b8 fix(uniwork-sync): restore a readable deleted/revoked pin; record a quota refusal at reconnect (T5-5)
+08c51383 fix(uniwork-sync): a delete found at lease renewal shows deleted, not revoked (T5-4)
+main-synced

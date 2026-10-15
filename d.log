@@ -1,0 +1,9 @@
+$ npm run check:brand
+
+> genoffice@0.1.0 check:brand
+> node tools/rebrand/brand-scan.mjs
+
+apps/shell/src/main/uniwork-sync/offline-library/CONTRACT.md:1 [source] UNI-1359 :: # Offline library engine - contract (G5-05, UNI-1359)
+apps/shell/src/main/uniwork-sync/offline-library/CONTRACT.md:3 [source] UNI-1645 :: Read-only pinning (UNI-1645): pin, download (progress + cancel), verify, cache, `openCached()`
+brand-scan: 2 violation(s), 84 allowlisted hit(s) (50 known debt)
+brand-scan failed: rebrand the string (node tools/rebrand/rebrand.mjs) or, for a real exception, add a reasoned entry to tools/rebrand/brand-allowlist.json.

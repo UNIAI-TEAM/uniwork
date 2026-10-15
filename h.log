@@ -1,0 +1,383 @@
+$ AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-sync-offline-library-download.test.ts tests/uniwork-sync-offline-library-manager.test.ts tests/uniwork-sync-offline-library-record.test.ts tests/uniwork-sync-offline-library-runtime.test.ts tests/uniwork-sync-offline-library-store.test.ts tests/uniwork-sync-lease-store.test.ts tests/uniwork-sync-lease-clock.test.ts tests/uniwork-sync-lease-client.test.ts tests/uniwork-sync-lease-manager.test.ts tests/uniwork-sync-lease-runtime.test.ts tests/uniwork-sync-lease-wiring.test.ts tests/uniwork-sync-store.test.ts tests/uniwork-sync-runtime.test.ts tests/uniwork-sync-feed.test.ts tests/uniwork-docs-client.test.ts tests/uniwork-docs-sync-runtime.test.ts tests/uniwork-docs-wiring-owner.test.ts tests/uniwork-docs-conflict-dialog.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: network loss mid-download -> interrupted, old copy kept > a first download that loses the network is interrupted with no staging left 8ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: network loss mid-download -> interrupted, old copy kept > a re-download that loses the network keeps the old ready copy, which still opens 10ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: disk full on re-download keeps old ready > store_full while staging the update -> the old copy stays ready (update-kept) 3ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: disk full on re-download keeps old ready > the layer budget reached by the update -> update-kept, nothing of it left 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: disk full on re-download keeps old ready > a full disk on the first download -> disk-full, never ready 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: corrupt cache never ready > main checksum mismatch on a first download -> corrupt, never ready 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: corrupt cache never ready > truncated bytes (fewer than the declared size) -> corrupt, never ready 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: corrupt cache never ready > a corrupt update keeps the old ready copy (update-kept) 4ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: corrupt cache never ready > a tampered stored blob is never served: the row turns corrupt and the bytes go 5ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: corrupt cache never ready > a stored blob that verifies against the wrong bytes (swapped record) is never served 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: declared assets (G5-A04) > declared asset missing -> not ready 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: declared assets (G5-A04) > declared asset missing because no asset route exists (no fetchAsset port) -> not ready 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: declared assets (G5-A04) > declared asset checksum mismatch -> not ready 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: declared assets (G5-A04) > every declared asset verified -> ready, and openCached returns them read-only 3ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: declared assets (G5-A04) > a stored asset tampered after commit -> the copy is not served 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: progress events and cancel > reports progress up to the total, then ready only after verification 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: progress events and cancel > cancel ("Hủy tải") -> interrupted, staging wiped, nothing ready 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: progress events and cancel > cancel of a re-download keeps the old copy 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: sign-out during download > sign-out mid-stream -> interrupted, no partial ready, no plaintext under the store root 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: sign-out during download > sign-out while the verified bytes are being staged -> never committed 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > G5-05 download: sign-out during download > a pinned copy never leaves plaintext on disk 4ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > uniwork-docs downloadStream (additive, same route and 256 MiB cap) > streams the same route with progress and returns every byte 19ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > uniwork-docs downloadStream (additive, same route and 256 MiB cap) > refuses a Content-Length over 256 MiB before reading the body 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > uniwork-docs downloadStream (additive, same route and 256 MiB cap) > refuses a body that streams past 256 MiB with no Content-Length 2ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > uniwork-docs downloadStream (additive, same route and 256 MiB cap) > a broken body is network; a cancel mid-body is network and stops the stream 1ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > uniwork-docs downloadStream (additive, same route and 256 MiB cap) > leaves download() unchanged 5ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-8 / R5BE-14 downloadStream: a 200 with no readable body never buffers unbounded > null body + a declared size over the cap -> too_large, the body is never read 0ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-8 / R5BE-14 downloadStream: a 200 with no readable body never buffers unbounded > null body + no Content-Length -> refused (malformed_response), the body is never buffered 0ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-8 / R5BE-14 downloadStream: a 200 with no readable body never buffers unbounded > null body + a declared size under the cap -> refused too, never buffered 0ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > G5-05 offline library inside the sync runtime (production wiring) > builds the library on its own layer: library bytes are not in the sync store 49ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > G5-05 offline library inside the sync runtime (production wiring) > an online pass downloads a pin that waited for the network 26ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC1: conflict on two devices opens the S5 view (no native box) and cancel closes it 130ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > G5-05 offline library inside the sync runtime (production wiring) > a renew that lost permission deletes the committed copy from disk, row revoked 73ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > G5-05 offline library inside the sync runtime (production wiring) > capability offline_library off refuses a new pin through the runtime capability read 0ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > T5-3 a feed delete/revoke of a CLOSED pinned document reaches the library > closed pinned doc + feed delete -> row deleted and its file gone from the store root listing 28ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC3: overwrite supersedes the old intent and mints a new one on the new base 110ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > T5-3 a feed delete/revoke of a CLOSED pinned document reaches the library > closed pinned doc + feed revoke -> row revoked and its bytes gone 76ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > T5-3 a feed delete/revoke of a CLOSED pinned document reaches the library > a dropped id that is neither pinned nor open bound is still not reported 36ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-15 delete / revoke / archive of a pinned, never opened doc through the real SyncRuntime feed path > feed drop -> 410 document_deleted -> row UniworkDocError: uniwork document request failed: document_deleted, its blobs gone from the store root listing, drafts kept 38ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC4: reload keep=draft keeps a draft of the latest local bytes (visible in drafts.list) and replaces the copy 99ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-15 delete / revoke / archive of a pinned, never opened doc through the real SyncRuntime feed path > feed drop -> 403 permission_revoked -> row UniworkDocError: uniwork document request failed: permission_revoked, its blobs gone from the store root listing, drafts kept 35ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-15 delete / revoke / archive of a pinned, never opened doc through the real SyncRuntime feed path > feed drop -> 404 not_found -> row UniworkDocError: uniwork document request failed: not_found, its blobs gone from the store root listing, drafts kept 34ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-15 delete / revoke / archive of a pinned, never opened doc through the real SyncRuntime feed path > feed upsert archived=true -> row archived, its blobs kept, still opens read-only, drafts kept 27ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > the feed parser keeps a feed upsert archived flag (G5-01b DocumentChangeFeedSDO.archived) 1ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > a feed archived=true for a pinned doc marks it with no metadata read; archived=false re-checks and clears it 41ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > a feed archived flag for a doc that is not pinned touches nothing 32ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > the feed-gone re-check (refresh) of a closed pinned doc whose head is archived -> archived, opens until lease end, then locked 30ms
+ ✓ tests/uniwork-sync-offline-library-runtime.test.ts > R5BE-1b an archived pinned document reaches the library (handleArchived routed) > the reconnect pass: a pin that waited for the network and is archived on the server downloads and reads archived 18ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-9 downloadStream: an idle deadline that resets on every chunk (overall ceiling kept) > a 256 MiB body delivered over longer than the old deadline completes 508ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC5: lost edit (!canEdit) refuses overwrite and save-copy; save-copy when canEdit replies save_copy_failed (pending G5-12) 145ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-9 downloadStream: an idle deadline that resets on every chunk (overall ceiling kept) > a stalled stream still times out (no chunk for the idle deadline) 83ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-9 downloadStream: an idle deadline that resets on every chunk (overall ceiling kept) > a stalled stream ends the library download interrupted, nothing ready, no staging left 68ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC6: drafts_full / store_full / keystore_locked -> keepDraft reflects it without mutating drafts, and reload keep=draft is refused while keep=discard succeeds 159ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC6 (store_full): keepDraft probes store_full without mutating the store 93ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-9 downloadStream: an idle deadline that resets on every chunk (overall ceiling kept) > the overall ceiling still ends a stream that keeps trickling 151ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the production lease wiring (W1f) > R1BE-2: the production store layer registers offline-leases and a granted lease round-trips 130ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the production lease wiring (W1f) > R1BE-3: the lease client uses the authenticated feed profile and an online poll renews a due lease once 18ms
+ ✓ tests/uniwork-sync-offline-library-download.test.ts > R5BE-9 downloadStream: an idle deadline that resets on every chunk (overall ceiling kept) > download() keeps the whole-exchange deadline 60ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC7: offline overwrite queues paused_offline on the known head; offline reload without headOffline is refused 95ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > AC8: intent committing/reconciling refuses every action except cancel 93ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the account boundary locks leases on sign-out only (W1f) > R1BE-1/T2-1: an org change does not lock leases: a granted lease still reads valid, no DELETE 114ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the account boundary locks leases on sign-out only (W1f) > R1BE-1/R1BE-10/T2-2: sign-out locks the leases at once at the account boundary 62ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the account boundary locks leases on sign-out only (W1f) > T2-2: an account switch drops the outgoing lease at the boundary and never locks the incoming account 67ms
+ ✓ tests/uniwork-sync-lease-wiring.test.ts > the account boundary locks leases on sign-out only (W1f) > T2-2: a deployment switch drops the outgoing lease at the boundary and never locks the incoming deployment 61ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > 409 on overwrite replies view with notice head_moved and refreshed server version 113ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > renew at < 50 % only when online, never offline; new expiry is not cumulative 19ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > renew response version mismatch -> needs_refresh 6ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > revoke via feed event while online -> locked at once and marks committed cache for deletion 5ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > renew 403 offline_lease_revoked -> re-grant once then revoked 11ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > archived -> keeps existing lease until expiry then locks as expired 7ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > capability off keeps existing lease until expiry 5ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > view level reported (including edit -> view downgrade on renewal) 4ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > logout locks immediately as signed_out (not revoked) and prevents offline cold-login without a session 3ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > clock rollback > 5 min locks manager state as clock_rollback until online check clears it 9ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-5: logout sends no awaited DELETE and emits no cache-delete notice 3ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-4: a null scope after logout reads none, not revoked 3ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-4: the same account signing in again resets the boundary and a fresh grant works 5ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-4: a new session of the same account resets the boundary even when the null scope was never observed 4ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-4: another account signing in after logout starts unlocked 5ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: sign-out through lockBoundary while the session is live locks as signed_out and refuses a grant 3ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: account switch locks the outgoing account at once, sends no DELETE and leaves the incoming one unlocked 5ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > in-place lock while open: revoked or deleted pushes locked view and refuses every action except cancel 141ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: deployment switch locks the outgoing deployment at once and sends no DELETE 8ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: keystore locked at manager level -> keystore_locked, no grant request, unlock restores the lease 4ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: store full at manager level -> store_full, nothing kept 2ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: device_required and limit_reached -> failed with that kind, nothing stored, no revoke notice 2ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-3: renew 401 session_expired locks as session_expired, reports the session once, sends no DELETE 4ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > T1-4: offline renew makes zero grant, renew or release calls 3ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-6: a clock rollback the store refuses to persist stays latched in memory 4ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-7: a document queried without a stored lease is not read on the next reconnect pass 4ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R1BE-5: the lease-revoked entry point locks only for the signed-in user and ignores others 6ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-4: an event for another lease than the held one is ignored; the matching one revokes 5ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-4: an event for a document that holds no lease still locks it and emits the notice 2ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-3: a store that answers keyring_unavailable -> keyring_unavailable state (with its reason) and no grant request 0ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-3: a store that answers no_session -> none (state and grant), no grant request 0ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-2: a grant answered after a sign-out lock is dropped: not locked open, not kept 54ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > last owner follows the session identity (R2-5) > the account status callback records the signed-in account 73ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > the newer-store guard reaches the wiring (G5-04g) > the service openPath refuses a locked path before the module router is asked 2ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-2: a renewal answered after a session_expired lock does not lift it 55ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > FE-02: tab switch while open pushes conflictClosed once with the session id; an action answered after that returns {kind: "closed"} 139ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-2: a grant answered after an account switch is not served to the incoming account 57ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-2: a grant refused after a sign-out lock is dropped: no revoke, no notice 51ms
+ ✓ tests/uniwork-sync-lease-manager.test.ts > uniwork-sync lease manager (G5-08c) > R2BE-2: a lock that lands while the store keeps the answer still drops the answer 7ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > a sign-in as another account (GOA9-r3-04) > closes the previous account's open documents and deletes their AI history 53ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-01a: cancelSave(path, true) (tab closed -> kept draft) ends the open session and pushes conflictClosed once with the session id 104ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > G8-16 S16: the feed starts only for the chosen org (F-1) > a two-org account fetches nothing before the choice, then only the chosen org 74ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-01b: confirmClose choosing "close" ends the open session and pushes conflictClosed once with the session id 85ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-04: does not push conflictClosed when the session is ended before conflictOpen is delivered 45ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > G8-16 S16: the feed starts only for the chosen org (F-1) > an org change stops the old pass and starts the new org 102ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > G8-16 S16: the feed starts only for the chosen org (F-1) > sign-out stops the feed 73ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > pulls every (org, workspace) whose capability says sync_feed, and nothing else 21ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a crash mid-page keeps the cursor on the applied page; the replay is idempotent 12ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a full resync keeps drafts and evicts documents the snapshot no longer lists 16ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a torn page commit keeps the previous page whole: no orphan row (G504-be-2) 13ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a store_full page apply never moves the cursor, and the page is retried (G504-be-1) 15ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > another account or deployment never sees this stream 9ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a locked keychain or an off capability never asks the feed server 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a capability 401 is handed to the session 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > start polls on the injected schedule and stop cancels it 6ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-02/BE-302: reload keep=draft awaits the dirty module flush before keeping the draft or replacing the copy, without uploading 114ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > stop() ends the pass in flight and the next start runs at once (G504-be-7) 8ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the full resync keeps drafts through the real hasLocalDraft (wiring keepDraft) > keeps dirty, saving, intent-held and editor-dirty copies; evicts a clean unlisted one 12ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the full resync keeps drafts through the real hasLocalDraft (wiring keepDraft) > keeps a copy whose editor turns dirty while the intent store is answering (R5-be-1) 12ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > writes a record and reads it back without plaintext at rest 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > a sign-out locks every handle and wipes the scope 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > an account switch locks only the switched-out scope 7ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > refuses a record older than the store minimum 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > counts the budget in encrypted bytes and refuses past it 11ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > writes a record and reads it back without plaintext at rest 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > a sign-out locks every handle and wipes the scope 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > an account switch locks only the switched-out scope 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > counts the budget in encrypted bytes and refuses past it 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > G506-be-3: only a failed feed round trip reports the queue offline > a pass with no org to feed (nothing attempted) reports no verdict 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > G506-be-3: only a failed feed round trip reports the queue offline > a failed feed round trip parks the queue offline 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces every document of a page the doc cache committed, exactly once 14ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces a document with two changes in one page exactly once 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces nothing when the cache refuses the page 2ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > BE-02/BE-302: reload keep=draft refuses with reload_failed when a dirty module does not write; keep=discard stays as-is without flushing 101ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin leaves drafts/intents/queue untouched > asks first when the document has drafts or intents, then deletes only the pin 11ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin leaves drafts/intents/queue untouched > needs no confirmation without local work 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > unpin: no row, blob, asset or staging record of the pin is left 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > eviction: the copy and its asset go, the pin stays to download again 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > revoke: the copy and its asset go, the row shows revoked 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > delete: the copy and its asset go, the row shows deleted 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > a revoke during a download stops it and leaves no staging record 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > unpin with an open tab: the bytes go when the last tab closes 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > a deferred cleanup left by a crash is finished by recover() 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 unpin, eviction, revoke and delete remove bytes from disk (store root listing) > a download a crash left behind: recover() deletes its staging and marks it interrupted 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 archived stays and opens until lease end > a pinned document archived on the server stays in the library and opens read-only 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 archived stays and opens until lease end > handleArchived marks the row and keeps the copy 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 deleted -> cache + assets gone, drafts kept > a server delete found on refresh deletes the copy; drafts and intents stay 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 deleted -> cache + assets gone, drafts kept > handleDeleted (feed) keeps the row as deleted until unpinned 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 revoke -> cache + assets gone, drafts kept > a lease revoke notice (renew lost permission) deletes the copy; drafts stay 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 revoke -> cache + assets gone, drafts kept > permission_revoked / 403 on refresh deletes the copy the same way 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 over limit (2 GiB, 200 pins, 256 MiB) -> refused with a code > the 201st pin is refused offline_cap_reached and nothing is downloaded 62ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 over limit (2 GiB, 200 pins, 256 MiB) -> refused with a code > a pin crossing 2 GiB is refused offline_cap_reached; one that fits is taken 3ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 over limit (2 GiB, 200 pins, 256 MiB) -> refused with a code > a single file over 256 MiB is refused too_large before any download 0ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 over limit (2 GiB, 200 pins, 256 MiB) -> refused with a code > a folder (not a file) is never pinned 0ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 capability off -> OQ-UX11 (a) > keeps the copies, opens them while the lease is valid, refuses new pins, never renews 4ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 capability off -> OQ-UX11 (a) > the lease grant answering office_capability_off refuses the pin 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 pin offline -> waiting-network then downloads > pins without a network as waiting-network and downloads on reconnect 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 pin offline -> waiting-network then downloads > a network error while reading the head also waits for the network 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 refresh: update-available > a newer head marks update-available; "Tải ngay" replaces the copy and deletes the old one 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 refresh: update-available > a view lease shows view-only and still opens read-only 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > G5-05 refresh: update-available > without a session nothing is read or written 0ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-1 caps hold under concurrent pins (check + reserve + index-add are one step) > 199 pins + two concurrent pins -> exactly one refused offline_cap_reached, nothing downloaded for it 55ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-1 caps hold under concurrent pins (check + reserve + index-add are one step) > two concurrent pins that fit alone but cross 2 GiB together -> one refused 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-1 caps hold under concurrent pins (check + reserve + index-add are one step) > a pin whose lease is refused after the reservation releases it 57ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > the feed runtime capability cache across an account boundary (R1-be-8) > clears on a same-origin account switch instead of serving the old account’s flags 95ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-1 caps hold under concurrent pins (check + reserve + index-add are one step) > a cancelled first download releases its bytes from the quota 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-2 an in-flight re-download never blocks the old copy > a slow re-download of a ready pin: openCached serves the old bytes at once, the new ones after commit 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-2 an in-flight re-download never blocks the old copy > a revoke arriving mid-download still wins: cache gone, staging wiped, nothing ready 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-2 an in-flight re-download never blocks the old copy > a server delete found by refresh mid-download still wins 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-4 the lease revoke notice honours its reason > a delete found at lease renewal (document_deleted) -> row deleted 1ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-4 the lease revoke notice honours its reason > a permission loss at lease renewal -> row revoked 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-5 restore and a quota refusal at reconnect > a deleted row that is readable again is restored: waiting-network, then downloads 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-5 restore and a quota refusal at reconnect > a revoked row whose access is back downloads again ("Tải ngay"), with a fresh lease 2ms
+ ✓ tests/uniwork-sync-offline-library-manager.test.ts > T5-5 restore and a quota refusal at reconnect > a waiting-network pin over the quota at reconnect is refused offline_cap_reached and not retried every pass 4ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > the feed runtime capability cache across an account boundary (R1-be-8) > keeps serving the cache inside the TTL for one account 7ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > a two-org picker fetches nothing until the org is chosen 9ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > a chosen org is the only one ever touched 7ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > a pending choice blocks the pass even with an org already set 3ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > no org chosen (every org blocked) still fetches nothing 3ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G506-be-3: the queue online verdict is a real transport result, not a feed no-op > no chosen org + a queued intent -> the poll dispatches it 2ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-402: the flush times out when the module never answers -> reload_failed, no upload, waiter cleared, a late hook takes the normal path 193ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-402: Cancel while the flush waits -> closed, no draft kept, no reload, waiter cleared 145ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > lease record codec: preserves opaque signed lease, plaintext SDO fields, scope, clock anchors and compares revision with BigInt 3ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > lease record codec: malformed or newer-schema records are refused 1ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > keystore locked -> keystore_locked, no write, no plaintext file anywhere under the store root 16ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > store full -> no write 4ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > tampered/forged lease file on disk is not read 6ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease record and store (G5-08c) > survives a lock-and-keep (records stay encrypted, unreadable until reopen) 3ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease store outcomes and on-disk hygiene (W1f) > R1BE-8: no usable keyring surfaces as keyring_unavailable, not keystore_locked 1ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease store outcomes and on-disk hygiene (W1f) > R1BE-8: no session surfaces as no_session, distinct from a locked keychain 0ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease store outcomes and on-disk hygiene (W1f) > T1-6: no plaintext SDO field reaches the disk 5ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync lease store outcomes and on-disk hygiene (W1f) > T1-6: a truncated or empty lease record is refused 9ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > writes a record and reads it back without plaintext at rest 3ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > a sign-out locks every handle and wipes the scope 3ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > an account switch locks only the switched-out scope 5ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > counts the budget in encrypted bytes and refuses past it 7ms
+ ✓ tests/uniwork-sync-lease-store.test.ts > uniwork-sync offline-leases — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 2ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > writes a record into the scope namespace and reads it back encrypted 8ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > encrypts each record with its own random IV 3ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > replaces a record in place and leaves no temp file 4ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a missing record and deletes idempotently 2ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > opens as keystore_locked or keyring_unavailable when the keyring is not usable 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record that needs a newer store level and leaves it alone 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record older than the store minimum 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record with a newer schema 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses writes from a store registered at a newer level 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a tampered record as corrupt and keeps the file 12ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a record written under another key as corrupt 4ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > counts the budget per account in encrypted bytes and refuses past it 10ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a sign-out locks every handle and wipes the scope 5ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a write in flight at lockAndWipe resolves interrupted and leaves nothing readable 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > scrubs temp files a crash left behind at open 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > retries the publish when the filesystem refuses the replace 53ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > rejects unregistered stores, duplicate registrations and invalid registrations 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > rejects a malformed scope 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a wipe between the flush and the publish interrupts the write (G504-be-11) 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a wipe that removes the folder mid-write is an interruption, not a throw (G504-be-11) 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a wipe while the read is suspended never yields the plaintext (G504-be-11) 3ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-402: S6 newer-dirty origin: flush ok keeps the editor bytes as the draft and reloads the server head 100ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > offline library store > registers as offline-library, schema 1; the quota values are U-01 2ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > offline library store > keeps blobs encrypted: no plaintext under the store root 3ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > offline library store > reports keystore_locked, no_session and refused like the lease store 1ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > offline library store > a full disk (ENOSPC) is store_full with nothing readable written 1ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > offline library store > the layer budget refuses past it (store_full) 1ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > offline library store > a tampered stored blob reads corrupt, a tampered pin row is refused 1ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > uniwork-sync offline-library — store compliance > writes a record and reads it back without plaintext at rest 13ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > uniwork-sync offline-library — store compliance > a sign-out locks every handle and wipes the scope 6ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > uniwork-sync offline-library — store compliance > an account switch locks only the switched-out scope 6ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > uniwork-sync offline-library — store compliance > refuses a record that requires a newer store level and keeps it 3ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > uniwork-sync offline-library — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > uniwork-sync offline-library — store compliance > counts the budget in encrypted bytes and refuses past it 7ms
+ ✓ tests/uniwork-sync-offline-library-store.test.ts > uniwork-sync offline-library — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 2ms
+ ✓ tests/uniwork-sync-lease-runtime.test.ts > the lease manager inside the feed runtime (W1f) > R1BE-1: an org switch stop()/start() pair keeps a lease valid and sends no DELETE 23ms
+ ✓ tests/uniwork-sync-lease-runtime.test.ts > the lease manager inside the feed runtime (W1f) > R1BE-3: an online pass renews a due lease once 18ms
+ ✓ tests/uniwork-sync-lease-runtime.test.ts > the lease manager inside the feed runtime (W1f) > R1BE-3: an offline pass makes zero grant, renew or release calls 17ms
+ ✓ tests/uniwork-sync-lease-runtime.test.ts > the lease manager inside the feed runtime (W1f) > R1BE-12: the runtime builds its one lease manager from the lease options 0ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-401: a user Save consumed as the flush leaves the chip honest when the dialog ends right after (no "saved" for an un-uploaded copy) 144ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-401: the waiter is one-shot: a second hook for the same path after the flush runs the normal save 96ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 410 change_cursor_expired is a cursor verdict, never deleted (also through errorFromResponse) 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 400 change_cursor_invalid is a cursor verdict, never deleted 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 401 -> session_expired; anything else -> the documents mapping 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 501 unsupported_operation is the feed cursor verdict (errChangeFeedPending), never deleted 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > keeps an int64 revision exact (past 2^53) and compares it as bigint 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > a malformed page is malformed_response 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > reads a G5-01b feed page from `feed` (its `changes` is empty), revision exact 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > a feed removal never enters the change stream as a document state 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > a feed page without its `feed` array is malformed, never silently empty 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > sends the cursor in the query only, clamps the limit, and maps the final 401 to session_expired 12ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > cold start: full snapshot, then the feed cursor is saved 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a G5-01b feed page delivers its upserts to the cache and moves the cursor 3ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > crash between page apply and cursor save -> the same page replays, one effect 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a page the store refused keeps the cursor, surfaces the error and is retried (G504-be-1) 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a refused commit keeps store_unavailable its own code, never keystore_locked (R2-be-2) 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a cancelled run stops before the next request and moves no cursor (G504-be-7) 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a replayed page is idempotent, and an older revision never overwrites a newer one 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > crash mid-resync saves no cursor; the next run starts the snapshot over 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > A -> B and a deployment switch never touch the other scope cursor or cache 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 410 change_cursor_expired -> full resync, nothing marked deleted 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 400 change_cursor_invalid -> cursor cleared, exactly one full resync, nothing deleted 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > an invalid cursor whose resync is refused again backs off instead of a second resync 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 on a saved feed cursor clears it and resyncs once in the same pass (G5-01a) 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 on a later incremental page earns exactly one fallback, never a loop 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 during the fallback is a failure, not a second resync 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 on a cursorless snapshot request stays a failure 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > full resync evicts lost-permission cache entries and keeps drafts 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > resync hitting 410 again -> capped exponential backoff on the clock 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > sync_feed off -> no feed request 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > an unknown phase is applied as changes and logged once 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 401 -> session_expired, cursor and cache untouched 0ms
+ ✓ tests/uniwork-docs-conflict-dialog.test.ts > G5-09 desktop conflict dialog S5 session (main) > W17: hardened keep-draft flush (BE-401/402/403) > BE-403: a dialog aborted while drafts.keep runs does not reload the tab; the kept draft stays 121ms
+ ✓ tests/uniwork-docs-client.test.ts > egress > builds only apiOrigin/api/v1 URLs, never follows redirects, never caches 5ms
+ ✓ tests/uniwork-docs-client.test.ts > egress > refuses ids that would leave the route 1ms
+ ✓ tests/uniwork-docs-client.test.ts > egress > a redirect is an error, never followed 1ms
+ ✓ tests/uniwork-docs-client.test.ts > egress > times out a stalled request 21ms
+ ✓ tests/uniwork-docs-client.test.ts > egress > not signed in never reaches the network 0ms
+ ✓ tests/uniwork-docs-client.test.ts > workspace slugs > reads as empty when the server sends none 1ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 0 -> Response { status: 403, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 1ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 1 -> Response { status: 403, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 2 -> Response { status: 403, statusText: '', headers: Headers { 'content-type': 'text/plain;charset=UTF-8' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 1ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 3 -> Response { status: 404, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 4 -> Response { status: 404, statusText: '', headers: Headers { 'content-type': 'text/plain;charset=UTF-8' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 5 -> Response { status: 410, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 6 -> Response { status: 410, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 7 -> Response { status: 400, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 8 -> Response { status: 413, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 9 -> Response { status: 409, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 10 -> Response { status: 409, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 11 -> Response { status: 409, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 12 -> Response { status: 502, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > 409 document_version_conflict keeps fields.current_revision as a string 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > strict parsing: a revision as a number is malformed 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > sends the commit body in snake_case with the revision as a decimal string 0ms
+ ✓ tests/uniwork-docs-client.test.ts > Retry-After (G5-06 be-9) > 429 / 503 / 409 idempotency_in_flight carry it, delta-seconds or an HTTP date 3ms
+ ✓ tests/uniwork-docs-client.test.ts > 401: one shared refresh, one retry (real account session) > refreshes once and retries with the new token 3ms
+ ✓ tests/uniwork-docs-client.test.ts > 401: one shared refresh, one retry (real account session) > a second 401 is session_expired; concurrent 401s share one refresh 1ms
+ ✓ tests/uniwork-docs-client.test.ts > 401: one shared refresh, one retry (real account session) > the launch exchange refreshes once on a 401 (an idle-expired token) and redeems 1ms
+ ✓ tests/uniwork-docs-client.test.ts > 401: one shared refresh, one retry (real account session) > a second 401 on the launch exchange is session_expired 1ms
+ ✓ tests/uniwork-sync-lease-client.test.ts > uniwork-sync lease client (G5-08c) > PUT grant sends empty body, PUT renew sends {"lease": "<previous signed lease>"}, DELETE releases, and parses SDO 16ms
+ ✓ tests/uniwork-sync-lease-client.test.ts > uniwork-sync lease client (G5-08c) > maps contract-p0 errors: offline_lease_revoked, offline_lease_device_required, offline_lease_limit_reached, document_archived, office_capability_off, 401 session, network/offline 2ms
+ ✓ tests/uniwork-sync-lease-client.test.ts > uniwork-sync lease client (G5-08c) > refuses malformed SDO responses 0ms
+ ✓ tests/uniwork-sync-lease-client.test.ts > uniwork-sync lease client (G5-08c) > R1BE-9: a numeric revision is kept as its exact decimal string, small or above 2^53 0ms
+ ✓ tests/uniwork-sync-lease-clock.test.ts > uniwork-sync lease clock (G5-08c) > clock rollback > 5 min locks, < 5 min does not, online check clears it 2ms
+ ✓ tests/uniwork-sync-lease-clock.test.ts > uniwork-sync lease clock (G5-08c) > offline expiry -> expired 0ms
+ ✓ tests/uniwork-sync-lease-clock.test.ts > uniwork-sync lease clock (G5-08c) > effective expiry from server time + monotonic clock while the process lives, and wall clock with max_wall_clock_seen across restarts 0ms
+ ✓ tests/uniwork-sync-lease-clock.test.ts > uniwork-sync lease clock (G5-08c) > expiring_soon (< 4 h) badge state and < 50 % TTL renewal threshold 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lists every row state exactly once, in the spine order 1ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > revoked/deleted outranks lease-expired/locked 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > revoked/deleted outranks disk-full/corrupt 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > revoked/deleted outranks interrupted 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > revoked/deleted outranks downloading/verifying 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > revoked/deleted outranks lease-expiring 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > revoked/deleted outranks update-available/update-kept 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > revoked/deleted outranks waiting-network 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > revoked/deleted outranks archived/moved 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > revoked/deleted outranks view-only/ready 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expired/locked outranks disk-full/corrupt 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expired/locked outranks interrupted 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expired/locked outranks downloading/verifying 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expired/locked outranks lease-expiring 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expired/locked outranks update-available/update-kept 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expired/locked outranks waiting-network 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expired/locked outranks archived/moved 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expired/locked outranks view-only/ready 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > disk-full/corrupt outranks interrupted 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > disk-full/corrupt outranks downloading/verifying 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > disk-full/corrupt outranks lease-expiring 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > disk-full/corrupt outranks update-available/update-kept 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > disk-full/corrupt outranks waiting-network 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > disk-full/corrupt outranks archived/moved 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > disk-full/corrupt outranks view-only/ready 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > interrupted outranks downloading/verifying 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > interrupted outranks lease-expiring 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > interrupted outranks update-available/update-kept 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > interrupted outranks waiting-network 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > interrupted outranks archived/moved 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > interrupted outranks view-only/ready 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > downloading/verifying outranks lease-expiring 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > downloading/verifying outranks update-available/update-kept 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > downloading/verifying outranks waiting-network 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > downloading/verifying outranks archived/moved 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > downloading/verifying outranks view-only/ready 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expiring outranks update-available/update-kept 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expiring outranks waiting-network 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expiring outranks archived/moved 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > lease-expiring outranks view-only/ready 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > update-available/update-kept outranks waiting-network 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > update-available/update-kept outranks archived/moved 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > update-available/update-kept outranks view-only/ready 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > waiting-network outranks archived/moved 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > waiting-network outranks view-only/ready 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > archived/moved outranks view-only/ready 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > a row whose copy is deleted but whose lease also expired shows deleted 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > an archived ready row opens and shows archived; at lease end it shows lease-expired 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > an update kept on a held copy shows update-kept; interrupted outranks it 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > a view lease on a ready copy shows view-only; a locked keystore shows locked 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > S3 priority order table (EXPERIENCE › Offline library rows) > a pin with no copy yet and no lease waits for the network 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > pin record codec (schema-versioned, malformed -> refused) > round-trips a valid row 1ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > pin record codec (schema-versioned, malformed -> refused) > refuses a newer schema, a bad id, a torn copy and a bad state 3ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > manifest > v1 builds the main file from GET /documents/{id} with no asset 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > manifest > parses declared assets and refuses a traversal, an absolute path or a duplicate 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > manifest > verifies size first, then the checksum 0ms
+ ✓ tests/uniwork-sync-offline-library-record.test.ts > manifest > a different version or asset list is a different snapshot 0ms
+
+ Test Files  18 passed (18)
+      Tests  373 passed (373)
+   Start at  10:11:21
+   Duration  3.14s (transform 1.05s, setup 0ms, import 1.62s, tests 6.28s, environment 1ms)
+
