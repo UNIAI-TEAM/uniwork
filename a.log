@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -5; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+cf544b781eb71eb7cbdd8e8e93bd9daba1d211b6
+72f7dcdda890d4d6e6f34cf17b9d8de59148ae00
+cf544b781 fix(ai): correct the table comment on the bound-only keeps and the G6-09a subtraction (G6-09a fix r1)
+b8e4e1826 test(ai): pin every module's tool names and the slides drop reason in the N1 test (G6-09a fix r1)
+eaad1901b chore: merge the D root f4329d09f into the G6-09 lane branch
+f4329d09f chore: merge root e2e documents fix (2e76d5ca1) into the G5-G7 root
+7a23171eb chore: merge G5-12 save-as-copy server (0a79bfe06) into the G5-G7 root
+
+SYNCED_EXIT=1

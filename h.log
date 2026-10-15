@@ -1,0 +1,4 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1; AI_PROVIDER=fake go test -count=1 ./internal/service/ -run 'Uniwork|AIUniwork|OfficeAI' 2>&1 | grep -E '^(--- FAIL|FAIL|ok|panic)' | tail -30; rc=${PIPESTATUS[0]}; echo; echo "SERVICE_AI_EXIT=$rc"; [ $rc -eq 0 ]
+ok  	github.com/unicomhub/uniwork/server/internal/service	3.751s
+
+SERVICE_AI_EXIT=0
