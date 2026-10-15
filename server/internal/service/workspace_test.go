@@ -318,3 +318,356 @@ func TestWorkspaceCreateSeedsTaskStatuses(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkspaceUpdateDescriptionAndEmoji(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	desc, emoji := "  Nhóm làm sản phẩm  ", "🚀"
+	got, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Description: &desc, IconEmoji: &emoji})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Description != "Nhóm làm sản phẩm" || got.IconEmoji.String != "🚀" {
+		t.Fatalf("after update: %+v", got.Workspace)
+	}
+	clear, blank := "", "   "
+	got, err = f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{IconEmoji: &clear, Description: &blank})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.IconEmoji.Valid || got.Description != "" {
+		t.Fatalf("after clearing: %+v", got.Workspace)
+	}
+}
+
+func TestWorkspaceUpdateCountsRunesAndAcceptsComposedEmoji(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 500 Vietnamese letters are 1500 bytes: the cap is on runes.
+	long := strings.Repeat("ệ", 500)
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Description: &long}); err != nil {
+		t.Fatalf("500 runes: %v", err)
+	}
+	for _, e := range []string{"👩🏽‍💻", "🇻🇳", "1️⃣"} {
+		e := e
+		if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{IconEmoji: &e}); err != nil {
+			t.Fatalf("emoji %q: %v", e, err)
+		}
+	}
+}
+
+func TestWorkspaceUpdateRejectsBadInput(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tooLong := strings.Repeat("ệ", 501)
+	spaced, longEmoji := "a b", strings.Repeat("🚀", 17)
+	cases := map[string]UpdateWorkspaceInput{
+		"nothing sent":         {},
+		"description too long": {Description: &tooLong},
+		"emoji with a space":   {IconEmoji: &spaced},
+		"emoji too long":       {IconEmoji: &longEmoji},
+	}
+	for name, in := range cases {
+		var ve ValidationError
+		if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, in); !errors.As(err, &ve) {
+			t.Errorf("%s: err = %v, want ValidationError", name, err)
+		}
+	}
+}
+
+func TestWorkspaceUpdateSameValueWritesNoAudit(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	same := "Đội Alpha"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Name: &same}); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events WHERE workspace_id = $1 AND action = 'workspace.updated'`, w.ID,
+	).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("audit rows for an unchanged name = %d, want 0", n)
+	}
+}
+
+func TestWorkspaceTaskPrefixAliases(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliases := func() []string {
+		rows, err := f.pool.Query(ctx, `SELECT value FROM workspace_aliases WHERE workspace_id = $1 AND kind = 'task_prefix' ORDER BY value`, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		vals, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			t.Fatal(err)
+		}
+		return vals
+	}
+	original := w.TaskPrefix
+	lower := "mkt"
+	got, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &lower})
+	if err != nil || got.TaskPrefix != "MKT" {
+		t.Fatalf("lower-case prefix: %v %q", err, got.TaskPrefix)
+	}
+	if a := aliases(); len(a) != 1 || a[0] != original {
+		t.Fatalf("aliases after %s→MKT = %v", original, a)
+	}
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &original}); err != nil {
+		t.Fatal(err)
+	}
+	if a := aliases(); len(a) != 1 || a[0] != "MKT" {
+		t.Fatalf("aliases after going back = %v", a)
+	}
+	for _, bad := range []string{"1AB", "A", "ABCDEFGHIJK", "A-B"} {
+		bad := bad
+		var ve ValidationError
+		if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &bad}); !errors.As(err, &ve) {
+			t.Errorf("prefix %q: err = %v, want ValidationError", bad, err)
+		}
+	}
+}
+
+// A second change computed from a row read before the first one committed
+// must still diff against the locked row: the first change's alias survives
+// and the audit row names the real old value.
+func TestWorkspaceUpdateDiffsAgainstTheLockedRow(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Beta", "doi-beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := w.TaskPrefix
+	stale, err := f.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, c := "BBB", "CCC"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &b}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.ws.updateFrom(ctx, f.ua.ID, stale, UpdateWorkspaceInput{TaskPrefix: &c}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := f.pool.Query(ctx, `SELECT value FROM workspace_aliases WHERE workspace_id = $1 AND kind = 'task_prefix' ORDER BY value`, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{a, "BBB"}
+	if want[0] > want[1] {
+		want[0], want[1] = want[1], want[0]
+	}
+	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("aliases = %v, want %v", got, want)
+	}
+	var changes string
+	if err := f.pool.QueryRow(ctx, `SELECT changes FROM audit_events WHERE resource_id = $1 AND action = 'workspace.updated' ORDER BY occurred_at DESC, id DESC LIMIT 1`, w.ID).Scan(&changes); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(changes, `"BBB"`) || !strings.Contains(changes, `"CCC"`) || strings.Contains(changes, `"`+a+`"`) {
+		t.Fatalf("audit changes = %s, want BBB -> CCC", changes)
+	}
+}
+
+func TestWorkspaceUnchangedLegacyPrefixIsNotRevalidated(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Gamma", "doi-gamma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A derived prefix can be one letter, which the pattern would refuse.
+	if _, err := f.pool.Exec(ctx, `UPDATE workspaces SET task_prefix = 'G' WHERE id = $1`, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	same, name := "g", "Đội Gamma 2"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{TaskPrefix: &same, Name: &name}); err != nil {
+		t.Fatalf("re-sent prefix: %v", err)
+	}
+	var n int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM workspace_aliases WHERE workspace_id = $1`, w.ID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("aliases = %d, err %v; want none", n, err)
+	}
+}
+
+func TestWorkspaceSlugChangeKeepsOldSlugAsAlias(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := "doi-beta"
+	if got, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Slug: &next}); err != nil || got.Slug != next {
+		t.Fatalf("change slug: %v %+v", err, got.Workspace)
+	}
+	old, err := f.ws.GetBySlugs(ctx, f.ua.ID, "unicom", "doi-alpha")
+	if err != nil || old.ID != w.ID || old.Slug != "doi-beta" {
+		t.Fatalf("old slug: %v %+v", err, old.Workspace)
+	}
+	if id, err := f.ws.ResolveSlugs(ctx, "unicom", "doi-alpha"); err != nil || id != w.ID {
+		t.Fatalf("ResolveSlugs(old): %v %q", err, id)
+	}
+	// An outsider learns nothing from an old slug.
+	if _, err := f.ws.GetBySlugs(ctx, f.uc.ID, "unicom", "doi-alpha"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("outsider on old slug: %v", err)
+	}
+	back := "doi-alpha"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Slug: &back}); err != nil {
+		t.Fatalf("going back: %v", err)
+	}
+	rows, err := f.pool.Query(ctx, `SELECT value FROM workspace_aliases WHERE workspace_id = $1 AND kind = 'slug'`, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vals, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil || len(vals) != 1 || vals[0] != "doi-beta" {
+		t.Fatalf("slug aliases after going back = %v %v", vals, err)
+	}
+}
+
+func TestWorkspaceOldSlugIsReservedInTheOrganization(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w1, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w2, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Gamma", "doi-gamma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := "doi-beta"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w1.ID, UpdateWorkspaceInput{Slug: &next}); err != nil {
+		t.Fatal(err)
+	}
+	old, taken := "doi-alpha", "doi-beta"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w2.ID, UpdateWorkspaceInput{Slug: &old}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("another workspace takes the old slug: %v", err)
+	}
+	if _, err := f.ws.Update(ctx, f.ua.ID, w2.ID, UpdateWorkspaceInput{Slug: &taken}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("another workspace takes the current slug: %v", err)
+	}
+	if _, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Mới", "doi-alpha"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("a new workspace takes the old slug: %v", err)
+	}
+}
+
+func TestWorkspaceSlugChangeRejectsBadAndIgnoresUnchanged(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"A", "Có Dấu", "-x-", "admin"} {
+		bad := bad
+		var ve ValidationError
+		if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Slug: &bad}); !errors.As(err, &ve) {
+			t.Errorf("slug %q: err = %v, want ValidationError", bad, err)
+		}
+	}
+	// A legacy slug that no longer passes validation is not a change when re-sent.
+	if _, err := f.pool.Exec(ctx, `UPDATE workspaces SET slug = 'x' WHERE id = $1`, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	same, name := "x", "Đội Alpha 2"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Slug: &same, Name: &name}); err != nil {
+		t.Fatalf("re-sent slug: %v", err)
+	}
+	var n int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM workspace_aliases WHERE workspace_id = $1`, w.ID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("aliases = %d, err %v; want none", n, err)
+	}
+}
+
+func TestWorkspaceConcurrentSlugChangesConflict(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w1, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w2, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Gamma", "doi-gamma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	slug := "cung-slug"
+	errs := make(chan error, 2)
+	for _, id := range []string{w1.ID, w2.ID} {
+		id := id
+		go func() {
+			_, err := f.ws.Update(ctx, f.ua.ID, id, UpdateWorkspaceInput{Slug: &slug})
+			errs <- err
+		}()
+	}
+	var ok, conflict int
+	for range 2 {
+		switch err := <-errs; {
+		case err == nil:
+			ok++
+		case errors.Is(err, ErrConflict):
+			conflict++
+		default:
+			t.Fatalf("unexpected: %v", err)
+		}
+	}
+	if ok != 1 || conflict != 1 {
+		t.Fatalf("ok=%d conflict=%d, want 1 and 1", ok, conflict)
+	}
+}
+
+// A slug the unlocked row already had skips the format check; if the locked
+// row has moved on, the re-sent old value is a real change and is validated.
+func TestWorkspaceSlugRevalidatedAgainstTheLockedRow(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Delta", "doi-delta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(ctx, `UPDATE workspaces SET slug = 'x' WHERE id = $1`, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	stale, err := f.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(ctx, `UPDATE workspaces SET slug = 'doi-delta-2' WHERE id = $1`, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	// The name keeps the unlocked hint non-empty, so the locked diff runs.
+	same, name := "x", "Đội Delta 2"
+	var ve ValidationError
+	if _, err := f.ws.updateFrom(ctx, f.ua.ID, stale, UpdateWorkspaceInput{Slug: &same, Name: &name}); !errors.As(err, &ve) {
+		t.Fatalf("stale legacy slug: err = %v, want ValidationError", err)
+	}
+}

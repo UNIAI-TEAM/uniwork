@@ -104,7 +104,7 @@ func (q *Queries) CreateInvitation(ctx context.Context, arg CreateInvitationPara
 const createWorkspace = `-- name: CreateWorkspace :one
 INSERT INTO workspaces (id, organization_id, slug, name, created_by)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
 `
 
 type CreateWorkspaceParams struct {
@@ -135,6 +135,9 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 	)
 	return i, err
 }
@@ -306,7 +309,7 @@ func (q *Queries) GetWorkspaceAccess(ctx context.Context, arg GetWorkspaceAccess
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter FROM workspaces WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id FROM workspaces WHERE id = $1
 `
 
 // tenant: by-id
@@ -324,12 +327,15 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id string) (Workspace, e
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 	)
 	return i, err
 }
 
 const getWorkspaceBySlugs = `-- name: GetWorkspaceBySlugs :one
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, o.slug AS organization_slug, o.name AS organization_name
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE o.slug = $1 AND w.slug = $2
 `
@@ -350,6 +356,9 @@ type GetWorkspaceBySlugsRow struct {
 	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix       string             `json:"task_prefix"`
 	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -369,10 +378,64 @@ func (q *Queries) GetWorkspaceBySlugs(ctx context.Context, arg GetWorkspaceBySlu
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 		&i.OrganizationSlug,
 		&i.OrganizationName,
 	)
 	return i, err
+}
+
+const getWorkspaceForUpdate = `-- name: GetWorkspaceForUpdate :one
+SELECT id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id FROM workspaces
+WHERE id = $1 AND organization_id = $2
+FOR UPDATE
+`
+
+type GetWorkspaceForUpdateParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// The locked row a settings change is computed from (spec 2026-10-14 §4.4).
+func (q *Queries) GetWorkspaceForUpdate(ctx context.Context, arg GetWorkspaceForUpdateParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceForUpdate, arg.ID, arg.OrganizationID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.MatrixRoomID,
+		&i.TaskPrefix,
+		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
+	)
+	return i, err
+}
+
+const getWorkspaceIconFileIDForUpdate = `-- name: GetWorkspaceIconFileIDForUpdate :one
+SELECT icon_file_id FROM workspaces
+WHERE id = $1 AND organization_id = $2
+FOR UPDATE
+`
+
+type GetWorkspaceIconFileIDForUpdateParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GetWorkspaceIconFileIDForUpdate(ctx context.Context, arg GetWorkspaceIconFileIDForUpdateParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceIconFileIDForUpdate, arg.ID, arg.OrganizationID)
+	var icon_file_id pgtype.Text
+	err := row.Scan(&icon_file_id)
+	return icon_file_id, err
 }
 
 const getWorkspaceMember = `-- name: GetWorkspaceMember :one
@@ -398,7 +461,7 @@ func (q *Queries) GetWorkspaceMember(ctx context.Context, arg GetWorkspaceMember
 }
 
 const getWorkspaceWithOrg = `-- name: GetWorkspaceWithOrg :one
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, o.slug AS organization_slug, o.name AS organization_name
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE w.id = $1
 `
@@ -414,6 +477,9 @@ type GetWorkspaceWithOrgRow struct {
 	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix       string             `json:"task_prefix"`
 	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -433,6 +499,9 @@ func (q *Queries) GetWorkspaceWithOrg(ctx context.Context, id string) (GetWorksp
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 		&i.OrganizationSlug,
 		&i.OrganizationName,
 	)
@@ -618,6 +687,33 @@ func (q *Queries) ListPendingOrganizationInvitations(ctx context.Context, organi
 	return items, nil
 }
 
+const listWorkspaceIconFileIDs = `-- name: ListWorkspaceIconFileIDs :many
+SELECT icon_file_id FROM workspaces
+WHERE icon_file_id = ANY($1::text[])
+`
+
+// tenant: system
+// FileService asks which of these files a workspace still shows.
+func (q *Queries) ListWorkspaceIconFileIDs(ctx context.Context, fileIds []string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceIconFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var icon_file_id pgtype.Text
+		if err := rows.Scan(&icon_file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, icon_file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaceMembers = `-- name: ListWorkspaceMembers :many
 SELECT m.workspace_id, m.user_id, m.role, m.created_at,
        u.email, u.display_name, u.avatar_url, u.avatar_file_id
@@ -668,7 +764,7 @@ func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID string) 
 }
 
 const listWorkspacesForUser = `-- name: ListWorkspacesForUser :many
-SELECT DISTINCT ON (w.created_at, w.id) w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, o.slug AS organization_slug, o.name AS organization_name
+SELECT DISTINCT ON (w.created_at, w.id) w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
 LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $1
@@ -688,6 +784,9 @@ type ListWorkspacesForUserRow struct {
 	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix       string             `json:"task_prefix"`
 	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -716,6 +815,9 @@ func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]L
 			&i.MatrixRoomID,
 			&i.TaskPrefix,
 			&i.TaskCounter,
+			&i.Description,
+			&i.IconEmoji,
+			&i.IconFileID,
 			&i.OrganizationSlug,
 			&i.OrganizationName,
 		); err != nil {
@@ -795,6 +897,18 @@ func (q *Queries) LockInvitationByToken(ctx context.Context, token string) (Invi
 	return i, err
 }
 
+const lockWorkspaceSlugs = `-- name: LockWorkspaceSlugs :exec
+SELECT pg_advisory_xact_lock(hashtextextended('workspace-slug:' || $1::text, 0))
+`
+
+// Serializes slug changes and workspace creation in one organization, so the
+// check that a slug is nobody else's alias and the write that follows see
+// the same rows (spec 2026-10-14 §4.4).
+func (q *Queries) LockWorkspaceSlugs(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, lockWorkspaceSlugs, organizationID)
+	return err
+}
+
 const markInvitationAccepted = `-- name: MarkInvitationAccepted :execrows
 UPDATE invitations SET accepted_at = now()
 WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
@@ -856,10 +970,52 @@ func (q *Queries) RevokePendingInvitationsForOrg(ctx context.Context, organizati
 	return result.RowsAffected(), nil
 }
 
+const setWorkspaceIcon = `-- name: SetWorkspaceIcon :one
+UPDATE workspaces
+SET icon_emoji = $1, icon_file_id = $2, updated_at = now()
+WHERE id = $3 AND organization_id = $4
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
+`
+
+type SetWorkspaceIconParams struct {
+	IconEmoji      pgtype.Text `json:"icon_emoji"`
+	IconFileID     pgtype.Text `json:"icon_file_id"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// Writes both icon columns at once: a workspace shows an emoji or a file,
+// never both (workspaces_one_icon).
+func (q *Queries) SetWorkspaceIcon(ctx context.Context, arg SetWorkspaceIconParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, setWorkspaceIcon,
+		arg.IconEmoji,
+		arg.IconFileID,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.MatrixRoomID,
+		&i.TaskPrefix,
+		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
+	)
+	return i, err
+}
+
 const setWorkspaceMatrixRoomID = `-- name: SetWorkspaceMatrixRoomID :one
 UPDATE workspaces SET matrix_room_id = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
 `
 
 type SetWorkspaceMatrixRoomIDParams struct {
@@ -882,6 +1038,9 @@ func (q *Queries) SetWorkspaceMatrixRoomID(ctx context.Context, arg SetWorkspace
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 	)
 	return i, err
 }
@@ -912,20 +1071,36 @@ func (q *Queries) UpdateWorkspaceMemberRole(ctx context.Context, arg UpdateWorks
 	return i, err
 }
 
-const updateWorkspaceName = `-- name: UpdateWorkspaceName :one
-UPDATE workspaces SET name = $2, updated_at = now()
-WHERE id = $1
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter
+const updateWorkspaceProfile = `-- name: UpdateWorkspaceProfile :one
+UPDATE workspaces SET
+  name        = COALESCE($1, name),
+  description = COALESCE($2, description),
+  slug        = COALESCE($3, slug),
+  task_prefix = COALESCE($4, task_prefix),
+  updated_at  = now()
+WHERE id = $5 AND organization_id = $6
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
 `
 
-type UpdateWorkspaceNameParams struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+type UpdateWorkspaceProfileParams struct {
+	Name           pgtype.Text `json:"name"`
+	Description    pgtype.Text `json:"description"`
+	Slug           pgtype.Text `json:"slug"`
+	TaskPrefix     pgtype.Text `json:"task_prefix"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
 }
 
-// tenant: by-id
-func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNameParams) (Workspace, error) {
-	row := q.db.QueryRow(ctx, updateWorkspaceName, arg.ID, arg.Name)
+// A NULL argument keeps the column as it is.
+func (q *Queries) UpdateWorkspaceProfile(ctx context.Context, arg UpdateWorkspaceProfileParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, updateWorkspaceProfile,
+		arg.Name,
+		arg.Description,
+		arg.Slug,
+		arg.TaskPrefix,
+		arg.ID,
+		arg.OrganizationID,
+	)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,
@@ -938,6 +1113,9 @@ func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNa
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 	)
 	return i, err
 }
@@ -946,7 +1124,7 @@ const updateWorkspaceTaskPrefix = `-- name: UpdateWorkspaceTaskPrefix :one
 UPDATE workspaces
 SET task_prefix = $2, updated_at = now()
 WHERE id = $1 AND organization_id = $3
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
 `
 
 type UpdateWorkspaceTaskPrefixParams struct {
@@ -969,6 +1147,9 @@ func (q *Queries) UpdateWorkspaceTaskPrefix(ctx context.Context, arg UpdateWorks
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 	)
 	return i, err
 }

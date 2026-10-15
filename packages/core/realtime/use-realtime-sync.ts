@@ -25,6 +25,7 @@ import { planCacheUpdate } from "../tasks/cache-coordinator";
 import { taskKeys } from "../tasks/hooks";
 import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
+import { workspaceKeys } from "../workspaces/keys";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import { documentFrameKeys } from "./document-events";
 import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
@@ -121,6 +122,22 @@ function keysFor(
   }
 
   switch (type) {
+    case "workspace.updated": {
+      // Name, description, icon, slug or task prefix changed: the switcher,
+      // the picker and the open workspace refetch. The by-slug prefix also
+      // covers a workspace opened under an old slug.
+      push(workspaceKeys.list());
+      push(workspaceKeys.allBySlugs());
+      // Task identifiers carry the prefix; the payload does not say which
+      // field changed, so this workspace's task caches refetch too.
+      push(taskKeys.list(wsId));
+      push(taskKeys.myTasks(wsId));
+      push(taskKeys.queryRoot(wsId));
+      push(taskKeys.groupedRoot(wsId));
+      push(taskKeys.tableRoot(wsId));
+      push(taskKeys.details());
+      break;
+    }
     case "workspace_agent.added": {
       push(agentKeys.workspace(wsId));
       break;

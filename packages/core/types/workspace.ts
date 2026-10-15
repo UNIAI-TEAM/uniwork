@@ -7,6 +7,13 @@ export const WorkspaceSchema = z.object({
   organization_id: z.string(),
   organization_slug: z.string(),
   organization_name: z.string(),
+  // Workspace profile (spec 2026-10-14). Optional and forgiving: a server that
+  // does not send them, or sends the wrong type, yields undefined, never a
+  // dropped workspace. The UI reads undefined as "not set".
+  description: z.string().optional().catch(undefined),
+  icon_emoji: z.string().optional().catch(undefined),
+  icon_url: z.string().optional().catch(undefined),
+  task_prefix: z.string().optional().catch(undefined),
 });
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 

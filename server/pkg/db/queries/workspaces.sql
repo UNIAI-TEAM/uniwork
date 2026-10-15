@@ -7,11 +7,41 @@ RETURNING *;
 -- tenant: by-id
 SELECT * FROM workspaces WHERE id = $1;
 
--- name: UpdateWorkspaceName :one
--- tenant: by-id
-UPDATE workspaces SET name = $2, updated_at = now()
-WHERE id = $1
+-- name: UpdateWorkspaceProfile :one
+-- A NULL argument keeps the column as it is.
+UPDATE workspaces SET
+  name        = COALESCE(sqlc.narg('name'), name),
+  description = COALESCE(sqlc.narg('description'), description),
+  slug        = COALESCE(sqlc.narg('slug'), slug),
+  task_prefix = COALESCE(sqlc.narg('task_prefix'), task_prefix),
+  updated_at  = now()
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
 RETURNING *;
+
+-- name: SetWorkspaceIcon :one
+-- Writes both icon columns at once: a workspace shows an emoji or a file,
+-- never both (workspaces_one_icon).
+UPDATE workspaces
+SET icon_emoji = sqlc.narg('icon_emoji'), icon_file_id = sqlc.narg('icon_file_id'), updated_at = now()
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+RETURNING *;
+
+-- name: GetWorkspaceIconFileIDForUpdate :one
+SELECT icon_file_id FROM workspaces
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+FOR UPDATE;
+
+-- name: GetWorkspaceForUpdate :one
+-- The locked row a settings change is computed from (spec 2026-10-14 §4.4).
+SELECT * FROM workspaces
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+FOR UPDATE;
+
+-- name: ListWorkspaceIconFileIDs :many
+-- tenant: system
+-- FileService asks which of these files a workspace still shows.
+SELECT icon_file_id FROM workspaces
+WHERE icon_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: GetWorkspaceBySlugs :one
 -- tenant: by-id
@@ -199,3 +229,9 @@ UPDATE workspaces
 SET task_prefix = $2, updated_at = now()
 WHERE id = $1 AND organization_id = $3
 RETURNING *;
+
+-- name: LockWorkspaceSlugs :exec
+-- Serializes slug changes and workspace creation in one organization, so the
+-- check that a slug is nobody else's alias and the write that follows see
+-- the same rows (spec 2026-10-14 §4.4).
+SELECT pg_advisory_xact_lock(hashtextextended('workspace-slug:' || sqlc.arg(organization_id)::text, 0));

@@ -213,7 +213,7 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 		}
 		result.Workspace = landing
 	} else {
-		view, err := s.GetView(ctx, userID, out.workspaceID)
+		view, err := s.viewWithIcon(ctx, userID, out.workspaceID)
 		switch {
 		case err == nil:
 			result.Workspace = &view
@@ -237,7 +237,8 @@ func (s *WorkspaceService) landingWorkspace(ctx context.Context, userID, invitat
 		return nil, err
 	}
 	for _, w := range granted {
-		view, err := s.GetView(ctx, userID, w.ID)
+		// The workspace leaves the server here, so its icon is signed.
+		view, err := s.viewWithIcon(ctx, userID, w.ID)
 		switch {
 		case err == nil:
 			return &view, nil
