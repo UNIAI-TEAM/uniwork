@@ -1,0 +1,17 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r13f2" OFFICE_FORK_SHA=12ccb8f0 timeout -k 15 420 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-50 --exits 5 --run-dir .harness-run-r13f2; rc=$?; echo; echo "APP_CASE_FQ_50_5_EXIT=$rc"; f=.harness-run-r13f2/fault/FQ-50/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",JSON.stringify(r.exitRange||""),(r.assertions||[]).map(a=>(a.ok?"ok ":"FAIL ")+a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "),JSON.stringify(r.exits||r.run_execution||"").slice(0,3000))' "$PWD/$f"; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:33189 app_api=http://127.0.0.1:41031 proxy_upstream=http://127.0.0.1:33189
+FQ-50 [1/5] permission_revoked → queued: SKIPPED - outside --exits 5-5
+FQ-50 [2/5] document_deleted → queued: SKIPPED - outside --exits 5-5
+FQ-50 [3/5] document_archived → queued: SKIPPED - outside --exits 5-5
+FQ-50 [4/5] organization_suspended → queued: SKIPPED - outside --exits 5-5
+FQ-50 [5/5] member_deactivated → queued: running
+dbus-daemon[20761]: [session uid=1000 pid=20761] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20797 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20761]: [session uid=1000 pid=20761] Successfully activated service 'org.a11y.Bus'
+FQ-50: FAIL (infra: member_deactivated → queued: run_execution: deactivate member: POST /api/v1/orgs/{org}/members/{userID}/deactivate -> 404 not_found) partial 5-5 of 5
+FQ-50 (G5-A08): FAIL
+/workspace/.harness-run-r13f2/fault
+APP_CASES_EXIT=1
+
+APP_CASE_FQ_50_5_EXIT=1
+FQ-50 FAIL   {"from":5,"to":5,"of":5,"skipped":[1,2,3,4]} FAIL run_execution: expected "no unhandled error" actual "deactivate member: POST /api/v1/orgs/{org}/members/{userID}/deactivate -> 404 not_found" [{"n":0,"label":"member_deactivated → queued","result":"FAIL","assertions":[{"name":"run_execution","expected":"no unhandled error","actual":"deactivate member: POST /api/v1/orgs/{org}/members/{userID}/deactivate -> 404 not_found","ok":false}],"infraFailure":"run_execution: deactivate member: POST /api/v1/orgs/{org}/members/{userID}/deactivate -> 404 not_found","evidence":{"documentId":"01M50FY0SAMRPTBJ1VVFHEX2PT","trace":[],"requests":[]}}]
