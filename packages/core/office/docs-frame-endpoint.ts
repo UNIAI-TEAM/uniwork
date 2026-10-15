@@ -1,7 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at 6dce8341a5703902afde0886c29e416ecec55a41
-// (fork lane feature/UNI-1351-g5-03w-new-version-web rebased on fork main 7e082de3: the G8-08 comments protocol with the OQ-C2 anchor rules
-// on X-02 r2b, plus G5-03w doc.blocked).
+// web/docs/protocol/endpoint.ts at 63e768f5aed347e4fa48310a0cdaaf2d4adf7a3b
+// (fork lane feature/UNI-1413-g8-18-mention-editor on fork main 451e4f610; unchanged since the G5-03w re-vendor, SHA bumped with the protocol.)
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /**
