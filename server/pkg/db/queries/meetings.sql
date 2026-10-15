@@ -131,6 +131,20 @@ UPDATE meetings SET
 WHERE id = sqlc.arg('id') AND status = 'SCHEDULED' AND version = sqlc.arg('version')
 RETURNING *;
 
+-- name: RestoreMeeting :one
+-- tenant: by-id
+-- Undo of a cancellation while the meeting's window is still ahead (ADR 0033).
+UPDATE meetings SET
+  status = 'SCHEDULED',
+  canceled_by = NULL,
+  canceled_at = NULL,
+  cancel_reason = NULL,
+  updated_by = sqlc.arg('updated_by'),
+  updated_at = now(),
+  version = version + 1
+WHERE id = sqlc.arg('id') AND status = 'CANCELED' AND version = sqlc.arg('version') AND ends_at > now()
+RETURNING *;
+
 -- name: TransferMeetingHost :one
 -- tenant: by-id
 UPDATE meetings SET

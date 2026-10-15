@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 )
@@ -106,6 +108,21 @@ func mcpChanges(pairs ...McpChange) []McpChange {
 		out = append(out, c)
 	}
 	return out
+}
+
+// mcpDescriptionUndoable refuses a description an update tool could not put
+// back by sending changes.from: a new one longer than mcpMaxItemRunes, or,
+// when the call replaces it, a current one longer than that, which the read
+// tools show cut. Before the record is read, current is "": only the new one
+// is checked.
+func mcpDescriptionUndoable(next mcpOpt[string], current string) error {
+	if utf8.RuneCountInString(next.Value) > mcpMaxItemRunes {
+		return McpInvalidArgs{Msg: fmt.Sprintf("description holds at most %d characters here; a longer one could not be undone", mcpMaxItemRunes)}
+	}
+	if next.Set && utf8.RuneCountInString(current) > mcpMaxItemRunes {
+		return McpInvalidArgs{Msg: "the description is too long to replace safely here; edit it in UniWork"}
+	}
+	return nil
 }
 
 // McpWriteResult is what every write tool returns: the record after the

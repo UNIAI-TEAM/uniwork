@@ -361,6 +361,14 @@ export function useCancelMeeting(workspaceId: string) {
   });
 }
 
+export function useRestoreMeeting(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ meetingId, version }: { meetingId: string; version?: number }) => meetings.restoreMeeting(meetingId, version),
+    onSuccess: (_d, { meetingId }) => invalidateMeeting(qc, workspaceId, meetingId),
+  });
+}
+
 // ---- D08b: capabilities, transcript, AI summary, recording, calendar ----------
 
 export function useMeetingCapabilities(workspaceId: string) {

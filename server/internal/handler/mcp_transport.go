@@ -129,7 +129,12 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, budget mcpBudg
 			// annotations.
 			Annotations: &mcp.ToolAnnotations{Title: t.Title, ReadOnlyHint: t.Kind == ai.ToolRead, DestructiveHint: boolPtr(t.Destructive), OpenWorldHint: boolPtr(false)},
 		}, func(ctx context.Context, req *mcp.CallToolRequest) (res *mcp.CallToolResult, _ error) {
-			telemetry.SetMCP(ctx, "", "", t.Name)
+			telemetry.SetMCP(ctx, "", "", "", t.Name)
+			// The gate's own rule: anything that is not a read is a write.
+			kind := "write"
+			if t.Kind == ai.ToolRead {
+				kind = "read"
+			}
 			start := time.Now()
 			if reqCtx, ok := ctx.Value(mcpRequestKey{}).(context.Context); ok {
 				// A client that goes away stops its tool, and the database
@@ -146,7 +151,7 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, budget mcpBudg
 			defer func() {
 				if v := recover(); v != nil {
 					log.ErrorContext(ctx, "mcp tool panic", "tool", t.Name, "grant_id", p.GrantID, "panic", mcpPanicSummary(v), "stack", string(debug.Stack()))
-					metrics.ObserveTool(t.Name, "error", time.Since(start))
+					metrics.ObserveTool(t.Name, kind, "error", time.Since(start))
 					_, res = mcpToolResult(ctx, nil, errors.New("panic"))
 				}
 			}()
@@ -155,7 +160,7 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, budget mcpBudg
 				// call without one is a wiring bug, and runs nothing.
 				log.ErrorContext(ctx, "mcp tool without a principal", "tool", t.Name)
 				_, res := mcpToolResult(ctx, nil, errors.New("no principal"))
-				metrics.ObserveTool(t.Name, "error", time.Since(start))
+				metrics.ObserveTool(t.Name, kind, "error", time.Since(start))
 				return res, nil
 			}
 			// Anything that is not a read is gated like a write: tools/list
@@ -163,7 +168,7 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, budget mcpBudg
 			// refuse the same set, or a tool with no Kind runs unchecked.
 			if t.Kind != ai.ToolRead {
 				if why := mcpWriteRefusal(ctx, p, budget); why != "" {
-					metrics.ObserveTool(t.Name, "refused", time.Since(start))
+					metrics.ObserveTool(t.Name, kind, "refused", time.Since(start))
 					return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: why}}}, nil
 				}
 			}
@@ -174,7 +179,7 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, budget mcpBudg
 				// Ids and the error only: never the token or the arguments.
 				log.ErrorContext(ctx, "mcp tool", "tool", t.Name, "grant_id", p.GrantID, "err", err)
 			}
-			metrics.ObserveTool(t.Name, outcome, time.Since(start))
+			metrics.ObserveTool(t.Name, kind, outcome, time.Since(start))
 			return res, nil
 		})
 	}
@@ -279,7 +284,7 @@ func (h *handlers) mcpServe(w http.ResponseWriter, r *http.Request) {
 	}
 	telemetry.SetActor(r.Context(), p.UserID, "human", "mcp")
 	telemetry.SetTenant(r.Context(), p.OrganizationID, "")
-	telemetry.SetMCP(r.Context(), p.ClientID, p.GrantID, "")
+	telemetry.SetMCP(r.Context(), p.ClientID, p.GrantID, p.Scope, "")
 	if h.mcpGuard(w, r) {
 		return
 	}

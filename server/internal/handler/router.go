@@ -566,6 +566,7 @@ func New(d Deps) http.Handler {
 		EndMeeting:                     h.endMeeting,
 		ExtendMeeting:                  h.extendMeeting,
 		CancelMeeting:                  h.cancelMeeting,
+		RestoreMeeting:                 h.restoreMeeting,
 		TransferHost:                   h.transferHost,
 		ListNotes:                      h.listNotes,
 		CreateNote:                     h.createNote,

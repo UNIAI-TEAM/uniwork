@@ -643,6 +643,74 @@ func (q *Queries) GetTaskInWorkspace(ctx context.Context, arg GetTaskInWorkspace
 	return i, err
 }
 
+const getTaskInWorkspaceByIdentifier = `-- name: GetTaskInWorkspaceByIdentifier :one
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at FROM tasks t
+INNER JOIN workspaces w
+  ON w.id = t.workspace_id AND w.organization_id = t.organization_id
+WHERE t.organization_id = $1
+  AND t.workspace_id = $2
+  AND upper(w.task_prefix) = upper($3)
+  AND t.number = $4
+`
+
+type GetTaskInWorkspaceByIdentifierParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Prefix         interface{} `json:"prefix"`
+	Number         int64       `json:"number"`
+}
+
+// A PREFIX-N reference read inside one workspace. Prefixes are three letters
+// of the slug and numbers count per workspace, so across workspaces the same
+// reference can name several tasks; here it names at most one.
+func (q *Queries) GetTaskInWorkspaceByIdentifier(ctx context.Context, arg GetTaskInWorkspaceByIdentifierParams) (Task, error) {
+	row := q.db.QueryRow(ctx, getTaskInWorkspaceByIdentifier,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Prefix,
+		arg.Number,
+	)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.Priority,
+		&i.AssigneeID,
+		&i.DueDate,
+		&i.Position,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
+		&i.OrganizationID,
+		&i.Number,
+		&i.ProjectID,
+		&i.ParentTaskID,
+		&i.AssigneeType,
+		&i.CreatorType,
+		&i.CreatorID,
+		&i.AcceptanceCriteria,
+		&i.ContextRefs,
+		&i.Metadata,
+		&i.Properties,
+		&i.StartDate,
+		&i.Stage,
+		&i.OriginType,
+		&i.OriginID,
+		&i.FirstExecutedAt,
+		&i.Revision,
+		&i.LastActivityAt,
+		&i.StartAt,
+		&i.DueAt,
+	)
+	return i, err
+}
+
 const getWelcomeTask = `-- name: GetWelcomeTask :one
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks
 WHERE organization_id = $1

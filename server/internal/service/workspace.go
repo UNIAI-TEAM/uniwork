@@ -669,6 +669,18 @@ func (s *WorkspaceService) Members(ctx context.Context, userID, workspaceID stri
 	return rows, nil
 }
 
+// AssignableMembers is who a task in the workspace can be assigned to:
+// Members plus the organization's owners and admins, who are implicit
+// workspace admins. The caller must belong to the workspace, and the
+// organization read is the workspace's own, from RequireMember.
+func (s *WorkspaceService) AssignableMembers(ctx context.Context, userID, workspaceID string) ([]db.ListAssignableMembersRow, error) {
+	m, err := s.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListAssignableMembers(ctx, db.ListAssignableMembersParams{WorkspaceID: workspaceID, OrganizationID: m.OrganizationID})
+}
+
 const (
 	MembershipSourceMembership MembershipSource = "membership"
 	MembershipSourceOrgAdmin   MembershipSource = "org_admin"

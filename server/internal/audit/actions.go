@@ -244,6 +244,9 @@ const (
 	ActionOrganizationMcpPolicyChanged      = "organization.mcp_policy_changed"
 	ActionOrganizationMcpWritePolicyChanged = "organization.mcp_write_policy_changed"
 
+	// A cancelled meeting brought back (MeetingService.Restore).
+	ActionMeetingRestored = "meeting.restored"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"

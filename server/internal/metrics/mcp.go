@@ -6,8 +6,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Mcp counts the MCP connector. Labels are tool names, outcomes and OAuth
-// events; never a tenant, user, client or grant id.
+// Mcp counts the MCP connector. Labels are tool names, tool kinds, outcomes
+// and OAuth events; never a tenant, user, client or grant id.
 type Mcp struct {
 	ToolCalls    *prometheus.CounterVec
 	ToolDuration *prometheus.HistogramVec
@@ -18,8 +18,8 @@ func NewMcp() *Mcp {
 	return &Mcp{
 		ToolCalls: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_mcp_tool_calls_total",
-			Help: "MCP tool calls by tool and outcome (ok, invalid, refused, not_found, cancelled, error).",
-		}, []string{"tool", "outcome"}),
+			Help: "MCP tool calls by tool, kind (read, write) and outcome (ok, invalid, refused, not_found, cancelled, error).",
+		}, []string{"tool", "kind", "outcome"}),
 		ToolDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "uniwork_mcp_tool_duration_seconds",
 			Help:    "MCP tool latency.",
@@ -45,9 +45,11 @@ func (m *Mcp) IncOAuth(event string) {
 	}
 }
 
-func (m *Mcp) ObserveTool(tool, outcome string, d time.Duration) {
+// ObserveTool counts one tool call. The duration keeps only the tool label:
+// the kind follows from the tool, so it would add no information.
+func (m *Mcp) ObserveTool(tool, kind, outcome string, d time.Duration) {
 	if m != nil {
-		m.ToolCalls.WithLabelValues(tool, outcome).Inc()
+		m.ToolCalls.WithLabelValues(tool, kind, outcome).Inc()
 		m.ToolDuration.WithLabelValues(tool).Observe(d.Seconds())
 	}
 }
