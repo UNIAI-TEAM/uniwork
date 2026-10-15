@@ -934,6 +934,18 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatVoiceCallLogged: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			if err := f.chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.SignalVoiceAccept(f.ctx, f.member.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatFollowUpDeleted: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
@@ -1533,6 +1545,7 @@ func auditActions() []string {
 		audit.ActionChatMessageDeleted,
 		audit.ActionChatRoomMemberUpdated,
 		audit.ActionChatRoomSettingsUpdated,
+		audit.ActionChatVoiceCallLogged,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,

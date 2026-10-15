@@ -327,15 +327,15 @@ func (s *ChatService) stopVoiceRecordingOnHangup(ctx context.Context, room db.Ch
 }
 
 func (s *ChatService) attachVoiceRecordingToCallLog(
-	ctx context.Context, room db.ChatRoom, callID, messageID string, meta map[string]any,
+	ctx context.Context, q *db.Queries, room db.ChatRoom, callID, messageID string, meta map[string]any,
 ) map[string]any {
-	rec, err := s.q.AttachChatVoiceRecordingCallLog(ctx, db.AttachChatVoiceRecordingCallLogParams{
+	rec, err := q.AttachChatVoiceRecordingCallLog(ctx, db.AttachChatVoiceRecordingCallLogParams{
 		RoomID:           room.ID,
 		CallLogMessageID: strText(messageID),
 		CallID:           callID,
 	})
 	if err != nil {
-		rows, listErr := s.q.ListChatVoiceRecordingsForCall(ctx, db.ListChatVoiceRecordingsForCallParams{
+		rows, listErr := q.ListChatVoiceRecordingsForCall(ctx, db.ListChatVoiceRecordingsForCallParams{
 			RoomID: room.ID, CallID: callID,
 		})
 		if listErr != nil || len(rows) == 0 {

@@ -282,3 +282,122 @@ func TestVoiceHangupKeepsTheCallLogWhenTheSummaryCapFails(t *testing.T) {
 		t.Fatalf("call logs = %d, want 1", logs)
 	}
 }
+
+// failVoiceSummaryJobsFor makes the outbox refuse the summary job of one room,
+// the way a database failing mid-hangup would, until the test ends.
+func failVoiceSummaryJobsFor(t *testing.T, pool *pgxpool.Pool, roomID string) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `CREATE OR REPLACE FUNCTION test_fail_voice_summary_job() RETURNS trigger
+		LANGUAGE plpgsql AS $$
+		BEGIN
+			IF NEW.topic = 'chat.voice.call.completed' AND NEW.payload::jsonb->>'room_id' = '`+roomID+`' THEN
+				RAISE EXCEPTION 'injected outbox failure';
+			END IF;
+			RETURN NEW;
+		END $$`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `CREATE TRIGGER test_fail_voice_summary_job BEFORE INSERT ON outbox_events
+		FOR EACH ROW EXECUTE FUNCTION test_fail_voice_summary_job()`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DROP TRIGGER IF EXISTS test_fail_voice_summary_job ON outbox_events`)
+		_, _ = pool.Exec(ctx, `DROP FUNCTION IF EXISTS test_fail_voice_summary_job()`)
+	})
+}
+
+func voiceCallLogCount(t *testing.T, pool *pgxpool.Pool, roomID string) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM chat_messages WHERE room_id = $1 AND kind = 'voice_call_log'`, roomID,
+	).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// The call log, its audit row and its summary job commit together, so a
+// failed job never leaves a log that says "summarising" forever; the other
+// side still hears the hangup (UNI-1703).
+func TestVoiceCallLogAndSummaryJobCommitTogether(t *testing.T) {
+	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	s.SetAIGateway(ai.NewGateway(q, &provider.Fake{Reply: ai.FakeReply}, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	failVoiceSummaryJobsFor(t, pool, dm.ID)
+	acceptDMVoiceCall(t, s, ua, ub, w, dm.ID, "tx-fail")
+	backdateVoiceCallAnswer(t, dm.ID, "tx-fail", 45*time.Second)
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "tx-fail"); err == nil {
+		t.Fatal("hangup succeeded although the summary job could not be queued")
+	}
+	if n := voiceCallLogCount(t, pool, dm.ID); n != 0 {
+		t.Fatalf("call logs = %d, want 0 when the summary job failed", n)
+	}
+	var audited int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'chat.voice_call.logged'`, w.OrganizationID,
+	).Scan(&audited); err != nil {
+		t.Fatal(err)
+	}
+	if audited != 0 {
+		t.Fatalf("audit rows = %d, want 0", audited)
+	}
+	if len(pub.sentTo("chat.voice.hangup")) == 0 {
+		t.Fatal("chat.voice.hangup not published after a failed call log")
+	}
+}
+
+// A logged call writes one audit row for the log, sharing its correlation id
+// with the summary job it queued (ADR 0009, UNI-1703).
+func TestVoiceCallLogWritesAuditAndJobTogether(t *testing.T) {
+	s, _, ua, ub, w, pool := aiChatFixture(t)
+	ctx := context.Background()
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	talk(t, s, ua, ub, w, dm.ID, "tx-ok", 45*time.Second)
+	var logID string
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM chat_messages WHERE room_id = $1 AND kind = 'voice_call_log'`, dm.ID,
+	).Scan(&logID); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := pool.Query(ctx,
+		`SELECT resource_id, correlation_id FROM audit_events WHERE organization_id = $1 AND action = 'chat.voice_call.logged'`, w.OrganizationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resources, correlations []string
+	for rows.Next() {
+		var res, corr string
+		if err := rows.Scan(&res, &corr); err != nil {
+			t.Fatal(err)
+		}
+		resources = append(resources, res)
+		correlations = append(correlations, corr)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(resources) != 1 || resources[0] != logID {
+		t.Fatalf("audit rows for the log = %v, want [%s]", resources, logID)
+	}
+	var jobCorrelation string
+	if err := pool.QueryRow(ctx,
+		`SELECT coalesce(correlation_id, '') FROM outbox_events WHERE topic = 'chat.voice.call.completed' AND payload::jsonb->>'room_id' = $1`, dm.ID,
+	).Scan(&jobCorrelation); err != nil {
+		t.Fatal(err)
+	}
+	if jobCorrelation != correlations[0] {
+		t.Fatalf("job correlation %q != audit correlation %q", jobCorrelation, correlations[0])
+	}
+}

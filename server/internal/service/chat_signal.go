@@ -105,19 +105,17 @@ func (s *ChatService) SignalVoiceHangup(
 	}
 	s.trackVoiceCallParticipant(roomID, callID, userID)
 	s.stopVoiceRecordingOnHangup(ctx, room, callID, userID)
-	if logErr := s.finalizeVoiceCall(ctx, room, userID, callID); logErr != nil {
-		return logErr
-	}
+	// The session is gone either way, so the other side hears the hangup even
+	// when the call log could not be written.
+	logErr := s.finalizeVoiceCall(ctx, room, userID, callID)
 	ev := Event{
 		Type: "chat.voice.hangup",
 		Payload: map[string]string{
 			"room_id": roomID, "call_id": callID, "user_id": userID,
 		},
 	}
-	if pubErr := s.publishVoiceRoomSignal(ctx, room, userID, ev); pubErr != nil {
-		return pubErr
-	}
-	return nil
+	pubErr := s.publishVoiceRoomSignal(ctx, room, userID, ev)
+	return errors.Join(logErr, pubErr)
 }
 
 // SignalTyping broadcasts a typing indicator for a chat room.

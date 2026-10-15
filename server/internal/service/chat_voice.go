@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -586,32 +587,14 @@ func (s *ChatService) finalizeVoiceCall(
 	anchorWS := roomAnchorWorkspaceID(room)
 	// Pre-create message id so recording metadata can reference it before insert.
 	msgID := util.NewID()
-	metaMap = s.attachVoiceRecordingToCallLog(ctx, room, callID, msgID, metaMap)
-	meta, err := json.Marshal(metaMap)
-	if err != nil {
-		return err
-	}
-	msg, err := s.q.CreateChatVoiceCallLog(ctx, db.CreateChatVoiceCallLogParams{
-		ID:             msgID,
-		RoomID:         room.ID,
-		OrganizationID: room.OrganizationID,
-		WorkspaceID:    anchorWS,
-		SenderID:       sess.callerID,
-		Metadata:       meta,
-	})
-	if err != nil {
-		return err
-	}
-	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
-
+	var emit []audit.Event
 	if queueSummary {
 		endedAt := time.Now().UTC()
 		startedAt := endedAt.Add(-time.Duration(duration) * time.Second)
 		if sess.acceptedAt != nil {
 			startedAt = sess.acceptedAt.UTC()
 		}
-		payload := map[string]string{
+		emit = append(emit, audit.Event{Topic: "chat.voice.call.completed", Version: 1, Payload: map[string]string{
 			"room_id":             room.ID,
 			"workspace_id":        anchorWS,
 			"organization_id":     room.OrganizationID,
@@ -623,11 +606,47 @@ func (s *ChatService) finalizeVoiceCall(
 			"duration_seconds":    fmt.Sprintf("%d", duration),
 			"duration_label":      formatVoiceCallDurationLabel(duration),
 			"participants":        formatVoiceCallParticipantNames(participants),
-		}
-		if emitErr := s.emitVoiceCallCompleted(ctx, room, payload); emitErr != nil {
-			return emitErr
-		}
+		}})
 	}
+	// The log, its audit row and its summary job commit together, so a log
+	// never says "summarising" without a job behind it (ADR 0009, UNI-1703).
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	metaMap = s.attachVoiceRecordingToCallLog(ctx, q, room, callID, msgID, metaMap)
+	meta, err := json.Marshal(metaMap)
+	if err != nil {
+		return err
+	}
+	msg, err := q.CreateChatVoiceCallLog(ctx, db.CreateChatVoiceCallLogParams{
+		ID:             msgID,
+		RoomID:         room.ID,
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    anchorWS,
+		SenderID:       sess.callerID,
+		Metadata:       meta,
+	})
+	if err != nil {
+		return err
+	}
+	if err := q.TouchChatRoomUpdatedAt(ctx, room.ID); err != nil {
+		return err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: room.OrganizationID, WorkspaceID: anchorWS,
+		Actor: audit.User(userID), Action: audit.ActionChatVoiceCallLogged,
+		ResourceType: "chat_message", ResourceID: msg.ID,
+		Metadata: map[string]any{"room_id": room.ID, "call_id": callID, "outcome": outcome},
+	}, emit...); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	return nil
 }
 

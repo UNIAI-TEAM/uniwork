@@ -127,6 +127,7 @@ const (
 	ActionChatMessageDeleted      = "chat.message.deleted"
 	ActionChatRoomMemberUpdated   = "chat.room.member_updated"
 	ActionChatRoomSettingsUpdated = "chat.room.settings_updated"
+	ActionChatVoiceCallLogged     = "chat.voice_call.logged"
 
 	ActionSubscriptionChanged    = "subscription.changed"
 	ActionBillingInvoiceRefunded = "billing.invoice_refunded"

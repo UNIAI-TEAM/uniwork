@@ -66,19 +66,6 @@ func (s *ChatService) voiceCallSummaryAllowed(ctx context.Context, room db.ChatR
 	return n.ByCaller < voiceSummaryCallerCapPerHour && n.ByRoom < voiceSummaryRoomCapPerHour, nil
 }
 
-func (s *ChatService) emitVoiceCallCompleted(ctx context.Context, room db.ChatRoom, payload map[string]string) error {
-	if s.ai == nil || !s.ai.Enabled() {
-		return nil
-	}
-	orgID := room.OrganizationID
-	anchorWS := roomAnchorWorkspaceID(room)
-	return auditRecorder.Emit(ctx, s.q, audit.System("chat"), audit.Event{
-		Topic: "chat.voice.call.completed", Version: 1,
-		OrganizationID: orgID, WorkspaceID: anchorWS,
-		Payload: payload,
-	})
-}
-
 // HandleVoiceCallCompleted generates and posts an AI call summary (C-13.8).
 func (s *ChatService) HandleVoiceCallCompleted(ctx context.Context, payload map[string]string) error {
 	if s.ai == nil || !s.ai.Enabled() {
