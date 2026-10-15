@@ -1649,6 +1649,31 @@ export function formatAppStepTimeoutReason(call, timeoutMs) {
   return `${call} did not settle within ${seconds} s`;
 }
 
+export function formatDocsTabReadyTimeoutReason(timeoutMs) {
+  const seconds = Number((Number(timeoutMs) / 1000).toFixed(3));
+  return `docs tab not ready to close within ${seconds} s`;
+}
+
+function sanitizeTargetUrl(rawUrl) {
+  const text = String(rawUrl ?? "").trim();
+  if (!text) return null;
+  try {
+    const parsed = new URL(text);
+    const safeParams = new URLSearchParams();
+    for (const [k, v] of parsed.searchParams.entries()) {
+      if (k === "mode") {
+        safeParams.set(k, v);
+      } else {
+        safeParams.set(k, "<redacted>");
+      }
+    }
+    const qs = safeParams.toString();
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname}${qs ? `?${qs}` : ""}`;
+  } catch {
+    return redactSignInError(text);
+  }
+}
+
 export function readRedactedAppLogTail(runDir, maxLines = APP_LOG_TAIL_LINES) {
   if (!runDir) return [];
   const appLogPath = join(runDir, "logs", "app.log");
@@ -1753,6 +1778,178 @@ export async function runBoundedAppStep(
   } finally {
     if (timer !== null) clearTimeout(timer);
   }
+}
+
+/**
+ * Waits (bounded by `HARNESS_APP_STEP_TIMEOUT_MS`) until the open docs tab's
+ * `WebContentsView` renderer is ready to answer `docsQueryDirty`'s
+ * `'docs:close-check'` IPC (`apps/docs/src/main/docs-main.ts:6288-6308`) before
+ * `aiOfficeTabs.close` is called (Finding H2).
+ *
+ * Fork root cause (`ab12238f`):
+ *   - `TabManager.closeTab` -> `confirmTabClose` (`apps/shell/src/main/tab-manager.ts:893-929`)
+ *     calls `docsQueryDirty` (`apps/docs/src/main/docs-main.ts:6288-6308`), which sends
+ *     `wc.send('docs:close-check')` (`docs-main.ts:6300`) and waits 2 s (`docs-main.ts:6293`).
+ *   - If the docs renderer (`genoffice-app://docs/index.html?mode=tab`,
+ *     `apps/docs/src/main/docs-main.ts:6425`) has not finished `loadFile(pending)`
+ *     (`apps/docs/src/renderer/App.tsx:2242-2256`) and mounted its close-guard
+ *     `useEffect` (`window.desktop.onCloseCheck`, `App.tsx:5334-5362`), `docsQueryDirty`
+ *     fails closed with `{ dirty: true, autoSave: false, unresponsive: true }`
+ *     (`docs-main.ts:6295`) and `performDocsClose` (`docs-main.ts:6355-6376`) opens
+ *     a native `dialog.showMessageBox` (`closeNoReplyMsg`: Close Anyway / Cancel) on
+ *     the headless Xvfb display where nothing clicks it.
+ *
+ * Positive readiness signal on the docs `WebContentsView` target:
+ *   1. `document.readyState === "complete"`
+ *   2. `typeof window.desktop?.onCloseCheck === "function"` and
+ *      `typeof window.desktop?.reportCloseCheck === "function"`
+ *      (`apps/docs/src/preload/index.ts:246-261,277`)
+ *   3. `!document.querySelector(".start-booting")` (`apps/docs/src/renderer/App.tsx:7519`
+ *      while `doc === null`; `<EditorContent editor={editor} />` at `App.tsx:7438` once
+ *      `doc !== null`)
+ *   4. `window.__genofficeControl({ cmd: "selection" })?.status === "ok"` and
+ *      `Boolean(window.__aidocs?.editor)` (`apps/docs/src/renderer/App.tsx:6198-6215`,
+ *      `apps/docs/src/renderer/control.ts:16-21`, which commits after the `onCloseCheck`
+ *      effect at `App.tsx:5334-5362` and returns `status: "ok"` only when `editor` and
+ *      `doc !== null` are both ready).
+ *   5. Calls `window.desktop.reportCloseCheck({ dirty: false, autoSave: false, filePath })`
+ *      to flush any pre-mount waiter in `closeCheckWaiters` (`docs-main.ts:6259-6273`)
+ *      from the shell's 1 s `editor-state-poll.ts` (`editor-state-poll.ts:56-84`).
+ */
+export async function waitForDocsTabReadyToClose({
+  browser,
+  shellPage = null,
+  filePath = null,
+  timeoutMs,
+  portsEnv = null,
+  runDir = null,
+  userDataDir = null,
+  deploymentId = HARNESS_DEPLOYMENT_ID,
+  documentId = null,
+  expectedUserId = null,
+  pollIntervalMs = 50,
+} = {}) {
+  const boundMs = resolveAppStepTimeoutMs(timeoutMs, portsEnv);
+  const startedAt = Date.now();
+  const deadline = startedAt + boundMs;
+  let lastTargetUrl = null;
+
+  while (Date.now() < deadline) {
+    const contexts = typeof browser?.contexts === "function" ? browser.contexts() : [];
+    for (const ctx of contexts) {
+      const pages = typeof ctx?.pages === "function" ? ctx.pages() : [];
+      for (const candidate of pages) {
+        if (!candidate || candidate === shellPage) continue;
+        let rawUrl = "";
+        try {
+          rawUrl = typeof candidate.url === "function" ? String(candidate.url() ?? "") : "";
+        } catch {
+          rawUrl = "";
+        }
+        if (rawUrl && (rawUrl.includes("docs") || !lastTargetUrl)) {
+          lastTargetUrl = sanitizeTargetUrl(rawUrl);
+        }
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) break;
+        let evalTimer = null;
+        const probe = await Promise.race([
+          Promise.resolve().then(() =>
+            candidate.evaluate((expectedFilePath) => {
+              if (typeof window === "undefined") return { isDocsTarget: false, ready: false };
+              const href = String(window.location?.href ?? "");
+              const hasDesktopCloseBridge =
+                typeof window.desktop?.onCloseCheck === "function" &&
+                typeof window.desktop?.reportCloseCheck === "function";
+              const isDocsUrl = href.includes("genoffice-app://docs") || href.includes("/docs/");
+              if (!hasDesktopCloseBridge && !isDocsUrl) {
+                return { isDocsTarget: false, ready: false, url: href };
+              }
+              const docObj = window.document ?? globalThis.document ?? null;
+              const readyStateComplete =
+                !docObj || typeof docObj.readyState !== "string" || docObj.readyState === "complete";
+              const bootingEl =
+                docObj && typeof docObj.querySelector === "function"
+                  ? docObj.querySelector(".start-booting")
+                  : null;
+              const controlProbe =
+                typeof window.__genofficeControl === "function"
+                  ? window.__genofficeControl({ cmd: "selection" })
+                  : null;
+              const controlReady =
+                controlProbe?.status === "ok" && Boolean(window.__aidocs?.editor);
+              const ready = Boolean(
+                readyStateComplete && hasDesktopCloseBridge && !bootingEl && controlReady,
+              );
+              if (ready) {
+                try {
+                  window.desktop.reportCloseCheck({
+                    dirty: false,
+                    autoSave: false,
+                    filePath: expectedFilePath || null,
+                  });
+                } catch {
+                  // ignore
+                }
+              }
+              return {
+                isDocsTarget: true,
+                ready,
+                url: href,
+              };
+            }, filePath),
+          ),
+          new Promise((resolve) => {
+            evalTimer = setTimeout(() => resolve(null), Math.min(remainingMs, 1_500));
+          }),
+        ])
+          .catch(() => null)
+          .finally(() => {
+            if (evalTimer !== null) clearTimeout(evalTimer);
+          });
+
+        if (probe?.url && (probe.isDocsTarget || !lastTargetUrl)) {
+          lastTargetUrl = sanitizeTargetUrl(probe.url);
+        }
+        if (probe?.ready) {
+          return {
+            ready: true,
+            targetUrl: sanitizeTargetUrl(probe.url || rawUrl || ""),
+            elapsedMs: Date.now() - startedAt,
+          };
+        }
+      }
+    }
+    const leftMs = deadline - Date.now();
+    if (leftMs <= 0) break;
+    await sleep(Math.min(pollIntervalMs, leftMs));
+  }
+
+  const elapsedMs = Math.max(boundMs, Date.now() - startedAt);
+  const reason = formatDocsTabReadyTimeoutReason(boundMs);
+  const { bindingState, binding } = readBindingSnapshotAtTimeout({
+    userDataDir: userDataDir ?? portsEnv?.UNIWORK_USER_DATA ?? null,
+    deploymentId,
+    documentId,
+    expectedUserId,
+  });
+  const appLogTail = readRedactedAppLogTail(runDir, APP_LOG_TAIL_LINES);
+  const err = new Error(reason);
+  err.isAppStepTimeout = true;
+  err.owner = "g5-client";
+  err.ownerCandidate = "g5-client";
+  err.appStepTimeout = {
+    call: "docsTabReadyToClose",
+    timeoutMs: boundMs,
+    elapsedMs,
+    reason,
+    targetUrl: lastTargetUrl,
+    bindingState,
+    binding,
+    appLogTail,
+    owner: "g5-client",
+    ownerCandidate: "g5-client",
+  };
+  throw err;
 }
 
 function loadPlaywrightChromium(repoRoot = DEFAULT_REPO_ROOT) {
@@ -2322,24 +2519,74 @@ export async function connectAppController({
     };
   }
 
+  // Why closeOpenTabForPath cannot be dropped (item c):
+  //   In `apps/shell/src/main/uniwork-docs/service.ts:2533-2553`,
+  //   `UniworkDocsService.save(path)` (`window.aiOffice.uniworkSave(path)`) checks
+  //   `if (intent !== true && this.deps.requestModuleSave(doc.path)) return this.statusOf(doc)`.
+  //   In `apps/shell/src/main/uniwork-docs/module-save.ts:30-70` (`createModuleSaveRequester`),
+  //   if a docs tab is still open for `doc.path`, `requestModuleSave` returns `true` and
+  //   sends `wc.send('menu:command', 'save')` (`module-save.ts:48-50`) to the open docs
+  //   renderer instead of calling `this.coordinator.save(doc.path)` (`service.ts:2551`).
+  //   In `apps/docs/src/main/docs-main.ts:4751-4800`, `docs:save` checks
+  //   `if (await diskChangedExternally(event.sender.id, filePath))` (`docs-main.ts:4763`),
+  //   which opens a native modal `dialog.showMessageBox` (`extModifiedMsg`: Overwrite / Cancel)
+  //   because `v2Bytes` was written on disk, and would overwrite `v2Bytes` with the editor's
+  //   in-memory v1 state. Only when the tab is closed (`requestModuleSave` returns `false`)
+  //   does `UniworkDocsService.save` run `this.coordinator.save(doc.path)`
+  //   (`save-coordinator.ts:264-360`) on the `v2Bytes` working copy.
   const closeOpenTabForPath = async (filePath, docId = activeDocumentId) => {
-    await runAppCdp(
-      "aiOfficeTabs.close",
+    const matchingTabs = await runAppCdp(
+      "aiOfficeTabs.list",
       () =>
         page.evaluate(async (targetPath) => {
-          if (!window.aiOfficeTabs?.list || !window.aiOfficeTabs?.close) return;
+          if (!window.aiOfficeTabs?.list || !window.aiOfficeTabs?.close) return [];
           const list = await window.aiOfficeTabs.list();
           const tabs = Array.isArray(list?.tabs) ? list.tabs : Array.isArray(list) ? list : [];
-          for (const t of tabs) {
-            if (t && t.filePath === targetPath && t.id) {
-              await window.aiOfficeTabs.close(t.id);
-            }
-          }
+          return tabs
+            .filter((t) => t && t.filePath === targetPath && t.id)
+            .map((t) => ({
+              id: t.id,
+              kind: t.kind ?? null,
+              filePath: t.filePath,
+            }));
         }, filePath),
       docId,
     ).catch((err) => {
       if (err?.isAppStepTimeout) throw err;
+      return [];
     });
+    if (!Array.isArray(matchingTabs) || matchingTabs.length === 0) return;
+
+    for (const tab of matchingTabs) {
+      const isDocsTab =
+        tab.kind === "docs" ||
+        (!tab.kind && typeof tab.filePath === "string" && /\.docx$/i.test(tab.filePath));
+      if (isDocsTab) {
+        await waitForDocsTabReadyToClose({
+          browser,
+          shellPage: page,
+          filePath: tab.filePath,
+          timeoutMs: appStepTimeoutMs,
+          portsEnv,
+          runDir,
+          userDataDir: portsEnv?.UNIWORK_USER_DATA ?? null,
+          deploymentId,
+          documentId: docId,
+          expectedUserId: userId,
+        });
+      }
+      await runAppCdp(
+        "aiOfficeTabs.close",
+        () =>
+          page.evaluate(async (tabId) => {
+            if (!window.aiOfficeTabs?.close) return;
+            await window.aiOfficeTabs.close(tabId);
+          }, tab.id),
+        docId,
+      ).catch((err) => {
+        if (err?.isAppStepTimeout) throw err;
+      });
+    }
   };
 
   return {
@@ -2616,8 +2863,8 @@ function finalizeLoopOutcome(decision, loopState) {
     });
   const timeoutInfo = loopState.details?.appStepTimeout ?? null;
   const details = {
-    owner,
     ...loopState.details,
+    owner,
     appSignIn,
     ...loopState.versionCounts,
     steps: loopState.steps,
@@ -2636,6 +2883,8 @@ function finalizeLoopOutcome(decision, loopState) {
           bindingState: timeoutInfo.bindingState,
           binding: timeoutInfo.binding,
           appLogTail: timeoutInfo.appLogTail,
+          ...(timeoutInfo.targetUrl !== undefined ? { targetUrl: timeoutInfo.targetUrl } : {}),
+          ...(timeoutInfo.ownerCandidate ? { ownerCandidate: timeoutInfo.ownerCandidate } : {}),
           appStepTimeout: timeoutInfo,
         }
       : {}),
@@ -2651,6 +2900,7 @@ function recordLoopException(err, loopState, currentStep) {
     loopState.details.appSignIn = err.appSignIn;
   }
   const timeoutInfo = err?.appStepTimeout ?? null;
+  const owner = err?.owner || timeoutInfo?.owner || UPSTREAM_BLOCKED_OWNER;
   if (timeoutInfo) {
     loopState.details.appStepTimeout = timeoutInfo;
     loopState.details.call = timeoutInfo.call;
@@ -2658,6 +2908,12 @@ function recordLoopException(err, loopState, currentStep) {
     loopState.details.bindingState = timeoutInfo.bindingState;
     loopState.details.binding = timeoutInfo.binding;
     loopState.details.appLogTail = timeoutInfo.appLogTail;
+    if (timeoutInfo.targetUrl !== undefined) {
+      loopState.details.targetUrl = timeoutInfo.targetUrl;
+    }
+    if (timeoutInfo.ownerCandidate) {
+      loopState.details.ownerCandidate = timeoutInfo.ownerCandidate;
+    }
   }
   if (loopState.steps[currentStep]) {
     loopState.steps[currentStep] = {
@@ -2671,6 +2927,8 @@ function recordLoopException(err, loopState, currentStep) {
             bindingState: timeoutInfo.bindingState,
             binding: timeoutInfo.binding,
             appLogTail: timeoutInfo.appLogTail,
+            ...(timeoutInfo.targetUrl !== undefined ? { targetUrl: timeoutInfo.targetUrl } : {}),
+            ...(timeoutInfo.ownerCandidate ? { ownerCandidate: timeoutInfo.ownerCandidate } : {}),
           }
         : {}),
     };
@@ -2679,7 +2937,7 @@ function recordLoopException(err, loopState, currentStep) {
     {
       exitCode: 1,
       status: "FAIL",
-      owner: UPSTREAM_BLOCKED_OWNER,
+      owner,
       reason: errMsg,
     },
     loopState,
