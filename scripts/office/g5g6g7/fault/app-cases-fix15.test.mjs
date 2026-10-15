@@ -26,7 +26,9 @@ test("FQ-51 carries both rules and renders them with no fault rewritten", () => 
   assert.equal(dead.action.type, "status");
   assert.equal(dead.action.code, 401);
   // the server's own verdict for a revoked device session: the client reads the
-  // 401 as session_expired (fork errors.ts:144, client.ts:96-102), clears the
+  // 401 as session_expired (fork client.ts:227-242 `fromAuthFailure`, its
+  // dead-session branch :233-239 maps unauthorized/device_revoked/refresh_reused
+  // -> session_expired; errors.ts:144 is only the bare-401 answer), clears the
   // credential and offers the desktop login again
   assert.equal(dead.action.body.error.code, "device_revoked");
   assert.equal(dead.once, true, "the failed refresh is the old session's answer, once");
