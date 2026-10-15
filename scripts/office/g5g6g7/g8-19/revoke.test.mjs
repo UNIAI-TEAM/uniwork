@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 
-import { createFakeWorld } from "./fake-world.mjs";
+import { createFakeWorld, serverCommentCreateRefusal } from "./fake-world.mjs";
 import { LOCKED_DESKTOP_CODES, decideRevoke, runRevoke } from "./revoke.mjs";
 import { rowArtifactPath, runRowModule } from "./run-row.mjs";
 
@@ -105,6 +105,8 @@ function scripted({ leakSnippet = false, desktopStillLists = false } = {}) {
   let seq = 0;
   const revoked = (documentId) => Object.values(world.shares).some((s) => s.documentId === documentId && s.revoked);
   script.respond("api.createDocumentComment", (call) => {
+    const refused = serverCommentCreateRefusal(call.args.body);
+    if (refused) return refused;
     seq += 1;
     comments.set(`c${seq}`, { documentId: call.args.pathParams.documentID, body: call.args.body.body });
     return { status: 201, body: { comment: { id: `c${seq}` } } };
