@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"strings"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -42,9 +43,12 @@ func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, d
 			}
 		}
 		if len(refused) > 0 {
-			ce := errPrincipalNotInOrganization().(CodedError)
-			ce.Fields = map[string]any{"principal_ids": refused}
-			return ce
+			return CodedError{
+				Code:   "principal_not_in_organization",
+				Status: http.StatusUnprocessableEntity,
+				Msg:    "người hoặc nhóm được chia sẻ không thuộc tổ chức của tài liệu",
+				Fields: map[string]any{"principal_ids": refused},
+			}
 		}
 		shares := make([]db.DocumentShare, 0, len(ids))
 		for _, id := range ids {
@@ -84,9 +88,12 @@ func distinctShareBatchIDs(raw []string) ([]string, error) {
 		ids = append(ids, id)
 	}
 	if len(ids) > maxDocumentShareBatch {
-		ce := coded(422, "share_batch_too_large", "mỗi lần chia sẻ tối đa 50 người dùng").(CodedError)
-		ce.Fields = map[string]any{"max": maxDocumentShareBatch}
-		return nil, ce
+		return nil, CodedError{
+			Code:   "share_batch_too_large",
+			Status: http.StatusUnprocessableEntity,
+			Msg:    "mỗi lần chia sẻ tối đa 50 người dùng",
+			Fields: map[string]any{"max": maxDocumentShareBatch},
+		}
 	}
 	return ids, nil
 }
