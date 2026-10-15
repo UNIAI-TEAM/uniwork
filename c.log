@@ -1,0 +1,37 @@
+$ cd apps/slides && AI_PROVIDER=fake npx vitest run tests/uniwork-save.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure gate) > fires the hook only for an explicit in-place save of a titled deck 43ms
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure gate) > refuses read-only targets and AutoSave on bound paths 14ms
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure gate) > reads a missing or unknown origin as an explicit save 10ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > null policy: an explicit save writes and fires the hook once 20ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > an AutoSave pass on an unbound deck still writes but never fires the hook 16ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > bound: an AutoSave pass writes nothing 7ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > bound: an explicit save of a clean deck still writes and fires the hook once 10ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > read-only: Save is refused with no write and no hook 7ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > an untitled deck save (first save into drafts) does not fire the hook 12ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > reports bound / read-only for the sender deck only 8ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As of a bound deck to another path writes a plain copy, no hook 14ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As of a bound deck starts from its name in the remembered folder, not next to the copy 16ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As onto the open deck itself is an explicit Save: it writes and fires once 11ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As onto a read-only path is refused 8ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As of a locked working copy is refused before the target picker opens 8ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > MCP save to the same bound path writes but never fires the hook 18ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > MCP save onto a read-only path throws without writing 7ms
+ ✓ tests/uniwork-save.test.ts > crash-recovery copy > still writes the userData recovery copy of a bound dirty deck, with no hook 58ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > re-opens the queued deck from disk instead of returning the stale in-memory session 76ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > keeps aliased peers on the old session during the reload window, then swaps them to the fresh one 17ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > a failed re-open (file gone) restores the reloading view and keeps the peers on the old session 8ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > a refused re-open (newer-store working copy) restores the reloading view on its UniWork path 8ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > a re-open that throws resolves with the previous deck instead of rejecting (no blank boot) 11ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > restores the in-memory session when reloading without queueSlidesForView (freeze recovery) 10ms
+ ✓ tests/uniwork-save.test.ts > reload window state tied to the webContents lifecycle > a peer destroyed during the reload window is not swapped onto the fresh session 20ms
+ ✓ tests/uniwork-save.test.ts > reload window state tied to the webContents lifecycle > a reloading view destroyed before it consumes leaves no queue, no session and no restored deck 9ms
+ ✓ tests/uniwork-save.test.ts > recovery copy cleared while an autosave tick is in flight > removes the copy the tick wrote after queueSlidesForView cleared it (target gone) 1510ms
+
+ Test Files  1 passed (1)
+      Tests  27 passed (27)
+   Start at  07:15:50
+   Duration  5.26s (transform 2.16s, setup 0ms, import 2.76s, tests 1.96s, environment 435ms)
+

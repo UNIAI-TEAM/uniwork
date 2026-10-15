@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 1e5f8dfe HEAD && echo main-merged-ok
+71a2a22749abef2487c9c48365fa27bd4ee01602
+1e5f8dfe07ff34cf4eb29c41c55d69c8df59516f
+71a2a227 fix(slides): a throwing reload re-open keeps the previous deck instead of booting blank (W21)
+3d1f98d9 merge: fork main 1e5f8dfe (G5-08c offline lease core) into the G5-09 lane
+54bb3d97 test(shell): pin the slides queued-restore open call after the reload keep-deck change (W20)
+1e5f8dfe style(uniwork-sync): format the offline lease files with Prettier
+f0bd8fa5 merge: fork main 7d665a54 (G6-05k org keys, unpackaged E2E session seam) into the G5-09 lane (W19)
+25283364 merge: fork main 7d665a54 into the G5-08c lane (UNI-1353)
+3af78891 test(uniwork-sync): drive the lease boundary through the production wiring
+7f2808aa test(uniwork-sync): pin the lease generation guards and the store-unavailable mapping
+main-merged-ok
