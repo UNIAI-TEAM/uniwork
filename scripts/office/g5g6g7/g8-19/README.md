@@ -11,7 +11,7 @@ Nothing here is product code.
 
 | File | What it is |
 | --- | --- |
-| `account.mjs` | row module G8-A09: org picker, remembered org, deactivated member; runs `library.mjs`'s gather in the middle. Exports `decideG8A09Org`, `decideG8A09`, `runAccount`. |
+| `account.mjs` | row module G8-A09: org picker, remembered org, deactivated member; runs `library.mjs`'s gather in the middle. Exports `decideG8A09Org`, `decideG8A09`, `runAccount`, `diagnoseSelectOrgError`, `probeOrgMembership`, `compactItems`. |
 | `library.mjs` | the library half of G8-A09. Exports `decideG8A09Docs`, `gatherLibrary`, `runLibrary`, `countWorkingCopies`. Also a CLI for debugging the half on its own. |
 | `server-row.sh` | the Go / node commands of G8-A03/A05/A06/A08 (contract-collab.md section 12) with a no-passing-test guard and a SKIP guard; `--then <cmd>` chains a harness module. |
 | `spec.test.mjs` | pins the cloud spec (below). |
@@ -53,6 +53,18 @@ M owns org Y (API) and is a member of org X and workspace W1 (raw SQL test seed 
    answer `member_deactivated`. M is used by no other row, but the deactivation lasts for the run,
    so A09 is the last harness row in the spec and nothing may follow it for M.
 
+If the app rejects `accountSelectOrg` (cloud r1: `malformed_response`), the rejection is the finding and
+the row stays FAIL, nothing is worked around: the first item of the reason is
+`selectOrg:Y rejected by the app: <handler>: <cause>`, followed by the product surface when the probe decides.
+`diagnose:selectOrg` then probes D's own `GET /api/v1/orgs/{org}/members/me` as the member and records
+only the status and the key names (never values, never the token): a flat `{role, ...}` body against the
+fork's `parseOrgMembership` (`{membership:{role}}`) is verdict `product` with surfaces, file:line and an
+owner candidate in `details.org.finding`; anything else is `undecided` with the raw facts. Checks that
+cannot hold with no organization (`rememberedNoStep`, `rememberedOrgUsed`, an ok workspace list after
+the deactivation) are `notJudged`: they fail the row but stay out of the reason, and the library half is
+skipped (`decide:docs` FAIL "not judged"). A row reason is built from whole items inside the 240 character
+clip of the artifact (`compactItems`: `+N more (names)` for what does not fit), never cut mid-check.
+
 Without the SQL seed the org steps and the deactivation are BLOCKED with the world's blocker
 (`SQL_MEMBERSHIP_BLOCKER`), and the library half runs as A (shared by B from W2). The row is then
 BLOCKED (77), never PASS.
@@ -69,15 +81,18 @@ bash scripts/office/g5g6g7/g8-19/server-row.sh G8-A03 --dry-run   # prints what 
 ```
 
 `G8-A03` service + handler comment tests and `./migrations`; `G8-A05` notification / service /
-mentions; `G8-A06` notification; `G8-A08` isolation matrix, audit coverage and the node
+mentions; `G8-A06` notification; `G8-A08` isolation matrix, the audit coverage tests (`TestEveryAuditedCommandWritesItsRow`, `TestReusedAuditActionCommandsWriteTheirOwnRows`: `-run AuditCoverage` matches nothing) and the node
 events-catalogue / no-PII-log tests. A `go test` that matched no test, or a test named by `-run`
-that was SKIPped (no database on the VM), is a FAIL. The spec chains the inbox module after the
+that was SKIPped (no database on the VM), is a FAIL; nested `--- SKIP` lines are listed too.
+`server-row.test.mjs` also checks statically that every `-run` alternative of every row names a Test func
+of the package it runs. `scripts/local-env.sh` prints `STORAGE_BACKEND is unset` when the spec sources it
+before the row; the service and handler tests use their own fake storage, so it is noise, not a skip. The spec chains the inbox module after the
 server checks for A05 and A06 (`--then`), so each (row, fixture) has one ledger line.
 
 ## The cloud spec
 
-`~/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt` (outside the repo; `G819_SPEC` points the test
-at another). One command per line in the shape of `cloud-g710-8.txt`: unit tests, apt, frames,
+`~/office-g5g6g7/reports/g7-qa/specs/cloud-g819-<n>.txt` (outside the repo, the newest `n` is the test's
+default; `G819_SPEC` points it at another). One command per line in the shape of `cloud-g710-8.txt`: unit tests, apt, frames,
 the A03/A08 server rows, the A10 BLOCKED line (`G8-18 part F not on fork main 7d665a54`), one
 keyring session that starts the stack, runs A01, A02, A04, A05, A06, A07 and A09 in that order and
 verifies the ledger, collect lines, and the verdict awk last.

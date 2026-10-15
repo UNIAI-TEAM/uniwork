@@ -1,6 +1,6 @@
 // The G8-19 cloud spec (UNI-1414 T4): the file the cloud runner executes, one
 // command per line (shape of cloud-g710-8.txt). It lives outside the repo
-// (~/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt by default, or the path
+// (the newest ~/office-g5g6g7/reports/g7-qa/specs/cloud-g819-<n>.txt by default, or the path
 // in G819_SPEC), so this test reads it from there and is a visible skip where
 // the file does not exist (the cloud VM itself). It pins what a round has to
 // hold: one evidence.mjs run per (row, fixture) the matrix declares for
@@ -8,7 +8,7 @@
 // last line's verdict awk, and no secret in the text.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
@@ -16,7 +16,14 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../../../..");
-const DEFAULT_SPEC = join(homedir(), "office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt");
+// the newest round's spec (cloud-g819-<n>.txt, highest n) unless G819_SPEC names one
+function newestSpec() {
+  const dir = join(homedir(), "office-g5g6g7/reports/g7-qa/specs");
+  const rounds = existsSync(dir) ? readdirSync(dir).map((f) => /^cloud-g819-(\d+)\.txt$/.exec(f)).filter(Boolean) : [];
+  rounds.sort((a, b) => Number(b[1]) - Number(a[1]));
+  return join(dir, rounds[0]?.[0] ?? "cloud-g819-1.txt");
+}
+const DEFAULT_SPEC = newestSpec();
 const SPEC_PATH = process.env.G819_SPEC || DEFAULT_SPEC;
 const MISSING = !existsSync(SPEC_PATH);
 // an explicit G819_SPEC that does not exist is a failure, only the default path may be absent

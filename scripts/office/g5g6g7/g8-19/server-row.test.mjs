@@ -3,7 +3,7 @@
 // test, a -run test that was SKIPped) that keep a row from passing on nothing.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
@@ -35,6 +35,45 @@ test("the planned commands are the ones contract-collab.md section 12 lists for 
     for (const cmd of planned) assert.ok(wanted.includes(cmd), `${row}: planned "${cmd}" is not documented; documented: ${wanted.join(" || ")}`);
     for (const cmd of wanted) assert.ok(planned.includes(cmd), `${row}: documented "${cmd}" is not planned; planned: ${planned.join(" || ")}`);
   }
+});
+
+/** the Test funcs declared by the *_test.go files of one Go package directory under server/ */
+function testFuncs(pkgDir) {
+  const dir = join(REPO, "server", pkgDir);
+  const names = [];
+  for (const f of readdirSync(dir).filter((n) => n.endsWith("_test.go"))) {
+    for (const m of readFileSync(join(dir, f), "utf8").matchAll(/^func (Test\w*)\(/gm)) names.push(m[1]);
+  }
+  return names;
+}
+
+test("every -run pattern of every row matches at least one existing Test func in the packages it names (a dead pattern is a row that tests nothing)", () => {
+  let checked = 0;
+  for (const row of ["G8-A03", "G8-A05", "G8-A06", "G8-A08"]) {
+    for (const line of plan(row).filter((l) => l.includes("go test") && l.includes(" -run "))) {
+      const [head, pattern] = line.split(" -run ");
+      const pkgs = head.split(/\s+/).filter((a) => a.startsWith("./"));
+      assert.ok(pkgs.length > 0, `${row}: "${line}" names a package`);
+      const funcs = pkgs.flatMap(testFuncs);
+      const alternatives = pattern.replace(/^'|'$/g, "").split("|");
+      // a group like DocumentComment(Kind|Tombstone) holds a | itself: only a bare alternative list is split
+      const parts = pattern.includes("(") ? [pattern.replace(/^'|'$/g, "")] : alternatives;
+      for (const part of parts) {
+        assert.ok(funcs.some((fn) => new RegExp(part).test(fn)), `${row}: -run ${part} matches no Test func in ${pkgs.join(" ")}`);
+        checked += 1;
+      }
+    }
+  }
+  assert.ok(checked >= 6, `the patterns were really checked (${checked})`);
+});
+
+test("G8-A08 audit coverage runs the Test funcs of audit_coverage_test.go by their real names (the contract's AuditCoverage matches none)", () => {
+  const coverage = readFileSync(join(REPO, "server/internal/service/audit_coverage_test.go"), "utf8");
+  const real = [...coverage.matchAll(/^func (Test\w+)\(/gm)].map((m) => m[1]);
+  assert.ok(real.length > 0);
+  const line = plan("G8-A08").find((l) => l.includes("./internal/service"));
+  assert.ok(line, "G8-A08 plans the service package");
+  for (const name of real) assert.ok(line.includes(name.replace(/^Test/, "")), `-run names ${name}: ${line}`);
 });
 
 test("--dry-run runs nothing and --then is only echoed; an unknown row or argument exits 2", () => {
