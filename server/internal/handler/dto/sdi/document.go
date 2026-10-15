@@ -241,7 +241,7 @@ type MoveDocumentSDI struct {
 type ShareDocumentSDI struct {
 	PrincipalType string `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
 	PrincipalID   string `json:"principal_id" description:"ULID người/workspace, hoặc ULID tổ chức khi principal_type=organization" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Level         string `json:"level" description:"view, edit hoặc manage" example:"view"`
+	Level         string `json:"level" description:"view, comment, edit hoặc manage" example:"view"`
 }
 
 // CreateDocumentLinkSDI is POST /api/v1/documents/{documentID}/links:

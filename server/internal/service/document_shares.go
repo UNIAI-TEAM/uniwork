@@ -45,16 +45,23 @@ func requireDocumentACLChange(doc db.Document, access DocumentAccess) error {
 	return nil
 }
 
+func validShareLevel(level DocumentLevel) bool {
+	switch level {
+	case DocumentLevelView, DocumentLevelComment, DocumentLevelEdit, DocumentLevelManage:
+		return true
+	default:
+		return false
+	}
+}
+
 // ShareDocument grants a level to a user, a workspace or the whole
 // organization. A live share for the same principal at another level is
 // revoked and a new row inserted in the same transaction, so the table keeps
 // the history of every grant; the same level again changes nothing. Shares
 // never inherit to child pages (C-01 §4).
 func (s *DocumentService) ShareDocument(ctx context.Context, actor Actor, documentID string, in DocumentShareInput) (db.DocumentShare, error) {
-	switch in.Level {
-	case DocumentLevelView, DocumentLevelEdit, DocumentLevelManage:
-	default:
-		return db.DocumentShare{}, Invalid("level phải là view, edit hoặc manage")
+	if !validShareLevel(in.Level) {
+		return db.DocumentShare{}, Invalid("level phải là view, comment, edit hoặc manage")
 	}
 	var out db.DocumentShare
 	err := s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {

@@ -223,8 +223,10 @@ func shareLevelsFor(min DocumentLevel) []string {
 		return []string{string(DocumentLevelManage)}
 	case DocumentLevelEdit:
 		return []string{string(DocumentLevelEdit), string(DocumentLevelManage)}
+	case DocumentLevelComment:
+		return []string{string(DocumentLevelComment), string(DocumentLevelEdit), string(DocumentLevelManage)}
 	default:
-		return []string{string(DocumentLevelView), string(DocumentLevelEdit), string(DocumentLevelManage)}
+		return []string{string(DocumentLevelView), string(DocumentLevelComment), string(DocumentLevelEdit), string(DocumentLevelManage)}
 	}
 }
 
