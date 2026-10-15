@@ -4,6 +4,7 @@
  * directly. Add to this list only when there is a caller.
  */
 export type { Decision, DecisionReason, PermissionContext } from "./types";
+export { canCommentDocument, documentLevelRank } from "./rules";
 export { canAssignAgent, canCreateWorkspaceInOrg, canDeleteMeeting, canDeleteTask, canEditDocument, canHostMeeting, canInviteMembers, canManageAuditSettings, canReadAuditLog, canUpdateWorkspaceSettings } from "./rules";
 export {
   canChangeOrgRole,

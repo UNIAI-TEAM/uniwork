@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
-import { useDocumentMentionCandidates } from "@uniwork/core/documents/hooks-comments";
-import type { MentionCandidate } from "@uniwork/core/api/endpoints/document-comments";
+import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { listDocumentMentionCandidates } from "@uniwork/core/api/endpoints/documents";
+import { documentKeys } from "@uniwork/core/documents/keys";
+import type { MentionCandidate } from "@uniwork/core/types/document-access";
+import { extractMentionTokens } from "./document-comments-model";
 
 // The S14 mention picker as a hook over a plain textarea (EXPERIENCE-G8 S14,
 // Accessibility Floor › S14): typing `@` at the start of a word opens it, the
 // characters after `@` up to the caret are the query (150 ms after the last
 // key), and the only people it ever offers are the document's mention
-// candidates (G8-06) - never a workspace member list. The textarea becomes an
-// APG combobox only while the listbox is open.
+// candidates (G8-06 + G8-18 `include=no_access` when caller can see workspace
+// members). The textarea becomes an APG combobox only while the listbox is open.
 
 const DEBOUNCE_MS = 150;
 
@@ -40,14 +43,29 @@ interface Options {
   value: string;
   setValue: (next: string) => void;
   textarea: () => HTMLTextAreaElement | null;
+  /** Whether the caller may list workspace members (`seeMembers`); gates `include=no_access` (G8-18, N1). */
+  canSeeMembers?: boolean;
+  onPickCandidate?: (candidate: MentionCandidate) => void;
 }
 
-export function useMentionPicker({ wsId, documentId, value, setValue, textarea }: Options) {
+export function useMentionPicker({
+  wsId,
+  documentId,
+  value,
+  setValue,
+  textarea,
+  canSeeMembers,
+  onPickCandidate,
+}: Options) {
   const listboxId = useId();
   const [trigger, setTrigger] = useState<{ start: number; query: string } | null>(null);
   const [debounced, setDebounced] = useState("");
   const [active, setActive] = useState(0);
+  const [pickedCandidates, setPickedCandidates] = useState<ReadonlyMap<string, MentionCandidate>>(
+    () => new Map(),
+  );
   const open = trigger !== null;
+  const includeNoAccess = canSeeMembers === true;
 
   useEffect(() => {
     if (!trigger) return undefined;
@@ -55,8 +73,31 @@ export function useMentionPicker({ wsId, documentId, value, setValue, textarea }
     return () => window.clearTimeout(timer);
   }, [trigger]);
 
-  const query = useDocumentMentionCandidates(wsId, documentId, debounced, { enabled: open });
-  const candidates = useMemo(() => query.data ?? [], [query.data]);
+  useEffect(() => {
+    if (!value.trim() && pickedCandidates.size > 0) {
+      setPickedCandidates(new Map());
+    }
+  }, [value, pickedCandidates.size]);
+
+  const q = debounced.trim();
+  const query = useQuery({
+    queryKey: [
+      ...documentKeys.mentionCandidates(wsId, documentId, q),
+      includeNoAccess ? "no_access" : "viewers",
+    ] as const,
+    queryFn: ({ signal }) =>
+      listDocumentMentionCandidates(
+        documentId,
+        { q: q || undefined, include: includeNoAccess ? "no_access" : undefined },
+        signal,
+      ),
+    enabled: open && Boolean(wsId) && Boolean(documentId),
+  });
+
+  const candidates = useMemo(() => {
+    const raw = query.data ?? [];
+    return includeNoAccess ? raw : raw.filter((c) => c.can_view !== false);
+  }, [includeNoAccess, query.data]);
 
   const rows = useMemo<PickerRow[]>(() => {
     const people: PickerRow[] = candidates.map((candidate) => ({
@@ -104,6 +145,12 @@ export function useMentionPicker({ wsId, documentId, value, setValue, textarea }
     const caret = trigger.start + 1 + trigger.query.length;
     const token = `${mentionToken(candidate)} `;
     const next = value.slice(0, trigger.start) + token + value.slice(caret);
+    setPickedCandidates((prev) => {
+      const copy = new Map(prev);
+      copy.set(candidate.user_id.toUpperCase(), candidate);
+      return copy;
+    });
+    onPickCandidate?.(candidate);
     setValue(next);
     close();
     const position = trigger.start + token.length;
@@ -143,6 +190,18 @@ export function useMentionPicker({ wsId, documentId, value, setValue, textarea }
     return false;
   };
 
+  const pickedInBody = useMemo(() => {
+    const tokens = extractMentionTokens(value);
+    const list: MentionCandidate[] = [];
+    for (const token of tokens) {
+      const found = pickedCandidates.get(token.userId.toUpperCase());
+      if (found) list.push(found);
+    }
+    return list;
+  }, [pickedCandidates, value]);
+
+  const clearPicked = useCallback(() => setPickedCandidates(new Map()), []);
+
   return {
     open,
     rows,
@@ -150,6 +209,9 @@ export function useMentionPicker({ wsId, documentId, value, setValue, textarea }
     listboxId,
     count: candidates.length,
     query: debounced,
+    pickedCandidates,
+    pickedInBody,
+    clearPicked,
     sync,
     close,
     activate,
