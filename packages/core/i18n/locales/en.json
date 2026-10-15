@@ -8615,7 +8615,12 @@
       "approved": "Access granted to {{name}} ({{level}})",
       "declined": "Declined {{name}}'s request",
       "closed": "This request was already handled or has expired.",
-      "none_pending": "No requests are waiting."
+      "none_pending": "No requests are waiting.",
+      "level_comment": "Comment",
+      "decision_failed": "Couldn't update this request. Try again.",
+      "sent_message_label": "Message",
+      "admin_locked_title": "This document is restricted",
+      "admin_locked_body": "As an admin you can manage who has access."
     },
     "accessLog": {
       "title": "Access log",

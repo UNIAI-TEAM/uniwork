@@ -9,7 +9,7 @@
  * the source string, so a sent comment showed `![…]` and `>` literally.
  */
 
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, type MouseEvent, type ReactNode } from "react";
 import { Markdown, isAllowedFileCardHref } from "@uniwork/ui/markdown";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useConfigStore } from "@uniwork/core/editor/config-store";
@@ -17,7 +17,7 @@ import type { Attachment as AttachmentRecord } from "@uniwork/core/types";
 import { Attachment as AttachmentRenderer } from "../attachment";
 import { AttachmentDownloadProvider } from "../attachment-download-context";
 import { preprocessMarkdown } from "../utils/preprocess";
-import { openLink } from "../utils/link-handler";
+import { isInternalDocumentHref, openLink } from "../utils/link-handler";
 import { useEditorLinkContext } from "../editor-link-context";
 import { useEditorWorkspaceSlug } from "../workspace-slug";
 import { useAppOrigin } from "../use-app-origin";
@@ -47,11 +47,16 @@ export function RichContent({
   const slug = useEditorWorkspaceSlug();
   const appOrigin = useAppOrigin();
   const navigation = useOptionalNavigation();
-  // Only a host that set an EditorLinkContext routes clicks through openLink
-  // (to tag internal document links); everywhere else the Markdown default
-  // (new tab) is unchanged.
+  // Only a host that set an EditorLinkContext intercepts clicks, and only for
+  // internal document links (to tag them with their source). Every other link
+  // keeps the Markdown default (new tab), and so does a modified click.
   const onUrlClick = useCallback(
-    (href: string) => {
+    (href: string, event?: MouseEvent) => {
+      const modified = !!event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0);
+      if (modified || !isInternalDocumentHref(href, appOrigin)) {
+        window.open(href, "_blank", "noopener,noreferrer");
+        return;
+      }
       openLink(
         href,
         slug,

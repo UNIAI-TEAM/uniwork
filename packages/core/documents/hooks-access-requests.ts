@@ -39,8 +39,9 @@ export function accessRequestOutcome(err: unknown): AccessRequestOutcome {
   return { state: "send_failed" };
 }
 
-// A display convenience only (§3.4): the server is the source of truth, and a
-// lost flag never lets a second request through — the 409 sets it back.
+// A display note only (§3.4): it never blocks the form. The server is the
+// source of truth: a lost flag never lets a second request through (the 409
+// sets it back), and a request that was handled or expired does not wait on it.
 const SENT_FLAG_PREFIX = "uniwork_document_access_request_sent:";
 const SENT_FLAG_TTL_MS = 24 * 60 * 60 * 1000;
 

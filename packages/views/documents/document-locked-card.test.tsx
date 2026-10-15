@@ -106,6 +106,11 @@ describe("DocumentLockedCard variant=member", () => {
     // Level and message stay readable, not editable.
     expect(screen.queryByRole("textbox", { name: K("message_label") })).toBeNull();
     expect(screen.getByText("cần sửa báo cáo")).toBeInTheDocument();
+    // The recap has its own label: "(optional)" makes no sense on a sent message.
+    const recap = screen.getByRole("status");
+    expect(recap).toHaveTextContent(K("sent_message_label"));
+    expect(recap).not.toHaveTextContent(K("message_label"));
+    expect(K("sent_message_label")).not.toMatch(/optional|không bắt buộc/i);
   });
 
   it("sends no source and no empty message when there is none", async () => {
@@ -129,11 +134,51 @@ describe("DocumentLockedCard variant=member", () => {
     expect(localStorage.getItem(FLAG)).not.toBeNull();
   });
 
-  it("opens in the pending state when this device sent a request in the last 24 hours", () => {
+  it("after an expired request the form is usable at once: send -> sent, no cooldown text", async () => {
+    // Expiry (30 days) is not a decline: the 24 h device flag is long gone and
+    // the server accepts a new request without any wait.
+    localStorage.setItem(FLAG, String(Date.now() - 1000));
+    requestMock.mockResolvedValue({ status: "sent" });
+    renderMember();
+    expect(screen.queryByText(K("already_pending"))).toBeNull();
+    expect(sendButton()).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(sendButton());
+    expect(await screen.findByRole("status")).toHaveTextContent(K("sent"));
+    expect(sendCalls()).toHaveLength(1);
+    expect(screen.queryByText(/phút|min\b/)).toBeNull();
+  });
+
+  it("shows a device 'sent' flag as a note but keeps the form usable: the server's answer wins", async () => {
     localStorage.setItem(FLAG, String(Date.now() + 3_600_000));
+    requestMock.mockResolvedValue({ status: "sent" });
     renderMember();
     expect(screen.getByRole("status")).toHaveTextContent(K("already_pending"));
+    expect(sendButton()).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(sendButton());
+    // The server would accept (the earlier request was handled elsewhere): sent, not pending.
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(K("sent")));
+    expect(sendCalls()).toHaveLength(1);
     expect(screen.queryByRole("button", { name: K("send") })).toBeNull();
+  });
+
+  it("a device flag followed by a 409 lands on the pending state", async () => {
+    localStorage.setItem(FLAG, String(Date.now() + 3_600_000));
+    requestMock.mockRejectedValue(new ApiError("pending", "access_request_pending", 409));
+    renderMember();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(screen.queryByRole("button", { name: K("send") })).toBeNull());
+    expect(screen.getByRole("status")).toHaveTextContent(K("already_pending"));
+  });
+
+  it("a device flag followed by a 429 cooldown shows the cooldown, not the pending note", async () => {
+    localStorage.setItem(FLAG, String(Date.now() + 3_600_000));
+    requestMock.mockRejectedValue(
+      new ApiError("cooldown", "access_request_cooldown", 429, undefined, { retry_after_seconds: 600 }),
+    );
+    renderMember();
+    fireEvent.click(sendButton());
+    expect(await screen.findByText(K("cooldown", { minutes: 10 }))).toBeInTheDocument();
+    expect(screen.queryByText(K("already_pending"))).toBeNull();
   });
 
   it("shows the cooldown in whole minutes, keeps send aria-disabled, then re-enables it without a reload", async () => {
@@ -154,6 +199,17 @@ describe("DocumentLockedCard variant=member", () => {
     await waitFor(() => expect(sendButton()).not.toHaveAttribute("aria-disabled", "true"));
     expect(screen.queryByText(K("cooldown", { minutes: 2 }))).toBeNull();
     expect(localStorage.getItem(FLAG)).toBeNull();
+  });
+
+  it("announces the cooldown politely (role=status), keeping role=alert for failures", async () => {
+    requestMock.mockRejectedValue(
+      new ApiError("cooldown", "access_request_cooldown", 429, undefined, { retry_after_seconds: 61 }),
+    );
+    renderMember();
+    fireEvent.click(sendButton());
+    const text = await screen.findByText(K("cooldown", { minutes: 2 }));
+    expect(text.closest("[role]")).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("reads a 429 without the cooldown code as the rate limiter", async () => {
@@ -222,7 +278,11 @@ describe("DocumentLockedCard variant=admin", () => {
         </WorkspaceProvider>,
       ),
     );
-    expect(screen.getByRole("heading", { name: t("documents.detail.revoked_title") })).toBeInTheDocument();
+    // An admin never had this document: it is restricted, not revoked.
+    expect(screen.getByRole("heading", { name: K("admin_locked_title") })).toBeInTheDocument();
+    expect(screen.getByText(K("admin_locked_body"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.detail.revoked_title"))).toBeNull();
+    expect(screen.queryByText(t("documents.detail.revoked_description"))).toBeNull();
     expect(await screen.findByRole("button", { name: t("documents.share.admin_manage_button") })).toBeInTheDocument();
     // Admins manage but never read: the title the summary carries is not on the card.
     expect(screen.queryByText("Lương 2026")).toBeNull();

@@ -77,10 +77,29 @@ describe("ReadonlyContent link context (DOC7-W03)", () => {
     expect(nav.push).toHaveBeenCalledWith("/acme/eng/documents/D1?from=task:t1");
   });
 
-  it("does not tag a non-document internal link", async () => {
+  it("leaves a non-document internal link on the previous new-tab behaviour", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
     const nav = mount(true);
     await click("t");
-    expect(nav.push).toHaveBeenCalledWith("/acme/eng/tasks/UNI-0");
+    expect(nav.push).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledWith("/acme/eng/tasks/UNI-0", "_blank", "noopener,noreferrer");
+    open.mockRestore();
+  });
+
+  it.each([
+    ["ctrl", { ctrlKey: true }],
+    ["meta", { metaKey: true }],
+    ["shift", { shiftKey: true }],
+  ])("does not intercept a %s-click on a document link", async (_name, mods) => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    const nav = mount(true);
+    const link = await screen.findByRole("link", { name: "spec" });
+    act(() => {
+      fireEvent.click(link, mods);
+    });
+    expect(nav.push).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledWith("/acme/eng/documents/D1", "_blank", "noopener,noreferrer");
+    open.mockRestore();
   });
 
   it("opens an external link in a new tab untouched", async () => {

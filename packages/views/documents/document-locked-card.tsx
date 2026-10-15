@@ -3,7 +3,7 @@
 // Shared with DOC-05 (b): when it lands, keep one component (merge step)
 
 import { useEffect, useId, useState } from "react";
-import { CircleX, LockKeyhole, RefreshCw } from "lucide-react";
+import { LockKeyhole, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   accessRequestOutcome,
@@ -66,24 +66,26 @@ export function DocumentLockedCard(props: DocumentLockedCardProps) {
 }
 
 function AdminLockedCard({ wsId, documentId, onBack, className }: CommonProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(undefined, { keyPrefix: "documents.access_request" });
+  const { t: tRoot } = useTranslation();
   const manage = useAdminManageAccess(wsId, documentId);
   const headingId = useId();
+  // Same lock and spacing as the member card: an admin never had this document, it is restricted.
   return (
-    <section aria-labelledby={headingId} className={cn(SHELL, "items-center text-center", className)} data-document-locked-card="admin">
-      <IconTile icon={CircleX} size="lg" tone="destructive" />
-      <div className="space-y-1.5">
-        <h2 id={headingId} className="text-title font-semibold">{t("documents.detail.revoked_title")}</h2>
-        <p className="text-body text-muted-foreground">{t("documents.detail.revoked_description")}</p>
+    <section aria-labelledby={headingId} className={cn(SHELL, className)} data-document-locked-card="admin">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <IconTile icon={LockKeyhole} size="lg" tone="muted" />
+        <h2 id={headingId} className="text-title font-semibold">{t("admin_locked_title")}</h2>
+        <p className="text-body text-muted-foreground">{t("admin_locked_body")}</p>
       </div>
       <div className="flex flex-wrap justify-center gap-2">
         {manage.available ? (
           <Button type="button" size="sm" onClick={manage.open}>
-            {t("documents.share.admin_manage_button")}
+            {tRoot("documents.share.admin_manage_button")}
           </Button>
         ) : null}
         <Button type="button" variant="outline" size="sm" onClick={onBack}>
-          {t("documents.detail.back_to_library")}
+          {tRoot("documents.detail.back_to_library")}
         </Button>
       </div>
       {manage.dialog}
@@ -109,10 +111,11 @@ function MemberLockedCard({
   const send = useRequestDocumentAccess(wsId, documentId);
   const [level, setLevel] = useState<Level>("view");
   const [message, setMessage] = useState("");
-  // The device flag only decides the first paint; the server's 409 restores it.
-  const [state, setState] = useState<CardState>(() =>
-    readDocumentAccessRequestSent(documentId) ? "already_pending" : "idle",
-  );
+  // The device flag is a note, never a gate: the form stays usable and the
+  // server's answer (sent / 409 pending / 429 cooldown) decides the state, so
+  // a request handled or expired elsewhere never leaves this device stuck.
+  const [state, setState] = useState<CardState>("idle");
+  const [deviceSent, setDeviceSent] = useState(() => readDocumentAccessRequestSent(documentId));
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
 
@@ -142,6 +145,7 @@ function MemberLockedCard({
       body.source_id = source.id;
     }
     setState("idle");
+    setDeviceSent(false);
     send.mutate(body, {
       onSuccess: (outcome) => setState(outcome.state),
       onError: (err) => {
@@ -164,7 +168,9 @@ function MemberLockedCard({
         ? t("rate_limited")
         : state === "send_failed"
           ? t("send_failed")
-          : null;
+          : deviceSent
+            ? t("already_pending")
+            : null;
   const levelLabel = (l: string) => tRoot(`documents.share.level_${l === "edit" ? "edit" : "view"}`);
 
   return (
@@ -186,7 +192,7 @@ function MemberLockedCard({
               </div>
               {trimmed ? (
                 <div className="flex gap-2">
-                  <dt>{t("message_label")}:</dt>
+                  <dt>{t("sent_message_label")}:</dt>
                   <dd className="min-w-0 break-words">{trimmed}</dd>
                 </div>
               ) : null}
@@ -237,7 +243,10 @@ function MemberLockedCard({
             </div>
           </div>
           {feedback ? (
-            <p role="alert" className={cn("text-body", state === "cooldown" ? "text-muted-foreground" : "text-destructive")}>
+            <p
+              role={state === "cooldown" || state === "idle" ? "status" : "alert"}
+              className={cn("text-body", state === "cooldown" || state === "idle" ? "text-muted-foreground" : "text-destructive")}
+            >
               {feedback}
             </p>
           ) : null}
