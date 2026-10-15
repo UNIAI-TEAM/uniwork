@@ -216,7 +216,7 @@
       "shareTasks": "Your tasks and tasks in your workspaces, with comments",
       "shareProjects": "Projects and their tasks",
       "shareMeetings": "Meetings and their AI summaries, without transcripts",
-      "shareDocuments": "Pages and text files you can see",
+      "shareDocuments": "Documents you can see: pages and text files in full, other files by name",
       "shareNot": "Never chat messages or email",
       "allowWrite": "Allow create and edit",
       "allowWriteHint": "Many AI apps ask before each change, but UniWork cannot check that. Each change is recorded with your name and the app's, and can be undone.",

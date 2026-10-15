@@ -216,7 +216,7 @@
       "shareTasks": "Công việc của bạn và công việc trong các workspace bạn tham gia, kèm bình luận",
       "shareProjects": "Dự án và công việc trong dự án",
       "shareMeetings": "Cuộc họp và bản tóm tắt AI, không có bản ghi lời thoại",
-      "shareDocuments": "Tài liệu dạng trang và tệp văn bản bạn được xem",
+      "shareDocuments": "Tài liệu bạn được xem: trang và tệp văn bản đầy đủ, tệp khác chỉ có tên",
       "shareNot": "Không gồm tin nhắn chat và email",
       "allowWrite": "Cho phép tạo và sửa",
       "allowWriteHint": "Nhiều ứng dụng AI hỏi trước mỗi thay đổi, nhưng UniWork không kiểm được điều đó. Mỗi thay đổi ghi tên bạn kèm tên ứng dụng và hoàn tác được.",
