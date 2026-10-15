@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 7d665a54 HEAD && echo main-merged-ok
+f0bd8fa5421db23b4e709fc7e19e4911dc378eda
+7d665a54241c48f803cd24746bf81771d17e0741
+f0bd8fa5 merge: fork main 7d665a54 (G6-05k org keys, unpackaged E2E session seam) into the G5-09 lane (W19)
+0a6fbfaa fix(slides): keep peer windows on their session while a reloaded deck re-opens (W18)
+96684e5d fix(shell): reload detached editor windows through the same queue as tabs (W18)
+98f87707 fix(shell): keep the S5 keep-draft flush honest and abort-safe (W17)
+7d665a54 chore: merge fork main (4bdba928) into G6-05k
+16f4ea64 test(e2e): keys saved on UniWork serve a provider through the proxy with the device bearer
+8245a250 test(shell): add an unpackaged E2E seam that keeps the UniWork session in memory
+4bdba928 Merge pull request #8 from UNIAI-TEAM/ci/release-dispatch-publish
+main-merged-ok
