@@ -40,6 +40,7 @@ var mcpToolCatalogue = []mcpCatalogueEntry{
 	{"get_project", "Get project", ai.ToolRead, false},
 	{"create_project", "Create project", ai.ToolWrite, false},
 	{"update_project", "Update project", ai.ToolWrite, true},
+	{"list_meetings", "List meetings", ai.ToolRead, false},
 }
 
 func TestMCPToolCatalogue(t *testing.T) {
@@ -72,6 +73,8 @@ func TestMCPToolCatalogue(t *testing.T) {
 		"get_project":    {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count", "and status to narrow"},
 		"list_projects":  {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
 		"create_project": {"without a chat channel", "Everyone in the workspace", "No one is notified", "duplicate_project_title", strconv.Itoa(mcpMaxItemRunes), "its title stays taken"},
+		"list_meetings":  {"soonest first", "most recent day first", "CANCELED", "MISSED", "hosted_by_me", "truncated", "At most 50", "92 days"},
+		"get_meeting":    {"attendees", "revision", "attendees_truncated", "no emails", "description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "Transcripts are not included"},
 		"update_project": {"revision_conflict", "creator", "lead", "workspace owner or admin", "not_project_editor", "No one is notified", "too long", strconv.Itoa(mcpMaxItemRunes), "led by an agent", "cannot be undone here"},
 	} {
 		tool, _ := r.Get(name)
@@ -127,6 +130,7 @@ func mcpReadInputs(x *mcpToolWorld) map[string]string {
 		"list_tasks":      wsArg,
 		"list_projects":   wsArg,
 		"get_project":     `{"workspace_id":"` + ws + `","project_id":"` + x.projectID + `"}`,
+		"list_meetings":   `{"workspace_id":"` + ws + `","from":"` + time.Now().UTC().Format(time.RFC3339) + `","to":"` + time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339) + `"}`,
 	}
 }
 
@@ -902,7 +906,20 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 		}
 	}
 	raw, err = callMcpTool(t, x.tools, x.p, "get_meeting", `{"workspace_id":"`+x.w.ID+`","meeting_id":"`+m.ID+`"}`)
-	check("get_meeting", raw, err, itemKeys)
+	check("get_meeting", raw, err, with("revision", "ends_at", "timezone", "host_user_id", "project_id", "attendees", "attendees_truncated", "description", "description_truncated"))
+	// The attendees of a meeting carry names, roles and statuses, nothing more.
+	var one struct{ Attendees []map[string]json.RawMessage }
+	if err := json.Unmarshal(raw, &one); err != nil || len(one.Attendees) == 0 {
+		t.Fatalf("get_meeting = %s (%v)", raw, err)
+	}
+	for _, a := range one.Attendees {
+		for k := range a {
+			if !map[string]bool{"user_id": true, "name": true, "role": true, "status": true}[k] {
+				t.Errorf("get_meeting attendee has undocumented field %q: %s", k, raw)
+			}
+		}
+	}
+	checkWrapped("list_meetings", "meetings", `{"workspace_id":"`+x.w.ID+`","from":"`+time.Now().UTC().Format(time.RFC3339)+`","to":"`+time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339)+`"}`, with("revision", "ends_at", "timezone", "host_user_id", "project_id"))
 	raw, err = callMcpTool(t, x.tools, x.p, "my_work", `{}`)
 	check("my_work", raw, err, map[string]bool{"tasks": true, "meetings": true, "truncated": true, "partial": true})
 	var work struct {

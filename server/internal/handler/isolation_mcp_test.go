@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
@@ -167,6 +168,7 @@ func TestIsolationMCP(t *testing.T) {
 		return w.taskRevision(t, id)
 	}
 
+	meetingsFrom, meetingsTo := time.Now().Add(-24*time.Hour).UTC().Format(time.RFC3339), time.Now().Add(7*24*time.Hour).UTC().Format(time.RFC3339)
 	attacks := []struct {
 		tool string
 		args map[string]string
@@ -190,6 +192,9 @@ func TestIsolationMCP(t *testing.T) {
 		{"list_projects", map[string]string{"workspace_id": a.wsID}},
 		{"get_project", map[string]string{"workspace_id": a.wsID, "project_id": aProject}},
 		{"get_project", map[string]string{"workspace_id": b.wsID, "project_id": aProject}},
+		// The meeting tools of Phase 3: A's meetings listed through B's grant,
+		// the range holding A's meeting (it starts in a day).
+		{"list_meetings", map[string]string{"workspace_id": a.wsID, "from": meetingsFrom, "to": meetingsTo}},
 	}
 	// writeAttacks aim B's write grant at A's rows: A's workspace and task, and
 	// A's ids named in a call that is about B's own workspace and task. Each
@@ -318,6 +323,15 @@ func TestIsolationMCP(t *testing.T) {
 		}
 		if leak := a.leakIn(raw, ""); leak != "" {
 			t.Errorf("%s list_projects by A's marker leaked %s: %s", label, leak, raw)
+		}
+		// B's own workspace lists B's meetings, in the range that holds A's, and
+		// the answer names none of A's.
+		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "list_meetings", map[string]string{"workspace_id": b.wsID, "from": meetingsFrom, "to": meetingsTo})
+		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), b.marker) {
+			t.Errorf("%s list_meetings in B's workspace: %d %s", label, status, raw)
+		}
+		if leak := a.leakIn(raw, ""); leak != "" {
+			t.Errorf("%s list_meetings in B's workspace leaked %s: %s", label, leak, raw)
 		}
 		// A's project filters B's workspace to nothing; the answer names none of A's.
 		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "list_tasks", map[string]string{"workspace_id": b.wsID, "project_id": aProject})

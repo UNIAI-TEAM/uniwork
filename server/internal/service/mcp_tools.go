@@ -254,10 +254,6 @@ func (s *McpToolService) GetTask(ctx context.Context, p McpPrincipal, workspaceI
 	return out, nil
 }
 
-func (s *McpToolService) GetMeeting(ctx context.Context, p McpPrincipal, workspaceID, meetingID string) (McpItem, error) {
-	return s.one(ctx, p, workspaceID, meetingID, "meeting_id", s.ask.meetingContext)
-}
-
 // one reads a single object of the workspace. The comments of a task and the
 // summary of a meeting arrive inside the excerpt of the one source Ask UNI's
 // context readers return.
@@ -364,11 +360,12 @@ func McpTools(s *McpToolService) ai.Registry {
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetTask(ctx, p, a.WorkspaceID, a.TaskID)
 			}),
-		tool("get_meeting", "Get meeting", "One meeting with its AI summary when there is one. Transcripts are not included.", mcpSchemaMeeting, []string{"workspace_id", "meeting_id"},
+		tool("get_meeting", "Get meeting", "One meeting with its host, timezone, revision, description exactly as stored, attendees (name, role and status ACTIVE or REMOVED; no emails) and, when there is one, the AI summary with its decisions and action items. Transcripts are not included. description_truncated says the description was longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters and was cut; attendees_truncated says the meeting has more than "+strconv.Itoa(mcpMaxList)+" attendees and the first "+strconv.Itoa(mcpMaxList)+", in the order they were added, are listed.", mcpSchemaMeeting, []string{"workspace_id", "meeting_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetMeeting(ctx, p, a.WorkspaceID, a.MeetingID)
 			}),
 	}
 	r = append(r, mcpTaskTools(s)...)
-	return append(r, mcpProjectTools(s)...)
+	r = append(r, mcpProjectTools(s)...)
+	return append(r, mcpMeetingTools(s)...)
 }
