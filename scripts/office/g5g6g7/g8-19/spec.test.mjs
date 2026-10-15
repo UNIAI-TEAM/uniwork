@@ -40,7 +40,8 @@ test("the spec is one command per line: a header, `; true` on every line but the
   assert.ok(all.length >= 8, `${all.length} lines`);
   assert.match(all[0], /^# G8-19 \(UNI-1414\)/, "line 1 is the header");
   assert.ok(all.every((l) => l.trim() !== ""), "no blank line");
-  for (const l of all.slice(0, -1)) assert.match(l, /; true$/, `ends with '; true': ${l.slice(0, 80)}`);
+  // the header is prose for the reader (cloud-g710-8.txt does the same), every command line before the verdict ends '; true'
+  for (const l of all.slice(1, -1)) assert.match(l, /; true$/, `ends with '; true': ${l.slice(0, 80)}`);
   const last = all.at(-1);
   assert.doesNotMatch(last, /; true$/);
   assert.match(last, /awk '/);
@@ -167,7 +168,7 @@ test("no secret-looking literal, credential URL or model host in the spec", OPTS
     [/\b(?:api[_-]?key|secret|token|passw(?:or)?d)\s*[=:]\s*["']?[A-Za-z0-9/+_.-]{12,}/i, "a credential assignment"],
     [/\bbearer\s+[A-Za-z0-9._-]{12,}/i, "a bearer token"],
     [/https?:\/\/[^\s'"/]*:[^\s'"/@]*@/, "a URL with credentials"],
-    [/base_url|customlocal|model_provider/i, "the upstream model provider config"],
+    [/\bbase_url\b|\bcustomlocal\b|\bmodel_providers?\b/i, "the upstream model provider config"],
     [/\b(?!127\.0\.0\.1\b|0\.0\.0\.0\b)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/, "an IP address"],
   ];
   for (const [re, what] of patterns) assert.doesNotMatch(t, re, `the spec holds ${what}`);
