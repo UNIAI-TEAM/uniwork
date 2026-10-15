@@ -57,17 +57,19 @@ export function useDashboardGuard(
     if (error || (!workspaceLoading && workspace === null)) replace(paths.workspaces());
   }, [status, user, error, workspace, workspaceLoading, replace, pathname]);
 
+  const ready = status === "authed" && !!user && pendingAuthStep(user) === null && !!workspace;
+
   // An old slug resolves through its alias (spec 2026-10-14 §6.2): move the
   // URL to the workspace's current slug, keeping the rest of the path and the
   // query, so links and bookmarks from before a rename keep working.
-  const currentSlug = workspace?.slug;
+  // Gated on `ready` so a pending auth/onboarding step is not overridden.
+  const currentSlug = ready ? workspace.slug : null;
   useEffect(() => {
     if (!currentSlug || currentSlug === wsSlug) return;
     const query = searchParams.toString();
     replace(withWorkspaceSlug(pathname, currentSlug) + (query ? `?${query}` : ""));
   }, [currentSlug, wsSlug, pathname, searchParams, replace]);
 
-  const ready = status === "authed" && !!user && pendingAuthStep(user) === null && !!workspace;
   const userId = ready ? user.id : null;
   const orgSlugIn = ready ? workspace.organization_slug : null;
   const wsSlugIn = ready ? workspace.slug : null;

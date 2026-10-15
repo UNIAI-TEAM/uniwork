@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Workspace } from "@uniwork/core/types";
+import { isReservedSlug } from "@uniwork/core/paths";
 import { usePatchWorkspace } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -40,8 +41,15 @@ export function WorkspaceSlugDialog({
   const [taken, setTaken] = useState(false);
   const errorId = useId();
   const next = value.trim().toLowerCase();
-  const valid = SLUG_REGEX.test(next) && isSlugLengthValid(next);
-  const error = taken ? t("workspace.url_taken") : next !== "" && !valid ? t("workspace.url_invalid") : null;
+  const reserved = isReservedSlug(next);
+  const valid = SLUG_REGEX.test(next) && isSlugLengthValid(next) && !reserved;
+  const error = taken
+    ? t("workspace.url_taken")
+    : reserved
+      ? t("workspace.url_reserved")
+      : next !== "" && !valid
+        ? t("workspace.url_invalid")
+        : null;
 
   // Reset only on open: a refetch while the dialog is open must not eat what
   // the user is typing.

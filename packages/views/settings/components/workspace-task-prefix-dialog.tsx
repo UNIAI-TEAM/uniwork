@@ -40,9 +40,12 @@ export function WorkspaceTaskPrefixDialog({
   const valid = TASK_PREFIX_PATTERN.test(next);
   const invalid = next !== "" && !valid;
 
+  // Reset only on open: a refetch while the dialog is open must not eat what
+  // the user is typing.
   useEffect(() => {
     if (open) setValue(current);
-  }, [open, current]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `current` is read on open only
+  }, [open]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();

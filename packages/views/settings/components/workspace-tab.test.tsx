@@ -229,4 +229,30 @@ describe("WorkspaceTab", () => {
     expect(await screen.findByText("/acme/team")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Đổi địa chỉ" })).not.toBeInTheDocument();
   });
+
+  it("refuses a reserved address without sending it", async () => {
+    renderAs("admin");
+    fireEvent.click(await screen.findByRole("button", { name: "Đổi địa chỉ" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Địa chỉ mới" }), { target: { value: "admin" } });
+    expect(within(dialog).getByText("Địa chỉ này được hệ thống dành riêng.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Đổi địa chỉ" })).toBeDisabled();
+    expect(patchBodies()).toHaveLength(0);
+  });
+
+  it("keeps what is typed in the prefix dialog when the workspace refetches", async () => {
+    const ws = { ...workspace, task_prefix: "TASK" };
+    const { rerender } = renderAs("admin", ws);
+    fireEvent.click(await screen.findByRole("button", { name: "Đổi tiền tố" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Tiền tố mới" }), { target: { value: "DANG" } });
+    rerender(
+      wrap(
+        <WorkspaceProvider workspace={{ ...ws, task_prefix: "OTHER" }} user={user}>
+          <WorkspaceTab />
+        </WorkspaceProvider>,
+      ),
+    );
+    expect(within(await screen.findByRole("dialog")).getByRole("textbox", { name: "Tiền tố mới" })).toHaveValue("DANG");
+  });
 });

@@ -574,6 +574,7 @@
       "url_new": "Địa chỉ mới",
       "url_invalid": "Chỉ dùng a–z, 0–9 và dấu gạch ngang, 2–40 ký tự.",
       "url_taken": "Địa chỉ này đã được dùng trong tổ chức.",
+      "url_reserved": "Địa chỉ này được hệ thống dành riêng.",
       "url_saved": "Đã đổi địa chỉ workspace",
       "copy_url": "Sao chép địa chỉ",
       "url_copied": "Đã sao chép địa chỉ workspace",

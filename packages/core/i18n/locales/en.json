@@ -575,6 +575,7 @@
       "url_new": "New address",
       "url_invalid": "Use only a–z, 0–9 and hyphens, 2–40 characters.",
       "url_taken": "This address is already used in the organization.",
+      "url_reserved": "This address is reserved by the system.",
       "url_saved": "Workspace address changed",
       "copy_url": "Copy address",
       "url_copied": "Workspace address copied",
