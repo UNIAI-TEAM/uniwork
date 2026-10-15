@@ -828,7 +828,14 @@ describe('runner faults and failures', () => {
     assert.deepEqual(redactSecrets('host 10.20.30.40.').hits, [{ kind: 'ipv4', count: 1 }]);
     assert.deepEqual(redactSecrets('Bearer abcdefghijklmnopqrstuv').hits, [{ kind: 'key', count: 1 }]);
     assert.deepEqual(redactSecrets('Tổng 10.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'without a unit and a lead of two digits the shape is ambiguous: flagged for a human');
-    assert.deepEqual(redactSecrets('Tổng 1.100.100.100').hits, [], 'a one-digit lead without a unit is kept (G712-26)');
+    // G712-40: the one-digit lead is kept in the money context only, never by the shape alone: a bare quad, a portless
+    // URL host and a quad before a port are redacted and flagged, so no upstream-shaped value is written unlisted.
+    assert.deepEqual(redactSecrets('Tổng 1.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'a one-digit lead without a money marker is no longer kept (G712-40)');
+    assert.deepEqual(redactSecrets('1.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'a bare one-digit-lead quad is flagged');
+    assert.deepEqual(redactSecrets('gọi http://1.100.100.100/v1 ngay').hits, [{ kind: 'ipv4', count: 1 }], 'a portless URL host is flagged');
+    assert.deepEqual(redactSecrets('gọi 1.100.100.100:8080 ngay').hits, [{ kind: 'ipv4', count: 1 }], 'a quad before a port is flagged');
+    assert.deepEqual(redactSecrets('số 2.100.100.100').hits, [], 'the amount word is the money context (G712-40)');
+    assert.deepEqual(redactSecrets('Tổng 2.100.100.100 đồng').hits, [], 'a currency unit is the money context');
   });
 
   it('also redacts bearer tokens, provider keys, JWTs, userinfo URLs, long hex/base64 runs and private hosts, never money or dates (G712-10)', () => {

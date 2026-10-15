@@ -109,13 +109,15 @@ const IPV6_RE = /\[[0-9a-f:]{2,39}\](?::\d{1,5})?|\b(?:[0-9a-f]{1,4}:){7}[0-9a-f
 const HEX_RUN_RE = /\b[0-9a-f]{40,}\b/gi;
 const BASE64_RUN_RE = /[A-Za-z0-9+/_-]{40,}={0,2}/g;
 // A Vietnamese amount of a billion or more ("1.100.100.100 đồng") has the shape of an IPv4 literal; with a currency unit
-// beside it, it is money. Without a unit it stays ambiguous and is redacted and flagged (a human reads the flag), except a lead of one digit.
+// beside it, it is money. Without that context it stays ambiguous and is redacted and flagged (a human reads the flag).
 const GROUPED_AMOUNT_RE = /^\d{1,3}(?:\.\d{3}){3}$/;
 const UNIT_AFTER_RE = /^\s?(?:đồng|vnd|vnđ|đ|₫)(?![\p{L}])/iu;
 const UNIT_BEFORE_RE = /(?:₫|vnd|vnđ)\s?$/i;
-// A bare "2.100.100.100" (one leading digit) is a billion-scale amount far more often than a private address (those start with
-// 10., 100., 127., 172., 192.): without a unit it is kept too (G712-26). Longer leads (10.100.100.100) stay flagged.
+// A one-digit-lead quad ("2.100.100.100") is a billion-scale amount rather than a private address (those start with 10.,
+// 100., 127., 172., 192.), but the shape alone is no exemption (G712-40): it is kept only in the money context — a
+// currency unit beside it, or the amount word "số" before it ("số 2.100.100.100") — and never as a URL host or before a port.
 const SMALL_LEAD_AMOUNT_RE = /^\d\.\d{3}\.\d{3}\.\d{3}$/;
+const AMOUNT_WORD_BEFORE_RE = /(?:^|[^\p{L}])số\s?$/iu;
 /**
  * Does a long run of base64 characters look like encoded data rather than a path or an identifier (G712-26)? Random base64 is about
  * 40% upper case, 40% lower case and 16% digits with a '/' in every ~64 characters; a slash-joined path is mostly lower case with
@@ -143,8 +145,13 @@ export function redactSecrets(text) {
   swap(PRIVATE_HOST_RE, 'private_host');
   swap(IPV6_RE, 'ipv6');
   out = out.replace(IPV4_RE, (match, offset, whole) => {
-    if (SMALL_LEAD_AMOUNT_RE.test(match)) return match;
-    if (GROUPED_AMOUNT_RE.test(match) && (UNIT_AFTER_RE.test(whole.slice(offset + match.length)) || UNIT_BEFORE_RE.test(whole.slice(0, offset)))) return match;
+    const before = whole.slice(0, offset);
+    const after = whole.slice(offset + match.length);
+    const money = UNIT_AFTER_RE.test(after) || UNIT_BEFORE_RE.test(before);
+    // G712-40: a one-digit-lead quad is kept only in the money context, and never where a URL host or a port follows it,
+    // so a portless public URL ("http://1.100.100.100/v1") and a bare quad are redacted and flagged instead.
+    if (SMALL_LEAD_AMOUNT_RE.test(match) && (money || AMOUNT_WORD_BEFORE_RE.test(before)) && !/:\/\/$/.test(before) && !after.startsWith(':')) return match;
+    if (GROUPED_AMOUNT_RE.test(match) && money) return match;
     note('ipv4');
     return '[redacted:ipv4]';
   });
