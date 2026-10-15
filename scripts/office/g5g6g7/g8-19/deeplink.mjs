@@ -46,6 +46,7 @@ import {
   pollOpts,
   pollUntil,
   readThread,
+  readThreadInPage,
   resolveDeps,
   rowsForComment,
   signInDesktop,
@@ -65,6 +66,8 @@ const PIN_DIR = "apps/web/platform/office-frame";
 const DELETED_THREAD_WAIT_MS = 5_000;
 /** How long the B7 selection may trail the thread focus before it is read as final. */
 const SELECTION_WAIT_MS = 5_000;
+/** How long the open panel gets to list a comment created after it opened (focus refresh, fork comments-poll). */
+const LISTED_WAIT_MS = 15_000;
 const WEB_SHORT_TIMEOUT_MS = 15_000;
 
 /** `{file, gitSha}` of the format's frame pin, or null when the format has no pinned frame. */
@@ -189,7 +192,15 @@ export function decideException(name, observed, { pin } = {}) {
     }
     case "anchor_lost": {
       const dk = o?.desktop ?? {};
-      if (!o?.commentId || dk.focusedThreadId !== o.commentId) return fail(`the desktop did not open the lost-anchor thread (focus ${dk.focusedThreadId ?? "none"})`);
+      if (o?.commentId && o.listedBeforeLaunch === false) {
+        return fail(
+          `the open panel did not list ${o.commentId} within the bound after a focus refresh, so the launch reveal was not judged ` +
+            "(the desktop drops a reveal of an id its panel has not listed: fork apps/sheets/src/renderer/server-comments/SheetsServerComments.tsx:287-289)",
+        );
+      }
+      if (!o?.commentId || dk.focusedThreadId !== o.commentId) {
+        return fail(`the desktop did not open the lost-anchor thread (focus ${dk.focusedThreadId ?? "none"})${o?.listedBeforeLaunch ? " although the open panel listed it before the launch" : ""}`);
+      }
       if (dk.anchorState !== "lost") return fail(`the thread reads anchor state ${dk.anchorState ?? "none"}, want lost`);
       if (frameBlocked(pin)) return blocked(pin);
       return pass();
@@ -299,6 +310,17 @@ async function settledSelection(ctrl, page, want, d) {
   return out.reply ?? null;
 }
 
+/** Focuses the working copy (the panel refreshes on focus) until `commentId`'s thread is listed; true when it is. */
+async function listedAfterFocus(ctrl, opened, commentId, d) {
+  const opts = pollOpts(d);
+  const out = await pollUntil(async () => {
+    await ctrl.focus(opened.path);
+    const read = await ctrl.evalBounded(opened.page, readThreadInPage, commentId, `read thread ${commentId}`);
+    return { done: read?.present === true, present: read?.present === true };
+  }, { ...opts, timeoutMs: Math.min(LISTED_WAIT_MS, opts.timeoutMs ?? LISTED_WAIT_MS) });
+  return out.present === true;
+}
+
 /** The row module (contract §8) for G8-A07. */
 export async function runDeeplink(ctx, deps = {}) {
   const d = resolveDeps(ctx, deps);
@@ -403,9 +425,17 @@ export async function runDeeplink(ctx, deps = {}) {
       const c3 = await createCommentRest(world, "A", s.main.documentId, `Neo sẽ mất (G8-19 ${tag})`, commentAnchor(d.repoRoot, ctx.fixture, s.main.versionId));
       const put = await world.session("A").call("putDocumentCommentAnchors", { documentID: s.main.documentId }, { version_id: s.main.versionId, anchors: [{ comment_id: c3, anchor: B7_ANCHOR, state: "lost" }] });
       if (put.status < 200 || put.status >= 300) throw new Error(`PUT anchors answered ${apiErrorText(put)}`);
+      // the document is already open: its panel lists c3 only after a refresh, and the desktop drops a reveal
+      // of an id it has not listed, so the lost-anchor reveal is judged once the panel lists c3
+      const listedBeforeLaunch = await listedAfterFocus(ctrl, s.mainOpened, c3, d);
       const opened = await openOnDesktop(ctrl, world, "B", s.main.documentId, format, c3);
       const thread = await readThread(ctrl, opened.page, c3, d);
-      rec.exceptions.anchor_lost = { commentId: c3, desktop: { focusedThreadId: thread?.focusedThreadId ?? null, anchorState: thread?.anchorState ?? null }, put: { status: put.status, skipped: put.body?.skipped ?? null } };
+      rec.exceptions.anchor_lost = {
+        commentId: c3,
+        listedBeforeLaunch,
+        desktop: { focusedThreadId: thread?.focusedThreadId ?? null, anchorState: thread?.anchorState ?? null },
+        put: { status: put.status, skipped: put.body?.skipped ?? null },
+      };
       return { details: rec.exceptions.anchor_lost };
     });
 

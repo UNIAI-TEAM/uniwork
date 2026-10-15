@@ -159,7 +159,7 @@ test("decideException maps each observed state", () => {
   assert.equal(decideException("comment_deleted", { ...cd, notification: { comment_deleted: false } }, { pin }).status, "FAIL");
   assert.equal(decideException("comment_deleted", { ...cd, desktop: { ...cd.desktop, focusedThreadId: "c2" } }, { pin }).status, "FAIL");
 
-  const lost = { commentId: "c3", desktop: { focusedThreadId: "c3", anchorState: "lost" } };
+  const lost = { commentId: "c3", listedBeforeLaunch: true, desktop: { focusedThreadId: "c3", anchorState: "lost" } };
   assert.equal(decideException("anchor_lost", lost, { pin }).status, "PASS");
   assert.equal(decideException("anchor_lost", { ...lost, desktop: { focusedThreadId: "c3", anchorState: "exact" } }, { pin }).status, "FAIL");
   assert.equal(decideException("anchor_lost", { notApplicable: "docx has no B7 anchor" }, { pin }).status, "N/A");
@@ -167,6 +167,16 @@ test("decideException maps each observed state", () => {
   assert.equal(decideException("session_expired", { web: { url: "http://127.0.0.1:2/login?next=%2Forg-x" } }, { pin }).status, "PASS");
   assert.equal(decideException("session_expired", { web: { url: "http://127.0.0.1:2/org-x/ws-w2/documents/doc-1" } }, { pin }).status, "FAIL");
   assert.equal(decideException("session_expired", undefined, { pin }).status, "FAIL");
+});
+
+test("decideException anchor_lost: a thread the open panel never listed before the re-launch is not judged as a reveal miss", () => {
+  const pin = framePinVerdict(null);
+  const unlisted = decideException("anchor_lost", { commentId: "c3", listedBeforeLaunch: false, desktop: { focusedThreadId: null, anchorState: null } }, { pin });
+  assert.equal(unlisted.status, "FAIL");
+  assert.match(unlisted.reason, /did not list c3/);
+  const missed = decideException("anchor_lost", { commentId: "c3", listedBeforeLaunch: true, desktop: { focusedThreadId: null, anchorState: "lost" } }, { pin });
+  assert.match(missed.reason, /focus none/);
+  assert.match(missed.reason, /listed it before the launch/);
 });
 
 test("decideException: the web half of comment_deleted inside an old frame is BLOCKED(R1), never PASS", () => {
@@ -185,7 +195,7 @@ const exceptionsOk = () => ({
   no_access: { web: { status: "no-access" } },
   deleted: { web: { status: "not-found" }, notification: { resource_deleted: true, params: {} } },
   comment_deleted: { notification: { comment_deleted: true }, desktop: { openedDocumentId: "doc-1", documentId: "doc-1", focusedThreadId: null }, web: { status: "error", panelCount: 1, focusedCommentId: null } },
-  anchor_lost: { commentId: "c3", desktop: { focusedThreadId: "c3", anchorState: "lost" } },
+  anchor_lost: { commentId: "c3", listedBeforeLaunch: true, desktop: { focusedThreadId: "c3", anchorState: "lost" } },
   session_expired: { web: { url: "http://127.0.0.1:2/login" } },
 });
 const a07 = (extra = {}) => ({
@@ -318,20 +328,39 @@ function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
       return ctrl;
     },
   };
-  // the editor's thread reading: a live comment is revealed (focused), a deleted one is not
+  // the open panel lists what existed when its document opened, then refreshes on a focus (fork comments-poll);
+  // a launch reveal of an id the panel has not listed is dropped (fork SheetsServerComments.tsx:282-287)
+  const listed = new Set();
+  const revealed = new Set();
+  const openedDocs = new Set();
+  const listAll = () => {
+    for (const [id, c] of comments) if (!c.deleted) listed.add(id);
+  };
+  script.respond("app.focus", () => {
+    listAll();
+    return { activated: true, pages: 1 };
+  });
+  // the editor's thread reading: a listed live comment the launch revealed holds focus
   script.respond("app.evalBounded", (call) => {
-    const [, commentId, label] = call.args;
+    const [, arg, label] = call.args;
     if (label === "__genofficeControl.selection") return { status: "ok", result: { sheet: B7_SHEET_NAME, range: "B7" } };
-    const c = comments.get(commentId);
-    if (!c || c.deleted) return { present: false, focusedThreadId: null, anchorState: null };
-    return { present: true, focusedThreadId: commentId, anchorState: commentId === "c3" ? "lost" : "exact" };
+    const c = comments.get(arg);
+    if (!c || c.deleted || !listed.has(arg)) return { present: false, focusedThreadId: null, anchorState: null };
+    return { present: true, focusedThreadId: revealed.has(arg) ? arg : null, anchorState: arg === "c3" ? "lost" : "exact" };
   });
   // the first sheets window of the app shows another workbook (an earlier row's tab)
   script.respond("app.selection", { status: "ok", result: { sheet: "Doanh thu Q1", range: "A1" } });
   let docPathSeq = 0;
   script.respond("app.openByTicket", (call) => {
     docPathSeq += 1;
-    return { path: `/fake/wc-${docPathSeq}`, documentId: call.args[1]?.documentId ?? null, kind: "sheets" };
+    const documentId = call.args[1]?.documentId ?? null;
+    if (!openedDocs.has(documentId)) {
+      openedDocs.add(documentId);
+      listAll();
+    }
+    const cid = /ticket=ticket_(c\d+)/.exec(call.args[0])?.[1];
+    if (cid && listed.has(cid)) revealed.add(cid);
+    return { path: `/fake/wc-${docPathSeq}`, documentId, kind: "sheets" };
   });
   script.respond("app.comments.list", (call) =>
     Object.values(world.shares).some((s) => s.revoked) ? { ok: false, error: { code: "forbidden", message: "x" } } : { ok: true, value: { comments: [] } },
@@ -439,4 +468,12 @@ test("runDeeplink: the B7 selection is read in the page that shows the document,
   assert.equal(a.steps["desktop-reveal"].status, "PASS", JSON.stringify(a.steps["observe-desktop"], null, 1));
   assert.equal(a.steps["observe-desktop"].details.selectionSource, "document page");
   assert.equal(fake.calls.app.filter((c) => c.key === "selection").length, 0);
+});
+
+test("runDeeplink: the lost-anchor comment is listed by the open panel (focus refresh) before the re-launch reveals it", async () => {
+  const { fake, deps } = scriptedWorld();
+  await runA07({ ...deps, world: fake.world });
+  const a = artifact();
+  assert.equal(a.steps["observe-anchor-lost"].details.listedBeforeLaunch, true, JSON.stringify(a.steps["observe-anchor-lost"], null, 1));
+  assert.equal(a.steps.exceptions.details.checks.anchor_lost.status, "PASS");
 });
