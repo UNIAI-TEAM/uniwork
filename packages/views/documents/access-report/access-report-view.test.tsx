@@ -311,7 +311,7 @@ describe("AccessReportView - filters", () => {
     await screen.findByRole("table", { name: "Hợp đồng ABC" });
 
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.accessReport.filter_person")) }));
-    fireEvent.click(await screen.findByRole("button", { name: "Trần Bình" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Trần Bình/ }));
 
     expect(await screen.findByRole("table", { name: "Báo giá" })).toBeInTheDocument();
     expect(reportCalls().at(-1)?.searchParams.get("person_id")).toBe("u2");
@@ -326,14 +326,15 @@ describe("AccessReportView - filters", () => {
     await screen.findByRole("table", { name: "Hợp đồng ABC" });
 
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.accessReport.filter_person")) }));
-    expect(await screen.findByRole("button", { name: "Trần Bình" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Nguyễn An" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Trần Bình/ })).toBeInTheDocument();
+    // The owner's name in the table plus the same member in the picker.
+    expect(screen.getAllByRole("button", { name: /Nguyễn An/ })).toHaveLength(2);
     expect(document.body.textContent).not.toMatch(/@example\.com/);
 
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "binh@example.com" } });
-    expect(screen.queryByRole("button", { name: "Trần Bình" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Trần Bình/ })).toBeNull();
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "trần" } });
-    expect(screen.getByRole("button", { name: "Trần Bình" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Trần Bình/ })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/@example\.com/);
   });
 
