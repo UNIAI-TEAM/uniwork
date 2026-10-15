@@ -13,7 +13,7 @@ import { ConfirmDialog } from "../common/form-dialog";
 import { chatErrorMessage, toastChatError } from "./chat-error-message";
 import { parseChatMediaMessageBody } from "./chat-expression-utils";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { serializeComposerDraftToMessageBody } from "./chat-mention-utils";
+import { mentionCandidatesFromBody, serializeComposerDraftToMessageBody } from "./chat-mention-utils";
 import { ChatMessageEditDialog } from "./chat-message-edit-dialog";
 import type { ChatMessage } from "./chat-messages";
 import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
@@ -159,11 +159,14 @@ export function useNativeChatMessageActions({
 
   const saveEdit = async (body: string) => {
     if (!editing) return;
-    const candidates: ChatMentionCandidate[] = nameContext.map((entry) => ({
-      kind: "member" as const,
-      userId: entry.user_id,
-      label: entry.display_name,
-    }));
+    const candidates: ChatMentionCandidate[] = [
+      ...mentionCandidatesFromBody(editing.body),
+      ...nameContext.map((entry) => ({
+        kind: "member" as const,
+        userId: entry.user_id,
+        label: entry.display_name,
+      })),
+    ];
     const text = serializeComposerDraftToMessageBody(body, candidates, t("chat.mention_all"));
     setEditError(null);
     try {
