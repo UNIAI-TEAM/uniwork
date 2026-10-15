@@ -1,0 +1,25 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r13e" OFFICE_FORK_SHA=12ccb8f0 timeout -k 15 420 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-44 --exits 3 --run-dir .harness-run-r13e; rc=$?; echo; echo "APP_CASE_FQ_44_3_EXIT=$rc"; f=.harness-run-r13e/fault/FQ-44/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",JSON.stringify(r.exitRange||""),(r.assertions||[]).map(a=>(a.ok?"ok ":"FAIL ")+a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "),JSON.stringify(r.exits||r.run_execution||"").slice(0,3000))' "$PWD/$f"; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:39627 app_api=http://127.0.0.1:39003 proxy_upstream=http://127.0.0.1:39627
+FQ-44 [1/3] reconciling-stuck → committed: SKIPPED - outside --exits 3-3
+FQ-44 [2/3] reconciling-stuck → blocked: SKIPPED - outside --exits 3-3
+FQ-44 [3/3] reconciling-stuck ở lại: running
+dbus-daemon[20934]: [session uid=1000 pid=20934] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20970 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20934]: [session uid=1000 pid=20934] Successfully activated service 'org.a11y.Bus'
+FQ-44: FAIL (predicted OQ-F11) partial 3-3 of 3
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-15T19:21:25.491Z ∅ -> queued
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-15T19:21:25.524Z queued -> paused_offline code=network
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-15T19:22:17.932Z queued -> validating
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-15T19:22:17.932Z validating -> uploading
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-15T19:22:17.932Z uploading -> committing
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-15T19:22:17.932Z committing -> committed http=200
+  FQ-44 [reconciling-stuck ở lại] proxy 2026-10-15T19:21:25.508Z upload POST 201 key=72f71eff85f2 rule=-
+  FQ-44 [reconciling-stuck ở lại] proxy 2026-10-15T19:21:25.521Z commit POST dropped key=72f71eff85f2 rule=lose-commit-answer
+  FQ-44 [reconciling-stuck ở lại] proxy 2026-10-15T19:22:17.946Z upload POST 201 key=72f71eff85f2 rule=-
+  FQ-44 [reconciling-stuck ở lại] proxy 2026-10-15T19:22:17.953Z commit POST 200 key=72f71eff85f2 rule=-
+FQ-44 (G5-A06): FAIL predicted OQ-F11
+/workspace/.harness-run-r13e/fault
+APP_CASES_EXIT=1
+
+APP_CASE_FQ_44_3_EXIT=1
+FQ-44 FAIL OQ-F11  {"from":3,"to":3,"of":3,"skipped":[1,2]} FAIL stuck: expected "reconciling-stuck" actual "never" | FAIL still_stuck: expected "reconciling-stuck" actual "committed" | FAIL rechecked: expected ">= 2" actual 0 | ok one_intent: expected 1 actual 1 | ok no_commit_after_stuck: expected 0 actual 0 | ok no_upload_after_stuck: expected 0 actual 0 | ok one_key_for_commits: expected 1 actual "1 keyTag(s) over 2 request(s)" | ok version_delta: expected 1 actual 1 [{"n":0,"label":"reconciling-stuck ở lại","result":"FAIL","assertions":[{"name":"stuck","expected":"reconciling-stuck","actual":"never","ok":false},{"name":"still_stuck","expected":"reconciling-stuck","actual":"committed","ok":false},{"name":"rechecked","expected":">= 2","actual":0,"ok":false},{"name":"one_intent","expected":1,"actual":1,"ok":true},{"name":"no_commit_after_stuck","expected":0,"actual":0,"ok":true},{"name":"no_upload_after_stuck","expected":0,"actual":0,"ok":true},{"name":"one_key_for_commits","expected":1,"actual":"1 keyTag(s) over 2 request(s)","ok":true},{"name":"version_delta","expected":1,"actual":1,"ok":true}],"predicted":"OQ-F11","evidence":{"documentId":"01M50G5143PBRB0RWFVNFCP0YD","trace":[{"ts":"2026-10-15T19:21:25.491Z","intentId":"office-intent-f1415689-12bb-417a-a784-2b92202139ee","from":null,"to":"queued"},{"ts":"2026-10-15T19:21:25.524Z","intentId":"office-intent-f1415689-12bb-417a-a784-2b92202139ee","from":"queued","to":"paused_offline","code":"network"},{"ts":"2026-10-15T19:22:17.932Z","intentId":"office-intent-f1415689-12bb-417a-a784-2b92202139ee","from":"queued","to":"validating"},{"ts":"2026-10-15T19:22:17.932Z","intentId":"office-intent-f1415689-12bb-417a-a784-2b92202139ee","from":"validating","to":"uploading"},{"ts":"2026-10-15T19:22:17.932Z","intentId":"office-intent-f1415689-12bb-417a-a784-2b92202139ee","from":"uploading","to":"committing"},{"ts":"2026-10-15T19:22:17.932Z","intentId":"office-intent-f1415689-12bb-417a-a784-2b92202139ee","from":"committing","to":"committed","httpStatus":200}],"requests":[{"kind":"upload","ts":"2026-10-15T19:21:25.508Z","method":"POST","status":201,"keyTag":"72f71eff85f2","ruleId":null},{"kind":"commit","ts":"2026-10-15T19:21:25.521Z","method":"POST","status":"dropped","keyTag":"72f71eff85f2","ruleId":"lose-commit-answer"},{"kind":"upload","ts":"2026-10-15T19:22:17.946Z","method":"POST","status":201,"keyTag":"72f71eff85f2","ruleId":null},{"kind":"commit","ts":"2026-10-15T19:22:17.953Z","method":"POST","status":200,"keyTag":"72f71eff85f2","ruleId":null}]}}]
