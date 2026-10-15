@@ -34,7 +34,7 @@ test("decideG8A09Docs: the whole library claim true -> PASS with every check ok"
   assert.equal(d.status, "PASS", d.reason);
   assert.deepEqual(Object.keys(d.checks).sort(), [
     "archiveReflected", "createdOnce", "createdPlusOne", "openedById", "propertiesEqualServer", "renameReflected",
-    "restoreReflected", "sharedListed", "webRenameOnDesktop", "workspacesWithRole", "workingCopyUnique",
+    "restoreReflected", "sharedListed", "webRenameOnDesktop", "workingCopyUnique", "workspacesWithRole",
   ]);
 });
 
