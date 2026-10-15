@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert, CreditCard, Pencil, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { apiErrorMessage } from "@uniwork/core/api";
 import {
   useAdminPlans,
   useCreateAdminPlan,
@@ -76,15 +78,29 @@ function quotaToInputValue(feature: AdminPlanFeature): string {
   return String(feature.quota_limit);
 }
 
-function parseQuotaForSave(featureKey: string, unit: string, raw: string): number | null {
+function parseWholeAmount(raw: string): number | undefined {
+  const digits = raw.trim().replace(/[\s.,]/g, "");
+  return /^\d+$/.test(digits) ? Number(digits) : undefined;
+}
+
+function parsePriceAmount(raw: string): number | null | undefined {
+  if (raw.trim() === "") return null;
+  return parseWholeAmount(raw);
+}
+
+function parseQuotaForSave(featureKey: string, unit: string, raw: string): number | null | undefined {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
-  const n = Number(trimmed.replace(",", "."));
-  if (!Number.isFinite(n) || n < 0) return null;
   if (featureKey === "storage.bytes" || unit === "bytes") {
+    const n = Number(trimmed.replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) return undefined;
     return Math.round(n * BYTES_PER_GIB);
   }
-  return Math.round(n);
+  return parseWholeAmount(trimmed);
+}
+
+function reportPlanWriteError(err: unknown, fallback: string) {
+  toast.error(apiErrorMessage(err) ?? fallback);
 }
 
 function formatPrice(amount: number | null, currency: string): string {
@@ -109,13 +125,14 @@ function CreatePlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   const bodyBase = useMemo((): Omit<PlanCreateInput, "reason"> | null => {
     const c = code.trim().toLowerCase();
     const n = name.trim();
-    if (!c || !n) return null;
+    const amount = parsePriceAmount(price);
+    if (!c || !n || amount === undefined) return null;
     return {
       code: c,
       name: n,
       description: description.trim(),
       billing_period: billingPeriod,
-      price_amount: price.trim() === "" ? null : Number(price),
+      price_amount: amount,
       price_currency: "VND",
       is_active: isActive,
       sort_order: Number(sortOrder) || 0,
@@ -145,7 +162,10 @@ function CreatePlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
       pending={mutation.isPending}
       onSubmit={(reason) => {
         if (!bodyBase) return;
-        void mutation.mutateAsync({ ...bodyBase, reason }).then(() => handleOpenChange(false));
+        void mutation.mutateAsync({ ...bodyBase, reason }).then(
+          () => handleOpenChange(false),
+          (err: unknown) => reportPlanWriteError(err, t("error_write")),
+        );
       }}
     >
       <div className="flex flex-col gap-3 py-2">
@@ -204,18 +224,19 @@ function PlanEditDialog({
   const [sortOrder, setSortOrder] = useState(String(plan.sort_order));
   const [isActive, setIsActive] = useState(plan.is_active);
 
-  const bodyBase = useMemo(
-    (): Omit<PlanUpsertInput, "reason"> => ({
+  const bodyBase = useMemo((): Omit<PlanUpsertInput, "reason"> | null => {
+    const amount = parsePriceAmount(price);
+    if (!name.trim() || amount === undefined) return null;
+    return {
       name: name.trim(),
       description: description.trim(),
       billing_period: billingPeriod,
-      price_amount: price.trim() === "" ? null : Number(price),
+      price_amount: amount,
       price_currency: plan.price_currency || "VND",
       is_active: isActive,
       sort_order: Number(sortOrder) || 0,
-    }),
-    [name, description, billingPeriod, price, plan.price_currency, isActive, sortOrder],
-  );
+    };
+  }, [name, description, billingPeriod, price, plan.price_currency, isActive, sortOrder]);
 
   return (
     <ReasonDialog
@@ -223,10 +244,14 @@ function PlanEditDialog({
       onOpenChange={onOpenChange}
       title={t("edit_title", { code: plan.code })}
       description={t("edit_description")}
-      submitDisabled={!bodyBase.name}
+      submitDisabled={!bodyBase}
       pending={mutation.isPending}
       onSubmit={(reason) => {
-        void mutation.mutateAsync({ ...bodyBase, reason }).then(() => onOpenChange(false));
+        if (!bodyBase) return;
+        void mutation.mutateAsync({ ...bodyBase, reason }).then(
+          () => onOpenChange(false),
+          (err: unknown) => reportPlanWriteError(err, t("error_write")),
+        );
       }}
     >
       <div className="flex flex-col gap-3 py-2">
@@ -273,7 +298,8 @@ function FeatureRow({ planCode, feature }: { planCode: string; feature: AdminPla
   const isQuota = feature.kind === "quota";
   const storageGb = isStorageQuota(feature);
   const savedQuota = parseQuotaForSave(feature.feature_key, feature.unit, quota);
-  const dirty = enabled !== feature.enabled || (isQuota && savedQuota !== feature.quota_limit);
+  const quotaInvalid = isQuota && savedQuota === undefined;
+  const dirty = !quotaInvalid && (enabled !== feature.enabled || (isQuota && savedQuota !== feature.quota_limit));
 
   return (
     <>
@@ -324,7 +350,11 @@ function FeatureRow({ planCode, feature }: { planCode: string; feature: AdminPla
         pending={mutation.isPending}
         onSubmit={(reason) => {
           const quotaLimit = isQuota ? parseQuotaForSave(feature.feature_key, feature.unit, quota) : null;
-          void mutation.mutateAsync({ enabled, quota_limit: quotaLimit, reason }).then(() => setDialogOpen(false));
+          if (quotaLimit === undefined) return;
+          void mutation.mutateAsync({ enabled, quota_limit: quotaLimit, reason }).then(
+            () => setDialogOpen(false),
+            (err: unknown) => reportPlanWriteError(err, t("error_write")),
+          );
         }}
       />
     </>
@@ -360,7 +390,7 @@ function PlanSection({ plan }: { plan: AdminPlan }) {
           <Pencil aria-hidden="true" className="size-4" />
           {t("edit_plan")}
         </Button>
-        <PlanEditDialog plan={plan} open={editOpen} onOpenChange={setEditOpen} />
+        {editOpen ? <PlanEditDialog plan={plan} open onOpenChange={setEditOpen} /> : null}
       </div>
       <Table className="mt-4">
         <TableHeader>

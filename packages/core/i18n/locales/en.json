@@ -5061,6 +5061,7 @@
       "create_title": "Add a new plan",
       "create_description": "Plan code cannot change after creation. Every entitlement starts disabled — turn features on and set quotas below.",
       "edit_plan": "Edit plan",
+      "error_write": "Could not save this change. Try again.",
       "edit_title": "Edit {{code}}",
       "edit_description": "Plans are never deleted — set is_active=false to hide from public billing.",
       "default_hint": "The default plan must stay active.",

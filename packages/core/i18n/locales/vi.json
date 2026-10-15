@@ -5057,6 +5057,7 @@
       "create_title": "Thêm gói mới",
       "create_description": "Mã gói không đổi sau khi tạo. Mọi entitlement bắt đầu ở trạng thái tắt — bật và đặt hạn mức bên dưới.",
       "edit_plan": "Sửa gói",
+      "error_write": "Không lưu được thay đổi. Thử lại.",
       "edit_title": "Sửa gói {{code}}",
       "edit_description": "Không xóa gói — tắt is_active để ẩn khỏi trang billing công khai.",
       "default_hint": "Gói mặc định luôn phải active.",
