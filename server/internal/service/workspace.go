@@ -751,6 +751,11 @@ func (s *WorkspaceService) UpdateMemberRole(ctx context.Context, actorID, worksp
 	if err := syncDefaultChatRoomMembers(ctx, q, workspaceID); err != nil {
 		return db.WorkspaceMember{}, err
 	}
+	if role == "member" && target.Role == "admin" {
+		if err := demoteDefaultChatRoomAdmin(ctx, q, workspaceID, targetUserID); err != nil {
+			return db.WorkspaceMember{}, err
+		}
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 		Actor:        audit.User(actorID),

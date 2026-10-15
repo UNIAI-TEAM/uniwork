@@ -213,7 +213,8 @@ func (s *ChatService) createWorkspaceRoom(ctx context.Context, userID string, w 
 
 // syncDefaultChatRoomMembers mirrors workspace_members into the workspace's
 // default channel in a fixed number of set-based statements: owners/admins
-// are raised to admin (never demoted), leavers marked left, the missing
+// are raised to admin (never demoted here: demoteDefaultChatRoomAdmin
+// handles a workspace demotion), leavers marked left, the missing
 // added. Workspace membership commands run it with q bound to their
 // transaction; it is a no-op until the channel exists.
 func syncDefaultChatRoomMembers(ctx context.Context, q *db.Queries, workspaceID string) error {
@@ -232,6 +233,22 @@ func syncDefaultChatRoomMembers(ctx context.Context, q *db.Queries, workspaceID 
 		in.Roles = append(in.Roles, m.Role)
 	}
 	return q.InsertChatRoomMembers(ctx, in)
+}
+
+// demoteDefaultChatRoomAdmin undoes the raise syncDefaultChatRoomMembers made
+// for a workspace admin who is now a member; only the demoted person moves, so
+// a member raised in the channel by hand keeps the role.
+func demoteDefaultChatRoomAdmin(ctx context.Context, q *db.Queries, workspaceID, userID string) error {
+	room, err := q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
+		RoomID: room.ID, UserID: userID, Role: "member",
+	})
 }
 
 func (s *ChatService) ensureRoomMember(ctx context.Context, room db.ChatRoom, workspaceID, userID, role string) error {
