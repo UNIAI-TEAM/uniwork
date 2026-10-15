@@ -405,7 +405,8 @@ export async function openTicketOnDesktop({ ctx, world, ctrl, userKey = "A", doc
   if (!launch.ok || !launch.body?.launch_url) throw new Error(`mintLaunch answered ${launch.status}${launch.error ? ` (${launch.error})` : ""}`);
   const opened = await ctrl.openByTicket(launch.body.launch_url, { documentId });
   const kind = opened.kind ?? editorKindOfFormat(format);
-  const page = await ctrl.editorPage(kind);
+  // the page that shows THIS document: another one of the same kind may be open (harness contract §15)
+  const page = await ctrl.editorPage(kind, { path: opened.path, documentId });
   return { ctrl, path: opened.path, kind, page, comments: ctrl.comments(page) };
 }
 
@@ -687,7 +688,7 @@ async function runWebToDesktop({ ctx, world, desk, format, driver, web, launchBr
 
 // ---- G8-A02 flow ---------------------------------------------------------------------------
 
-/** How many pages of `kind` the app shows (diagnostic: editorPage(kind) takes the first one). */
+/** How many pages of `kind` the app shows (diagnostic; the page is picked by path, harness contract §15). */
 function countEditorPages(ctrl, kind) {
   try {
     return ctrl.browser.contexts().flatMap((c) => c.pages()).filter((p) => editorKindOfUrl(p.url()) === kind).length;

@@ -328,7 +328,7 @@ test("runInbox G8-A06: the REST comments carry anchor + base_version_id; a serve
   assert.doesNotMatch(reason, /object Object/);
 });
 
-test("openOnDesktop asks the app for the editor page that shows the opened path (harness §14), never the first page of the kind", async () => {
+test("openOnDesktop asks the app for the editor page that shows the opened path (harness contract §15), never the first page of the kind", async () => {
   const fake = createFakeWorld();
   fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
   fake.script.respond("app.openByTicket", (call) => ({ path: "/wc/second.docx", documentId: call.args[1]?.documentId, kind: "docs" }));

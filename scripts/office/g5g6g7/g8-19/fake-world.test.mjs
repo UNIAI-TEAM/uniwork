@@ -159,7 +159,7 @@ test("app: ctrl has every §7 member; comments/discussion expose exactly the for
   const page = await ctrl.editorPage("sheets");
   assert.equal(page.kind, "sheets");
   await assert.rejects(ctrl.editorPage("paint"), /no paint editor page/);
-  // §14: the option that picks the page showing one document is recorded with the call
+  // contract §15: the option that picks the page showing one document is recorded with the call
   await ctrl.editorPage("sheets", { path: "/wc/b.xlsx", documentId: "doc-b" });
   assert.deepEqual(calls.app.filter((c) => c.key === "editorPage").map((c) => c.args), [["sheets"], ["paint"], ["sheets", { path: "/wc/b.xlsx", documentId: "doc-b" }]]);
   const comments = ctrl.comments(page);

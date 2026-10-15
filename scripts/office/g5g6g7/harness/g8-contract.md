@@ -195,7 +195,7 @@ const ctrl = await connectApp({ portsEnv, runDir, apiOrigin?, cdpConnector?, dee
 | `ctrl.selectOrg(orgId)` | `aiOffice.accountSelectOrg(orgId)` -> account status |
 | `ctrl.signOut()` | `aiOffice.accountLogout()` -> account status |
 | `ctrl.openByTicket(launchUrl, { documentId? })` | delivers the deep link (`uniwork-office-dev://open?ticket=...`), waits until `aiOffice.uniworkActiveDocStatus()` names a document (that `documentId` when given); `{ path, documentId, kind }` |
-| `await ctrl.editorPage(kind)` | the editor page whose URL kind is `kind` (`docs`/`sheets`/`slides`/`pdf`), chosen by `editorKindOfUrl(page.url())`, waited for up to the app step bound; rejects `no <kind> editor page` |
+| `await ctrl.editorPage(kind)` | the editor page whose URL kind is `kind` (`docs`/`sheets`/`slides`/`pdf`), chosen by `editorKindOfUrl(page.url())`, waited for up to the app step bound; rejects `no <kind> editor page`  With options see §15. |
 | `ctrl.comments(page)` | `{ list, create, update, remove, resolve, reopen, revisions, anchors, searchMentions, context }`: each evaluates `window.uniworkComments.<name>(input)` on `page` and resolves the `CommentsReply` envelope `{ok:true,value}` / `{ok:false,error}` UNCHANGED. Inputs are the fork shapes (`path`, `kind`, `parentId`, `body`, `anchor`, `baseVersionId`, `commentId`, `versionId`, `anchors[]`, `q`, `limit`) |
 | `ctrl.discussion()` | `{ list, create, update, remove, resolve, reopen, revisions, searchMentions }` over `window.uniworkDiscussion.*` on the shell page, same envelope |
 | `ctrl.aiOffice(name, ...args)` | `window.aiOffice[name](...args)` on the shell page; `name` must be in `SHELL_API_NAMES` (account*, uniwork* library/save calls) or it throws |
@@ -381,3 +381,26 @@ const r = classifyWebSave({ httpStatus, body, dirty, saveState }); // pure
   anchor is `anchors.mjs` `anchorForFixture` (the A01 plan); anchorless threads are `kind:"discussion"`.
 - Fake (§10): `serverCommentCreateRefusal(body)` and `bridgeCommentCreateRefusal(input)` return the refusal
   those rules give (or `null`), for a test's `api.createDocumentComment` / `app.comments.create` responder.
+
+## 15. `ctrl.editorPage(kind, {path, documentId, url})` (additive, UNI-1414 r2c, fx1)
+
+Every open document of one editor kind has its own page (fork `apps/shell/src/main/tab-manager.ts:565-650`, one
+`create<Kind>View` per tab; the shell only shows the active one, `:723-727`), and editor URLs carry no file
+(`genoffice-app://<kind>/index.html`, docs adds `?mode=tab`: `apps/docs/src/main/docs-main.ts:6656`). So the
+first page of a kind can be another document's.
+
+- `await ctrl.editorPage(kind)`: unchanged (the first page of the kind, §7).
+- `{ path }`: the page whose comments bridge answers `uniworkComments.context({path})` with `ok:true`; main
+  answers only the sender that shows that working copy (`apps/shell/src/main/uniwork-docs/comments-wiring.ts:226-247`,
+  `shownPath(event.sender) !== input.path` -> `forbidden`). It does not depend on which tab is active.
+- `{ path, documentId }`: also requires the context's `documentId` (`packages/electron-utils/src/comments-ipc.ts:115-118`)
+  to be that document. `documentId` without `path` rejects (`needs the path`).
+- `{ url }`: the one page with exactly that URL.
+- Two matching pages reject at once (`<n> <kind> editor pages show <path>`); none within the app step bound rejects
+  `no <kind> editor page shows <path> [as document <id>] (<n> asked: <refusal codes>)`. Never a guess.
+- Row modules that drive an editor ask with the path `openByTicket` answered (+ the document id):
+  `anchors.mjs` `openTicketOnDesktop` (A01, A02 main and closed-panel paths, A04 through `openOnDesktop`) and
+  `inbox.mjs` `openOnDesktop` (A05/A06, and the A07 modules `deeplink.mjs` and `revoke.mjs` through it).
+  `account.mjs` and `library.mjs` drive no editor page.
+- Fake (§10): `editorPage(kind, opts)` records `[kind, opts]` when options are given (`[kind]` otherwise) and
+  returns the same page per kind.

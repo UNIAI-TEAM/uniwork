@@ -320,8 +320,8 @@ export function createFakeWorld({ sqlMembership = true, users = DEFAULT_USERS, o
         signOut: () => appAnswer("signOut", [], () => ({ loggedIn: false, state: "signed-out" })),
         openByTicket: (launchUrl, o = {}) =>
           appAnswer("openByTicket", [launchUrl, o], () => ({ path: "/fake/working-copy", documentId: o.documentId ?? null, kind: null })),
-        async editorPage(kind) {
-          record("app", "editorPage", [kind]);
+        async editorPage(kind, opts) {
+          record("app", "editorPage", opts ? [kind, opts] : [kind]);
           if (!["docs", "sheets", "slides", "pdf"].includes(kind)) throw new Error(`no ${kind} editor page`);
           if (!editorPages.has(kind)) editorPages.set(kind, { fake: "page", kind, url: () => `genoffice-app://${kind}/index.html` });
           return editorPages.get(kind);

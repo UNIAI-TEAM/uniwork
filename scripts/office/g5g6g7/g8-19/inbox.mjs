@@ -30,7 +30,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, isMainModule } from "../harness/lib.mjs";
-import { connectApp as realConnectApp, editorKindOfFormat, editorKindOfUrl } from "../harness/app.mjs";
+import { connectApp as realConnectApp, editorKindOfFormat } from "../harness/app.mjs";
 import { loadPlaywrightChromium } from "../harness/app-steps.mjs";
 import * as realWeb from "../harness/web.mjs";
 import { apiErrorText } from "../harness/api.mjs";
@@ -302,25 +302,10 @@ export async function openOnDesktop(ctrl, world, userKey, documentId, format, co
   const opened = await ctrl.openByTicket(launchUrl, { documentId });
   const kind = editorKindOfFormat(format);
   if (!kind) throw new Error(`no editor kind for format ${format}`);
-  const page = await editorPageFor(ctrl, kind, opened?.path ?? null);
+  if (!opened?.path) throw new Error(`the app opened ${documentId} without a working-copy path`);
+  // the page that shows this document, never the first of its kind (harness contract §15)
+  const page = await ctrl.editorPage(kind, { path: opened.path, documentId });
   return { path: opened?.path ?? null, openedDocumentId: opened?.documentId ?? null, kind, page };
-}
-
-/**
- * The editor page that shows `path`. With two documents of one kind open,
- * `ctrl.editorPage(kind)` may answer the other tab, and the comments bridge
- * refuses a path the sender does not show (fork apps/shell/src/main/uniwork-docs/comments-wiring.ts:241-246),
- * so every page of the kind is asked `uniworkComments.context({path})` and the one that answers ok wins.
- */
-export async function editorPageFor(ctrl, kind, path) {
-  const first = await ctrl.editorPage(kind);
-  if (!path || typeof ctrl.browser?.contexts !== "function") return first;
-  const pages = ctrl.browser.contexts().flatMap((c) => c.pages()).filter((p) => editorKindOfUrl(p.url()) === kind);
-  for (const p of pages) {
-    const reply = await ctrl.comments(p).context({ path }).catch(() => null);
-    if (reply?.ok) return p;
-  }
-  return first;
 }
 
 /** Runs in the editor page: the thread of `id` and which thread holds focus (fork packages/ui/src/collab/CollabThread.tsx:857-870, use-collab-threads.ts:373-376). */
