@@ -109,10 +109,11 @@ function MemberLockedCard({
   const send = useRequestDocumentAccess(wsId, documentId);
   const [level, setLevel] = useState<Level>("view");
   const [message, setMessage] = useState("");
-  // The device flag only decides the first paint; the server's 409 restores it.
-  const [state, setState] = useState<CardState>(() =>
-    readDocumentAccessRequestSent(documentId) ? "already_pending" : "idle",
-  );
+  // The device flag is a note, never a gate: the form stays usable and the
+  // server's answer (sent / 409 pending / 429 cooldown) decides the state, so
+  // a request handled or expired elsewhere never leaves this device stuck.
+  const [state, setState] = useState<CardState>("idle");
+  const [deviceSent, setDeviceSent] = useState(() => readDocumentAccessRequestSent(documentId));
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
 
@@ -142,6 +143,7 @@ function MemberLockedCard({
       body.source_id = source.id;
     }
     setState("idle");
+    setDeviceSent(false);
     send.mutate(body, {
       onSuccess: (outcome) => setState(outcome.state),
       onError: (err) => {
@@ -164,7 +166,9 @@ function MemberLockedCard({
         ? t("rate_limited")
         : state === "send_failed"
           ? t("send_failed")
-          : null;
+          : deviceSent
+            ? t("already_pending")
+            : null;
   const levelLabel = (l: string) => tRoot(`documents.share.level_${l === "edit" ? "edit" : "view"}`);
 
   return (
@@ -238,8 +242,8 @@ function MemberLockedCard({
           </div>
           {feedback ? (
             <p
-              role={state === "cooldown" ? "status" : "alert"}
-              className={cn("text-body", state === "cooldown" ? "text-muted-foreground" : "text-destructive")}
+              role={state === "cooldown" || state === "idle" ? "status" : "alert"}
+              className={cn("text-body", state === "cooldown" || state === "idle" ? "text-muted-foreground" : "text-destructive")}
             >
               {feedback}
             </p>
