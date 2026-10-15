@@ -17,7 +17,8 @@ function safeError(err) {
 
 /**
  * A session for `user` (a world user record; its `token` authorizes the calls).
- * @returns {{ user: object, userKey: string|null, call(name: string, pathParams?: object, body?: unknown, opts?: { query?: object, headers?: object, timeoutMs?: number }): Promise<{status: number, ok: boolean, body: unknown, error?: string}> }}
+ * `opts.form` (a FormData) is sent instead of a JSON body, for the multipart upload rows.
+ * @returns {{ user: object, userKey: string|null, call(name: string, pathParams?: object, body?: unknown, opts?: { query?: object, headers?: object, form?: FormData, timeoutMs?: number }): Promise<{status: number, ok: boolean, body: unknown, error?: string}> }}
  */
 export function session(user, { apiOrigin, fetchImpl = fetch } = {}) {
   if (!user || typeof user !== "object") throw new Error("session(user): a user record is required");
@@ -25,7 +26,7 @@ export function session(user, { apiOrigin, fetchImpl = fetch } = {}) {
   return {
     user,
     userKey: user.key ?? null,
-    async call(name, pathParams = {}, body = undefined, { query = {}, headers = {}, timeoutMs = DEFAULT_API_TIMEOUT_MS } = {}) {
+    async call(name, pathParams = {}, body = undefined, { query = {}, headers = {}, form = undefined, timeoutMs = DEFAULT_API_TIMEOUT_MS } = {}) {
       const spec = G8_API_CALLS[name];
       if (!spec) throw new Error(`unknown API call ${name}`);
       const path = apiPath(name, pathParams, G8_API_CALLS);
@@ -43,7 +44,7 @@ export function session(user, { apiOrigin, fetchImpl = fetch } = {}) {
         res = await fetchImpl(`${apiOrigin}${path}${qs ? `?${qs}` : ""}`, {
           method: spec.method,
           headers: requestHeaders,
-          body: body !== undefined ? JSON.stringify(body) : undefined,
+          body: form ?? (body !== undefined ? JSON.stringify(body) : undefined),
           signal: AbortSignal.timeout(timeoutMs),
         });
       } catch (err) {
