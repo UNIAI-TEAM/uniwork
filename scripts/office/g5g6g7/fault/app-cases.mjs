@@ -34,7 +34,7 @@ import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, wai
 import {
   clearSyncWrite, createFileDocument, enrollTotp, freshToken, grantPlatformAdmin, login, seedAppTenant, setSyncWrite,
 } from "./app-tenant.mjs";
-import { collectServerVersions } from "./collect.mjs";
+import { EMPTY_SERVER_VERSIONS, collectServerVersions } from "./collect.mjs";
 import { startFaultProxy } from "./proxy.mjs";
 import { validateRules } from "./rules.mjs";
 import { DEFAULT_CASES_PATH, REPO_ROOT, loadFaultCases, renderCaseRules } from "./server-cases-lib.mjs";
@@ -239,8 +239,8 @@ async function runOne({ row, run, runs, caseDir, shared }) {
   if (docId) {
     writeJson(join(runDirOut, "server-versions.before.json"), docs.get(docId) ?? null);
     writeJson(join(runDirOut, "server-versions.json"),
-      await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: docId }).catch((e) => ({ error: e.message })));
-  } else writeJson(join(runDirOut, "server-versions.json"), { documentId: null, versions: [] });
+      await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: docId }).catch((e) => ({ ...EMPTY_SERVER_VERSIONS, documentId: docId, document_id: docId, error: e.message })));
+  } else writeJson(join(runDirOut, "server-versions.json"), EMPTY_SERVER_VERSIONS);
   if (runs > 1) writeJson(join(runDirOut, "result.json"), { case: row.id, exit: run.index, ...result });
   return result;
 }

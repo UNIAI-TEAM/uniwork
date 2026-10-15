@@ -90,6 +90,25 @@ async function startUpstreamServer() {
         return;
       }
 
+      if (req.url === "/api/v1/documents/doc_archived/versions") {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ versions: [{ id: "ver_1", document_id: "doc_archived", version: 1 }], next_cursor: null }));
+        return;
+      }
+
+      if (req.url === "/api/v1/documents/doc_archived") {
+        res.writeHead(410, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: { code: "document_deleted" } }));
+        return;
+      }
+
+      if (req.url === "/api/v1/documents/doc_paged") {
+        const payload = JSON.stringify({ document: { id: "doc_paged", revision: "7" } });
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(payload);
+        return;
+      }
+
       const echo = JSON.stringify({
         ok: true,
         method: req.method,
@@ -629,11 +648,22 @@ test("collect.mjs reads paginated document versions via public API, writes serve
     collected.versions.map((v) => v.version),
     [2, 1],
   );
+  // matrix §4: server-versions.json is {documentId, readAt, head: {revision}, versions}
+  assert.deepEqual(Object.keys(collected).sort(), ["documentId", "document_id", "head", "next_cursor", "readAt", "versions"]);
+  assert.deepEqual(collected.head, { revision: "7" });
+  assert.ok(!Number.isNaN(Date.parse(collected.readAt)), "readAt is a timestamp");
+  // the version list is the evidence: an unreadable head is reported, never a revision and never a failed case
+  const archived = await collectServerVersions({ ...parsed, documentId: "doc_archived" });
+  assert.equal(archived.versions.length, 1);
+  assert.equal(archived.head.revision, null);
+  assert.match(archived.head.error, /410/);
 
   const { filePath } = await writeServerVersions(parsed);
   assert.equal(filePath, join(scratchDir, SERVER_VERSIONS_FILENAME));
   assert.equal(existsSync(filePath), true);
   const written = JSON.parse(readFileSync(filePath, "utf8"));
   assert.equal(written.versions.length, 2);
+  assert.deepEqual(written.head, { revision: "7" });
+  assert.equal(typeof written.readAt, "string");
   assert.equal(JSON.stringify(written).includes("test-bearer-token-123"), false);
 });

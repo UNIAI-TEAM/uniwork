@@ -14,6 +14,16 @@ import { harnessPaths, isMainModule } from "../harness/lib.mjs";
 export const VERSIONS_ROUTE_TEMPLATE = "/api/v1/documents/{documentID}/versions";
 export const SERVER_VERSIONS_FILENAME = "server-versions.json";
 
+/** `server-versions.json` of a case that never read a document (BLOCKED before the first request). */
+export const EMPTY_SERVER_VERSIONS = Object.freeze({
+  document_id: null,
+  documentId: null,
+  readAt: null,
+  head: Object.freeze({ revision: null }),
+  versions: Object.freeze([]),
+  next_cursor: null,
+});
+
 const FORBIDDEN_ARGV_TOKEN_FLAGS = new Set([
   "--token",
   "--api-token",
@@ -43,7 +53,8 @@ export function documentVersionsPath(documentId, cursor = "") {
 
 /**
  * Reads the full version list of `documentId` from `apiOrigin` through
- * `GET /api/v1/documents/{documentID}/versions`, following `next_cursor` pages.
+ * `GET /api/v1/documents/{documentID}/versions`, following `next_cursor` pages,
+ * and the document's head revision (`readAt`, `head: {revision}`).
  */
 export async function collectServerVersions({ apiOrigin, token, documentId } = {}) {
   const cleanOrigin = String(apiOrigin ?? "").trim().replace(/\/+$/, "");
@@ -101,12 +112,37 @@ export async function collectServerVersions({ apiOrigin, token, documentId } = {
     cursor = nextCursor;
   }
 
+  const head = await readDocumentHead({ origin: cleanOrigin, token: cleanToken, documentId: cleanDocId });
   return {
     document_id: cleanDocId,
     documentId: cleanDocId,
+    readAt: new Date().toISOString(),
+    head,
     versions,
     next_cursor: null,
   };
+}
+
+/**
+ * The document's head revision through `GET /api/v1/documents/{documentID}`
+ * (`{document: {revision}}`, a decimal string). Best effort: the version list is
+ * the evidence, so an unreadable head (the document is archived, the read is
+ * refused) is reported as `{revision: null, error}` and never fails a case.
+ */
+async function readDocumentHead({ origin, token, documentId }) {
+  const path = `/api/v1/documents/${encodeURIComponent(documentId)}`;
+  try {
+    const response = await fetch(`${origin}${path}`, {
+      method: "GET",
+      headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+    });
+    const text = await response.text();
+    if (!response.ok) return { revision: null, error: `GET ${path} -> ${response.status}` };
+    const revision = JSON.parse(text)?.document?.revision;
+    return typeof revision === "string" && revision ? { revision } : { revision: null, error: `GET ${path}: no document.revision` };
+  } catch (error) {
+    return { revision: null, error: `GET ${path}: ${redactSecrets(error?.message)}`.slice(0, 200) };
+  }
 }
 
 function apiOriginFromRunDir(runDir) {

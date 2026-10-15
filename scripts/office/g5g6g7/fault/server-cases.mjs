@@ -9,7 +9,7 @@ import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runEvidence } from "../evidence.mjs";
 import { DEFAULT_FORK_SHA, harnessPaths, isMainModule, readStartStatus, startGate } from "../harness/lib.mjs";
-import { collectServerVersions, writeServerVersions } from "./collect.mjs";
+import { EMPTY_SERVER_VERSIONS, collectServerVersions, writeServerVersions } from "./collect.mjs";
 import { startFaultProxy } from "./proxy.mjs";
 import { CONVERSATION_HEADER, createWireContext } from "./server-cases-wire.mjs";
 import { readVerificationCode, seedFaultTenant } from "./server-cases-setup.mjs";
@@ -119,7 +119,7 @@ function writeCaseFiles(caseDir, { intentLog = [], beforeVersions = null, afterV
   if (beforeVersions) {
     writeFileSync(join(caseDir, "server-versions.before.json"), `${JSON.stringify(beforeVersions, null, 2)}\n`, "utf8");
   }
-  const finalVersions = afterVersions ?? beforeVersions ?? { document_id: null, versions: [], next_cursor: null };
+  const finalVersions = afterVersions ?? beforeVersions ?? EMPTY_SERVER_VERSIONS;
   writeFileSync(join(caseDir, "server-versions.json"), `${JSON.stringify(finalVersions, null, 2)}\n`, "utf8");
   writeFileSync(join(caseDir, "proxy-log.jsonl"), proxyLogRaw, "utf8");
   const serializedResult = `${JSON.stringify(caseResult, null, 2)}\n`;

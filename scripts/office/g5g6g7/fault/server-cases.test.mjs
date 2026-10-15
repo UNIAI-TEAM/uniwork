@@ -38,6 +38,7 @@ import {
 } from "./server-cases.mjs";
 
 const casesDoc = loadFaultCases();
+const SERVER_VERSIONS_KEYS = ["documentId", "document_id", "head", "next_cursor", "readAt", "versions"];
 
 test("selectServerCases selects all 13 ready server rows or a single --case row", () => {
   const allServer = selectServerCases(casesDoc);
@@ -479,6 +480,21 @@ test("runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a 
   assert.equal(brokenResult.result, "FAIL");
 });
 
+test("case-result.json carries {case, ac, result, assertions: [{name, expected, actual, ok}]} (matrix §4)", async () => {
+  for (const row of selectServerCases(casesDoc)) {
+    const outcome = await runServerCaseDriver(row, createFakeCaseContext(row));
+    const written = evaluateCaseResult({ caseId: row.id, ac: row.ac, assertions: outcome.assertions });
+    assert.deepEqual(Object.keys(written).sort(), ["ac", "assertions", "case", "result"], row.id);
+    assert.ok(written.assertions.length > 0, row.id);
+    for (const item of written.assertions) {
+      assert.deepEqual(Object.keys(item).sort(), ["actual", "expected", "name", "ok"], `${row.id} ${item.name}`);
+      assert.equal(typeof item.ok, "boolean");
+    }
+  }
+  const blocked = evaluateCaseResult({ caseId: "FQ-01", ac: ["G5-A06"], assertions: [], blockedReason: "no harness" });
+  assert.deepEqual(Object.keys(blocked).sort(), ["ac", "assertions", "blocker", "case", "result"]);
+});
+
 test("runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent", async () => {
   const tempRunDir = mkdtempSync(join(tmpdir(), "fault-server-cases-blocked-"));
   try {
@@ -499,6 +515,11 @@ test("runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts 
     const diskResult = JSON.parse(readFileSync(join(caseDir, "result.json"), "utf8"));
     assert.equal(diskResult.result, "BLOCKED");
     assert.deepEqual(diskResult.ac, ["G5-A06"]);
+    // matrix §4: server-versions.json always has the documented keys, even when nothing was read
+    const emptyVersions = JSON.parse(readFileSync(join(caseDir, "server-versions.json"), "utf8"));
+    assert.deepEqual(Object.keys(emptyVersions).sort(), SERVER_VERSIONS_KEYS);
+    assert.deepEqual(emptyVersions.head, { revision: null });
+    assert.deepEqual(emptyVersions.versions, []);
   } finally {
     rmSync(tempRunDir, { recursive: true, force: true });
   }
