@@ -270,3 +270,12 @@ WHERE id IN (
   WHERE r.status <> 'pending' AND r.updated_at < sqlc.arg(cutoff)::timestamptz
   LIMIT sqlc.arg(batch_limit)
 );
+
+-- name: GetDocumentEditLockSuccessor :one
+-- The tenure that replaced an ended one (take-over, handover, move here):
+-- edit_lock_lost names its holder in fields.by_id / by_name.
+SELECT * FROM document_edit_locks
+WHERE organization_id = sqlc.arg(organization_id)
+  AND previous_lock_id = sqlc.arg(previous_lock_id)
+ORDER BY created_at DESC, id DESC
+LIMIT 1;

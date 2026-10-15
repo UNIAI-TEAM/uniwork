@@ -35,7 +35,10 @@ const (
 	documentOutcomeGone        = "gone"
 	documentOutcomeInvalid     = "invalid"
 	documentOutcomeUnavailable = "unavailable"
-	documentOutcomeError       = "error"
+	// documentOutcomeLocked is a save refused by the edit lock (423
+	// document_locked, UNI-1645): not a lost base race, never a conflict.
+	documentOutcomeLocked = "locked"
+	documentOutcomeError  = "error"
 )
 
 // documentConflictCodes are the two answers that mean "another save moved the
@@ -99,6 +102,8 @@ func documentSaveResult(err error) (outcome, conflictCode string) {
 			return documentOutcomeGone, ""
 		case "storage_unavailable":
 			return documentOutcomeUnavailable, ""
+		case "document_locked":
+			return documentOutcomeLocked, ""
 		}
 	}
 	var ve ValidationError

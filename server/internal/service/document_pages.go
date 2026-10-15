@@ -87,6 +87,9 @@ type UpdateDocumentInput struct {
 	Icon       *string
 	Visibility *string
 	Content    json.RawMessage
+	// EditLockID is the caller's edit lock tenure (UNI-1645 §2); empty means
+	// "not holding a lock". Only a patch with Content is gated by it.
+	EditLockID string
 }
 
 // errRevisionConflict is the page-conflict answer of the contract samples
@@ -546,6 +549,7 @@ func (s *DocumentService) UpdateDocument(ctx context.Context, actor Actor, docum
 	started := time.Now()
 	view, err := s.updateDocument(ctx, actor, documentID, in)
 	s.recordDocumentSave(documentMetricKindPage, err, time.Since(started))
+	s.countEditLockRefused(DocumentEditLockRoutePatch, err)
 	return view, err
 }
 
@@ -618,6 +622,15 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 		}
 		if in.Content != nil && doc.Kind != DocumentKindPage {
 			return Invalid("tài liệu file không nhận content")
+		}
+		if in.Content != nil {
+			// A content write needs the edit lock when one is live (§2); a
+			// rename, icon or visibility patch does not (Q5). 423 comes
+			// before the revision check: a locked caller never reaches the
+			// conflict / overwrite path (contract §4).
+			if err := s.checkDocumentEditLock(ctx, q, actor, doc, in.EditLockID); err != nil {
+				return err
+			}
 		}
 		if in.Revision != doc.Revision {
 			return errRevisionConflict(doc.Revision)

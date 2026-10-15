@@ -433,6 +433,51 @@ func (q *Queries) GetDocumentEditLock(ctx context.Context, arg GetDocumentEditLo
 	return i, err
 }
 
+const getDocumentEditLockSuccessor = `-- name: GetDocumentEditLockSuccessor :one
+SELECT id, organization_id, document_id, user_id, session_id, editor_id, client, base_revision, acquired_at, heartbeat_at, expires_at, offline_hold_until, hold_device_session_id, hold_chain_started_at, hold_renewals, granted_via, previous_lock_id, ended_at, end_reason, ended_by, created_at, updated_at FROM document_edit_locks
+WHERE organization_id = $1
+  AND previous_lock_id = $2
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+`
+
+type GetDocumentEditLockSuccessorParams struct {
+	OrganizationID string      `json:"organization_id"`
+	PreviousLockID pgtype.Text `json:"previous_lock_id"`
+}
+
+// The tenure that replaced an ended one (take-over, handover, move here):
+// edit_lock_lost names its holder in fields.by_id / by_name.
+func (q *Queries) GetDocumentEditLockSuccessor(ctx context.Context, arg GetDocumentEditLockSuccessorParams) (DocumentEditLock, error) {
+	row := q.db.QueryRow(ctx, getDocumentEditLockSuccessor, arg.OrganizationID, arg.PreviousLockID)
+	var i DocumentEditLock
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.DocumentID,
+		&i.UserID,
+		&i.SessionID,
+		&i.EditorID,
+		&i.Client,
+		&i.BaseRevision,
+		&i.AcquiredAt,
+		&i.HeartbeatAt,
+		&i.ExpiresAt,
+		&i.OfflineHoldUntil,
+		&i.HoldDeviceSessionID,
+		&i.HoldChainStartedAt,
+		&i.HoldRenewals,
+		&i.GrantedVia,
+		&i.PreviousLockID,
+		&i.EndedAt,
+		&i.EndReason,
+		&i.EndedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getDocumentEditRequest = `-- name: GetDocumentEditRequest :one
 SELECT id, organization_id, document_id, lock_id, requester_id, holder_id, status, created_at, expires_at, answered_at, updated_at FROM document_edit_requests
 WHERE id = $1
