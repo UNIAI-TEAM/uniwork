@@ -346,6 +346,11 @@ thấy đếm và dung lượng theo org.
 > cập (không tự cấp, thẻ khóa `variant="member"`, người quản lý duyệt) ở [phụ lục truy cập](2026-10-15-documents-access-addendum.md);
 > §4 này **không viết lại**, phụ lục chỉ thêm lệnh và cổng `canAdminister()` của DOC-05.
 
+> **Bổ sung 2026-10-15 (SRS Share v1.0)** — [phụ lục căn chỉnh SRS Share](2026-10-15-documents-share-srs-addendum.md) thay
+> dòng `edit nếu visibility=workspace ∧ actor là effective member` bằng **dòng Workspace gốc** có mức riêng (`workspace_level`
+> ∈ view/comment/edit, mặc định `edit` cho tài liệu có sẵn), đổi mặc định tạo ở gốc thành **riêng tư** (`restricted`), và thêm
+> ghi quyền theo lô (tất cả hoặc không), nguồn quyền, phạm vi chia sẻ trên danh sách và thông báo `document_shared`.
+
 ## 5. API
 
 Tag `Documents`; SDI/SDO ở `dto/{sdi,sdo}/document.go`; route `router/documents.go` sau

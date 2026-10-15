@@ -441,6 +441,10 @@ export type DocumentAccess = Omit<z.infer<typeof DocumentAccessSchema>, "my_leve
 export const DocumentShareEnvelopeSchema = z.object({ share: DocumentShareSchema });
 export type DocumentShareEnvelope = { share: DocumentShare };
 
+/** A batch grant (UNI-1641): one live row per distinct principal, in request order. */
+export const DocumentShareBatchSchema = z.object({ shares: z.array(DocumentShareSchema) });
+export type DocumentShareBatch = { shares: DocumentShare[] };
+
 /** A freshly minted link: the raw token rides this answer exactly once. */
 export const DocumentLinkEnvelopeSchema = z.object({
   link: DocumentLinkSchema,

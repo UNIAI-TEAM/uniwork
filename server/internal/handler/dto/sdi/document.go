@@ -251,6 +251,13 @@ type BreakGlassSDI struct {
 	Reason string `json:"reason" description:"Lý do mở truy cập khẩn cấp, 10–500 ký tự sau khi cắt khoảng trắng hai đầu" example:"Kiểm tra hợp đồng theo yêu cầu của kiểm toán"`
 }
 
+// ShareDocumentBatchSDI is POST /api/v1/documents/{documentID}/shares/batch:
+// users only (workspace/organization stay single-select on POST /shares).
+type ShareDocumentBatchSDI struct {
+	PrincipalIDs []string `json:"principal_ids" description:"ULID người dùng cùng tổ chức với tài liệu; tối đa 50 id phân biệt sau khi cắt khoảng trắng và gộp trùng lặp" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\",\"01J8X4K2M0N1P2Q3R4S5T6U7V9\"]"`
+	Level        string   `json:"level" description:"Cấp quyền, cùng tập giá trị với POST /shares" example:"view"`
+}
+
 // CreateDocumentLinkSDI is POST /api/v1/documents/{documentID}/links:
 // an anonymous view link. Requires the documents.public_links entitlement and
 // the organization switch; at most five live links per document.

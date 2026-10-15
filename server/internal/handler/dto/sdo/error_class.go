@@ -117,6 +117,11 @@ var errorClassByCode = map[string]string{
 //     every case, so the route never confirms a version exists elsewhere;
 //     the editor treats its anchor as stale and retries at the next save
 //     receipt.
+//   share_batch_too_large  (422, fields.max) a batch share named more than 50
+//     distinct users (UNI-1641). A count limit like offline_lease_limit_reached
+//     and document_link_limit, which stay unclassified: "quota" would read as a
+//     usage meter and "conflict" as a reload-and-retry; the picker keeps its
+//     selection and shows the cap from fields.max instead.
 //   commit_intent_unknown  (410, fields.outcome="unknown", plan G5-07) the
 //     server holds no commit intent for the key any more (swept after the
 //     resume window) or never did. "gone" would teach the client to leave;
