@@ -202,6 +202,40 @@ export const signedOutFacts = (session) =>
     })
     .catch((error) => ({ status: null, lockedCount: null, error: String(error?.message ?? error) }));
 
+/**
+ * R7-1 (fix18): the reading of those facts, as the product builds the surface.
+ * `signedOut.lockedCount` counts the working-copy folders that SURVIVED the
+ * sign-out - the last owner's dirs whose binding is not `ready`/`saved`
+ * (`sync-center.ts:1184-1200` over `binding-store.ts:163-175,426-432`) - and the
+ * G5-11 lock parks the intent into the encrypted store, then deletes the
+ * plaintext folder and the account dir (`service.ts:2286-2328`), so a clean park
+ * legitimately reports 0: the designed `uwSyncSignedOutEmpty` variant
+ * (EXPERIENCE.md:260, :841-842; review r7 R7-1). The reading therefore pins the
+ * surface the `signed_out` reason rides on while it is the only one the product
+ * exposes (no rows, no names): `status === "signed_out"` AND the summary present
+ * with an integer count.
+ *
+ * `expects` says what the exit's own scenario truly expects the device to hold:
+ * `"summary"` (the default) - the summary must exist and report its count, which
+ * a clean park answers with 0; `"locked-item"` - the exit expects an item to be
+ * kept locked, so a snapshot reporting none FAILs. In both modes a snapshot with
+ * no summary (`lockedCount` null: no locked row at all) FAILs, and an unknown
+ * value throws rather than silently dropping the claim.
+ */
+export function signedOutSummaryReading(facts, expects = "summary") {
+  if (expects !== "summary" && expects !== "locked-item") throw new Error(`unknown signed-out expectation "${expects}"`);
+  const status = facts?.status ?? null;
+  const count = facts?.lockedCount ?? null;
+  const summary = Number.isInteger(count) && count >= 0;
+  return {
+    ok: status === "signed_out" && summary && (expects !== "locked-item" || count >= 1),
+    expected: expects === "locked-item"
+      ? "status signed_out holding >= 1 item locked on this device"
+      : "status signed_out with the signed-out summary (lockedCount >= 0)",
+    actual: `${status ?? facts?.error ?? "none"}/locked=${summary ? count : "-"}`,
+  };
+}
+
 /** Answers the next native message boxes of main in order (fork e2e answerMessageBoxes). */
 export async function stubMessageBoxes(session, responses) {
   await session.app.evaluate(({ dialog }, answers) => {
