@@ -45,7 +45,9 @@ M owns org Y (API) and is a member of org X and workspace W1 (raw SQL test seed 
    `uniworkOpenDocument` opens it by id and exactly one working copy exists on disk for it
    (`countWorkingCopies` reads `<userData>/uniwork-documents/*/*/*`); `uniworkRenameDocument` is
    visible on GET; a web rename (PATCH `/documents/{id}` with the revision read first, the call the
-   web library sends) reaches the desktop title after a focus, polled for at most 35 s; archive and
+   web library sends) reaches the desktop title after a focus, polled for at most 35 s (the title is read
+   from the working copy's `binding.json`, because the app renames the file and the old path then has
+   no status; `uniworkDocStatus` is only the fallback); archive and
    restore are visible as `archived_at` on GET.
 4. `deactivate`, last: A deactivates M in X. `uniworkListWorkspaces` and `uniworkCreateDocument` must
    answer `member_deactivated`. M is used by no other row, but the deactivation lasts for the run,
