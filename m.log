@@ -1,0 +1,729 @@
+$ for d in .harness-run-r15a/fault/FQ-*/; do echo "=== $d"; ls "$d"; head -n 15 "$d/intent-log.jsonl" 2>/dev/null; head -n 15 "$d/proxy-log.jsonl" 2>/dev/null; head -c 800 "$d/server-versions.json" 2>/dev/null; echo; done; cat test-results/office-g5g6g7-evidence/evidence.jsonl 2>/dev/null; true
+=== .harness-run-r15a/fault/FQ-01/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:14.807Z","case":"FQ-01","source":"driver","step":"upload","intent":"intent-1","keyTag":"6fbd061dcdc1","attempt":1,"from":null,"to":null,"event":"upload","status":201,"outcome":"staged","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:14.816Z","case":"FQ-01","source":"driver","step":"commit_1","intent":"intent-1","keyTag":"144cf0a64d0f","attempt":1,"from":null,"to":null,"event":"commit_1","status":"dropped","outcome":"dropped","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:14.819Z","case":"FQ-01","source":"driver","step":"lookup","intent":"intent-1","keyTag":"144cf0a64d0f","attempt":1,"from":null,"to":null,"event":"lookup","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:14.825Z","case":"FQ-01","source":"driver","step":"commit_replay","intent":"intent-1","keyTag":"144cf0a64d0f","attempt":2,"from":null,"to":null,"event":"commit_replay","status":200,"outcome":"replayed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:14.806Z","method":"POST","path":"/api/v1/documents/01M50TBTEZBC6NPBE680A6M7WT/uploads","status":201,"ms":8,"idempotencyKey":true,"keyTag":"a88fa03d3b77","ruleId":null}
+{"ts":"2026-10-15T22:19:14.815Z","method":"POST","path":"/api/v1/documents/01M50TBTEZBC6NPBE680A6M7WT/versions/commit","status":"dropped","ms":7,"idempotencyKey":true,"keyTag":"2ce2689da11c","ruleId":"lose-commit-answer"}
+{"ts":"2026-10-15T22:19:14.818Z","method":"GET","path":"/api/v1/documents/01M50TBTEZBC6NPBE680A6M7WT/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"2ce2689da11c","ruleId":null}
+{"ts":"2026-10-15T22:19:14.824Z","method":"POST","path":"/api/v1/documents/01M50TBTEZBC6NPBE680A6M7WT/versions/commit","status":200,"ms":5,"idempotencyKey":true,"keyTag":"2ce2689da11c","ruleId":null}
+{
+  "document_id": "01M50TBTEZBC6NPBE680A6M7WT",
+  "documentId": "01M50TBTEZBC6NPBE680A6M7WT",
+  "readAt": "2026-10-15T22:19:14.831Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TBTFWDRZ4GZBDM5ABJV79",
+      "document_id": "01M50TBTEZBC6NPBE680A6M7WT",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBTFJY35JMYGR42CJ6Y5T",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "b1af985844dabad51c9bce700aa101522ccb5baba9597368e304e838df2b46f0",
+      "download_url": "/api/v1/documents/01M50TBTEZBC6NPBE680A6M7WT/download?version=2",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-02/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:14.915Z","case":"FQ-02","source":"driver","step":"commit_1_dropped","intent":"intent-1","keyTag":"f19f1ef10690","attempt":1,"from":null,"to":null,"event":"commit_1_dropped","status":"dropped","outcome":"dropped","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:14.918Z","case":"FQ-02","source":"driver","step":"lookup_unknown","intent":"intent-1","keyTag":"f19f1ef10690","attempt":1,"from":null,"to":null,"event":"lookup_unknown","status":410,"outcome":"unknown","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:14.925Z","case":"FQ-02","source":"driver","step":"commit_retry","intent":"intent-1","keyTag":"f19f1ef10690","attempt":2,"from":null,"to":null,"event":"commit_retry","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:14.913Z","method":"POST","path":"/api/v1/documents/01M50TBTJKZ3911SPQ61CVA5R2/uploads","status":201,"ms":5,"idempotencyKey":true,"keyTag":"73378428135d","ruleId":null}
+{"ts":"2026-10-15T22:19:14.914Z","method":"POST","path":"/api/v1/documents/01M50TBTJKZ3911SPQ61CVA5R2/versions/commit","status":"dropped","ms":0,"idempotencyKey":true,"keyTag":"def2e6c3a54f","ruleId":"drop-commit"}
+{"ts":"2026-10-15T22:19:14.917Z","method":"GET","path":"/api/v1/documents/01M50TBTJKZ3911SPQ61CVA5R2/versions/commit","status":410,"ms":1,"idempotencyKey":true,"keyTag":"def2e6c3a54f","ruleId":null}
+{"ts":"2026-10-15T22:19:14.924Z","method":"POST","path":"/api/v1/documents/01M50TBTJKZ3911SPQ61CVA5R2/versions/commit","status":200,"ms":6,"idempotencyKey":true,"keyTag":"def2e6c3a54f","ruleId":null}
+{
+  "document_id": "01M50TBTJKZ3911SPQ61CVA5R2",
+  "documentId": "01M50TBTJKZ3911SPQ61CVA5R2",
+  "readAt": "2026-10-15T22:19:14.927Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TBTKAEJW0Y1B6YKEVY6EC",
+      "document_id": "01M50TBTJKZ3911SPQ61CVA5R2",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBTJXSF00YHJ86N1EQGGR",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "704ee2c79a11fabdd022e28ee183173bb5ca453dd725318831f1e9164cf3b610",
+      "download_url": "/api/v1/documents/01M50TBTJKZ3911SPQ61CVA5R2/download?version=2",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-03/
+case-result.json
+evidence-g5-a06.log
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:15.404Z","case":"FQ-03","source":"driver","step":"commit_concurrent_1","intent":"intent-1","keyTag":"2b16d7c310b8","attempt":1,"from":null,"to":null,"event":"commit_concurrent_1","status":200,"outcome":"ok","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.404Z","case":"FQ-03","source":"driver","step":"commit_concurrent_2","intent":"intent-1","keyTag":"2b16d7c310b8","attempt":2,"from":null,"to":null,"event":"commit_concurrent_2","status":200,"outcome":"ok","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.407Z","case":"FQ-03","source":"driver","step":"lookup","intent":"intent-1","keyTag":"2b16d7c310b8","attempt":1,"from":null,"to":null,"event":"lookup","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:14.998Z","method":"POST","path":"/api/v1/documents/01M50TBTNAXW006Y45BP2D10J2/uploads","status":201,"ms":4,"idempotencyKey":true,"keyTag":"6f4368ae85c5","ruleId":null}
+{"ts":"2026-10-15T22:19:15.030Z","method":"POST","path":"/api/v1/documents/01M50TBTNAXW006Y45BP2D10J2/versions/commit","status":200,"ms":5,"idempotencyKey":true,"keyTag":"46f54eefe879","ruleId":null}
+{"ts":"2026-10-15T22:19:15.403Z","method":"POST","path":"/api/v1/documents/01M50TBTNAXW006Y45BP2D10J2/versions/commit","status":200,"ms":404,"idempotencyKey":true,"keyTag":"46f54eefe879","ruleId":"slow-first"}
+{"ts":"2026-10-15T22:19:15.406Z","method":"GET","path":"/api/v1/documents/01M50TBTNAXW006Y45BP2D10J2/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"46f54eefe879","ruleId":null}
+{
+  "document_id": "01M50TBTNAXW006Y45BP2D10J2",
+  "documentId": "01M50TBTNAXW006Y45BP2D10J2",
+  "readAt": "2026-10-15T22:19:15.410Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TBTPNSM9G8W3FQBAXF34Y",
+      "document_id": "01M50TBTNAXW006Y45BP2D10J2",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBTNK5FVKG30VHJDGFNAR",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "932453ea0bbd273b422e5c046c27a13155d4f6e0516fe154e9a2317d14752a7e",
+      "download_url": "/api/v1/documents/01M50TBTNAXW006Y45BP2D10J2/download?version=2",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-04/
+case-result.json
+evidence-g5-a06.log
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:15.532Z","case":"FQ-04","source":"driver","step":"commit_1_503","intent":"intent-1","keyTag":"87785daaaa85","attempt":1,"from":null,"to":null,"event":"commit_1_503","status":503,"outcome":"synthetic_503","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.538Z","case":"FQ-04","source":"driver","step":"commit_2_retry","intent":"intent-1","keyTag":"87785daaaa85","attempt":2,"from":null,"to":null,"event":"commit_2_retry","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.540Z","case":"FQ-04","source":"driver","step":"lookup","intent":"intent-1","keyTag":"87785daaaa85","attempt":1,"from":null,"to":null,"event":"lookup","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.531Z","method":"POST","path":"/api/v1/documents/01M50TBV5XKB2J8J270E3M9NGJ/uploads","status":201,"ms":5,"idempotencyKey":true,"keyTag":"af6d81d3ff54","ruleId":null}
+{"ts":"2026-10-15T22:19:15.532Z","method":"POST","path":"/api/v1/documents/01M50TBV5XKB2J8J270E3M9NGJ/versions/commit","status":"synthetic","ms":0,"idempotencyKey":true,"keyTag":"988968269abd","ruleId":"fake-503"}
+{"ts":"2026-10-15T22:19:15.537Z","method":"POST","path":"/api/v1/documents/01M50TBV5XKB2J8J270E3M9NGJ/versions/commit","status":200,"ms":5,"idempotencyKey":true,"keyTag":"988968269abd","ruleId":null}
+{"ts":"2026-10-15T22:19:15.539Z","method":"GET","path":"/api/v1/documents/01M50TBV5XKB2J8J270E3M9NGJ/versions/commit","status":200,"ms":1,"idempotencyKey":true,"keyTag":"988968269abd","ruleId":null}
+{
+  "document_id": "01M50TBV5XKB2J8J270E3M9NGJ",
+  "documentId": "01M50TBV5XKB2J8J270E3M9NGJ",
+  "readAt": "2026-10-15T22:19:15.543Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TBV6G9E560Q2SC33MJ0T3",
+      "document_id": "01M50TBV5XKB2J8J270E3M9NGJ",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBV675ASPKYHMSXQC2NHW",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "dfa922e2b97dd0366cb462f45585f0921788c50d4dfc762742164b890d13b172",
+      "download_url": "/api/v1/documents/01M50TBV5XKB2J8J270E3M9NGJ/download?version=2",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-05/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:15.659Z","case":"FQ-05","source":"driver","step":"upload_1_dropped","intent":"intent-1","keyTag":"52725b6c5c1e","attempt":1,"from":null,"to":null,"event":"upload_1_dropped","status":"dropped","outcome":"dropped","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.662Z","case":"FQ-05","source":"driver","step":"upload_2_retry","intent":"intent-1","keyTag":"52725b6c5c1e","attempt":2,"from":null,"to":null,"event":"upload_2_retry","status":201,"outcome":"staged","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.667Z","case":"FQ-05","source":"driver","step":"commit","intent":"intent-1","keyTag":"e6725afc4af0","attempt":1,"from":null,"to":null,"event":"commit","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.659Z","method":"POST","path":"/api/v1/documents/01M50TBVA1EDT5636J2X39HG05/uploads","status":"dropped","ms":4,"idempotencyKey":true,"keyTag":"7b4fc48c2673","ruleId":"lose-upload-answer"}
+{"ts":"2026-10-15T22:19:15.662Z","method":"POST","path":"/api/v1/documents/01M50TBVA1EDT5636J2X39HG05/uploads","status":201,"ms":2,"idempotencyKey":true,"keyTag":"7b4fc48c2673","ruleId":null}
+{"ts":"2026-10-15T22:19:15.667Z","method":"POST","path":"/api/v1/documents/01M50TBVA1EDT5636J2X39HG05/versions/commit","status":200,"ms":4,"idempotencyKey":true,"keyTag":"ef0a20fc4b78","ruleId":null}
+{
+  "document_id": "01M50TBVA1EDT5636J2X39HG05",
+  "documentId": "01M50TBVA1EDT5636J2X39HG05",
+  "readAt": "2026-10-15T22:19:15.670Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TBVAJZJH4ZGC6PX9T17P8",
+      "document_id": "01M50TBVA1EDT5636J2X39HG05",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBVA88RYCW8Y3HMV1XMNM",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "add6ecd424bbc0260774f92da49a4a21cc09a9a077572208af629785663eeb1b",
+      "download_url": "/api/v1/documents/01M50TBVA1EDT5636J2X39HG05/download?version=2",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-06/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:15.766Z","case":"FQ-06","source":"driver","step":"commit_aborted_while_held","intent":"intent-1","keyTag":"10c6de92c6c2","attempt":1,"from":null,"to":null,"event":"commit_aborted_while_held","status":"aborted","outcome":"aborted","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.792Z","case":"FQ-06","source":"driver","step":"lookup_after_release","intent":"intent-1","keyTag":"10c6de92c6c2","attempt":1,"from":null,"to":null,"event":"lookup_after_release","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.738Z","method":"POST","path":"/api/v1/documents/01M50TBVCEANH031ZGQXF5596C/uploads","status":201,"ms":5,"idempotencyKey":true,"keyTag":"932d949e14cd","ruleId":null}
+{"ts":"2026-10-15T22:19:15.772Z","method":"POST","path":"/api/v1/documents/01M50TBVCEANH031ZGQXF5596C/versions/commit","status":200,"ms":33,"idempotencyKey":true,"keyTag":"bf610f34e9fb","ruleId":"hold-commit"}
+{"ts":"2026-10-15T22:19:15.792Z","method":"GET","path":"/api/v1/documents/01M50TBVCEANH031ZGQXF5596C/versions/commit","status":200,"ms":2,"idempotencyKey":true,"keyTag":"bf610f34e9fb","ruleId":null}
+{
+  "document_id": "01M50TBVCEANH031ZGQXF5596C",
+  "documentId": "01M50TBVCEANH031ZGQXF5596C",
+  "readAt": "2026-10-15T22:19:15.794Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TBVDSB0KM41E3K5WX81VV",
+      "document_id": "01M50TBVCEANH031ZGQXF5596C",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBVCPERAND7SW99XKDTCK",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "c2a76f66253247a59e4f5145d0a74a2bdeb73f2b50c1009d7e4e66cb41a0dd5b",
+      "download_url": "/api/v1/documents/01M50TBVCEANH031ZGQXF5596C/download?version=2",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-07/
+case-result.json
+evidence-g5-a06.log
+evidence-g5-a08.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:15.938Z","case":"FQ-07","source":"driver","step":"commit_a_after_b","intent":"intent-1","keyTag":"5cb6e6b789cd","attempt":1,"from":null,"to":null,"event":"commit_a_after_b","status":409,"outcome":"document_version_conflict","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.939Z","case":"FQ-07","source":"driver","step":"lookup_a","intent":"intent-1","keyTag":"5cb6e6b789cd","attempt":1,"from":null,"to":null,"event":"lookup_a","status":200,"outcome":"not_committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:15.875Z","method":"POST","path":"/api/v1/documents/01M50TBVGM8J1D46GE2GAHD90V/uploads","status":201,"ms":5,"idempotencyKey":true,"keyTag":"dc98c5c948ca","ruleId":null}
+{"ts":"2026-10-15T22:19:15.937Z","method":"POST","path":"/api/v1/documents/01M50TBVGM8J1D46GE2GAHD90V/versions/commit","status":409,"ms":61,"idempotencyKey":true,"keyTag":"f3272f18f0ea","ruleId":"hold-a"}
+{"ts":"2026-10-15T22:19:15.939Z","method":"GET","path":"/api/v1/documents/01M50TBVGM8J1D46GE2GAHD90V/versions/commit","status":200,"ms":1,"idempotencyKey":true,"keyTag":"f3272f18f0ea","ruleId":null}
+{
+  "document_id": "01M50TBVGM8J1D46GE2GAHD90V",
+  "documentId": "01M50TBVGM8J1D46GE2GAHD90V",
+  "readAt": "2026-10-15T22:19:15.943Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TBVJV4X0MN6WVP9M1S28W",
+      "document_id": "01M50TBVGM8J1D46GE2GAHD90V",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBVJG5FZSEKW43J5KFZTA",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18826,
+      "checksum_sha256": "d4485f4dd8ba3b0a312941ea04ee16e23f515720ea42b79f3ce63ce0c458d0c1",
+      "download_url": "/api/v1/documents/01M50TBVGM8J1D46GE2GAHD90V/download?version=2",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-08/
+case-result.json
+evidence-g5-a08.log
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:16.082Z","case":"FQ-08","source":"driver","step":"commit_a_conflict","intent":"intent-1","keyTag":"d98f8c29e55e","attempt":1,"from":null,"to":null,"event":"commit_a_conflict","status":409,"outcome":"document_version_conflict","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.089Z","case":"FQ-08","source":"driver","step":"commit_a_overwrite_reuse_upload","intent":"intent-1","keyTag":"ccc5c7308a96","attempt":2,"from":null,"to":null,"event":"commit_a_overwrite_reuse_upload","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.068Z","method":"POST","path":"/api/v1/documents/01M50TBVPST34MCQBR8BAS9PHW/uploads","status":201,"ms":4,"idempotencyKey":true,"keyTag":"297bf0f5bbd2","ruleId":null}
+{"ts":"2026-10-15T22:19:16.078Z","method":"POST","path":"/api/v1/documents/01M50TBVPST34MCQBR8BAS9PHW/versions/commit","status":200,"ms":4,"idempotencyKey":true,"keyTag":"9d3de95b3c8c","ruleId":null}
+{"ts":"2026-10-15T22:19:16.082Z","method":"POST","path":"/api/v1/documents/01M50TBVPST34MCQBR8BAS9PHW/versions/commit","status":409,"ms":3,"idempotencyKey":true,"keyTag":"c98fb7dc0ef4","ruleId":null}
+{"ts":"2026-10-15T22:19:16.083Z","method":"GET","path":"/api/v1/documents/01M50TBVPST34MCQBR8BAS9PHW","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:16.088Z","method":"POST","path":"/api/v1/documents/01M50TBVPST34MCQBR8BAS9PHW/versions/commit","status":200,"ms":4,"idempotencyKey":true,"keyTag":"113706c487d8","ruleId":null}
+{
+  "document_id": "01M50TBVPST34MCQBR8BAS9PHW",
+  "documentId": "01M50TBVPST34MCQBR8BAS9PHW",
+  "readAt": "2026-10-15T22:19:16.091Z",
+  "head": {
+    "revision": "3"
+  },
+  "versions": [
+    {
+      "id": "01M50TBVQQYTDC734SBQB5R0NY",
+      "document_id": "01M50TBVPST34MCQBR8BAS9PHW",
+      "version": 3,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBVQ174M0MRSZCT92MQ0G",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18828,
+      "checksum_sha256": "cfd16b88ba82cd4b54e4f7b4cfd96036848f6b0d518a973969cd43c8ea2aa8e3",
+      "download_url": "/api/v1/documents/01M50TBVPST34MCQBR8BAS9PHW/download?version=3",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-09/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:16.258Z","case":"FQ-09","source":"driver","step":"commit_409","intent":"intent-1","keyTag":"908243f0f442","attempt":1,"from":null,"to":null,"event":"commit_409","status":409,"outcome":"document_version_conflict","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.260Z","case":"FQ-09","source":"driver","step":"lookup_not_committed","intent":"intent-1","keyTag":"908243f0f442","attempt":1,"from":null,"to":null,"event":"lookup_not_committed","status":200,"outcome":"not_committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.254Z","method":"POST","path":"/api/v1/documents/01M50TBVWAR1WXRGFR6T5XN36P/uploads","status":201,"ms":4,"idempotencyKey":true,"keyTag":"01153f29a8cb","ruleId":null}
+{"ts":"2026-10-15T22:19:16.257Z","method":"POST","path":"/api/v1/documents/01M50TBVWAR1WXRGFR6T5XN36P/versions/commit","status":409,"ms":2,"idempotencyKey":true,"keyTag":"8cc71611a860","ruleId":null}
+{"ts":"2026-10-15T22:19:16.259Z","method":"GET","path":"/api/v1/documents/01M50TBVWAR1WXRGFR6T5XN36P/versions/commit","status":200,"ms":1,"idempotencyKey":true,"keyTag":"8cc71611a860","ruleId":null}
+{
+  "document_id": "01M50TBVWAR1WXRGFR6T5XN36P",
+  "documentId": "01M50TBVWAR1WXRGFR6T5XN36P",
+  "readAt": "2026-10-15T22:19:16.262Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TBVWRVCCT7C2Z23K2PSBT",
+      "document_id": "01M50TBVWAR1WXRGFR6T5XN36P",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBVWGSNH9RS8W2YSWXBKT",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18826,
+      "checksum_sha256": "c42b0f160e409d575742ac3844e0456b00b0307196e16ed3ee00da5684c63205",
+      "download_url": "/api/v1/documents/01M50TBVWAR1WXRGFR6T5XN36P/download?version=2",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-10/
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:16.338Z","case":"FQ-10","source":"driver","step":"lookup_foreign_member","intent":"intent-1","keyTag":"fc087b19ba26","attempt":1,"from":null,"to":null,"event":"lookup_foreign_member","status":410,"outcome":"commit_intent_unknown","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.339Z","case":"FQ-10","source":"driver","step":"lookup_never_sent","intent":"intent-1","keyTag":"df8f64c0c1a3","attempt":1,"from":null,"to":null,"event":"lookup_never_sent","status":410,"outcome":"commit_intent_unknown","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.337Z","method":"GET","path":"/api/v1/documents/01M50TBVZ0MQP56PKH7YNQHKR6/versions/commit","status":410,"ms":2,"idempotencyKey":true,"keyTag":"4bd47a11cc0b","ruleId":null}
+{"ts":"2026-10-15T22:19:16.339Z","method":"GET","path":"/api/v1/documents/01M50TBVZ0MQP56PKH7YNQHKR6/versions/commit","status":410,"ms":1,"idempotencyKey":true,"keyTag":"394038435b4a","ruleId":null}
+{
+  "document_id": "01M50TBVZ0MQP56PKH7YNQHKR6",
+  "documentId": "01M50TBVZ0MQP56PKH7YNQHKR6",
+  "readAt": "2026-10-15T22:19:16.341Z",
+  "head": {
+    "revision": "1"
+  },
+  "versions": [
+    {
+      "id": "01M50TBVZ0MQP56PKH80F6SNM6",
+      "document_id": "01M50TBVZ0MQP56PKH7YNQHKR6",
+      "version": 1,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBVYXQ37K2K85XWHBBESK",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18806,
+      "checksum_sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "download_url": "/api/v1/documents/01M50TBVZ0MQP56PKH7YNQHKR6/download?version=1",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-11/
+case-result.json
+evidence-g6-a04.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:16.408Z","case":"FQ-11","source":"driver","step":"ai_turn_1","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_1","status":200,"outcome":"answered","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.416Z","case":"FQ-11","source":"driver","step":"ai_turn_2","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_2","status":200,"outcome":"answered","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.426Z","case":"FQ-11","source":"driver","step":"save_after_ai","intent":"intent-1","keyTag":"88ef22429aca","attempt":1,"from":null,"to":null,"event":"save_after_ai","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.408Z","method":"POST","path":"/api/v1/documents/01M50TBW1D65MDYET1HY5GEYN7/ai/uniwork/chat/completions","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:16.415Z","method":"POST","path":"/api/v1/documents/01M50TBW1D65MDYET1HY5GEYN7/ai/uniwork/chat/completions","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:16.421Z","method":"POST","path":"/api/v1/documents/01M50TBW1D65MDYET1HY5GEYN7/uploads","status":201,"ms":3,"idempotencyKey":true,"keyTag":"695fa8f9ad3f","ruleId":null}
+{"ts":"2026-10-15T22:19:16.426Z","method":"POST","path":"/api/v1/documents/01M50TBW1D65MDYET1HY5GEYN7/versions/commit","status":200,"ms":4,"idempotencyKey":true,"keyTag":"7e2942758833","ruleId":null}
+{
+  "document_id": "01M50TBW1D65MDYET1HY5GEYN7",
+  "documentId": "01M50TBW1D65MDYET1HY5GEYN7",
+  "readAt": "2026-10-15T22:19:16.428Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TBW28QQHEGMR4JHTTWBF2",
+      "document_id": "01M50TBW1D65MDYET1HY5GEYN7",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBW23AWCR37TD14VJKS2Q",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 11211,
+      "checksum_sha256": "84fccfa7b5c1db9dd79ab6be2ad2734bcd11615ec7be6dc867d393baf39d8d14",
+      "download_url": "/api/v1/documents/01M50TBW1D65MDYET1HY5GEYN7/download?version=2",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "crea
+=== .harness-run-r15a/fault/FQ-12/
+case-result.json
+evidence-g7-a02.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:16.497Z","case":"FQ-12","source":"driver","step":"ai_turn_1","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_1","status":200,"outcome":"answered","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.502Z","case":"FQ-12","source":"driver","step":"ai_turn_2_after_revoke","intent":"intent-1","keyTag":null,"attempt":1,"from":null,"to":null,"event":"ai_turn_2_after_revoke","status":404,"outcome":"not_found","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.503Z","case":"FQ-12","source":"driver","step":"commit_after_revoke","intent":"intent-1","keyTag":"940facbcf720","attempt":1,"from":null,"to":null,"event":"commit_after_revoke","status":404,"outcome":"not_found","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.496Z","method":"POST","path":"/api/v1/documents/01M50TBW431Q81BXPY3FPGA7R8/ai/uniwork/chat/completions","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:16.502Z","method":"POST","path":"/api/v1/documents/01M50TBW431Q81BXPY3FPGA7R8/ai/uniwork/chat/completions","status":404,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:16.503Z","method":"POST","path":"/api/v1/documents/01M50TBW431Q81BXPY3FPGA7R8/versions/commit","status":404,"ms":1,"idempotencyKey":true,"keyTag":"3864f3996325","ruleId":null}
+{
+  "document_id": "01M50TBW431Q81BXPY3FPGA7R8",
+  "documentId": "01M50TBW431Q81BXPY3FPGA7R8",
+  "readAt": "2026-10-15T22:19:16.505Z",
+  "head": {
+    "revision": "1"
+  },
+  "versions": [
+    {
+      "id": "01M50TBW431Q81BXPY3JDVKJCT",
+      "document_id": "01M50TBW431Q81BXPY3FPGA7R8",
+      "version": 1,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBW40HM5A2F4B5NZ2GQR7",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 11187,
+      "checksum_sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "download_url": "/api/v1/documents/01M50TBW431Q81BXPY3FPGA7R8/download?version=1",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "crea
+=== .harness-run-r15a/fault/FQ-13/
+case-result.json
+evidence-g5-a08.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:16.579Z","case":"FQ-13","source":"driver","step":"commit_while_archived","intent":"intent-1","keyTag":"bda9fd67254b","attempt":1,"from":null,"to":null,"event":"commit_while_archived","status":403,"outcome":"document_archived","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.594Z","case":"FQ-13","source":"driver","step":"commit_after_restore_and_move","intent":"intent-1","keyTag":"bda9fd67254b","attempt":2,"from":null,"to":null,"event":"commit_after_restore_and_move","status":200,"outcome":"committed","reason":null,"http":null,"note":null}
+{"ts":"2026-10-15T22:19:16.575Z","method":"POST","path":"/api/v1/documents/01M50TBW6P0D6W27BD2H5YTFQZ/uploads","status":201,"ms":3,"idempotencyKey":true,"keyTag":"4a151fde189b","ruleId":null}
+{"ts":"2026-10-15T22:19:16.579Z","method":"POST","path":"/api/v1/documents/01M50TBW6P0D6W27BD2H5YTFQZ/versions/commit","status":403,"ms":1,"idempotencyKey":true,"keyTag":"3d46e45cfd13","ruleId":null}
+{"ts":"2026-10-15T22:19:16.593Z","method":"POST","path":"/api/v1/documents/01M50TBW6P0D6W27BD2H5YTFQZ/versions/commit","status":200,"ms":4,"idempotencyKey":true,"keyTag":"3d46e45cfd13","ruleId":null}
+{
+  "document_id": "01M50TBW6P0D6W27BD2H5YTFQZ",
+  "documentId": "01M50TBW6P0D6W27BD2H5YTFQZ",
+  "readAt": "2026-10-15T22:19:16.596Z",
+  "head": {
+    "revision": "4"
+  },
+  "versions": [
+    {
+      "id": "01M50TBW7GRGG3DNZ6Q5PBYGN9",
+      "document_id": "01M50TBW6P0D6W27BD2H5YTFQZ",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TBW6W936G0FVD30WAF99K",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18824,
+      "checksum_sha256": "cba14219447d7333991b513836a18904ced16fae991efa5595957b513d594e27",
+      "download_url": "/api/v1/documents/01M50TBW6P0D6W27BD2H5YTFQZ/download?version=2",
+      "created_by": "01M50TBT9FCDCC3MZE13843G7S",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-20/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:19:54.605Z","case":"FQ-20","source":"app-trace","intent":"office-intent-fb991572-e5fb-4a5c-be84-f5cf0872302e","keyTag":"ca2449539022","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T22:19:54.617Z","case":"FQ-20","source":"app-trace","intent":"office-intent-fb991572-e5fb-4a5c-be84-f5cf0872302e","keyTag":"ca2449539022","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T22:20:11.205Z","case":"FQ-20","source":"app-trace","intent":"office-intent-fb991572-e5fb-4a5c-be84-f5cf0872302e","keyTag":"ca2449539022","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T22:20:11.205Z","case":"FQ-20","source":"app-trace","intent":"office-intent-fb991572-e5fb-4a5c-be84-f5cf0872302e","keyTag":"ca2449539022","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T22:20:11.205Z","case":"FQ-20","source":"app-trace","intent":"office-intent-fb991572-e5fb-4a5c-be84-f5cf0872302e","keyTag":"ca2449539022","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T22:20:11.205Z","case":"FQ-20","source":"app-trace","intent":"office-intent-fb991572-e5fb-4a5c-be84-f5cf0872302e","keyTag":"ca2449539022","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T22:19:48.844Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.512Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.524Z","method":"GET","path":"/api/v1/me","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.530Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.533Z","method":"GET","path":"/api/v1/orgs/o-fault-mva3plw8-3c26/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.542Z","method":"GET","path":"/api/v1/orgs/01M50TBXGTXGZ14YH7SJBKME0Y/billing","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.552Z","method":"GET","path":"/api/v1/orgs/01M50TBXGTXGZ14YH7SJBKME0Y/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.558Z","method":"GET","path":"/api/v1/orgs/01M50TBXGTXGZ14YH7SJBKME0Y/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.565Z","method":"GET","path":"/api/v1/orgs/01M50TBXGTXGZ14YH7SJBKME0Y/workspaces","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.573Z","method":"GET","path":"/api/v1/workspaces/01M50TBXH091M9P0HBB1DG9ZC3/documents/changes","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.575Z","method":"GET","path":"/api/v1/orgs/01M50TBXGTXGZ14YH7SJBKME0Y/ai/credentials","status":503,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:49.582Z","method":"GET","path":"/api/v1/orgs/01M50TBXGTXGZ14YH7SJBKME0Y/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:53.544Z","method":"GET","path":"/api/v1/documents/01M50TBXJ80S1F8BV6GGM82MSK","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:53.548Z","method":"GET","path":"/api/v1/documents/01M50TBXJ80S1F8BV6GGM82MSK/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:19:53.577Z","method":"GET","path":"/api/v1/documents/01M50TBXJ80S1F8BV6GGM82MSK","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50TBXJ80S1F8BV6GGM82MSK",
+  "documentId": "01M50TBXJ80S1F8BV6GGM82MSK",
+  "readAt": "2026-10-15T22:20:11.349Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TDHJT2WP2D2XC7S698TPK",
+      "document_id": "01M50TBXJ80S1F8BV6GGM82MSK",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TDHJDK99AJ5Y47CD9EBQ5",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 4404,
+      "checksum_sha256": "9d782f4aaab10d765e6e6249729e616976c5f7eb87ba78b00b1ccfcc0caaaf57",
+      "download_url": "/api/v1/documents/01M50TBXJ80S1F8BV6GGM82MSK/download?version=2",
+      "created_by": "01M50TBXEJZZS8JZB36TNSYVBJ",
+      "created_by_kind": "human",
+      "creat
+=== .harness-run-r15a/fault/FQ-21/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:20:49.068Z","case":"FQ-21","source":"app-trace","intent":"office-intent-b5641fb8-d6e1-4f6b-b002-93b174469b79","keyTag":"40e29f48c718","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T22:20:49.081Z","case":"FQ-21","source":"app-trace","intent":"office-intent-b5641fb8-d6e1-4f6b-b002-93b174469b79","keyTag":"40e29f48c718","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T22:21:44.050Z","case":"FQ-21","source":"app-trace","intent":"office-intent-b5641fb8-d6e1-4f6b-b002-93b174469b79","keyTag":"40e29f48c718","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T22:21:44.050Z","case":"FQ-21","source":"app-trace","intent":"office-intent-b5641fb8-d6e1-4f6b-b002-93b174469b79","keyTag":"40e29f48c718","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T22:21:44.050Z","case":"FQ-21","source":"app-trace","intent":"office-intent-b5641fb8-d6e1-4f6b-b002-93b174469b79","keyTag":"40e29f48c718","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T22:21:44.050Z","case":"FQ-21","source":"app-trace","intent":"office-intent-b5641fb8-d6e1-4f6b-b002-93b174469b79","keyTag":"40e29f48c718","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T22:20:43.404Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:43.992Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:44.003Z","method":"GET","path":"/api/v1/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:44.007Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:44.011Z","method":"GET","path":"/api/v1/orgs/o-fault-mva3qrze-f1d6/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:44.018Z","method":"GET","path":"/api/v1/orgs/01M50TDJSC3A8V39WCM2Z7FN0T/billing","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:44.029Z","method":"GET","path":"/api/v1/orgs/01M50TDJSC3A8V39WCM2Z7FN0T/ai/cloud","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:44.035Z","method":"GET","path":"/api/v1/orgs/01M50TDJSC3A8V39WCM2Z7FN0T/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:44.042Z","method":"GET","path":"/api/v1/orgs/01M50TDJSC3A8V39WCM2Z7FN0T/workspaces","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:44.050Z","method":"GET","path":"/api/v1/orgs/01M50TDJSC3A8V39WCM2Z7FN0T/ai/credentials","status":503,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:44.055Z","method":"GET","path":"/api/v1/workspaces/01M50TDJSJZ8NG7VK2TPZNVTS3/documents/changes","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:44.056Z","method":"GET","path":"/api/v1/orgs/01M50TDJSC3A8V39WCM2Z7FN0T/ai/cloud","status":200,"ms":9,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:48.026Z","method":"GET","path":"/api/v1/documents/01M50TDJTTWG0D9DHRZTFJH8C1","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:48.031Z","method":"GET","path":"/api/v1/documents/01M50TDJTTWG0D9DHRZTFJH8C1/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:20:48.055Z","method":"GET","path":"/api/v1/documents/01M50TDJTTWG0D9DHRZTFJH8C1","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50TDJTTWG0D9DHRZTFJH8C1",
+  "documentId": "01M50TDJTTWG0D9DHRZTFJH8C1",
+  "readAt": "2026-10-15T22:21:44.213Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TGC8CXBBTKSD0XVC18M04",
+      "document_id": "01M50TDJTTWG0D9DHRZTFJH8C1",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TGC7WZXWHY2YBKSK4H5CD",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size_bytes": 4404,
+      "checksum_sha256": "27e15e9cdda3a4f725487097d6756b5e6010c762d05c16a835ce57dbe481c13f",
+      "download_url": "/api/v1/documents/01M50TDJTTWG0D9DHRZTFJH8C1/download?version=2",
+      "created_by": "01M50TDJQ6R0QP2B0TWEVBHAXY",
+      "created_by_kind": "human",
+      "creat
+=== .harness-run-r15a/fault/FQ-22/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:22:24.415Z","case":"FQ-22","source":"app-trace","intent":"office-intent-936432c7-940b-410e-a45f-e7f0db523484","keyTag":"534d6e6aecf5","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T22:22:24.446Z","case":"FQ-22","source":"app-trace","intent":"office-intent-936432c7-940b-410e-a45f-e7f0db523484","keyTag":"534d6e6aecf5","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T22:23:16.890Z","case":"FQ-22","source":"app-trace","intent":"office-intent-936432c7-940b-410e-a45f-e7f0db523484","keyTag":"534d6e6aecf5","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T22:23:16.890Z","case":"FQ-22","source":"app-trace","intent":"office-intent-936432c7-940b-410e-a45f-e7f0db523484","keyTag":"534d6e6aecf5","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T22:23:16.890Z","case":"FQ-22","source":"app-trace","intent":"office-intent-936432c7-940b-410e-a45f-e7f0db523484","keyTag":"534d6e6aecf5","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T22:23:16.890Z","case":"FQ-22","source":"app-trace","intent":"office-intent-936432c7-940b-410e-a45f-e7f0db523484","keyTag":"534d6e6aecf5","attempt":1,"event":"committing -> committed","from":"committing","to":"committed","http":{"status":200,"code":null}}
+{"ts":"2026-10-15T22:22:16.225Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.826Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.837Z","method":"GET","path":"/api/v1/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.841Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.845Z","method":"GET","path":"/api/v1/orgs/o-fault-mva3srmo-23f6/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.853Z","method":"GET","path":"/api/v1/orgs/01M50TGDF26JFCHFS8PB9X0WQ6/billing","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.866Z","method":"GET","path":"/api/v1/orgs/01M50TGDF26JFCHFS8PB9X0WQ6/ai/cloud","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.870Z","method":"GET","path":"/api/v1/orgs/01M50TGDF26JFCHFS8PB9X0WQ6/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.876Z","method":"GET","path":"/api/v1/orgs/01M50TGDF26JFCHFS8PB9X0WQ6/workspaces","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.885Z","method":"GET","path":"/api/v1/workspaces/01M50TGDF74EJZYRT57PPV72M5/documents/changes","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.889Z","method":"GET","path":"/api/v1/orgs/01M50TGDF26JFCHFS8PB9X0WQ6/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:16.890Z","method":"GET","path":"/api/v1/orgs/01M50TGDF26JFCHFS8PB9X0WQ6/ai/credentials","status":503,"ms":10,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:20.854Z","method":"GET","path":"/api/v1/documents/01M50TGDGB0075D1NQWTRSQA4M","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:20.859Z","method":"GET","path":"/api/v1/documents/01M50TGDGB0075D1NQWTRSQA4M/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:22:20.897Z","method":"GET","path":"/api/v1/documents/01M50TGDGB0075D1NQWTRSQA4M","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50TGDGB0075D1NQWTRSQA4M",
+  "documentId": "01M50TGDGB0075D1NQWTRSQA4M",
+  "readAt": "2026-10-15T22:23:17.028Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50THKNR100JDNT3Q0NSHJ4J",
+      "document_id": "01M50TGDGB0075D1NQWTRSQA4M",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50THKN93C49016126JTVVG6",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 16584,
+      "checksum_sha256": "82e65532fe279ad574a870747ad58c9a332ba910f5db053de30c47b4f8c7156e",
+      "download_url": "/api/v1/documents/01M50TGDGB0075D1NQWTRSQA4M/download?version=2",
+      "created_by": "01M50TGDCV7KKQHEC4RFMWB21F",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-24/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:23:57.287Z","case":"FQ-24","source":"app-trace","intent":"office-intent-75644645-fadf-4735-b3f8-4e6a421ea12a","keyTag":"1f03eeb939df","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T22:23:49.047Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.631Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.637Z","method":"GET","path":"/api/v1/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.640Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.644Z","method":"GET","path":"/api/v1/orgs/o-fault-mva3ur90-f379/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.649Z","method":"GET","path":"/api/v1/orgs/01M50TK83Q1FR15XRWTA43ZRPQ/billing","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.659Z","method":"GET","path":"/api/v1/orgs/01M50TK83Q1FR15XRWTA43ZRPQ/ai/cloud","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.663Z","method":"GET","path":"/api/v1/orgs/01M50TK83Q1FR15XRWTA43ZRPQ/office/capabilities","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.668Z","method":"GET","path":"/api/v1/orgs/01M50TK83Q1FR15XRWTA43ZRPQ/workspaces","status":200,"ms":1,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.673Z","method":"GET","path":"/api/v1/workspaces/01M50TK83X392EBDFZRZDCP2FY/documents/changes","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.680Z","method":"GET","path":"/api/v1/orgs/01M50TK83Q1FR15XRWTA43ZRPQ/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:49.682Z","method":"GET","path":"/api/v1/orgs/01M50TK83Q1FR15XRWTA43ZRPQ/ai/credentials","status":503,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:53.659Z","method":"GET","path":"/api/v1/documents/01M50TK853WGRCX6PNXVAEHFF4","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:53.663Z","method":"GET","path":"/api/v1/documents/01M50TK853WGRCX6PNXVAEHFF4/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:23:53.716Z","method":"GET","path":"/api/v1/documents/01M50TK853WGRCX6PNXVAEHFF4","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50TK853WGRCX6PNXVAEHFF4",
+  "documentId": "01M50TK853WGRCX6PNXVAEHFF4",
+  "readAt": "2026-10-15T22:26:58.168Z",
+  "head": {
+    "revision": "1"
+  },
+  "versions": [
+    {
+      "id": "01M50TK853WGRCX6PNXX5648SH",
+      "document_id": "01M50TK853WGRCX6PNXVAEHFF4",
+      "version": 1,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TK84T45WFBTKKBXZ7MVRP",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18806,
+      "checksum_sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "download_url": "/api/v1/documents/01M50TK853WGRCX6PNXVAEHFF4/download?version=1",
+      "created_by": "01M50TK7ZGGF1PA8NKNSK50E9J",
+      "created_by_kind": "human",
+      "created_at
+=== .harness-run-r15a/fault/FQ-25/
+app-trace.jsonl
+case-result.json
+evidence-g5-a08.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{"ts":"2026-10-15T22:27:38.326Z","case":"FQ-25","source":"app-trace","intent":"office-intent-f3cb4883-5d87-4df8-ad06-adec99571b86","keyTag":"e7d9b05f121f","attempt":null,"event":"start -> queued","from":null,"to":"queued","http":null}
+{"ts":"2026-10-15T22:27:38.335Z","case":"FQ-25","source":"app-trace","intent":"office-intent-f3cb4883-5d87-4df8-ad06-adec99571b86","keyTag":"e7d9b05f121f","attempt":null,"event":"queued -> paused_offline","from":"queued","to":"paused_offline","http":{"status":null,"code":"network"}}
+{"ts":"2026-10-15T22:28:30.812Z","case":"FQ-25","source":"app-trace","intent":"office-intent-f3cb4883-5d87-4df8-ad06-adec99571b86","keyTag":"e7d9b05f121f","attempt":1,"event":"queued -> validating","from":"queued","to":"validating","http":null}
+{"ts":"2026-10-15T22:28:30.812Z","case":"FQ-25","source":"app-trace","intent":"office-intent-f3cb4883-5d87-4df8-ad06-adec99571b86","keyTag":"e7d9b05f121f","attempt":1,"event":"validating -> uploading","from":"validating","to":"uploading","http":null}
+{"ts":"2026-10-15T22:28:30.812Z","case":"FQ-25","source":"app-trace","intent":"office-intent-f3cb4883-5d87-4df8-ad06-adec99571b86","keyTag":"e7d9b05f121f","attempt":1,"event":"uploading -> committing","from":"uploading","to":"committing","http":null}
+{"ts":"2026-10-15T22:28:30.812Z","case":"FQ-25","source":"app-trace","intent":"office-intent-f3cb4883-5d87-4df8-ad06-adec99571b86","keyTag":"e7d9b05f121f","attempt":1,"event":"committing -> conflict","from":"committing","to":"conflict","http":{"status":409,"code":"conflict"}}
+{"ts":"2026-10-15T22:27:30.186Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.758Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.765Z","method":"GET","path":"/api/v1/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.769Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.772Z","method":"GET","path":"/api/v1/orgs/o-fault-mva3zhvo-ce1b/members/me","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.777Z","method":"GET","path":"/api/v1/orgs/01M50TT02654PCNX1AVS1GCJ9D/billing","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.788Z","method":"GET","path":"/api/v1/orgs/01M50TT02654PCNX1AVS1GCJ9D/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.792Z","method":"GET","path":"/api/v1/orgs/01M50TT02654PCNX1AVS1GCJ9D/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.799Z","method":"GET","path":"/api/v1/orgs/01M50TT02654PCNX1AVS1GCJ9D/workspaces","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.807Z","method":"GET","path":"/api/v1/workspaces/01M50TT02BY3VKT13ARA34VY3R/documents/changes","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.810Z","method":"GET","path":"/api/v1/orgs/01M50TT02654PCNX1AVS1GCJ9D/ai/credentials","status":503,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:30.815Z","method":"GET","path":"/api/v1/orgs/01M50TT02654PCNX1AVS1GCJ9D/ai/cloud","status":200,"ms":10,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:34.788Z","method":"GET","path":"/api/v1/documents/01M50TT03B67BVPN94SH2NAECQ","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:34.792Z","method":"GET","path":"/api/v1/documents/01M50TT03B67BVPN94SH2NAECQ/download","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-15T22:27:34.829Z","method":"GET","path":"/api/v1/documents/01M50TT03B67BVPN94SH2NAECQ","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{
+  "document_id": "01M50TT03B67BVPN94SH2NAECQ",
+  "documentId": "01M50TT03B67BVPN94SH2NAECQ",
+  "readAt": "2026-10-15T22:28:50.987Z",
+  "head": {
+    "revision": "2"
+  },
+  "versions": [
+    {
+      "id": "01M50TV6P78WX6YXYQ0EHE55DB",
+      "document_id": "01M50TT03B67BVPN94SH2NAECQ",
+      "version": 2,
+      "kind": "file",
+      "reason": "upload",
+      "file_id": "01M50TV6NVMPTTKFTJGK80K9CF",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 18806,
+      "checksum_sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "download_url": "/api/v1/documents/01M50TT03B67BVPN94SH2NAECQ/download?version=2",
+      "created_by": "01M50TSZY44GJYKV5Q7SC47XRX",
+      "created_by_kind": "human",
+      "created_at
