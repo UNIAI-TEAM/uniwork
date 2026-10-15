@@ -2,7 +2,9 @@ package document
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand/v2"
+	"sort"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -243,7 +245,11 @@ func (g *pageGen) table() any {
 			if header {
 				typ = "tableHeader"
 			}
-			cells = append(cells, genNode(typ, nil, genNode("paragraph", nil, runs...)))
+			var attrs map[string]any
+			if g.r.IntN(2) == 0 { // what the editor writes on every cell
+				attrs = map[string]any{"colspan": 1, "rowspan": 1}
+			}
+			cells = append(cells, genNode(typ, attrs, genNode("paragraph", nil, runs...)))
 		}
 		rows = append(rows, genNode("tableRow", nil, cells...))
 	}
@@ -323,13 +329,174 @@ func sameText(t *testing.T, label string, page, back json.RawMessage) {
 	}
 }
 
+// oracleOf is a second judge of "the same page", written apart from
+// canonicalNode, mergeText and sortedMarks: every rune of text with the marks
+// it carries (so how runs split does not matter), the node types in order, and
+// each node's attrs minus the defaults the editor writes. It reads the page
+// after Sanitize, so only what a stored page keeps is compared.
+func oracleOf(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	clean, _, err := Sanitize(raw)
+	if err != nil {
+		t.Fatalf("oracle: %v\n%s", err, raw)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(clean, &doc); err != nil {
+		t.Fatal(err)
+	}
+	return oracleNode(doc, true)
+}
+
+func oracleNode(n map[string]any, root bool) string {
+	typ, _ := n["type"].(string)
+	marks := oracleMarks(n["marks"])
+	if typ == "text" {
+		text, _ := n["text"].(string)
+		var b strings.Builder
+		for _, r := range text {
+			fmt.Fprintf(&b, "%q%s ", r, marks)
+		}
+		return b.String()
+	}
+	kids, _ := n["content"].([]any)
+	if root && len(kids) == 0 {
+		kids = []any{map[string]any{"type": "paragraph"}}
+	}
+	var attrs []string
+	raw, _ := n["attrs"].(map[string]any)
+	for k, v := range raw {
+		isCell := typ == "tableCell" || typ == "tableHeader"
+		switch {
+		case v == nil, v == "", v == false,
+			typ == "orderedList" && k == "start" && v == float64(1),
+			isCell && (k == "colspan" || k == "rowspan") && v == float64(1):
+			continue
+		}
+		attrs = append(attrs, fmt.Sprintf("%s=%v", k, v))
+	}
+	sort.Strings(attrs)
+	parts := make([]string, len(kids))
+	for i, c := range kids {
+		child, _ := c.(map[string]any)
+		parts[i] = oracleNode(child, false)
+	}
+	// Text is quoted runes and a node is type{...}(...), so the parts need no separator
+	// and two runs of text read as one.
+	return typ + "{" + strings.Join(attrs, ",") + "}" + marks + "(" + strings.Join(parts, "") + ")"
+}
+
+func oracleMarks(v any) string {
+	list, _ := v.([]any)
+	out := make([]string, 0, len(list))
+	for _, m := range list {
+		mark, _ := m.(map[string]any)
+		s, _ := mark["type"].(string)
+		if attrs, ok := mark["attrs"].(map[string]any); ok {
+			s += ":" + fmt.Sprint(attrs["href"])
+		}
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return "<" + strings.Join(out, ",") + ">"
+}
+
+// mutated is a page the writer can spell, then changed the way a stored page
+// is: attrs the editor writes and Markdown can do without (cells' colspan 1,
+// rowspan 1, colwidth, a list's start 1, null attrs), text runs split, empty
+// runs, marks in another order. Now and then it is changed for the worse (a
+// real colspan, an image width, a blank paragraph, a key Sanitize drops), so
+// both lossless and lossy pages come out, and the lossless ones are many.
+func (g *pageGen) mutated() json.RawMessage {
+	var doc map[string]any
+	if err := json.Unmarshal(g.page(), &doc); err != nil {
+		panic(err)
+	}
+	g.mutate(doc)
+	raw, _ := json.Marshal(doc)
+	return raw
+}
+
+func (g *pageGen) setAttr(n map[string]any, k string, v any) {
+	attrs, _ := n["attrs"].(map[string]any)
+	if attrs == nil {
+		attrs = map[string]any{}
+		n["attrs"] = attrs
+	}
+	if _, ok := attrs[k]; !ok {
+		attrs[k] = v
+	}
+}
+
+func (g *pageGen) mutate(n map[string]any) {
+	switch n["type"] {
+	case "tableCell", "tableHeader":
+		if g.r.IntN(2) == 0 {
+			g.setAttr(n, "colspan", 1)
+			g.setAttr(n, "rowspan", 1)
+			g.setAttr(n, "colwidth", nil)
+		}
+		if g.r.IntN(40) == 0 {
+			n["attrs"] = map[string]any{"colspan": 2}
+		}
+	case "orderedList":
+		g.setAttr(n, "start", 1)
+	case "codeBlock":
+		g.setAttr(n, "language", nil)
+	case "heading":
+		g.setAttr(n, "textAlign", nil)
+	case "image":
+		g.setAttr(n, "title", nil)
+		if g.r.IntN(30) == 0 {
+			n["attrs"].(map[string]any)["width"] = 300
+		}
+	case "paragraph":
+		if g.r.IntN(40) == 0 {
+			delete(n, "content")
+		}
+	}
+	if g.r.IntN(60) == 0 {
+		n["data-x"] = 1 // a key Sanitize drops: the stored page differs from its sanitized form
+	}
+	if marks, ok := n["marks"].([]any); ok {
+		g.r.Shuffle(len(marks), func(i, j int) { marks[i], marks[j] = marks[j], marks[i] })
+	}
+	kids, _ := n["content"].([]any)
+	out := make([]any, 0, len(kids))
+	for _, k := range kids {
+		child, _ := k.(map[string]any)
+		g.mutate(child)
+		text, _ := child["text"].(string)
+		if rs := []rune(text); child["type"] == "text" && len(rs) > 1 && g.r.IntN(4) == 0 {
+			at := g.n(1, len(rs)-1)
+			second := map[string]any{"type": "text", "text": string(rs[at:])}
+			if marks, ok := child["marks"]; ok {
+				second["marks"] = marks
+			}
+			child["text"] = string(rs[:at])
+			out = append(out, child, second)
+			continue
+		}
+		out = append(out, child)
+		if g.r.IntN(30) == 0 {
+			out = append(out, map[string]any{"type": "text", "text": ""})
+		}
+	}
+	if len(kids) > 0 {
+		n["content"] = out
+	}
+}
+
 // Pages made of what the writer can spell come back as the same page: every
 // symbol, token and neighbour the generator mixes is escaped or nested so the
 // reader gives it back. A failure here is a writer that lost something, not a
 // page that is merely lossy.
 func TestPageToMarkdownRoundTripsGeneratedPages(t *testing.T) {
 	g := newPageGen(1)
-	for i := 0; i < 600; i++ {
+	pages := 600
+	if raceEnabled {
+		pages = 150 // the race detector slows the parse 4-16x
+	}
+	for i := 0; i < pages; i++ {
 		page := g.page()
 		md, lossy, err := PageToMarkdown(page)
 		if err != nil {
@@ -342,20 +509,36 @@ func TestPageToMarkdownRoundTripsGeneratedPages(t *testing.T) {
 			t.Fatalf("page %d is lossy:\npage %s\nback %s\nmd %q\n%s", i, b, a, md, md)
 		}
 		sameText(t, "generated page", page, back)
+		if a, b := oracleOf(t, page), oracleOf(t, back); a != b {
+			t.Fatalf("page %d: the structure oracle sees a change:\n%s\n%s\nmd %q", i, a, b, md)
+		}
 		if again, lossy, _ := PageToMarkdown(back); again != md || lossy {
 			t.Fatalf("page %d: the page read back writes other Markdown (lossy %v):\n%q\n%q", i, lossy, md, again)
 		}
 	}
 }
 
-// Whatever Sanitize accepts converts without an error, and lossy says exactly
-// whether the independent read-back differs.
+// Whatever Sanitize accepts converts without an error, lossy says exactly
+// whether the independent read-back differs (or the stored page differs from
+// its sanitized form), and a page that is not lossy passes a judge apart from
+// canonicalPage. Half the pages are junk shapes, half are mutated pages the
+// writer can spell, so many of them are lossless and the oracle really runs.
 func TestPageToMarkdownOnAnyPage(t *testing.T) {
 	g := newPageGen(2)
-	accepted, lossyPages := 0, 0
-	for i := 0; i < 1500; i++ {
-		raw, _ := json.Marshal(genNode("doc", nil, g.wild(4), g.wild(3), g.wild(2)))
-		if _, _, err := Sanitize(raw); err != nil {
+	accepted, lossless := 0, 0
+	pages := 1500
+	if raceEnabled {
+		pages = 300
+	}
+	for i := 0; i < pages; i++ {
+		var raw json.RawMessage
+		if i%2 == 0 {
+			raw, _ = json.Marshal(genNode("doc", nil, g.wild(4), g.wild(3), g.wild(2)))
+		} else {
+			raw = g.mutated()
+		}
+		clean, _, err := Sanitize(raw)
+		if err != nil {
 			continue
 		}
 		accepted++
@@ -369,25 +552,31 @@ func TestPageToMarkdownOnAnyPage(t *testing.T) {
 		back, err := MarkdownToPage(md, AssetsOf(raw))
 		a, _ := canonicalPage(back)
 		b, _ := canonicalPage(raw)
-		same := err == nil && string(a) == string(b)
+		same := err == nil && string(a) == string(b) && sameAsSanitized(raw, clean)
 		if lossy == same {
 			t.Fatalf("page %d: lossy %v but read-back same %v\npage %s\nback %s\nmd %q", i, lossy, same, b, a, md)
 		}
 		if lossy {
-			lossyPages++
 			// What the reader makes of the Markdown always writes without error.
 			if _, _, err := PageToMarkdown(back); err != nil {
 				t.Fatalf("page %d: the page read back does not convert: %v", i, err)
 			}
 			continue
 		}
+		lossless++
 		sameText(t, "wild page", raw, back)
+		if x, y := oracleOf(t, raw), oracleOf(t, back); x != y {
+			t.Fatalf("page %d: lossy is false but the structure oracle sees a change:\n%s\n%s\nmd %q\nraw %s", i, x, y, md, raw)
+		}
 		if utf8.RuneCountInString(md) > MaxMarkdownRunes {
 			t.Fatalf("page %d: Markdown past the read cap is never lossless", i)
 		}
 	}
-	t.Logf("%d pages accepted, %d lossy", accepted, lossyPages)
-	if accepted < 1000 {
-		t.Fatalf("only %d of 1500 generated pages were accepted: the generator no longer reaches the writer", accepted)
+	t.Logf("%d pages accepted, %d lossless", accepted, lossless)
+	if accepted < pages*2/3 {
+		t.Fatalf("only %d of %d generated pages were accepted: the generator no longer reaches the writer", accepted, pages)
+	}
+	if lossless*4 < accepted {
+		t.Fatalf("only %d of %d pages are lossless: the oracle runs on too few", lossless, accepted)
 	}
 }

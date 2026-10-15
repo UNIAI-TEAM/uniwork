@@ -626,8 +626,17 @@ func canonicalPage(content json.RawMessage) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	return canonicalBytes(clean)
+}
+
+// canonicalBytes is canonicalPage without Sanitize, so a stored page can be
+// compared with its own sanitized form. A key a node or mark does not name is
+// an error, not something to skip: Sanitize would drop it.
+func canonicalBytes(content []byte) ([]byte, error) {
 	var doc pmNode
-	if err := json.Unmarshal(clean, &doc); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(content))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&doc); err != nil {
 		return nil, err
 	}
 	if len(doc.Content) == 0 {
@@ -639,7 +648,9 @@ func canonicalPage(content json.RawMessage) ([]byte, error) {
 
 func canonicalNode(n *pmNode) {
 	for k, v := range n.Attrs {
-		if v == nil || v == "" || v == false || (n.Type == "orderedList" && k == "start" && v == float64(1)) {
+		// The editor stores colspan and rowspan 1 on every cell, and a list's start 1.
+		cellSpan := (n.Type == "tableCell" || n.Type == "tableHeader") && (k == "colspan" || k == "rowspan")
+		if v == nil || v == "" || v == false || (n.Type == "orderedList" && k == "start" && v == float64(1)) || (cellSpan && v == float64(1)) {
 			delete(n.Attrs, k)
 		}
 	}

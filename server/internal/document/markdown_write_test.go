@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -393,12 +394,144 @@ func TestPageToMarkdownUsesThePagesOwnAssets(t *testing.T) {
 	}
 }
 
-// A page Sanitize drops pieces of is converted from what it keeps; Markdown
-// of the stored page is Markdown of the sanitized page.
-func TestPageToMarkdownSanitizesFirst(t *testing.T) {
-	page := json.RawMessage(`{"type":"doc","content":[1,"x",{"type":"script"},{"type":"paragraph","content":[{"type":"text","text":"a","marks":[{"type":"highlight"},{"type":"bold"}]},{"type":"text"}]}]}`)
-	md, lossy, err := PageToMarkdown(page)
-	if err != nil || lossy || md != "**a**" {
-		t.Fatalf("md %q lossy %v err %v", md, lossy, err)
+// A page that Sanitize would change is converted from what Sanitize keeps, so
+// the Markdown never shows the rest: it is lossy, and a null attr (what the
+// editor writes for an unset one) is not such a change.
+func TestPageToMarkdownOfAPageSanitizeWouldChange(t *testing.T) {
+	cases := []struct {
+		name  string
+		page  string
+		md    string
+		lossy bool
+	}{
+		{"unknown node, mark and a node that is no object", `{"type":"doc","content":[1,"x",{"type":"script"},{"type":"paragraph","content":[{"type":"text","text":"a","marks":[{"type":"highlight"},{"type":"bold"}]},{"type":"text"}]}]}`, "**a**", true},
+		{"unknown mark only", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"a","marks":[{"type":"highlight"}]}]}]}`, "a", true},
+		{"unknown attr", `{"type":"doc","content":[{"type":"paragraph","attrs":{"textAlign":"center"},"content":[{"type":"text","text":"a"}]}]}`, "a", true},
+		{"unknown key on a node", `{"type":"doc","content":[{"type":"paragraph","x":1,"content":[{"type":"text","text":"a"}]}]}`, "a", true},
+		{"unknown key on the doc", `{"type":"doc","version":2,"content":[{"type":"paragraph","content":[{"type":"text","text":"a"}]}]}`, "a", true},
+		{"link Sanitize refuses", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"a","marks":[{"type":"link","attrs":{"href":"javascript:alert(1)"}}]}]}]}`, "a", true},
+		{"content on a leaf", `{"type":"doc","content":[{"type":"horizontalRule","content":[{"type":"paragraph"}]}]}`, "---", true},
+		{"column width", `{"type":"doc","content":[{"type":"table","content":[{"type":"tableRow","content":[{"type":"tableCell","attrs":{"colwidth":[120]},"content":[` + paraJSON(textJSON("a")) + `]}]}]}]}`, "|  |\n| --- |\n| a |", true},
+		{"null attrs are the editor's unset", `{"type":"doc","content":[{"type":"heading","attrs":{"level":2,"textAlign":null},"content":[{"type":"text","text":"a"}]},{"type":"codeBlock","attrs":{"language":null},"content":[{"type":"text","text":"x"}]}]}`, "## a\n\n```\nx\n```", false},
+	}
+	for _, c := range cases {
+		md, lossy, err := PageToMarkdown(json.RawMessage(c.page))
+		if err != nil || md != c.md || lossy != c.lossy {
+			t.Errorf("%s: md %q lossy %v err %v, want %q lossy %v", c.name, md, lossy, err, c.md, c.lossy)
+		}
+	}
+}
+
+// What the web editor stores: stock TipTap attrs on every node. Cells carry
+// colspan 1 and rowspan 1 (colwidth null is dropped by Sanitize), a list its
+// start, a task item checked false, a code block language null, an image
+// null alt, title and width. None of it is a reason for a page to be lossy; a
+// real span still is.
+func TestPageToMarkdownOfAnEditorShapedPage(t *testing.T) {
+	cell := func(typ, text, spans string) string {
+		return `{"type":"` + typ + `","attrs":{` + spans + `,"colwidth":null},"content":[` + paraJSON(textJSON(text)) + `]}`
+	}
+	one := `"colspan":1,"rowspan":1`
+	row := func(cells ...string) string { return nodeJSON("tableRow", cells...) }
+	table := func(spans string) json.RawMessage {
+		return pageJSON(nodeJSON("table", row(cell("tableHeader", "A", one), cell("tableHeader", "B", one)), row(cell("tableCell", "1", one), cell("tableCell", "2", spans))))
+	}
+	md, lossy, err := PageToMarkdown(table(one))
+	if want := "| A | B |\n| --- | --- |\n| 1 | 2 |"; err != nil || lossy || md != want {
+		t.Fatalf("editor table: md %q lossy %v err %v, want %q", md, lossy, err, want)
+	}
+	for _, spans := range []string{`"colspan":2,"rowspan":1`, `"colspan":1,"rowspan":2`} {
+		page := table(spans)
+		if _, lossy, err := PageToMarkdown(page); err != nil || !lossy {
+			t.Errorf("a real span %s must stay lossy: lossy %v err %v", spans, lossy, err)
+		}
+		if _, same := checkRoundTrip(t, page); same {
+			t.Errorf("a real span %s reads back unchanged", spans)
+		}
+	}
+
+	page := pageJSON(
+		`{"type":"heading","attrs":{"level":1,"textAlign":null},"content":[`+textJSON("Kế hoạch")+`]}`,
+		`{"type":"orderedList","attrs":{"start":1},"content":[`+nodeJSON("listItem", paraJSON(textJSON("a")))+`]}`,
+		`{"type":"taskList","content":[{"type":"taskItem","attrs":{"checked":false},"content":[`+paraJSON(textJSON("b"))+`]}]}`,
+		`{"type":"codeBlock","attrs":{"language":null},"content":[`+textJSON("x")+`]}`,
+		paraJSON(`{"type":"image","attrs":{"src":"asset://`+testULID+`","alt":null,"title":null,"width":null}}`),
+	)
+	md, lossy, err = PageToMarkdown(page)
+	want := "# Kế hoạch\n\n1. a\n\n- [ ] b\n\n```\nx\n```\n\n![](asset://" + testULID + ")"
+	if err != nil || lossy || md != want {
+		t.Fatalf("editor defaults: md %q lossy %v err %v, want %q", md, lossy, err, want)
+	}
+}
+
+// A block or a run of backticks as long as a page may be makes the fence one
+// longer than any run inside, found in one pass: growing it until the text no
+// longer contains it took 30 s on a megabyte.
+func TestPageToMarkdownBacktickRunsAreFast(t *testing.T) {
+	for _, c := range []struct {
+		code  string
+		fence int
+	}{{"", 3}, {"`", 3}, {"``", 3}, {"```", 4}, {"a``` b `` c", 4}, {"`````", 6}, {"````\n```", 5}} {
+		md, _, err := PageToMarkdown(pageJSON(`{"type":"codeBlock","content":[` + textJSON(c.code) + `]}`))
+		fence := strings.Repeat("`", c.fence)
+		if want := fence + "\n" + c.code + "\n" + fence; err != nil || md != want {
+			t.Errorf("code %q: md %q err %v, want %q", c.code, md, err, want)
+		}
+	}
+	for _, c := range []struct{ text, want string }{
+		{"a", "`a`"}, {"a`b", "``a`b``"}, {"a``b`c", "```a``b`c```"}, {"`", "`` ` ``"}, {"``a", "``` ``a ```"},
+	} {
+		md, lossy, err := PageToMarkdown(pageJSON(paraJSON(textJSON(c.text, "code"))))
+		if err != nil || lossy || md != c.want {
+			t.Errorf("span %q: md %q lossy %v err %v, want %q", c.text, md, lossy, err, c.want)
+		}
+	}
+
+	run := strings.Repeat("`", 1_000_000)
+	start := time.Now()
+	md, lossy, err := PageToMarkdown(pageJSON(`{"type":"codeBlock","content":[` + textJSON(run) + `]}`))
+	block := time.Since(start)
+	fence := strings.Repeat("`", len(run)+1)
+	if err != nil || !lossy || md != fence+"\n"+run+"\n"+fence {
+		t.Fatalf("a block of a million backticks: lossy %v err %v, md of %d bytes", lossy, err, len(md))
+	}
+	span := strings.Repeat("`", 200_000)
+	start = time.Now()
+	md, lossy, err = PageToMarkdown(pageJSON(paraJSON(textJSON(span, "code"))))
+	inline := time.Since(start)
+	ticks := strings.Repeat("`", len(span)+1)
+	if err != nil || !lossy || md != ticks+" "+span+" "+ticks {
+		t.Fatalf("a span of 200000 backticks: lossy %v err %v, md of %d bytes", lossy, err, len(md))
+	}
+	// Both take about 10 ms; the quadratic loops took 30 s and 1 s.
+	if block > 3*time.Second || inline > 3*time.Second {
+		t.Fatalf("a block took %s and a span %s: the fence is not found in one pass", block, inline)
+	}
+}
+
+// The oracle in the fuzz tests must see what it is there to see.
+func TestPageOracleSeesChanges(t *testing.T) {
+	base := oracleOf(t, pageJSON(paraJSON(textJSON("ab", "bold"))))
+	same := oracleOf(t, pageJSON(paraJSON(textJSON("a", "bold"), textJSON("", "italic"), textJSON("b", "bold"))))
+	if base != same {
+		t.Fatalf("split runs read differently:\n%s\n%s", base, same)
+	}
+	for name, page := range map[string]json.RawMessage{
+		"mark gone":    pageJSON(paraJSON(textJSON("ab"))),
+		"other mark":   pageJSON(paraJSON(textJSON("ab", "italic"))),
+		"other text":   pageJSON(paraJSON(textJSON("ac", "bold"))),
+		"other node":   pageJSON(`{"type":"heading","attrs":{"level":1},"content":[` + textJSON("ab", "bold") + `]}`),
+		"two blocks":   pageJSON(paraJSON(textJSON("a", "bold")), paraJSON(textJSON("b", "bold"))),
+		"link address": pageJSON(paraJSON(textJSON("ab", "bold", "link:https://uniwork.vn"))),
+	} {
+		if oracleOf(t, page) == base {
+			t.Errorf("%s: the oracle does not see it", name)
+		}
+	}
+	span := func(attrs string) string {
+		return oracleOf(t, pageJSON(nodeJSON("table", nodeJSON("tableRow", `{"type":"tableCell","attrs":{`+attrs+`},"content":[`+paraJSON()+`]}`))))
+	}
+	if span(`"colspan":1,"rowspan":1`) != span(``) || span(`"colspan":2`) == span(``) {
+		t.Fatal("the oracle takes colspan 1 for a default and colspan 2 for a change")
 	}
 }

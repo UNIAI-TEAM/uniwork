@@ -1,6 +1,7 @@
 package document
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -35,7 +36,15 @@ func PageToMarkdown(content json.RawMessage) (md string, lossy bool, err error) 
 	}
 	md = strings.Trim((&mdWriter{}).blocks(doc.Content), "\n")
 	back, err := MarkdownToPage(md, AssetsOf(clean))
-	return md, err != nil || !samePage(back, clean), nil
+	// The Markdown is of the sanitized page: a stored page Sanitize would
+	// change has parts the Markdown never shows, so it is lossy too.
+	return md, err != nil || !samePage(back, clean) || !sameAsSanitized(content, clean), nil
+}
+
+func sameAsSanitized(content, clean []byte) bool {
+	a, err1 := canonicalBytes(content)
+	b, err2 := canonicalBytes(clean)
+	return err1 == nil && err2 == nil && bytes.Equal(a, b)
 }
 
 type mdWriter struct{}
@@ -125,10 +134,8 @@ func (w *mdWriter) block(n pmNode, alt bool) string {
 		for _, c := range n.Content {
 			b.WriteString(c.Text)
 		}
-		code, fence := b.String(), "```"
-		for strings.Contains(code, fence) {
-			fence += "`"
-		}
+		code := b.String()
+		fence := strings.Repeat("`", max(3, longestBackticks(code)+1))
 		lang := stringAttr(n.Attrs, "language")
 		if strings.ContainsAny(lang, " \t\r\n`") {
 			lang = "" // an info string is one word: the page reads back without it, so lossy
@@ -289,9 +296,29 @@ func closeMark(m mdMark) string {
 
 // inline writes a run of inline nodes. Marks nest the way a Markdown reader
 // opens and closes them: a mark stays open across runs that carry it, so
-// **a*b*c** is one bold with an italic inside. Whitespace at the edge of a run
-// moves outside the marks (CommonMark: a delimiter cannot touch a space on its
-// inner side).
+// **a*b*c** is one bold with an italic inside.
+//
+// The loop carries this state; every piece of it answers one CommonMark
+// flanking rule. A delimiter run opens only if no whitespace follows it and,
+// when punctuation follows it, whitespace or punctuation precedes it; it closes
+// by the mirror rule.
+//
+//   - active is the stack of open marks, outermost first. A run keeps the
+//     prefix it still carries (keep) and closes the rest in reverse, so nesting
+//     is proper and a "**" is never closed by a "*".
+//   - leading and trailing are the whitespace taken off a run's edge when a
+//     mark opens or closes beside it (a delimiter may not touch a space on its
+//     inner side). Trailing is written after the marks that close, leading
+//     before the marks that open, so the space ends up outside both.
+//   - keep drops to 0 when a link or underline opens: it must be outermost,
+//     because emphasis closing right after a link's ")" or a "</u>" has
+//     punctuation on its inner side and cannot close before a letter.
+//   - bang marks text ending in "!": before a link opener it is escaped, since
+//     "![" would read as an image; everywhere else "!" is plain text.
+//
+// What no choice of nesting can flank (bold ending in punctuation against a
+// letter, three overlapping runs side by side) is left to the round trip in
+// PageToMarkdown to report as lossy.
 func (w *mdWriter) inline(nodes []pmNode, ctx inlineCtx) string {
 	nodes = mergeText(nodes)
 	var parts []string
@@ -482,6 +509,22 @@ func linkDest(href string) string {
 
 var codeNewlines = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ")
 
+// longestBackticks is the length of the longest run of backticks in s. A fence
+// or a span's ticks one longer cannot be closed by anything inside; growing
+// them until s no longer contains them is quadratic on a block of backticks.
+func longestBackticks(s string) int {
+	best, run := 0, 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == '`' {
+			run++
+			best = max(best, run)
+		} else {
+			run = 0
+		}
+	}
+	return best
+}
+
 // codeSpan writes text as inline code. Edge spaces stay inside: a span keeps
 // them (it strips one pair only when both ends are spaces, so that case and a
 // backtick at an end get one more of each).
@@ -490,10 +533,7 @@ func codeSpan(s string, cell bool) string {
 	if cell {
 		s = strings.ReplaceAll(s, "|", `\|`) // GFM reads \| as a pipe inside a span too
 	}
-	ticks := "`"
-	for strings.Contains(s, ticks) {
-		ticks += "`"
-	}
+	ticks := strings.Repeat("`", longestBackticks(s)+1) // a run of its own length would close the span
 	pad := ""
 	if strings.HasPrefix(s, "`") || strings.HasSuffix(s, "`") ||
 		strings.HasPrefix(s, " ") && strings.HasSuffix(s, " ") && strings.Trim(s, " ") != "" {
