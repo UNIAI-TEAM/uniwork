@@ -1,0 +1,95 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18980 FRONTEND_ORIGIN=http://localhost:13880 API_PUBLIC_URL=http://localhost:18980 PREVIEW_ORIGIN=http://localhost:13881 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18980 NEXT_PUBLIC_WS_URL=ws://localhost:18980 NEXT_PUBLIC_APP_URL=http://localhost:13880 E2E_BASE_URL=http://localhost:13880 E2E_API_URL=http://localhost:18980; cd e2e; pnpm exec playwright test files-chat.spec.ts --workers=1 --retries=0 --reporter=line > /tmp/r20-chat.log 2>&1; echo "CHAT_CALLLOG_EXIT=$?"; grep -E '^ +[0-9]+ (passed|failed|flaky)' /tmp/r20-chat.log; sed -n '/1) files-chat/,/at .*files-chat.spec.ts:[0-9]*:[0-9]*/p' /tmp/r20-chat.log | head -150; echo ----API; grep -n '\[api\] [45]' /tmp/r20-chat.log | head -30; true
+CHAT_CALLLOG_EXIT=1
+  1 failed
+  5 passed (4.3m)
+  1) files-chat.spec.ts:265:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions 
+
+    Test timeout of 240000ms exceeded.
+
+    Error: locator.click: Target page, context or browser has been closed
+    Call log:
+      - waiting for getByRole('button', { name: /chat-owner/ }).first()
+        - locator resolved to <button tabindex="0" type="button" id="base-ui-_r_3u_" aria-expanded="false" aria-haspopup="dialog" data-slot="dialog-trigger" data-base-ui-click-trigger="" aria-label="Xem thông tin của chat-owner" class="inline-flex shrink-0 rounded-full">…</button>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <label data-slot="label" for="start-dm-search" class="flex items-center gap-2 select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 text-label font-medium text-foreground">Tên hoặc email</label> from <div id="_r_5f_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="space-y-2">…</div> from <div id="_r_5f_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 20ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <input type="search" data-slot="input" autocomplete="off" value="chat-owner" id="start-dm-search" aria-describedby="start-dm-search-hint" placeholder="VD: Minh hoặc minh@congty.vn" class="h-8 w-full min-w-0 pointer-coarse:min-h-11 rounded-control border px-2.5 py-1 font-sans text-title-sm tracking-normal transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-body file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-…/> from <div id="_r_5f_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 100ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <label data-slot="label" for="start-dm-search" class="flex items-center gap-2 select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 text-label font-medium text-foreground">Tên hoặc email</label> from <div id="_r_5f_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      115 × retrying click action
+            - waiting 500ms
+            - waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div class="space-y-2">…</div> from <div id="_r_5f_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+            - waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <input type="search" data-slot="input" autocomplete="off" value="chat-owner" id="start-dm-search" aria-describedby="start-dm-search-hint" placeholder="VD: Minh hoặc minh@congty.vn" class="h-8 w-full min-w-0 pointer-coarse:min-h-11 rounded-control border px-2.5 py-1 font-sans text-title-sm tracking-normal transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-body file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-…/> from <div id="_r_5f_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+            - waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <label data-slot="label" for="start-dm-search" class="flex items-center gap-2 select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 text-label font-medium text-foreground">Tên hoặc email</label> from <div id="_r_5f_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+            - waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <label data-slot="label" for="start-dm-search" class="flex items-center gap-2 select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 text-label font-medium text-foreground">Tên hoặc email</label> from <div id="_r_5f_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="space-y-2">…</div> from <div id="_r_5f_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <input type="search" data-slot="input" autocomplete="off" value="chat-owner" id="start-dm-search" aria-describedby="start-dm-search-hint" placeholder="VD: Minh hoặc minh@congty.vn" class="h-8 w-full min-w-0 pointer-coarse:min-h-11 rounded-control border px-2.5 py-1 font-sans text-title-sm tracking-normal transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-body file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-…/> from <div id="_r_5f_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+      270 |     // The owner's display name comes from registerVerified("chat-owner").
+      271 |     await member.getByLabel("Tên hoặc email").fill("chat-owner");
+    > 272 |     await member.getByRole("button", { name: /chat-owner/ }).first().click();
+          |                                                                      ^
+      273 |
+      274 |     const dmComposer = member.getByPlaceholder("Nhập tin nhắn…");
+      275 |     await expect(dmComposer).toBeVisible({ timeout: 20_000 });
+        at /workspace/e2e/files-chat.spec.ts:272:70
+----API
+14:[api] 401 POST http://localhost:18980/api/v1/auth/refresh
+16:[api] 401 POST http://localhost:18980/api/v1/auth/refresh
