@@ -92,6 +92,8 @@ type OfficeLaunchCreateInput struct {
 	DeploymentID string
 	ClientID     string
 	ReturnHint   string
+	// CommentID is the optional comment the page was opened on (G8-07 §3).
+	CommentID string
 }
 
 type OfficeLaunchSession struct {
@@ -100,6 +102,7 @@ type OfficeLaunchSession struct {
 	DocumentID string
 	Operation  string
 	Version    int32
+	CommentID  string
 	ExpiresAt  time.Time
 }
 
@@ -114,6 +117,7 @@ type OfficeLaunchExchangeInput struct {
 type OfficeLaunchExchange struct {
 	Session    OfficeLaunchSession
 	Document   db.Document
+	CommentID  string
 	RedeemedAt time.Time
 }
 
@@ -161,6 +165,28 @@ func (s *OfficeLaunchService) Create(ctx context.Context, actor Actor, in Office
 			return OfficeLaunchSession{}, err
 		}
 	}
+	// The optional comment rides the ticket (G8-07 §3). It must be a live
+	// comment of THIS document, proven through the tenant pair and the extra
+	// document identity check below, so the ticket can never name a comment
+	// of another document or tenant; an unknown id, including a comment of
+	// another document in the same workspace, is refused rather than stored.
+	commentID := strings.TrimSpace(in.CommentID)
+	if commentID != "" {
+		comment, err := s.docs.q.GetDocumentComment(ctx, db.GetDocumentCommentParams{
+			ID: commentID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return OfficeLaunchSession{}, ErrNotFound
+		} else if err != nil {
+			return OfficeLaunchSession{}, err
+		}
+		// The query scopes the id to the tenant pair, not to the document:
+		// a live comment of another document in this workspace would pass it
+		// untouched, so compare the document id as well.
+		if comment.DocumentID != doc.ID {
+			return OfficeLaunchSession{}, ErrNotFound
+		}
+	}
 	raw, err := randomLaunchTicket()
 	if err != nil {
 		return OfficeLaunchSession{}, err
@@ -178,6 +204,7 @@ func (s *OfficeLaunchService) Create(ctx context.Context, actor Actor, in Office
 		ID: id, TicketHash: hashLaunchTicket(raw), AccountID: actor.ID,
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 		Operation: operation, Version: version, ClientID: in.ClientID, DeploymentID: in.DeploymentID,
+		CommentID: pgtype.Text{String: commentID, Valid: commentID != ""},
 		ExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true}, CreatedBy: actor.ID,
 		CreatedByKind: string(actor.Kind),
 	}); err != nil {
@@ -193,7 +220,7 @@ func (s *OfficeLaunchService) Create(ctx context.Context, actor Actor, in Office
 	if err := tx.Commit(ctx); err != nil {
 		return OfficeLaunchSession{}, err
 	}
-	return OfficeLaunchSession{Ticket: raw, SessionID: id, DocumentID: doc.ID, Operation: operation, Version: version, ExpiresAt: expires}, nil
+	return OfficeLaunchSession{Ticket: raw, SessionID: id, DocumentID: doc.ID, Operation: operation, Version: version, CommentID: commentID, ExpiresAt: expires}, nil
 }
 
 func (s *OfficeLaunchService) Exchange(ctx context.Context, in OfficeLaunchExchangeInput) (OfficeLaunchExchange, error) {
@@ -289,7 +316,7 @@ func (s *OfficeLaunchService) Exchange(ctx context.Context, in OfficeLaunchExcha
 	if err := tx.Commit(ctx); err != nil {
 		return OfficeLaunchExchange{}, err
 	}
-	return OfficeLaunchExchange{Session: OfficeLaunchSession{SessionID: redeemed.ID, DocumentID: redeemed.DocumentID, Operation: redeemed.Operation, Version: redeemed.Version, ExpiresAt: redeemed.ExpiresAt.Time}, Document: doc, RedeemedAt: redeemed.RedeemedAt.Time}, nil
+	return OfficeLaunchExchange{Session: OfficeLaunchSession{SessionID: redeemed.ID, DocumentID: redeemed.DocumentID, Operation: redeemed.Operation, Version: redeemed.Version, CommentID: redeemed.CommentID.String, ExpiresAt: redeemed.ExpiresAt.Time}, Document: doc, CommentID: redeemed.CommentID.String, RedeemedAt: redeemed.RedeemedAt.Time}, nil
 }
 
 func (s *OfficeLaunchService) Revoke(ctx context.Context, actor Actor, sessionID string) error {

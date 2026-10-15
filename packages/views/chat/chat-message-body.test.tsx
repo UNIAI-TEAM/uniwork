@@ -56,6 +56,19 @@ describe("ChatMessageBody", () => {
     expect(document.body.textContent).not.toContain("mention://");
   });
 
+  it("shows a known name when the mention was stored as the user id", () => {
+    const id = "01M4W8BRMSRN6FBD2XM7WEM8";
+    render(
+      <ChatMessageBody
+        body={`[@${id}](mention://member/${id}) xem giúp`}
+        isOwn={false}
+        nameContext={[{ user_id: id, display_name: id, email: "dtramy28@gmail.com" }]}
+      />,
+    );
+    expect(screen.getByText("@dtramy28")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain(id);
+  });
+
   it("names someone who left by the label written into the message, never their id", () => {
     render(<ChatMessageBody body="[@Lan cũ](mention://member/01J8ABC) cảm ơn" isOwn nameContext={[]} />);
     expect(screen.getByText("@Lan cũ")).toBeInTheDocument();

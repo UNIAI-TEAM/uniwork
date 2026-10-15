@@ -14,6 +14,14 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
+// formatURLExpiry is a signed URL's expiry, or empty when nothing was signed.
+func formatURLExpiry(at time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+	return at.UTC().Format(time.RFC3339)
+}
+
 func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	kind := m.Kind
 	if kind == "" {
@@ -71,6 +79,7 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			Outcome:         m.VoiceCall.Outcome,
 			DurationSeconds: m.VoiceCall.DurationSeconds,
 			CallerID:        m.VoiceCall.CallerID,
+			Video:           m.VoiceCall.Video,
 			Participants:    participants,
 			RecordingID:     m.VoiceCall.RecordingID,
 			RecordingStatus: m.VoiceCall.RecordingStatus,
@@ -94,16 +103,22 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	}
 	if m.Voice != nil {
 		out.Voice = &sdo.VoiceMessageDTO{
-			DurationMS:  m.Voice.DurationMS,
-			ContentType: m.Voice.ContentType,
-			SizeBytes:   m.Voice.SizeBytes,
+			DurationMS:   m.Voice.DurationMS,
+			ContentType:  m.Voice.ContentType,
+			SizeBytes:    m.Voice.SizeBytes,
+			URL:          m.Voice.URL,
+			URLExpiresAt: formatURLExpiry(m.Voice.URLExpiresAt),
 		}
 	}
 	if m.File != nil {
 		out.File = &sdo.FileMessageDTO{
-			Filename:    m.File.Filename,
-			ContentType: m.File.ContentType,
-			SizeBytes:   m.File.SizeBytes,
+			Filename:     m.File.Filename,
+			ContentType:  m.File.ContentType,
+			SizeBytes:    m.File.SizeBytes,
+			URL:          m.File.URL,
+			DownloadURL:  m.File.DownloadURL,
+			ThumbURL:     m.File.ThumbURL,
+			URLExpiresAt: formatURLExpiry(m.File.URLExpiresAt),
 		}
 	}
 	if m.Poll != nil {

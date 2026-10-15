@@ -185,6 +185,11 @@ var isoReferences = []isoReference{
 	// Documents.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent page", body: map[string]any{
 		"title": isoUnique("ref"), "kind": "page", "parent_id": isoRef("document")}, covers: []string{"CreateDocumentSDI.parent_id"}},
+	// The folder kind of the same create (E6 FD-02): the duplicate check of a
+	// folder name runs under the workspace tree lock, and it must never answer
+	// 409 for a parent of another tenant - the parent gate decides first.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent folder", body: map[string]any{
+		"title": isoUnique("ref folder"), "kind": "folder", "parent_id": isoRef("folder")}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "user principal", body: map[string]any{
 		"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentSDI.principal_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "workspace principal", body: map[string]any{
@@ -236,6 +241,12 @@ var isoReferences = []isoReference{
 	// own document from B's device names a row that is not B's.
 	{method: "PUT", pattern: "/api/v1/documents/{documentID}/office/offline-lease", what: "another tenant's lease", body: map[string]any{
 		"lease": isoRef("offlineLease")}},
+	// The path names a file document, so the own-row control must name a
+	// comment of THAT document; the attack still names A's comment, refused
+	// by the tenant pair alone.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/office/sessions", what: "comment of another document", body: map[string]any{
+		"operation": "view", "client_id": isoOfficeClient, "deployment_id": isoOfficeDeployment, "comment_id": isoRef("fileDocComment")},
+		covers: []string{"CreateOfficeLaunchSessionSDI.comment_id"}},
 	{method: "POST", pattern: "/api/v1/office/sessions/exchange", what: "ticket and device", body: map[string]any{
 		"launch_ticket": isoRef("launchTicket"), "client_id": "uniwork-office", "deployment_id": "default", "device_session_id": isoRef("deviceSession")},
 		noControl: "a redeemed ticket is spent, and the matrix signs B in with a browser token, not a device bearer", covers: []string{"ExchangeOfficeLaunchSessionSDI.device_session_id"}},
@@ -247,6 +258,9 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/orgs/{org}/departments", what: "parent", body: map[string]any{"name": isoUnique("ref"), "parent_id": isoRef("department")}, covers: []string{"DepartmentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/orgs/{org}/departments", what: "head", body: map[string]any{"name": isoUnique("ref head"), "head_user_id": isoRef("peer")}, covers: []string{"DepartmentSDI.head_user_id"}},
 	{method: "PUT", pattern: "/api/v1/orgs/{org}/departments/order", what: "ids", allow2xx: true, body: map[string]any{"ids": []any{isoRef("department")}}},
+	{method: "POST", pattern: "/api/v1/orgs/{org}/invitations", what: "granted workspace", body: map[string]any{
+		"emails": []any{"iso-ref-invitee@example.com"}, "org_role": "member", "workspace_ids": []any{isoRef("ws")}},
+		covers: []string{"OrgInviteSDI.workspace_ids"}},
 	{method: "POST", pattern: "/api/v1/orgs/{org}/transfer-ownership", what: "new owner", body: map[string]any{
 		"to_user_id": isoRef("peer"), "password": "password123"}, noControl: "transferring B's ownership would end the run", covers: []string{"TransferOwnershipSDI.to_user_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/agents", what: "agent", body: map[string]any{"agent_id": isoRef("agent")},
@@ -270,6 +284,12 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/move", what: "parent page", body: map[string]any{
 		"parent_id": isoRef("document"), "revision": "1"}, noControl: "B's page is already at the root; moving it under itself is refused",
 		covers: []string{"MoveDocumentSDI.parent_id"}},
+	// The folder kind of the move (E6 FD-02): a folder is the one document the
+	// move locks the tree for and renames "(n)" against the destination, and a
+	// destination of another tenant must be refused before either happens.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/move", what: "folder into a foreign folder", docKey: "folder",
+		body:      map[string]any{"parent_id": isoRef("folder"), "revision": "1"},
+		noControl: "the own-ids control would move B's folder into itself, which is a cycle, and every later case then reads a stale revision"},
 	{method: "POST", pattern: "/api/v1/tasks/{taskID}/subscribe", what: "subscriber", body: map[string]any{"user_id": isoRef("owner"), "user_type": "member"},
 		covers: []string{"SubscribeTaskSDI.user_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "thread", body: map[string]any{

@@ -9,9 +9,11 @@ import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { CollectionPageState } from "../layout/collection-page";
+import { useOptionalNavigation } from "../navigation";
 import { DocumentActionsMenu } from "./document-actions-menu";
 import { DocumentCommentsPanel } from "./document-comments-panel";
 import { DocumentCommentsProvider } from "./document-comments-context";
+import { DocumentInboxState } from "./document-inbox-state";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { DocumentWorkspace } from "./document-workspace";
 
@@ -60,6 +62,9 @@ export function DocumentDetailView({
   // error_class first, then the stable code, then the status: a 403 that
   // arrives without a stamp must still read as "no access", not as a crash.
   const errorClass = error ? classifyDocumentError(error).cls : undefined;
+  // A link that names a comment came from the Inbox (or its push): its refusals are the
+  // S15 page messages with the way back to the Inbox (UNI-1389 rows 1-2).
+  const fromInbox = (useOptionalNavigation()?.searchParams.get("comment") ?? "") !== "";
 
   const backAction = (
     <Button type="button" variant="outline" size="sm" onClick={onBackToList}>
@@ -85,6 +90,7 @@ export function DocumentDetailView({
   // Losing read access hides the copy already on screen — and a first load
   // that is refused reads the same way, never as a load error.
   if (error && errorClass === "permission") {
+    if (fromInbox) return <DocumentInboxState reason="no_access" className="mx-auto w-full max-w-3xl" />;
     return (
       <CollectionPageState
         className="mx-auto w-full max-w-3xl"
@@ -99,6 +105,9 @@ export function DocumentDetailView({
   }
 
   if (!query.data) {
+    if (fromInbox && (errorClass === "missing" || errorClass === "gone")) {
+      return <DocumentInboxState reason="gone" className="mx-auto w-full max-w-3xl" />;
+    }
     // 404 and an unreachable server are answered differently on purpose; both
     // keep the id's existence out of the copy the user sees.
     const missing = errorClass === "missing";

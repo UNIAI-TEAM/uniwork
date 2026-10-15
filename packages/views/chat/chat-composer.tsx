@@ -17,7 +17,7 @@ import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocom
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
-import { CHAT_FILE_ACCEPT, pickChatAcceptedFiles } from "./chat-file-accept";
+import { CHAT_FILE_ACCEPT, CHAT_FILE_MAX_LABEL, isChatFileTooLarge, pickChatAcceptedFiles } from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 import { useComposerMentions } from "./use-composer-mentions";
 import { useFileDropZone } from "../editor/use-file-drop-zone";
@@ -73,6 +73,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionAnchorRef = useRef<HTMLDivElement>(null);
   const mentionListId = useId();
   const counterId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,12 +105,11 @@ export function ChatComposer({
     (files: File[]) => {
       if (disabled || !onSendFile) return;
       const accepted = pickChatAcceptedFiles(files);
-      if (accepted.length === 0) {
-        if (files.length > 0) toast.error(t("chat.file_type_unsupported"));
-        return;
-      }
+      const ready = accepted.filter((file) => !isChatFileTooLarge(file));
       if (accepted.length < files.length) toast.error(t("chat.file_type_unsupported"));
-      setStagedFiles((current) => [...current, ...accepted]);
+      if (ready.length < accepted.length) toast.error(t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }));
+      if (ready.length === 0) return;
+      setStagedFiles((current) => [...current, ...ready]);
       textareaRef.current?.focus();
     },
     [disabled, onSendFile, t],
@@ -279,7 +279,7 @@ export function ChatComposer({
               />
             </div>
 
-            <div className="relative min-w-0 flex-1">
+            <div ref={mentionAnchorRef} className="relative min-w-0 flex-1">
               {mentions.open ? (
                 <ChatMentionAutocomplete
                   listId={mentionListId}
@@ -287,6 +287,7 @@ export function ChatComposer({
                   selectedIndex={mentions.activeIndex}
                   onSelect={mentions.insert}
                   onHover={mentions.setSelectedIndex}
+                  anchorRef={mentionAnchorRef}
                   memberAvatarByUserId={memberAvatarByUserId}
                 />
               ) : null}

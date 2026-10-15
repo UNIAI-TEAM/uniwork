@@ -1,6 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { ApiError } from "@uniwork/core/api";
+import { CHAT_FILE_MAX_BYTES } from "./chat-file-accept";
 import { useChatMediaSend } from "./use-chat-media-send";
 
 initI18n();
@@ -109,7 +111,27 @@ describe("useChatMediaSend", () => {
     await act(async () => {
       await result.current.handleSendFile(new File(["x"], "note.txt"));
     });
-    expect(toast.error).toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Không gửi được tệp. Thử lại.");
     expect(clearReply).not.toHaveBeenCalled();
+  });
+
+  it("says the file is over the size limit before uploading", async () => {
+    const { result } = setup();
+    const file = new File([new Uint8Array(1)], "big.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "size", { value: CHAT_FILE_MAX_BYTES + 1 });
+    await act(async () => {
+      await result.current.handleSendFile(file);
+    });
+    expect(sendFileMessage.mutateAsync).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Tệp lớn hơn mức cho phép. Dung lượng tối đa là 25 MB.");
+  });
+
+  it("says the file is over the size limit when the server refuses it", async () => {
+    sendFileMessage.mutateAsync.mockRejectedValueOnce(new ApiError("file must be at most 25 MiB", "too_large", 413));
+    const { result } = setup();
+    await act(async () => {
+      await result.current.handleSendFile(new File(["x"], "note.pdf", { type: "application/pdf" }));
+    });
+    expect(toast.error).toHaveBeenCalledWith("Tệp lớn hơn mức cho phép. Dung lượng tối đa là 25 MB.");
   });
 });

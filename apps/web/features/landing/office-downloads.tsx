@@ -1,4 +1,5 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import { Download } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -62,17 +63,6 @@ export function useOfficeInstallers(): OfficeInstallers {
   return { status, ...published, guess: guess ?? UNKNOWN_PLATFORM, retry: () => { void query.refetch(); }, retrying: query.isFetching };
 }
 
-/**
- * The hero buttons of one OS. The visitor's own variant is the one primary
- * button; a Mac whose chip is not proven (Safari, Firefox, reduced user agent)
- * gets one button per published variant instead of a guess.
- */
-function heroButtons({ os, installers }: OfficeOsGroup, guess: DesktopPlatformGuess): { buttons: OfficeInstallerOption[]; both: boolean } {
-  const own = guess.platform ? installers.find((item) => item.platform === guess.platform) : undefined;
-  if (os === "macos" && installers.length > 1 && !(own && guess.confidence === "certain")) return { buttons: installers, both: true };
-  return { buttons: [own ?? installers[0]].flatMap((item) => (item ? [item] : [])), both: false };
-}
-
 function VariantLabel({ installer }: { installer: OfficeInstallerOption }) {
   const { t } = useTranslation();
   return <>{t(`office.desktop.install.fmt.${DESKTOP_INSTALLER_KINDS[installer.platform].format}`)}</>;
@@ -91,34 +81,6 @@ function InstallersError({ retry, retrying }: Pick<OfficeInstallers, "retry" | "
   </div>;
 }
 
-/** Hero buttons: one primary button per OS (the visitor's variant), the variants as links beneath it. */
-export function OfficeHeroDownloads() {
-  const { t } = useTranslation();
-  const { status, groups, guess, retry, retrying } = useOfficeInstallers();
-  if (status === "loading") return <div className="office-hero-downloads" aria-busy>{OS_ORDER.map((os, index) => <div className="office-os" key={os}>
-    <SkeletonButton primary={index === 0} /><span aria-hidden className="office-os-variants office-skeleton-variants" />
-  </div>)}</div>;
-  if (status === "error") return <div className="office-hero-downloads"><InstallersError retry={retry} retrying={retrying} /></div>;
-  if (groups.length === 0) return <div className="office-hero-downloads"><p className="office-unavailable" role="status">{t("landing.office.hero.unavailable")}</p></div>;
-  return <div className="office-hero-downloads">{groups.map((group) => {
-    const { os, installers } = group;
-    const { buttons, both } = heroButtons(group, guess);
-    const osName = t(`office.desktop.install.os.${os}`);
-    return <div className="office-os" key={os} data-office-os={os}>
-      <div className="office-os-buttons">{buttons.map((installer) => <a key={installer.platform} className={cn(buttonVariants({ variant: os === "macos" ? "brand" : "outline", size: "lg" }), "office-os-button")} href={installer.url} download>
-        <OSGlyph os={os} />{both
-          ? t(`landing.office.hero.downloadBoth.${DESKTOP_INSTALLER_KINDS[installer.platform].format}`, { defaultValue: t("landing.office.hero.downloadFor", { os: osName }) })
-          : t("landing.office.hero.downloadFor", { os: osName })}
-      </a>)}</div>
-      {both
-        ? <small className="office-os-help">{t("landing.office.hero.macChipHelp")}</small>
-        : <ul className="office-os-variants" aria-label={t("landing.office.hero.variants", { os: osName })}>
-          {installers.map((installer) => <li key={installer.platform}><a href={installer.url} download><VariantLabel installer={installer} /></a></li>)}
-        </ul>}
-    </div>;
-  })}</div>;
-}
-
 /** Download block: per OS, the requirement line and every published variant. */
 export function OfficeDownloadColumns() {
   const { t } = useTranslation();
@@ -135,7 +97,7 @@ export function OfficeDownloadColumns() {
       <h3><OSGlyph os={os} />{t(`office.desktop.install.os.${os}`)}</h3>
       <p>{t("landing.office.download.requirements", { value: requirement })}</p>
       <ul>{installers.map((installer) => <li key={installer.platform}>
-        <a className={buttonVariants({ variant: "outline", size: "lg" })} href={installer.url} download><Download aria-hidden /><VariantLabel installer={installer} /></a>
+        <MarketingAnchor className={buttonVariants({ variant: "outline", size: "lg" })} href={installer.url} download><Download aria-hidden /><VariantLabel installer={installer} /></MarketingAnchor>
       </li>)}</ul>
       {installers.some((installer) => installer.unsigned) && <small>{t("landing.office.download.unsigned")}</small>}
     </section>;

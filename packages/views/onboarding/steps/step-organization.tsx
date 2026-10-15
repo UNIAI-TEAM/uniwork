@@ -90,9 +90,13 @@ export function StepOrganization({
   // membership, which no longer counts as belonging (ADR 0032 D1).
   const held = organizations.filter(holdsOrganization);
   const resume = held.length > 0;
-  // resume: null = chưa chọn gì → CTA disabled. Click lại card đang chọn = bỏ chọn.
+  // resume: null = chưa chọn gì → CTA disabled. A radio never unchecks: a
+  // press on the picked card keeps it picked. With one organization held there
+  // is nothing to choose between, so it starts picked (derived, so a list
+  // that arrives after mount still picks it).
   const [pickedId, setPickedId] = useState<string | null>(selected?.id ?? null);
-  const picked = held.find((o) => o.id === pickedId) ?? null;
+  const effectiveId = pickedId ?? (held.length === 1 ? held[0]!.id : null);
+  const picked = held.find((o) => o.id === effectiveId) ?? null;
   // The server refused a create because the account already belongs to an
   // organization (created in another tab, or joined meanwhile).
   const [alreadyIn, setAlreadyIn] = useState<{ organization: HeldOrganization } | null>(null);
@@ -246,18 +250,25 @@ export function StepOrganization({
             // `headline_resume` names one organization. Above a list of three
             // equal cards that arbitrarily privileges the first, so it is used
             // only when there is in fact exactly one to name.
+            // Refused: "Name your organization" above a notice that says it
+            // cannot be named would contradict it, so the heading says what
+            // happened and the notice carries the rule.
             resume
               ? held.length === 1
                 ? t("onboarding.step_organization.headline_resume", { name: held[0]!.name })
                 : t("onboarding.step_organization.headline_resume_many")
-              : t("onboarding.step_organization.headline_first")
+              : refused
+                ? t("onboarding.step_organization.headline_refused")
+                : t("onboarding.step_organization.headline_first")
           }
           description={
             only
               ? t("onboarding.step_organization.lede_resume_one", { name: only.name })
               : resume
                 ? t("onboarding.step_organization.lede_resume")
-                : t("onboarding.step_organization.lede_first")
+                : refused
+                  ? t("onboarding.step_organization.lede_refused")
+                  : t("onboarding.step_organization.lede_first")
           }
         />
         {resume ? (
@@ -266,8 +277,8 @@ export function StepOrganization({
               {held.map((o) => (
                 <PickerCard
                   key={o.id}
-                  selected={pickedId === o.id}
-                  onSelect={() => setPickedId((p) => (p === o.id ? null : o.id))}
+                  selected={effectiveId === o.id}
+                  onSelect={() => setPickedId(o.id)}
                   title={o.name}
                   subtitle={`${host}/${o.slug}`}
                   avatar={avatarInitial(o.name)}
@@ -288,7 +299,10 @@ export function StepOrganization({
         ) : (
           <Button
             size="lg"
-            className="w-full"
+            // The label can carry the organization's name ("Tạo {{name}}"),
+            // which may be long: it wraps, balanced, and the button grows from
+            // its usual height instead of clipping or forcing the step wide.
+            className={NAME_CTA}
             aria-disabled={disabled || undefined}
             aria-describedby={STEP_HINT_ID}
             // `aria-disabled` keeps the button focusable on purpose, so blocking
@@ -305,6 +319,13 @@ export function StepOrganization({
     </>
   );
 }
+
+/**
+ * A full-width CTA whose label may carry a name: it wraps (Button is
+ * nowrap by default) and grows from the lg height, keeping the coarse
+ * pointer floor the Button already sets.
+ */
+const NAME_CTA = "h-auto min-h-9 w-full py-2 whitespace-normal text-balance [overflow-wrap:anywhere]";
 
 export function PickerCard({
   selected,
@@ -324,9 +345,14 @@ export function PickerCard({
       <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-body font-semibold text-primary-foreground">
         {avatar}
       </span>
+      {/* Wrapped in full and breakable anywhere, never clamped: the card
+          grows instead. A two-line clamp still cut a short name to
+          "Anpha Stud…" at 200% text on a phone, where the avatar and padding
+          leave the text a few characters, and a touch screen has no way to
+          show the rest. */}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-body font-medium text-foreground">{title}</span>
-        <span className="truncate font-mono text-caption text-muted-foreground">{subtitle}</span>
+        <span className="text-body font-medium text-foreground [overflow-wrap:anywhere]">{title}</span>
+        <span className="font-mono text-caption text-muted-foreground [overflow-wrap:anywhere]">{subtitle}</span>
       </span>
       <RadioMark selected={selected} />
     </button>

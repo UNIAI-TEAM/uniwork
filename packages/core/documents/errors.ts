@@ -18,6 +18,10 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   copy_consent_required: "conflict",
   owner_requires_copy: "conflict",
   document_upload_invalid: "conflict",
+  // A folder create or rename asked for a name a live sibling holds (E6
+  // FD-02). The server stamps the class, so this entry only fires when the
+  // stamp is missing; it keeps the mirror true to errorClassByCode.
+  folder_name_taken: "conflict",
   document_deleted: "gone",
   quota_exceeded: "quota",
   forbidden: "permission",

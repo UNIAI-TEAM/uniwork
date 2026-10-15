@@ -21,6 +21,17 @@ func newBillingFixture(t *testing.T) *billingFixture {
 	return &billingFixture{entitlementFixture: ef, billing: NewBillingService(ef.pool, ef.q, ef.orgs, nil), auth: auth}
 }
 
+// assignPlan is the platform-console switch: a reason, one admin_actions row
+// and the subscription audit, without using the customer route.
+func (f *billingFixture) assignPlan(t *testing.T, adminID, planCode string) EntitlementSnapshot {
+	t.Helper()
+	snap, err := NewAdminService(f.pool, f.q, f.billing, f.ent).ChangePlan(f.ctx, adminID, f.orgID, planCode, "pilot for this organization")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snap
+}
+
 // seedPlan adds a plan the way a platform admin would (SQL for now, F-11 API
 // later). Plan codes live in the test only — never in code.
 func (f *billingFixture) seedPlan(t *testing.T, code string, price int64, limits map[string]int64) {
@@ -81,6 +92,38 @@ func TestChangePlanByOwner(t *testing.T) {
 	}
 }
 
+func TestChangePlanSamePlanKeepsUsage(t *testing.T) {
+	f := newBillingFixture(t)
+	before, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.consume(ConsumeInput{OrganizationID: f.orgID, Meter: FeatureAITokens, Delta: 40, Actor: Human(f.owner.ID)}); err != nil {
+		t.Fatal(err)
+	}
+	var events int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'subscription.changed' AND organization_id = $1`, f.orgID).Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := f.billing.ChangePlan(f.ctx, f.owner.ID, f.orgID, before.Plan.Code, before.Subscription.RowVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !snap.Subscription.CurrentPeriodStart.Time.Equal(before.Subscription.CurrentPeriodStart.Time) {
+		t.Fatalf("period start moved from %v to %v", before.Subscription.CurrentPeriodStart.Time, snap.Subscription.CurrentPeriodStart.Time)
+	}
+	if snap.Subscription.RowVersion != before.Subscription.RowVersion {
+		t.Fatalf("row_version = %d, want %d", snap.Subscription.RowVersion, before.Subscription.RowVersion)
+	}
+	if e, _ := lookup(snap.Entitlements, FeatureAITokens); e.Current != 40 {
+		t.Fatalf("ai.tokens = %d, want 40", e.Current)
+	}
+	var after int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'subscription.changed' AND organization_id = $1`, f.orgID).Scan(&after); err != nil || after != events {
+		t.Fatalf("subscription.changed rows %d -> %d (%v)", events, after, err)
+	}
+}
+
 func TestChangePlanGates(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "paid_team", 500000, nil)
@@ -122,13 +165,31 @@ func TestChangePlanGates(t *testing.T) {
 		t.Fatalf("downgrade below current usage: got %v", err)
 	}
 
-	// Platform staff may set any plan, paid included, without being a member.
+	// Platform staff set any plan, paid included, through the admin service.
+	// The customer route refuses them even with users.platform_role = admin.
 	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, outsider.ID); err != nil {
 		t.Fatal(err)
 	}
-	snap, err := f.billing.ChangePlan(f.ctx, outsider.ID, f.orgID, "paid_team", v)
-	if err != nil || snap.Plan.Code != "paid_team" || snap.Subscription.Provider != "manual" {
-		t.Fatalf("platform admin: %v %+v", err, snap.Plan)
+	var actionsBefore, auditsBefore int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM admin_actions WHERE target_id = $1 AND action = 'organization.plan_changed'`, f.orgID).Scan(&actionsBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'subscription.changed'`, f.orgID).Scan(&auditsBefore); err != nil {
+		t.Fatal(err)
+	}
+	snap := f.assignPlan(t, outsider.ID, "paid_team")
+	if snap.Plan.Code != "paid_team" || snap.Subscription.Provider != "manual" {
+		t.Fatalf("platform admin: %+v", snap.Plan)
+	}
+	var actionsAfter, auditsAfter int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM admin_actions WHERE target_id = $1 AND action = 'organization.plan_changed'`, f.orgID).Scan(&actionsAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'subscription.changed'`, f.orgID).Scan(&auditsAfter); err != nil {
+		t.Fatal(err)
+	}
+	if actionsAfter != actionsBefore+1 || auditsAfter != auditsBefore+1 {
+		t.Fatalf("admin_actions %d->%d, audit_events %d->%d", actionsBefore, actionsAfter, auditsBefore, auditsAfter)
 	}
 }
 
@@ -160,9 +221,7 @@ func TestChangePlanContactOnlyRefusedForOwner(t *testing.T) {
 	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.billing.ChangePlan(f.ctx, admin.ID, f.orgID, "paid_team", f.version(t)); err != nil {
-		t.Fatal(err)
-	}
+	f.assignPlan(t, admin.ID, "paid_team")
 	v := f.version(t)
 	_, err = f.billing.ChangePlan(f.ctx, f.owner.ID, f.orgID, "contact_ent", v)
 	if !errors.As(err, &ce) || ce.Code != "checkout_required" {
@@ -176,9 +235,9 @@ func TestChangePlanContactOnlyRefusedForOwner(t *testing.T) {
 		t.Fatalf("paid plan moved: %s v%d", stayed.Plan.Code, stayed.Subscription.RowVersion)
 	}
 
-	snap, err := f.billing.ChangePlan(f.ctx, admin.ID, f.orgID, "contact_ent", v)
-	if err != nil || snap.Plan.Code != "contact_ent" {
-		t.Fatalf("platform admin assigns a contact plan: %v %+v", err, snap.Plan)
+	snap := f.assignPlan(t, admin.ID, "contact_ent")
+	if snap.Plan.Code != "contact_ent" {
+		t.Fatalf("platform admin assigns a contact plan: %+v", snap.Plan)
 	}
 }
 
@@ -186,19 +245,50 @@ func TestChangePlanDowngradeFromPaidBlocked(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "paid_team", 500000, nil)
 	f.seedPlan(t, "free_small", 0, map[string]int64{FeatureWorkspacesMax: 99})
-	v := f.version(t)
 	admin := registerVerified(t, f.q, f.auth, "bill-admin@example.com", "Admin")
 	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.billing.ChangePlan(f.ctx, admin.ID, f.orgID, "paid_team", v); err != nil {
-		t.Fatal(err)
-	}
-	v = f.version(t)
+	f.assignPlan(t, admin.ID, "paid_team")
+	v := f.version(t)
 	_, err := f.billing.ChangePlan(f.ctx, f.owner.ID, f.orgID, "free_small", v)
 	var ce CodedError
 	if !errors.As(err, &ce) || ce.Code != "downgrade_not_allowed" {
 		t.Fatalf("owner downgrade from paid: got %v", err)
+	}
+}
+
+func TestCustomerBillingRefusesPlatformAdminOutsider(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
+	f.seedPlan(t, "free_small", 0, nil)
+	before, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outsider := registerVerified(t, f.q, f.auth, "bill-staff-outsider@example.com", "Staff")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, outsider.ID); err != nil {
+		t.Fatal(err)
+	}
+	v := before.Subscription.RowVersion
+	if _, err := f.billing.ChangePlan(f.ctx, outsider.ID, f.orgID, "free_small", v); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("ChangePlan: got %v", err)
+	}
+	if _, err := f.billing.Cancel(f.ctx, outsider.ID, f.orgID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("Cancel: got %v", err)
+	}
+	if _, err := f.billing.Resume(f.ctx, outsider.ID, f.orgID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("Resume: got %v", err)
+	}
+	if _, err := f.billing.Checkout(f.ctx, outsider.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("Checkout: got %v", err)
+	}
+	after, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Plan.ID != before.Plan.ID || after.Subscription.RowVersion != before.Subscription.RowVersion {
+		t.Fatalf("plan moved: %s v%d", after.Plan.Code, after.Subscription.RowVersion)
 	}
 }
 

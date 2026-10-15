@@ -134,9 +134,11 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	}
 
 	// The subtree tells both checks what they need: the members for the
-	// cycle test and the height for the depth bound.
+	// cycle test and the height for the depth bound. max_level is the
+	// corrupted-chain guard, shared with every other subtree walk.
 	subtree, err := q.ListDocumentSubtree(ctx, db.ListDocumentSubtreeParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
+		MaxLevel: subtreeMaxLevel(),
 	})
 	if err != nil {
 		return DocumentView{}, err
@@ -227,27 +229,70 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 			return DocumentView{}, err
 		}
 	}
+	// The destination may already hold the moved document's name - a live
+	// folder when a folder moves, a live document of the same kind when a page
+	// or a file does (FD-D5). The name then becomes "base (n)", the smallest n
+	// the destination and this command leave free. The write runs in a
+	// SAVEPOINT and is retried: the folder-name index of PR 2 is the safety net
+	// behind the tree lock, and every attempt re-reads the taken names rather
+	// than reusing the previous attempt's answer (§3.3).
+	//
 	// Visibility is deliberately untouched: it is inherited only when a document
 	// is created (CreatePage, CreateFileDocument), never on a move, so a
 	// restricted folder is not a boundary around what is moved into it.
-	updated, err := q.MoveDocument(ctx, db.MoveDocumentParams{
-		ParentID:         nullText(in.ParentID),
-		Position:         position,
-		UpdatedBy:        actor.ID,
-		UpdatedByKind:    string(actor.Kind),
-		ID:               doc.ID,
-		OrganizationID:   doc.OrganizationID,
-		WorkspaceID:      doc.WorkspaceID,
-		ExpectedRevision: doc.Revision,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return DocumentView{}, errRevisionConflict(doc.Revision)
+	scope := documentNameScope{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		ParentID: in.ParentID, Kind: doc.Kind, ExcludeID: doc.ID,
 	}
-	if err != nil {
-		return DocumentView{}, err
+	var updated db.Document
+	var title string
+	var moveErr error
+	for attempt := 1; attempt <= titleWriteAttempts; attempt++ {
+		moveErr = s.withTitleSavepoint(ctx, tx, attempt, func() error {
+			name, err := s.availableMoveTitle(ctx, q, scope, doc.Title)
+			if err != nil {
+				return err
+			}
+			row, err := q.MoveDocument(ctx, db.MoveDocumentParams{
+				ParentID:         nullText(in.ParentID),
+				Position:         position,
+				Title:            name.Title,
+				SearchText:       documentSearchText(name.Title, doc.ContentText),
+				UpdatedBy:        actor.ID,
+				UpdatedByKind:    string(actor.Kind),
+				ID:               doc.ID,
+				OrganizationID:   doc.OrganizationID,
+				WorkspaceID:      doc.WorkspaceID,
+				ExpectedRevision: doc.Revision,
+			})
+			if errors.Is(err, pgx.ErrNoRows) {
+				return errRevisionConflict(doc.Revision)
+			}
+			if err != nil {
+				return err
+			}
+			updated, title = row, name.Title
+			return nil
+		})
+		if moveErr == nil {
+			break
+		}
+		if !isUniqueViolation(moveErr) {
+			return DocumentView{}, moveErr
+		}
+		if attempt == titleWriteAttempts {
+			// Out of attempts: the whole command rolls back, so nothing is
+			// half-written - no audit row, no outbox row, no idempotency
+			// answer - and the caller gets the duplicate-name answer.
+			return DocumentView{}, documentTitleWriteError(doc.Kind, moveErr)
+		}
 	}
 	before := map[string]any{"parent_id": textOrNil(doc.ParentID), "position": doc.Position}
 	after := map[string]any{"parent_id": textOrNil(updated.ParentID), "position": updated.Position}
+	if title != doc.Title {
+		// The auto-rename is part of what the command did: the diff names it.
+		before["title"], after["title"] = doc.Title, title
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
@@ -304,8 +349,10 @@ type DocumentTreeNode struct {
 // DocumentTree returns the visible subtree under rootID ("" = the roots) as
 // a forest. Visible means at least view through the same rules the list
 // query applies; a root the caller cannot read is not found, its children
-// are not leaked through it.
-func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspaceID, rootID string) ([]DocumentTreeNode, error) {
+// are not leaked through it. foldersOnly cuts the forest to kind=folder: the
+// FOLDERS sidebar needs no pages or files, and a root that is not a folder is
+// not part of that forest (not found, like one the caller cannot read).
+func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspaceID, rootID string, foldersOnly bool) ([]DocumentTreeNode, error) {
 	scope, err := s.documentListScope(ctx, actor, workspaceID)
 	if err != nil {
 		return nil, err
@@ -322,9 +369,17 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	byID := make(map[string]db.Document, len(rows))
 	children := make(map[string][]db.Document, len(rows))
 	for _, d := range rows {
+		// The folder cut drops the row before any edge is built, so a page
+		// never drags its children into the folder forest.
+		if foldersOnly && d.Kind != DocumentKindFolder {
+			continue
+		}
 		byID[d.ID] = d
 	}
 	for _, d := range rows {
+		if _, ok := byID[d.ID]; !ok {
+			continue
+		}
 		// An invisible parent hides the whole edge: the node does not float
 		// to the root, it leaves the tree with its unreadable ancestor.
 		if d.ParentID.Valid {
@@ -336,6 +391,9 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	if rootID == "" {
 		var roots []db.Document
 		for _, d := range rows {
+			if _, ok := byID[d.ID]; !ok {
+				continue
+			}
 			if !d.ParentID.Valid {
 				roots = append(roots, d)
 			}

@@ -145,7 +145,7 @@ func (s *ChatService) ToggleChatMessagePin(
 	}
 	row := chatMessageRowFromDB(updated, u.DisplayName)
 	row.Pinned = pinned
-	return row, nil
+	return s.signChatMediaRow(ctx, room, row), nil
 }
 
 func (s *ChatService) publishChatMessageUpdated(ctx context.Context, room db.ChatRoom, messageID string) {

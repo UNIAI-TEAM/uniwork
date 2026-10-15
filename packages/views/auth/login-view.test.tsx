@@ -107,6 +107,27 @@ describe("LoginView", () => {
     expect(loginCalls()).toHaveLength(1);
   });
 
+  // S15 row 5: a comment deep link that met no session says so above the form.
+  it.each([
+    ["/acme/team/documents/d1?comment=c1", true],
+    ["/acme/team/documents/d1?tab=x&comment=c1", true],
+    ["/acme/team/documents/d1", false],
+    ["/acme/team/documents/d1?comment=", false],
+    ["/acme/team/tasks/t1?comment=c1", false],
+  ])("says the session ended for next=%s only when it opens a comment (%s)", (next, shown) => {
+    render(wrap(<LoginView onSuccess={() => {}} next={next} reason="session_expired" />));
+    const sentence = screen.queryByText("Phiên đăng nhập đã hết. Hãy đăng nhập lại để mở bình luận này.");
+    if (shown) expect(sentence).toBeInTheDocument();
+    else expect(sentence).toBeNull();
+  });
+
+  // R10 F3: someone who never signed in here is not told their session ended.
+  it("shows the plain sign-in for a comment link when no session existed", () => {
+    render(wrap(<LoginView onSuccess={() => {}} next="/acme/team/documents/d1?comment=c1" />));
+    expect(screen.queryByText("Phiên đăng nhập đã hết. Hãy đăng nhập lại để mở bình luận này.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Đăng nhập" })).toBeInTheDocument();
+  });
+
   it("reveals the password without submitting the form", () => {
     requestMock.mockReturnValue(new Promise(() => {}));
     render(wrap(<LoginView onSuccess={() => {}} />));

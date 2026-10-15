@@ -5,6 +5,7 @@ import { useOrganizations } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
 import { holdsOrganization } from "@uniwork/core/types";
 import { useHomeDestination } from "@uniwork/core/workspaces";
+import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -119,11 +120,15 @@ export function InvitationGoneBody({ reason }: { reason: GoneReason }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
+        {/* A status: the organizations arrive after the heading has been
+            announced, and this is the news, so it is said politely. */}
         {held ? (
-          <p className="flex items-start gap-3 rounded-xl bg-success-soft p-4 text-pretty text-body font-medium text-success-soft-foreground">
-            <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0" />
-            {t("invitations.gone.still_in", { name: held.name })}
-          </p>
+          <Alert variant="success" role="status" className="rounded-xl p-4">
+            <CircleCheck aria-hidden />
+            <AlertDescription className="text-pretty font-medium [overflow-wrap:anywhere]">
+              {t("invitations.gone.still_in", { name: held.name })}
+            </AlertDescription>
+          </Alert>
         ) : null}
         <InviteNotice icon={GONE_ICON[reason]} tone="muted">
           {t(`invitations.gone.hint_${reason}`)}

@@ -54,10 +54,10 @@ func (h *handlers) listOrgWorkspaces(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := make([]sdo.WorkspaceDTO, 0, len(rows))
-	for _, x := range rows {
-		out = append(out, sdo.WorkspaceDTO{ID: x.ID, Slug: x.Slug, Name: x.Name, OrganizationID: x.OrganizationID,
-			OrganizationSlug: x.OrganizationSlug, OrganizationName: x.OrganizationName})
+	views := h.Workspaces.ViewsFromOrgRows(r.Context(), rows)
+	out := make([]sdo.WorkspaceDTO, 0, len(views))
+	for _, v := range views {
+		out = append(out, toWorkspaceDTO(v))
 	}
 	respondJSON(w, 200, map[string]any{"workspaces": out})
 }

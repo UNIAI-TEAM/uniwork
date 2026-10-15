@@ -85,6 +85,47 @@
           "cbb792c946bfaa4df7d8d15502548baa760b1739e": "Two payments completing within the same second no longer share an invoice number, so the later payment is no longer left pending. The year in the invoice number follows Vietnam time.",
           "c75c5ddc68ad9e7a61ff80b2a4c0fb4518e068a25": "When two refund requests are sent at once for the same payment, only one is processed; the other reports a conflict instead of sending a second refund."
         }
+      },
+      "v1_3_0": {
+        "title": "One organization per account, invitations that carry workspaces, comments in Office documents and a batch of billing fixes",
+        "summary": "Each account belongs to one active organization; the invitation page previews the invitation and then moves you across in a single step, and an invitation can carry the workspaces you get access to. A sole owner can close an organization, and an account with no organization gets its own Get started page. Office documents in a workspace gained comments, @mentions and a sync bar, and chat files and voice messages open faster. The introduction and UniWork Office pages were rebuilt with a request-a-demo form. Alongside are fixes for refunds, plan quotas and member seats.",
+        "note": "The one-organization rule applies to new actions: accounts that already belong to several organizations are left as they are. Closing an organization requires you to be its owner and only active member and to retype the slug to confirm; a closed organization has no restore action yet. An owner who only signs in with Google (no password set) cannot transfer ownership yet. The workspaces attached to an invitation are picked by the organization's admins; someone granted none still joins the organization but sees no content until they are granted some. Comments and sync in Office documents need the organization to have the Office editors enabled; UniWork's AI inside Office and the offline library are still switched off. AI assistant connections remain a read-only pilot and must be enabled for the organization.",
+        "features": {
+          "c317521eedb704bb64491be34bc99bbeab0b53c3c": "Each account belongs to one active organization, and the server keeps the rule, so several tabs or parallel actions cannot slip past it. When you are invited to another organization, the invitation page previews it and then walks you through leaving your current one, transferring ownership and leaving, or closing it — all in a single step. If the invitation has expired or been revoked, you keep your current organization.",
+          "c42b1d55cbd34a928e5d29e5e316f0976f06d44b8": "An owner who is the only active member can close the organization from Settings › Organization after retyping its slug to confirm. The data is kept, pending invitations are revoked and the subscription is cancelled, so a sole owner is no longer stuck inside their own organization.",
+          "c342307d9f5222db6fe8c9269527923974cb0b379": "An account that belongs to no organization is sent to a Get started page to create one or open a pending invitation. In the invitation list and in the chat sidebar, each invitation now opens its own page instead of a join-everything button.",
+          "ca56ba0bc29ea8ee7ab217cc110efc7d8bd463207": "The introduction and UniWork Office pages on the website were rebuilt: tighter navigation, editor imagery that follows light and dark mode, a full-height preview and introduction content consolidated so it is easier to follow. A new Request a demo page sends the request straight to UniWork administrators to handle in the console, and the UniWork Office download section offers exactly the installers the deployment is configured with.",
+          "c850c91de8bfa831de1dc9a0848d4d6003131d161": "Office documents opened in a workspace now have comment threads, @mentions and a comment inbox with notifications, so feedback sits next to the content instead of somewhere else. A sync bar shows whether your save has reached the workspace or is still queued.",
+          "cd62eba07c6caf11db86430d6ca5500445f398d70": "An organization invitation can now carry workspaces: an admin picks them while inviting, and the person is granted access to exactly those workspaces when they accept, including while switching over from another organization. Accepting an invitation lands you straight in the new organization's workspace instead of a create screen. Someone granted no workspace sees a screen that says so, instead of being sent to create one."
+        },
+        "improvements": {
+          "c345cfe2bda271e6ac79e24c3e25fc54aebdc47c3": "In an AI assistant connection, each tool now shows a readable title — \"List workspaces\", \"My work\", \"Search UniWork\", \"Get task\", \"Get meeting\" — instead of its snake_case technical name.",
+          "cc51ea0749ffbe14a51713e253a253999a70cc1c3": "The invitation, organization switch and organization danger-zone screens read better: long organization names wrap instead of clipping, invitation titles fit a phone screen, and access notices scroll on short windows and offer a way to sign out.",
+          "ccec502219fdaba98b58e7ea89e51e87dc8a5b5f2": "The interface keeps its layout when you enlarge text and reads better from the keyboard: the top bar and the organization, invitation and onboarding screens fit at 200% text; destructive buttons meet AA contrast in dark mode; the keyboard focus position is always visible; and reduced motion no longer creates transitions nobody declared.",
+          "c84572b6d1daa128be83cc20704a700948b1a5ee9": "Creating a workspace no longer asks which organization, because each account belongs to just one active organization. The randomly suggested workspace name now follows the interface language you are using.",
+          "c2a60ef2f12c13a9527b65cfd03ca991dff658eb8": "Chat files, images and voice messages now load straight from storage through signed links instead of going through the server, so they open faster and can use the browser cache; JPEG and PNG images also get a thumbnail. A link that is about to expire or fails to load is refreshed automatically."
+        },
+        "fixes": {
+          "cf32bc6febcbeb9950a6e2cea84edcab99fd535d6": "When VNPay does not answer or the answer is not properly signed, a refund now stays pending instead of marking the invoice paid again, so a later attempt no longer refunds twice. A signed refusal still returns the invoice to paid and records the revert.",
+          "c41036366d2f1d8ef62593e87cd7d23e1eec31cfd": "A VNPay invoice that already has money refunded no longer accepts a second automatic refund and must be finished by hand. When the gateway answers status 05 (still processing), the invoice stays pending and the current plan is kept.",
+          "c23708f9f585b8ca6232132d44fd93fb4ff862b0c": "A hand-paid invoice can only be refunded in full: partial, zero and negative amounts are refused, so a partial refund no longer refunds the whole invoice and drops the plan. When two refunds run at once, the losing one reports a conflict so the list can be reloaded.",
+          "c936c0301e9464116feee322d97ed825abf8f0f77": "The accent colour in use now shows correctly in Settings › Preferences even when the browser blocks local storage (private Safari, \"block all cookies\"), so you can pick the default again without reloading. Every open tab also follows the tab that just changed it.",
+          "c86ea7aff6ce6bfbf839a3ccec1d955b65e55b447": "An organization-level invitation no longer makes your whole invitation list disappear.",
+          "ca59d184212dadf80caaca158643727f0bbb428f9": "Deleting an account no longer fails while scrubbing the member profiles, and a closed organization no longer blocks account deletion either.",
+          "c1e15e45c393de7c54cc985ffd33b51237d63c853": "A closed organization no longer leaves its workspaces in your list, its screens send you on instead of reporting the organization as suspended, and a switched-off membership no longer counts as you still belonging to it.",
+          "ca885949c7befc0fd233ccdedb166fb4c80c9e2c4": "The invitation page accepts an invitation once and no longer hangs on a spinner after you confirm; while the request is being sent, the \"Later\" button is hidden. When an invitation has stopped working, the page says why.",
+          "cdc3b3b7163e63384dfb3ee0342e499adab5f2e80": "An owner who only signs in with Google and has no password is told plainly that an ownership transfer cannot be confirmed, with a pointer to support. The field that picks the new owner explains in place when there is nobody to choose and tells namesakes apart.",
+          "c9396e4f00e2b6b840ef8513a0a29731e1642c88f": "An invitation into an organization that is being deleted admits nobody and says so, instead of adding someone to an organization that is about to disappear.",
+          "c611c5cf75edea54315ad5f2d49fceb44001ec6c6": "When accepting an invitation fails, the page now offers a retry that works instead of stranding you; a temporary error (network, 5xx, too many requests) while switching organization no longer loses the choices you already made in the steps. The wizard submits with Enter and says why it stepped back.",
+          "c8f28bfcc0bc6a39cadd9aa0ab2abba490777a900": "An out-of-date organization list no longer hides the workspaces you are using or pushes you to the Get started page, and a \"suspended\" notice no longer flashes up when the organization has actually been closed.",
+          "cb940a6207d0b2d06985666abbc223fcfc45c4fe9": "When you switch to another organization, the old organization's audit row now records only the reason for the switch and no longer names the new organization.",
+          "c09d515323c7162116cd98e97609e8d4fe52e5b24": "A plan with no list price (contact us for a quote) is no longer treated as free: an owner cannot switch to it alone and has to get in touch, so the subscription no longer ages into past due after skipping checkout.",
+          "caca841c7749de9e69bc7d0f2e48e413728d53d1e": "Re-selecting the plan already in force no longer resets the metering period, so a free plan's quotas can no longer be refilled on demand.",
+          "cc6ea1591b460e9232960b5aba194bea83bb3e163": "A plan with no billing period, such as Starter, now meters its accumulating quota by the calendar month in Vietnam time: running out of AI tokens this month starts over next month. Subscriptions with a paid period still meter by that period.",
+          "c98ec32ffe4a7e2deae280fb84e37e31672c5d96a": "Reactivating a deactivated member now counts one seat, so the last open seat is no longer counted twice and the member really is reactivated.",
+          "cb9550c114f0020415ba41c13d1164a5f5b07c15f": "Entering the wrong password when confirming again — transferring ownership, accepting an invitation or deleting your account — is now reported as a wrong password right in the dialog, instead of being mistaken for an expired session and resent.",
+          "cdc5e44d123f1e127ce8a18160c91d54a533c9d28": "A platform role is no longer enough to change, cancel, resume or check out the plan of an organization the person does not own, and that path no longer skips the paid-plan gates. UniWork staff assign a plan through the admin console, where the reason is recorded."
+        }
       }
     }
   },
@@ -152,7 +193,6 @@
     "passwordMinHint": "At least {{min}} characters",
     "wordmark": "UniWork",
     "railTagline": "People and AI co‑own the work.",
-    "railEyebrow": "A Work OS for people and AI",
     "railPoints": {
       "tasks": {
         "title": "Tasks and projects",
@@ -382,6 +422,7 @@
     "createTask": "New task",
     "theme": "Theme",
     "language": "Language",
+    "preferences": "Theme and language",
     "themeSaved": "Theme preference saved",
     "languageSaved": "Language preference saved",
     "collapseSidebar": "Collapse sidebar",
@@ -569,17 +610,49 @@
     },
     "workspace": {
       "name": "Workspace name",
-      "description": "This workspace's name, address and organization.",
+      "description": "This workspace's name, description, icon, address and organization.",
       "name_hint": "Shown in the sidebar, in invitations and in notification emails.",
       "name_read_only": "Only workspace owners and admins can rename it.",
       "url": "Address",
-      "url_hint": "Renaming does not change this address.",
+      "url_hint": "If you change the address, old links still lead to the new one.",
+      "url_change": "Change address",
+      "url_dialog_title": "Change the workspace address",
+      "url_dialog_body": "Old links will lead to the new address. The old address stays reserved for this workspace; no other workspace in the organization can use it.",
+      "url_new": "New address",
+      "url_invalid": "Use only a–z, 0–9 and hyphens, 2–40 characters.",
+      "url_taken": "This address is already used in the organization.",
+      "url_reserved": "This address is reserved by the system.",
+      "url_saved": "Workspace address changed",
       "copy_url": "Copy address",
       "url_copied": "Workspace address copied",
       "copy_failed": "Couldn't copy. Select the address and copy it by hand.",
       "organization": "Organization",
-      "organization_hint": "Organization members, departments and billing are managed at the organization level.",
-      "name_required": "The workspace name can't be empty."
+      "organization_hint": "Members, departments and billing are managed by the organization.",
+      "about": "Description",
+      "about_hint": "Shown under the name when picking or switching workspaces.",
+      "about_placeholder": "What is this workspace for?",
+      "about_read_only": "Only workspace owners and admins can change the description.",
+      "about_empty": "No description yet",
+      "about_count": "{{used}}/{{max}}",
+      "icon": "Icon",
+      "icon_hint": "An emoji, or a PNG, JPEG, GIF or WebP image up to 2 MB.",
+      "icon_change": "Change icon",
+      "icon_upload": "Upload image",
+      "icon_remove": "Remove icon",
+      "icon_error": "Couldn't change the icon. Try again.",
+      "icon_upload_error": "Couldn't upload the image. Use a PNG, JPEG, GIF or WebP up to 2 MB.",
+      "icon_too_large": "The image is over 2 MB. Choose a smaller one.",
+      "name_required": "The workspace name can't be empty.",
+      "task_prefix": "Task ID prefix",
+      "task_prefix_hint": "Comes before each task's number, for example {{example}}.",
+      "task_prefix_change": "Change prefix",
+      "task_prefix_dialog_title": "Change the task ID prefix",
+      "task_prefix_dialog_body": "Every task will show the new ID. Old IDs still work, so links and mentions of older tasks don't break.",
+      "task_prefix_new": "New prefix",
+      "task_prefix_preview": "{{from}} → {{to}}",
+      "task_prefix_invalid": "Use 2–10 characters A–Z or 0–9, starting with a letter.",
+      "task_prefix_saved": "Task ID prefix changed",
+      "cancel": "Cancel"
     },
     "integrations": {
       "description": "Connect UniWork to the tools you already use. Only what works today and what is on the roadmap is listed.",
@@ -1075,7 +1148,10 @@
         "agent_planning": "Agent planning",
         "agent_generation": "Agent generation",
         "agent_evaluation": "Agent evaluation",
-        "embedding": "Embedding"
+        "embedding": "Embedding",
+        "office_uniwork_ai": "UniWork AI in Office",
+        "office_byok": "Office on the web (own key)",
+        "office_byok_desktop": "Office desktop app (own key)"
       },
       "actor": {
         "human": "Human",
@@ -1274,6 +1350,11 @@
           "password": "Enter your password to confirm.",
           "code": "Enter your two-factor code to confirm.",
           "email": "Type your email address to confirm."
+        },
+        "incorrect": {
+          "password": "That password isn't right. Enter it again to delete the account.",
+          "code": "That code isn't right or has expired. Enter a new one to delete the account.",
+          "email": "That doesn't match the email you're signed in with. Type it again to delete the account."
         }
       }
     },
@@ -3464,7 +3545,10 @@
       "reaction_mine_aria": "{{emoji}}, {{count}} reactions including yours. Press to remove yours",
       "gif_play": "Play animation {{name}}",
       "gif_pause": "Pause animation {{name}}",
-      "file_open_named": "Open {{name}}",
+      "file_open_named": "View {{name}}",
+      "sender_profile": "View info for {{name}}",
+      "image_preview_loading": "Loading image…",
+      "image_preview_close": "Close",
       "file_download_named": "Download {{name}}",
       "pdf_preview_show": "Show preview",
       "pdf_preview_hide": "Hide preview",
@@ -3741,6 +3825,7 @@
     "voice_requesting": "Requesting microphone access…",
     "voice_uploading": "Sending voice message…",
     "file_upload_failed": "Could not send the file. Try again.",
+    "file_too_large": "This file is over the limit. The maximum size is {{max}}.",
     "file_download_failed": "Could not download the file.",
     "file_untitled": "Attached file",
     "file_open": "Open file",
@@ -3802,6 +3887,28 @@
     "add_dm_aria": "Message someone new",
     "create_group_aria": "Create group chat",
     "start_dm_title": "New direct message",
+    "member_profile_message": "Message privately",
+    "person_card_message": "Message",
+    "person_card_call": "Call",
+    "person_card_video": "Video",
+    "person_card_email": "Email",
+    "person_shared_photos_one": "{{count}} photo",
+    "person_shared_photos_other": "{{count}} photos",
+    "person_shared_videos_one": "{{count}} video",
+    "person_shared_videos_other": "{{count}} videos",
+    "person_shared_files_one": "{{count}} file",
+    "person_shared_files_other": "{{count}} files",
+    "person_shared_links_one": "{{count}} shared link",
+    "person_shared_links_other": "{{count}} shared links",
+    "person_shared_gifs_one": "{{count}} GIF",
+    "person_shared_gifs_other": "{{count}} GIFs",
+    "person_shared_gif_mark": "GIF",
+    "person_shared_groups_one": "{{count}} group in common",
+    "person_shared_groups_other": "{{count}} groups in common",
+    "person_shared_empty": "Nothing here yet.",
+    "person_shared_back": "Back",
+    "person_shared_loading": "Loading…",
+    "person_shared_unavailable": "Could not load what you have shared.",
     "start_dm_description": "Pick someone in this workspace, or search by email if they are elsewhere.",
     "start_dm_email_label": "Recipient email",
     "search_member_or_email_hint": "Someone outside this workspace? Type their full email and press Enter.",
@@ -3815,7 +3922,7 @@
     "user_not_found": "No user found with this email.",
     "start_dm": "Message",
     "contacts_empty": "No conversations yet. Press + to message someone, or wait for someone to message you.",
-    "pending_invites": "Workspace invitations",
+    "pending_invites": "Pending invitations",
     "workspace_room": "General",
     "workspace_section": "Workspace",
     "workspace_room_hint": "Shared room — everyone in the workspace talks here.",
@@ -4271,6 +4378,12 @@
     "voice_call_log_declined_incoming": "You declined the call",
     "voice_call_log_cancelled": "Call cancelled",
     "voice_call_log_unknown": "Call",
+    "video_call_log_completed": "Video call · {{duration}}",
+    "video_call_log_missed": "Missed video call",
+    "video_call_log_declined_outgoing": "Video call declined",
+    "video_call_log_declined_incoming": "You declined the video call",
+    "video_call_log_cancelled": "Video call cancelled",
+    "video_call_log_unknown": "Video call",
     "voice_call_incoming_label": "Incoming call",
     "voice_call_incoming_group": "{{caller}} is calling in {{group}}",
     "voice_call_group_calling": "Starting group call…",
@@ -4353,7 +4466,7 @@
     },
     "invitations": {
       "title": "Invite people to the organization",
-      "description": "They join the company directly and pick a workspace afterwards.",
+      "description": "Invitees join the organization, and the workspaces you pick when they accept.",
       "send": "Send invitations",
       "revoke": "Revoke",
       "revoked": "Invitation revoked",
@@ -4369,7 +4482,13 @@
       "sent_one": "Sent {{count}} invitation",
       "sent_other": "Sent {{count}} invitations",
       "none_sent": "No invitations sent: the addresses left in the field are already members or not valid.",
-      "load_error": "Couldn't load the invitations."
+      "load_error": "Couldn't load the invitations.",
+      "workspaces_label": "Join workspaces",
+      "workspaces_hint": "Invitees become members of the workspaces you pick. With none picked, they join the organization but cannot open a workspace yet.",
+      "workspaces_none": "The organization has no workspace yet.",
+      "workspaces_load_error": "Couldn't load the workspaces.",
+      "grants": "Joins {{list}}",
+      "grants_none": "No workspace yet"
     },
     "transfer": {
       "title": "Transfer ownership",
@@ -4390,7 +4509,15 @@
         "new_owner": "The person you pick becomes the owner, with full control of the organization.",
         "you_admin": "You become an admin.",
         "no_undo": "You can't take ownership back on your own."
-      }
+      },
+      "wrong_password": "That password isn't right. Enter it again to transfer ownership.",
+      "no_password": "Transferring ownership of {{name}} is confirmed with your password, but your account doesn't have one (you sign in with Google). Contact support for help.",
+      "confirm_lede": "Nothing is deleted, but the organization is no longer yours to run.",
+      "action_pending": "Transferring…",
+      "reason_pick": "Choose the new owner to continue.",
+      "reason_name": "Type the organization name exactly to continue.",
+      "reason_password": "Enter your current password to continue.",
+      "reason_no_password": "You can't transfer ownership while your account has no password."
     },
     "deactivated": {
       "title": "Your account in this organization has been deactivated",
@@ -4422,7 +4549,7 @@
       "action": "Close organization",
       "confirm_title": "Close {{name}}?",
       "confirm_body": "{{name}} will be archived: every workspace and all its data stay, but nobody can open them, you included. Only support can restore it. Pending invitations are revoked and the paid plan is cancelled.",
-      "confirm_label": "Type the organization URL to confirm",
+      "confirm_label": "Type the organization slug to confirm",
       "confirm_hint": "Type \"{{slug}}\" exactly.",
       "confirm_mismatch": "Doesn't match \"{{slug}}\".",
       "done": "Organization closed",
@@ -4433,7 +4560,9 @@
         "no_access": "Nobody can open it any more, you included.",
         "restore": "Only support can restore it.",
         "billing": "Pending invitations are revoked and the paid plan is cancelled."
-      }
+      },
+      "action_pending": "Closing…",
+      "reason_slug": "Type the organization slug exactly to close it."
     }
   },
   "invitations": {
@@ -4442,10 +4571,13 @@
     "subtitle": "Open an invitation to see the organization and your role, then join.",
     "loading_description": "Opening your invitation.",
     "invitedBy": "{{name}} invited you to",
+    "invited": "You're invited to",
+    "place": "{{workspace}} in {{organization}}",
     "join": "Join",
     "empty": "No invitations",
     "view": "View",
     "viewLabel": "View the invitation to {{name}}",
+    "viewWorkspaceLabel": "View the invitation to {{workspace}} in {{organization}}",
     "expires_on": "expires <time>{{date}}</time>",
     "expires_soon": "Expires soon",
     "load_error": "Couldn't load your invitations.",
@@ -4456,7 +4588,7 @@
       "description_inviter": "{{inviter}} invited you to join this organization.",
       "organization": "Organization",
       "workspace": "Workspace",
-      "no_workspace": "No workspace yet. You'll pick one after joining.",
+      "no_workspace": "No workspace granted yet. An admin will add you to one later.",
       "role": "Role",
       "inviter": "Invited by",
       "expiry": "Expires",
@@ -4500,17 +4632,17 @@
       "unknown": "{{name}} can't be handled on this page. Reload to try again.",
       "incomplete": "Finish each item above to continue.",
       "blocked_reason": "You can't continue while an organization is suspended.",
-      "wrong_password": "That password isn't right. Enter it again to transfer ownership.",
-      "no_password": "Transferring ownership of {{name}} is confirmed with your password, but your account doesn't have one (you sign in with Google). Contact support for help.",
       "no_password_reason": "You can't continue while your account has no password.",
       "confirm_heading": "Confirm the switch",
       "confirm_leave": "Leave {{name}}",
       "confirm_transfer": "Transfer ownership of {{name}} to {{person}}, then leave",
       "confirm_close": "Close {{name}}",
       "confirm_join": "Join {{name}} as {{role}}",
+      "confirm_workspaces": "Join workspace {{list}}",
       "confirm_note": "Everything happens in one go. If any step fails, you stay where you are.",
       "action": "Switch to {{name}}",
-      "busy": "Another change to your account is in progress. Try again in a moment."
+      "busy": "Another change to your account is in progress. Try again in a moment.",
+      "send_failed": "The switch request did not go through. You are still in your current organization and your choices above are kept. Press the button below to send it again."
     }
   },
   "onboarding": {
@@ -4617,7 +4749,9 @@
       "already_member_title": "You already belong to {{name}}",
       "already_member_title_unnamed": "You already belong to an organization",
       "already_member_body": "Each account belongs to one organization. To create a new one, leave or close your current organization first.",
-      "already_member_hint": "Your organization already exists."
+      "already_member_hint": "Your organization already exists.",
+      "headline_refused": "You already have an organization.",
+      "lede_refused": "No new organization was created. Your workspaces live in the one you have."
     },
     "step_workspace": {
       "headline_first": "Name your workspace.",
@@ -4652,7 +4786,25 @@
       "headline_resume_many": "Pick one of your workspaces, or create a new one.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
       "create_failed_toast": "Couldn't create that. Please try again.",
-      "picker_label": "Choose a workspace"
+      "picker_label": "Choose a workspace",
+      "random_names": {
+        "mercury": "Mercury",
+        "venus": "Venus",
+        "earth": "Earth",
+        "mars": "Mars",
+        "jupiter": "Jupiter",
+        "saturn": "Saturn",
+        "uranus": "Uranus",
+        "neptune": "Neptune",
+        "luna": "Moon",
+        "polaris": "Polaris",
+        "sirius": "Sirius",
+        "vega": "Vega",
+        "altair": "Altair",
+        "andromeda": "Andromeda",
+        "orion": "Orion",
+        "galaxy": "Galaxy"
+      }
     },
     "step_invite": {
       "headline": "Invite teammates to {{workspace}}.",
@@ -4710,6 +4862,17 @@
       "join_body": "Open an invitation to review it and join.",
       "join_empty_title": "No invitations yet",
       "join_empty_body": "Ask an admin of the organization to invite <email>{{email}}</email>."
+    },
+    "noWorkspace": {
+      "title": "You don't have a workspace yet",
+      "description": "You've joined {{name}}, but you haven't been added to a workspace yet.",
+      "description_admin": "{{name}} has no workspace yet.",
+      "ask_body": "Ask an admin of {{name}} to add you to a workspace, then select Check again.",
+      "create_body": "Create the first workspace so the organization can start working.",
+      "account": "You're signed in as <email>{{email}}</email>.",
+      "create_action": "Create workspace",
+      "check": "Check again",
+      "still_none": "Still no workspace for you."
     }
   },
   "ui": {
@@ -4786,11 +4949,17 @@
       "chat_reminder": "Reminder: {{body}}",
       "email_hub_new_mail": "You have {{count}} unread message(s) · {{mailbox}}",
       "document_commented": "{{actor}} commented on “{{document}}”",
+      "document_commented_untitled": "{{actor}} commented on a document",
       "document_mentioned": "{{actor}} mentioned you in a comment on “{{document}}”.",
+      "document_mentioned_untitled": "{{actor}} mentioned you in a comment on a document.",
       "document_comment_replied": "{{actor}} replied to your comment in “{{document}}”.",
+      "document_comment_replied_untitled": "{{actor}} replied to your comment in a document.",
       "document_discussion_mentioned": "{{actor}} mentioned you in a discussion on “{{document}}”.",
+      "document_discussion_mentioned_untitled": "{{actor}} mentioned you in a discussion on a document.",
       "document_discussion_replied": "{{actor}} replied to your discussion post in “{{document}}”.",
+      "document_discussion_replied_untitled": "{{actor}} replied to your discussion post in a document.",
       "document_comment_resolved": "{{actor}} marked your comment in “{{document}}” as resolved.",
+      "document_comment_resolved_untitled": "{{actor}} marked your comment in a document as resolved.",
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
       "chat_dm": "{{actor}} sent you a message",
       "chat_thread_replied": "{{actor}} replied to a thread in {{room}}"
@@ -4897,6 +5066,7 @@
       "create_title": "Add a new plan",
       "create_description": "Plan code cannot change after creation. Every entitlement starts disabled — turn features on and set quotas below.",
       "edit_plan": "Edit plan",
+      "error_write": "Could not save this change. Try again.",
       "edit_title": "Edit {{code}}",
       "edit_description": "Plans are never deleted — set is_active=false to hide from public billing.",
       "default_hint": "The default plan must stay active.",
@@ -4918,6 +5088,11 @@
         "name": "Display name",
         "description": "Description",
         "billing_period": "Billing period (none / month / year)",
+        "period": {
+          "month": "Month",
+          "year": "Year",
+          "none": "No billing period"
+        },
         "price": "Price (smallest unit; empty = contact us)",
         "sort_order": "Sort order",
         "is_active": "Visible on billing page"
@@ -5227,6 +5402,8 @@
     "suspended": {
       "title": "Organization suspended",
       "description": "This organization is temporarily unavailable. Contact the organization owner for details.",
+      "description_named": "{{name}} is temporarily unavailable. Contact the organization owner for details.",
+      "owner_description": "{{name}} is temporarily unavailable. As its owner, contact support to find out why and to reopen it.",
       "get_started_link": "Join another organization"
     },
     "overview": {
@@ -6938,7 +7115,23 @@
       "rate_limit": "You've sent several requests recently. Please try again later.",
       "success_title": "Demo request received",
       "success_description": "Your request has been saved. The UniWork team will contact {{email}} to arrange your demo.",
-      "receipt": "Request reference: {{id}}"
+      "receipt": "Request reference: {{id}}",
+      "search": "Search example tasks",
+      "reset": "Reset demo",
+      "noResults": "No tasks found. Try a different search.",
+      "complete": "Mark complete",
+      "reopen": "Reopen task",
+      "openDiscussion": "Open discussion",
+      "openTask": "Open task",
+      "messageHistory": "Example conversation history",
+      "messageLabel": "Example message",
+      "messagePlaceholder": "Try a message to the team…",
+      "send": "Send message",
+      "you": "You",
+      "ownerQuestion": "Who owns the work?",
+      "ownerAnswer": "Hoàng Anh owns the onboarding design. Minh Linh owns the product brief, UNI gathers feedback, and Thanh Ngân owns the launch scope.",
+      "completedCount_one": "{{count}} of 4 example tasks is complete.",
+      "completedCount_other": "{{count}} of 4 example tasks are complete."
     },
     "explorer": {
       "sub": "Choose a feature. See how your team connects.",
@@ -7613,7 +7806,7 @@
       "sub": "The digital workplace where people and AI teammates produce results together.",
       "product": "Product",
       "company": "Company",
-      "copyright": "© 2026 Unicom JSC",
+      "copyright": "© 2026 UniWork",
       "resources": "Resources",
       "roadmap": "Roadmap",
       "security": "Security",
@@ -8008,6 +8201,7 @@
         "trustOffline": "Edit files on your computer without a connection; cloud AI and UniWork documents need one"
       },
       "editors": {
+        "example": "Example: {{title}}",
         "title": "Six editors. One workspace.",
         "formats": "Works with DOCX, XLSX, PPTX, PDF, HTML and Markdown",
         "tabs": "Editors",
@@ -8097,13 +8291,42 @@
         "sub": "UniWork Office shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
         "account": {
           "title": "AI through your UniWork account",
-          "description": "The cloud AI tools available today are web search, image search and transcription, and they run through UniWork under your organization's plan. If you use your own API key, the app calls the provider you choose directly, without going through UniWork servers."
+          "description": "Cloud AI tools run through UniWork under your organization’s configuration and plan. On the web, requests using your own API key still pass through UniWork to your chosen provider. Desktop has its own configuration; check the application before sending content."
         },
         "files": {
           "title": "Team files are saved in the workspace",
           "description": "Files you save to the workspace live in your team's UniWork workspace: open from Documents, save as a new version, share and comment. Files stored on your computer stay on your computer and can be edited without a connection; cloud AI and UniWork documents need one."
         },
         "link": "See how UniWork handles permissions"
+      },
+      "connection": {
+        "title": "One account. Connected to your workspace.",
+        "sub": "Work on your computer, connected to your team's files and access rules.",
+        "account": {
+          "title": "One account",
+          "description": "Sign in to Office with your UniWork account."
+        },
+        "ai": {
+          "title": "AI on your terms",
+          "description": "Use your organization's plan or your own API key."
+        },
+        "permissions": {
+          "title": "Consistent access",
+          "description": "Workspace files follow your organization's permissions."
+        },
+        "flow": {
+          "title": "Files on your computer and in your workspace",
+          "local": "On your computer",
+          "localDescription": "Keep files locally and edit without a connection.",
+          "workspace": "Workspace",
+          "workspaceDescription": "Save versions, share and comment with your team.",
+          "action": "Open / Save a version",
+          "note": "Opening and saving workspace versions need a connection."
+        },
+        "details": {
+          "ai": "AI and your data",
+          "files": "File storage and connection requirements"
+        }
       },
       "faq": {
         "title": "Frequently asked questions",
@@ -8710,6 +8933,14 @@
           "restored": "Restored {{title}}"
         }
       },
+      "rename": {
+        "title": "Rename",
+        "label": "Document name",
+        "name_placeholder": "e.g. Plan 2026",
+        "name_empty": "Enter a document name.",
+        "name_too_long": "A document name is at most {{max}} characters.",
+        "failed": "Could not rename the document. Try again."
+      },
       "greeting": {
         "morning": "Good morning. What would you like to create today?",
         "morning_named": "Good morning, {{name}}. What would you like to create today?",
@@ -8954,7 +9185,7 @@
         "path_root": "Documents (root)",
         "loading": "Searching…",
         "empty_title": "No results",
-        "empty_description": "Try another name or change the filter. Press Esc to go back to the folder.",
+        "empty_description": "Try another name or change the filter. Clear the search to go back to the folder.",
         "error_title": "Couldn't search",
         "error_description": "Check your connection and try again."
       }
@@ -9198,7 +9429,7 @@
         "download_failed": "Download failed. Please try again.",
         "downloading": "Preparing…",
         "title": "Get UniWork Office for desktop",
-        "not_installed": "The desktop app didn't respond. Install the right version, then select Open again.",
+        "not_installed": "The desktop app didn't respond. If UniWork Office already opened, you can close this dialog. If not, install the right version, then select Open again.",
         "expired": "That desktop handoff expired. Try opening it again.",
         "error": "The desktop handoff did not complete. Your editor and draft are unchanged.",
         "unavailable": "Install link unavailable",
@@ -9637,5 +9868,12 @@
       "range": "{{from}} – {{to}}",
       "before_graph": "before the graph existed"
     }
+  },
+  "marketingSeo": {
+    "guidesTitle": "Practical guides",
+    "about": "About UniWork",
+    "data": "Data and AI",
+    "privacy": "Privacy policy",
+    "terms": "Terms of use"
   }
 }

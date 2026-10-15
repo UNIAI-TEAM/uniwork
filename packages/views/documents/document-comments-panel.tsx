@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ChevronRight, RefreshCw, X } from "lucide-react";
+import { ChevronRight, Info, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
 import type { Document, DocumentCommentKind } from "@uniwork/core/types/document";
@@ -42,7 +42,16 @@ const STATUS_KEYS: Record<Exclude<PanelStatus, null>, string> = {
   viewOnly: K.collabViewOnly,
 };
 
-type FocusRequest = { rootId: string; target: "heading" | "resolve" } | null;
+type FocusRequest = { rootId: string; target: "heading" | "resolve" | "scroll" } | null;
+
+/**
+ * True when someone else holds focus (the page editor beside the panel): a deep link then scrolls and
+ * tints but never takes it. Nothing focused (body, null) or focus already inside the panel is free to move.
+ */
+function foreignFocus(pane: HTMLElement | null): boolean {
+  const active = document.activeElement;
+  return !!active && active !== document.body && !pane?.contains(active);
+}
 
 /** One tab's list: open threads, then the folded "Resolved" group (S12 items 3–4, S13 list row). */
 function ThreadList({
@@ -128,6 +137,7 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [revealMessage, setRevealMessage] = useState<DocumentCommentKind | null>(null);
   const revealRef = useRef<HTMLParagraphElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
   const [announcement, setAnnouncement] = useState("");
   const clearFocus = useCallback(() => setFocus(null), []);
 
@@ -149,31 +159,35 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
     return () => window.clearTimeout(timer);
   }, [announcement]);
 
-  // `?comment=`: once the list is in, open the tab that holds the thread and focus it; a post
-  // that is gone says so at the top of the panel (S15 rows 3-4, panel level).
+  // `?comment=`: once the list is in, open the tab that holds the thread and focus it (or only scroll to
+  // it while the editor holds focus); a post that is gone says so at the top of the panel (S15 rows 3-4).
   const deepLinkId = chrome?.deepLinkId ?? "";
+  const deepLinkKind = chrome?.deepLinkKind ?? "comment";
   const handledLink = useRef<string | null>(null);
   useEffect(() => {
     if (!deepLinkId || !query.isSuccess || handledLink.current === deepLinkId) return;
     handledLink.current = deepLinkId;
     const target = findDeepLinkTarget(comments, deepLinkId);
     if (!target) {
-      setRevealMessage(format ? "comment" : "discussion");
+      // The link's kind says which tab the post lived in (a format with one tab only has the Discussion).
+      const kind = format ? deepLinkKind : "discussion";
+      if (format) setTab?.(kind);
+      setRevealMessage(kind);
       return;
     }
     if (format) setTab?.(target.kind);
     if (target.resolved) setResolvedOpen((open) => ({ ...open, [target.kind]: true }));
     if (target.deleted) setRevealMessage(target.kind);
-    setFocus({ rootId: target.rootId, target: "heading" });
+    setFocus({ rootId: target.rootId, target: foreignFocus(paneRef.current) ? "scroll" : "heading" });
     setHighlightId(target.rootId);
-  }, [comments, deepLinkId, format, query.isSuccess, setTab]);
+  }, [comments, deepLinkId, deepLinkKind, format, query.isSuccess, setTab]);
   useEffect(() => {
     if (!highlightId) return undefined;
     const timer = window.setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);
     return () => window.clearTimeout(timer);
   }, [highlightId]);
   useEffect(() => {
-    if (revealMessage && !focus) revealRef.current?.focus();
+    if (revealMessage && !focus && !foreignFocus(paneRef.current)) revealRef.current?.focus();
   }, [revealMessage, focus]);
 
   const deletedKey = tab === "comment" ? K.collabCommentDeleted : K.collabDiscussionDeleted;
@@ -238,7 +252,14 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
         data-testid={`document-comments-region-${tab}`}
       >
         {revealMessage ? (
-          <p ref={revealRef} tabIndex={-1} role="status" className="text-caption text-muted-foreground" data-testid="document-comments-reveal">
+          <p
+            ref={revealRef}
+            tabIndex={-1}
+            role="status"
+            className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-caption text-foreground"
+            data-testid="document-comments-reveal"
+          >
+            <Info aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
             {t(revealMessage === "comment" ? K.collabCommentDeleted : K.collabDiscussionDeleted)}
           </p>
         ) : null}
@@ -259,7 +280,7 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
   const loaded = !query.isPending && !panel.noAccess && !panel.firstLoadFailed;
 
   return (
-    <div id="document-comments-panel" className="flex h-full min-h-0 flex-col bg-card" data-testid="document-comments-pane">
+    <div id="document-comments-panel" ref={paneRef} className="flex h-full min-h-0 flex-col bg-card" data-testid="document-comments-pane">
       <header className="flex items-center gap-2 border-b border-border px-4 py-3">
         <h2 id={titleId} tabIndex={-1} className="min-w-0 truncate text-body font-semibold text-foreground">
           {t(titleKey)}

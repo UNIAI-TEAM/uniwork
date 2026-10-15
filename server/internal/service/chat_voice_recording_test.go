@@ -24,7 +24,7 @@ func acceptDMVoiceCall(
 ) {
 	t.Helper()
 	ctx := context.Background()
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, roomID, callID); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, roomID, callID, false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, roomID, callID); err != nil {
@@ -158,7 +158,7 @@ func TestChatVoiceRecordingGuards(t *testing.T) {
 
 	fp := &meetings.FakeProvider{RecordingEnabled: true}
 	s.SetConference(fp)
-	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, callID); err != nil {
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, callID, false); err != nil {
 		t.Fatalf("invite: %v", err)
 	}
 	if _, err := s.StartVoiceRecording(ctx, ua.ID, w.ID, dm.ID, callID); !errors.As(err, &ce) || ce.Code != "call_not_connected" {

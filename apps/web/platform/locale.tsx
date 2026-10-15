@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { I18nextProvider } from "react-i18next";
 import { api } from "@uniwork/core";
 import { useAuthStore } from "@uniwork/core/auth";
 import { createBrowserCookieLocaleAdapter, initI18n, syncI18nResources, type SupportedLocale } from "@uniwork/core/i18n";
@@ -58,5 +59,7 @@ export function WebLocaleProvider({
     document.documentElement.lang = applied;
   }, [applied]);
 
-  return <LocaleAdapterProvider adapter={adapter}>{children}</LocaleAdapterProvider>;
+  // Marketing uses an isolated instance; never fall back to react-i18next's
+  // last initialized global instance when the application renders afterwards.
+  return <I18nextProvider i18n={initI18n()}><LocaleAdapterProvider adapter={adapter}>{children}</LocaleAdapterProvider></I18nextProvider>;
 }

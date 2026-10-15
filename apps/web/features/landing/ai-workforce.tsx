@@ -1,4 +1,5 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import { ArrowRight, BookOpen, ScanText, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -27,7 +28,7 @@ export function AiWorkforce() {
                 <AccordionContent><p>{t(`landing.studio.${key}Desc`)}</p>{key === "aiRead" && <p>{t("landing.askuni.point3")}</p>}</AccordionContent>
               </AccordionItem>)}
             </Accordion>
-            <a href="#hoi-uni" className={cn(buttonVariants({ variant: "brand", size: "lg" }), "studio-button ai-demo-link")}>{t("landing.reference.viewAsk")}<ArrowRight aria-hidden /></a>
+            <MarketingAnchor href="#hoi-uni" className={cn(buttonVariants({ variant: "brand", size: "lg" }), "studio-button ai-demo-link")}>{t("landing.reference.viewAsk")}<ArrowRight aria-hidden /></MarketingAnchor>
           </div>
           <figure className="ai-visual">
             <HorseMascot />

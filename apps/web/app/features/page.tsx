@@ -1,5 +1,4 @@
-import { FeaturesPage } from "../../features/landing/feature-page";
-import { marketingMetadata } from "../../platform/feature-metadata";
-
-export function generateMetadata() { return marketingMetadata("features", "/features"); }
-export default function Page() { return <FeaturesPage />; }
+import { publicPage } from "../../platform/public-page";
+import { seoMetadata } from "../../platform/seo";
+export function generateMetadata() { return seoMetadata("/features"); }
+export default function Page() { return publicPage("/features"); }

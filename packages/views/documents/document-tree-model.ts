@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { getDocument } from "@uniwork/core/api/endpoints/documents";
+import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 
@@ -64,9 +65,6 @@ export function moveRefused(
   if (!draggedId || !targetId || draggedId === targetId) return true;
   return subtreeIds(nodes, draggedId).has(targetId);
 }
-
-/** The server's tree limit: five levels, a root page counting as level one. */
-export const TREE_MAX_LEVEL = 5;
 
 /** The forest node with this id, or null when it is not in the loaded forest. */
 export function findTreeNode(nodes: DocumentTreeNode[], id: string): DocumentTreeNode | null {

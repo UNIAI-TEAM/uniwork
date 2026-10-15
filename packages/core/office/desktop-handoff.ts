@@ -1,5 +1,12 @@
 export type OfficeChannel = "dev" | "beta" | "stable";
 export type OfficeLaunchOutcome = "hidden" | "launched" | "not-installed" | "expired" | "error";
+/** What a launcher may be asked besides the link. */
+export interface OfficeLaunchOptions {
+  /** Called at most once when the page loses focus or visibility after the
+   * launcher already answered "not-installed": the app took its time but did
+   * open, so the caller drops its "did not respond" prompt. */
+  onLateHandoff?: () => void;
+}
 export interface OfficeLaunchSessionLike {
   launch_ticket: string;
   launch_url?: string;
@@ -22,6 +29,17 @@ export function officeScheme(channel: OfficeChannel): "uniwork-office-dev" | "un
 
 export function officeClientId(channel: OfficeChannel): "uniwork-office-dev" | "uniwork-office" {
   return officeScheme(channel);
+}
+
+const commentIdPattern = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * The `?comment=` of the page, as the launch ticket's optional `comment_id`:
+ * only an id-shaped value rides, anything else is left off (the app then
+ * opens the document alone, as for any comment the server does not know).
+ */
+export function launchCommentId(raw: string | null | undefined): string | undefined {
+  return raw && commentIdPattern.test(raw) ? raw : undefined;
 }
 
 const ticketPattern = /^ticket_[A-Za-z0-9_-]{32,185}$/;

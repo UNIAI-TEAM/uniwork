@@ -13,6 +13,10 @@ import { documentErrorMessage } from "./document-error-message";
 export const CREATE_TYPES = ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"] as const;
 export type CreateType = (typeof CREATE_TYPES)[number];
 
+/** What the "New" menu offers inside an open folder: folder first, then CREATE_TYPES (FD-D9). */
+export const CREATE_MENU_TYPES = ["folder", ...CREATE_TYPES] as const;
+export type CreateMenuType = (typeof CREATE_MENU_TYPES)[number];
+
 /**
  * Create one document of a type in the open folder with its default name and
  * open it — no name prompt (user decision 2026-10-12); renaming happens on the
@@ -29,6 +33,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
   // deployed yet): the card stays visible, disabled with a hint, for the session.
   // A second click while the first create is in flight must not make a second folder.
   const folderBusy = useRef(false);
+  const folderKeyRef = useRef<{ title: string; parentId: string | null; key: string } | null>(null);
   const [unavailable, setUnavailable] = useState<ReadonlySet<CreateType>>(new Set());
 
   const create = async (type: CreateType, parentId: string | null) => {
@@ -58,18 +63,27 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
     }
   };
 
-  /** A new folder takes its default name; the caller navigates into it. */
-  const newFolder = async (parentId: string | null): Promise<string | null> => {
+  /** A new folder takes the given or default name; the caller navigates into it. */
+  const newFolder = async (parentId: string | null, customTitle?: string): Promise<string | null> => {
     if (folderBusy.current) return null;
     folderBusy.current = true;
+    const title = (customTitle ?? t("documents.home.folders.default_name")).trim();
+    if (folderKeyRef.current?.title !== title || folderKeyRef.current.parentId !== parentId) {
+      folderKeyRef.current = { title, parentId, key: createSafeId() };
+    }
     try {
       const folder = await createFolder.mutateAsync({
-        title: t("documents.home.folders.default_name"),
+        title,
         ...(parentId ? { parentId } : {}),
-        idempotencyKey: createSafeId(),
+        idempotencyKey: folderKeyRef.current.key,
       });
+      folderKeyRef.current = null;
+      toast.success(t("documents.home.folders.toast.created", { title: folder.title }));
       return folder.id;
     } catch (error) {
+      if (customTitle !== undefined) {
+        throw error;
+      }
       toast.error(documentErrorMessage(error, t, "documents.home.folders.create_failed"));
       return null;
     } finally {

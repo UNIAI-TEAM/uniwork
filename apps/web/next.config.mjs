@@ -23,7 +23,10 @@ const nextConfig = {
     NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION: frameVersions.docs ?? "",
     NEXT_PUBLIC_OFFICE_FRAME_VERSIONS: JSON.stringify(frameVersions),
   },
-  headers: async () => officeFrameHeaderRules(framePins),
+  headers: async () => [
+    ...officeFrameHeaderRules(framePins),
+    { source: "/office-frame/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+  ],
   // The Markdown/HTML frames load a document's relative pictures and files from
   // signed API byte routes; their CSP allows only 'self' (UNI-1232).
   rewrites: async () => officeFrameAssetRewrites(),

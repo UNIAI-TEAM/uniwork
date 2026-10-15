@@ -1,10 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { SlugFields, useSlugForm } from "./slug-field";
 import { SLUG_MAX_LENGTH } from "../workspace/slug";
 
-initI18n();
+const i18n = initI18n();
 
 function Harness({ disabled, onEnter = () => {} }: { disabled?: boolean; onEnter?: () => void }) {
   const form = useSlugForm();
@@ -16,6 +16,30 @@ function Harness({ disabled, onEnter = () => {} }: { disabled?: boolean; onEnter
 }
 
 describe("SlugFields", () => {
+  // UNI-1484: the random name follows the interface language, and a language
+  // switch applies to the next press without rewriting the name already chosen.
+  it("names a random workspace in the interface language", async () => {
+    render(<Harness />);
+    const name = screen.getByLabelText("Tên");
+    fireEvent.click(screen.getByRole("button", { name: /ngẫu nhiên/i }));
+    const vietnamese = (name as HTMLInputElement).value;
+    expect(vietnamese).toMatch(/^(Sao |Trái Đất|Thiên |Hải Vương|Mặt Trăng|Chức Nữ|Ngưu Lang|Tiên Nữ|Lạp Hộ)/);
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    try {
+      expect(name).toHaveValue(vietnamese);
+      fireEvent.click(screen.getByRole("button", { name: /random/i }));
+      expect((name as HTMLInputElement).value).toMatch(
+        /^(Mercury|Venus|Earth|Mars|Jupiter|Saturn|Uranus|Neptune|Moon|Polaris|Sirius|Vega|Altair|Andromeda|Orion|Galaxy)$/,
+      );
+    } finally {
+      await act(async () => {
+        await i18n.changeLanguage("vi");
+      });
+    }
+  });
+
   it("auto-slugs from name until slug is touched; validates format and reserved", () => {
     render(<Harness />);
     const name = screen.getByLabelText("Tên");

@@ -187,10 +187,21 @@ WHERE organization_id = sqlc.arg('organization_id')
 -- name: ListTasksByIdentifier :many
 -- tenant: by-id
 -- Prefix compare is case-insensitive so ALP-1 and alp-1 resolve the same.
-SELECT t.* FROM tasks t
+-- current_match tells a workspace's current prefix from an old one it keeps,
+-- so the caller can prefer the current owner of a reused prefix.
+SELECT sqlc.embed(t), (upper(w.task_prefix) = upper(sqlc.arg('prefix')))::bool AS current_match
+FROM tasks t
 INNER JOIN workspaces w
   ON w.id = t.workspace_id AND w.organization_id = t.organization_id
-WHERE upper(w.task_prefix) = upper(sqlc.arg('prefix'))
+WHERE (
+    upper(w.task_prefix) = upper(sqlc.arg('prefix'))
+    -- An old prefix the workspace keeps (spec 2026-10-14 §5.3).
+    OR EXISTS (
+      SELECT 1 FROM workspace_aliases a
+      WHERE a.workspace_id = w.id AND a.organization_id = w.organization_id
+        AND a.kind = 'task_prefix' AND upper(a.value) = upper(sqlc.arg('prefix'))
+    )
+  )
   AND t.number = sqlc.arg('number');
 
 -- name: GetTaskInWorkspaceByIdentifier :one

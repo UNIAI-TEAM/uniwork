@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-g6-08-devset-fixtures",
+  "fixtures": [
+    {
+      "id": "dev-xlsx-orders-xyz",
+      "path": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.xlsx",
+      "format": "xlsx",
+      "sha256": "91b97fad50ad034d86d1db670c1156e9546b70d80c3c9e046f6c47ec750b8eda",
+      "bytes": 14387,
+      "synthetic": true,
+      "description": "Synthetic devset order workbook (X = quantity, Y = unit price, Z = discount as 10, 0.1 and blank, hidden row, two totals rows, #DIV/0! and #N/A errors, stale cached formula value, unsupported FILTERXML, locale text and rounding).",
+      "oracle": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json",
+      "oracleSha256": "f36107050c0966a91901543dfe06408ecb14fbad5600220f5a1effd607cd02e0"
+    },
+    {
+      "id": "dev-docx-proposal-vi",
+      "path": "docs/office/g5g6g7/devset/fixtures/dev-docx-proposal-vi.docx",
+      "format": "docx",
+      "sha256": "6f5d3b9cc732789939bd9af10d262860f957ccd4b5fd9c82df457b75b670c9fe",
+      "bytes": 5953,
+      "synthetic": true,
+      "description": "Synthetic devset Vietnamese warehouse proposal (title, 3 headings, 3 body paragraphs) for selected-paragraph edit verification.",
+      "oracle": "docs/office/g5g6g7/devset/fixtures/dev-docx-proposal-vi.oracle.json",
+      "oracleSha256": "72ef95762276c6e4206f590bad68dc7dcbd278e545a6c8bda63c544ba1ea0076"
+    }
+  ]
+}

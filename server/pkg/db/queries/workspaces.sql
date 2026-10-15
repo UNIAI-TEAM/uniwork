@@ -7,11 +7,41 @@ RETURNING *;
 -- tenant: by-id
 SELECT * FROM workspaces WHERE id = $1;
 
--- name: UpdateWorkspaceName :one
--- tenant: by-id
-UPDATE workspaces SET name = $2, updated_at = now()
-WHERE id = $1
+-- name: UpdateWorkspaceProfile :one
+-- A NULL argument keeps the column as it is.
+UPDATE workspaces SET
+  name        = COALESCE(sqlc.narg('name'), name),
+  description = COALESCE(sqlc.narg('description'), description),
+  slug        = COALESCE(sqlc.narg('slug'), slug),
+  task_prefix = COALESCE(sqlc.narg('task_prefix'), task_prefix),
+  updated_at  = now()
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
 RETURNING *;
+
+-- name: SetWorkspaceIcon :one
+-- Writes both icon columns at once: a workspace shows an emoji or a file,
+-- never both (workspaces_one_icon).
+UPDATE workspaces
+SET icon_emoji = sqlc.narg('icon_emoji'), icon_file_id = sqlc.narg('icon_file_id'), updated_at = now()
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+RETURNING *;
+
+-- name: GetWorkspaceIconFileIDForUpdate :one
+SELECT icon_file_id FROM workspaces
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+FOR UPDATE;
+
+-- name: GetWorkspaceForUpdate :one
+-- The locked row a settings change is computed from (spec 2026-10-14 §4.4).
+SELECT * FROM workspaces
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+FOR UPDATE;
+
+-- name: ListWorkspaceIconFileIDs :many
+-- tenant: system
+-- FileService asks which of these files a workspace still shows.
+SELECT icon_file_id FROM workspaces
+WHERE icon_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: GetWorkspaceBySlugs :one
 -- tenant: by-id
@@ -139,9 +169,13 @@ WHERE i.email = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expi
 ORDER BY i.created_at DESC;
 
 -- name: ListPendingOrganizationInvitations :many
-SELECT i.*, u.display_name AS invited_by_name
+-- An invitation sent from a workspace names it; the outer join keeps the
+-- organization-level ones, which have none.
+SELECT i.*, u.display_name AS invited_by_name,
+       w.name AS workspace_name, w.slug AS workspace_slug
 FROM invitations i
 LEFT JOIN users u ON u.id = i.invited_by
+LEFT JOIN workspaces w ON w.id = i.workspace_id AND w.organization_id = i.organization_id
 WHERE i.organization_id = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now()
 ORDER BY i.created_at DESC;
 
@@ -150,6 +184,32 @@ SELECT * FROM invitations
 WHERE organization_id = $1 AND lower(email) = lower($2)
   AND workspace_id IS NULL AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
 LIMIT 1;
+
+-- name: ListWorkspacesInOrgByIDs :many
+-- The workspaces an organization invitation may grant: only the
+-- organization's own, so an id from another tenant simply is not found.
+SELECT id, name, slug FROM workspaces
+WHERE organization_id = $1 AND id = ANY(sqlc.arg(ids)::text[])
+ORDER BY created_at, id;
+
+-- name: AddInvitationWorkspace :exec
+INSERT INTO invitation_workspaces (invitation_id, workspace_id, organization_id)
+VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING;
+
+-- name: DeleteInvitationWorkspaces :exec
+DELETE FROM invitation_workspaces
+WHERE invitation_id = $1 AND organization_id = $2;
+
+-- name: ListInvitationWorkspaces :many
+-- What an invitation grants, oldest workspace first (the order the post-login
+-- resolver lands in). The join drops a workspace that no longer exists and
+-- keeps the grant inside the invitation's organization.
+SELECT iw.invitation_id, w.id, w.name, w.slug
+FROM invitation_workspaces iw
+JOIN workspaces w ON w.id = iw.workspace_id AND w.organization_id = iw.organization_id
+WHERE iw.invitation_id = ANY(sqlc.arg(invitation_ids)::text[]) AND iw.organization_id = ANY(sqlc.arg(organization_ids)::text[])
+ORDER BY w.created_at, w.id;
 
 -- name: RevokeInvitation :one
 UPDATE invitations SET revoked_at = now()
@@ -183,3 +243,9 @@ UPDATE workspaces
 SET task_prefix = $2, updated_at = now()
 WHERE id = $1 AND organization_id = $3
 RETURNING *;
+
+-- name: LockWorkspaceSlugs :exec
+-- Serializes slug changes and workspace creation in one organization, so the
+-- check that a slug is nobody else's alias and the write that follows see
+-- the same rows (spec 2026-10-14 §4.4).
+SELECT pg_advisory_xact_lock(hashtextextended('workspace-slug:' || sqlc.arg(organization_id)::text, 0));

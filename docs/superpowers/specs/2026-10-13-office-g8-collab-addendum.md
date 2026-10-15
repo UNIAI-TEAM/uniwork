@@ -1,6 +1,6 @@
 # UniWork Office G5/G6/G7 — Phụ lục G8: Cộng tác trên tài liệu và liên kết sau đăng nhập
 
-> **Trạng thái:** in-progress — phụ lục v0.2 của spec G5/G6/G7 v1.2, soạn 2026-10-13 theo yêu cầu người dùng (2026-10-13 00:40 UTC+7: "phần comment, mention... nằm trong 2 issue 1331 1328 trên uniai, kiểm tra và bổ sung task vào phase này luôn"). v0.3 (2026-10-13): đóng 5 finding medium của review delta r2 (§4.3 `base_version_id`, §4.5 claim trong tx consumer, §4.6 nguồn slug + cổng batch, §4.7 `list_token`). v0.2 (2026-10-13): G8-D1, G8-D2, G8-D4, G8-D5, G8-D6 và Q6–Q10 **đã ký** theo khuyến nghị của decision packet — Advisor ký thay theo ủy quyền của người dùng (đêm 2026-10-13, "tự duyệt theo gợi ý"); G8-D3 còn mở (luật phân quyền của UNI-1336), giá trị tạm có hiệu lực; đã xử lý review FE r1 + BE r1 (`reports/plan-collab/review-resolution-r2.md` của Run).
+> **Trạng thái:** in-progress — phụ lục v0.2 của spec G5/G6/G7 v1.2, soạn 2026-10-13 theo yêu cầu người dùng (2026-10-13 00:40 UTC+7: "phần comment, mention... nằm trong 2 issue 1331 1328 trên uniai, kiểm tra và bổ sung task vào phase này luôn"). v0.3 (2026-10-13): đóng 5 finding medium của review delta r2 (§4.3 `base_version_id`, §4.5 claim trong tx consumer, §4.6 nguồn slug + cổng batch, §4.7 `list_token`). v0.2 (2026-10-13): G8-D1, G8-D2, G8-D4, G8-D5, G8-D6 và Q6–Q10 **đã ký** theo khuyến nghị của decision packet — Advisor ký thay theo ủy quyền của người dùng (đêm 2026-10-13, "tự duyệt theo gợi ý"); G8-D3 **đã ký 2026-10-14 15:45 UTC+7** (luật ở [phụ lục mức quyền](2026-10-14-documents-permission-levels-addendum.md); không còn giá trị tạm); đã xử lý review FE r1 + BE r1 (`reports/plan-collab/review-resolution-r2.md` của Run).
 
 **Issue:** UNI-1331 (Comment, Mention, Inbox; con UNI-1333, UNI-1335, UNI-1336, UNI-1337, UNI-1389, UNI-1390) và UNI-1328
 (đăng nhập + liên kết dữ liệu; con UNI-1329, UNI-1330); phase UNI-923.
@@ -19,16 +19,16 @@ mọi định dạng (gồm Markdown, HTML) có một Discussion chung của tà
 chung giữa web UniWork và UniOffice. Mention trỏ tới tài khoản UniWork; thông báo vào Inbox UniWork và mở thẳng tới đúng
 tài liệu, bình luận và vị trí (đoạn, ô, slide, trang) — trên web và trong app desktop.
 
-## 2. Quyết định (đã ký 2026-10-13, trừ G8-D3)
+## 2. Quyết định (đã ký 2026-10-13; G8-D3 ký 2026-10-14)
 
 Ký: Advisor (Run `run_a635eef8717c`) thay người dùng theo ủy quyền đêm 2026-10-13 ("tự duyệt theo gợi ý"), đúng khuyến nghị
-của decision packet Q1–Q10. G8-D3 (Q5) **còn mở** chờ nghiệp vụ phân quyền của UNI-1336; giá trị tạm dưới đây có hiệu lực.
+của decision packet Q1–Q10. G8-D3 (Q5) do người dùng ký 2026-10-14 15:45 UTC+7 (đúng ba khuyến nghị); luật ở [phụ lục mức quyền](2026-10-14-documents-permission-levels-addendum.md).
 
 | ID | Quyết định | Hệ quả |
 | --- | --- | --- |
 | G8-D1 (Q1) | Kho dữ liệu: **server UniWork** (`document_comments` của G1-07) là nguồn duy nhất; editor đọc/ghi qua host. Bình luận gốc có sẵn trong tệp hiện ở mục "Bình luận trong tệp" chỉ đọc, byte giữ nguyên khi Lưu, không nhập vào server ở v1 | Không đổi đường commit (§3 bất biến 1), không vi phạm U-05; dùng lại audit/outbox/isolation/Inbox |
 | G8-D2 (Q2) | Neo lưu ở server dạng JSON theo định dạng, kèm `anchor_version_id` và trạng thái `exact`/`stale`/`lost`; editor giữ neo trong model khi mở và gửi bản đồ neo mới sau mỗi receipt Lưu (luật so phiên bản ở §4.3) | Neo sống qua phiên bản mà không ghi bình luận vào byte |
-| G8-D3 (Q5, **mở**) | Phần **pending chờ nghiệp vụ phân quyền** (UNI-1336): mention người chưa có quyền, mức quyền "bình luận" riêng, ai được resolve. **Giá trị tạm có hiệu lực:** viết/sửa/xóa của mình cần `edit`, đọc cần `view`, resolve/mở lại cần `edit`; mention người không đọc được thì lưu `no_access`, không thông báo, không báo lỗi; người chỉ `view` thấy panel ở chế độ "Chỉ xem" | Chỉ chặn G8-18 |
+| G8-D3 (Q5, **đã ký 2026-10-14 15:45**) | Ba luật: (1) mention người không xem được tài liệu → cảnh báo lúc gửi + "chia sẻ quyền Xem rồi gửi" cho người được phép chia sẻ; bỏ qua thì mention lưu **không thông báo**; mention không bao giờ cấp quyền. (2) Mức **Comment** riêng giữa View và Edit; viết bình luận cần Comment hoặc Edit. (3) Resolve: tác giả luồng cộng bất kỳ ai có Edit. Bảng quyền, ánh xạ, lỗi/SDO và thẻ code: [phụ lục mức quyền](2026-10-14-documents-permission-levels-addendum.md) | Mở khóa G8-18 và hàng G8-A10; thay giá trị tạm cũ (viết/resolve cần `edit`, mention im lặng) |
 | G8-D4 (Q4) | Người nhận thông báo theo đúng bảng UNI-1337 (tạo mới không thông báo; bỏ thông báo `document_commented` cho chủ ACL và người bình luận trước); một thông báo mỗi người mỗi sự kiện, ưu tiên mention > reply > resolve; push bật cho mention, tắt cho reply/resolve | Đổi hành vi Inbox đang chạy của G1-07 |
 | G8-D5 (Q6) | Dòng `document_comments` hiện có (không neo) thành Discussion | Không mất dữ liệu; web hiện ở tab Discussion |
 | G8-D6 (Q3) | Phạm vi v1: bình luận cần online (không hàng đợi bình luận offline); Markdown/HTML chỉ có Discussion; neo PPTX là slide (+ id đối tượng khi editor cấp); quan hệ Task/Project/Meeting ↔ Document hoãn | Danh sách hoãn ở mục 6 |
@@ -138,7 +138,7 @@ locale; nhãn hiển thị trong UI dịch theo locale ("Người dùng"/"User"�
 ### 4.5 Mention bền và chống trùng thông báo
 
 Service ghi `document_comment_mentions` cùng transaction khi tạo/sửa: so tập id mới với dòng hiện có — thêm → `active`
-(`notified_at` NULL), bỏ → `removed`, người không đọc được tài liệu → `no_access` (giá trị tạm G8-D3). Dòng `removed` được thêm
+(`notified_at` NULL), bỏ → `removed`, người không đọc được tài liệu → `no_access` (luật G8-D3 đã ký: không thông báo, trả `mentions_without_access`; chi tiết, lỗi và SDO ở [phụ lục mức quyền](2026-10-14-documents-permission-levels-addendum.md) mục 3). Dòng `removed` được thêm
 lại → `active` nhưng giữ `notified_at` cũ (không thông báo lại). Luật thông báo của sự kiện tạo/sửa chỉ xét dòng `active` có
 `notified_at IS NULL` và đưa vào `Draft` một `Claim{MentionID}`; luật **chỉ đọc** (rule không có transaction). Việc **giành** dòng nằm ở `write()` của
 `server/internal/notification/consumer.go`: `UPDATE … SET notified_at = now() WHERE id = $1 AND notified_at IS NULL` chạy trong **cùng một

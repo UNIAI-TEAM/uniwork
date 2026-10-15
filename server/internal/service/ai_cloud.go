@@ -76,7 +76,11 @@ type AICloudStatus struct {
 	// UniworkAIFormats are the formats whose office_ai_uniwork_<format> is on
 	// for the caller, set only with Chat (the X-03 evaluation).
 	UniworkAIFormats []string
-	Credits          CloudCredits
+	// UniworkModel is the model the Gateway serves for UniWork AI in the
+	// Office editors (G6-05m, the chip's UniWork AI row); "" while UniWork AI
+	// is off for the caller or the server has no provider for it.
+	UniworkModel string
+	Credits      CloudCredits
 }
 
 // Status never refuses a member: a plan without office.ai_cloud reads as
@@ -100,14 +104,21 @@ func (s *AICloudService) Status(ctx context.Context, userID, orgID string, caps 
 		entitled = false
 	} else {
 		out.Tools = s.gw.CloudAvailability()
-		if caps != nil && s.gw.UniworkAIConfigured() {
-			// An error from caps.Get leaves chat off without failing the status.
-			// A flags-store refresh error does not reach here: the feature-flag
-			// provider keeps serving its last snapshot (featureflags/db_provider.go),
-			// for every flag, so a cached "on" stays on until the store answers again.
-			if c, err := caps.Get(ctx, userID, orgID); err == nil && c.AIUniwork {
-				out.Chat = true
-				out.UniworkAIFormats = c.AIUniworkFormats
+		if caps != nil {
+			// One resolve per status call (G05MBE-1): the gateway's model for
+			// UniWork AI in Office (G6-05m) is both the "configured" gate and
+			// the value served; "" when the server has no provider for it.
+			model := s.gw.UniworkAIModel()
+			if model != "" {
+				// An error from caps.Get leaves chat off without failing the status.
+				// A flags-store refresh error does not reach here: the feature-flag
+				// provider keeps serving its last snapshot (featureflags/db_provider.go),
+				// for every flag, so a cached "on" stays on until the store answers again.
+				if c, err := caps.Get(ctx, userID, orgID); err == nil && c.AIUniwork {
+					out.Chat = true
+					out.UniworkAIFormats = c.AIUniworkFormats
+					out.UniworkModel = model
+				}
 			}
 		}
 	}

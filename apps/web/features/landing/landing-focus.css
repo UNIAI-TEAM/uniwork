@@ -41,9 +41,9 @@
   padding-block: clamp(64px, 7vw, 104px);
 }
 .landing-conversion-story .pricing-section > div { max-width: 1260px; }
-.landing-site .pricing-section > div > div:first-child { max-width: 960px; }
+.landing-site .pricing-section .pricing-introduction { max-width: 960px; }
 .landing-site .pricing-section h2 { max-width: 18ch; font-size: var(--text-hero); line-height: 1.12; letter-spacing: -.035em; }
-.landing-site .pricing-section > div > div:first-child > p { max-width: 55ch; }
+.landing-site .pricing-section .pricing-introduction > p { max-width: 55ch; }
 .landing-site .pricing-offer {
   grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
   margin-top: 44px;

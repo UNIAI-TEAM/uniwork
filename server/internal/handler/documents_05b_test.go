@@ -377,14 +377,16 @@ func TestDocumentMove(t *testing.T) {
 
 func TestDocumentMoveDepthRefusedAtCreate(t *testing.T) {
 	w := newDocsWorld(t)
+	// FD-D2: the signed bound is 20; the HTTP layer pins the value.
+	const depth = 20
 	parent := ""
-	for i := 1; i <= 6; i++ {
+	for i := 1; i <= depth+1; i++ {
 		body := map[string]any{"title": "level", "kind": "page"}
 		if parent != "" {
 			body["parent_id"] = parent
 		}
 		res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents", w.token, body)
-		if i <= 5 {
+		if i <= depth {
 			if res.StatusCode != 201 {
 				t.Fatalf("level %d create: %d %v", i, res.StatusCode, out)
 			}
@@ -392,12 +394,12 @@ func TestDocumentMoveDepthRefusedAtCreate(t *testing.T) {
 			continue
 		}
 		if code, _ := errCodeClass(out); res.StatusCode != 422 || code != "document_too_deep" {
-			t.Fatalf("level 6 create: %d code=%q %v", res.StatusCode, code, out)
+			t.Fatalf("level %d create: %d code=%q %v", i, res.StatusCode, code, out)
 		}
 	}
 
 	// The 05b move route enforces the same ceiling: a standalone document
-	// cannot move under the fifth-level parent.
+	// cannot move under the deepest-level parent.
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents", w.token,
 		map[string]any{"title": "standalone", "kind": "page"})
 	if res.StatusCode != 201 {
@@ -713,10 +715,29 @@ func TestDocuments05bOpenAPI(t *testing.T) {
 			got[param.Name] = true
 		}
 	}
-	for _, name := range []string{"parent_id", "q", "kind", "archived", "updated_by", "updated_from", "updated_to", "cursor", "limit"} {
+	for _, name := range []string{"parent_id", "q", "match", "kind", "archived", "updated_by", "updated_from", "updated_to", "cursor", "limit"} {
 		if !got[name] {
 			t.Errorf("list spec missing query param %q", name)
 		}
+	}
+	var recentOps map[string]struct {
+		Parameters []struct {
+			Name        string `json:"name"`
+			In          string `json:"in"`
+			Description string `json:"description"`
+		} `json:"parameters"`
+	}
+	if err := json.Unmarshal(spec.Paths["/api/v1/workspaces/{workspaceID}/documents/recent"], &recentOps); err != nil {
+		t.Fatal(err)
+	}
+	recentMatchDesc := ""
+	for _, param := range recentOps["get"].Parameters {
+		if param.In == "query" && param.Name == "match" {
+			recentMatchDesc = param.Description
+		}
+	}
+	if recentMatchDesc == "" {
+		t.Errorf("recent spec missing query param %q description", "match")
 	}
 	// shared-with-me publishes its paging query params.
 	var swmOps map[string]struct {
@@ -742,6 +763,10 @@ func TestDocuments05bOpenAPI(t *testing.T) {
 	move := string(spec.Components.Schemas["SdiMoveDocumentSDI"])
 	if !strings.Contains(move, "01J8X4DOC0N1P2Q3R4S5T6U7W9") {
 		t.Errorf("move SDI example missing: %s", move)
+	}
+	summary := string(spec.Components.Schemas["SdoDocumentSummaryDTO"])
+	if !strings.Contains(summary, "Tài liệu nội bộ") {
+		t.Errorf("summary SDO path example missing: %s", summary)
 	}
 	if public := string(spec.Components.Schemas["SdoPublicDocumentSDO"]); public == "" {
 		t.Error("public document SDO not reflected")
@@ -951,5 +976,178 @@ func TestDocument05bWritePermissionMatrix(t *testing.T) {
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+docManage+"/shares", manager, nil)
 	if res.StatusCode != 200 || out["my_level"] != "manage" {
 		t.Fatalf("manager still manages: %d %v", res.StatusCode, out)
+	}
+}
+
+func TestDocumentListTitleSearchKindAndPath(t *testing.T) {
+	w := newDocsWorld(t)
+
+	_, rootFolder := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Tài liệu pháp lý", "kind": "folder",
+	})
+	_, subFolder := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Hợp đồng", "kind": "folder", "parent_id": rootFolder,
+	})
+	_, titleHitPage := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title":     "Hợp đồng A",
+		"kind":      "page",
+		"parent_id": subFolder,
+		"content": map[string]any{
+			"type": "doc",
+			"content": []any{
+				map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": "nội dung chi tiết"}}},
+			},
+		},
+	})
+	_, bodyOnlyPage := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title":     "Biên bản nghiệm thu",
+		"kind":      "page",
+		"parent_id": subFolder,
+		"content": map[string]any{
+			"type": "doc",
+			"content": []any{
+				map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": "Tham chiếu hợp đồng khung năm 2026"}}},
+			},
+		},
+	})
+
+	// 1. match=title finds folded title matches ("Hợp đồng", "Hợp đồng A"), excludes content-only match, and returns path: [{id, title}].
+	res, out := doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?q=hop+dong&match=title", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("match=title status=%d out=%v", res.StatusCode, out)
+	}
+	ids := docIDs(t, out)
+	if !containsID(ids, subFolder) || !containsID(ids, titleHitPage) {
+		t.Fatalf("match=title ids=%v, want %s and %s", ids, subFolder, titleHitPage)
+	}
+	if containsID(ids, bodyOnlyPage) {
+		t.Fatalf("match=title returned content-only page %s: %v", bodyOnlyPage, ids)
+	}
+	for _, rawItem := range out["documents"].([]any) {
+		item := rawItem.(map[string]any)
+		if item["id"] == titleHitPage {
+			rawPath, ok := item["path"].([]any)
+			if !ok || len(rawPath) != 2 {
+				t.Fatalf("titleHitPage path=%v, want 2 items", item["path"])
+			}
+			p0 := rawPath[0].(map[string]any)
+			p1 := rawPath[1].(map[string]any)
+			if p0["id"] != rootFolder || p0["title"] != "Tài liệu pháp lý" || p1["id"] != subFolder || p1["title"] != "Hợp đồng" {
+				t.Fatalf("titleHitPage path=%v, want [%s:Tài liệu pháp lý, %s:Hợp đồng]", rawPath, rootFolder, subFolder)
+			}
+		}
+	}
+
+	// 2. Omitting match preserves legacy full search_text behavior and row shape (includes bodyOnlyPage with snippet and path).
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?q=hop+dong", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("legacy q status=%d out=%v", res.StatusCode, out)
+	}
+	legacyIDs := docIDs(t, out)
+	if !containsID(legacyIDs, subFolder) || !containsID(legacyIDs, titleHitPage) || !containsID(legacyIDs, bodyOnlyPage) {
+		t.Fatalf("legacy q ids=%v, want all 3 matches", legacyIDs)
+	}
+	foundBodyRow := false
+	for _, rawItem := range out["documents"].([]any) {
+		item := rawItem.(map[string]any)
+		if item["id"] == bodyOnlyPage {
+			foundBodyRow = true
+			if item["title"] != "Biên bản nghiệm thu" || item["kind"] != "page" || item["parent_id"] != subFolder {
+				t.Fatalf("legacy bodyOnlyPage metadata=%v", item)
+			}
+			snippet, _ := item["snippet"].(string)
+			if !strings.Contains(snippet, "Tham chiếu hợp đồng khung năm 2026") {
+				t.Fatalf("legacy bodyOnlyPage snippet=%q, want content match", snippet)
+			}
+			rawPath, ok := item["path"].([]any)
+			if !ok || len(rawPath) != 2 {
+				t.Fatalf("legacy bodyOnlyPage path=%v, want 2 items", item["path"])
+			}
+		}
+	}
+	if !foundBodyRow {
+		t.Fatalf("bodyOnlyPage %s missing from legacy search documents", bodyOnlyPage)
+	}
+
+	// 3. kind=folder returns only folders; kind=document returns only non-folders.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?q=hop+dong&match=title&kind=folder", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("kind=folder status=%d out=%v", res.StatusCode, out)
+	}
+	if folderIDs := docIDs(t, out); len(folderIDs) != 1 || folderIDs[0] != subFolder {
+		t.Fatalf("kind=folder ids=%v, want [%s]", folderIDs, subFolder)
+	}
+
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?q=hop+dong&match=title&kind=document", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("kind=document status=%d out=%v", res.StatusCode, out)
+	}
+	if docOnlyIDs := docIDs(t, out); len(docOnlyIDs) != 1 || docOnlyIDs[0] != titleHitPage {
+		t.Fatalf("kind=document ids=%v, want [%s]", docOnlyIDs, titleHitPage)
+	}
+
+	// 4. Invalid match returns 400 invalid_request.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?q=hop+dong&match=content", w.token, nil)
+	wantErr(t, res, out, 400, "invalid_request", "")
+
+	// 5. A list with no q (flat browse or folder children) omits path on every row.
+	for _, listURL := range []string{
+		"/api/v1/workspaces/" + w.wsID + "/documents",
+		"/api/v1/workspaces/" + w.wsID + "/documents?parent_id=" + subFolder,
+	} {
+		res, out = doJSON(t, w.srv, "GET", listURL, w.token, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("GET %s status=%d out=%v", listURL, res.StatusCode, out)
+		}
+		rows := out["documents"].([]any)
+		if len(rows) == 0 {
+			t.Fatalf("GET %s returned 0 rows", listURL)
+		}
+		for _, rawItem := range rows {
+			item := rawItem.(map[string]any)
+			if _, hasPath := item["path"]; hasPath {
+				t.Fatalf("GET %s (no q) row %v unexpectedly carried path=%v", listURL, item["id"], item["path"])
+			}
+		}
+	}
+}
+
+func TestDocumentRecentMatchValidation(t *testing.T) {
+	w := newDocsWorld(t)
+
+	_, folderID := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Thư mục gần đây", "kind": "folder",
+	})
+	_, docA := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Hợp đồng gần đây", "kind": "page", "parent_id": folderID,
+	})
+	_, docB := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Biên bản gần đây", "kind": "page", "parent_id": folderID,
+	})
+	for _, id := range []string{docA, docB} {
+		res, _ := doJSON(t, w.srv, "GET", "/api/v1/documents/"+id, w.token, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("open %s: %d", id, res.StatusCode)
+		}
+	}
+
+	// Invalid match is rejected with 400 invalid_request just like the list route.
+	res, out := doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents/recent?match=bogus", w.token, nil)
+	wantErr(t, res, out, 400, "invalid_request", "")
+
+	// match=title (including with q, as sent by the shared client query string) is accepted (200) and ignored.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents/recent?q=hop+dong&match=title", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("recent match=title status=%d out=%v", res.StatusCode, out)
+	}
+	ids := docIDs(t, out)
+	if !containsID(ids, docA) || !containsID(ids, docB) {
+		t.Fatalf("recent match=title ids=%v, want %s and %s", ids, docA, docB)
+	}
+	for _, rawItem := range out["documents"].([]any) {
+		item := rawItem.(map[string]any)
+		if _, hasPath := item["path"]; hasPath {
+			t.Fatalf("recent row %v unexpectedly carried path=%v", item["id"], item["path"])
+		}
 	}
 }

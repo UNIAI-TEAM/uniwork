@@ -127,6 +127,8 @@ type Routes struct {
 	GetWorkspaceBySlugs http.HandlerFunc
 	ListWorkspaces      http.HandlerFunc
 	PatchWorkspace      http.HandlerFunc
+	UploadWorkspaceIcon http.HandlerFunc
+	RemoveWorkspaceIcon http.HandlerFunc
 	GetWorkspaceMe      http.HandlerFunc
 	ListMembers         http.HandlerFunc
 	PatchMember         http.HandlerFunc
@@ -463,9 +465,7 @@ type Routes struct {
 	ListChatRoomMessagesAround       http.HandlerFunc
 	SendChatRoomMessage              http.HandlerFunc
 	SendChatVoiceMessage             http.HandlerFunc
-	StreamChatVoiceMessage           http.HandlerFunc
 	SendChatFileMessage              http.HandlerFunc
-	StreamChatFileMessage            http.HandlerFunc
 	VoteChatPollMessage              http.HandlerFunc
 	ToggleChatMessageReaction        http.HandlerFunc
 	EditChatMessage                  http.HandlerFunc
@@ -591,6 +591,7 @@ type Routes struct {
 	DocumentTree             http.HandlerFunc
 	MoveDocument             http.HandlerFunc
 	ArchiveDocument          http.HandlerFunc
+	ArchiveImpact            http.HandlerFunc
 	RestoreDocument          http.HandlerFunc
 	ListDocumentShares       http.HandlerFunc
 	CreateDocumentShare      http.HandlerFunc

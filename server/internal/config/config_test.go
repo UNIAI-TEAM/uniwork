@@ -106,6 +106,26 @@ func TestLoadEnableSwaggerDefaultsOffInProduction(t *testing.T) {
 	}
 }
 
+// The file collector deletes by default; dry_run and off are the switches
+// back, and a typo fails startup instead of silently picking one.
+func TestLoadFileGCModeDefaultsToDestructive(t *testing.T) {
+	setRequired(t)
+	for raw, want := range map[string]string{"": "destructive", "destructive": "destructive", " DRY_RUN ": "dry_run", "off": "off"} {
+		t.Setenv("FILE_GC_MODE", raw)
+		c, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.FileGCMode != want {
+			t.Fatalf("FILE_GC_MODE=%q: FileGCMode = %q, want %q", raw, c.FileGCMode, want)
+		}
+	}
+	t.Setenv("FILE_GC_MODE", "delete")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "FILE_GC_MODE") {
+		t.Fatalf("FILE_GC_MODE=delete: err = %v, want a FILE_GC_MODE error", err)
+	}
+}
+
 // The relay stays on unless a single-replica deployment says false.
 func TestLoadRealtimeRelayIsOnUnlessFalse(t *testing.T) {
 	setRequired(t)

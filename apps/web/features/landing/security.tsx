@@ -1,4 +1,5 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import { ArrowRight, Gauge, RotateCcwClock, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@uniwork/ui/components/ui/accordion";
@@ -44,7 +45,7 @@ export function Security() {
             <div><dt>{t("landing.reference.auditScope")}</dt><dd>{t("landing.studio.productTeam")}</dd></div>
             <div><dt>{t("landing.reference.auditTrace")}</dt><dd>task.updated · UW-102</dd></div>
           </dl>
-          <a className="security-explore" href="#nhat-ky">{t("landing.reference.viewAudit")}<ArrowRight aria-hidden /></a>
+          <MarketingAnchor className="security-explore" href="#nhat-ky">{t("landing.reference.viewAudit")}<ArrowRight aria-hidden /></MarketingAnchor>
         </figure>
       </Container>
     </section>

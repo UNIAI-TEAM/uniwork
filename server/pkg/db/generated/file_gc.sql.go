@@ -699,3 +699,36 @@ func (q *Queries) FileGCUserAvatarRefTenants(ctx context.Context, fileIds []stri
 	}
 	return items, nil
 }
+
+const fileGCWorkspaceIconRefTenants = `-- name: FileGCWorkspaceIconRefTenants :many
+SELECT w.icon_file_id AS file_id, w.organization_id
+FROM workspaces w
+WHERE w.icon_file_id = ANY($1::text[])
+`
+
+type FileGCWorkspaceIconRefTenantsRow struct {
+	FileID         pgtype.Text `json:"file_id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// tenant: system
+// workspaces.icon_file_id: the uploaded workspace icon (spec 2026-10-14 §5.4).
+func (q *Queries) FileGCWorkspaceIconRefTenants(ctx context.Context, fileIds []string) ([]FileGCWorkspaceIconRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCWorkspaceIconRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCWorkspaceIconRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCWorkspaceIconRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

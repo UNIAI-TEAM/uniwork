@@ -88,6 +88,7 @@ beforeEach(() => {
   mocks.launch.mockReset();
   mocks.downloadFile.mockReset();
   mocks.retry.mockReset();
+  nav.searchParams.delete("comment");
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -296,9 +297,28 @@ describe("OfficeModuleHost", () => {
       await click(buttonByText("Open in UniWork Office"));
       await until(() => mocks.launch.mock.calls.length > 0);
       expect(mocks.createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "edit", deployment_id: "dep-7" }));
-      expect(mocks.launch).toHaveBeenCalledWith(`uniwork-office://open?ticket=${ticket}`);
+      expect(mocks.launch).toHaveBeenCalledWith(`uniwork-office://open?ticket=${ticket}`, expect.anything());
       await until(() => mocks.downloadProfile.mock.calls.length > 0);
       expect(mocks.downloadProfile).toHaveBeenCalledWith("org-1", "stable");
+    });
+
+    // S15 desktop: a page opened from the Inbox hands its comment to the app with the ticket.
+    it.each([
+      ["c_01JABCDEF", { comment_id: "c_01JABCDEF" }],
+      ["not an id", {}],
+    ])("sends ?comment=%s with the launch ticket only when it is an id", async (comment, extra) => {
+      nav.searchParams.set("comment", comment);
+      mocks.createSession.mockResolvedValue(session);
+      mocks.launch.mockResolvedValue("launched");
+      await render(host("sheets", false, big));
+      await until(() => buttonByText("Open in UniWork Office") !== undefined);
+      await until(() => configCalls().length > 0);
+      await settle();
+      await click(buttonByText("Open in UniWork Office"));
+      await until(() => mocks.createSession.mock.calls.length > 0);
+      expect(mocks.createSession).toHaveBeenCalledWith("doc-1", {
+        operation: "edit", deployment_id: "dep-7", client_id: "uniwork-office", return_hint: "office", ...extra,
+      });
     });
 
     it("downloads the file itself with the secondary button", async () => {

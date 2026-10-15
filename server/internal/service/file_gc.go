@@ -33,9 +33,9 @@ import (
 //  4. mark the file deleted and close the job, fenced by the job generation.
 //
 // A failure anywhere keeps the file and returns the job to pending for a
-// later daily sweep; nothing ever gives up on a job. Destructive mode is off
-// by default: the zero configuration is a dry run that reports what it would
-// do (Gate C).
+// later daily sweep; nothing ever gives up on a job. The zero configuration
+// is a dry run that reports what it would do; the server picks the mode from
+// FILE_GC_MODE, destructive by default.
 
 // FileGCMode says whether the collector runs and whether it may delete.
 type FileGCMode string
@@ -46,7 +46,7 @@ const (
 	// FileGCDryRun reads, checks and reports; it writes nothing. Default.
 	FileGCDryRun FileGCMode = "dry_run"
 	// FileGCDestructive transitions jobs and files and deletes objects.
-	// Gate C forbids it in a real environment until the rollout decision.
+	// cmd/server runs it by default (FILE_GC_MODE, user decision 2026-10-14).
 	FileGCDestructive FileGCMode = "destructive"
 )
 
