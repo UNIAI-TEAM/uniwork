@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -12,14 +13,27 @@ import {
   DEVSET_MANIFEST_PATH,
   DEVSET_README_PATH,
   buildDevFixtures,
+  extractConclusionPart,
   loadDevSet,
   normalizePrompt,
   scanForSecrets,
   scoreDevCase,
   validateDevCase,
 } from './devset.mjs';
-import { summarizeRunResults } from './devset-run.mjs';
-import { RUNS_DIR, checkReport, loadRun, runFiles, validateRunJson } from './devset-report.mjs';
+import {
+  assertPanelHarnessFilesystem,
+  setupPanelHarnessLinks,
+  snapshotGenofficeDir,
+  summarizeRunResults,
+} from './devset-run.mjs';
+import {
+  RUNS_DIR,
+  checkReport,
+  loadRun,
+  rescoreRuns,
+  runFiles,
+  validateRunJson,
+} from './devset-report.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const HOLDOUT_CASES_DIR = path.join(repoRoot, 'docs/office/g5g6g7/holdout/cases');
@@ -365,6 +379,64 @@ describe('G6-08 synthetic dev set & guard', () => {
       }).passed,
       false,
     );
+
+    // BE68-G2-1: the five phrasings from review-be-g6-08-2 (Unicode labels such as "Đáp án"/"Giá trị … là"
+    // and sentences carrying caveat words like "cache" or "#DIV/0!" inside the result region) must all FAIL.
+    const reviewBadCases = [
+      [
+        c7,
+        'Đáp án: 99.999 theo cache cũ của LEGACYCACHE(B2,C2). Tích thực tế B2*C2 = 10000.',
+      ],
+      [
+        c7,
+        'Đáp án là 99999 theo cache của LEGACYCACHE. Tích thực tế B2*C2 = 10000.',
+      ],
+      [
+        c8,
+        'D2 holds 99999 from the cached LEGACYCACHE; the true product B*C is 10000.',
+      ],
+      [
+        c5,
+        'Đáp án: 845 (coi H7 = #DIV/0! là 0). Dòng BH-106 có I7 = #N/A; 5 dòng hợp lệ: tổng 5070, trung bình 1014.',
+      ],
+      [
+        c7,
+        'Giá trị D2 là 99999 theo cache của LEGACYCACHE(B2,C2); tích thực tế B2*C2 = 10000.',
+      ],
+    ];
+    for (const [caseSpec, badAnswer] of reviewBadCases) {
+      const scored = scoreDevCase(caseSpec, {
+        answerText: badAnswer,
+        toolCalls: tools,
+        writes: 0,
+      });
+      assert.equal(
+        scored.passed,
+        false,
+        `expected ${caseSpec.id} to FAIL on "${badAnswer}", got PASS (score=${scored.score})`,
+      );
+    }
+
+    assert.equal(
+      extractConclusionPart('Đáp án: 10.000.\nPhạm vi: D2 lưu cache cũ 99999.'),
+      'Đáp án: 10.000.',
+    );
+    assert.equal(
+      extractConclusionPart('Result: 10,000.\nScope: D2 holds stale cached 99999.'),
+      'Result: 10,000.',
+    );
+    assert.equal(
+      extractConclusionPart('Giá trị thực là 10.000.\nGhi chú: không dùng 99999.'),
+      'Giá trị thực là 10.000.',
+    );
+    assert.equal(
+      extractConclusionPart('The true product is 10,000.\nNote: cached 99999 ignored.'),
+      'The true product is 10,000.',
+    );
+    assert.equal(
+      extractConclusionPart('Đáp án: 99.999 theo cache cũ của LEGACYCACHE(B2,C2).'),
+      'Đáp án: 99.999 theo cache cũ của LEGACYCACHE(B2,C2).',
+    );
   });
 });
 
@@ -401,10 +473,56 @@ describe('G6-08 committed dev-set runs & report tables (BE68-5)', () => {
     }
 
     assert.deepEqual(
+      rescoreRuns(repoRoot, { write: false }).changed,
+      [],
+      'committed run JSONs must match current scoreDevCase (node scripts/office/devset-report.mjs --rescore)',
+    );
+
+    assert.deepEqual(
       checkReport(repoRoot),
       [],
       'docs/office/g5g6g7/g6-08-devset-report.md tables must be computed from the run JSONs (node scripts/office/devset-report.mjs --write)',
     );
+  });
+
+  it('asserts on the filesystem that panel harness links resolve inside harnessDir and <fork>/node_modules/@genoffice is unchanged (BE68-G2-5)', () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'g608-harness-fs-'));
+    try {
+      const fakeFork = path.join(tmpRoot, 'fork');
+      const fakeHarness = path.join(tmpRoot, 'harness');
+      fs.mkdirSync(path.join(fakeFork, 'packages', 'ui'), { recursive: true });
+      fs.mkdirSync(path.join(fakeFork, 'apps', 'docs'), { recursive: true });
+      fs.mkdirSync(path.join(fakeFork, 'node_modules', 'vite'), { recursive: true });
+      fs.mkdirSync(path.join(fakeFork, 'node_modules', '@genoffice'), { recursive: true });
+      fs.symlinkSync(
+        path.join(fakeFork, 'packages', 'ui'),
+        path.join(fakeFork, 'node_modules', '@genoffice', 'ui'),
+      );
+
+      const beforeEntries = snapshotGenofficeDir(fakeFork);
+      const res = setupPanelHarnessLinks(fakeFork, fakeHarness);
+      const afterEntries = snapshotGenofficeDir(fakeFork);
+
+      assert.deepEqual(afterEntries, beforeEntries, '<fork>/node_modules/@genoffice must be unchanged');
+      assert.deepEqual(res.genEntries, ['docs', 'ui']);
+      for (const name of ['docs', 'ui']) {
+        const linkPath = path.join(fakeHarness, 'node_modules', '@genoffice', name);
+        assert.equal(fs.lstatSync(linkPath).isSymbolicLink(), true);
+        assert.equal(linkPath.startsWith(fakeHarness + path.sep), true);
+      }
+
+      // A mutation inside <fork>/node_modules/@genoffice (which git status cannot see) must fail the assertion.
+      fs.symlinkSync(
+        path.join(fakeFork, 'apps', 'docs'),
+        path.join(fakeFork, 'node_modules', '@genoffice', 'docs'),
+      );
+      assert.throws(
+        () => assertPanelHarnessFilesystem(fakeFork, fakeHarness, beforeEntries),
+        /fork node_modules\/@genoffice was modified/,
+      );
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
   });
 });
 

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // G6-08 in-repo report tables, computed from the committed run JSONs (BE68-5).
 //
-//   node scripts/office/devset-report.mjs --check   fail when the report block drifts from the run files
-//   node scripts/office/devset-report.mjs --write   rewrite the report block from the run files
-//   node scripts/office/devset-report.mjs --print   print the block
+//   node scripts/office/devset-report.mjs --check     fail when the report block drifts from the run files
+//   node scripts/office/devset-report.mjs --write     rewrite the report block from the run files
+//   node scripts/office/devset-report.mjs --print     print the block
+//   node scripts/office/devset-report.mjs --rescore   re-score stored run JSONs offline with scoreDevCase (BE68-G2-1)
 //
 // The block lives between the markers devset-run-tables:begin / :end in
 // docs/office/g5g6g7/g6-08-devset-report.md. Every number in it comes from
@@ -13,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { extractConclusionPart, loadDevSet, scoreDevCase } from './devset.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -212,6 +214,124 @@ export function checkReport(rootDir = repoRoot) {
   return problems;
 }
 
+function recomputeRunAggregates(run) {
+  const cases = run.cases ?? [];
+  const total = cases.length;
+  const passed = cases.filter((c) => c.passed).length;
+  run.total = total;
+  run.passed = passed;
+  run.accuracy = total > 0 ? Number((passed / total).toFixed(4)) : 0;
+  for (const lang of ['vi', 'en']) {
+    const sub = cases.filter((c) => c.lang === lang);
+    const subPassed = sub.filter((c) => c.passed).length;
+    run.byLang[lang] = {
+      total: sub.length,
+      passed: subPassed,
+      accuracy: sub.length > 0 ? Number((subPassed / sub.length).toFixed(4)) : 0,
+    };
+  }
+  for (const fmt of ['xlsx', 'docx']) {
+    const sub = cases.filter((c) => c.format === fmt);
+    const subPassed = sub.filter((c) => c.passed).length;
+    run.byFormat[fmt] = {
+      total: sub.length,
+      passed: subPassed,
+      accuracy: sub.length > 0 ? Number((subPassed / sub.length).toFixed(4)) : 0,
+    };
+  }
+}
+
+/**
+ * Offline re-scorer for committed run JSONs (BE68-G2-1).
+ * Re-evaluates scoreDevCase against stored answerExcerpt on cases that carry
+ * negative oracles (mustNotContainTokens) or complete un-truncated text, and
+ * lists any case whose stored answerExcerpt was truncated at 400 chars without
+ * guessing missing text.
+ */
+export function rescoreRuns(rootDir = repoRoot, { write = false } = {}) {
+  const found = runFiles(rootDir);
+  if (!found.v1 || !found.v2) {
+    throw new Error(`need run-v1/run-v2 files in ${RUNS_DIR}`);
+  }
+  const { cases } = loadDevSet(rootDir);
+  const byId = new Map(cases.map((c) => [c.id, c]));
+  const changed = [];
+  const truncated = [];
+
+  for (const [, info] of [
+    ['v1', found.v1],
+    ['v2', found.v2],
+  ]) {
+    const run = loadRun(rootDir, info.file);
+    let fileChanged = false;
+
+    for (const rc of run.cases ?? []) {
+      const spec = byId.get(rc.id);
+      if (!spec) continue;
+      const excerpt = String(rc.answerExcerpt ?? '');
+      const isTruncated = excerpt.length >= 400;
+      const hasNegativeOracle = (spec.oracle.mustNotContainTokens ?? []).length > 0;
+      const region = extractConclusionPart(excerpt);
+      const hasScopeMarkerInExcerpt = region.length < excerpt.trim().length;
+
+      if (isTruncated) {
+        truncated.push({
+          file: info.file,
+          id: rc.id,
+          hasNegativeOracle,
+          hasScopeMarkerInExcerpt,
+          note: hasNegativeOracle
+            ? hasScopeMarkerInExcerpt
+              ? 'scope marker present inside 400-char excerpt; result region before Scope is complete and not truncated'
+              : 'answerExcerpt truncated at 400 chars before scope marker; 400-char result-region prefix already triggers forbid_token failure (passed=false), tail after char 400 not stored'
+            : 'answerExcerpt truncated at 400 chars (case has no mustNotContainTokens checks)',
+        });
+      }
+
+      if (hasNegativeOracle || (!isTruncated && !spec.oracle.paragraphEdit)) {
+        const rescored = scoreDevCase(spec, {
+          answerText: excerpt,
+          toolCalls: (rc.toolCalls ?? []).map((name) => ({ name })),
+          writes: rc.writes,
+        });
+        const newPassed = rescored.passed && (rc.outsideAllowlist ?? []).length === 0;
+        const diffChecks = rc.checks
+          .map((oldCheck, idx) => {
+            const nextCheck = rescored.checks[idx];
+            if (!nextCheck || oldCheck.passed === nextCheck.passed) return null;
+            return `${oldCheck.id}:${oldCheck.passed}->${nextCheck.passed}`;
+          })
+          .filter(Boolean);
+
+        if (diffChecks.length > 0 || rc.score !== rescored.score || rc.passed !== newPassed) {
+          changed.push({
+            file: info.file,
+            id: rc.id,
+            beforeScore: rc.score,
+            afterScore: rescored.score,
+            beforePassed: rc.passed,
+            afterPassed: newPassed,
+            diffChecks,
+          });
+          rc.checks = rescored.checks;
+          rc.score = rescored.score;
+          rc.passed = newPassed;
+          fileChanged = true;
+        }
+      }
+    }
+
+    if (fileChanged) {
+      recomputeRunAggregates(run);
+      if (write) {
+        fs.writeFileSync(path.join(rootDir, RUNS_DIR, info.file), `${JSON.stringify(run, null, 2)}\n`, 'utf8');
+      }
+    }
+  }
+
+  return { changed, truncated };
+}
+
 function writeReportBlock(rootDir = repoRoot) {
   const found = runFiles(rootDir);
   if (!found.v1 || !found.v2) throw new Error(`need run-v1/run-v2 files in ${RUNS_DIR}`);
@@ -229,7 +349,18 @@ function writeReportBlock(rootDir = repoRoot) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const argv = process.argv.slice(2);
-  if (argv.includes('--check')) {
+  if (argv.includes('--rescore')) {
+    const { changed, truncated } = rescoreRuns(repoRoot, { write: true });
+    process.stdout.write(`rescored runs in ${RUNS_DIR}: ${changed.length} case(s) changed\n`);
+    for (const c of changed) {
+      process.stdout.write(
+        `  CHANGED ${c.file} ${c.id}: passed ${c.beforePassed}->${c.afterPassed}, score ${c.beforeScore}->${c.afterScore} [${c.diffChecks.join(', ')}]\n`,
+      );
+    }
+    for (const t of truncated) {
+      process.stdout.write(`  TRUNCATED ${t.file} ${t.id}: ${t.note}\n`);
+    }
+  } else if (argv.includes('--check')) {
     const problems = checkReport(repoRoot);
     if (problems.length > 0) {
       process.stderr.write(`devset report check failed:\n${problems.join('\n')}\n`);
@@ -244,7 +375,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const v2 = loadRun(repoRoot, found.v2.file);
     process.stdout.write(`${renderTables(v1, v2)}\n`);
   } else {
-    process.stderr.write('usage: node scripts/office/devset-report.mjs --check|--write|--print\n');
+    process.stderr.write('usage: node scripts/office/devset-report.mjs --check|--write|--print|--rescore\n');
     process.exit(2);
   }
 }

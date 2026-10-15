@@ -246,25 +246,25 @@
     }
   ],
   "total": 20,
-  "passed": 17,
-  "accuracy": 0.85,
+  "passed": 15,
+  "accuracy": 0.75,
   "byLang": {
     "vi": {
       "total": 10,
-      "passed": 8,
-      "accuracy": 0.8
+      "passed": 7,
+      "accuracy": 0.7
     },
     "en": {
       "total": 10,
-      "passed": 9,
-      "accuracy": 0.9
+      "passed": 8,
+      "accuracy": 0.8
     }
   },
   "byFormat": {
     "xlsx": {
       "total": 16,
-      "passed": 13,
-      "accuracy": 0.8125
+      "passed": 11,
+      "accuracy": 0.6875
     },
     "docx": {
       "total": 4,
@@ -777,8 +777,8 @@
       "category": "stale_cache",
       "promptId": "office_uniwork_ai@2",
       "resolvedModel": "gpt-6-luna",
-      "passed": true,
-      "score": 1,
+      "passed": false,
+      "score": 0.8667,
       "checks": [
         {
           "id": "allowlist",
@@ -817,8 +817,8 @@
         },
         {
           "id": "forbid_token:99999",
-          "passed": true,
-          "detail": "conclusion cleanly omitted \"99999\""
+          "passed": false,
+          "detail": "forbidden token \"99999\" present in conclusion (\"Kết quả: Không được dùng giá trị cache cũ `99999` hoặc `88888` làm kết quả chính thức vì đó là các giá trị đã lưu nhưng \")"
         },
         {
           "id": "forbid_token:99.999",
@@ -832,8 +832,8 @@
         },
         {
           "id": "forbid_token:88888",
-          "passed": true,
-          "detail": "conclusion cleanly omitted \"88888\""
+          "passed": false,
+          "detail": "forbidden token \"88888\" present in conclusion (\"Kết quả: Không được dùng giá trị cache cũ `99999` hoặc `88888` làm kết quả chính thức vì đó là các giá trị đã lưu nhưng \")"
         },
         {
           "id": "forbid_token:88.888",
@@ -877,8 +877,8 @@
       "category": "stale_cache",
       "promptId": "office_uniwork_ai@2",
       "resolvedModel": "gpt-6-luna",
-      "passed": true,
-      "score": 1,
+      "passed": false,
+      "score": 0.8667,
       "checks": [
         {
           "id": "allowlist",
@@ -917,8 +917,8 @@
         },
         {
           "id": "forbid_token:99999",
-          "passed": true,
-          "detail": "conclusion cleanly omitted \"99999\""
+          "passed": false,
+          "detail": "forbidden token \"99999\" present in conclusion (\"The cached values **99999** in D2 and **88888** in D3 are not verified results. D2’s `LEGACYCACHE` function is unsupport\")"
         },
         {
           "id": "forbid_token:99,999",
@@ -932,8 +932,8 @@
         },
         {
           "id": "forbid_token:88888",
-          "passed": true,
-          "detail": "conclusion cleanly omitted \"88888\""
+          "passed": false,
+          "detail": "forbidden token \"88888\" present in conclusion (\"The cached values **99999** in D2 and **88888** in D3 are not verified results. D2’s `LEGACYCACHE` function is unsupport\")"
         },
         {
           "id": "forbid_token:88,888",

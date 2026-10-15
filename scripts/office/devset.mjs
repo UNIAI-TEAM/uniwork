@@ -651,59 +651,25 @@ function textHasNumber(text, target, tolerance = 0) {
   return false;
 }
 
+const SCOPE_MARKER_RE =
+  /(?:^|\n|(?<=[.!?])\s+)(?:[*#_>-]+\s*)*(?:phạm\s+vi(?:\s+dữ\s+liệu)?|scope|ghi\s+chú|notes?)(?![\p{L}\p{N}])\s*[*_]*\s*:/iu;
+
 /**
- * Extracts the conclusion part of an assistant reply for negative-oracle checks
- * (G6-A02 / BE68-6). Consistent with the instruction pack ("Result first, then
- * its scope" in common rule 5 and sheets "Answer shape"), the conclusion part
- * comprises:
- *   1. Explicit result/conclusion lines or sentences (e.g. "Kết quả:", "Kết luận:",
- *      "Result:", "Conclusion:", "Answer:"),
- *   2. Any sentence/clause that positively equates a cell or metric to a final
- *      answer (e.g. "D2 = 99999 là kết quả", "is the result", "H7 = 0", "845"),
- *   3. The opening result sentence and closing conclusion sentence, excluding
- *      sentences that solely explain why a stale cached value or error cell is
- *      rejected/skipped (e.g. "không được dùng cache cũ 99999", "stale cached
- *      value 99999 must not be used", "do not substitute 0 for #DIV/0!").
+ * Extracts the result region of an assistant reply for negative-oracle checks
+ * (G6-A02 / BE68-6 / BE68-G2-1). Consistent with the instruction pack ("Result
+ * first, then its scope" in common rule 5 and sheets "Answer shape"), the result
+ * region is selected positively as the text before the first scope/note marker
+ * ("Phạm vi:", "Scope:", "Ghi chú:", "Note:"), or the whole text when no scope
+ * marker is present. No caveat-word filter is applied inside this region, and
+ * matching uses Unicode-aware (`u`) boundaries so Vietnamese labels are never
+ * skipped.
  */
 export function extractConclusionPart(answer) {
   const text = String(answer ?? '').trim();
   if (!text) return '';
-  const segments = text
-    .split(/\n+|(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (segments.length === 0) return '';
-
-  const positiveResultClaimRe =
-    /(?:\b(?:kết quả|kết luận|đáp án|result|answer|conclusion)\s*(?:là|is|:|=)\s*(?:d[23]\s*=\s*)?(?:99[.,]?999|88[.,]?888|0\b|845\b))|(?:\bd[23]\s*=\s*(?:99[.,]?999|88[.,]?888)\b)|(?:\b[hi]7\s*[:=]\s*0\b)|(?:\b(?:trung bình(?: cộng)?|average)\b[^.\n]*?\b(?:845|là\s+0|is\s+0|=\s*0)\b)/i;
-
-  const cacheOrErrorCaveatRe =
-    /(?:cache|bộ nhớ đệm|not recalculated|chưa được tính lại|stale|unverified|không được dùng|không dùng|must not|do not|cannot be used|không thay|không được thay|bỏ qua|skipped|excluded|#div\/0!|#n\/a|#name\?)/i;
-
-  const explicitHeaderRe =
-    /^(?:[*#-]*\s*)?(?:kết quả|kết luận|đáp án|tóm lại|result|conclusion|final answer|answer)\b/i;
-
-  const selected = [];
-  segments.forEach((seg, idx) => {
-    if (positiveResultClaimRe.test(seg)) {
-      selected.push(seg);
-      return;
-    }
-    if (explicitHeaderRe.test(seg) && !cacheOrErrorCaveatRe.test(seg)) {
-      selected.push(seg);
-      return;
-    }
-    if ((idx === 0 || idx === segments.length - 1) && !cacheOrErrorCaveatRe.test(seg)) {
-      selected.push(seg);
-    }
-  });
-
-  if (selected.length === 0) {
-    return segments
-      .filter((seg) => !cacheOrErrorCaveatRe.test(seg) || positiveResultClaimRe.test(seg))
-      .join('\n');
-  }
-  return selected.join('\n');
+  const match = SCOPE_MARKER_RE.exec(text);
+  const region = match ? text.slice(0, match.index) : text;
+  return region.trim();
 }
 
 /**
