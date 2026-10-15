@@ -169,7 +169,8 @@ runner từ chối `--out` trong repo (kể cả khi đi qua symlink; báo cáo 
 như bí mật ngay trong từng lượt hỏi thay vì bỏ cả lần chạy: lần chạy vẫn được ghi và đếm, nhưng bị đánh dấu `redactions` và
 không thể là kết luận đạt. Ngoại lệ: loại `base64_run` / `hex_run` (chuỗi dài trông như mã hóa, có thể chỉ là một định danh dài) vẫn được
 liệt kê trong `redactions` để người đọc xem, nhưng không làm mất hiệu lực lần chạy; các loại khoá, token, userinfo, host:port, IPv4
-vẫn làm mất hiệu lực. Đường dẫn, định danh CamelCase và số có dấu chấm một chữ số đầu (`2.100.100.100`) không bị coi là bí mật. Một lần gọi runner ghi **một thư mục phiên** `<out>/<sessionId>/` gồm `run-NN.json` và `manifest.json`
+vẫn làm mất hiệu lực. Đường dẫn và định danh CamelCase không bị coi là bí mật; số có dấu chấm một chữ số đầu (`2.100.100.100`) chỉ được giữ
+khi đứng cạnh dấu hiệu tiền tệ (`đồng`, `VNĐ`, `₫`) hoặc sau chữ "số" — đứng một mình, làm host của URL không cổng, hay đứng trước cổng thì bị che và đánh dấu (G712-40). Một lần gọi runner ghi **một thư mục phiên** `<out>/<sessionId>/` gồm `run-NN.json` và `manifest.json`
 (mã phiên, hash bộ ca, sha256 của từng file run); báo cáo chỉ tính đúng các lần chạy mà manifest liệt kê.
 
 ### Chạy trên bản giả (không cần model thật)
@@ -248,7 +249,8 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
 backend giả lập, đường façade, bộ công cụ từng module và nguồn lược đồ, nguồn độ trễ, phần release tuple chỉ khai báo), bộ lần chạy
 và release tuple, tải (lượt gọi, 429/5xx, thử lại, token và tỷ lệ lượt gọi có dòng `ai_usage_events`), mọi chỉ số §9.2 với
 **min / trung vị / max** trên các lần chạy, theo nhóm (XLSX 40, DOCX 20, định dạng khác 20, cross 20) và theo định dạng, độ
-trễ p50/p95 mỗi lần và gộp, ca không ổn định (khớp ở lần này, lệch ở lần khác), ca **chờ người duyệt** (ca `rubric` và ca có
+trễ p50/p95 mỗi lần và gộp, ca không ổn định (khớp ở lần này, lệch ở lần khác), số lượt hỏi có **giá trị bị che** theo từng lần chạy kèm loại đã che
+(loại `base64_run`/`hex_run` không làm mất hiệu lực lần chạy, G712-42), ca **chờ người duyệt** (ca `rubric` và ca có
 `caveat`: scorer không bao giờ tự xác nhận), và giới hạn của adapter.
 
 Hai hàng "ghi áp lên bản cũ" và "ghi trái phép" của viewer/thu hồi quyền ghi rõ **mô phỏng, bằng 0 theo cấu trúc** (backend từ
