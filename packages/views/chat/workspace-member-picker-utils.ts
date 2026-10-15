@@ -22,6 +22,8 @@ export function filterWorkspaceMembers(
     currentUserId: string;
     excludeUserIds?: ReadonlySet<string>;
     query: string;
+    /** Match the display name only, for a screen that never shows an email. */
+    nameOnly?: boolean;
   },
 ): Member[] {
   const q = options.query.trim();
@@ -30,6 +32,7 @@ export function filterWorkspaceMembers(
     if (options.excludeUserIds?.has(member.user_id)) return false;
     if (!q) return true;
     // Accent-insensitive, so "tuan" finds "Tuấn".
+    if (options.nameOnly) return foldedIncludes(member.display_name.trim(), q);
     return foldedIncludes(memberDisplayLabel(member), q) || foldedIncludes(member.email, q);
   });
 }

@@ -204,3 +204,23 @@ func TestCORSPreflightAllowsTheForwardedVendorHeaders(t *testing.T) {
 		}
 	}
 }
+
+// The access report export (UNI-1643) names its file and counts in response
+// headers; a cross-origin browser reads them only when CORS exposes them.
+func TestCORSExposesTheAccessReportExportHeaders(t *testing.T) {
+	cfg := config.Config{FrontendOrigin: "http://localhost:3000"}
+	mux := New(Deps{Cfg: cfg}, stubRoutes())
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/w1/documents/access-report/export?format=csv", nil)
+	req.Header.Set("Origin", cfg.FrontendOrigin)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	exposed := map[string]bool{}
+	for _, h := range strings.Split(rec.Header().Get("Access-Control-Expose-Headers"), ",") {
+		exposed[strings.ToLower(strings.TrimSpace(h))] = true
+	}
+	for _, header := range []string{"Content-Disposition", "X-Report-Rows", "X-Report-Skipped", "X-Report-Generated-At"} {
+		if !exposed[strings.ToLower(header)] {
+			t.Errorf("Access-Control-Expose-Headers lacks %s (got %q)", header, rec.Header().Get("Access-Control-Expose-Headers"))
+		}
+	}
+}

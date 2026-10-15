@@ -1244,7 +1244,7 @@
         "G8-11",
         "G8-20"
       ],
-      "command": "`go test ./internal/service ./internal/handler -run 'DocumentComment(Kind|Tombstone|Revision|Purge|Copy|ListToken)'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents packages/core/api/endpoints/document-comments.test.ts` (gồm ca `unchanged`, dòng `discussion` ở client cũ) · F vitest panel G8-11",
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentComment(Kind|CollabTombstoneHTTP|Revision|RevisionsTombstoneRefused|ListToken)|DocumentPurgeDropsTheCommentOrbit|DocumentCopyCarriesNoComments'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents packages/core/api/endpoints/document-comments.test.ts` (gồm ca `unchanged`, dòng `discussion` ở client cũ) · F vitest panel G8-11",
       "artifact": "`reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md` + ảnh S13 light/dark vi/en, `reports/g8-fork_editors/cloud-test-*.md`",
       "gate": "G8-D5",
       "blocker": null,
@@ -1440,7 +1440,7 @@
         "G8-06",
         "G8-08"
       ],
-      "command": "`go test ./internal/handler -run 'IsolationMatrix|IsolationRealtime|EveryBodyIDFieldHasAReferenceCase'` · `go test ./internal/service -run AuditCoverage` · `node --test scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs`",
+      "command": "`go test ./internal/handler -run 'IsolationMatrix|IsolationRealtime|EveryBodyIDFieldHasAReferenceCase'` · `go test ./internal/service -run 'EveryAuditedCommandWritesItsRow|ReusedAuditActionCommandsWriteTheirOwnRows'` · `node --test scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs`",
       "artifact": "`reports/g8-server/cloud-test-*.md`",
       "gate": null,
       "blocker": null,
