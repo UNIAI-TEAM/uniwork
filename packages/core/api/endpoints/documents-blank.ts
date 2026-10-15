@@ -1,4 +1,4 @@
-import { DocumentEnvelopeSchema, type Document } from "../../types/document";
+import { DocumentEnvelopeSchema, type Document, type DocumentVisibility } from "../../types/document";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 import type { DocumentRequestOpts } from "./documents";
@@ -13,6 +13,8 @@ export interface CreateBlankDocumentBody {
   format: BlankDocumentFormat;
   title: string;
   parent_id?: string;
+  /** DOC-02: only sent when the server declares `documents.create_visibility`. */
+  visibility?: DocumentVisibility;
 }
 
 /** POST /api/v1/workspaces/{workspaceID}/documents/files/blank. */

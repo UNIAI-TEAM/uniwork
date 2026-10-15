@@ -59,6 +59,9 @@ export interface CreateDocumentFileMeta {
   parent_id?: string;
   /** Display title; defaults to the file name server-side. */
   title?: string;
+  /** "restricted" (DOC-02): only sent when the server declares
+   *  `documents.create_visibility`; omitted = inherit the parent / workspace. */
+  visibility?: DocumentVisibility;
 }
 
 function idempotencyHeaders(opts?: DocumentRequestOpts): Record<string, string> | undefined {
@@ -143,7 +146,7 @@ export async function createDocumentFile(
 ): Promise<Document | null> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/files`, {
     method: "POST",
-    body: fileForm(file, { parent_id: meta?.parent_id, title: meta?.title }),
+    body: fileForm(file, { parent_id: meta?.parent_id, title: meta?.title, visibility: meta?.visibility }),
     headers: idempotencyHeaders(opts),
     signal: opts?.signal,
   });

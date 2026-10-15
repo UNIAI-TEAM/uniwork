@@ -9,7 +9,7 @@ import {
   saveDocumentSource,
   type ListDocumentSourcesOpts,
 } from "../api/endpoints/documents-sources";
-import type { Document } from "../types/document";
+import type { Document, DocumentVisibility } from "../types/document";
 import { documentKeys } from "./keys";
 import { requireVerifiableDocument } from "./verify";
 
@@ -76,12 +76,13 @@ export function useCreateBlankFile(wsId: string) {
       format: BlankDocumentFormat;
       title: string;
       parentId?: string;
+      visibility?: DocumentVisibility;
       idempotencyKey?: string;
     }) =>
       requireVerifiableDocument(
         await createBlankDocumentFile(
           wsId,
-          { format: input.format, title: input.title, parent_id: input.parentId },
+          { format: input.format, title: input.title, parent_id: input.parentId, visibility: input.visibility },
           { idempotencyKey: input.idempotencyKey },
         ),
       ),
@@ -92,11 +93,11 @@ export function useCreateBlankFile(wsId: string) {
 export function useCreateFolder(wsId: string) {
   const onSuccess = useAfterCreate(wsId);
   return useMutation({
-    mutationFn: async (input: { title: string; parentId?: string; idempotencyKey?: string }) =>
+    mutationFn: async (input: { title: string; parentId?: string; visibility?: DocumentVisibility; idempotencyKey?: string }) =>
       requireVerifiableDocument(
         await createDocument(
           wsId,
-          { kind: "folder", title: input.title, parent_id: input.parentId },
+          { kind: "folder", title: input.title, parent_id: input.parentId, visibility: input.visibility },
           { idempotencyKey: input.idempotencyKey },
         ),
       ),

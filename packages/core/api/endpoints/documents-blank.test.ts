@@ -57,6 +57,25 @@ describe("documents-blank endpoint", () => {
     expect(out?.id).toBe("d1");
   });
 
+  it("sends visibility restricted in the body and sends none when it is not given (DOC-02)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ visibility: "restricted" }) }, 201));
+    const out = await createBlankDocumentFile("w1", { format: "docx", title: "t", visibility: "restricted" });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual({
+      format: "docx",
+      title: "t",
+      visibility: "restricted",
+    });
+    expect(out?.visibility).toBe("restricted");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody() }, 201));
+    await createBlankDocumentFile("w1", { format: "docx", title: "t" });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1]![1]?.body))).not.toHaveProperty("visibility");
+  });
+
+  it("resolves null when the returned visibility drifted to a non-string", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ visibility: 7 }) }, 201));
+    expect(await createBlankDocumentFile("w1", { format: "docx", title: "t", visibility: "restricted" })).toBeNull();
+  });
+
   it("omits the header without a key", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody() }, 201));
     await createBlankDocumentFile("w1", { format: "md", title: "t" });

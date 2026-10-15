@@ -8,6 +8,7 @@ export type WorkManagementCapability =
   | "tasks.squads"
   | "tasks.vcs"
   | "tasks.local_workdir"
+  | "documents.create_visibility"
   | "desktop.host"
   | "mobile.host";
 

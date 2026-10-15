@@ -181,6 +181,36 @@ describe("documents endpoints", () => {
     expect((form.get("file") as File).name).toBe("brief.docx");
   });
 
+  it("createDocumentFile sends visibility as a text field before the file part (DOC-02)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "file", visibility: "restricted" }) }));
+    const out = await createDocumentFile("w1", new File(["bytes"], "brief.docx"), {
+      parent_id: "p1",
+      title: "Báo cáo",
+      visibility: "restricted",
+    });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    const form = init?.body as FormData;
+    expect(Array.from(form.keys())).toEqual(["parent_id", "title", "visibility", "file"]);
+    expect(form.get("visibility")).toBe("restricted");
+    expect(out?.visibility).toBe("restricted");
+  });
+
+  it("createDocumentFile without visibility sends no visibility field", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "file" }) }));
+    await createDocumentFile("w1", new File(["bytes"], "brief.docx"), { title: "t" });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect((init?.body as FormData).has("visibility")).toBe(false);
+  });
+
+  it("createDocument sends visibility restricted in the JSON body and degrades a drifted visibility", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "folder", visibility: "restricted" }) }));
+    await createDocument("w1", { title: "Thư mục", kind: "folder", visibility: "restricted" });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({ title: "Thư mục", kind: "folder", visibility: "restricted" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ visibility: 7 }) }));
+    await expect(createDocument("w1", { title: "t" })).resolves.toBeNull();
+  });
+
   it("commitDocumentVersion sends upload_id + base_revision with the key", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ document: docBody({ revision: "42" }), version: versionBody() }),

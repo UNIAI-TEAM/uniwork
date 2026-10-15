@@ -99,6 +99,25 @@ describe("config endpoints", () => {
     });
   });
 
+  it("reads documents.create_visibility: available shows the file toggle, absent or unknown hides it (DOC-02)", async () => {
+    const entry = { status: "available", reason_code: "", explanation_key: "" };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ flags: {}, rum_sample_rate: 0, work_management_capabilities: { "documents.create_visibility": entry } }),
+    );
+    const on = await getPublicConfig();
+    expect(capabilityState(on, "documents.create_visibility").status).toBe("available");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {} }));
+    expect(capabilityState(await getPublicConfig(), "documents.create_visibility")).toEqual({
+      status: "unavailable",
+      reason_code: "capability_unknown",
+      explanation_key: "capabilities.unknown",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ flags: {}, rum_sample_rate: 0, work_management_capabilities: { "documents.create_visibility": { status: "soon" } } }),
+    );
+    expect(capabilityState(await getPublicConfig(), "documents.create_visibility").status).toBe("unavailable");
+  });
+
   it("postWebVital sends the sample and resolves on 204", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
     await expect(postWebVital("lcp", 1830, "/[orgSlug]/[workspaceSlug]/tasks")).resolves.toBeUndefined();

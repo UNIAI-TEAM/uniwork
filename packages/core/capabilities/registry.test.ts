@@ -34,4 +34,22 @@ describe("capabilityState", () => {
       explanation_key: "",
     });
   });
+
+  it("resolves documents.create_visibility: absent hides the file toggle, available shows it (DOC-02)", () => {
+    const base = { flags: {}, rum_sample_rate: 0 };
+    expect(capabilityState({ ...base, work_management_capabilities: {} }, "documents.create_visibility").status).toBe(
+      "unavailable",
+    );
+    expect(
+      capabilityState(
+        {
+          ...base,
+          work_management_capabilities: {
+            "documents.create_visibility": { status: "available", reason_code: "", explanation_key: "" },
+          },
+        },
+        "documents.create_visibility",
+      ).status,
+    ).toBe("available");
+  });
 });

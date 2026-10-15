@@ -147,6 +147,28 @@ describe("documents library hooks", () => {
     expect(JSON.parse(String(init?.body))).toEqual({ kind: "folder", title: "Thư mục", parent_id: "p1" });
   });
 
+  it("useCreateBlankFile and useCreateFolder forward visibility restricted (DOC-02)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ visibility: "restricted" }) }, 201));
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "folder", visibility: "restricted" }) }, 201));
+    const { wrapper } = setup();
+    const blank = renderHook(() => useCreateBlankFile("w1"), { wrapper });
+    const folder = renderHook(() => useCreateFolder("w1"), { wrapper });
+    await act(async () => {
+      await blank.result.current.mutateAsync({ format: "xlsx", title: "Bảng", visibility: "restricted" });
+      await folder.result.current.mutateAsync({ title: "Thư mục", visibility: "restricted" });
+    });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual({
+      format: "xlsx",
+      title: "Bảng",
+      visibility: "restricted",
+    });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1]![1]?.body))).toEqual({
+      kind: "folder",
+      title: "Thư mục",
+      visibility: "restricted",
+    });
+  });
+
   it("useSaveSourceToFolder sends parent_id and rejects an unverifiable answer", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody() }, 201));
     const { wrapper } = setup();
