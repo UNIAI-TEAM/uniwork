@@ -504,7 +504,7 @@ describe("documents endpoints", () => {
         ],
       }),
     );
-    const out = await listDocumentMentionCandidates("d1", { includeNoAccess: true });
+    const out = await listDocumentMentionCandidates("d1", { include: "no_access" });
     expect(out).toEqual([
       { user_id: "u1", display_name: "An", can_view: undefined },
       { user_id: "u2", display_name: "", can_view: false },

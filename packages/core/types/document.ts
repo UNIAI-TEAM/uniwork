@@ -1,12 +1,16 @@
 import { z } from "zod";
 import { ActorSchema } from "./actor";
 import {
+  DocumentBreakGlassGrantSchema,
+  DocumentPersonAccessSchema,
+  type DocumentBreakGlassGrant,
+  type DocumentPersonAccess,
+} from "./document-access";
+import {
   DOCUMENT_COMMENT_KINDS,
   DocumentCommentMentionSchema,
   DocumentCommentRevisionListEnvelopeSchema,
   DocumentCommentRevisionSchema,
-  DocumentCommentSchema as BaseDocumentCommentSchema,
-  type DocumentComment as BaseDocumentComment,
   type DocumentCommentKind,
   type DocumentCommentMention,
   type DocumentCommentRevision,
@@ -393,15 +397,7 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
 export const DocumentTreeSchema = z.object({ documents: z.array(DocumentTreeNodeSchema) });
 export type DocumentTree = z.infer<typeof DocumentTreeSchema>;
 
-export const DocumentPersonAccessSchema = z.object({
-  user_id: z.string(),
-  level: z.string(),
-  via: z.string().optional().default(""),
-});
-export type DocumentPersonAccess = Omit<z.infer<typeof DocumentPersonAccessSchema>, "level" | "via"> & {
-  level: DocumentAccessLevel;
-  via: DocumentAccessVia;
-};
+export { DocumentPersonAccessSchema, type DocumentPersonAccess };
 
 export const DocumentShareSchema = z.object({
   id: z.string(),
@@ -431,35 +427,6 @@ export const DocumentLinkSchema = z.object({
 });
 export type DocumentLink = z.infer<typeof DocumentLinkSchema>;
 
-/** One live emergency-access grant (DOC-05, contract-g8-18-doc-05.md §3). */
-export const DocumentBreakGlassGrantSchema = z.object({
-  id: z.string().min(1),
-  document_id: z.string().min(1),
-  actor_id: z.string().min(1),
-  actor_name: z
-    .string()
-    .nullish()
-    .catch("")
-    .transform((v) => v ?? ""),
-  level: z.string().optional().default("view"),
-  reason: z.string().optional().default(""),
-  granted_at: z.string().min(1),
-  expires_at: z.string().min(1),
-});
-export type DocumentBreakGlassGrant = Omit<
-  z.infer<typeof DocumentBreakGlassGrantSchema>,
-  "level"
-> & {
-  level: DocumentAccessLevel;
-};
-
-export const DocumentBreakGlassGrantEnvelopeSchema = z.object({
-  grant: DocumentBreakGlassGrantSchema,
-});
-export type DocumentBreakGlassGrantEnvelope = {
-  grant: DocumentBreakGlassGrant;
-};
-
 /** The access overview: my level always; grants/links/acl-owner/break-glass at manage or admin scope. */
 export const DocumentAccessSchema = z.object({
   my_level: z.string().optional().default(""),
@@ -484,60 +451,6 @@ export const DocumentAccessSchema = z.object({
 export type DocumentAccess = Omit<z.infer<typeof DocumentAccessSchema>, "my_level" | "via"> & {
   my_level: DocumentAccessLevel;
   via: DocumentAccessVia;
-};
-
-/** Metadata-only document header returned by GET /documents/{id}/admin-summary (DOC-05). */
-export const DocumentAdminSummaryDocumentSchema = z.object({
-  id: z.string().min(1),
-  organization_id: z.string().optional().default(""),
-  workspace_id: z.string().min(1),
-  parent_id: z.string().nullable().optional(),
-  kind: z.string().min(1),
-  title: z.string(),
-  icon: z.string().nullable().optional(),
-  visibility: z.string().optional().default("restricted"),
-  size_bytes: z
-    .number()
-    .nullable()
-    .optional()
-    .catch(0)
-    .transform((v) => v ?? 0),
-  archived_at: z.string().nullable().optional(),
-  created_by: z.string().optional().default(""),
-  created_at: z.string().optional().default(""),
-  updated_at: z.string().optional().default(""),
-});
-export type DocumentAdminSummaryDocument = Omit<
-  z.infer<typeof DocumentAdminSummaryDocumentSchema>,
-  "kind" | "visibility"
-> & {
-  kind: DocumentKind;
-  visibility: DocumentVisibility;
-};
-
-/** GET /api/v1/documents/{id}/admin-summary answer (DOC-05, contract-g8-18-doc-05.md §3). */
-export const DocumentAdminSummarySchema = z.object({
-  document: DocumentAdminSummaryDocumentSchema,
-  acl_owner: DocumentPersonAccessSchema.nullable()
-    .optional()
-    .catch(null)
-    .transform((v) => v ?? null),
-  my_level: z.string().optional().default(""),
-  via: z.string().optional().default(""),
-  my_grant: DocumentBreakGlassGrantSchema.nullable()
-    .optional()
-    .catch(null)
-    .transform((v) => v ?? null),
-});
-export type DocumentAdminSummary = Omit<
-  z.infer<typeof DocumentAdminSummarySchema>,
-  "document" | "acl_owner" | "my_level" | "via" | "my_grant"
-> & {
-  document: DocumentAdminSummaryDocument;
-  acl_owner: DocumentPersonAccess | null;
-  my_level: DocumentAccessLevel | "";
-  via: DocumentAccessVia | "";
-  my_grant: DocumentBreakGlassGrant | null;
 };
 
 export const DocumentShareEnvelopeSchema = z.object({ share: DocumentShareSchema });
@@ -594,7 +507,7 @@ export type PublicDocument = Omit<z.infer<typeof PublicDocumentSchema>, "kind"> 
 export const PublicDocumentEnvelopeSchema = z.object({ document: PublicDocumentSchema });
 export type PublicDocumentEnvelope = { document: PublicDocument };
 
-// ---- Comments + G8-18 mentions_without_access + mention candidates --------
+// Comments and DOC-05/G8-18 access schemas live in their own modules; this file stays their public path.
 export {
   DOCUMENT_COMMENT_KINDS,
   DocumentCommentMentionSchema,
@@ -604,117 +517,14 @@ export {
   type DocumentCommentMention,
   type DocumentCommentRevision,
 };
-
-/** One mentioned user who cannot read the document on comment create/update (G8-18). */
-export const DocumentCommentMentionWithoutAccessSchema = z.object({
-  user_id: z.string().min(1),
-  display_name: z
-    .string()
-    .nullish()
-    .catch(undefined)
-    .transform((v) => v ?? undefined),
-  can_share: z.boolean(),
-});
-export type DocumentCommentMentionWithoutAccess = {
-  user_id: string;
-  display_name?: string;
-  can_share: boolean;
-};
-
-export const DocumentCommentSchema = BaseDocumentCommentSchema.extend({
-  mentions_without_access: z
-    .unknown()
-    .optional()
-    .transform((raw): DocumentCommentMentionWithoutAccess[] | undefined => {
-      if (raw === undefined || raw === null) return undefined;
-      if (!Array.isArray(raw)) return [];
-      const items: DocumentCommentMentionWithoutAccess[] = [];
-      for (const item of raw) {
-        const parsed = DocumentCommentMentionWithoutAccessSchema.safeParse(item);
-        if (parsed.success) {
-          items.push(
-            parsed.data.display_name !== undefined
-              ? parsed.data
-              : { user_id: parsed.data.user_id, can_share: parsed.data.can_share },
-          );
-        }
-      }
-      return items;
-    }),
-});
-export type DocumentComment = BaseDocumentComment & {
-  mentions_without_access?: DocumentCommentMentionWithoutAccess[];
-};
-
-export const DocumentCommentEnvelopeSchema = z.object({ comment: DocumentCommentSchema });
-export const DocumentCommentListEnvelopeSchema = z.object({
-  comments: z.array(DocumentCommentSchema).optional(),
-  mentions: z
-    .array(DocumentCommentMentionSchema)
-    .catch([])
-    .nullish()
-    .transform((v) => v ?? []),
-  list_token: z.string().optional().default(""),
-  unchanged: z.boolean().optional(),
-});
-export type DocumentCommentListEnvelope = Omit<
-  z.infer<typeof DocumentCommentListEnvelopeSchema>,
-  "comments"
-> & { comments?: DocumentComment[] };
-
-/** One mention picker candidate (G8-06 + G8-18 `can_view`). */
-export const MentionCandidateSchema = z.object({
-  user_id: z.string().min(1),
-  display_name: z
-    .string()
-    .nullish()
-    .catch("")
-    .transform((v) => v ?? ""),
-  avatar_url: z.string().optional().catch(undefined),
-  email: z.string().optional().catch(undefined),
-  can_view: z.boolean().optional().catch(undefined),
-});
-export type MentionCandidate = z.infer<typeof MentionCandidateSchema>;
-
-// ---- Typed DOC-05 error codes (contract-g8-18-doc-05.md §3 + §5) ----------
-
-export const DOCUMENT_ACCESS_ERROR_CODES = [
-  "document_restricted",
-  "break_glass_required",
-  "break_glass_reason_invalid",
-] as const;
-export type DocumentAccessErrorCode = (typeof DOCUMENT_ACCESS_ERROR_CODES)[number];
-
-export interface DocumentRestrictedError {
-  kind: "document_restricted";
-  code: "document_restricted";
-  canBreakGlass: boolean;
-  can_break_glass: boolean;
-  status: number;
-  message: string;
-}
-
-export interface BreakGlassRequiredError {
-  kind: "break_glass_required";
-  code: "break_glass_required";
-  status: number;
-  message: string;
-}
-
-export interface BreakGlassReasonInvalidError {
-  kind: "break_glass_reason_invalid";
-  code: "break_glass_reason_invalid";
-  min: number;
-  max: number;
-  length?: number;
-  status: number;
-  message: string;
-}
-
-export type DocumentAccessError =
-  | DocumentRestrictedError
-  | BreakGlassRequiredError
-  | BreakGlassReasonInvalidError;
+export {
+  DocumentCommentEnvelopeSchema,
+  DocumentCommentListEnvelopeSchema,
+  DocumentCommentSchema,
+  type DocumentComment,
+  type DocumentCommentListEnvelope,
+  type DocumentCommentMentionWithoutAccess,
+} from "./document-access";
 
 // ---- Favorites (G1-07; UNI-681 lane 07b) ------------------------------------
 
