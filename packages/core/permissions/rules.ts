@@ -463,21 +463,23 @@ export interface DocumentLevelInput {
   my_level?: string | null;
 }
 
-function documentLevelRank(level: string | null | undefined): number {
+export function documentLevelRank(level: string | null | undefined): number {
   switch (level) {
     case "view":
       return 1;
-    case "edit":
+    case "comment":
       return 2;
-    case "manage":
+    case "edit":
       return 3;
+    case "manage":
+      return 4;
     default:
       return 0;
   }
 }
 
 /**
- * Shared shape of the three document rules.
+ * Shared shape of the document level rules.
  * Backend: DocumentService.effectiveLevel computes the level and
  * decideDocumentAccess turns it into the answer — none → 404, below the
  * required level → 403 (server/internal/service/document_permissions.go).
@@ -507,6 +509,21 @@ function requireDocumentLevel(
  */
 export function canViewDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
   return requireDocumentLevel(doc, ctx, documentLevelRank("view"), "You cannot open this document.");
+}
+
+/**
+ * Write or reply to a comment, edit or delete own comment, add or remove own
+ * reaction, or resolve/reopen own thread.
+ * Backend: DocumentService.withDocumentMutation(…, DocumentLevelComment)
+ * (server/internal/service/document_comments.go).
+ */
+export function canCommentDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
+  return requireDocumentLevel(
+    doc,
+    ctx,
+    documentLevelRank("comment"),
+    "You can view this document but not comment on it.",
+  );
 }
 
 /**

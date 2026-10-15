@@ -1,7 +1,7 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at 6dce8341a5703902afde0886c29e416ecec55a41
-// (fork lane feature/UNI-1351-g5-03w-new-version-web rebased on fork main 7e082de3: the G8-08 comments protocol with the OQ-C2 anchor rules
-// on X-02 r2b, plus G5-03w doc.blocked).
+// web/docs/protocol/types.ts at 039c2223511bc389a8b311782a834b7636c6fad4
+// (fork lane feature/UNI-1413-g8-18-fork-fix at 039c22235: the G8-08 comments protocol with the OQ-C2 anchor rules
+// on X-02 r2b, G5-03w doc.blocked, and G8-18 / DOC-05: comment level, comments.shareView, mentions without access).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
@@ -71,6 +71,8 @@ export type ProtocolErrorCode =
   | 'version_mismatch'
   /** structurally invalid message or payload */
   | 'malformed'
+  /** semantically invalid argument (HTTP 422, e.g. principal_not_in_organization) */
+  | 'invalid_arg'
   /** no handler registered for this request type */
   | 'unknown_type'
   /** frame got an API request before `init` / host before `ready` */
@@ -101,6 +103,7 @@ export const PROTOCOL_ERROR_CODES: readonly ProtocolErrorCode[] = [
   'cancelled',
   'version_mismatch',
   'malformed',
+  'invalid_arg',
   'unknown_type',
   'not_ready',
   'unauthorized',
@@ -290,6 +293,12 @@ export type Capability =
    * effective capabilities have it; without it the editor hides its server comment mode.
    */
   | 'comments'
+  /**
+   * additive (G8-18): the host can grant view access to mentioned users via `comments.shareView`.
+   * The frame offers "Share view access" actions only when the effective capabilities have it AND
+   * the server sets `can_share: true`.
+   */
+  | 'commentsShareView'
 
 export type Capabilities = Partial<Record<Capability, boolean>>
 
@@ -311,6 +320,7 @@ export const CAPABILITY_KEYS: readonly Capability[] = [
   'download',
   'uniworkAi',
   'comments',
+  'commentsShareView',
 ]
 
 /**
@@ -821,9 +831,9 @@ export interface TokenRefreshRequestPayload {
  * (Markdown subset + `[@Label](mention://member/<ULID>)` tokens) reaches the other side byte for
  * byte. Send only with the effective `comments` capability.
  */
-export type CommentsLevel = 'view' | 'edit' | 'manage'
+export type CommentsLevel = 'view' | 'comment' | 'edit' | 'manage'
 
-export const COMMENTS_LEVELS: readonly CommentsLevel[] = ['view', 'edit', 'manage']
+export const COMMENTS_LEVELS: readonly CommentsLevel[] = ['view', 'comment', 'edit', 'manage']
 
 export type CommentKind = 'comment' | 'discussion'
 
@@ -863,6 +873,13 @@ export interface CommentAnchor {
   [key: string]: unknown
 }
 
+/** `CommentMentionWithoutAccessDTO` (G8-18): a mentioned user who cannot view the document */
+export interface CommentMentionWithoutAccess {
+  user_id: string
+  display_name?: string
+  can_share: boolean
+}
+
 /** `DocumentCommentDTO` (§2.1). Keys a newer server adds pass through. */
 export interface DocumentComment {
   id: string
@@ -892,6 +909,8 @@ export interface DocumentComment {
   display_name?: string
   avatar_url?: string
   reactions?: unknown
+  /** additive (G8-18): mentioned users in this comment who currently lack view access */
+  mentions_without_access?: CommentMentionWithoutAccess[]
   [key: string]: unknown
 }
 
@@ -989,6 +1008,8 @@ export interface MentionsSearchPayload {
   /** '' = by name */
   q: string
   limit?: number
+  /** additive (G8-18): include workspace members without view access (`can_view: false`) */
+  include?: 'no_access'
 }
 
 export interface MentionCandidate {
@@ -996,10 +1017,21 @@ export interface MentionCandidate {
   display_name: string
   avatar_url?: string
   email?: string
+  /** additive (G8-18): false when returned via `include: 'no_access'` for a non-viewer */
+  can_view?: boolean
 }
 
 export interface MentionsSearchResult {
   candidates: MentionCandidate[]
+}
+
+/** additive (G8-18): grant `view` access to a mentioned user; send only with `commentsShareView` */
+export interface CommentsShareViewPayload {
+  user_id: string
+}
+
+export interface CommentsShareViewResult {
+  ok: true
 }
 
 /** host -> frame: the comments of a document changed elsewhere (ids only) */
@@ -1025,6 +1057,7 @@ const COMMENTS_REQUEST_TYPES: readonly string[] = [
   'comments.reopen',
   'comments.revisions',
   'comments.anchors',
+  'comments.shareView',
   'mentions.search',
 ]
 
@@ -1064,6 +1097,7 @@ export function commentsErrorFromHttp(status: number, body?: unknown): DocsProto
   if (status === 400) return withCode('malformed')
   if (status === 409) return withCode('conflict')
   if (status === 413) return withCode('too_large')
+  if (status === 422) return withCode('invalid_arg')
   if (status === 401) return plain('unauthorized', false)
   if (status === 403) return plain('forbidden', false)
   if (status === 404) return plain('not_found', false)
@@ -1117,10 +1151,11 @@ export interface CommentsAccess {
 export type CommentAction = 'edit' | 'delete' | 'resolve' | 'reopen'
 
 /**
- * The frame's affordance rules (§10, OQ-C12): view = nothing that writes; edit = composer, own
- * edit/delete, resolve/reopen; manage = also edit/delete of others; missing level = composer and
- * actions on own comments, never on others. `forbidden`: a 403 from the server turns the panel
- * read-only. Never probe the level with a write request.
+ * The frame's affordance rules (§10, OQ-C12, G8-18): view = nothing that writes; comment =
+ * composer, own edit/delete, and resolve/reopen on own root threads only; edit = composer, own
+ * edit/delete, resolve/reopen any thread; manage = also edit/delete of others; missing level =
+ * composer and actions on own comments, never on others. `forbidden`: a 403 from the server turns
+ * the panel read-only. Never probe the level with a write request.
  */
 export function commentsAccess(
   session: {
@@ -1139,13 +1174,22 @@ export function commentsAccess(
 
 export function canActOnComment(
   access: CommentsAccess,
-  comment: Pick<DocumentComment, 'author_id' | 'deleted_at'>,
+  comment: Pick<DocumentComment, 'author_id' | 'deleted_at'> & {
+    thread_author_id?: string | null
+  },
   action: CommentAction,
 ): boolean {
   if (!access.enabled || access.level === 'view' || comment.deleted_at) return false
   const mine = access.userId !== undefined && comment.author_id === access.userId
-  if (access.level === null) return mine
-  if (action === 'resolve' || action === 'reopen') return true
+  const rootAuthor =
+    comment.thread_author_id !== undefined ? comment.thread_author_id : comment.author_id
+  const ownThread = access.userId !== undefined && rootAuthor === access.userId
+  if (access.level === null) {
+    return action === 'resolve' || action === 'reopen' ? ownThread : mine
+  }
+  if (action === 'resolve' || action === 'reopen') {
+    return access.level === 'comment' ? ownThread : true
+  }
   return access.level === 'manage' || mine
 }
 
@@ -1225,6 +1269,7 @@ export interface FrameRequests {
   'comments.reopen': Rpc<CommentIdPayload, CommentResult>
   'comments.revisions': Rpc<CommentIdPayload, CommentsRevisionsResult>
   'comments.anchors': Rpc<CommentsAnchorsPayload, CommentsAnchorsResult>
+  'comments.shareView': Rpc<CommentsShareViewPayload, CommentsShareViewResult>
   'mentions.search': Rpc<MentionsSearchPayload, MentionsSearchResult>
 }
 
@@ -1307,6 +1352,7 @@ const FRAME_REQUESTS: Record<FrameRequestType, true> = {
   'comments.reopen': true,
   'comments.revisions': true,
   'comments.anchors': true,
+  'comments.shareView': true,
   'mentions.search': true,
 }
 const FRAME_EVENTS: Record<FrameEventType, true> = {
@@ -1436,6 +1482,10 @@ function isCommentAnchor(x: unknown): x is CommentAnchor {
   return isObj(x) && isNonEmptyStr(x.format) && isPositiveSafeInt(x.v)
 }
 
+function isCommentMentionWithoutAccess(x: unknown): x is CommentMentionWithoutAccess {
+  return isObj(x) && isNonEmptyStr(x.user_id) && isOpt(x.display_name, isStr) && isBool(x.can_share)
+}
+
 function isDocumentComment(x: unknown): x is DocumentComment {
   return (
     isObj(x) &&
@@ -1450,7 +1500,10 @@ function isDocumentComment(x: unknown): x is DocumentComment {
     isOptNullable(x.anchor_version_id, isStr) &&
     isOptNullable(x.anchor_state, isStr) &&
     isOptNullable(x.resolved_at, isStr) &&
-    isOptNullable(x.deleted_at, isStr)
+    isOptNullable(x.deleted_at, isStr) &&
+    isOpt(x.mentions_without_access, (y): y is CommentMentionWithoutAccess[] =>
+      isArrayOf(y, isCommentMentionWithoutAccess),
+    )
   )
 }
 
@@ -1510,7 +1563,8 @@ function isMentionCandidate(x: unknown): x is MentionCandidate {
     isNonEmptyStr(x.user_id) &&
     isStr(x.display_name) &&
     isOpt(x.avatar_url, isStr) &&
-    isOpt(x.email, isStr)
+    isOpt(x.email, isStr) &&
+    isOpt(x.can_view, isBool)
   )
 }
 
@@ -1676,7 +1730,12 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
     x.anchors.length >= 1 &&
     x.anchors.length <= COMMENTS_MAX_ANCHORS &&
     x.anchors.every(isCommentAnchorUpdate),
-  'request:mentions.search': (x) => isObj(x) && isStr(x.q) && isOpt(x.limit, isPositiveSafeInt),
+  'request:comments.shareView': (x) => isObj(x) && isNonEmptyStr(x.user_id),
+  'request:mentions.search': (x) =>
+    isObj(x) &&
+    isStr(x.q) &&
+    isOpt(x.limit, isPositiveSafeInt) &&
+    (x.include === undefined || x.include === 'no_access'),
   // frame -> host events
   'event:ready': isReadyPayload,
   'event:dirty': (x) => isObj(x) && isBool(x.dirty),
@@ -1747,6 +1806,7 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
         (y.reason === 'older_version' || y.reason === 'not_applicable'),
     ) &&
     isNonEmptyStr(x.list_token),
+  'response:comments.shareView': (x) => isObj(x) && x.ok === true,
   'response:mentions.search': (x) => isObj(x) && isArrayOf(x.candidates, isMentionCandidate),
   'response:comments.reveal': (x) => isObj(x) && isBool(x.revealed),
 }

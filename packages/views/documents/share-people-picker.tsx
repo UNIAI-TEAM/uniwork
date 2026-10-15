@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage } from "@uniwork/core/api";
 import { sharePrincipalsNotInOrganization } from "@uniwork/core/documents/errors";
 import { useShareDocumentBatch } from "@uniwork/core/documents/hooks-sharing";
 import type { DocumentAccessLevel, DocumentShare } from "@uniwork/core/types/document";
@@ -20,6 +19,7 @@ import {
   ComboboxTrigger,
 } from "@uniwork/ui/components/ui/combobox";
 import { InputGroupAddon, InputGroupButton } from "@uniwork/ui/components/ui/input-group";
+import { shareErrorMessage } from "./share-dialog-break-glass";
 
 /** The server refuses a batch above this many distinct people (UNI-1641). */
 export const SHARE_PEOPLE_MAX = 50;
@@ -70,7 +70,7 @@ export function useSharePeople(
               count: refused.length,
               names: refused.map(nameOf).join(", "),
             })
-          : apiErrorMessage(err) ?? t("documents.share.submit_failed"),
+          : shareErrorMessage(err, t) ?? t("documents.share.submit_failed"),
       );
     }
   };

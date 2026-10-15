@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commentsChangedDocument, frameCommentsLevel } from "./frame-comments-events";
+import { commentsChangedDocument, frameCanShareView, frameCommentsLevel } from "./frame-comments-events";
 
 const frame = (type: string, payload: unknown) => ({ type, payload });
 
@@ -46,12 +46,9 @@ describe("commentsChangedDocument (contract-collab §7)", () => {
 describe("frameCommentsLevel (OQ-C12)", () => {
   it("is the document's own level when the page knows it", () => {
     expect(frameCommentsLevel({ myLevel: "view", readonly: false, canEdit: true })).toBe("view");
+    expect(frameCommentsLevel({ myLevel: "comment", readonly: false, canEdit: true })).toBe("comment");
     expect(frameCommentsLevel({ myLevel: "edit", readonly: false, canEdit: true })).toBe("edit");
     expect(frameCommentsLevel({ myLevel: "manage", readonly: false, canEdit: true })).toBe("manage");
-  });
-
-  it("a comment-level document reads view until the frame knows comment", () => {
-    expect(frameCommentsLevel({ myLevel: "comment", readonly: false, canEdit: true })).toBe("view");
   });
 
   it("a read-only page never grants more than view, whatever the document says", () => {
@@ -65,7 +62,16 @@ describe("frameCommentsLevel (OQ-C12)", () => {
     expect(frameCommentsLevel({ myLevel: undefined, readonly: false, canEdit: undefined })).toBe("view");
   });
 
-  it("a level the client does not know reads like a missing one", () => {
-    expect(frameCommentsLevel({ myLevel: "owner", readonly: false, canEdit: true })).toBe("edit");
+  it("a level the client does not know, or an empty one, never maps upward: view, whatever the token says", () => {
+    expect(frameCommentsLevel({ myLevel: "owner", readonly: false, canEdit: true })).toBe("view");
+    expect(frameCommentsLevel({ myLevel: "", readonly: false, canEdit: true })).toBe("view");
+  });
+});
+
+describe("frameCanShareView (G8-18)", () => {
+  it("is on for manage only, and never on a read-only page", () => {
+    expect(frameCanShareView("manage", false)).toBe(true);
+    expect(frameCanShareView("manage", true)).toBe(false);
+    for (const level of ["view", "comment", "edit"] as const) expect(frameCanShareView(level, false)).toBe(false);
   });
 });

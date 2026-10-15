@@ -121,8 +121,8 @@ describe("useAdminManageAccess (DOC6-W01, N-01)", () => {
     expect(await screen.findByRole("dialog", { name: t("documents.share.title") })).toBeInTheDocument();
     expect(screen.getByText(t("documents.share.admin_scope_note"))).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: t("documents.share.owner.transfer_button") })).toBeInTheDocument();
-    // Add-people, visibility and links stay manage-only (W-DOC05 owns them).
-    expect(screen.queryByText(t("documents.share.add_title"))).toBeNull();
+    // DOC-05 opens the add-share form to admin_scope (canAdminister()); the server refuses a self-share.
+    expect(screen.getByText(t("documents.share.add_title"))).toBeInTheDocument();
     expect(requestMock.mock.calls.some(([p]) => p === "/api/v1/documents/d1")).toBe(false);
   });
 

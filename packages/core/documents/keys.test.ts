@@ -21,6 +21,7 @@ describe("documentKeys", () => {
       documentKeys.tree("ws1"),
       documentKeys.shares("ws1", "d1"),
       documentKeys.accessLogs("ws1", "d1"),
+      documentKeys.adminSummary("ws1", "d1"),
       documentKeys.comments("ws1", "d1"),
     ];
     for (const key of keys) expect(startsWith(key, root)).toBe(true);
@@ -65,6 +66,13 @@ describe("documentKeys", () => {
     expect(documentKeys.tree("ws1", "root1")).toEqual(["documents", "ws1", "tree", "root1"]);
     expect(documentKeys.accessLogs("ws1", "d1")).toEqual([...documentKeys.detail("ws1", "d1"), "access-logs", ""]);
     expect(documentKeys.accessLogs("ws1", "d1", "download")).toEqual([...documentKeys.detail("ws1", "d1"), "access-logs", "download"]);
+  });
+
+  it("hangs the admin summary off the detail key, so a detail invalidation refreshes it", () => {
+    expect(documentKeys.adminSummary("ws1", "d1")).toEqual([
+      ...documentKeys.detail("ws1", "d1"),
+      "admin-summary",
+    ]);
   });
 
   it("keeps the download key per version, with 0 meaning the current one", () => {

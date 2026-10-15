@@ -39,10 +39,11 @@ export function commentsChangedDocument(
 
 /**
  * The comment access level the host advertises in `init.commentsLevel` (OQ-C12): the
- * document's effective level (`my_level`). A read-only page never advertises more than
- * `view`. When the page has no level, the minted token decides between `edit` and `view`;
- * the host never guesses `manage`. The frame treats it as a display hint: the server stays
- * the only gate.
+ * document's effective level (`my_level`), `comment` included (DOC-05). A read-only page never
+ * advertises more than `view`. Only a page with no level at all (absent / null) lets the minted
+ * token decide between `edit` and `view`; a level the client does not know, or an empty one (an
+ * admin-only caller), never maps upward: it reads `view`. The host never guesses `manage`.
+ * The frame treats it as a display hint: the server stays the only gate.
  */
 export function frameCommentsLevel({
   myLevel,
@@ -52,11 +53,18 @@ export function frameCommentsLevel({
   myLevel: string | null | undefined;
   readonly: boolean;
   canEdit: boolean | undefined;
-}): Exclude<DocumentAccessLevel, "comment"> {
+}): DocumentAccessLevel {
   if (readonly) return "view";
-  const known = DOCUMENT_ACCESS_LEVELS.find((level) => level === myLevel);
-  // TEMPORARY (UNI-1413 card (a)): the frame is read-only for comment-level users until card (b) adds 'comment' to CommentsLevel; never grants more.
-  if (known === "comment") return "view";
-  if (known) return known;
-  return canEdit === true ? "edit" : "view";
+  if (myLevel === undefined || myLevel === null) return canEdit === true ? "edit" : "view";
+  return DOCUMENT_ACCESS_LEVELS.find((level) => level === myLevel) ?? "view";
+}
+
+/**
+ * Whether the host advertises `capabilities.commentsShareView` (G8-18): only a caller who can
+ * administer the document through its content, which is `manage` (the server's `canAdminister()`
+ * without the admin-only scope, which never opens the frame). The server stays the gate: a
+ * Work Product document answers 409 and a caller without the right 403, both mapped for the frame.
+ */
+export function frameCanShareView(level: DocumentAccessLevel, readonly: boolean): boolean {
+  return !readonly && level === "manage";
 }

@@ -344,6 +344,21 @@ describe("InboxView", () => {
       }
     });
 
+    // V9 F3: at phone width two lines cut the break-glass sentence before its "(24h)" window.
+    it("gives a break-glass title three lines and every other kind two", async () => {
+      mockApi([
+        doc("n1", { kind: "document_break_glass", title_key: "notifications.kind.document_break_glass" }),
+        doc("n2"),
+      ]);
+      renderInbox();
+      const clampOf = async (name: RegExp) => {
+        const link = await screen.findByRole("link", { name });
+        return link.querySelector("[class*=line-clamp]:not([data-notification-snippet])");
+      };
+      expect(await clampOf(/truy cập khẩn cấp/)).toHaveClass("line-clamp-3");
+      expect(await clampOf(/bình luận trong/)).toHaveClass("line-clamp-2");
+    });
+
     it("never quotes a snippet for a lost document even if one arrives", async () => {
       mockApi([doc("n1", { resource_access_lost: true }, { snippet: "bí mật" })]);
       renderInbox();

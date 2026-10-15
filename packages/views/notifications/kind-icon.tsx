@@ -9,6 +9,7 @@ import {
   KeyRound,
   MessageSquare,
   RefreshCw,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   UserPlus,
@@ -38,8 +39,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_discussion_mentioned: AtSign,
   document_discussion_replied: MessageSquare,
   document_comment_resolved: CircleCheck,
-  // TEMPORARY (UNI-1413 card (a)): copied from document_commented; card (b) sets the final icon/tone/category.
-  document_break_glass: MessageSquare,
+  document_break_glass: ShieldAlert,
   chat_mentioned: AtSign,
   chat_dm: MODULE_ICONS.chat,
   chat_thread_replied: MessageSquare,

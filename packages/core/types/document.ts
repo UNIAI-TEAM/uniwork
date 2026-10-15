@@ -1,5 +1,20 @@
 import { z } from "zod";
 import { ActorSchema } from "./actor";
+import {
+  DocumentBreakGlassGrantSchema,
+  DocumentPersonAccessSchema,
+  type DocumentBreakGlassGrant,
+  type DocumentPersonAccess,
+} from "./document-access";
+import {
+  DOCUMENT_COMMENT_KINDS,
+  DocumentCommentMentionSchema,
+  DocumentCommentRevisionListEnvelopeSchema,
+  DocumentCommentRevisionSchema,
+  type DocumentCommentKind,
+  type DocumentCommentMention,
+  type DocumentCommentRevision,
+} from "./document-comments";
 
 // Wire contract for the Documents API (C-01 §5 + §14; UNI-679, G1-05a).
 // The versioned samples in docs/parity/documents-api are the source of truth
@@ -93,6 +108,7 @@ export const DocumentSchema = z.object({
   position: z.number().optional().default(0),
   my_level: z.string().optional(),
   via: z.string().optional(),
+  break_glass_expires_at: z.string().nullable().optional(),
   file: DocumentFileSchema.nullable().optional(),
   breadcrumbs: z.array(DocumentBreadcrumbSchema).optional().default([]),
   owner_kind: z.string().nullable().optional(),
@@ -385,15 +401,7 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
 export const DocumentTreeSchema = z.object({ documents: z.array(DocumentTreeNodeSchema) });
 export type DocumentTree = z.infer<typeof DocumentTreeSchema>;
 
-export const DocumentPersonAccessSchema = z.object({
-  user_id: z.string(),
-  level: z.string(),
-  via: z.string().optional().default(""),
-});
-export type DocumentPersonAccess = Omit<z.infer<typeof DocumentPersonAccessSchema>, "level" | "via"> & {
-  level: DocumentAccessLevel;
-  via: DocumentAccessVia;
-};
+export { DocumentPersonAccessSchema, type DocumentPersonAccess };
 
 export const DocumentShareSchema = z.object({
   id: z.string(),
@@ -423,14 +431,34 @@ export const DocumentLinkSchema = z.object({
 });
 export type DocumentLink = z.infer<typeof DocumentLinkSchema>;
 
-/** The access overview: my level always; grants/links/acl-owner only at manage. */
-export const DocumentAccessSchema = z.object({
-  my_level: z.string(),
-  via: z.string().optional().default(""),
-  acl_owner: DocumentPersonAccessSchema.nullable().optional(),
-  shares: z.array(DocumentShareSchema).optional(),
-  links: z.array(DocumentLinkSchema).optional(),
-});
+/** The access overview: my level always; grants/links/acl-owner/break-glass at manage or admin scope. */
+export const DocumentAccessSchema = z
+  .object({
+    my_level: z.string().optional(),
+    admin_scope: z.boolean().optional().catch(undefined),
+    via: z.string().optional().default(""),
+    acl_owner: DocumentPersonAccessSchema.nullable().optional(),
+    shares: z.array(DocumentShareSchema).optional(),
+    links: z.array(DocumentLinkSchema).optional(),
+    break_glass: z
+      .unknown()
+      .optional()
+      .transform((raw): DocumentBreakGlassGrant[] | undefined => {
+        if (raw === undefined || raw === null) return undefined;
+        if (!Array.isArray(raw)) return [];
+        const grants: DocumentBreakGlassGrant[] = [];
+        for (const item of raw) {
+          const parsed = DocumentBreakGlassGrantSchema.safeParse(item);
+          if (parsed.success) grants.push(parsed.data as DocumentBreakGlassGrant);
+        }
+        return grants;
+      }),
+  })
+  // The level is how a real answer is told from a malformed one. It may be
+  // empty (an admin-only caller holds no level), but the key must be there
+  // unless the server says admin_scope; anything else degrades to null.
+  .refine((v) => v.my_level !== undefined || v.admin_scope === true)
+  .transform((v) => ({ ...v, my_level: v.my_level ?? "" }));
 export type DocumentAccess = Omit<z.infer<typeof DocumentAccessSchema>, "my_level" | "via"> & {
   my_level: DocumentAccessLevel;
   via: DocumentAccessVia;
@@ -496,8 +524,24 @@ export type PublicDocument = Omit<z.infer<typeof PublicDocumentSchema>, "kind"> 
 export const PublicDocumentEnvelopeSchema = z.object({ document: PublicDocumentSchema });
 export type PublicDocumentEnvelope = { document: PublicDocument };
 
-// Comments live in their own module (G8-03); this file stays their public path.
-export * from "./document-comments";
+// Comments and DOC-05/G8-18 access schemas live in their own modules; this file stays their public path.
+export {
+  DOCUMENT_COMMENT_KINDS,
+  DocumentCommentMentionSchema,
+  DocumentCommentRevisionListEnvelopeSchema,
+  DocumentCommentRevisionSchema,
+  type DocumentCommentKind,
+  type DocumentCommentMention,
+  type DocumentCommentRevision,
+};
+export {
+  DocumentCommentEnvelopeSchema,
+  DocumentCommentListEnvelopeSchema,
+  DocumentCommentSchema,
+  type DocumentComment,
+  type DocumentCommentListEnvelope,
+  type DocumentCommentMentionWithoutAccess,
+} from "./document-access";
 
 // ---- Favorites (G1-07; UNI-681 lane 07b) ------------------------------------
 
