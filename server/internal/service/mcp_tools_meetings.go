@@ -67,6 +67,10 @@ const (
 	mcpMaxAttendees         = 50
 	mcpMaxInvites           = 20
 
+	// A cancellation's reason holds at most this many characters; the
+	// schema says so and the tool holds it too.
+	mcpMaxCancelReasonRunes = 500
+
 	// mcpNotMember is the answer for a person who is not in the workspace: the
 	// same for an id of another organization as for one nobody has.
 	mcpNotMember = "not a member of this workspace; call list_members for the user_id values"
@@ -573,11 +577,95 @@ func (s *McpToolService) InviteToMeeting(ctx context.Context, p McpPrincipal, in
 	return McpWriteResult{Item: McpInviteResult{Meeting: &item, Invites: outcomes}, Revision: item.Revision}, nil
 }
 
+type mcpCancelMeetingIn struct {
+	WorkspaceID string `json:"workspace_id"`
+	MeetingID   string `json:"meeting_id"`
+	Revision    *int64 `json:"revision"`
+	Reason      string `json:"reason"`
+}
+
+// mcpRestoreMeetingIn has no reason: decodeInto refuses one, as the schema says.
+type mcpRestoreMeetingIn struct {
+	WorkspaceID string `json:"workspace_id"`
+	MeetingID   string `json:"meeting_id"`
+	Revision    *int64 `json:"revision"`
+}
+
+// meetingToChange is the start of cancel_meeting and restore_meeting: the
+// revision the model sent, the meeting as it is, and the link base. All three
+// are read before the write, so a failure after it cannot read as a failed one.
+func (s *McpToolService) meetingToChange(ctx context.Context, p McpPrincipal, workspaceID, meetingID string, revision *int64) (before db.Meeting, version int32, base string, err error) {
+	if version, err = mcpVersion(revision); err != nil {
+		return
+	}
+	if before, err = s.meeting(ctx, p, workspaceID, meetingID); err != nil {
+		return
+	}
+	base, err = s.ask.base(ctx, workspaceID)
+	return
+}
+
+// meetingChanged reads the meeting back after a cancel or restore that went
+// through. The change is committed, so a failed read is named in the note and
+// never returned: a model that read "failed" would send it again. The status
+// change is of the stored statuses; the item's status is the display one.
+func (s *McpToolService) meetingChanged(ctx context.Context, p McpPrincipal, before db.Meeting, base, saved, note string) (McpWriteResult, error) {
+	after, err := s.ask.meetings.Get(ctx, p.UserID, before.ID)
+	if err != nil {
+		unread := saved + ", but the meeting could not be read back; call get_meeting for its status and revision"
+		if note != "" {
+			unread += "; " + note
+		}
+		return McpWriteResult{Note: unread}, nil
+	}
+	return McpWriteResult{Item: s.meetingOf(base, after), Revision: int64(after.Version), Changes: mcpChanges(McpChange{"status", before.Status, after.Status}), Note: note}, nil
+}
+
+// CancelMeeting cancels a scheduled meeting. The service takes a meeting that
+// is still SCHEDULED, one whose time passed (displayed MISSED) included, and
+// refuses one in progress, ended or already cancelled. Nobody is notified:
+// meeting.canceled and meeting.deleted have no notification rule.
+// RestoreMeeting is its undo, but only while the end is ahead, so a meeting
+// cancelled after its time says so in the note.
+func (s *McpToolService) CancelMeeting(ctx context.Context, p McpPrincipal, in mcpCancelMeetingIn) (McpWriteResult, error) {
+	if utf8.RuneCountInString(in.Reason) > mcpMaxCancelReasonRunes {
+		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("reason holds at most %d characters", mcpMaxCancelReasonRunes)}
+	}
+	before, version, base, err := s.meetingToChange(ctx, p, in.WorkspaceID, in.MeetingID, in.Revision)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	if err := s.ask.meetings.CancelAt(ctx, p.UserID, before.ID, in.Reason, version); err != nil {
+		return McpWriteResult{}, err
+	}
+	var note string
+	if !before.EndsAt.Time.After(time.Now()) {
+		note = "the meeting's end time has passed, so restore_meeting cannot bring it back"
+	}
+	return s.meetingChanged(ctx, p, before, base, "the meeting was cancelled", note)
+}
+
+// RestoreMeeting brings a cancelled meeting back to scheduled while its end is
+// still ahead; the service refuses any other state and the host check the same
+// way as for the cancel. Nobody is notified: meeting.updated has no rule.
+func (s *McpToolService) RestoreMeeting(ctx context.Context, p McpPrincipal, in mcpRestoreMeetingIn) (McpWriteResult, error) {
+	before, version, base, err := s.meetingToChange(ctx, p, in.WorkspaceID, in.MeetingID, in.Revision)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	if _, err := s.ask.meetings.Restore(ctx, p.UserID, before.ID, &version); err != nil {
+		return McpWriteResult{}, err
+	}
+	return s.meetingChanged(ctx, p, before, base, "the meeting was restored", "")
+}
+
 var mcpSchemaListMeetings = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"from":{"type":"string","description":"ISO 8601 with a timezone offset, e.g. 2026-10-15T00:00:00+07:00."},"to":{"type":"string","description":"ISO 8601 with a timezone offset, after from and at most 92 days later."},"hosted_by_me":{"type":"boolean","description":"Only the meetings the user hosts."},"status":{"type":"string","enum":["SCHEDULED","IN_PROGRESS","ENDED","CANCELED","MISSED"],"description":"MISSED is a scheduled meeting whose time passed without it starting, and its status reads MISSED; SCHEDULED is one that can still start. Omit for every status."}},"required":["workspace_id","from","to"],"additionalProperties":false}`)
 
 var (
 	mcpSchemaScheduleMeeting = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"title":{"type":"string","minLength":1,"maxLength":` + strconv.Itoa(mcpMaxMeetingTitleRunes) + `},"description":{"type":"string","maxLength":` + strconv.Itoa(mcpMaxItemRunes) + `},"starts_at":{"type":"string","description":"ISO 8601 with a timezone offset, e.g. 2026-10-15T10:00:00+07:00."},"ends_at":{"type":"string","description":"ISO 8601 with a timezone offset, after starts_at."},"timezone":{"type":"string","description":"IANA zone such as Asia/Ho_Chi_Minh, the zone the meeting is set in. Omit for the user's own."},"attendee_ids":{"type":"array","items":{"type":"string","minLength":1},"maxItems":` + strconv.Itoa(mcpMaxAttendees) + `,"description":"user_id values from list_members. They are added without a notification."},"project_id":{"type":"string"}},"required":["workspace_id","title","starts_at","ends_at"],"additionalProperties":false}`)
 	mcpSchemaUpdateMeeting   = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"meeting_id":{"type":"string"},"revision":{"type":"integer","description":"The revision you read with get_meeting or list_meetings."},"title":{"type":"string","minLength":1,"maxLength":` + strconv.Itoa(mcpMaxMeetingTitleRunes) + `},"description":{"type":"string","maxLength":` + strconv.Itoa(mcpMaxItemRunes) + `,"description":"Replaces the whole description. Edit from the description get_meeting returns."},"starts_at":{"type":"string","description":"ISO 8601 with a timezone offset."},"ends_at":{"type":"string","description":"ISO 8601 with a timezone offset, after starts_at."},"timezone":{"type":"string","description":"IANA zone such as Asia/Ho_Chi_Minh."},"project_id":{"type":["string","null"],"description":"A project of this workspace from list_projects; null takes the meeting out of its project."}},"required":["workspace_id","meeting_id","revision"],"additionalProperties":false}`)
+	mcpSchemaCancelMeeting   = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"meeting_id":{"type":"string"},"revision":{"type":"integer","description":"The revision you read with get_meeting or list_meetings."},"reason":{"type":"string","maxLength":` + strconv.Itoa(mcpMaxCancelReasonRunes) + `}},"required":["workspace_id","meeting_id","revision"],"additionalProperties":false}`)
+	mcpSchemaRestoreMeeting  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"meeting_id":{"type":"string"},"revision":{"type":"integer","description":"The revision the cancel_meeting call returned, or get_meeting shows now."}},"required":["workspace_id","meeting_id","revision"],"additionalProperties":false}`)
 	mcpSchemaInviteToMeeting = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"meeting_id":{"type":"string"},"user_ids":{"type":"array","items":{"type":"string","minLength":1},"minItems":1,"maxItems":` + strconv.Itoa(mcpMaxInvites) + `,"description":"user_id values from list_members."}},"required":["workspace_id","meeting_id","user_ids"],"additionalProperties":false}`)
 )
 
@@ -598,6 +686,14 @@ func mcpMeetingTools(s *McpToolService) []ai.Tool {
 		mcpWriteTool("invite_to_meeting", "Invite to meeting", "Invites workspace members to a meeting, by user_id from list_members (1-"+strconv.Itoa(mcpMaxInvites)+" per call, each once). Each person invited gets an in-app notification, unless they turned that kind off; someone already on the meeting is notified again. Only the meeting's host or a workspace owner or admin may invite, and only to a scheduled or in-progress meeting. invites holds the outcome for each person: invited, or why not. Someone who is not a member of the workspace, or was removed from the meeting earlier (participant_removed, cannot be invited again), is refused, and one refusal does not stop the others. A refusal that covers everyone (not_meeting_host, invalid_meeting_state, or a meeting that is gone) fails as a whole: the call returns that error and nobody is invited. The meeting comes back with its attendees and its revision.", "the host removes the person from the meeting in UniWork", false, mcpSchemaInviteToMeeting,
 			func(ctx context.Context, p McpPrincipal, in mcpInviteIn) (any, error) {
 				return s.InviteToMeeting(ctx, p, in)
+			}),
+		mcpWriteTool("cancel_meeting", "Cancel meeting", "Cancels a meeting as the user. Only its host or a workspace owner or admin may (not_meeting_host otherwise), and only while it is scheduled: one that is in progress, ended or already cancelled fails with invalid_meeting_state. revision must be the one you read with get_meeting or list_meetings; if the meeting changed since, nothing is written and the call fails with revision_conflict. Everyone in the workspace sees it as cancelled. Attendees are not notified, so the user has to tell them. reason (optional, at most "+strconv.Itoa(mcpMaxCancelReasonRunes)+" characters) is recorded with the cancellation and is not sent to anyone. A scheduled meeting whose time already passed (MISSED) can be cancelled too, but restore_meeting cannot bring it back, and the result's note says so.", "restore_meeting, while the meeting's end time is still ahead", true, mcpSchemaCancelMeeting,
+			func(ctx context.Context, p McpPrincipal, in mcpCancelMeetingIn) (any, error) {
+				return s.CancelMeeting(ctx, p, in)
+			}),
+		mcpWriteTool("restore_meeting", "Restore meeting", "Brings a cancelled meeting back to scheduled as the user, only while its end time is still ahead: a meeting that is not cancelled, or whose end has passed, fails with invalid_meeting_state. Only its host or a workspace owner or admin may (not_meeting_host otherwise). revision must be the one cancel_meeting returned, or get_meeting shows now; if the meeting changed since, nothing is written and the call fails with revision_conflict. Everyone in the workspace sees it as scheduled again. Attendees are not notified, and the reason given for the cancellation is cleared.", "cancel_meeting", false, mcpSchemaRestoreMeeting,
+			func(ctx context.Context, p McpPrincipal, in mcpRestoreMeetingIn) (any, error) {
+				return s.RestoreMeeting(ctx, p, in)
 			}),
 	}
 }

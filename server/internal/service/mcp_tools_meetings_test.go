@@ -1197,3 +1197,254 @@ func TestMcpInviteValidatesInput(t *testing.T) {
 		}
 	}
 }
+
+// pastMeeting moves a meeting three days back, still stored SCHEDULED: the
+// meeting a person reads as MISSED.
+func (x *mcpToolWorld) pastMeeting(t *testing.T, id string) {
+	t.Helper()
+	if _, err := x.tools.ask.pool.Exec(context.Background(), `UPDATE meetings SET starts_at = now() - interval '3 days', ends_at = now() - interval '3 days' + interval '1 hour' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// statusChange is the one change a cancel or a restore reports.
+func statusChange(t *testing.T, res McpWriteResult, from, to string) {
+	t.Helper()
+	if len(res.Changes) != 1 || res.Changes[0].Field != "status" || res.Changes[0].From != from || res.Changes[0].To != to {
+		t.Fatalf("changes = %+v, want status %s -> %s", res.Changes, from, to)
+	}
+}
+
+// cancel_meeting and restore_meeting undo each other while the end is ahead;
+// both carry the revision the model read and report the stored statuses.
+func TestMcpCancelAndRestoreMeeting(t *testing.T) {
+	x := newMcpToolWorld(t)
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Giao ban", "")
+	cancelEvents, updateEvents := x.meetingEvents(t, "meeting.canceled", m.ID), x.meetingEvents(t, "meeting.updated", m.ID)
+	raw, err := x.callJSON(t, x.p, "cancel_meeting", x.updateArgs(t, m.ID, map[string]any{"reason": "dời lịch"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	row := x.meetingRow(t, m.ID)
+	if item["status"] != "CANCELED" || item["id"] != m.ID || item["kind"] != "meeting" || res.Revision != int64(row.Version) || row.Version != m.Version+1 ||
+		row.Status != MeetingCanceled || row.CancelReason.String != "dời lịch" || res.Note != "" || x.meetingEvents(t, "meeting.canceled", m.ID) != cancelEvents+1 {
+		t.Fatalf("cancel_meeting = %s; stored %+v", raw, row)
+	}
+	statusChange(t, res, MeetingScheduled, MeetingCanceled)
+	// A second cancel is a state problem, not a second write.
+	var te McpToolError
+	if _, err := x.callJSON(t, x.p, "cancel_meeting", x.updateArgs(t, m.ID, nil)); !errors.As(err, &te) || te.Code != "invalid_meeting_state" || x.meetingRow(t, m.ID).Version != row.Version {
+		t.Fatalf("cancel a cancelled meeting: %v", err)
+	}
+	raw, err = x.callJSON(t, x.p, "restore_meeting", x.updateArgs(t, m.ID, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item = writeResult(t, raw)
+	restored := x.meetingRow(t, m.ID)
+	if item["status"] != "SCHEDULED" || res.Revision != int64(restored.Version) || restored.Version != row.Version+1 || restored.Status != MeetingScheduled || restored.CancelReason.Valid ||
+		res.Note != "" || x.meetingEvents(t, "meeting.updated", m.ID) != updateEvents+1 {
+		t.Fatalf("restore_meeting = %s; stored %+v", raw, restored)
+	}
+	statusChange(t, res, MeetingCanceled, MeetingScheduled)
+	// Restoring a meeting that is scheduled reads as a state problem.
+	if _, err := x.callJSON(t, x.p, "restore_meeting", x.updateArgs(t, m.ID, nil)); !errors.As(err, &te) || te.Code != "invalid_meeting_state" || x.meetingRow(t, m.ID).Version != restored.Version {
+		t.Fatalf("restore a scheduled meeting: %v", err)
+	}
+}
+
+// MISSED is a display status: the stored one is SCHEDULED, and changes says
+// so. Such a meeting can be cancelled, but restore_meeting cannot bring it
+// back, and the result says that instead of leaving the model to find out.
+func TestMcpCancelMeetingOfAMissedMeetingSaysItCannotBeRestored(t *testing.T) {
+	x := newMcpToolWorld(t)
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Lỡ", "")
+	x.pastMeeting(t, m.ID)
+	raw, err := x.callJSON(t, x.p, "cancel_meeting", x.updateArgs(t, m.ID, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	if item["status"] != "CANCELED" || x.meetingRow(t, m.ID).Status != MeetingCanceled || !strings.Contains(res.Note, "end time has passed") || !strings.Contains(res.Note, "restore_meeting cannot bring it back") {
+		t.Fatalf("cancel of a missed meeting = %s", raw)
+	}
+	statusChange(t, res, MeetingScheduled, MeetingCanceled)
+	version := x.meetingRow(t, m.ID).Version
+	var te McpToolError
+	if _, err := x.callJSON(t, x.p, "restore_meeting", x.updateArgs(t, m.ID, nil)); !errors.As(err, &te) || te.Code != "invalid_meeting_state" {
+		t.Fatalf("restore a meeting whose time has passed: %v", err)
+	}
+	if row := x.meetingRow(t, m.ID); row.Status != MeetingCanceled || row.Version != version {
+		t.Fatalf("the refused restore wrote: %+v", row)
+	}
+}
+
+// Only a scheduled meeting is cancelled and only a cancelled one is restored;
+// anything else is a state problem and writes nothing.
+func TestMcpCancelAndRestoreMeetingByStatus(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Theo trạng thái", "")
+	for _, status := range []string{MeetingInProgress, MeetingEnded} {
+		if _, err := x.tools.ask.pool.Exec(ctx, `UPDATE meetings SET status = $1 WHERE id = $2`, status, m.ID); err != nil {
+			t.Fatal(err)
+		}
+		version := x.meetingRow(t, m.ID).Version
+		for _, tool := range []string{"cancel_meeting", "restore_meeting"} {
+			_, err := x.callJSON(t, x.p, tool, x.updateArgs(t, m.ID, nil))
+			var te McpToolError
+			if !errors.As(err, &te) || te.Code != "invalid_meeting_state" {
+				t.Errorf("%s of a %s meeting: %v, want invalid_meeting_state", tool, status, err)
+			}
+			if row := x.meetingRow(t, m.ID); row.Status != status || row.Version != version {
+				t.Errorf("%s of a %s meeting wrote: %+v", tool, status, row)
+			}
+		}
+	}
+}
+
+// A revision the meeting no longer has is refused with the current one, and
+// nothing is written; no revision at all is refused before anything is read.
+func TestMcpCancelAndRestoreMeetingNeedTheRevision(t *testing.T) {
+	x := newMcpToolWorld(t)
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Revision", "")
+	// Someone edits the meeting after the model read it.
+	if _, err := x.callJSON(t, x.p, "update_meeting", x.updateArgs(t, m.ID, map[string]any{"title": "Đã sửa"})); err != nil {
+		t.Fatal(err)
+	}
+	live := x.meetingRow(t, m.ID).Version
+	var te McpToolError
+	_, err := x.callJSON(t, x.p, "cancel_meeting", map[string]any{"workspace_id": x.w.ID, "meeting_id": m.ID, "revision": m.Version})
+	if !errors.As(err, &te) || te.Code != "revision_conflict" || !strings.Contains(te.Msg, "current revision is "+strconv.Itoa(int(live))) || x.meetingRow(t, m.ID).Status != MeetingScheduled {
+		t.Fatalf("cancel at a stale revision: %v", err)
+	}
+	for name, args := range map[string]map[string]any{
+		"missing":  {"workspace_id": x.w.ID, "meeting_id": m.ID},
+		"zero":     {"workspace_id": x.w.ID, "meeting_id": m.ID, "revision": 0},
+		"negative": {"workspace_id": x.w.ID, "meeting_id": m.ID, "revision": -1},
+		"null":     {"workspace_id": x.w.ID, "meeting_id": m.ID, "revision": nil},
+	} {
+		for _, tool := range []string{"cancel_meeting", "restore_meeting"} {
+			var bad McpInvalidArgs
+			if _, err := x.callJSON(t, x.p, tool, args); !errors.As(err, &bad) || !strings.HasPrefix(bad.Msg, "revision is required") {
+				t.Errorf("%s with %s revision: %v", tool, name, err)
+			}
+		}
+	}
+	if _, err := x.callJSON(t, x.p, "cancel_meeting", x.updateArgs(t, m.ID, nil)); err != nil {
+		t.Fatal(err)
+	}
+	// The revision before the cancel no longer restores.
+	_, err = x.callJSON(t, x.p, "restore_meeting", map[string]any{"workspace_id": x.w.ID, "meeting_id": m.ID, "revision": live})
+	if !errors.As(err, &te) || te.Code != "revision_conflict" || x.meetingRow(t, m.ID).Status != MeetingCanceled {
+		t.Fatalf("restore at the revision before the cancel: %v", err)
+	}
+}
+
+// Only the host or a workspace owner or admin cancels or restores; a member
+// refused for it writes nothing.
+func TestMcpCancelAndRestoreMeetingNeedTheHostOrAWorkspaceAdmin(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	member := x.member(t)
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Của chủ", "")
+	var te McpToolError
+	if _, err := x.callJSON(t, member, "cancel_meeting", x.updateArgs(t, m.ID, nil)); !errors.As(err, &te) || te.Code != "not_meeting_host" || x.meetingRow(t, m.ID).Status != MeetingScheduled {
+		t.Fatalf("member cancel: %v, want not_meeting_host", err)
+	}
+	if err := x.tools.ask.meetings.Cancel(ctx, x.ua.ID, m.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	version := x.meetingRow(t, m.ID).Version
+	if _, err := x.callJSON(t, member, "restore_meeting", x.updateArgs(t, m.ID, nil)); !errors.As(err, &te) || te.Code != "not_meeting_host" || x.meetingRow(t, m.ID).Version != version {
+		t.Fatalf("member restore: %v, want not_meeting_host", err)
+	}
+	// A member's own meeting: the member may, and so may the workspace owner.
+	mine := x.meeting(t, x.ub.ID, x.w.ID, "Của thành viên", "")
+	for _, who := range []struct {
+		name string
+		p    McpPrincipal
+	}{{"host", member}, {"workspace owner", x.p}} {
+		if _, err := x.callJSON(t, who.p, "cancel_meeting", x.updateArgs(t, mine.ID, nil)); err != nil {
+			t.Fatalf("%s cancel: %v", who.name, err)
+		}
+		if _, err := x.callJSON(t, who.p, "restore_meeting", x.updateArgs(t, mine.ID, nil)); err != nil {
+			t.Fatalf("%s restore: %v", who.name, err)
+		}
+	}
+}
+
+func TestMcpCancelAndRestoreMeetingValidateInput(t *testing.T) {
+	x := newMcpToolWorld(t)
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Kiểm tra", "")
+	version := x.meetingRow(t, m.ID).Version
+	var bad McpInvalidArgs
+	// The reason holds 500 characters, not bytes, and a longer one writes nothing.
+	if _, err := x.callJSON(t, x.p, "cancel_meeting", x.updateArgs(t, m.ID, map[string]any{"reason": strings.Repeat("ố", mcpMaxCancelReasonRunes+1)})); !errors.As(err, &bad) || !strings.Contains(bad.Msg, "reason holds at most 500") {
+		t.Fatalf("a reason of 501 characters: %v", err)
+	}
+	if row := x.meetingRow(t, m.ID); row.Status != MeetingScheduled || row.Version != version {
+		t.Fatalf("the refused cancel wrote: %+v", row)
+	}
+	// restore_meeting has no reason, and neither tool takes anything else.
+	if _, err := x.callJSON(t, x.p, "restore_meeting", x.updateArgs(t, m.ID, map[string]any{"reason": "nhầm"})); !errors.As(err, &bad) || bad.Msg != "unknown field reason" {
+		t.Errorf("restore_meeting with a reason: %v", err)
+	}
+	for _, tool := range []string{"cancel_meeting", "restore_meeting"} {
+		if _, err := x.callJSON(t, x.p, tool, x.updateArgs(t, m.ID, map[string]any{"title": "Đổi"})); !errors.As(err, &bad) || bad.Msg != "unknown field title" {
+			t.Errorf("%s with a title: %v", tool, err)
+		}
+		if _, err := x.callJSON(t, x.p, tool, map[string]any{"workspace_id": x.w.ID, "meeting_id": " ", "revision": version}); !errors.As(err, &bad) || bad.Msg != "meeting_id is required" {
+			t.Errorf("%s with a blank meeting id: %v", tool, err)
+		}
+	}
+	// A meeting outside the workspace, the grant or the world reads as absent.
+	_, other := x.org(t, x.ua.ID, "Khác", "khac")
+	otherM := x.meeting(t, x.ua.ID, other.ID, "Ngoài", "")
+	for _, tool := range []string{"cancel_meeting", "restore_meeting"} {
+		for _, args := range []map[string]any{
+			{"workspace_id": x.w.ID, "meeting_id": otherM.ID, "revision": version},
+			{"workspace_id": x.w.ID, "meeting_id": util.NewID(), "revision": version},
+			{"workspace_id": other.ID, "meeting_id": otherM.ID, "revision": version},
+		} {
+			if _, err := x.callJSON(t, x.p, tool, args); !errors.Is(err, ErrNotFound) {
+				t.Errorf("%s %v: %v, want ErrNotFound", tool, args, err)
+			}
+		}
+	}
+	if row := x.meetingRow(t, otherM.ID); row.Status != MeetingScheduled {
+		t.Fatalf("a refused call wrote to the other meeting: %+v", row)
+	}
+	// Exactly 500 characters is accepted and stored whole.
+	long := strings.Repeat("ố", mcpMaxCancelReasonRunes)
+	if _, err := x.callJSON(t, x.p, "cancel_meeting", x.updateArgs(t, m.ID, map[string]any{"reason": long})); err != nil {
+		t.Fatal(err)
+	}
+	if got := x.meetingRow(t, m.ID).CancelReason.String; got != long {
+		t.Errorf("stored reason holds %d characters, want %d", utf8.RuneCountInString(got), mcpMaxCancelReasonRunes)
+	}
+}
+
+// The cancel or restore is committed before the meeting is read back, so a
+// read that fails comes back as a note and not as an error: a model that read
+// "failed" would send the change again.
+func TestMcpMeetingChangedNamesAReadThatFailed(t *testing.T) {
+	x := newMcpToolWorld(t)
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Đọc lại", "")
+	gone := m
+	gone.ID = util.NewID()
+	res, err := x.tools.meetingChanged(context.Background(), x.p, gone, "/org-alpha/alpha", "the meeting was cancelled", "restore_meeting cannot bring it back")
+	if err != nil || res.Item != nil || res.Revision != 0 || len(res.Changes) != 0 {
+		t.Fatalf("a failed read-back = %+v, %v; want a note and no item", res, err)
+	}
+	for _, want := range []string{"the meeting was cancelled, but the meeting could not be read back", "call get_meeting", "restore_meeting cannot bring it back"} {
+		if !strings.Contains(res.Note, want) {
+			t.Errorf("note %q does not say %q", res.Note, want)
+		}
+	}
+	// With nothing else to say the note is the read alone.
+	if res, _ = x.tools.meetingChanged(context.Background(), x.p, gone, "", "the meeting was restored", ""); strings.HasSuffix(res.Note, "; ") || !strings.HasPrefix(res.Note, "the meeting was restored, but") {
+		t.Errorf("note = %q", res.Note)
+	}
+}

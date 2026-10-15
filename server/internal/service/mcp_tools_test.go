@@ -44,6 +44,8 @@ var mcpToolCatalogue = []mcpCatalogueEntry{
 	{"schedule_meeting", "Schedule meeting", ai.ToolWrite, false},
 	{"update_meeting", "Update meeting", ai.ToolWrite, true},
 	{"invite_to_meeting", "Invite to meeting", ai.ToolWrite, false},
+	{"cancel_meeting", "Cancel meeting", ai.ToolWrite, true},
+	{"restore_meeting", "Restore meeting", ai.ToolWrite, false},
 }
 
 func TestMCPToolCatalogue(t *testing.T) {
@@ -84,6 +86,11 @@ func TestMCPToolCatalogue(t *testing.T) {
 		"schedule_meeting":  {"host", "Everyone in the workspace", "not notified", "invite_to_meeting", "list_members", "offset", "Asia/Ho_Chi_Minh", strconv.Itoa(mcpMaxItemRunes)},
 		"update_meeting":    {"revision_conflict", "not_meeting_host", "workspace owner or admin", "invalid_meeting_state", "times cannot change once it has started", "Attendees are not notified", "project_id", "null", "does not move starts_at", "too long", strconv.Itoa(mcpMaxItemRunes)},
 		"invite_to_meeting": {"in-app notification", "notified again", "workspace owner or admin", "not_meeting_host", "invalid_meeting_state", "fails as a whole", "participant_removed", "cannot be invited again", "list_members", "invites", "1-20"},
+		// A cancellation or a restore has no notification rule either
+		// (meeting.canceled, meeting.deleted, meeting.updated): only the status
+		// is seen, and restore_meeting needs the end ahead (Restore).
+		"cancel_meeting":  {"revision_conflict", "not_meeting_host", "workspace owner or admin", "while it is scheduled", "in progress", "invalid_meeting_state", "Everyone in the workspace", "cancelled", "Attendees are not notified", "reason", strconv.Itoa(mcpMaxCancelReasonRunes), "not sent to anyone", "MISSED", "restore_meeting cannot bring it back", "note"},
+		"restore_meeting": {"cancelled meeting back to scheduled", "end time is still ahead", "invalid_meeting_state", "not_meeting_host", "workspace owner or admin", "revision_conflict", "cancel_meeting returned", "Everyone in the workspace", "Attendees are not notified", "reason", "cleared"},
 	} {
 		tool, _ := r.Get(name)
 		for _, w := range words {

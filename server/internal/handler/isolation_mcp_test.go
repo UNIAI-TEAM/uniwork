@@ -113,8 +113,8 @@ func (w *isoWorld) projectRevision(t *testing.T, id any) int64 {
 	return rev
 }
 
-// meetingVersion is a meeting's current revision, the one update_meeting must
-// send.
+// meetingVersion is a meeting's current revision, the one update_meeting,
+// cancel_meeting and restore_meeting must send.
 func (w *isoWorld) meetingVersion(t *testing.T, id any) int64 {
 	t.Helper()
 	var version int64
@@ -175,6 +175,15 @@ func TestIsolationMCP(t *testing.T) {
 	aTask3 := isoID(t, w.call(t, "POST", "/api/v1/workspaces/"+a.wsID+"/tasks", a.token, map[string]any{"title": a.marker + " Third Task"}), "task")
 	a.ids["task3"] = aTask3
 	aRef, aRef3, bRef := w.taskRef(t, aTask), w.taskRef(t, aTask3), w.taskRef(t, bTask)
+	// A holds a second meeting for the controls of the second cancel_meeting
+	// and restore_meeting rows: each control cancels or restores a meeting, and
+	// one that the first row's control already cancelled cannot be cancelled
+	// again.
+	aMeeting2Start := time.Now().Add(26 * time.Hour).UTC().Truncate(time.Minute)
+	aMeeting2 := isoID(t, w.call(t, "POST", "/api/v1/workspaces/"+a.wsID+"/meetings", a.token, map[string]any{
+		"title": a.marker + " Second Meeting", "timezone": "Asia/Ho_Chi_Minh",
+		"starts_at": aMeeting2Start.Format(time.RFC3339), "ends_at": aMeeting2Start.Add(time.Hour).Format(time.RFC3339),
+	}), "meeting")
 	// liveRevision is the revision a task holds now, for the task an
 	// update_task call names (an id, or A's third task by its ref): the revision
 	// check must pass, so only the tenant gate can refuse the call.
@@ -185,6 +194,12 @@ func TestIsolationMCP(t *testing.T) {
 			id = aTask3
 		}
 		return w.taskRevision(t, id)
+	}
+
+	// meetingTool is a meeting write tool that must send the revision the
+	// meeting holds now, so that only the tenant gate can refuse it.
+	meetingTool := func(tool string) bool {
+		return slices.Contains([]string{"update_meeting", "cancel_meeting", "restore_meeting"}, tool)
 	}
 
 	meetingsFrom, meetingsTo := time.Now().Add(-24*time.Hour).UTC().Format(time.RFC3339), time.Now().Add(7*24*time.Hour).UTC().Format(time.RFC3339)
@@ -308,6 +323,18 @@ func TestIsolationMCP(t *testing.T) {
 			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "user_ids": []string{a.peerID}}, ""},
 		{"invite_to_meeting", map[string]any{"workspace_id": b.wsID, "meeting_id": aMeeting, "user_ids": []string{b.peerID}},
 			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "user_ids": []string{a.peerID}}, ""},
+		// cancel_meeting and restore_meeting take the live revision like
+		// update_meeting. A's own grant cancels a meeting and brings it back,
+		// so each cancel control comes before the restore control for the same
+		// meeting, and the two rows of a tool use two meetings.
+		{"cancel_meeting", map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "reason": "iso"},
+			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "reason": "iso-control"}, ""},
+		{"cancel_meeting", map[string]any{"workspace_id": b.wsID, "meeting_id": aMeeting, "reason": "iso"},
+			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting2, "reason": "iso-control"}, ""},
+		{"restore_meeting", map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting},
+			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting}, ""},
+		{"restore_meeting", map[string]any{"workspace_id": b.wsID, "meeting_id": aMeeting},
+			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting2}, ""},
 	}
 	// missing gives every id of A's that a write attack names a stand-in that
 	// never existed; the twin of an attack is the same call with those swapped in.
@@ -395,7 +422,7 @@ func TestIsolationMCP(t *testing.T) {
 			if at.tool == "update_project" {
 				args["revision"] = w.projectRevision(t, args["project_id"])
 			}
-			if at.tool == "update_meeting" {
+			if meetingTool(at.tool) {
 				args["revision"] = w.meetingVersion(t, args["meeting_id"])
 			}
 			status, raw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, args)
@@ -505,7 +532,7 @@ func TestIsolationMCP(t *testing.T) {
 			if at.tool == "update_project" {
 				args["revision"] = w.projectRevision(t, args["project_id"])
 			}
-			if at.tool == "update_meeting" {
+			if meetingTool(at.tool) {
 				args["revision"] = w.meetingVersion(t, args["meeting_id"])
 			}
 			status, raw := mcpCallToolJSON(t, w, a.ids["mcpAccess"], at.tool, args)
@@ -528,7 +555,7 @@ func TestIsolationMCP(t *testing.T) {
 					}
 				}
 			}
-			if at.tool != "update_task" && at.tool != "update_project" && at.tool != "update_meeting" {
+			if at.tool != "update_task" && at.tool != "update_project" && !meetingTool(at.tool) {
 				continue
 			}
 			// An update that saved its fields but failed a later step (parent,
@@ -544,6 +571,10 @@ func TestIsolationMCP(t *testing.T) {
 			}
 			if at.tool == "update_meeting" {
 				fields = map[string]string{"title": "title", "project_id": "project_id"}
+			}
+			// A cancel and a restore change the status, and no more.
+			if at.tool == "cancel_meeting" || at.tool == "restore_meeting" {
+				fields = map[string]string{"meeting_id": "status"}
 			}
 			for key, field := range fields {
 				if _, named := args[key]; named && !slices.ContainsFunc(sc.Changes, func(c writeChange) bool { return c.Field == field }) {
