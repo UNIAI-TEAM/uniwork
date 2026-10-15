@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+151f7c7a080b2cd6533cffb849bb8465991e3377
+54b1eca8c8b062e2c46fe1cebf5095093f5f872f
+151f7c7a0 chore: merge the G5-G7 root (54b1eca8c) into the UNI-1641 lane before cloud r2
+c2e63ddb0 chore(documents): merge TV-2/TV-3/TV-6 dialog fixes into the lane branch
+5bf991130 fix(documents): share dialog loads every member page, keeps grant names
+b53ae5740 fix(documents): batch share picker popup width, chip scroll, Backspace (TV-1, TV-4, TV-5)
+937d48dd1 test(documents): pin batch share cap and check order (BE-4)
+ca0cb1f67 fix(documents): batch share review fixes BE-1, BE-3, BE-5

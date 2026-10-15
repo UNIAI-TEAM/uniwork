@@ -1,0 +1,27 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && AI_PROVIDER=fake go test -count=1 -v ./internal/service -run 'TestShareDocumentBatch|TestDocumentShare' 2>&1 | grep -E '^(=== RUN|--- FAIL|--- PASS|FAIL|ok|panic)'; echo "BATCH_SERVICE_EXIT=${PIPESTATUS[0]}"
+=== RUN   TestDocumentSharedWithMeKeysetWalk
+--- PASS: TestDocumentSharedWithMeKeysetWalk (0.73s)
+=== RUN   TestShareDocumentBatch
+=== RUN   TestShareDocumentBatch/grants_A+B+C_at_view_with_3_live_rows,_3_audit_rows_and_3_outbox_events
+=== RUN   TestShareDocumentBatch/one_outsider_aborts_the_entire_batch_with_422_naming_only_that_id_and_writes_nothing
+=== RUN   TestShareDocumentBatch/replaces_different_live_level_and_treats_same_live_level_as_no-op_without_audit
+=== RUN   TestShareDocumentBatch/deduplicates_after_trimming_whitespace_and_preserves_first-occurrence_order
+=== RUN   TestShareDocumentBatch/51_distinct_principals_rejected_with_422_share_batch_too_large_while_50_distinct_succeed
+=== RUN   TestShareDocumentBatch/not-manage_gets_403,_non-reader_gets_404,_Work_Product_owned_gets_409
+=== RUN   TestShareDocumentBatch/blank_or_empty_principal_ids_and_invalid_level_return_400_validation_error
+=== RUN   TestShareDocumentBatch/an_invalid_id_list_answers_the_ids_error_before_the_level_error
+--- PASS: TestShareDocumentBatch (0.48s)
+=== RUN   TestDocumentShare
+=== RUN   TestDocumentShare/grant,_change_level,_same_level_again
+=== RUN   TestDocumentShare/workspace_and_organization_principals
+=== RUN   TestDocumentShare/principals_outside_the_organization_are_refused
+=== RUN   TestDocumentShare/only_manage_shares;_a_non-reader_learns_nothing
+=== RUN   TestDocumentShare/owned_documents_refuse_shares_at_every_level
+=== RUN   TestDocumentShare/shares_do_not_inherit_to_child_pages
+=== RUN   TestDocumentShare/who_has_access_resolves_effective_access
+=== RUN   TestDocumentShare/shared_with_me_spans_workspaces_and_follows_revokes
+=== RUN   TestDocumentShare/shares_to_workspaces_the_person_is_not_in_never_crowd_out_theirs
+=== RUN   TestDocumentShare/revoke_ends_access;_the_reader_resolver_sees_it_at_delivery_time
+--- PASS: TestDocumentShare (0.49s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	1.728s
+BATCH_SERVICE_EXIT=0
