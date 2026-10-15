@@ -903,3 +903,37 @@ test("runG8A02 closed panel: no editor list in the server log -> the comment is 
   assert.equal(fake.calls.app.filter((x) => x.key === "save" && x.args[0] === CLOSED_PATH).length, 0, "no edit or Save without the scenario");
   assert.equal(record.details.closedPanel.scenario.listedAt, null);
 });
+
+test("G819-BE-8b: the first-list signal is recorded as path-only (the server log carries no query), with the reason the flow cannot hit a Discussion list", async () => {
+  const fake = createFakeWorld();
+  const state = scriptXlsxServer(fake);
+  state.closedStays = true;
+  let t = 0;
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
+  const note = record.details.closedPanel.scenario.listSignal;
+  assert.match(note, /path only/);
+  assert.match(note, /no query/);
+  assert.match(note, /kind=discussion/);
+  assert.match(note, /Discussion panel opens only on a Discussion reveal/);
+});
+
+test("G819-BE-8c: the ordering wait has its own bound - a clock that never advances fails the check instead of spinning", async () => {
+  const fake = createFakeWorld();
+  const state = scriptXlsxServer(fake);
+  state.closedStays = true;
+  let sleeps = 0;
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), {
+    connectApp: fake.app.connectApp,
+    sleep: async () => {
+      sleeps += 1;
+      assert.ok(sleeps < 100_000, "the wait never ends");
+    },
+    now: () => 5_000,
+    framePin: { gitSha: "05fd209" },
+  });
+  const c = record.steps["check:closed-panel-save"];
+  assert.equal(c.status, "FAIL");
+  assert.match(c.reason, /clock did not advance past the first list/);
+  assert.equal(fake.calls.api.filter((x) => x.key === "createDocumentComment" && x.args.pathParams.documentID === CLOSED_DOC).length, 0, "no comment without a strict order");
+  assert.ok(sleeps <= 1_000 + 80, `waited ${sleeps} ticks`);
+});

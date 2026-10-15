@@ -500,6 +500,12 @@ export function serverCommentMark({ commentId }) {
 
 /** The bound for the editor's first list after the panel opens (the open itself polls once, comments-poll.ts:118-123). */
 export const EDITOR_LIST_BOUND_MS = 35_000;
+const ORDER_WAIT_TICKS = 1_000;
+// what the "first list" signal is, recorded in the artifact (G819-BE-8b): server/internal/middleware/request_logger.go logs the
+// path without the query or any client field, so the editor's list cannot be told from another list of the same document
+const FIRST_LIST_SIGNAL =
+  "path only: the server log has no query, so a kind=discussion list of the same document would also match; none occurs in this flow " +
+  "(the Discussion panel opens only on a Discussion reveal, and the harness lists nothing of this document before its Save)";
 const PANEL_SHOW_BOUND_MS = 10_000;
 
 /**
@@ -881,12 +887,15 @@ async function runClosedPanelSave({ ctx, A, desk, driver, documentId, poll, part
     return { status: "FAIL", reason: `scenario not established: no list request of the editor was seen after the open (${why}); the comment was not made` };
   }
   const first = seen.value[0];
-  Object.assign(scenario, { listedAt: now(), listedVia: "server.log", listLine: `GET ${API_PREFIX}/documents/${documentId}/comments ${first.status} at ${first.time ?? "?"}` });
+  Object.assign(scenario, { listedAt: now(), listedVia: "server.log", listLine: `GET ${API_PREFIX}/documents/${documentId}/comments ${first.status} at ${first.time ?? "?"}`, listSignal: FIRST_LIST_SIGNAL });
   const context = unwrap(await desk.comments.context({ path: desk.path }), "comments.context");
   const anchor = anchorForFixture(ctx.fixture, { repoRoot: ctx.repoRoot });
   const createOffset = logSize(serverLog);
-  // the POST goes out on a later clock tick than the list was seen, so the recorded order is strict
-  while (now() <= scenario.listedAt) await sleep(1);
+  // the POST goes out on a later clock tick than the list was seen, so the recorded order is strict; the wait has its own bound
+  for (let tick = 0; now() <= scenario.listedAt; tick += 1) {
+    if (tick >= ORDER_WAIT_TICKS) return { status: "FAIL", reason: `scenario not established: the clock did not advance past the first list in ${ORDER_WAIT_TICKS} ticks; the comment was not made` };
+    await sleep(1);
+  }
   scenario.createdAt = now();
   scenario.createdVia = "REST as A (another host, the desktop panel closed)";
   const res = await A.call("createDocumentComment", { documentID: documentId }, { body: `G8-A02 closed panel ${ctx.fixture}`, kind: "comment", anchor, base_version_id: context.versionId });
@@ -986,7 +995,7 @@ export async function runG8A02(ctx, deps = {}) {
 
     // first, on its own document: the normal case of a user who edits with the comments panel closed
     const serverLog = deps.serverLog ?? join(harnessPaths(ctx.runDir).logDir, "server.log");
-    rec.closedPanel = { ran: true, documentId: closedDoc.documentId, scenario: { openedAt: null, listedAt: null, listedVia: null, createdAt: null, createdVia: null, listsBeforeSave: null } };
+    rec.closedPanel = { ran: true, documentId: closedDoc.documentId, scenario: { openedAt: null, listedAt: null, listedVia: null, createdAt: null, createdVia: null, listsBeforeSave: null, listSignal: null } };
     s = await ctx.step("closed-panel-save", async () => {
       const logOffset = logSize(serverLog);
       rec.closedPanel.scenario.openedAt = now();

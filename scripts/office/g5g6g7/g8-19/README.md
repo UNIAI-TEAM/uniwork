@@ -74,6 +74,22 @@ library UI, and any web-in-frame step. G8-A09 has none, so the web frame pin (05
 fork G8-12..15) does not gate it; the rows that do (A02, A04, A07) are T2 and T3's and report BLOCKED
 on that pin themselves.
 
+## G8-A02 closed-panel Save
+
+`anchors.mjs` `runClosedPanelSave`: the desktop opens the document, the harness waits for the editor's first list in
+`logs/server.log`, makes the comment over REST as A on a strictly later clock tick (the wait has its own bound of 1000
+ticks, then FAIL `scenario not established`), edits and Saves with the panel closed, and reads the server anchor.
+
+- The first-list signal is **path only**: `request_logger.go` logs the path without the query and without any client
+  field, so a `kind=discussion` list of the same document would also match. It cannot occur here (the Discussion panel
+  opens only on a Discussion reveal, the harness lists nothing of the document before its Save); the artifact records
+  this as `details.closedPanel.scenario.listSignal`.
+- Every format fails the same way at the pinned fork (7d665a54): the Save round re-anchors only the roots its comments
+  controller listed, and with the panel closed it lists once at mount. xlsx does **not** re-anchor (its r3 PASS was
+  the race the scenario gate removed). The docx post-Save reload cite (`file-actions.ts:1125-1148`) explains the
+  panel-open `shift` check only; the closed-panel row for docx is `exact` on the old version.
+- A row reason is kept whole (redacted, cap 4000 chars) and the row `owner` is the owner of its failing steps.
+
 ## Server rows
 
 ```sh
