@@ -10,6 +10,8 @@ import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-schedule
 
 /** Debounce plus the largest jitter. */
 const FLUSH_MAX_MS = 500;
+/** Sidebar reload floor plus its largest jitter. */
+const ROOMS_HOLD_MAX_MS = 5_000 + 2_000;
 
 vi.mock("../chat/realtime-cache", () => ({
   fetchAndPatchChatMessage: vi.fn(),
@@ -133,6 +135,38 @@ describe("createChatRealtimePatchScheduler", () => {
     await scheduler.dispose();
   });
 
+  it("reloads the sidebar at most once per ROOMS_REFRESH_MIN_MS and once more after the burst", async () => {
+    const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const roomsKey = JSON.stringify(chatKeys.rooms("ws1"));
+    const roomsCalls = () =>
+      invalidate.mock.calls.filter(([filters]) => JSON.stringify(filters?.queryKey) === roomsKey).length;
+    for (let i = 0; i < 20; i++) {
+      scheduler.scheduleRoomActivity();
+      await vi.advanceTimersByTimeAsync(200);
+    }
+    // 4 s of frames, one reload so far.
+    expect(roomsCalls()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(roomsCalls()).toBe(1);
+    await vi.advanceTimersByTimeAsync(ROOMS_HOLD_MAX_MS + FLUSH_MAX_MS);
+    expect(roomsCalls()).toBe(2);
+    await vi.advanceTimersByTimeAsync(4 * ROOMS_HOLD_MAX_MS);
+    expect(roomsCalls()).toBe(2);
+    await scheduler.dispose();
+  });
+
+  it("a held sidebar reload does not hold back message upserts", async () => {
+    const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
+    scheduler.scheduleRoomActivity();
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    scheduler.scheduleRoomActivity(); // held for the sidebar floor
+    scheduler.scheduleUpsert("room1", "m1");
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1", false, undefined);
+    await scheduler.dispose();
+  });
+
   it("scheduleMessageLinked invalidates without waiting for debounce", async () => {
     const { patchChatMessageLinked } = await import("../chat/realtime-cache");
     const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
@@ -146,8 +180,16 @@ describe("createChatRealtimePatchScheduler", () => {
     scheduler.scheduleUpsert("room1", "m1");
     scheduler.scheduleDelete("room1", "m2");
     scheduler.scheduleMention("room1", "u2");
+    // A first reload, then a held one: dispose must cancel the held timer too.
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    scheduler.scheduleRoomActivity();
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    vi.clearAllMocks();
+    scheduler.scheduleUpsert("room1", "m1");
+    scheduler.scheduleRoomActivity();
     await scheduler.dispose();
-    await vi.advanceTimersByTimeAsync(2 * FLUSH_MAX_MS);
+    await vi.advanceTimersByTimeAsync(2 * ROOMS_HOLD_MAX_MS);
+    expect(invalidate).not.toHaveBeenCalled();
     expect(fetchAndPatchChatMessage).not.toHaveBeenCalled();
     expect(patchChatMessageDeleted).not.toHaveBeenCalled();
     expect(patchChatMentionCreated).not.toHaveBeenCalled();
