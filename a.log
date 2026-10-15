@@ -1,0 +1,11 @@
+$ git fetch origin feature/UNI-923-office-g5-g6-g7 && rm -rf /tmp/rootbase-463e7fd2b && git worktree prune && git worktree add --detach /tmp/rootbase-463e7fd2b 463e7fd2b && cd /tmp/rootbase-463e7fd2b && git rev-parse HEAD && git log --oneline -3; echo "WT_EXIT=$?"
+From https://github.com/UNIAI-TEAM/uniwork
+ * branch                feature/UNI-923-office-g5-g6-g7 -> FETCH_HEAD
+   c7ab0183c..463e7fd2b  feature/UNI-923-office-g5-g6-g7 -> origin/feature/UNI-923-office-g5-g6-g7
+Preparing worktree (detached HEAD 463e7fd2b)
+HEAD is now at 463e7fd2b chore: merge G7-12 holdout eval harness (3cfda31fe) into the G5-G7 root
+463e7fd2b7f7b2c02789fa77fb50dcf11a0d56ed
+463e7fd2b chore: merge G7-12 holdout eval harness (3cfda31fe) into the G5-G7 root
+3cfda31fe fix(office): holdout credits a formula at a cell only for an item that expects a formula
+c39b48b9e docs(office): holdout README quotes the frame tool-table counts of genoffice-tools §3
+WT_EXIT=0
