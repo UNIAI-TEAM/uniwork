@@ -239,6 +239,18 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
 - Một tham số công cụ sai (JSON hỏng, `addresses` không phải mảng...) được backend trả `invalid_arguments` như công cụ thật; lượt
   hỏi đó bị ghi là lỗi (`errored`) và tính là lệch, lần chạy vẫn tiếp tục và giữ các lượt đã xong. Chỉ khi harness không gắn
   được fixture nào thì lần chạy mới dừng (`aborted`), vẫn giữ các lượt đã xong.
+- **Token hết hạn giữa lần chạy là chuyện bình thường, và bộ chạy tự gia hạn** (điểm chặn của phi công G7-12). Token truy cập
+  của máy chủ sống 15 phút và token khung 10 phút, còn một lần chạy ở 1 luồng kéo dài khoảng 100 phút, nên lần nào cũng đi qua cả
+  hai cửa sổ. Bộ chạy giữ thông tin đăng nhập của người dùng thử **trong tiến trình** — mật khẩu, cookie refresh và token truy cập
+  không bao giờ vào `run-NN.json`, `manifest.json`, `report.md` hay dòng log — và gia hạn theo cách ứng dụng web làm: `POST
+  /api/v1/auth/refresh` khi còn cookie refresh của lần đăng nhập, không thì `POST /api/v1/auth/login`. Gia hạn trước khi dùng khi
+  token truy cập cũ hơn 12 phút và token khung cũ hơn 8 phút, rồi gia hạn thêm một lần khi một lượt gọi trả 401; 401 thứ hai liên
+  tiếp làm lượt hỏi lỗi như trước. Gia hạn token khung chỉ **mint lại cho đúng tài liệu đã gắn**, không tải lại fixture (chỉ tải
+  lại khi máy chủ trả 404: tài liệu đã bị xoá), nên một lần gia hạn không tốn thêm tài liệu. Mỗi lần gia hạn là một ghi chú
+  `{ kind: session|frame, ms }` trên lượt hỏi, tổng hợp thành `renewals` của lần chạy và thành cột "Gia hạn token (phiên / khung)"
+  ở mục 2 báo cáo; lượt gọi thử lại giữ độ trễ của chính nó (thời gian gia hạn không tính vào độ trễ model) và **một lần gia hạn
+  không làm mất hiệu lực lần chạy**. Hội thoại không đổi khi gia hạn token khung — cùng một mã hội thoại; còn nếu máy chủ trả 409
+  `conversation_expired` thì đó là lỗi thật, bộ chạy ghi nhận chứ không che.
 - Dòng báo cáo `UNIWORK_ANSWER <json>` được nối vào câu hỏi để model báo đáp án ở dạng máy đọc được; dòng này giống nhau
   cho mọi ca và không nêu gì về đáp án. Nó **thay đổi prompt**, nên là điều kiện của phép đo, không phải của sản phẩm;
   `report.md` in nguyên văn đoạn này cùng sha256, chính sách chấm, danh sách mô phỏng và bộ công cụ ở mục 0.
