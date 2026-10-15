@@ -1,0 +1,351 @@
+$ pnpm install --frozen-lockfile >/dev/null 2>&1; node --test scripts/governance.test.mjs scripts/no-pii-log.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs scripts/office/g5g6g7/holdout.test.mjs scripts/office/devset.test.mjs; echo "CHECK_NODE_EXIT=$?"
+TAP version 13
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 1 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 2.047317
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 2 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 4.03385
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 3 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.341692
+  ...
+# Subtest: both hooks exist and are executable
+ok 4 - both hooks exist and are executable
+  ---
+  duration_ms: 0.181861
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 5 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 0.830713
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 6 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 64.062558
+  ...
+# Subtest: historical message exceptions only allow their immutable commit and subject
+ok 7 - historical message exceptions only allow their immutable commit and subject
+  ---
+  duration_ms: 0.447864
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 8 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 0.348172
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 9 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.291799
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 10 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 2.185826
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 11 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.310842
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 12 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 2.883432
+  ...
+# Subtest: every plan says whether it shipped
+ok 13 - every plan says whether it shipped
+  ---
+  duration_ms: 19.045019
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 14 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 0.88437
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 15 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 65.063998
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 16 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 0.682464
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 17 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 64.36613
+  ...
+# Subtest: acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+ok 18 - acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+  ---
+  duration_ms: 3.660233
+  ...
+# Subtest: acceptance.md says the requirements are an interpretation, not the verbatim spec
+ok 19 - acceptance.md says the requirements are an interpretation, not the verbatim spec
+  ---
+  duration_ms: 0.207892
+  ...
+# Subtest: a PASS row that runs on several fixtures needs one PASS record per fixture
+ok 20 - a PASS row that runs on several fixtures needs one PASS record per fixture
+  ---
+  duration_ms: 20.228573
+  ...
+# Subtest: the summary numbers are checked against the candidate, not the committed matrix (N6)
+ok 21 - the summary numbers are checked against the candidate, not the committed matrix (N6)
+  ---
+  duration_ms: 23.431131
+  ...
+# Subtest: the ledger is read only when the caller names it, and only its own records
+ok 22 - the ledger is read only when the caller names it, and only its own records
+  ---
+  duration_ms: 2.207271
+  ...
+# Subtest: a ledger that is named and does not exist is an error, not a green gate (N5)
+ok 23 - a ledger that is named and does not exist is an error, not a green gate (N5)
+  ---
+  duration_ms: 1.584464
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 24 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 61.713549
+  ...
+# Subtest: G6-08 synthetic dev set & guard
+    # Subtest: has a Vietnamese README.md with > **Trạng thái:** header
+    ok 1 - has a Vietnamese README.md with > **Trạng thái:** header
+      ---
+      duration_ms: 4.16001
+      ...
+    # Subtest: has deterministic synthetic XLSX and DOCX fixtures matching manifest.json
+    ok 2 - has deterministic synthetic XLSX and DOCX fixtures matching manifest.json
+      ---
+      duration_ms: 3.965501
+      ...
+    # Subtest: validates devset cases.json schema, categories, secret scan, and holdout prompt disjointness
+    ok 3 - validates devset cases.json schema, categories, secret scan, and holdout prompt disjointness
+      ---
+      duration_ms: 11.301109
+      ...
+    # Subtest: detects secret-looking values (IPv4, http(s)://host:port, sk-... key prefix)
+    ok 4 - detects secret-looking values (IPv4, http(s)://host:port, sk-... key prefix)
+      ---
+      duration_ms: 0.189725
+      ...
+    # Subtest: normalizes prompts consistently and scores oracle criteria deterministically
+    ok 5 - normalizes prompts consistently and scores oracle criteria deterministically
+      ---
+      duration_ms: 15.355086
+      ...
+    # Subtest: verifies office_uniwork_ai@2 goldens obey the tool allowlist and contain no dev-set case answers
+    ok 6 - verifies office_uniwork_ai@2 goldens obey the tool allowlist and contain no dev-set case answers
+      ---
+      duration_ms: 2.412903
+      ...
+    # Subtest: enforces negative oracles on DV-XLSX-005..008 (error cell replaced by 0 and stale cache reported as result fail)
+    ok 7 - enforces negative oracles on DV-XLSX-005..008 (error cell replaced by 0 and stale cache reported as result fail)
+      ---
+      duration_ms: 15.028414
+      ...
+    1..7
+ok 25 - G6-08 synthetic dev set & guard
+  ---
+  duration_ms: 53.561014
+  type: 'suite'
+  ...
+# Subtest: G6-08 committed dev-set runs & report tables (BE68-5)
+    # Subtest: commits one valid, secret-free run JSON per pack version and keeps the report tables computed from them
+    ok 1 - commits one valid, secret-free run JSON per pack version and keeps the report tables computed from them
+      ---
+      duration_ms: 6.842744
+      ...
+    # Subtest: asserts on the filesystem that panel harness links resolve inside harnessDir and <fork>/node_modules/@genoffice is unchanged (BE68-G2-5)
+    ok 2 - asserts on the filesystem that panel harness links resolve inside harnessDir and <fork>/node_modules/@genoffice is unchanged (BE68-G2-5)
+      ---
+      duration_ms: 2.934994
+      ...
+    1..2
+ok 26 - G6-08 committed dev-set runs & report tables (BE68-5)
+  ---
+  duration_ms: 10.172364
+  type: 'suite'
+  ...
+# Subtest: case files are present and carry the §9.2 shape and counts (always on, no skip)
+ok 27 - case files are present and carry the §9.2 shape and counts (always on, no skip)
+  ---
+  duration_ms: 1.06856
+  ...
+# Subtest: every case satisfies the shared contract schema
+ok 28 - every case satisfies the shared contract schema
+  ---
+  duration_ms: 2.464494
+  ...
+# Subtest: fixtures[] hash the manifest, the fixtures exist and their oracle sidecars agree
+ok 29 - fixtures[] hash the manifest, the fixtures exist and their oracle sidecars agree
+  ---
+  duration_ms: 4.276678
+  ...
+# Subtest: ground truth comes from the fixture oracle sidecars or a committed derivation
+ok 30 - ground truth comes from the fixture oracle sidecars or a committed derivation
+  ---
+  duration_ms: 145.449624
+  ...
+# Subtest: the committed XLSX truth script agrees with xlsx.json (every number recomputed from the workbook)
+ok 31 - the committed XLSX truth script agrees with xlsx.json (every number recomputed from the workbook)
+  ---
+  duration_ms: 28.334106
+  ...
+# Subtest: the scorer passes every reference answer and never fails one
+ok 32 - the scorer passes every reference answer and never fails one
+  ---
+  duration_ms: 6.698932
+  ...
+# Subtest: a deterministic case with no caveat must be a plain PASS, not needs_reviewer
+ok 33 - a deterministic case with no caveat must be a plain PASS, not needs_reviewer
+  ---
+  duration_ms: 2.27081
+  ...
+# Subtest: the scorer is red on a wrong number, an extra write, a missing tool and a tool outside the allowlist
+ok 34 - the scorer is red on a wrong number, an extra write, a missing tool and a tool outside the allowlist
+  ---
+  duration_ms: 7.583627
+  ...
+# Subtest: the scorer fails closed when the answer reports no tools field (amendment 4)
+ok 35 - the scorer fails closed when the answer reports no tools field (amendment 4)
+  ---
+  duration_ms: 6.925535
+  ...
+# Subtest: the scorer fails closed when a mustNotContain case reports no text field (R1-1)
+ok 36 - the scorer fails closed when a mustNotContain case reports no text field (R1-1)
+  ---
+  duration_ms: 2.565039
+  ...
+# Subtest: zero-width or other invisible-only text counts as blank in the mustNotContain guard (R3-1)
+ok 37 - zero-width or other invisible-only text counts as blank in the mustNotContain guard (R3-1)
+  ---
+  duration_ms: 4.001963
+  ...
+# Subtest: a cell/formula/table_cell anchor is an identity, not a substring (R1-2)
+ok 38 - a cell/formula/table_cell anchor is an identity, not a substring (R1-2)
+  ---
+  duration_ms: 0.496863
+  ...
+# Subtest: a mustNotContain token is still caught when the reply changes its diacritics (R1-3)
+ok 39 - a mustNotContain token is still caught when the reply changes its diacritics (R1-3)
+  ---
+  duration_ms: 0.679735
+  ...
+# Subtest: toNumber accepts a number with its unit and still refuses prose (R1-4)
+ok 40 - toNumber accepts a number with its unit and still refuses prose (R1-4)
+  ---
+  duration_ms: 9.665006
+  ...
+# Subtest: a mustNotContain token echoed inside a structural anchor is caught (R1-8)
+ok 41 - a mustNotContain token echoed inside a structural anchor is caught (R1-8)
+  ---
+  duration_ms: 0.759129
+  ...
+# Subtest: containsToken does not squash separators other than whitespace (R1-9)
+ok 42 - containsToken does not squash separators other than whitespace (R1-9)
+  ---
+  duration_ms: 0.210471
+  ...
+# Subtest: the provenance gate needs a real truth key, not just a .mjs\# citation (R1-5)
+ok 43 - the provenance gate needs a real truth key, not just a .mjs\# citation (R1-5)
+  ---
+  duration_ms: 7.098792
+  ...
+# Subtest: a cell: citation with a multi-word anchor and a range reaches the truth table (R2-3)
+ok 44 - a cell: citation with a multi-word anchor and a range reaches the truth table (R2-3)
+  ---
+  duration_ms: 0.487888
+  ...
+# Subtest: setup.removeCells is accepted and validated (amendment 4, R1-11)
+ok 45 - setup.removeCells is accepted and validated (amendment 4, R1-11)
+  ---
+  duration_ms: 0.407139
+  ...
+# Subtest: an unknown key is refused at every level of a case (R1-12)
+ok 46 - an unknown key is refused at every level of a case (R1-12)
+  ---
+  duration_ms: 0.607156
+  ...
+# Subtest: a \#numberFormat probe is documented and graded as a format, not a cell value (N2)
+ok 47 - a \#numberFormat probe is documented and graded as a format, not a cell value (N2)
+  ---
+  duration_ms: 0.400597
+  ...
+# Subtest: the stale group covers stale apply / silent overwrite, not only read-only caveats (reviewer H2)
+ok 48 - the stale group covers stale apply / silent overwrite, not only read-only caveats (reviewer H2)
+  ---
+  duration_ms: 0.127174
+  ...
+# Subtest: no case query contains another case's expected numeric answer (contract amendment 4)
+ok 49 - no case query contains another case's expected numeric answer (contract amendment 4)
+  ---
+  duration_ms: 18.740984
+  ...
+# Subtest: the scorer is red when the reply echoes an injected token
+ok 50 - the scorer is red when the reply echoes an injected token
+  ---
+  duration_ms: 0.694006
+  ...
+# Subtest: the scorer is red on a missing structural fact and on an unknown operation
+ok 51 - the scorer is red on a missing structural fact and on an unknown operation
+  ---
+  duration_ms: 1.997826
+  ...
+# Subtest: a malformed case fails the scorer instead of scoring it
+ok 52 - a malformed case fails the scorer instead of scoring it
+  ---
+  duration_ms: 0.189748
+  ...
+# Subtest: quality bar: each category carries the assertion the spec demands
+ok 53 - quality bar: each category carries the assertion the spec demands
+  ---
+  duration_ms: 0.529622
+  ...
+# Subtest: setup is accepted and validated: overlay, history, selection, serverVersionAhead, activeSheet, revokeAfterTool
+ok 54 - setup is accepted and validated: overlay, history, selection, serverVersionAhead, activeSheet, revokeAfterTool
+  ---
+  duration_ms: 0.430374
+  ...
+# Subtest: case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)
+ok 55 - case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)
+  ---
+  duration_ms: 794.24056
+  ...
+# Subtest: the leak scan finds an injection payload and a marker outside the holdout dir, binary included (R1-6)
+ok 56 - the leak scan finds an injection payload and a marker outside the holdout dir, binary included (R1-6)
+  ---
+  duration_ms: 44.86726
+  ...
+# Subtest: the leak scan keeps money-scale numbers and finds one planted outside the holdout dir, text and binary (R2-2)
+ok 57 - the leak scan keeps money-scale numbers and finds one planted outside the holdout dir, text and binary (R2-2)
+  ---
+  duration_ms: 48.055103
+  ...
+# Subtest: loadCases reads the directory and refuses a foreign document
+ok 58 - loadCases reads the directory and refuses a foreign document
+  ---
+  duration_ms: 2.387875
+  ...
+1..58
+# tests 65
+# suites 2
+# pass 65
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1368.62554
+CHECK_NODE_EXIT=0

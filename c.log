@@ -1,0 +1,3 @@
+$ node scripts/office/devset-report.mjs --check; echo "REPORT_DRIFT_EXIT=$?"
+devset report block matches docs/office/g5g6g7/devset/runs
+REPORT_DRIFT_EXIT=0

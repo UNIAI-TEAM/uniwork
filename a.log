@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; git diff --stat c7eb06397 HEAD | tail -3
+bb52510af320ce01232175f20819397cb96799a7
+bb52510af fix(office): make negative-oracle evaluation claim-based in the result region
+c8717d2f5 docs(office): align dev-set README with DATABASE_URL and offline rescore
+a4dc159b1 fix(office): select positive result region in extractConclusionPart and rescore runs
+533402be3 fix(scripts): assert on disk that panel harness links leave fork @genoffice untouched
+c7eb06397 chore: merge the G5-G7 root into G6-08 before the final cloud round
+9978255f6 test(office): commit the run outputs and the tables computed from them
+ scripts/office/devset.mjs                          |  94 ++++++-----
+ scripts/office/devset.test.mjs                     | 176 ++++++++++++++++++++-
+ 8 files changed, 521 insertions(+), 122 deletions(-)
