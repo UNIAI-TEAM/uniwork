@@ -1,0 +1,9 @@
+$ RID=$(cat /tmp/g710-r5-rid); M=/tmp/$RID-markers.txt; R=/tmp/$RID-run; node apps/web/scripts/office-frame-sync.mjs --all && ls apps/web/public/office-frame/docs; echo "G710_FRAMES_EXIT $?" | tee -a $M; true
+office-frame: docs 46 files verified, installed at /workspace/apps/web/public/office-frame/docs/0.1.0-05fd209
+office-frame: pdf 229 files verified, installed at /workspace/apps/web/public/office-frame/pdf/0.1.0-05fd209
+office-frame: markdown 90 files verified, installed at /workspace/apps/web/public/office-frame/markdown/0.1.0-05fd209
+office-frame: html 7 files verified, installed at /workspace/apps/web/public/office-frame/html/0.1.0-05fd209
+office-frame: slides 19 files verified, installed at /workspace/apps/web/public/office-frame/slides/0.1.0-05fd209
+office-frame: sheets 219 files verified, installed at /workspace/apps/web/public/office-frame/sheets/0.1.0-05fd209
+0.1.0-05fd209
+G710_FRAMES_EXIT 0
