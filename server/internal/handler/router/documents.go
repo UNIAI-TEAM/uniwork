@@ -138,7 +138,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/documents/{documentID}/versions/commit", h.CommitDocumentVersion, apiOp{
 		summary: "Commit a staged file version",
 		description: "Hình thức save duy nhất của file document (C-01 §14): {upload_id, base_revision} + Idempotency-Key. Server kiểm quyền, claim upload, quota, rồi append version mới (restored_from/engine được service gán). " +
-			"Office engine (G2-02) dùng cùng endpoint với file_id từ RegisterProviderOutput. Replay cùng key trả kết quả đã lưu; base_revision cũ -> 422 revision_conflict.",
+			"Office engine (G2-02) dùng cùng endpoint với file_id từ RegisterProviderOutput. Replay cùng key trả kết quả đã lưu; base_revision cũ -> 409 document_version_conflict.",
 		tags: []string{"documents"},
 		sdi:  sdi.CommitDocumentVersionSDI{},
 		sdo:  sdo.DocumentVersionResultSDO{},
