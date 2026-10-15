@@ -138,3 +138,23 @@ test("guardCaseResult keeps a complete PASS, blocks a PASS cut short, and keeps 
   const pending = blockedCase(ROW, "pending G5-10");
   assert.equal(guardCaseResult(pending, reason), pending);
 });
+
+test("FIX-6-2: a BLOCKED downgrade leaves no predicted tag at the case level or on any exit; a kept result keeps its tags", () => {
+  const fq40 = caseResult({ ...ROW, id: "FQ-40" }, [
+    runResult({ label: "reconciling -> committed", assertions: [{ name: "version_delta", expected: 1, actual: 0, ok: false }], predicted: "OQ-F11" }),
+    runResult({ label: "reconciling -> queued", assertions: [{ name: "a", expected: 1, actual: 1, ok: true }] }),
+  ]);
+  assert.equal(fq40.predicted, "OQ-F11");
+  assert.equal(fq40.exits[0].predicted, "OQ-F11");
+  const guarded = guardCaseResult(fq40, "harness server down (killed at unknown?): /healthz: fetch failed");
+  assert.equal(guarded.result, "BLOCKED");
+  assert.equal("predicted" in guarded, false);
+  for (const exit of guarded.exits) assert.equal("predicted" in exit, false, `exit ${exit.label}`);
+  assert.deepEqual(guarded.exits.map((e) => e.result), ["FAIL", "PASS"], "the exits' own results stay as evidence");
+  assert.equal(fq40.exits[0].predicted, "OQ-F11", "the input is not mutated");
+  // a complete PASS and a FAIL that is not downgraded (server up) keep everything
+  const complete = caseResult(ROW, [runResult({ assertions: [{ name: "a", expected: 1, actual: 1, ok: true }], predicted: "OQ-F11" })]);
+  assert.equal(guardCaseResult(complete, "down"), complete);
+  assert.equal(guardCaseResult(fq40, null).exits[0].predicted, "OQ-F11");
+  assert.equal(guardCaseResult(fq40, null).predicted, "OQ-F11");
+});

@@ -103,8 +103,8 @@ export function harnessDownReason({ ok, status = null, error = null, serverLogTe
  */
 export function guardCaseResult(result, downReason, { complete = true } = {}) {
   if (!downReason || result.result === "BLOCKED" || (result.result === "PASS" && complete)) return result;
-  // a predicted FAIL tag does not belong on a BLOCKED row
-  const rest = { ...result };
-  delete rest.predicted;
-  return { ...rest, result: "BLOCKED", blocker: result.blocker ? `${downReason}; ${result.blocker}` : downReason, resultBeforeBlock: result.result };
+  // a predicted FAIL tag does not belong on a BLOCKED row, at the case level or on any exit (review r2b FIX-6-2)
+  const { predicted, ...rest } = result;
+  const exits = Array.isArray(result.exits) ? result.exits.map(({ predicted: exitPredicted, ...exit }) => exit) : null;
+  return { ...rest, ...(exits ? { exits } : {}), result: "BLOCKED", blocker: result.blocker ? `${downReason}; ${result.blocker}` : downReason, resultBeforeBlock: result.result };
 }
