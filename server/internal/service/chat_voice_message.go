@@ -84,27 +84,6 @@ func validateVoiceMessageInput(in PrepareVoiceMessageInput) error {
 	return validateClientMsgID(strings.TrimSpace(in.ClientMsgID))
 }
 
-func (s *ChatService) requireCanSendMessageInRoom(ctx context.Context, userID string, room db.ChatRoom) error {
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
-		return err
-	}
-	if room.Kind != chatRoomKindDM {
-		return nil
-	}
-	peerID, err := dmPeerUserID(room, userID)
-	if err != nil {
-		return err
-	}
-	blocked, err := s.dmMessagingBlocked(ctx, room.OrganizationID, userID, peerID)
-	if err != nil {
-		return err
-	}
-	if blocked {
-		return errChatUserBlocked()
-	}
-	return nil
-}
-
 // PrepareVoiceMessage validates the upload and authorizes the room before any
 // bytes are persisted. An idempotent retry returns Existing and needs no upload.
 func (s *ChatService) PrepareVoiceMessage(
@@ -121,7 +100,7 @@ func (s *ChatService) PrepareVoiceMessage(
 	if err != nil {
 		return VoiceMessagePreparation{}, err
 	}
-	if err := s.requireCanSendMessageInRoom(ctx, userID, room); err != nil {
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return VoiceMessagePreparation{}, err
 	}
 	prep := VoiceMessagePreparation{

@@ -206,7 +206,16 @@ func (s *ChatService) ResolveDM(ctx context.Context, userID, workspaceID, target
 	} else if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	if err := s.ensureExistingRoomAccess(ctx, room, userID, targetUserID); err != nil {
+	rejoin := []string{userID, targetUserID}
+	blocked, err := s.dmMessagingBlocked(ctx, w.OrganizationID, userID, targetUserID)
+	if err != nil {
+		return ChatRoomSummary{}, err
+	}
+	if blocked {
+		// A peer who blocked (or was blocked by) the caller and left stays out.
+		rejoin = rejoin[:1]
+	}
+	if err := s.ensureExistingRoomAccess(ctx, room, rejoin...); err != nil {
 		return ChatRoomSummary{}, err
 	}
 	return s.roomSummaryWithPreview(ctx, userID, roomAnchorWorkspaceID(room), room.ID, room.Kind, room.Name, 0, memberSetKeyFromRoom(room), room.MemberPermissions)

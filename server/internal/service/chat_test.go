@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
@@ -415,6 +416,100 @@ func TestBlockDM(t *testing.T) {
 	}
 	if _, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "ok again"}); err != nil {
 		t.Fatalf("send after unblock: %v", err)
+	}
+}
+
+// Every write a peer can make into a DM honours a block, not only text messages.
+func TestBlockDMCoversEveryWritePath(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	old, err := s.SendRoomMessage(ctx, ub.ID, w.ID, dm.ID, SendChatMessageInput{Body: "before block"})
+	if err != nil {
+		t.Fatalf("send before block: %v", err)
+	}
+	if err := s.BlockChatUser(ctx, ua.ID, w.ID, ub.ID); err != nil {
+		t.Fatalf("block: %v", err)
+	}
+	paths := []struct {
+		name string
+		call func() error
+	}{
+		{"poll", func() error {
+			_, err := s.SendPollMessage(ctx, ub.ID, w.ID, dm.ID, SendPollMessageInput{Question: "Q?", Options: []string{"a", "b"}})
+			return err
+		}},
+		{"note", func() error {
+			_, err := s.SendNoteMessage(ctx, ub.ID, w.ID, dm.ID, SendNoteMessageInput{Body: "note"})
+			return err
+		}},
+		{"post", func() error {
+			_, err := s.SendPostMessage(ctx, ub.ID, w.ID, dm.ID, SendPostMessageInput{Title: "T", Body: "post"})
+			return err
+		}},
+		{"reminder", func() error {
+			_, err := s.SendReminderMessage(ctx, ub.ID, w.ID, dm.ID, SendReminderMessageInput{
+				Body: "nhắc", RemindAt: futureRemindAt(), Repeat: "daily",
+			})
+			return err
+		}},
+		{"edit", func() error {
+			_, err := s.EditChatMessage(ctx, ub.ID, w.ID, dm.ID, old.ID, "edited")
+			return err
+		}},
+		{"reaction", func() error {
+			_, err := s.ToggleChatMessageReaction(ctx, ub.ID, w.ID, dm.ID, old.ID, "👍")
+			return err
+		}},
+		{"typing", func() error {
+			return s.SignalTyping(ctx, ub.ID, w.ID, dm.ID)
+		}},
+	}
+	for _, p := range paths {
+		if err := p.call(); !codedIs(err, "chat_user_blocked") {
+			t.Errorf("%s after block = %v, want chat_user_blocked", p.name, err)
+		}
+	}
+}
+
+// Reopening a DM with someone who blocked you must not pull them back into it.
+func TestResolveDMDoesNotReaddTheBlocker(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	if err := s.BlockChatUser(ctx, ua.ID, w.ID, ub.ID); err != nil {
+		t.Fatalf("block: %v", err)
+	}
+	if _, err := s.ResolveDM(ctx, ub.ID, w.ID, ua.ID); err != nil {
+		t.Fatalf("blocked peer resolve dm: %v", err)
+	}
+	if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: dm.ID, UserID: ua.ID,
+	}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("blocker membership after peer resolve = %v, want no active row", err)
+	}
+	if err := s.UnblockChatUser(ctx, ua.ID, w.ID, ub.ID); err != nil {
+		t.Fatalf("unblock: %v", err)
+	}
+	if _, err := s.ResolveDM(ctx, ub.ID, w.ID, ua.ID); err != nil {
+		t.Fatalf("resolve dm after unblock: %v", err)
+	}
+	if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: dm.ID, UserID: ua.ID,
+	}); err != nil {
+		t.Fatalf("blocker membership after unblock: %v", err)
 	}
 }
 

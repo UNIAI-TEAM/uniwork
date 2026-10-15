@@ -265,9 +265,27 @@ func (s *ChatService) requireCanSendInRoom(ctx context.Context, userID, roomID s
 	if member.SendRestricted {
 		return Invalid("bạn bị cấm gửi tin trong phòng này")
 	}
-	return s.memberCanPerformRoomAction(ctx, userID, roomID, room, func(p ChatRoomMemberPermissions) bool {
+	if err := s.memberCanPerformRoomAction(ctx, userID, roomID, room, func(p ChatRoomMemberPermissions) bool {
 		return p.AllowSendMessages
-	})
+	}); err != nil {
+		return err
+	}
+	// A block between the two DM members closes every write into the DM, not only text.
+	if room.Kind != chatRoomKindDM {
+		return nil
+	}
+	peerID, err := dmPeerUserID(room, userID)
+	if err != nil {
+		return err
+	}
+	blocked, err := s.dmMessagingBlocked(ctx, room.OrganizationID, userID, peerID)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return errChatUserBlocked()
+	}
+	return nil
 }
 
 func canModerateChatRoom(

@@ -139,7 +139,7 @@ func (s *ChatService) SendThreadReply(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	if err := s.requireCanSendMessageInRoom(ctx, userID, room); err != nil {
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
 
