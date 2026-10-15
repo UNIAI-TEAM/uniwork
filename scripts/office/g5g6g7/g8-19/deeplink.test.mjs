@@ -21,7 +21,7 @@ import {
   readFramePin,
   runDeeplink,
 } from "./deeplink.mjs";
-import { createFakeWorld } from "./fake-world.mjs";
+import { createFakeWorld, serverCommentCreateRefusal } from "./fake-world.mjs";
 import { B7_SHEET_NAME, WEB_FRAME_PIN_BLOCKER, WEB_FRAME_PIN_OWNER, rowArtifactPath, runRowModule } from "./run-row.mjs";
 
 const W1 = { id: "ws-W1", slug: "ws-w1", organization_slug: "org-x" };
@@ -263,6 +263,8 @@ function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
   const comments = new Map(); // id -> {documentId, body, deleted}
   const archived = new Set();
   script.respond("api.createDocumentComment", (call) => {
+    const refused = serverCommentCreateRefusal(call.args.body);
+    if (refused) return refused;
     commentSeq += 1;
     const id = `c${commentSeq}`;
     comments.set(id, { documentId: call.args.pathParams.documentID, body: call.args.body.body, deleted: false });
@@ -411,4 +413,19 @@ test("runDeeplink: an app that cannot be driven is FAIL, never BLOCKED", async (
   const exit = await runA07({ ...deps, world: fake.world });
   assert.equal(exit, 1);
   assert.equal(artifact().status, "FAIL");
+});
+
+test("decideG8A07: a cross-workspace row filed under the document's workspace is a product FAIL naming the Inbox workspace filter and an owner", () => {
+  const cw = { ...a07().crossWorkspace, inboxListed: false, href: null, notificationWorkspaceId: "ws-id-w1", openWorkspaceId: "ws-id-w2" };
+  const r = decideG8A07(a07({ crossWorkspace: cw }));
+  assert.equal(r.status, "FAIL");
+  const reason = r.checks["cross-workspace"].reason;
+  assert.match(reason, /product/);
+  assert.match(reason, /ws-id-w1/);
+  assert.match(reason, /inbox-view\.tsx:71/);
+  assert.match(reason, /notifications\.sql:37/);
+  assert.match(reason, /owner candidate/);
+  // a row already in B's workspace that is still not listed is not blamed on the filter
+  const same = decideG8A07(a07({ crossWorkspace: { ...cw, notificationWorkspaceId: "ws-id-w2" } }));
+  assert.doesNotMatch(same.checks["cross-workspace"].reason, /inbox-view\.tsx/);
 });

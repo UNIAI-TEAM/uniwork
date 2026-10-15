@@ -18,6 +18,43 @@ export function fakeNetworkError(message = "fetch failed") {
   return { [NETWORK_ERROR]: true, message };
 }
 
+/**
+ * The refusal D answers for a document comment create body, or null when the
+ * shape passes: a root kind=comment needs anchor + base_version_id, an anchor
+ * only on a root kind=comment, base_version_id with every anchor (D
+ * server/internal/service/document_comment_anchors.go:254-276; an empty kind
+ * on a root is discussion). The ErrorSDO shape of sdo/common.go:6-12.
+ */
+export function serverCommentCreateRefusal(body = {}) {
+  const refuse = (message) => ({ status: 400, body: { error: { code: "invalid_request", message } } });
+  const hasAnchor = body.anchor !== undefined && body.anchor !== null;
+  const root = !body.parent_id;
+  const kind = body.kind || (root ? "discussion" : "");
+  if (!hasAnchor) return root && kind === "comment" ? refuse("bình luận kind=comment phải có neo và base_version_id") : null;
+  if (!root) return refuse("neo chỉ có ở bình luận gốc");
+  if (kind !== "comment") return refuse("neo chỉ có ở bình luận kind=comment");
+  if (!body.base_version_id) return refuse("base_version_id bắt buộc khi có neo");
+  return null;
+}
+
+/**
+ * The refusal the fork's comments bridge answers for a create input, or null:
+ * parseCommentsCreateInput (fork packages/electron-utils/src/comments-ipc.ts:260-276)
+ * rejects a root kind=comment without anchor, an anchor without baseVersionId,
+ * a reply with either and a discussion with an anchor; comments-wiring.ts:179
+ * answers that as `malformed`.
+ */
+export function bridgeCommentCreateRefusal(input = {}) {
+  const malformed = { ok: false, error: { code: "malformed", message: "comments: invalid request", retryable: false } };
+  const { kind, parentId, body, anchor, baseVersionId } = input;
+  if (kind !== "comment" && kind !== "discussion") return malformed;
+  if (typeof body !== "string" || body.length === 0) return malformed;
+  if (anchor !== undefined && baseVersionId === undefined) return malformed;
+  if (parentId !== undefined) return anchor !== undefined || baseVersionId !== undefined ? malformed : null;
+  if (kind === "discussion") return anchor !== undefined ? malformed : null;
+  return anchor === undefined ? malformed : null;
+}
+
 const DEFAULT_ORGS = { X: { workspaces: ["W1", "W2"], ownerKey: "A" }, Y: { workspaces: ["WY"], ownerKey: "M" } };
 const DEFAULT_USERS = ["A", "B", "C", "M"];
 

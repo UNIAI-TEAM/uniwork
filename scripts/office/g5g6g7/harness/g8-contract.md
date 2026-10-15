@@ -367,3 +367,17 @@ const r = classifyWebSave({ httpStatus, body, dirty, saveState }); // pure
 - Fake (§10): `fake.web.webSave` / `fake.web.webFrameEval`, script keys `web.webSave` / `web.webFrameEval`.
   Unscripted, each `webSave` is `{ status: "saved", versionId: "ver-web-<n>", ... }` with a new `n`, and
   `webFrameEval` resolves `undefined`. Both validate `kind` like the real ones.
+
+## 14. API error text and comment-create rules (additive, UNI-1414 r2, fx2)
+
+- `apiErrorText(res)` (`harness/api.mjs`) is the one way a row puts an API answer into a FAIL reason:
+  `<status> <code>: <message>` from D's ErrorSDO (`server/internal/handler/dto/sdo/common.go:6-12`), a string
+  `error`, a non-JSON body (`rawText`) or the transport `error`; redacted like §5 and cut to 200 characters.
+  Never interpolate `res.body.error` directly (r1 printed `[object Object]`).
+- A root `kind:"comment"` always carries an anchor and the version it was written against. D answers
+  400 `invalid_request` without them (`service/document_comment_anchors.go:262-263`); the fork bridge answers
+  `{ok:false, error:{code:"malformed"}}` before any request (`comments-ipc.ts:270-276`, `comments-wiring.ts:179`).
+  Row modules build the pair with `commentAnchor(repoRoot, fixture, versionId)` (`g8-19/inbox.mjs`), whose
+  anchor is `anchors.mjs` `anchorForFixture` (the A01 plan); anchorless threads are `kind:"discussion"`.
+- Fake (§10): `serverCommentCreateRefusal(body)` and `bridgeCommentCreateRefusal(input)` return the refusal
+  those rules give (or `null`), for a test's `api.createDocumentComment` / `app.comments.create` responder.

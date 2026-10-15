@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, test } from "node:test";
 
-import { createFakeWorld } from "./fake-world.mjs";
+import { bridgeCommentCreateRefusal, createFakeWorld, serverCommentCreateRefusal } from "./fake-world.mjs";
 import {
   decideG8A05,
   decideG8A06,
@@ -201,9 +201,12 @@ function scripted({ duplicateRows = false, cCandidate = false } = {}) {
     comments.set(id, { documentId, body, author });
     return id;
   };
-  script.respond("api.createDocumentComment", (call) => ({ status: 201, body: { comment: { id: create(call.args.pathParams.documentID, call.args.body.body, call.user), body: call.args.body.body } } }));
+  script.respond("api.createDocumentComment", (call) =>
+    serverCommentCreateRefusal(call.args.body) ?? { status: 201, body: { comment: { id: create(call.args.pathParams.documentID, call.args.body.body, call.user), body: call.args.body.body } } });
   script.respond("app.comments.create", (call) => {
     const [input] = call.args;
+    const refused = bridgeCommentCreateRefusal(input);
+    if (refused) return refused;
     const id = create("doc-1", input.body, "A");
     return { ok: true, value: { comment: { id, body: input.body } } };
   });
@@ -297,4 +300,29 @@ test("runInbox: a row other than A05/A06 is refused (FAIL)", async () => {
   const { fake, deps } = scripted();
   const exit = await runRowModule({ row: "G8-A09", fixture: "fx-docx-report-vi", runDir, module: "inbox", timeoutMs: 5_000, worldFactory: () => fake.world }, (ctx) => runInbox(ctx, deps));
   assert.equal(exit, 1);
+});
+
+test("runInbox G8-A05: the desktop create is a root kind=comment with the fixture's anchor and the uploaded version (comments-ipc.ts:260-276)", async () => {
+  const { fake, deps } = scripted();
+  assert.equal(await runRow("G8-A05", deps, fake.world), 0, JSON.stringify(artifact("G8-A05"), null, 1));
+  const [input] = fake.calls.app.find((c) => c.key === "comments.create").args;
+  assert.equal(input.kind, "comment");
+  assert.equal(input.anchor?.format, "docx");
+  assert.equal(input.baseVersionId, fake.calls.world.find((c) => c.key === "upload").result?.versionId ?? "ver-1");
+});
+
+test("runInbox G8-A06: the REST comments carry anchor + base_version_id; a server refusal names its code and message, never [object Object]", async () => {
+  const { fake, deps } = scripted();
+  assert.equal(await runRow("G8-A06", deps, fake.world), 0, JSON.stringify(artifact("G8-A06"), null, 1));
+  for (const c of fake.calls.api.filter((x) => x.key === "createDocumentComment")) {
+    assert.equal(c.args.body.kind, "comment");
+    assert.equal(c.args.body.anchor?.format, "docx");
+    assert.ok(c.args.body.base_version_id);
+  }
+  const refusing = scripted();
+  refusing.fake.script.respond("api.createDocumentComment", { status: 400, body: { error: { code: "anchor_version_invalid", message: "phiên bản neo không hợp lệ" } } });
+  assert.equal(await runRow("G8-A06", refusing.deps, refusing.fake.world), 1);
+  const reason = artifact("G8-A06").reason;
+  assert.match(reason, /400 anchor_version_invalid: phiên bản neo không hợp lệ/);
+  assert.doesNotMatch(reason, /object Object/);
 });
