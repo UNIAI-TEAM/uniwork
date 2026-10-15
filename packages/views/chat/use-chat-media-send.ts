@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
@@ -41,6 +41,8 @@ export function useChatMediaSend({
   clearReply: () => void;
 }) {
   const { t } = useTranslation();
+  // The recorder hands back the same Blob until the clip is sent or discarded.
+  const voiceMsgIds = useRef(new WeakMap<Blob, string>());
 
   const resolveRoomId = useCallback(async () => {
     let roomId = activeRoomId;
@@ -53,13 +55,19 @@ export function useChatMediaSend({
 
   const handleSendVoice = useCallback(
     async ({ blob, durationMs }: { blob: Blob; durationMs: number }) => {
+      // A retry of the same recording keeps its key, so the server replays instead of duplicating.
+      let clientMsgId = voiceMsgIds.current.get(blob);
+      if (!clientMsgId) {
+        clientMsgId = newChatClientMsgId();
+        voiceMsgIds.current.set(blob, clientMsgId);
+      }
       const roomId = await resolveRoomId();
       if (!roomId) throw new Error(t("chat.room_load_failed"));
       await sendVoiceMessage.mutateAsync({
         roomId,
         file: blob,
         duration_ms: durationMs,
-        client_msg_id: newChatClientMsgId(),
+        client_msg_id: clientMsgId,
         reply_to_message_id: replyToId,
       });
       clearReply();
