@@ -10,6 +10,7 @@ const toggleReaction = vi.fn().mockResolvedValue(undefined);
 const deleteMessage = vi.fn();
 const editMessage = vi.fn();
 const fetchNextPage = vi.fn().mockResolvedValue({ isFetchNextPageError: false });
+const fetchNextThreadPage = vi.fn().mockResolvedValue({ isFetchNextPageError: false });
 
 type Row = {
   id: string;
@@ -18,9 +19,10 @@ type Row = {
   kind: string;
   created_at: string;
   reply_to_message_id?: string;
+  thread_root_id?: string;
+  reply_count?: number;
   reactions: Record<string, number>;
   my_reactions?: string[];
-  reply_count?: number;
   thread_following?: boolean;
 };
 
@@ -45,7 +47,6 @@ const BASE_ROWS: Row[] = [
   },
 ];
 let rows: Row[] = BASE_ROWS;
-let threadRows: Row[] = [];
 
 vi.mock("@uniwork/core/chat", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/chat")>()),
@@ -56,7 +57,12 @@ vi.mock("@uniwork/core/chat", async (orig) => ({
     isFetchingNextPage: false,
     fetchNextPage,
   }),
-  useChatThreadMessages: () => ({ data: threadRows }),
+  useChatThreadMessages: (_ws: string, _room: string, rootId: string) => ({
+    data: rows.filter((row) => row.id === rootId || row.thread_root_id === rootId),
+    hasNextPage: !!rootId,
+    isFetchingNextPage: false,
+    fetchNextPage: fetchNextThreadPage,
+  }),
   useToggleChatReaction: () => ({ mutateAsync: toggleReaction }),
   useDeleteChatMessage: () => ({ mutateAsync: deleteMessage, isPending: false }),
   useEditChatMessage: () => ({ mutateAsync: editMessage, isPending: false }),
@@ -83,7 +89,6 @@ beforeAll(() => {
 
 beforeEach(() => {
   rows = BASE_ROWS;
-  threadRows = [];
   deleteMessage.mockReset();
   editMessage.mockReset();
   vi.mocked(toast.error).mockReset();
@@ -248,9 +253,7 @@ describe("NativeChatMessagePanel", () => {
 
   it("unfollows the open thread from the thread bar", async () => {
     const user = userEvent.setup();
-    const root = { ...BASE_ROWS[0]!, reply_count: 1 };
-    rows = [root, BASE_ROWS[1]!];
-    threadRows = [{ ...root, thread_following: true }];
+    rows = [{ ...BASE_ROWS[0]!, reply_count: 1, thread_following: true }, BASE_ROWS[1]!];
     render(wrap(panel({ threadsEnabled: true })));
 
     await user.click(screen.getByRole("button", { name: "1 trả lời" }));
@@ -278,5 +281,30 @@ describe("NativeChatMessagePanel", () => {
     render(wrap(panel()));
     fireEvent.click(screen.getByRole("button", { name: "Tải tin cũ hơn" }));
     await waitFor(() => expect(fetchNextPage).toHaveBeenCalledTimes(1));
+  });
+
+  // UNI-1679: a thread past one page could not show its first replies.
+  it("loads older replies in an open thread", async () => {
+    fetchNextPage.mockClear();
+    rows = [
+      { ...BASE_ROWS[0]!, reply_count: 60 },
+      {
+        id: "t60",
+        sender_id: "u2",
+        body: "Trả lời 60",
+        kind: "text",
+        created_at: "2026-01-01T10:02:00.000Z",
+        thread_root_id: "m1",
+        reactions: {},
+      },
+    ];
+    render(wrap(panel({ threadsEnabled: true })));
+    expect(screen.queryByRole("button", { name: "Tải tin cũ hơn" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /60 trả lời/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tải tin cũ hơn" }));
+
+    await waitFor(() => expect(fetchNextThreadPage).toHaveBeenCalledTimes(1));
+    expect(fetchNextPage).not.toHaveBeenCalled();
   });
 });

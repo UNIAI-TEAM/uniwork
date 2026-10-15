@@ -18,6 +18,7 @@ import {
 } from "./realtime-cache";
 import {
   CHAT_MESSAGE_CACHE_MAX,
+  compareMessages,
   flattenRoomTimeline,
   type RoomMessagesPageParam,
   type RoomTimeline,
@@ -48,6 +49,15 @@ const seed = (qc: QueryClient, queryKey: QueryKey, data: unknown) => {
 const timelineIds = (qc: QueryClient, roomId: string) => {
   const data = qc.getQueryData<RoomTimeline>(chatKeys.roomMessages("ws1", roomId));
   return data ? flattenRoomTimeline(data).map((m) => m.id) : undefined;
+};
+
+const threadReply = (id: string, createdAt: string): ChatMessageRecord => ({
+  ...sampleMessage(id, createdAt),
+  thread_root_id: "root1",
+});
+const threadIds = (qc: QueryClient) => {
+  const data = qc.getQueryData<RoomTimeline>(chatKeys.threadMessages("ws1", "room1", "root1"));
+  return data ? flattenRoomTimeline(data).sort(compareMessages).map((m) => m.id) : undefined;
 };
 
 afterEach(() => {
@@ -480,18 +490,58 @@ describe("thread reply cache patches", () => {
     vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(reply);
 
     const qc = new QueryClient();
-    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([sampleMessage("root1", "2026-01-01T10:00:00Z"), reply]));
+    const root = sampleMessage("root1", "2026-01-01T10:00:00Z");
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([root, reply]));
+    seed(qc, chatKeys.threadMessages("ws1", "room1", "root1"), timelineOf([root]));
 
     await fetchAndPatchChatMessage(qc, "ws1", "room1", "r1");
 
     const main = flattenRoomTimeline(qc.getQueryData<RoomTimeline>(chatKeys.roomMessages("ws1", "room1"))!);
     expect(main.map((m) => m.id)).toEqual(["root1"]);
     expect(main[0]?.reply_count).toBe(1);
-    expect(
-      qc.getQueryData<ChatMessageRecord[]>(chatKeys.threadMessages("ws1", "room1", "root1"))?.map(
-        (m) => m.id,
-      ),
-    ).toEqual(["r1"]);
+    expect(threadIds(qc)).toEqual(["root1", "r1"]);
+  });
+
+  it("does not seed a thread cache nobody loaded", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(threadReply("r1", "2026-01-01T10:01:00Z"));
+    const qc = new QueryClient();
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([sampleMessage("root1", "2026-01-01T10:00:00Z")]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "r1");
+
+    expect(qc.getQueryData(chatKeys.threadMessages("ws1", "room1", "root1"))).toBeUndefined();
+  });
+
+  it("drops a deleted reply from an older page of the thread", () => {
+    const qc = new QueryClient();
+    const key = chatKeys.threadMessages("ws1", "room1", "root1");
+    qc.setQueryData<RoomTimeline>(key, {
+      pages: [
+        [sampleMessage("root1", "2026-01-01T10:00:00Z"), threadReply("r3", "2026-01-01T10:03:00Z")],
+        [threadReply("r1", "2026-01-01T10:01:00Z"), threadReply("r2", "2026-01-01T10:02:00Z")],
+      ],
+      pageParams: [null, { cursor: "c3" }],
+    });
+
+    patchChatMessageDeleted(qc, "ws1", "room1", "r1");
+
+    expect(threadIds(qc)).toEqual(["root1", "r2", "r3"]);
+  });
+
+  it("refetches the thread for an edit of a reply older than its first page", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({
+      ...threadReply("r1", "2026-01-01T10:01:00Z"),
+      body: "edited",
+    });
+    const qc = new QueryClient();
+    const key = chatKeys.threadMessages("ws1", "room1", "root1");
+    seed(qc, key, timelineOf([sampleMessage("root1", "2026-01-01T10:00:00Z"), threadReply("r3", "2026-01-01T10:03:00Z")]));
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "r1");
+
+    expect(threadIds(qc)).toEqual(["root1", "r3"]);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key, exact: true });
   });
 });
 

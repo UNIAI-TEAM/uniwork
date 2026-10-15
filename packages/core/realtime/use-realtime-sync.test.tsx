@@ -722,24 +722,23 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    shown(qc, chatKeys.roomMessages("ws1", "dm1"), {
-      pageParams: [null],
-      pages: [[{
-        id: "root1",
-        room_id: "dm1",
-        workspace_id: "ws1",
-        sender_id: "u1",
-        sender_display_name: "Ada",
-        kind: "text",
-        body: "root",
-        created_at: "2026-01-01T10:00:00Z",
-        pinned: false,
-        mentioned_user_ids: [],
-        reactions: {},
-        reply_count: 0,
-        thread_unread: false,
-      }]],
-    });
+    const root: chatApi.ChatMessageRecord = {
+      id: "root1",
+      room_id: "dm1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "Ada",
+      kind: "text",
+      body: "root",
+      created_at: "2026-01-01T10:00:00Z",
+      pinned: false,
+      mentioned_user_ids: [],
+      reactions: {},
+      reply_count: 0,
+      thread_unread: false,
+    };
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pageParams: [null], pages: [[root]] });
+    shown(qc, chatKeys.threadMessages("ws1", "dm1", "root1"), { pageParams: [null], pages: [[root]] });
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
       wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
@@ -755,8 +754,8 @@ describe("useRealtimeSync", () => {
     expect(timelineRows(qc, "dm1").map((m) => m.id)).toEqual(["root1"]);
     expect(timelineRows(qc, "dm1")[0]?.reply_count).toBe(1);
     expect(
-      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.threadMessages("ws1", "dm1", "root1")),
-    ).toHaveLength(1);
+      qc.getQueryData<RoomTimeline>(chatKeys.threadMessages("ws1", "dm1", "root1"))?.pages[0]?.map((m) => m.id),
+    ).toEqual(["root1", "r1"]);
     vi.useRealTimers();
   });
 

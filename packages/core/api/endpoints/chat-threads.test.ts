@@ -47,6 +47,15 @@ describe("chat thread endpoints", () => {
     expect(root?.thread_following).toBeUndefined();
   });
 
+  it("listChatThreadMessages sends the cursor verbatim", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [] }));
+    await listChatThreadMessages("w1", "r1", "m1", { cursor: "1774519200123456.01J8X", limit: 50 });
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]?.[0]));
+    expect(url.pathname).toBe("/api/v1/workspaces/w1/chat/rooms/r1/threads/m1/messages");
+    expect(url.searchParams.get("cursor")).toBe("1774519200123456.01J8X");
+    expect(url.searchParams.get("limit")).toBe("50");
+  });
+
   it("sendChatThreadMessage degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ message: 1 }));
     await expect(

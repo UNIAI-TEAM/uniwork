@@ -42,10 +42,11 @@ export async function listChatThreadMessages(
   workspaceId: string,
   roomId: string,
   threadRootId: string,
-  opts: { limit?: number; before?: string } = {},
+  opts: { limit?: number; cursor?: string; before?: string } = {},
 ): Promise<ChatMessageRecord[]> {
   const q = new URLSearchParams();
   if (opts.limit != null) q.set("limit", String(opts.limit));
+  if (opts.cursor) q.set("cursor", opts.cursor);
   if (opts.before) q.set("before", opts.before);
   const qs = q.toString() ? `?${q}` : "";
   const raw = await request(

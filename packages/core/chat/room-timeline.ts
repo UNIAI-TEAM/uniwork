@@ -18,7 +18,7 @@ export type RoomMessagesPageParam = ReturnType<typeof olderThan> | null;
  */
 export type RoomTimeline = InfiniteData<ChatMessageRecord[], RoomMessagesPageParam>;
 
-function compareMessages(a: ChatMessageRecord, b: ChatMessageRecord): number {
+export function compareMessages(a: ChatMessageRecord, b: ChatMessageRecord): number {
   const byTime = Date.parse(a.created_at) - Date.parse(b.created_at);
   if (byTime !== 0) return byTime;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;

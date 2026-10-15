@@ -114,14 +114,18 @@ export function NativeChatMessagePanel({
   const {
     data: latestRows = [],
     isPending: latestPending,
-    hasNextPage: hasMore,
-    isFetchingNextPage: loadingOlder,
-    fetchNextPage,
+    hasNextPage: roomHasMore,
+    isFetchingNextPage: roomLoadingOlder,
+    fetchNextPage: fetchOlderRoomPage,
   } = useChatRoomMessages(workspaceId, roomId, CHAT_MESSAGE_INITIAL);
   // Mirrors stickToBottomRef for rendering: the "back to latest" button shows
   // only once the reader has scrolled away from the newest message.
   const [awayFromLatest, setAwayFromLatest] = useState(false);
   const threadQuery = useChatThreadMessages(workspaceId, roomId, threadRoot?.id ?? "", threadsEnabled && !!threadRoot);
+  // An open thread pages its own older replies (UNI-1679), not the room's.
+  const hasMore = threadRoot ? threadQuery.hasNextPage : roomHasMore;
+  const loadingOlder = threadRoot ? threadQuery.isFetchingNextPage : roomLoadingOlder;
+  const fetchNextPage = threadRoot ? threadQuery.fetchNextPage : fetchOlderRoomPage;
   useClearDeliveredChatSends(latestRows);
   useClearDeliveredChatSends(threadQuery.data ?? []);
   useMarkChatRoomReadAtLatest(
@@ -285,7 +289,7 @@ export function NativeChatMessagePanel({
   }, [highlightMessageId]);
 
   const loadOlder = useCallback(async () => {
-    if (loadingOlder || !hasMore || threadRoot || anchorMessages) return;
+    if (loadingOlder || !hasMore || (!threadRoot && anchorMessages)) return;
     stickToBottomRef.current = false;
     const prevHeight = scrollRef.current?.scrollHeight ?? 0;
     const result = await fetchNextPage();
@@ -379,7 +383,7 @@ export function NativeChatMessagePanel({
 
   // Older history loads in the message's own shape. When more exists, a
   // button offers it too — scrolling up is not the only way to ask.
-  const canLoadOlder = hasMore && !threadRoot && !anchorMessages;
+  const canLoadOlder = hasMore && (!!threadRoot || !anchorMessages);
   const listHeader =
     loadingOlder || loadingAnchor ? (
       <ChatOlderMessagesSkeleton
