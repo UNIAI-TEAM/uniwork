@@ -23,9 +23,18 @@ type AIProviderSDO struct {
 	DefaultBaseURL  string `json:"default_base_url" description:"Endpoint mặc định; rỗng với custom" example:"https://api.anthropic.com"`
 }
 
+// AIBYOKStatusDTO reports whether the caller may use the BYOK proxy in this
+// organization now (G6-05k, ADR 0034).
+type AIBYOKStatusDTO struct {
+	Enabled bool   `json:"enabled" description:"true khi người gọi dùng được proxy BYOK trong tổ chức này (thành viên, gói có office.ai_byok, kho khóa đã cấu hình)" example:"true"`
+	Reason  string `json:"reason" description:"Rỗng khi enabled; ngược lại là mã lý do (entitlement_required, subscription_inactive, ai_credentials_unavailable)" example:""`
+}
+
 // AICredentialListSDO is GET /api/v1/orgs/{orgID}/ai/credentials: the
-// caller's credentials in that organization and the providers they can add.
+// caller's credentials in that organization, the providers they can add, and
+// whether the BYOK proxy is enabled for them there.
 type AICredentialListSDO struct {
 	Items     []AICredentialSDO `json:"items"`
 	Providers []AIProviderSDO   `json:"providers"`
+	BYOK      AIBYOKStatusDTO   `json:"byok"`
 }

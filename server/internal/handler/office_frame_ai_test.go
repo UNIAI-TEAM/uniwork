@@ -166,6 +166,10 @@ func TestOfficeFrameAIHappyPath(t *testing.T) {
 	if w.vendorAuth != "Bearer "+frameAIKey {
 		t.Fatalf("vendor saw Authorization %q, want the stored key", w.vendorAuth)
 	}
+	var byokCap string
+	if err := testPool.QueryRow(context.Background(), `SELECT capability FROM ai_usage_events WHERE organization_id = $1`, w.orgID).Scan(&byokCap); err != nil || byokCap != string(ai.CapOfficeBYOK) {
+		t.Fatalf("frame BYOK usage capability = %q (%v), want %q (never %q)", byokCap, err, ai.CapOfficeBYOK, ai.CapOfficeBYOKDesktop)
+	}
 	code, body = rawCall(t, w.srv, "GET", w.path(w.docID, "/byok/openai/models"), w.token, "")
 	if code != http.StatusOK || !strings.Contains(body, "gpt-frame") {
 		t.Fatalf("models = %d %s", code, body)

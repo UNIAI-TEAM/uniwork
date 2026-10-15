@@ -109,7 +109,7 @@ dạng `{ "code": ..., "message": ... }`.
 
 | Việc | Route | Ghi chú |
 | --- | --- | --- |
-| Liệt kê khóa + bảng nhà cung cấp | `GET /orgs/{orgID}/ai/credentials` | `{ items: [Credential], providers: [{ id, protocol, requires_base_url, default_base_url }] }` |
+| Liệt kê khóa + bảng nhà cung cấp | `GET /orgs/{orgID}/ai/credentials` | `{ items: [Credential], providers: [{ id, protocol, requires_base_url, default_base_url }], byok: { enabled, reason } }` |
 | Tạo / cập nhật | `PUT /orgs/{orgID}/ai/credentials/{aiProvider}` | body `{ api_key?, base_url?, label?, model? }`; `api_key` bắt buộc khi tạo, ≤ 4096; `label` ≤ 80; `model` ≤ 200 (chữ, số, `. _ : / @ + -`); **201** khi tạo, **200** khi cập nhật |
 | Xóa | `DELETE /orgs/{orgID}/ai/credentials/{aiProvider}` | **204**; **404** nếu chưa có |
 
@@ -122,7 +122,12 @@ thì giữ khóa cũ.
 để trình duyệt khác của cùng tài khoản dùng lại; body chỉ có `model` đổi model mà không nhập lại
 khóa. `model_updated_at` (RFC 3339, rỗng khi chưa chọn) là lần chọn gần nhất: nhà cung cấp có
 `model` khác rỗng và `model_updated_at` mới nhất là mặc định khi trình duyệt chưa có lựa chọn riêng. API **không
-bao giờ** trả khóa; `key_hint` là "…" + 4 ký tự cuối. Chỉ `PUT` cần entitlement
+bao giờ** trả khóa; `key_hint` là "…" + 4 ký tự cuối. `byok` (cộng thêm, G6-05k, UNI-1637) cho biết
+người gọi hiện dùng được proxy BYOK trong tổ chức này hay không (`enabled: true` khi là thành viên,
+gói có `office.ai_byok` và kho khóa đã cấu hình, tính bằng `AIBYOKService.Status`; `reason` là `""`
+khi bật, hoặc `entitlement_required`, `subscription_inactive`, `ai_credentials_unavailable` khi tắt)
+để app desktop biết trước khi hiện nguồn "Khóa trên UniWork" và gọi qua proxy (chi tiết:
+[`docs/office/g5g6g7/contracts/g6-05k-org-keys-api.md`](../g5g6g7/contracts/g6-05k-org-keys-api.md)). Chỉ `PUT` cần entitlement
 `office.ai_byok`; `GET` và `DELETE` **không** bị chặn bởi entitlement (người dùng hạ plan vẫn xem và gỡ được khóa của mình). Cả `PUT` và `DELETE` ghi audit `ai.credential.saved` / `ai.credential.deleted` (payload chỉ có id +
 provider, thêm `model` và `model_changed` khi lưu) cùng transaction. Nhà cung cấp có sẵn: anthropic, openai, gemini, openrouter,
 deepseek, xai, mistral, qwen, kimi, glm, doubao, hunyuan, minimax, custom; UI lấy danh sách từ
@@ -157,8 +162,9 @@ streaming và `GET` model), 10 phút tổng, nghỉ 60 s giữa hai chunk; ghi x
   bằng `[redacted]`; body 2xx không bị lọc.
 
 Không hỗ trợ `codex`, `genspark`. Nhà cung cấp `custom` cần `base_url` `https://` công khai (rào SSRF,
-kiểm lại lúc dial, không theo redirect). Lệnh gọi ghi một sự kiện sử dụng (`office.byok`,
-`credits=0`); proxy **không** tiêu credit UniWork. Với openai-compatible ở chế độ stream, token
+kiểm lại lúc dial, không theo redirect). Lệnh gọi ghi một sự kiện sử dụng (`office.byok` với phiên web /
+frame web, `office.byok_desktop` khi đến từ phiên thiết bị desktop qua `middleware.DeviceSession`;
+`credits=0`, G6-05k); proxy **không** tiêu credit UniWork. Với openai-compatible ở chế độ stream, token
 chỉ được ghi khi client đặt `stream_options.include_usage` (body không bị viết lại), nếu không
 dòng sử dụng ghi 0 token.
 
@@ -207,13 +213,14 @@ prompt. MIME của phiên âm phải là token `type/subtype` (audio/*, video/mp
 | --- | --- | --- |
 | 400 | `provider_not_supported`, `base_url_refused` | Nhà cung cấp ngoài danh sách / URL `custom` bị rào SSRF từ chối |
 | 402 | `credits_exhausted` | Hết token của kỳ (client hiện "hết credit") |
-| 403 | `entitlement_required` | Plan thiếu `office.ai_byok` hoặc `office.ai_cloud`; hoặc không phải thành viên |
+| 403 | `entitlement_required` | Plan thiếu `office.ai_byok` hoặc `office.ai_cloud` (không phải thành viên: xem dòng 404) |
 | 404 | `credential_missing` | Chưa có khóa cho nhà cung cấp này (hoặc không thấy tổ chức; cũng khi `AI_CREDENTIAL_KEY` đã đổi và khóa cũ không giải mã được — lưu lại khóa) |
 | 422 | `media_unsupported` | Loại tệp ngoài danh sách phân tích media hoặc mô hình không đọc được |
 | 424 | `provider_auth_failed` | Nhà cung cấp trả 401/403 cho khóa của người dùng |
 | 429 | — | Giới hạn tốc độ của UniWork hoặc 429 của nhà cung cấp (chuyển tiếp, kèm `retry-after`) |
 | 502 | `provider_unreachable` | Mạng/timeout tới nhà cung cấp |
 | 503 | `cloud_unavailable` | Công cụ đám mây chưa cấu hình ở server |
+| 503 | `ai_credentials_unavailable`, `ai_byok_not_configured` | Proxy BYOK / route khóa: server chưa cấu hình `AI_CREDENTIAL_KEY` hoặc chưa nối dịch vụ BYOK (client hiện là "khóa trên UniWork tạm thời chưa dùng được") |
 
 - **Giới hạn tốc độ** (theo bearer user và **theo nhóm route**, không theo URL; cần Redis,
   fail-open): nhóm khóa (3 route) 30/phút, nhóm proxy (4 route, mọi nhà cung cấp và tổ chức) 60/phút,
