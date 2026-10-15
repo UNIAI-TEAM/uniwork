@@ -2,6 +2,7 @@
 // server dead before seeding into BLOCKED rows.
 // Run: node --test scripts/office/g5g6g7/fault/app-cases-r3a.test.mjs
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,9 +16,16 @@ import { loadFaultCases } from "./server-cases-lib.mjs";
 const doc = loadFaultCases();
 const row = (id) => doc.cases.find((r) => r.id === id);
 
+/** Why the `ps -eo pid=,ppid=,pgid=` table this test reads is unavailable on this host (Windows has none), or null. */
+const PS_SKIP = (() => {
+  const ps = spawnSync("ps", ["-eo", "pid=,ppid=,pgid="], { encoding: "utf8" });
+  if (ps.error) return `ps is unavailable on this host: ${ps.error.message}`;
+  return String(ps.stdout ?? "").trim() ? null : "ps gave no process table on this host";
+})();
+
 // ---- R3-3a: FQ-20 `app_process_tree_killed` -------------------------------------------
 
-test("R3-3a: FQ-20's app_process_tree_killed says '0 pids: <cause>' and is not ok when the crash killed nothing", async () => {
+test("R3-3a: FQ-20's app_process_tree_killed says '0 pids: <cause>' and is not ok when the crash killed nothing", { skip: PS_SKIP ?? false }, async () => {
   const fq20 = row("FQ-20");
   const page = {
     url: () => "app://docs/editor",

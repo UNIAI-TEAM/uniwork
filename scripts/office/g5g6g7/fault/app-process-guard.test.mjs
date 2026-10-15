@@ -3,12 +3,20 @@
 // server makes the case BLOCKED instead of a column of ECONNREFUSED FAILs.
 // Run: node --test scripts/office/g5g6g7/fault/app-process-guard.test.mjs
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { blockedCase, caseResult, runResult } from "./app-cases-lib.mjs";
 import { crash } from "./app-session.mjs";
 import {
   crashTargets, crashZeroCause, guardCaseResult, harnessDownReason, harnessPidsFromFile, ownGroupTarget, parsePsTable, seedBehindGuard, serverShutdownOf,
 } from "./app-process-guard.mjs";
+
+/** Why the `ps -eo pid=,ppid=,pgid=` table this test reads is unavailable on this host (Windows has none), or null. */
+const PS_SKIP = (() => {
+  const ps = spawnSync("ps", ["-eo", "pid=,ppid=,pgid="], { encoding: "utf8" });
+  if (ps.error) return `ps is unavailable on this host: ${ps.error.message}`;
+  return String(ps.stdout ?? "").trim() ? null : "ps gave no process table on this host";
+})();
 
 // pid ppid pgid. 500 = the runner (group 400, under dbus-run-session 400).
 // 600 = the Electron Playwright spawned (detached: own group 600) with its
@@ -194,7 +202,7 @@ test("FIX-6-3: crashZeroCause names why a crash had no target, and is null when 
   assert.match(crashZeroCause(inHarnessGroup, { ...scope, root: 600 }), /fenced pid or process group/);
 });
 
-test("FIX-6-3: crash() with a stale pid kills 0, records the cause, and an already closed session says so", () => {
+test("FIX-6-3: crash() with a stale pid kills 0, records the cause, and an already closed session says so", { skip: PS_SKIP ?? false }, () => {
   const session = { pid: 2_000_000_000, app: { close: async () => {} }, dead: false };
   assert.equal(crash(session), 0);
   assert.match(session.crashCause, /not in ps/);
