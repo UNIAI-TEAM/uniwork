@@ -19,10 +19,10 @@ export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 export const DOCUMENT_VISIBILITIES = ["workspace", "restricted"] as const;
 export type DocumentVisibility = (typeof DOCUMENT_VISIBILITIES)[number];
 
-export const DOCUMENT_ACCESS_LEVELS = ["view", "edit", "manage"] as const;
+export const DOCUMENT_ACCESS_LEVELS = ["view", "comment", "edit", "manage"] as const;
 export type DocumentAccessLevel = (typeof DOCUMENT_ACCESS_LEVELS)[number];
 
-export const DOCUMENT_ACCESS_VIA = ["member", "share", "link", "ai_context"] as const;
+export const DOCUMENT_ACCESS_VIA = ["member", "share", "link", "ai_context", "break_glass"] as const;
 export type DocumentAccessVia = (typeof DOCUMENT_ACCESS_VIA)[number];
 
 export const DOCUMENT_VERSION_REASONS = ["manual", "auto", "restore", "upload", "agent"] as const;
