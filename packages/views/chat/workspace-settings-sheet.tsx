@@ -75,7 +75,7 @@ export function WorkspaceSettingsSheet({
   } = useChatRoomMembers(workspaceId, roomId, open);
   const { data: rooms = [] } = useChatRooms(workspaceId);
   const roomRecord = useMemo(() => rooms.find((room) => room.id === roomId), [roomId, rooms]);
-  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(roomId);
+  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(workspaceId, roomId);
   const currentMember = useCurrentMember(workspaceId);
   const manageId = useId();
   const [membersOpen, setMembersOpen] = useState(false);

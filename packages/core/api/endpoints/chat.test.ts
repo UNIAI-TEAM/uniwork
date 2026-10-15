@@ -11,6 +11,7 @@ import {
   patchChatRoomMember,
   listChatRoomMessages,
   markChatRoomRead,
+  setChatRoomMuted,
   olderThan,
   searchChatRoomMessages,
   listChatRoomMessagesAround,
@@ -279,6 +280,35 @@ describe("chat endpoints", () => {
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toEqual(
       expect.stringContaining("/chat/rooms/room1/read"),
     );
+  });
+
+  it("setChatRoomMuted posts to mute and deletes to unmute", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    expect(await setChatRoomMuted("ws1", "room1", true)).toBe(true);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    expect(await setChatRoomMuted("ws1", "room1", false)).toBe(true);
+    const calls = vi.mocked(fetch).mock.calls;
+    expect(calls[0]?.[0]).toEqual(expect.stringContaining("/chat/rooms/room1/mute"));
+    expect(calls[0]?.[1]?.method).toBe("POST");
+    expect(calls[1]?.[1]?.method).toBe("DELETE");
+  });
+
+  it("setChatRoomMuted degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: 42 }));
+    expect(await setChatRoomMuted("ws1", "room1", true)).toBe(false);
+  });
+
+  it("listChatRooms reads the caller's server-side mute and tolerates a drifted one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { id: "r1", kind: "dm", name: "A", workspace_id: "ws1", member_user_ids: [], notifications_muted: true },
+          { id: "r2", kind: "dm", name: "B", workspace_id: "ws1", member_user_ids: [], notifications_muted: "yes" },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((r) => r.notifications_muted)).toEqual([true, undefined]);
   });
 
   it("listChatRoomMessages degrades on malformed response", async () => {

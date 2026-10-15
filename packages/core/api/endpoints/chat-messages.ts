@@ -49,6 +49,18 @@ export async function markChatRoomRead(workspaceId: string, roomId: string): Pro
   return parsed.status === "ok";
 }
 
+/** Mutes (or unmutes) the room's notifications and push for the caller only. */
+export async function setChatRoomMuted(workspaceId: string, roomId: string, muted: boolean): Promise<boolean> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/mute`,
+    { method: muted ? "POST" : "DELETE" },
+  );
+  const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
+    endpoint: "POST|DELETE .../chat/rooms/{roomID}/mute",
+  });
+  return parsed.status === "ok";
+}
+
 export async function getChatRoomMessage(
   workspaceId: string,
   roomId: string,

@@ -36,6 +36,7 @@ type RowData = {
   mentionUnreadByRoomId: Record<string, number>;
   unreadBadgesReady: boolean;
   preferencesByRoomId: Record<string, ChatRoomPreference>;
+  mutedRoomIds: ReadonlySet<string>;
   labels: SidebarRowLabels;
   memberAvatarByUserId: MemberAvatarUrlMap;
 };
@@ -119,7 +120,7 @@ export function ChatSidebarList(props: RowData) {
         mentionUnread={roomId ? (props.mentionUnreadByRoomId[roomId] ?? 0) : 0}
         unreadBadgesReady={props.unreadBadgesReady}
         pinned={Boolean(pref?.pinned)}
-        notificationsMuted={Boolean(pref?.notificationsMuted)}
+        notificationsMuted={roomId ? props.mutedRoomIds.has(roomId) : false}
         labels={props.labels}
         rowIndex={index}
         tabIndex={index === rowTabStop ? 0 : -1}

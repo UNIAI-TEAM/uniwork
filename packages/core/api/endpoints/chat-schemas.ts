@@ -229,6 +229,8 @@ export const ChatRoomSchema = z.object({
   project_id: z.string().optional(),
   topic: z.string().optional(),
   is_default: z.boolean().optional(),
+  /** The caller muted this room's notifications; kept on the server, so on every device. */
+  notifications_muted: z.boolean().optional().catch(undefined),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 

@@ -8,8 +8,8 @@ import {
   registerForWorkspaceRehydration,
 } from "../platform/workspace-storage";
 
+// Pins stay in this browser; the notification mute is on the server (UNI-1697).
 export type ChatRoomPreference = {
-  notificationsMuted: boolean;
   pinned: boolean;
   pinnedAt: number;
 };
@@ -17,15 +17,12 @@ export type ChatRoomPreference = {
 type RoomPreferencesState = {
   byRoomId: Record<string, ChatRoomPreference>;
   getPreference: (roomId: string) => ChatRoomPreference;
-  toggleNotificationsMuted: (roomId: string) => void;
   togglePinned: (roomId: string) => void;
-  isNotificationsMuted: (roomId: string) => boolean;
   isPinned: (roomId: string) => boolean;
   pinnedAt: (roomId: string) => number;
 };
 
 const defaultPreference = (): ChatRoomPreference => ({
-  notificationsMuted: false,
   pinned: false,
   pinnedAt: 0,
 });
@@ -42,23 +39,8 @@ export const useChatRoomPreferencesStore = create<RoomPreferencesState>()(
     (set, get) => ({
       byRoomId: {},
       getPreference: (roomId) => readPreference(get().byRoomId, roomId),
-      isNotificationsMuted: (roomId) => readPreference(get().byRoomId, roomId).notificationsMuted,
       isPinned: (roomId) => readPreference(get().byRoomId, roomId).pinned,
       pinnedAt: (roomId) => readPreference(get().byRoomId, roomId).pinnedAt,
-      toggleNotificationsMuted: (roomId) => {
-        set((state) => {
-          const current = readPreference(state.byRoomId, roomId);
-          return {
-            byRoomId: {
-              ...state.byRoomId,
-              [roomId]: {
-                ...current,
-                notificationsMuted: !current.notificationsMuted,
-              },
-            },
-          };
-        });
-      },
       togglePinned: (roomId) => {
         set((state) => {
           const current = readPreference(state.byRoomId, roomId);

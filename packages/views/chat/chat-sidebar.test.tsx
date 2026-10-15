@@ -5,7 +5,9 @@ import {
   resetChatRoomPreferencesForTests,
   useChatRoomPreferencesStore,
 } from "@uniwork/core/chat/room-preferences-store";
-import { wrapWithNav } from "../test/api-mock";
+import { QueryClient } from "@tanstack/react-query";
+import { chatKeys } from "@uniwork/core/chat";
+import { fakeNav, wrapWithNav } from "../test/api-mock";
 import { ChatSidebar } from "./chat-sidebar";
 
 const invitesMock = vi.hoisted(() => ({
@@ -165,7 +167,11 @@ describe("ChatSidebar", () => {
 
   it("shows mute and pin indicators on separate rows like Zalo", () => {
     useChatRoomPreferencesStore.getState().togglePinned("dm1");
-    useChatRoomPreferencesStore.getState().toggleNotificationsMuted("dm1");
+    // The mute comes from the server's rooms list, not this browser (UNI-1697).
+    const client = new QueryClient();
+    client.setQueryData(chatKeys.rooms("ws1"), [
+      { id: "dm1", kind: "dm", name: "Binh", workspace_id: "ws1", member_user_ids: [], notifications_muted: true },
+    ]);
 
     render(
       wrapWithNav(
@@ -186,6 +192,8 @@ describe("ChatSidebar", () => {
             },
           }}
         />,
+        fakeNav(),
+        client,
       ),
     );
 

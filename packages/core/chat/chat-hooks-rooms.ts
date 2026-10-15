@@ -13,7 +13,6 @@ import {
   type RoomMessagesPageParam,
 } from "./room-timeline";
 import { chatUnreadBadge } from "./chat-room-helpers";
-import { useChatRoomPreferencesStore } from "./room-preferences-store";
 
 export function useWorkspaceChatRoom(workspaceId: string) {
   const authReady = useAuthStore((s) => s.status === "authed");
@@ -80,11 +79,34 @@ export function useChatRooms(workspaceId: string) {
 /** The Chat nav badge and tab-title count for one workspace (see chatUnreadBadge). */
 export function useChatUnreadBadge(workspaceId: string): number {
   const rooms = useChatRooms(workspaceId).data;
-  const byRoomId = useChatRoomPreferencesStore((s) => s.byRoomId);
-  return useMemo(
-    () => chatUnreadBadge(rooms ?? [], (id) => byRoomId[id]?.notificationsMuted ?? false),
-    [rooms, byRoomId],
-  );
+  return useMemo(() => chatUnreadBadge(rooms ?? []), [rooms]);
+}
+
+/**
+ * Mutes or unmutes one room for the caller. Optimistic: the flag only moves
+ * this person's own row of the rooms list, and a failure restores it.
+ */
+export function useSetChatRoomMuted(workspaceId: string) {
+  const qc = useQueryClient();
+  const key = chatKeys.rooms(workspaceId);
+  return useMutation({
+    mutationFn: async (input: { roomId: string; muted: boolean }) => {
+      if (!(await chat.setChatRoomMuted(workspaceId, input.roomId, input.muted))) {
+        throw new Error("chat_room_mute_failed");
+      }
+    },
+    onMutate: async ({ roomId, muted }) => {
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<ChatRoomRecord[]>(key);
+      qc.setQueryData<ChatRoomRecord[]>(key, (old) =>
+        old?.map((room) => (room.id === roomId ? { ...room, notifications_muted: muted } : room)),
+      );
+      return { previous };
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previous) qc.setQueryData(key, context.previous);
+    },
+  });
 }
 
 export function useResolveDMRoom(workspaceId: string) {

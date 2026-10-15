@@ -100,7 +100,7 @@ export function GroupSettingsSheet({
     () => rooms.find((room) => room.id === group.room_id),
     [group.room_id, rooms],
   );
-  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(group.room_id);
+  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(workspaceId, group.room_id);
   const currentMember = useCurrentMember(workspaceId);
   const moderation = useRoomMemberModeration({ workspaceId, roomId: group.room_id });
   const [membersOpen, setMembersOpen] = useState(false);

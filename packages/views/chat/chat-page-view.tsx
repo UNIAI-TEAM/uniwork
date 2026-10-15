@@ -225,7 +225,7 @@ export function ChatPageView({
     refreshRoomTimelineOnOpen(queryClient, workspaceId, activeRoomId);
   }, [workspaceId, activeRoomId, queryClient]);
 
-  useChatMentionNotify({ currentUserId, activeRoomId });
+  useChatMentionNotify({ workspaceId, currentUserId, activeRoomId });
 
   const { data: activeRoomMembers = [] } = useChatRoomMembers(
     workspaceId,
