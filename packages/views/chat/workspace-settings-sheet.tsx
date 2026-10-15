@@ -107,7 +107,7 @@ export function WorkspaceSettingsSheet({
             title={displayName}
             leading={<ChatRoomMark icon={House} size="header" />}
             editAriaLabel={t("chat.settings_edit_name")}
-            onEdit={roomPermissions.canChangeProfile ? () => setRenameOpen(true) : undefined}
+            onEdit={isModerator ? () => setRenameOpen(true) : undefined}
           />
 
           <ChatSettingsQuickActions>

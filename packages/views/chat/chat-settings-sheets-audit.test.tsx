@@ -198,6 +198,18 @@ describe("WorkspaceSettingsSheet", () => {
     expect(dialog).not.toHaveTextContent("không còn thấy hay nhắn tin trong phòng");
   });
 
+  it("offers the rename only to a room moderator, as the server allows", () => {
+    state.wsRole = "member";
+    state.members = { data: [member("self", "Tôi"), member("u2", "Binh")], isPending: false, isError: false, refetch: vi.fn() };
+    const { unmount } = renderWorkspaceSheet(wsMembers(["self", "u2"]));
+    expect(screen.queryByRole("button", { name: "Sửa tên hiển thị" })).not.toBeInTheDocument();
+    unmount();
+
+    state.wsRole = "admin";
+    renderWorkspaceSheet(wsMembers(["self", "u2"]));
+    expect(screen.getByRole("button", { name: "Sửa tên hiển thị" })).toBeInTheDocument();
+  });
+
   it("searches members accent-insensitively and shows them a page at a time", () => {
     const many = Array.from({ length: 60 }, (_, i) => member(`u${i}`, i === 42 ? "Nguyễn Thị Tuấn" : `Người ${i}`));
     state.members = { data: many, isPending: false, isError: false, refetch: vi.fn() };
