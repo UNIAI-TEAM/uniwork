@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { ArrowLeft, CircleAlert, Download, FileSearch, FolderX, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api";
@@ -107,25 +107,32 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
     ? t("documents.accessReport.scope_folder", { path: folderTitle ?? "" })
     : t("documents.accessReport.scope_workspace", { name: workspaceName });
 
-  const exportButton = (format: "csv" | "xlsx", label: string) => {
+  const noRows = !report.isPending && !report.isError && documents.length === 0 && !hasNextPage;
+  // A file with no rows names its filter and time only in its file name: say so
+  // beside the buttons that make it. Not when documents were merely skipped.
+  const emptyNoteId = useId();
+  const showEmptyNote = noRows && skipped === 0;
+
+  // The icon is joined by a short word on a phone ("CSV", "Excel") and by the full label from md up.
+  const exportButton = (format: "csv" | "xlsx", label: string, short: string) => {
     const busy = exporter.busy === format;
     return (
       <Button
         type="button"
         size="sm"
         variant="toolbar"
-        className="h-8 w-8 gap-1 px-0 md:w-auto md:px-2.5"
+        className="h-8 gap-1 px-2.5"
         aria-disabled={exporter.busy ? true : undefined}
         aria-label={busy ? t("documents.accessReport.exporting") : label}
+        aria-describedby={showEmptyNote ? emptyNoteId : undefined}
         onClick={() => exporter.run(format)}
       >
         {busy ? <Spinner className="size-3.5" /> : <Download aria-hidden className="size-3.5" />}
+        <span className="md:hidden">{short}</span>
         <span className="hidden md:inline">{busy ? t("documents.accessReport.exporting") : label}</span>
       </Button>
     );
   };
-
-  const noRows = !report.isPending && !report.isError && documents.length === 0 && !hasNextPage;
 
   const back = (
     <AppLink href={libraryHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
@@ -150,7 +157,8 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
     body = (
       <CollectionPageState icon={FolderX} tone="destructive" role="alert" title={t("documents.accessReport.folder_unavailable")} actions={back} />
     );
-  } else if (report.isError) {
+  } else if (report.isError && documents.length === 0) {
+    // Nothing to keep on screen: the first page (or a refetch that left no documents) failed.
     body = (
       <CollectionPageState
         icon={CircleAlert}
@@ -187,7 +195,24 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
           documentHref={documentHref}
           onPickPerson={(personId) => setFilters({ ...filters, personId })}
         />
-        {hasNextPage ? (
+        {report.isError ? (
+          // A later page failed: the documents above stay, and only that page is asked for again.
+          <div role="alert" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-lg border border-border bg-card px-3 py-2 text-caption text-foreground">
+            <CircleAlert aria-hidden className="size-4 shrink-0 text-destructive" />
+            {t("documents.accessReport.load_more_error")}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={report.isFetching}
+              aria-busy={report.isFetching || undefined}
+              onClick={() => void (isFetchNextPageError ? fetchNextPage() : report.refetch())}
+            >
+              {report.isFetching ? <Spinner /> : null}
+              {t("documents.accessReport.retry")}
+            </Button>
+          </div>
+        ) : hasNextPage ? (
           <div className="flex justify-center">
             <Button
               type="button"
@@ -218,18 +243,20 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
         actions={
           unusable ? null : (
             <>
-              {exportButton("csv", t("documents.accessReport.export_csv"))}
-              {exportButton("xlsx", t("documents.accessReport.export_xlsx"))}
+              {exportButton("csv", t("documents.accessReport.export_csv"), t("documents.accessReport.export_csv_short"))}
+              {exportButton("xlsx", t("documents.accessReport.export_xlsx"), t("documents.accessReport.export_xlsx_short"))}
             </>
           )
         }
       />
       {unusable ? null : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-2">
-            {back}
-            {noRows ? <p className="text-caption text-muted-foreground">{t("documents.accessReport.empty_export_note")}</p> : null}
-          </div>
+          {showEmptyNote ? (
+            <p id={emptyNoteId} className="border-b border-border px-4 py-1.5 text-right text-caption text-muted-foreground">
+              {t("documents.accessReport.empty_export_note")}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-2">{back}</div>
           <AccessReportFiltersBar
             wsId={wsId}
             filters={filters}
