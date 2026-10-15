@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor origin/main HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+4ef0961dcf91c9d480b1cec3f9e6ba62af415b90
+947f68e01d5cced1c0ebc1cd584aa35eace4eeb1
+4ef0961d merge: fork main 947f68e01 (G5-11f keystore-locked escape) into the G6-09a lane branch
+947f68e0 merge: G5-11f f6 BE review d1 lows (plannedRamOnly per scope, run rejections observed) into the G5-11f lane (UNI-1358)
+8d4a8b58 fix(shell): key the planned RAM-only keys per scope (d1-3)
+5bff2d67 fix(shell): observe every account-boundary run's rejection (d1-2)
+b563130f merge: fork main ea981e10a (G5-12 + G6-09c) into the G5-11f lane (UNI-1358)
+d92f7828 merge: G5-11f f5 slides harness mock exports the recovery epoch helpers into the G5-11f lane (UNI-1358)
+95e43b07 merge: G5-11f f4 escape UI lows (focus, retry race, live region) into the G5-11f lane (UNI-1358)
+2b32e32d test(slides): export the recovery epoch helpers from the slides IPC harness mock
+
+SYNCED_EXIT=0

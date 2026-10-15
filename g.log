@@ -1,0 +1,22 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/slides -- vitest run tests/g6-09a-uniwork-tool-gating.test.ts --reporter=verbose; rc=$?; echo; echo "SLIDES_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > slides tools under UniWork AI > hides the five stub / generation tools when the provider is UniWork AI 2ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > slides tools under UniWork AI > keeps every one of them for a BYOK turn (predicate false or absent) 1ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > slides tools under UniWork AI > reads the predicate live between two `tools` reads 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > slides tools under UniWork AI > tells the model the tools are gone only under UniWork AI (live) 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > slides tools under UniWork AI > composes with the media-tool hides without dropping either set 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > slides executeTool refuses what `tools` hides > refuses each UniWork-hidden tool under UniWork AI and touches nothing 2ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > slides executeTool refuses what `tools` hides > refuses a media tool the media hides take away 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > slides executeTool refuses what `tools` hides > does not refuse for a BYOK turn (the tool runs its own path) 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > slides executeTool refuses what `tools` hides > follows the predicate live 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > slides media-off note under UniWork AI > drops the insert_web_image suggestion when the provider is UniWork AI 0ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  21:22:17
+   Duration  1.53s (transform 735ms, setup 0ms, import 1.12s, tests 8ms, environment 316ms)
+
+
+SLIDES_TARGETED_EXIT=0

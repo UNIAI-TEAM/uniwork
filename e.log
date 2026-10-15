@@ -1,0 +1,3 @@
+$ git status --short | head; git diff --quiet HEAD; rc=$?; echo; echo "TREE_CLEAN_EXIT=$rc"; [ $rc -eq 0 ]
+
+TREE_CLEAN_EXIT=0
