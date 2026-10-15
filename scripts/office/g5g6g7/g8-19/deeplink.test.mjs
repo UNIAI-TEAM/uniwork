@@ -498,6 +498,8 @@ test("decideG8A07: a cross-workspace row filed under the document's workspace is
   assert.match(reason, /inbox-view\.tsx:71/);
   assert.match(reason, /notifications\.sql:37/);
   assert.match(reason, /owner candidate/);
+  // the AC clause the row breaks, so the finding reads on its own
+  assert.match(reason, /AC G8-A07: .*fall-back to the open workspace for a direct share from another workspace/);
   // a row already in B's workspace that is still not listed is not blamed on the filter
   const same = decideG8A07(a07({ crossWorkspace: { ...cw, notificationWorkspaceId: "ws-id-w2" } }));
   assert.doesNotMatch(same.checks["cross-workspace"].reason, /inbox-view\.tsx/);

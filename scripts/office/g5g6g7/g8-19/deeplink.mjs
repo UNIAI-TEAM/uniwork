@@ -286,7 +286,9 @@ export function decideG8A07(record) {
   else if (!cw.inboxListed && cw.notificationWorkspaceId && cw.openWorkspaceId && cw.notificationWorkspaceId !== cw.openWorkspaceId) {
     checks["cross-workspace"] = fail(
       `product: the shared document's row is filed under workspace ${cw.notificationWorkspaceId}, which B is not in, and B's Inbox lists only its open workspace ${cw.openWorkspaceId} ` +
-        `(D packages/views/notifications/inbox-view.tsx:71 useNotificationPages({workspaceId}) -> server/pkg/db/queries/notifications.sql:37); ${CROSS_WORKSPACE_OWNER}`,
+        `(D packages/views/notifications/inbox-view.tsx:71 useNotificationPages({workspaceId}) -> server/pkg/db/queries/notifications.sql:37), ` +
+        "so the row never reaches resource-href's fall-back (resource-href.ts:10-12); " +
+        `AC G8-A07: the slug comes from the recipient workspace list with a fall-back to the open workspace for a direct share from another workspace; ${CROSS_WORKSPACE_OWNER}`,
     );
   } else if (!cw.inboxListed) checks["cross-workspace"] = fail("the shared document's row is not listed in B's Inbox (B's open workspace)");
   else if (cw.href !== cw.expectedHref) checks["cross-workspace"] = fail(`the Inbox links ${cw.href}, want ${cw.expectedHref} (B's workspace)`);
