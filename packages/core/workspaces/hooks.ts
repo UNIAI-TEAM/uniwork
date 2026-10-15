@@ -25,12 +25,13 @@ export function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export function useWorkspaces() {
+/** `enabled: false` mounts the hook without reading (a screen still resolving its gates). */
+export function useWorkspaces(enabled = true) {
   const authed = useAuthStore((s) => s.status === "authed");
   return useQuery({
     queryKey: workspaceKeys.list(),
     queryFn: () => workspaces.list(),
-    enabled: authed,
+    enabled: authed && enabled,
   });
 }
 

@@ -305,8 +305,8 @@ func principalOf(tc ai.ToolContext) McpPrincipal {
 	return McpPrincipal{UserID: tc.ActorID, OrganizationID: tc.OrganizationID}
 }
 
-// McpTools is the MCP registry. It reuses ai.Registry so MutationCount guards
-// it like Ask UNI's (TestMCPToolsAreReadOnly).
+// McpTools is the MCP registry: the five v1 read tools, then each area's tools
+// (ADR 0033). TestMCPToolCatalogue pins its order.
 func McpTools(s *McpToolService) ai.Registry {
 	tool := func(name, title, desc string, schema json.RawMessage, fields []string, run func(context.Context, McpPrincipal, mcpArgs) (any, error)) ai.Tool {
 		return ai.Tool{Name: name, Title: title, Description: desc + mcpUntrusted, Kind: ai.ToolRead, Risk: ai.RiskLow, Schema: schema,

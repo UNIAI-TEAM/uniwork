@@ -321,7 +321,7 @@ func (s *ChatService) ListRoomMessages(
 	if err != nil {
 		return nil, err
 	}
-	return s.listMessages(ctx, userID, room, in)
+	return s.listSignedMessages(ctx, userID, room, in)
 }
 
 // GetRoomMessage returns one message in a room the caller may access.
@@ -346,7 +346,7 @@ func (s *ChatService) GetRoomMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
+	return s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID)), nil
 }
 
 // SendRoomMessage posts a text message to any chat room the caller may access.
@@ -385,7 +385,19 @@ func (s *ChatService) ListWorkspaceMessages(
 		}
 		return nil, err
 	}
-	return s.listMessages(ctx, userID, room, in)
+	return s.listSignedMessages(ctx, userID, room, in)
+}
+
+// listSignedMessages is listMessages with the media URLs signed.
+func (s *ChatService) listSignedMessages(
+	ctx context.Context, userID string, room db.ChatRoom, in ListChatMessagesInput,
+) ([]ChatMessageRow, error) {
+	rows, err := s.listMessages(ctx, userID, room, in)
+	if err != nil {
+		return nil, err
+	}
+	s.signChatMedia(ctx, room, rows)
+	return rows, nil
 }
 
 func (s *ChatService) listMessages(
@@ -666,7 +678,7 @@ func (s *ChatService) ToggleChatMessageReaction(
 		return ChatMessageRow{}, err
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
-	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
+	return s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(updated, u.DisplayName, userID)), nil
 }
 
 // mutateChatMessageMetadata rewrites a message's metadata under a row lock, so

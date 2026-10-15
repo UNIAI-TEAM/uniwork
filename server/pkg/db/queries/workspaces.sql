@@ -155,9 +155,13 @@ WHERE i.email = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expi
 ORDER BY i.created_at DESC;
 
 -- name: ListPendingOrganizationInvitations :many
-SELECT i.*, u.display_name AS invited_by_name
+-- An invitation sent from a workspace names it; the outer join keeps the
+-- organization-level ones, which have none.
+SELECT i.*, u.display_name AS invited_by_name,
+       w.name AS workspace_name, w.slug AS workspace_slug
 FROM invitations i
 LEFT JOIN users u ON u.id = i.invited_by
+LEFT JOIN workspaces w ON w.id = i.workspace_id AND w.organization_id = i.organization_id
 WHERE i.organization_id = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now()
 ORDER BY i.created_at DESC;
 
@@ -166,6 +170,32 @@ SELECT * FROM invitations
 WHERE organization_id = $1 AND lower(email) = lower($2)
   AND workspace_id IS NULL AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
 LIMIT 1;
+
+-- name: ListWorkspacesInOrgByIDs :many
+-- The workspaces an organization invitation may grant: only the
+-- organization's own, so an id from another tenant simply is not found.
+SELECT id, name, slug FROM workspaces
+WHERE organization_id = $1 AND id = ANY(sqlc.arg(ids)::text[])
+ORDER BY created_at, id;
+
+-- name: AddInvitationWorkspace :exec
+INSERT INTO invitation_workspaces (invitation_id, workspace_id, organization_id)
+VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING;
+
+-- name: DeleteInvitationWorkspaces :exec
+DELETE FROM invitation_workspaces
+WHERE invitation_id = $1 AND organization_id = $2;
+
+-- name: ListInvitationWorkspaces :many
+-- What an invitation grants, oldest workspace first (the order the post-login
+-- resolver lands in). The join drops a workspace that no longer exists and
+-- keeps the grant inside the invitation's organization.
+SELECT iw.invitation_id, w.id, w.name, w.slug
+FROM invitation_workspaces iw
+JOIN workspaces w ON w.id = iw.workspace_id AND w.organization_id = iw.organization_id
+WHERE iw.invitation_id = ANY(sqlc.arg(invitation_ids)::text[]) AND iw.organization_id = ANY(sqlc.arg(organization_ids)::text[])
+ORDER BY w.created_at, w.id;
 
 -- name: RevokeInvitation :one
 UPDATE invitations SET revoked_at = now()

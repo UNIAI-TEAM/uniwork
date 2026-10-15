@@ -1213,6 +1213,13 @@ type Invitation struct {
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 }
 
+type InvitationWorkspace struct {
+	InvitationID   string             `json:"invitation_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	OrganizationID string             `json:"organization_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Invoice struct {
 	ID                  string             `json:"id"`
 	OrganizationID      string             `json:"organization_id"`
@@ -1740,6 +1747,8 @@ type Organization struct {
 	McpEnabledAt        pgtype.Timestamptz `json:"mcp_enabled_at"`
 	McpEnabledBy        pgtype.Text        `json:"mcp_enabled_by"`
 	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	McpWriteEnabledAt   pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy   pgtype.Text        `json:"mcp_write_enabled_by"`
 }
 
 type OrganizationMember struct {

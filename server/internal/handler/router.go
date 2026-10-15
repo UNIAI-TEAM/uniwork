@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 
@@ -206,7 +207,7 @@ func New(d Deps) http.Handler {
 	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
 	if d.McpAuth != nil && d.McpTools != nil {
-		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), d.Log)
+		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), mw.NewCounter(d.Redis, "mcp-write", 30, time.Minute), d.Log)
 	}
 	aiMount := h.aiMountable(sessionAIActor)
 	frameAI := h.aiMountable(h.frameAIActor)
@@ -275,6 +276,7 @@ func New(d Deps) http.Handler {
 		RevokeOrgConnectedApp: h.revokeOrgConnectedApp,
 		OrgMcpPolicy:          h.orgMcpPolicy,
 		SetOrgMcpPolicy:       h.setOrgMcpPolicy,
+		SetOrgMcpWritePolicy:  h.setOrgMcpWritePolicy,
 
 		Register:              h.register,
 		Login:                 h.login,
@@ -676,9 +678,7 @@ func New(d Deps) http.Handler {
 		ListChatRoomMessagesAround:       h.listChatRoomMessagesAround,
 		SendChatRoomMessage:              h.sendChatRoomMessage,
 		SendChatVoiceMessage:             h.sendChatVoiceMessage,
-		StreamChatVoiceMessage:           h.streamChatVoiceMessage,
 		SendChatFileMessage:              h.sendChatFileMessage,
-		StreamChatFileMessage:            h.streamChatFileMessage,
 		VoteChatPollMessage:              h.voteChatPollMessage,
 		ToggleChatMessageReaction:        h.toggleChatMessageReaction,
 		EditChatMessage:                  h.editChatMessage,

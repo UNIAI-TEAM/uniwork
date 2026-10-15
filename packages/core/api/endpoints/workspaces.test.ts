@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
+import { invitationWorkspaces } from "../../types";
 import { setAccessToken } from "../session";
 import {
   acceptInvite,
@@ -95,6 +96,34 @@ describe("workspaces endpoints", () => {
     expect(wsLevel?.workspace?.slug).toBe("team");
   });
 
+  it("myInvitations reads the workspaces an invitation grants; absent or drifted reads as none", async () => {
+    const base = {
+      role: "member",
+      expires_at: "",
+      organization: { id: "o1", slug: "acme", name: "Acme" },
+      invited_by: { display_name: "An" },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        invitations: [
+          { ...base, id: "i1", token: "t1", workspaces: [{ id: "w1", slug: "sales", name: "Sales" }, { id: "w2", slug: "ops", name: "Ops" }] },
+          { ...base, id: "i2", token: "t2" },
+          // One drifted entry must not cost the whole list (or this invitation).
+          { ...base, id: "i3", token: "t3", workspaces: [{ id: 3 }] },
+          { ...base, id: "i4", token: "t4", workspace: { id: "w9", slug: "team", name: "Team" } },
+        ],
+      }),
+    );
+    const [granted, none, drifted, older] = await myInvitations();
+    expect(granted?.workspaces.map((w) => w.name)).toEqual(["Sales", "Ops"]);
+    expect(none?.workspaces).toEqual([]);
+    expect(drifted?.workspaces).toEqual([]);
+    // An older server names only `workspace`: the helper still lists it.
+    expect(invitationWorkspaces(older!)).toEqual([{ id: "w9", slug: "team", name: "Team" }]);
+    expect(invitationWorkspaces(granted!).map((w) => w.id)).toEqual(["w1", "w2"]);
+    expect(invitationWorkspaces(none!)).toEqual([]);
+  });
+
   it("myInvitations reads a missing org_role as member", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({
@@ -187,6 +216,17 @@ describe("workspaces endpoints", () => {
       expect(out?.invitation.workspace).toBeUndefined();
       expect(out?.invitation.inviter_name).toBeUndefined();
       expect(out?.conflicts[0]).toMatchObject({ required_action: "later", transfer_candidates_count: 0 });
+    });
+
+    it("lists the workspaces accepting grants, and none when the key is absent", async () => {
+      const { workspace: _ws, ...orgLevel } = preview.invitation;
+      vi.mocked(fetch).mockResolvedValueOnce(
+        json({ invitation: { ...orgLevel, workspaces: [{ id: "w3", slug: "sales", name: "Sales" }] }, conflicts: [] }),
+      );
+      const out = await getInvitationPreview("tok");
+      expect(out?.invitation.workspaces).toEqual([{ id: "w3", slug: "sales", name: "Sales" }]);
+      vi.mocked(fetch).mockResolvedValueOnce(json({ invitation: orgLevel, conflicts: [] }));
+      expect((await getInvitationPreview("tok"))?.invitation.workspaces).toEqual([]);
     });
 
     it("reads a missing conflicts list as none", async () => {

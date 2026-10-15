@@ -19,7 +19,7 @@ export function SolutionPage({ solution }: { solution: SolutionKey }) {
   const { t } = useTranslation();
   const { ns } = SOLUTIONS[solution];
   return <MarketingShell closingTitle={`${ns}.finalTitle`} closingDemoHref={`${paths.feature(solution === "product" ? "tasks" : "organization")}#feature-preview`}><div className="chapter-world" data-solution={solution}>
-    <ChapterHero titleKey={`${ns}.title`} descriptionKey={`${ns}.sub`} visual={<ChapterScene featureKey={solution === "product" ? "projects" : "organization"} index={solution === "product" ? 1 : 2} />}>
+    <ChapterHero titleKey={`${ns}.title`} descriptionKey={`${ns}.sub`} visual={<ChapterScene featureKey={solution === "product" ? "projects" : "organization"} index={solution === "product" ? 1 : 0} />}>
       <div className="marketing-actions"><Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link><a href="#solution-scenarios" className="chapter-link"><Play aria-hidden />{t("landing.chapters.solutions.examples")}</a></div><ChapterLink href={paths.solutions.root()} labelKey="landing.productPages.allSolutions" />
     </ChapterHero>
     <section id="solution-scenarios" className="chapter-width chapter-section"><ChapterHeading titleKey="landing.solutions.scenarios" descriptionKey={`landing.chapters.solutions.${solution}.scenarioDescription`} />

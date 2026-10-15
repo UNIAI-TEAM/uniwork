@@ -36,9 +36,9 @@ export function ChapterScene({ featureKey, index = 0 }: { featureKey: FeaturePag
   </figure>;
 }
 
-export function ChapterHeading({ titleKey, descriptionKey }: { titleKey: string; descriptionKey?: string }) {
+export function ChapterHeading({ id, titleKey, descriptionKey }: { id?: string; titleKey: string; descriptionKey?: string }) {
   const { t } = useTranslation();
-  return <div className="chapter-heading"><h2>{t(titleKey)}</h2>{descriptionKey && <p>{t(descriptionKey)}</p>}</div>;
+  return <div className="chapter-heading"><h2 id={id}>{t(titleKey)}</h2>{descriptionKey && <p>{t(descriptionKey)}</p>}</div>;
 }
 
 export function ChapterLink({ href, labelKey }: { href: string; labelKey: string }) {

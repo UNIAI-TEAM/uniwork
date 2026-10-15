@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { landingReady } from "./landing-ready";
 
 for (const sample of [
   { width: 1440, locale: "en", theme: "light" },
@@ -11,6 +12,7 @@ for (const sample of [
     await page.setViewportSize({ width: sample.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: sample.theme });
     await page.goto("/#tong-quan");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
     await page.evaluate(theme => document.documentElement.classList.toggle("dark", theme === "dark"), sample.theme);
     const workspace = page.locator("#product-preview");

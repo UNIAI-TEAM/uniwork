@@ -3,7 +3,6 @@ package handler
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"path"
@@ -178,87 +177,4 @@ func (h *handlers) sendChatVoiceMessageFS(w http.ResponseWriter, r *http.Request
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
-}
-
-func (h *handlers) streamChatVoiceMessage(w http.ResponseWriter, r *http.Request) {
-	// Reader handles rows written by either path: file_id rows open through
-	// FileService, object_key rows still read the storage object.
-	if h.Chat.FilesService() != nil {
-		h.streamChatVoiceMessageFS(w, r)
-		return
-	}
-	if h.Storage == nil {
-		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
-		return
-	}
-	msg, err := h.Chat.GetVoiceMessage(
-		r.Context(),
-		middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"),
-		chi.URLParam(r, "roomID"),
-		chi.URLParam(r, "messageID"),
-	)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	reader, err := h.Storage.GetReader(r.Context(), msg.Voice.ObjectKey)
-	if err != nil {
-		h.Log.Error("chat voice read", "err", err, "message_id", msg.ID)
-		respondError(w, http.StatusNotFound, "not_found", "voice content not found")
-		return
-	}
-	defer reader.Close()
-
-	w.Header().Set("Content-Type", msg.Voice.ContentType)
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", msg.Voice.SizeBytes))
-	w.Header().Set("Cache-Control", "private, no-store")
-	w.Header().Set("Content-Disposition", "inline")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if _, err := io.Copy(w, reader); err != nil {
-		h.Log.Error("chat voice stream", "err", err, "message_id", msg.ID)
-	}
-}
-
-// streamChatVoiceMessageFS opens through FileService; a pre-migration row
-// still serves its storage object until the T9b backfill lands.
-func (h *handlers) streamChatVoiceMessageFS(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	msg, reader, err := h.Chat.OpenChatVoiceMessage(
-		ctx,
-		middleware.UserID(ctx),
-		chi.URLParam(r, "workspaceID"),
-		chi.URLParam(r, "roomID"),
-		chi.URLParam(r, "messageID"),
-	)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	var body io.ReadCloser
-	if reader.Body != nil {
-		body = reader.Body
-	} else {
-		if h.Storage == nil || msg.Voice.ObjectKey == "" {
-			respondError(w, http.StatusNotFound, "not_found", "voice content not found")
-			return
-		}
-		legacy, err := h.Storage.GetReader(ctx, msg.Voice.ObjectKey)
-		if err != nil {
-			h.Log.Error("chat voice read", "err", err, "message_id", msg.ID)
-			respondError(w, http.StatusNotFound, "not_found", "voice content not found")
-			return
-		}
-		body = legacy
-	}
-	defer body.Close()
-
-	w.Header().Set("Content-Type", msg.Voice.ContentType)
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", msg.Voice.SizeBytes))
-	w.Header().Set("Cache-Control", "private, no-store")
-	w.Header().Set("Content-Disposition", "inline")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if _, err := io.Copy(w, body); err != nil {
-		h.Log.Error("chat voice stream", "err", err, "message_id", msg.ID)
-	}
 }

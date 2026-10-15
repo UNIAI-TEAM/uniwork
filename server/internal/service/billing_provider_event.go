@@ -93,8 +93,7 @@ func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.E
 			s.billingLogWarn("billing webhook queued for retry", err, "provider_event_id", ev.ProviderEventID)
 			return vnpayIPNConfirmed, nil
 		}
-		// Amount or currency mismatch is 04. Quota and other terminal
-		// failures stay 00; UNI-1272 owns the quota reply.
+		// Amount or currency mismatch is 04. Other terminal failures stay 00.
 		if errors.Is(term.cause, errAmountMismatch) || errors.Is(term.cause, errCurrencyMismatch) {
 			return ack(vnpayIPNBadAmount)
 		}
@@ -160,8 +159,8 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		}
 		return errIntentAlreadyCompleted
 	}
-	// expired stays payable: the VNPay URL has no expiry, so a superseded
-	// checkout can still be paid. Amount and quota checks below still apply.
+	// expired stays payable: a superseded checkout can still be paid.
+	// Amount and currency checks below still apply.
 	if intent.Status != "pending" && intent.Status != "failed" && intent.Status != "expired" {
 		return fmt.Errorf("billing: intent %q not payable (status=%s)", intent.ID, intent.Status)
 	}
@@ -185,12 +184,6 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 	sub, err := q.LockLiveSubscription(ctx, intent.OrganizationID)
 	if err != nil {
 		return err
-	}
-	if err := s.fitsUnder(ctx, q, sub, plan); err != nil {
-		_ = q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{
-			ID: intent.ID, OrganizationID: intent.OrganizationID,
-		})
-		return intentTerminalErr{cause: err}
 	}
 	start := time.Now().UTC()
 	periodEnd := subscriptionPeriodEnd(start, plan.BillingPeriod)

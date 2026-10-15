@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addInvitationWorkspace = `-- name: AddInvitationWorkspace :exec
+INSERT INTO invitation_workspaces (invitation_id, workspace_id, organization_id)
+VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING
+`
+
+type AddInvitationWorkspaceParams struct {
+	InvitationID   string `json:"invitation_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) AddInvitationWorkspace(ctx context.Context, arg AddInvitationWorkspaceParams) error {
+	_, err := q.db.Exec(ctx, addInvitationWorkspace, arg.InvitationID, arg.WorkspaceID, arg.OrganizationID)
+	return err
+}
+
 const addWorkspaceMember = `-- name: AddWorkspaceMember :exec
 INSERT INTO workspace_members (workspace_id, user_id, role, organization_id)
 VALUES ($1, $2, $3, $4)
@@ -123,6 +140,21 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.IconFileID,
 	)
 	return i, err
+}
+
+const deleteInvitationWorkspaces = `-- name: DeleteInvitationWorkspaces :exec
+DELETE FROM invitation_workspaces
+WHERE invitation_id = $1 AND organization_id = $2
+`
+
+type DeleteInvitationWorkspacesParams struct {
+	InvitationID   string `json:"invitation_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteInvitationWorkspaces(ctx context.Context, arg DeleteInvitationWorkspacesParams) error {
+	_, err := q.db.Exec(ctx, deleteInvitationWorkspaces, arg.InvitationID, arg.OrganizationID)
+	return err
 }
 
 const deleteWorkspaceMember = `-- name: DeleteWorkspaceMember :exec
@@ -476,6 +508,54 @@ func (q *Queries) GetWorkspaceWithOrg(ctx context.Context, id string) (GetWorksp
 	return i, err
 }
 
+const listInvitationWorkspaces = `-- name: ListInvitationWorkspaces :many
+SELECT iw.invitation_id, w.id, w.name, w.slug
+FROM invitation_workspaces iw
+JOIN workspaces w ON w.id = iw.workspace_id AND w.organization_id = iw.organization_id
+WHERE iw.invitation_id = ANY($1::text[]) AND iw.organization_id = ANY($2::text[])
+ORDER BY w.created_at, w.id
+`
+
+type ListInvitationWorkspacesParams struct {
+	InvitationIds   []string `json:"invitation_ids"`
+	OrganizationIds []string `json:"organization_ids"`
+}
+
+type ListInvitationWorkspacesRow struct {
+	InvitationID string `json:"invitation_id"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Slug         string `json:"slug"`
+}
+
+// What an invitation grants, oldest workspace first (the order the post-login
+// resolver lands in). The join drops a workspace that no longer exists and
+// keeps the grant inside the invitation's organization.
+func (q *Queries) ListInvitationWorkspaces(ctx context.Context, arg ListInvitationWorkspacesParams) ([]ListInvitationWorkspacesRow, error) {
+	rows, err := q.db.Query(ctx, listInvitationWorkspaces, arg.InvitationIds, arg.OrganizationIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListInvitationWorkspacesRow{}
+	for rows.Next() {
+		var i ListInvitationWorkspacesRow
+		if err := rows.Scan(
+			&i.InvitationID,
+			&i.ID,
+			&i.Name,
+			&i.Slug,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInvitationsForEmail = `-- name: ListInvitationsForEmail :many
 SELECT i.id, i.role, i.org_role, i.token, i.expires_at,
        w.id AS workspace_id, w.slug AS workspace_slug, w.name AS workspace_name,
@@ -542,9 +622,11 @@ func (q *Queries) ListInvitationsForEmail(ctx context.Context, email string) ([]
 }
 
 const listPendingOrganizationInvitations = `-- name: ListPendingOrganizationInvitations :many
-SELECT i.id, i.workspace_id, i.email, i.role, i.token, i.expires_at, i.accepted_at, i.created_at, i.organization_id, i.org_role, i.invited_by, i.revoked_at, u.display_name AS invited_by_name
+SELECT i.id, i.workspace_id, i.email, i.role, i.token, i.expires_at, i.accepted_at, i.created_at, i.organization_id, i.org_role, i.invited_by, i.revoked_at, u.display_name AS invited_by_name,
+       w.name AS workspace_name, w.slug AS workspace_slug
 FROM invitations i
 LEFT JOIN users u ON u.id = i.invited_by
+LEFT JOIN workspaces w ON w.id = i.workspace_id AND w.organization_id = i.organization_id
 WHERE i.organization_id = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now()
 ORDER BY i.created_at DESC
 `
@@ -563,8 +645,12 @@ type ListPendingOrganizationInvitationsRow struct {
 	InvitedBy      pgtype.Text        `json:"invited_by"`
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 	InvitedByName  pgtype.Text        `json:"invited_by_name"`
+	WorkspaceName  pgtype.Text        `json:"workspace_name"`
+	WorkspaceSlug  pgtype.Text        `json:"workspace_slug"`
 }
 
+// An invitation sent from a workspace names it; the outer join keeps the
+// organization-level ones, which have none.
 func (q *Queries) ListPendingOrganizationInvitations(ctx context.Context, organizationID string) ([]ListPendingOrganizationInvitationsRow, error) {
 	rows, err := q.db.Query(ctx, listPendingOrganizationInvitations, organizationID)
 	if err != nil {
@@ -588,6 +674,8 @@ func (q *Queries) ListPendingOrganizationInvitations(ctx context.Context, organi
 			&i.InvitedBy,
 			&i.RevokedAt,
 			&i.InvitedByName,
+			&i.WorkspaceName,
+			&i.WorkspaceSlug,
 		); err != nil {
 			return nil, err
 		}
@@ -733,6 +821,45 @@ func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]L
 			&i.OrganizationSlug,
 			&i.OrganizationName,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspacesInOrgByIDs = `-- name: ListWorkspacesInOrgByIDs :many
+SELECT id, name, slug FROM workspaces
+WHERE organization_id = $1 AND id = ANY($2::text[])
+ORDER BY created_at, id
+`
+
+type ListWorkspacesInOrgByIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	Ids            []string `json:"ids"`
+}
+
+type ListWorkspacesInOrgByIDsRow struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+// The workspaces an organization invitation may grant: only the
+// organization's own, so an id from another tenant simply is not found.
+func (q *Queries) ListWorkspacesInOrgByIDs(ctx context.Context, arg ListWorkspacesInOrgByIDsParams) ([]ListWorkspacesInOrgByIDsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspacesInOrgByIDs, arg.OrganizationID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspacesInOrgByIDsRow{}
+	for rows.Next() {
+		var i ListWorkspacesInOrgByIDsRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Slug); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

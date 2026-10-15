@@ -35,24 +35,28 @@
 .landing-site .landing-faq { background: linear-gradient(150deg, var(--background), color-mix(in srgb, var(--landing-violet) 35%, var(--background)) 78%, var(--background)); }
 .landing-site .landing-faq > .faq-layout { gap: clamp(20px, 3vw, 40px); }
 .landing-site .landing-faq .faq-story {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
   background:
     radial-gradient(ellipse 85% 65% at 62% 82%, color-mix(in srgb, var(--brand) 34%, transparent), transparent 74%),
     var(--landing-deep);
 }
 .landing-site .landing-faq .faq-story .faq-heading-mark { background: color-mix(in srgb, var(--landing-model-light) 22%, var(--landing-deep)); color: var(--landing-model-light); }
-.faq-story-art { left: 5%; right: 5%; bottom: 0; height: 265px; border-radius: 0; background: none; }
-.faq-story-art::before { content: none; }
+.landing-site .landing-faq .faq-story-art { position: relative; inset: auto; flex: 1 0 230px; height: auto; min-height: 230px; margin-top: 24px; border-radius: 0; background: none; }
+.landing-site .landing-faq .faq-story-art::before { content: none; }
 .faq-story-wiring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .faq-story-wiring path { stroke: var(--landing-model-light); stroke-width: 1.5; stroke-dasharray: 4 8; opacity: .78; animation-duration: 4s; animation-timing-function: linear; animation-fill-mode: both; }
 .faq-story-wiring path:nth-child(2) { animation-direction: reverse; }
 .faq-story-wiring path:nth-child(3) { animation-duration: 4.5s; }
-.faq-story-mark { left: 50%; top: 47%; width: 84px; height: 84px; transform: translate(-50%, -50%); border-radius: 24px; background: white; box-shadow: 0 28px 48px -25px color-mix(in srgb, var(--landing-deep) 80%, transparent); animation-duration: 3.6s; animation-timing-function: ease-in-out; animation-fill-mode: both; }
-.faq-story-mark svg { width: auto; height: 44px; }
-.faq-story-topic { min-height: 40px; padding: 9px 12px; border-radius: 12px; background: white; color: var(--landing-deep); box-shadow: 0 18px 28px -18px color-mix(in srgb, var(--landing-deep) 85%, transparent); font-size: var(--text-caption); }
-.faq-story-topic svg { width: 17px; height: 17px; }
-.faq-story-topic-one { top: 21%; left: 1%; transform: none; }
-.faq-story-topic-two { top: 27%; right: 0; transform: none; }
-.faq-story-topic-three { bottom: 9%; left: 16%; transform: none; }
+.landing-site .landing-faq .faq-story-mark { left: 50%; top: 47%; width: 84px; height: 84px; transform: translate(-50%, -50%); border-radius: 24px; background: white; box-shadow: 0 28px 48px -25px color-mix(in srgb, var(--landing-deep) 80%, transparent); animation-duration: 3.6s; animation-timing-function: ease-in-out; animation-fill-mode: both; }
+.landing-site .landing-faq .faq-story-mark svg { width: auto; height: 44px; }
+.landing-site .landing-faq .faq-story-topic { min-height: 40px; padding: 9px 12px; border-radius: 12px; background: white; color: var(--landing-deep); box-shadow: 0 18px 28px -18px color-mix(in srgb, var(--landing-deep) 85%, transparent); font-size: var(--text-caption); }
+.landing-site .landing-faq .faq-story-topic svg { width: 17px; height: 17px; }
+.landing-site .landing-faq .faq-story-topic-one { top: 21%; left: 1%; transform: none; }
+.landing-site .landing-faq .faq-story-topic-two { top: 27%; right: 0; transform: none; }
+.landing-site .landing-faq .faq-story-topic-three { bottom: 9%; left: 16%; transform: none; }
 .landing-site .landing-faq .faq-questions [data-slot=accordion-item] { position: relative; overflow: hidden; margin-bottom: 10px; transition: border-color .2s, background-color .2s, box-shadow .25s, transform .25s; }
 .landing-site .landing-faq .faq-questions [data-slot=accordion-item]:hover { transform: translateY(-2px); }
 .landing-site .landing-faq .faq-questions [data-slot=accordion-item][data-open] { background: color-mix(in srgb, var(--landing-cyan) 58%, var(--landing-paper)); box-shadow: 0 14px 26px -21px color-mix(in srgb, var(--landing-deep) 40%, transparent); }
@@ -67,18 +71,19 @@
 
 @media (max-width: 1100px) {
   .pricing-plan-diagram { width: 180px; height: 165px; right: 10px; }
-  .faq-story-art { height: 230px; }
-  .faq-story-topic { font-size: var(--text-caption); }
+  .landing-site .landing-faq .faq-story-topic { font-size: var(--text-caption); }
 }
 @media (max-width: 767px) {
   .pricing-plan-diagram { position: relative; top: auto; right: auto; width: min(100%, 210px); height: 160px; margin: -10px auto 10px; }
   .landing-site .pricing-plan { min-height: 0; }
-  .faq-story-art { height: 190px; }
-  .faq-story-mark { width: 64px; height: 64px; border-radius: 18px; }
-  .faq-story-mark svg { height: 34px; }
-  .faq-story-topic { min-height: 33px; padding: 6px 8px; font-size: var(--text-caption); }
-  .faq-story-topic svg { width: 14px; height: 14px; }
-  .faq-story-topic-three { left: 9%; bottom: 5%; }
+  .landing-site .landing-faq .faq-story-art { flex-basis: 190px; min-height: 190px; }
+  .landing-site .landing-faq .faq-story-mark { width: 64px; height: 64px; border-radius: 18px; }
+  .landing-site .landing-faq .faq-story-mark svg { height: 34px; }
+  .landing-site .landing-faq .faq-story-topic { min-height: 33px; padding: 6px 8px; font-size: var(--text-caption); }
+  .landing-site .landing-faq .faq-story-topic svg { width: 14px; height: 14px; }
+  .landing-site .landing-faq .faq-story-topic-one,
+  .landing-site .landing-faq .faq-story-topic-two { top: 12%; }
+  .landing-site .landing-faq .faq-story-topic-three { left: 9%; bottom: 5%; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .landing-site .pricing-section[data-motion-visible="true"] .pricing-diagram-lines path,
@@ -99,7 +104,7 @@
   .pricing-diagram-lines path,
   .pricing-diagram-node,
   .faq-story-wiring path,
-  .faq-story-mark,
+  .landing-site .landing-faq .faq-story-mark,
   .landing-site .pricing-section [data-scroll-reveal="ready"] .pricing-quotas li { animation: none; }
   .landing-site .landing-faq .faq-questions [data-slot=accordion-item],
   .landing-site .landing-faq .faq-questions [data-slot=accordion-item]::after,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api/http";
-import { alreadyInOrganization, organizationSwitchConflicts } from "./errors";
+import { alreadyInOrganization, organizationSwitchConflicts, passwordRefusal } from "./errors";
 
 const apiError = (code: string, fields?: Record<string, unknown>) =>
   new ApiError("refused", code, 409, undefined, fields);
@@ -49,5 +49,23 @@ describe("organizationSwitchConflicts", () => {
     expect(organizationSwitchConflicts(apiError("conflict", { conflicts: [conflict] }))).toBeNull();
     expect(organizationSwitchConflicts(apiError("organization_switch_required", { conflicts: "x" }))).toBeNull();
     expect(organizationSwitchConflicts(new Error("x"))).toBeNull();
+  });
+});
+
+describe("passwordRefusal", () => {
+  it("reads a wrong re-entered password, on the new code and the old one", () => {
+    expect(passwordRefusal(new ApiError("x", "password_incorrect", 403))).toBe("incorrect");
+    // A server older than password_incorrect answered 401 invalid_credentials.
+    expect(passwordRefusal(new ApiError("x", "invalid_credentials", 401))).toBe("incorrect");
+  });
+
+  it("reads an account that has no password to confirm with", () => {
+    expect(passwordRefusal(new ApiError("x", "password_required", 403))).toBe("missing");
+  });
+
+  it("is null for any other failure", () => {
+    expect(passwordRefusal(new ApiError("x", "forbidden", 403))).toBeNull();
+    expect(passwordRefusal(new Error("x"))).toBeNull();
+    expect(passwordRefusal(undefined)).toBeNull();
   });
 });

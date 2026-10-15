@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady } from "./landing-ready";
 
 /**
  * Mọi section dưới màn hình đầu vào trang ở `opacity: 0` cho tới khi
@@ -46,6 +47,7 @@ async function revealEverything(page: Page) {
 test.describe("landing", () => {
   test("dải tin cậy, FAQ và hai trang giải pháp", async ({ page }) => {
     await page.goto("/");
+    await landingReady(page);
     // Trang công khai nằm trong `Providers` của ứng dụng, nên khi tải nó vẫn
     // gọi GET /config (trang marketing không còn gọi /auth/refresh). Lúc request
     // đó xong, React dựng lại nhánh cây và mọi node đang được giữ đều bị gỡ khỏi
@@ -96,16 +98,19 @@ test.describe("landing", () => {
     await page.getByRole("link", { name: /Nhóm sản phẩm/ }).first().click();
     await expect(page).toHaveURL(/\/solutions\/product$/);
     await expect(
-      page.getByRole("heading", { name: "Từ cuộc họp tới việc đã giao, không mất gì ở giữa" }),
+      page.getByRole("heading", { level: 1, name: "Từ cuộc họp đến công việc. Giữ ngữ cảnh để đi tiếp." }),
     ).toBeVisible();
 
     await page.goto("/solutions/operations");
+    await landingReady(page);
     await expect(
-      page.getByRole("heading", { name: "Quy trình chạy được là quy trình truy được" }),
+      page.getByRole("heading", { level: 1, name: "Phân công rõ ràng. Tìm lại được dấu vết." }),
     ).toBeVisible();
     // Header và footer trên trang con trỏ tới route thật, không phải một mỏ neo
-    // trống trong chính tài liệu này.
-    await expect(page.getByRole("banner").getByRole("link", { name: "Nhân sự AI", exact: true })).toHaveAttribute(
+    // trống trong chính tài liệu này. Nhân sự AI nằm trong danh mục Sản phẩm
+    // của header, không còn là link riêng trên thanh điều hướng.
+    await page.getByRole("banner").getByRole("button", { name: "Sản phẩm", exact: true }).click();
+    await expect(page.locator("#header-directory-products").getByRole("link", { name: "Nhân sự AI", exact: true })).toHaveAttribute(
       "href",
       "/features/agents",
     );
@@ -116,22 +121,26 @@ test.describe("landing", () => {
 
     // Khối khoảng trống thị trường dẫn sang trang phân tích, và trang đó mở được.
     await page.goto("/");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
     const gap = page.getByRole("link", { name: "Đọc phân tích đầy đủ" });
     await gap.scrollIntoViewIfNeeded();
     await gap.click();
     await expect(page).toHaveURL(/\/why-uniwork$/);
     await expect(
-      page.getByRole("heading", { name: "Những vấn đề lớn của các nền tảng hiện tại" }),
+      page.getByRole("heading", { level: 1, name: "Công việc liền mạch. Cả nhóm cùng bối cảnh." }),
     ).toBeVisible();
-    // Bốn nền tảng đều được nêu tên, không nền tảng nào bị bỏ rơi khi copy đổi.
+    // Bốn nền tảng đều được nêu tên, không nền tảng nào bị bỏ rơi khi copy đổi:
+    // mỗi nền tảng là một lựa chọn trong bộ chọn so sánh.
+    const platforms = page.getByRole("group", { name: "Chọn nền tảng để so sánh" });
     for (const name of ["Microsoft 365", "Notion", "ClickUp", "Coda"]) {
-      await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+      await expect(platforms.getByRole("button", { name, exact: true })).toBeVisible();
     }
   });
 
   test("đổi ngôn ngữ và chế độ sáng tối ngay trên header", async ({ page }) => {
     await page.goto("/");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
 
     // Tên nút cũng là một câu trong FAQ, nên hai control này được lấy trong
@@ -189,6 +198,7 @@ test.describe("landing", () => {
     test(`tương phản chữ đạt WCAG AA — ${mode}`, async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto("/");
+      await landingReady(page);
       await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
       await revealEverything(page);
 
@@ -200,11 +210,13 @@ test.describe("landing", () => {
       expect(home.fails, `trang chủ (${mode}): ${home.fails.join(" | ")}`).toEqual([]);
 
       await page.goto("/solutions/product");
+      await landingReady(page);
       await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
       const solution = await auditText(page);
       expect(solution.fails, `trang giải pháp (${mode}): ${solution.fails.join(" | ")}`).toEqual([]);
 
       await page.goto("/why-uniwork");
+      await landingReady(page);
       await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
       await revealEverything(page);
       const why = await auditText(page);
