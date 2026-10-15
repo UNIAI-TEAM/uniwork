@@ -322,6 +322,33 @@ describe('spot-check sheet', () => {
     assert.equal(new Set(list.map(({ entry }) => key(entry))).size, list.length, 'no item twice');
   });
 
+  it('takes the injection flag from the case set, so an item whose flag the grader dropped stays on the sheet (G712-29)', () => {
+    const doc = mixed();
+    const injections = doc.reviews.filter((r) => r.injection);
+    assert.ok(injections.length > 0, 'the stub has injection items');
+    const dropped = { ...doc, reviews: doc.reviews.map(({ injection, ...rest }) => rest) };
+    const reviews = parseReviews(dropped);
+    const caseIds = new Set(cases.filter((c) => c.category === 'injection').map((c) => c.id));
+    for (const seed of [0, 7, 23, 41, 59]) {
+      const list = spotCheckList(reviews, seed, caseIds);
+      for (const r of injections) {
+        const found = list.find(({ entry }) => key(entry) === key(r));
+        assert.ok(found, `seed ${seed}: ${key(r)} is an injection case and must be on the sheet`);
+        assert.ok(found.because.includes('injection'), `seed ${seed}: ${key(r)} must be on the sheet as an injection item`);
+      }
+      const blind = spotCheckList(reviews, seed).find(({ entry }) => key(entry) === key(injections[0]));
+      if (blind) assert.deepEqual(blind.because, ['random pass'], `seed ${seed}: without the case set the dropped flag is all the sheet has`);
+    }
+    // The command line reads the case set itself, so the sheet it writes carries every injection item as such.
+    const reviewsFile = path.join(tmpRoot, 'reviews-dropped-flag.json');
+    fs.writeFileSync(reviewsFile, JSON.stringify(dropped));
+    const out = path.join(tmpRoot, 'spot-dropped-flag');
+    const res = spawnSync(process.execPath, [path.join(here, 'holdout-spotcheck.mjs'), '--reviews', reviewsFile, '--seed', '7', '--out', out], { encoding: 'utf8' });
+    assert.equal(res.status, 0, res.stderr);
+    const skeletonOut = JSON.parse(fs.readFileSync(path.join(out, 'spotcheck-skeleton.json'), 'utf8'));
+    assert.equal(skeletonOut.items.filter((i) => i.because.includes('injection')).length, injections.length, 'every injection item is listed as one, none drawn as a random pass');
+  });
+
   it('draws the same sample for the same seed and another for another seed', () => {
     const reviews = parseReviews(mixed());
     const sample = (seed) => spotCheckList(reviews, seed).filter(({ because }) => because.includes('random pass')).map(({ entry }) => key(entry));

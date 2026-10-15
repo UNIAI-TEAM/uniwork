@@ -2,13 +2,15 @@
 // G7-12 spot-check sheet (UNI-1384, G7-D1 D1.c amendment 2026-10-16): lists the graded items the user must check and writes the
 // spotCheck skeleton to fill in.
 //
-//   node scripts/office/g5g6g7/holdout-spotcheck.mjs --reviews <file> --seed <n> [--packet <review-packet.json>] [--out <dir>]
+//   node scripts/office/g5g6g7/holdout-spotcheck.mjs --reviews <file> --seed <n> [--packet <review-packet.json>] [--cases <dir>] [--out <dir>]
 //   node scripts/office/g5g6g7/holdout-spotcheck.mjs --reviews <file> --merge <filled spotcheck file> --out <dir>
 //
 // The sheet (spotcheck-sheet.md, Vietnamese / English, also printed) holds every fail, every borderline, every injection item and
 // RANDOM_PASSES random passes drawn from the seed. spotcheck-skeleton.json is the file the user fills (verdict pass | fail, date,
 // optional note). --merge writes reviews-spot-checked.json: the reviews file with those spot-checks added (it never overwrites the
 // reviews file), validated by the same parser the report uses.
+// Which items are injection items comes from the case set (read at runtime, like the export): a grader file that dropped or
+// falsified the flag cannot push an injection item off the sheet (G712-29).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,7 +18,8 @@ import { pathToFileURL } from 'node:url';
 
 import { parseReviews } from './holdout-report.mjs';
 import { GRADING_WORDING, RANDOM_PASSES, SPOTCHECK_KIND, itemKey, parseSeed, pickSpotChecks, validateSpotCheck } from './holdout-review.mjs';
-import { isInsideRepo } from './holdout-run.mjs';
+import { DEFAULT_CASES_DIR, isInsideRepo } from './holdout-run.mjs';
+import { loadCases } from './holdout-score.mjs';
 
 export const SHEET_FILE = 'spotcheck-sheet.md';
 export const SKELETON_FILE = 'spotcheck-skeleton.json';
@@ -24,9 +27,9 @@ export const MERGED_FILE = 'reviews-spot-checked.json';
 
 const BECAUSE = { fail: 'fail', borderline: 'khó phân định / borderline', injection: 'tiêm lệnh / injection', 'random pass': 'pass ngẫu nhiên / random pass' };
 
-/** The items to check (not yet spot-checked) with the reason each is on the list. */
-export function spotCheckList(reviews, seed) {
-  return pickSpotChecks(reviews.reviews, seed).filter(({ entry }) => entry.spotCheck === undefined);
+/** The items to check (not yet spot-checked) with the reason each is on the list; `injectionIds` comes from the case set. */
+export function spotCheckList(reviews, seed, injectionIds = null) {
+  return pickSpotChecks(reviews.reviews, seed, RANDOM_PASSES, injectionIds).filter(({ entry }) => entry.spotCheck === undefined);
 }
 
 export function renderSheet(reviews, list, seed, packet = null) {
@@ -88,19 +91,21 @@ export function mergeSpotChecks(reviews, filled) {
   return parseReviews({ ...reviews, reviews: merged });
 }
 
-const HELP = `Usage: node scripts/office/g5g6g7/holdout-spotcheck.mjs --reviews <file> --seed <n> [--packet <review-packet.json>] [--out <dir>]
+const HELP = `Usage: node scripts/office/g5g6g7/holdout-spotcheck.mjs --reviews <file> --seed <n> [--packet <review-packet.json>] [--cases <dir>] [--out <dir>]
        node scripts/office/g5g6g7/holdout-spotcheck.mjs --reviews <file> --merge <filled ${SKELETON_FILE}> --out <dir>
 Lists every fail, every borderline, every injection item and ${RANDOM_PASSES} random passes (from the seed) of a model-graded reviews file, and writes
 ${SHEET_FILE} + ${SKELETON_FILE} to fill in. --merge adds the filled spot-checks and writes ${MERGED_FILE}.
+--cases      the case set the injection flag is read from (default ${DEFAULT_CASES_DIR}); the case set, not the reviews file, decides
 `;
 
 export function parseArgs(argv) {
-  const args = {};
+  const args = { cases: DEFAULT_CASES_DIR };
   const need = (i) => { if (argv[i + 1] === undefined) throw new Error(`${argv[i]} needs a value`); return argv[i + 1]; };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--reviews') args.reviews = path.resolve(need(i++));
     else if (argv[i] === '--seed') args.seed = parseSeed(need(i++));
     else if (argv[i] === '--packet') args.packet = path.resolve(need(i++));
+    else if (argv[i] === '--cases') args.cases = path.resolve(need(i++));
     else if (argv[i] === '--out') args.out = path.resolve(need(i++));
     else if (argv[i] === '--merge') args.merge = path.resolve(need(i++));
     else if (argv[i] === '--help' || argv[i] === '-h') args.help = true;
@@ -125,7 +130,8 @@ function main() {
     process.stdout.write(`${merged.reviews.filter((r) => r.spotCheck).length} spot-check(s) in ${path.join(args.out, MERGED_FILE)}\n`);
     return;
   }
-  const list = spotCheckList(reviews, args.seed);
+  const injectionIds = new Set(loadCases(args.cases).cases.filter((c) => c.category === 'injection').map((c) => c.id));
+  const list = spotCheckList(reviews, args.seed, injectionIds);
   const packet = args.packet ? JSON.parse(fs.readFileSync(args.packet, 'utf8')) : null;
   const sheet = renderSheet(reviews, list, args.seed, packet);
   if (args.out) {

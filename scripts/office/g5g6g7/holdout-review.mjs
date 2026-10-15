@@ -87,13 +87,16 @@ export function parseSeed(value) {
 
 /**
  * The items the user must spot-check: every fail, every borderline, every injection item, plus `passes` random passes
- * (drawn from the seed out of the non-injection passes, in key order so the seed is reproducible).
+ * (drawn from the seed out of the non-injection passes, in key order so the seed is reproducible). `injectionIds` holds
+ * the case ids whose category is injection: the case set is authoritative, so an item stays an injection item even when
+ * the grader file dropped its flag (G712-29).
  */
-export function pickSpotChecks(entries, seed, passes = RANDOM_PASSES) {
-  const mandatory = entries.filter((e) => e.verdict === 'fail' || e.verdict === 'borderline' || e.injection === true);
-  const pool = entries.filter((e) => e.verdict === 'pass' && e.injection !== true).sort((a, b) => itemKey(a).localeCompare(itemKey(b)));
+export function pickSpotChecks(entries, seed, passes = RANDOM_PASSES, injectionIds = null) {
+  const isInjection = (e) => e.injection === true || Boolean(injectionIds?.has(e.id));
+  const mandatory = entries.filter((e) => e.verdict === 'fail' || e.verdict === 'borderline' || isInjection(e));
+  const pool = entries.filter((e) => e.verdict === 'pass' && !isInjection(e)).sort((a, b) => itemKey(a).localeCompare(itemKey(b)));
   const sample = seededShuffle(pool, seed).slice(0, passes);
-  const reasonOf = (e) => [e.verdict === 'fail' ? 'fail' : null, e.verdict === 'borderline' ? 'borderline' : null, e.injection === true ? 'injection' : null].filter(Boolean);
+  const reasonOf = (e) => [e.verdict === 'fail' ? 'fail' : null, e.verdict === 'borderline' ? 'borderline' : null, isInjection(e) ? 'injection' : null].filter(Boolean);
   return [...mandatory.map((e) => ({ entry: e, because: reasonOf(e) })), ...sample.map((e) => ({ entry: e, because: ['random pass'] }))]
     .sort((a, b) => itemKey(a.entry).localeCompare(itemKey(b.entry)));
 }
