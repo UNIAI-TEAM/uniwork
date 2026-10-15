@@ -260,6 +260,17 @@ describe("ShareDialog owner transfer (DOC6-W01)", () => {
     expect(names.some((n) => n.includes("An"))).toBe(false);
   });
 
+  it("returns focus to Transfer ownership when the dialog closes, and reopens from the defaults", async () => {
+    renderDialog();
+    const opener = await transferButton();
+    let dialog = await openTransfer();
+    await pickCandidate(dialog, "Chi");
+    fireEvent.click(within(dialog).getByRole("button", { name: t("common.cancel") }));
+    await waitFor(() => expect(document.activeElement).toBe(opener));
+    dialog = await openTransfer();
+    expect(confirmButton(dialog).getAttribute("aria-disabled")).toBe("true");
+  });
+
   it("never offers a transfer on a work-product document", async () => {
     renderDialog(target({ owner_kind: "work_product" }));
     await new Promise((r) => setTimeout(r, 0));

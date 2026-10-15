@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage, errorCode } from "@uniwork/core/api";
@@ -74,18 +74,32 @@ export interface OwnerTransferActionProps {
 export function OwnerTransferAction(props: OwnerTransferActionProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const opener = useRef<HTMLButtonElement>(null);
   return (
     <>
-      <Button type="button" variant="ghost" size="sm" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <Button
+        ref={opener}
+        type="button"
+        variant="ghost"
+        size="sm"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
         {t("documents.share.owner.transfer_button")}
       </Button>
-      {/* Mounted while open only, so every opening starts from the defaults. */}
-      {open ? <OwnerTransferDialog {...props} onClose={() => setOpen(false)} /> : null}
+      <Dialog open={open} onOpenChange={setOpen}>
+        {/* Focus goes back to the owner row's button, not the share dialog's
+            start. The form lives in the popup, which unmounts when closed, so
+            every opening starts from the defaults. */}
+        <DialogContent className="sm:max-w-md" closeLabel={t("common.close")} finalFocus={opener}>
+          <OwnerTransferForm {...props} onClose={() => setOpen(false)} />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
 
-function OwnerTransferDialog({
+function OwnerTransferForm({
   wsId,
   doc,
   ownerId,
@@ -148,106 +162,104 @@ function OwnerTransferDialog({
   const blocked = !picked || transfer.isPending;
 
   return (
-    <Dialog open onOpenChange={(next) => (next ? undefined : onClose())}>
-      <DialogContent className="sm:max-w-md" closeLabel={t("common.close")}>
-        <DialogHeader>
-          <DialogTitle>
-            {doc.title
-              ? t("documents.share.owner.transfer_title", { document: doc.title })
-              : t("documents.owner_transfer.title_untitled")}
-          </DialogTitle>
-          <DialogDescription>{t("documents.share.owner.transfer_note")}</DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          {doc.title
+            ? t("documents.share.owner.transfer_title", { document: doc.title })
+            : t("documents.owner_transfer.title_untitled")}
+        </DialogTitle>
+        <DialogDescription>{t("documents.share.owner.transfer_note")}</DialogDescription>
+      </DialogHeader>
 
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="owner-transfer-target">{t("documents.share.owner.new_owner_label")}</Label>
-            <Combobox
-              items={candidates}
-              value={picked}
-              inputValue={input}
-              onInputValueChange={(text) => setInput(text)}
-              itemToStringLabel={(o: Candidate) => o.name}
-              itemToStringValue={(o: Candidate) => o.id}
-              isItemEqualToValue={(a: Candidate, b: Candidate) => a.id === b.id}
-              filter={(o: Candidate, query: string) => fold(`${o.name} ${o.email}`).includes(fold(query.trim()))}
-              onValueChange={(next: Candidate | null) => {
-                setPicked(next);
-                setInput(next?.name ?? "");
-                setError(null);
-              }}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="owner-transfer-target">{t("documents.share.owner.new_owner_label")}</Label>
+          <Combobox
+            items={candidates}
+            value={picked}
+            inputValue={input}
+            onInputValueChange={(text) => setInput(text)}
+            itemToStringLabel={(o: Candidate) => o.name}
+            itemToStringValue={(o: Candidate) => o.id}
+            isItemEqualToValue={(a: Candidate, b: Candidate) => a.id === b.id}
+            filter={(o: Candidate, query: string) => fold(`${o.name} ${o.email}`).includes(fold(query.trim()))}
+            onValueChange={(next: Candidate | null) => {
+              setPicked(next);
+              setInput(next?.name ?? "");
+              setError(null);
+            }}
+            disabled={transfer.isPending}
+          >
+            <ComboboxInput
+              id="owner-transfer-target"
+              className="w-full"
+              placeholder={t("documents.owner_transfer.search_placeholder")}
               disabled={transfer.isPending}
-            >
-              <ComboboxInput
-                id="owner-transfer-target"
-                className="w-full"
-                placeholder={t("documents.owner_transfer.search_placeholder")}
-                disabled={transfer.isPending}
-              />
-              <ComboboxContent>
-                <ComboboxEmpty>
-                  {wsMembers.isPending ? t("common.loading") : t("documents.owner_transfer.no_candidates")}
-                </ComboboxEmpty>
-                <ComboboxList>
-                  {(o: Candidate) => (
-                    <ComboboxItem key={o.id} value={o}>
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="break-words">{o.name}</span>
-                        <span className="truncate text-caption text-muted-foreground">{o.email}</span>
-                      </span>
-                    </ComboboxItem>
-                  )}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="owner-transfer-keep">
-              {t("documents.share.owner.previous_level_label", { name: ownerName })}
-            </Label>
-            <Select
-              items={KEEP_LEVELS.map((value) => ({ value, label: keepLabel(value) }))}
-              value={keep}
-              onValueChange={(next) => setKeep(next as KeepLevel)}
-              disabled={transfer.isPending}
-            >
-              <SelectTrigger id="owner-transfer-keep" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {KEEP_LEVELS.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {keepLabel(value)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {error ? (
-            <p role="alert" className="text-caption text-destructive">
-              {error}
-            </p>
-          ) : null}
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>
+                {wsMembers.isPending ? t("common.loading") : t("documents.owner_transfer.no_candidates")}
+              </ComboboxEmpty>
+              <ComboboxList>
+                {(o: Candidate) => (
+                  <ComboboxItem key={o.id} value={o}>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="break-words">{o.name}</span>
+                      <span className="truncate text-caption text-muted-foreground">{o.email}</span>
+                    </span>
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={transfer.isPending} onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          {/* aria-disabled keeps the button in the tab order while it waits. */}
-          <Button
-            type="button"
-            aria-disabled={blocked || undefined}
-            aria-busy={transfer.isPending || undefined}
-            onClick={() => void submit()}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="owner-transfer-keep">
+            {t("documents.share.owner.previous_level_label", { name: ownerName })}
+          </Label>
+          <Select
+            items={KEEP_LEVELS.map((value) => ({ value, label: keepLabel(value) }))}
+            value={keep}
+            onValueChange={(next) => setKeep(next as KeepLevel)}
+            disabled={transfer.isPending}
           >
-            {transfer.isPending ? <Spinner aria-hidden role="presentation" /> : null}
-            {t("documents.share.owner.transfer_confirm")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <SelectTrigger id="owner-transfer-keep" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {KEEP_LEVELS.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {keepLabel(value)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {error ? (
+          <p role="alert" className="text-caption text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </div>
+
+      <DialogFooter>
+        <Button type="button" variant="outline" disabled={transfer.isPending} onClick={onClose}>
+          {t("common.cancel")}
+        </Button>
+        {/* aria-disabled keeps the button in the tab order while it waits. */}
+        <Button
+          type="button"
+          aria-disabled={blocked || undefined}
+          aria-busy={transfer.isPending || undefined}
+          onClick={() => void submit()}
+        >
+          {transfer.isPending ? <Spinner aria-hidden role="presentation" /> : null}
+          {t("documents.share.owner.transfer_confirm")}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
