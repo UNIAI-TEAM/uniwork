@@ -112,7 +112,8 @@ WITH RECURSIVE sub AS (
     AND c.workspace_id = $2
     AND sub.lvl < $7::int
 )
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
+  d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
 FROM sub
 JOIN documents d ON d.id = sub.id
 WHERE d.organization_id = $1
@@ -135,11 +136,26 @@ type ListDocumentAccessReportSubtreeCandidatesParams struct {
 	MaxLevel       int32  `json:"max_level"`
 }
 
+type ListDocumentAccessReportSubtreeCandidatesRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ParentID       pgtype.Text        `json:"parent_id"`
+	Kind           string             `json:"kind"`
+	Title          string             `json:"title"`
+	Visibility     string             `json:"visibility"`
+	OwnerKind      pgtype.Text        `json:"owner_kind"`
+	OwnerID        pgtype.Text        `json:"owner_id"`
+	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
+	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 // The folder subtree, root included, walked as ListLiveDocumentSubtreeIDs
 // does (archived nodes on the way are still walked so a live child of an
 // archived parent stays reachable; they are dropped from the candidates).
 // max_level is the corrupted-chain guard from subtreeMaxLevel.
-func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context, arg ListDocumentAccessReportSubtreeCandidatesParams) ([]Document, error) {
+func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context, arg ListDocumentAccessReportSubtreeCandidatesParams) ([]ListDocumentAccessReportSubtreeCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentAccessReportSubtreeCandidates,
 		arg.OrganizationID,
 		arg.WorkspaceID,
@@ -153,9 +169,9 @@ func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context,
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Document{}
+	items := []ListDocumentAccessReportSubtreeCandidatesRow{}
 	for rows.Next() {
-		var i Document
+		var i ListDocumentAccessReportSubtreeCandidatesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
@@ -163,40 +179,12 @@ func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context,
 			&i.ParentID,
 			&i.Kind,
 			&i.Title,
-			&i.Icon,
 			&i.Visibility,
-			&i.Content,
-			&i.ContentText,
-			&i.SearchText,
-			&i.ContentBytes,
-			&i.CurrentVersion,
-			&i.FileVersionID,
-			&i.Revision,
-			&i.Position,
 			&i.OwnerKind,
 			&i.OwnerID,
 			&i.AclOwnerID,
-			&i.SourceDocumentID,
-			&i.SourceVersionID,
-			&i.SourceRevision,
-			&i.SourceFormat,
-			&i.SourceEngine,
-			&i.TargetFormat,
-			&i.SourceChecksumSha256,
-			&i.ConversionReason,
-			&i.CreatedBy,
-			&i.CreatedByKind,
-			&i.UpdatedBy,
-			&i.UpdatedByKind,
-			&i.ContentSavedAt,
-			&i.LastVersionAt,
 			&i.ArchivedAt,
-			&i.ArchivedBy,
-			&i.PurgeAfter,
-			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.ArchiveBatchID,
-			&i.ContentRevision,
 		); err != nil {
 			return nil, err
 		}
@@ -210,7 +198,8 @@ func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context,
 
 const listDocumentAccessReportWorkspaceCandidates = `-- name: ListDocumentAccessReportWorkspaceCandidates :many
 
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
+  d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
 FROM documents d
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
@@ -230,11 +219,28 @@ type ListDocumentAccessReportWorkspaceCandidatesParams struct {
 	MaxRows        int32  `json:"max_rows"`
 }
 
+type ListDocumentAccessReportWorkspaceCandidatesRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ParentID       pgtype.Text        `json:"parent_id"`
+	Kind           string             `json:"kind"`
+	Title          string             `json:"title"`
+	Visibility     string             `json:"visibility"`
+	OwnerKind      pgtype.Text        `json:"owner_kind"`
+	OwnerID        pgtype.Text        `json:"owner_id"`
+	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
+	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 // Document access report (UNI-1643). Read-only. Candidates are the live,
 // non-owned documents of one workspace (or one folder subtree), walked by id
 // so pages never repeat a row; the service resolves the caller's level on a
 // page through the list mirror of the resolver before it lists anything.
-func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Context, arg ListDocumentAccessReportWorkspaceCandidatesParams) ([]Document, error) {
+// The candidate reads name the columns a report uses: never d.*, which
+// would drag content, content_text and search_text through every page.
+func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Context, arg ListDocumentAccessReportWorkspaceCandidatesParams) ([]ListDocumentAccessReportWorkspaceCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentAccessReportWorkspaceCandidates,
 		arg.OrganizationID,
 		arg.WorkspaceID,
@@ -246,9 +252,9 @@ func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Contex
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Document{}
+	items := []ListDocumentAccessReportWorkspaceCandidatesRow{}
 	for rows.Next() {
-		var i Document
+		var i ListDocumentAccessReportWorkspaceCandidatesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
@@ -256,40 +262,12 @@ func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Contex
 			&i.ParentID,
 			&i.Kind,
 			&i.Title,
-			&i.Icon,
 			&i.Visibility,
-			&i.Content,
-			&i.ContentText,
-			&i.SearchText,
-			&i.ContentBytes,
-			&i.CurrentVersion,
-			&i.FileVersionID,
-			&i.Revision,
-			&i.Position,
 			&i.OwnerKind,
 			&i.OwnerID,
 			&i.AclOwnerID,
-			&i.SourceDocumentID,
-			&i.SourceVersionID,
-			&i.SourceRevision,
-			&i.SourceFormat,
-			&i.SourceEngine,
-			&i.TargetFormat,
-			&i.SourceChecksumSha256,
-			&i.ConversionReason,
-			&i.CreatedBy,
-			&i.CreatedByKind,
-			&i.UpdatedBy,
-			&i.UpdatedByKind,
-			&i.ContentSavedAt,
-			&i.LastVersionAt,
 			&i.ArchivedAt,
-			&i.ArchivedBy,
-			&i.PurgeAfter,
-			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.ArchiveBatchID,
-			&i.ContentRevision,
 		); err != nil {
 			return nil, err
 		}
