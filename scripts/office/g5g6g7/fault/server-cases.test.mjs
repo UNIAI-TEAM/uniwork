@@ -537,6 +537,25 @@ test("every expectation of a server row in cases.json is asserted by its driver:
   assert.ok(leaves > 60, `only ${leaves} expectation leaves were exercised`);
 });
 
+// review r2 R2-4: a failing proxy-log measure is named in case-result.json, one assertion per measure
+test("every expect.proxyLog key of a server row is its own proxy_log.<key> assertion, and a mutated key fails only that one", async () => {
+  let keys = 0;
+  for (const row of selectServerCases(casesDoc)) {
+    const base = await driverRun(row);
+    const names = base.assertions.map((a) => a.name);
+    assert.ok(!names.includes("proxy_log"), `${row.id}: no bare proxy_log assertion`);
+    assert.deepEqual(names.filter((n) => n.startsWith("proxy_log.")), Object.keys(row.expect.proxyLog).map((k) => `proxy_log.${k}`), row.id);
+    for (const key of Object.keys(row.expect.proxyLog)) {
+      const mutated = withLeaf(row, ["proxyLog", key], mutate(row.expect.proxyLog[key]));
+      const outcome = await driverRun(mutated, row);
+      const failing = outcome.assertions.filter((a) => a.ok !== true).map((a) => a.name);
+      assert.deepEqual(failing, [`proxy_log.${key}`], `${row.id}: mutating proxyLog.${key} fails that measure only`);
+      keys += 1;
+    }
+  }
+  assert.ok(keys >= 13, `only ${keys} proxy-log keys exercised`);
+});
+
 test("a driver reading an expectation its row lacks throws instead of falling back to a number of its own", async () => {
   const row = structuredClone(selectServerCases(casesDoc)[0]);
   delete row.expect.server.statuses.upload;

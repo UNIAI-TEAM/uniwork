@@ -35,19 +35,20 @@ const SERVER_MEASURES = {
   commitPostsSucceeded: (log) => commitPostsInLog(log).filter((e) => e.status === 200).length,
 };
 
-/** Asserts EVERY `expect.proxyLog` key of the row against the case's proxy log. */
-function proxyLogAssertion(X, log) {
-  const expected = {};
-  const actual = {};
-  let ok = X.proxyKeys().length > 0;
-  for (const key of X.proxyKeys()) {
+/**
+ * Asserts EVERY `expect.proxyLog` key of the row against the case's proxy log,
+ * one assertion per measure named `proxy_log.<key>`, so a FAIL names the
+ * measure that failed (review r2 R2-4). A row with no key fails: nothing was held.
+ */
+function proxyLogAssertions(X, log) {
+  if (X.proxyKeys().length === 0) return [assertion("proxy_log", "at least one expect.proxyLog key", "none", false)];
+  return X.proxyKeys().map((key) => {
     const measure = SERVER_MEASURES[key];
     if (!measure) throw new Error(`expect.proxyLog.${key} has no server measure`);
-    expected[key] = X.proxy(key);
-    actual[key] = measure(log);
-    if (!compareMeasure(key, expected[key], actual[key])) ok = false;
-  }
-  return assertion("proxy_log", expected, actual, ok);
+    const expected = X.proxy(key);
+    const actual = measure(log);
+    return assertion(`proxy_log.${key}`, expected, actual, compareMeasure(key, expected, actual));
+  });
 }
 
 const versionDeltaAssertion = (X, finish) => assertion("version_delta", X.versionDelta(), finish.versionDelta, finish.versionDelta === X.versionDelta());
@@ -96,7 +97,7 @@ export async function runServerCaseDriver(caseRow, ctx) {
       lookupAssertion("lookup_200_committed", X, look, Boolean(look.body?.version_id)),
       assertion("replay_200_same_version", look.body?.version_id ?? "ver", c2.body?.version?.id ?? null, statusMatches(X.status("replay"), c2.status) && Boolean(look.body?.version_id) && c2.body?.version?.id === look.body?.version_id),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -117,7 +118,7 @@ export async function runServerCaseDriver(caseRow, ctx) {
       lookupAssertion("lookup_410_commit_intent_unknown", X, look),
       statusAssertion("retry_commit_200", X.status("retry"), c2.status),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -144,7 +145,7 @@ export async function runServerCaseDriver(caseRow, ctx) {
       assertion("concurrent_statuses", pairs.map((pair) => pair.join("+")).join(" | "), `${c1.status}+${c2.status}`, pairOk && sameVersion && inFlight),
       lookupAssertion("lookup_200_committed", X, look),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -165,7 +166,7 @@ export async function runServerCaseDriver(caseRow, ctx) {
       statusAssertion("commit_2_200", X.status("commit_2"), c2.status),
       lookupAssertion("lookup_200_committed", X, look),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -185,7 +186,7 @@ export async function runServerCaseDriver(caseRow, ctx) {
       statusAssertion("upload_2_201", X.status("upload_2"), up2.status, Boolean(up2.body?.upload_id)),
       statusAssertion("commit_200", X.status("commit"), c1.status),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -210,7 +211,7 @@ export async function runServerCaseDriver(caseRow, ctx) {
       assertion("release_hold_commit", 1, rel?.released ?? 0, (rel?.released ?? 0) >= 1),
       lookupAssertion("lookup_200_committed", X, look),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -241,7 +242,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { X, docId, r0, intentLog,
       assertion("device_a_commit_409_conflict", `${X.status("device_a_commit")}:${X.errorCode("device_a_commit")}:${rB}`, `${cA.status}:${errorCodeOf(cA.body)}:${conflictRev}`, statusMatches(X.status("device_a_commit"), cA.status) && errorCodeOf(cA.body) === X.errorCode("device_a_commit") && conflictRev === rB),
       lookupAssertion("lookup_200_not_committed", X, look),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -270,7 +271,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { X, docId, r0, intentLog,
       statusAssertion("device_a_overwrite_200", X.status("device_a_overwrite"), cA2.status),
       assertion("checksum_matches_a_upload", checksumA, cA2.body?.version?.checksum_sha256 ?? null, Boolean(checksumA) && cA2.body?.version?.checksum_sha256 === checksumA),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -289,7 +290,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { X, docId, r0, intentLog,
       assertion("commit_409_conflict", `${X.status("commit")}:${X.errorCode("commit")}`, `${cA.status}:${errorCodeOf(cA.body)}`, statusMatches(X.status("commit"), cA.status) && errorCodeOf(cA.body) === X.errorCode("commit")),
       lookupAssertion("lookup_200_not_committed", X, look),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -307,7 +308,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { X, docId, r0, intentLog,
       lookupAssertion("foreign_member_lookup_410", X, lookOther, noLeak(lookOther)),
       lookupAssertion("never_sent_lookup_410", X, lookNever, noLeak(lookNever)),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -331,7 +332,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { X, docId, r0, intentLog,
       assertion("zero_versions_during_ai", X.versionDeltaAfterAi(), midDelta, midDelta === X.versionDeltaAfterAi()),
       assertion("save_after_ai_200", `${X.status("upload")}+${X.status("commit")}`, `${up.status}+${c1.status}`, statusMatches(X.status("upload"), up.status) && statusMatches(X.status("commit"), c1.status)),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -354,7 +355,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { X, docId, r0, intentLog,
       statusAssertion("ai_turn_2_refused_403_404", X.status("ai_turn_2"), t2.status),
       statusAssertion("commit_refused_403_404", X.status("commit"), c1.status),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
@@ -375,7 +376,7 @@ async function runServerCaseDriverPart2(caseRow, ctx, { X, docId, r0, intentLog,
       assertion("restore_move_bumped_revision", `>${r0}`, String(restored.revision ?? ""), typeof restored.revision === "string" && revisionGreater(restored.revision, r0)),
       statusAssertion("commit_after_restore_move_200", X.status("commit_after_restore_move"), c2.status),
       versionDeltaAssertion(X, finish),
-      proxyLogAssertion(X, finish.proxyLog),
+      ...proxyLogAssertions(X, finish.proxyLog),
     );
     return { assertions, intentLog, ...finish };
   }
