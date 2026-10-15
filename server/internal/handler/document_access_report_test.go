@@ -147,7 +147,7 @@ func TestAccessReportHandlerParams(t *testing.T) {
 	}
 
 	res, out = doJSON(t, w.srv, "GET", base+"?folder_id=01J8X4FLD0N1P2Q3R4S5T6U7", w.token, nil)
-	wantErr(t, res, out, 404, "not_found", "")
+	wantErr(t, res, out, 404, "not_found", "missing")
 
 	req, _ := http.NewRequest("GET", w.srv.URL+base+"/export?format=csv&level=manage,view", nil)
 	req.Header.Set("Authorization", "Bearer "+w.token)
