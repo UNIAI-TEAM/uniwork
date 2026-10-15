@@ -121,8 +121,10 @@ func TestDocumentShare(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if got := level(t, f, H(tn.orgAdmin.ID), d2); got != DocumentLevelManage {
-			t.Fatalf("org admin keeps manage: %q", got)
+		// DOC-05: on a restricted document the org admin reads only through
+		// shares - here the organization share's view (AdminScope stays).
+		if got := level(t, f, H(tn.orgAdmin.ID), d2); got != DocumentLevelView {
+			t.Fatalf("org admin reads through the org share: %q", got)
 		}
 		if got := level(t, f, H(tn.outsider.ID), d2); got != DocumentLevelView {
 			t.Fatalf("org share: %q", got)
@@ -237,8 +239,10 @@ func TestDocumentShare(t *testing.T) {
 		for _, e := range ov.Shares {
 			got[e.Share.PrincipalID] = e
 		}
-		if e := got[tn.wsAdmin.ID]; !e.Active || e.Effective.Level != DocumentLevelManage || e.Effective.Via != DocumentViaMember {
-			t.Fatalf("ws admin shared view still manages: %+v", e)
+		// DOC-05: a ws admin on a restricted document holds only the share's
+		// level, with AdminScope (they still administer it).
+		if e := got[tn.wsAdmin.ID]; !e.Active || e.Effective.Level != DocumentLevelView || e.Effective.Via != DocumentViaShare || !e.Effective.AdminScope {
+			t.Fatalf("ws admin with a view share: %+v", e)
 		}
 		if e := got[tn.outsider.ID]; !e.Active || e.Effective.Level != DocumentLevelEdit || e.Effective.Via != DocumentViaShare {
 			t.Fatalf("outsider: %+v", e)

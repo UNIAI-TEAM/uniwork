@@ -11,6 +11,7 @@ package handler
 import (
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -312,5 +313,54 @@ func TestAICloudStatusChatNeedsTheGateway(t *testing.T) {
 	out := w.statusOf(t, w.member)
 	if chatOf(out) != false || out["tools"].(map[string]any)["web_search"] != true || out["enabled"] != true {
 		t.Fatalf("gateway off: %v, want chat false with web_search on", out)
+	}
+	if got := out["uniwork_model"]; got != "" {
+		t.Fatalf("gateway off: uniwork_model=%v, want \"\"", got)
+	}
+}
+
+// G6-05m: the status carries the model the Gateway serves for UniWork AI in
+// Office. It is the policy model while UniWork AI is on for the caller, an
+// allowlisted AI_MODEL_OFFICE_UNIWORK_AI override wins over it, an override
+// outside the allowlist leaves the default, and it is "" while UniWork AI is
+// off or the plan has no office.ai_cloud.
+func TestAICloudStatusCarriesTheUniworkModel(t *testing.T) {
+	setCloudEnv(t, "fake", "fake", "fake")
+	w := newAICloudWorld(t, "cloud-model")
+
+	if got := w.statusOf(t, w.member)["uniwork_model"]; got != "" {
+		t.Fatalf("UniWork AI off: uniwork_model=%v, want \"\"", got)
+	}
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeGlobal, "", true)
+	// The fake provider's office_uniwork_ai policy model is "fake".
+	if got := w.statusOf(t, w.member)["uniwork_model"]; got != "fake" {
+		t.Fatalf("policy model: uniwork_model=%v, want fake", got)
+	}
+	t.Setenv("AI_MODEL_OFFICE_UNIWORK_AI", "claude-sonnet-5")
+	if got := w.statusOf(t, w.member)["uniwork_model"]; got != "claude-sonnet-5" {
+		t.Fatalf("allowlisted override: uniwork_model=%v, want claude-sonnet-5", got)
+	}
+	t.Setenv("AI_MODEL_OFFICE_UNIWORK_AI", "dev-model")
+	if got := w.statusOf(t, w.member)["uniwork_model"]; got != "fake" {
+		t.Fatalf("override outside the allowlist: uniwork_model=%v, want the default fake", got)
+	}
+
+	// G05MBE-1: the status resolves the model once, so a typo in .env warns
+	// once per status call, not twice.
+	var logs strings.Builder
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	defer slog.SetDefault(prev)
+	w.statusOf(t, w.member)
+	if got := strings.Count(logs.String(), "outside allowlist"); got != 1 {
+		t.Fatalf("out-of-allowlist override warned %d times in one status call, want 1: %q", got, logs.String())
+	}
+
+	// A plan without office.ai_cloud never gets the model, whatever the flag
+	// (still on globally) says: the entitlement gate runs first.
+	w.override(t, `{"office.ai_cloud": false}`)
+	out := w.statusOf(t, w.member)
+	if out["enabled"] != false || out["reason"] != "entitlement_required" || out["uniwork_model"] != "" {
+		t.Fatalf("not entitled: %v, want disabled, reason entitlement_required, uniwork_model \"\"", out)
 	}
 }

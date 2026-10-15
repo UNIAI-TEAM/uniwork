@@ -126,7 +126,9 @@ func (s *DocumentService) requireManageOnArchived(ctx context.Context, q *db.Que
 		if err != nil {
 			return err
 		}
-		if !lvl.Level.AtLeast(DocumentLevelManage) {
+		// An owned document never carries AdminScope, so this stays manage
+		// for it (§13.4).
+		if !lvl.canAdminister() {
 			return ErrForbidden
 		}
 	}
@@ -140,6 +142,10 @@ func (s *DocumentService) requireManageOn(ctx context.Context, q *db.Queries, ac
 	lvl, err := s.effectiveLevel(ctx, q, actor, node)
 	if err != nil {
 		return err
+	}
+	// DOC-05: AdminScope administers a restricted node without reading it.
+	if !node.OwnerKind.Valid && lvl.canAdminister() {
+		return nil
 	}
 	if err := decideDocumentAccess(node, lvl, DocumentLevelManage); err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -633,8 +639,11 @@ func (s *DocumentService) restoreNames(ctx context.Context, q *db.Queries, root 
 // held. The owned refusal sits between the two on purpose - an owned document
 // is not the public archive path's business whatever level the caller holds, so
 // the answer is 409 rather than the 403 a bare manage gate would give.
+//
+// DOC-05: an AdminScope caller (no read level) administers the document, so
+// they pass the same way manage does (decideDocumentAdminister).
 func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
-	if access.Level == DocumentLevelNone {
+	if access.Level == DocumentLevelNone && !access.AdminScope {
 		// Nothing readable at all is not found - the owned refusal below
 		// must never confirm an id to a caller who cannot see it.
 		return ErrNotFound
@@ -642,7 +651,7 @@ func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
 	if doc.OwnerKind.Valid {
 		return errDocumentOwned()
 	}
-	return decideDocumentAccess(doc, access, DocumentLevelManage)
+	return decideDocumentAdminister(doc, access)
 }
 
 // documentBatchLifecycle is the shared envelope of archive and restore: one
