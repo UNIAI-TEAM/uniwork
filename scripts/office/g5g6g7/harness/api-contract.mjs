@@ -36,6 +36,105 @@ export const API_CALLS = {
 };
 
 /**
+ * The G7-10 tracer's rows on top of API_CALLS (moved here from
+ * g7-10/tracer.mjs TRACER_API_CALLS for G8-19, UNI-1414, so the G8 harness
+ * shares them); pinned against the router by g7-10/tracer.test.mjs.
+ */
+export const TRACER_CALLS = {
+  completeOnboarding: {
+    method: "POST",
+    path: "/me/onboarding/complete",
+    sdi: "CompleteOnboardingSDI",
+    body: ["completion_path", "workspace_id"],
+  },
+  getDesktopConsent: {
+    method: "GET",
+    path: "/auth/desktop/authorize",
+  },
+  submitDesktopConsent: {
+    method: "POST",
+    path: "/auth/desktop/authorize",
+    sdi: "DesktopConsentSDI",
+    body: ["attempt_id", "csrf_token", "decision"],
+  },
+  getDocument: {
+    method: "GET",
+    path: "/documents/{documentID}",
+    params: { documentID: "id" },
+  },
+  listDocumentVersions: {
+    method: "GET",
+    path: "/documents/{documentID}/versions",
+    params: { documentID: "id" },
+  },
+  uploadDocumentFile: {
+    method: "POST",
+    path: "/documents/{documentID}/uploads",
+    params: { documentID: "id" },
+    form: ["file"],
+  },
+  commitDocumentVersion: {
+    method: "POST",
+    path: "/documents/{documentID}/versions/commit",
+    params: { documentID: "id" },
+    sdi: "CommitDocumentVersionSDI",
+    body: ["upload_id", "base_revision"],
+  },
+  lookupCommitIntent: {
+    method: "GET",
+    path: "/documents/{documentID}/versions/commit",
+    params: { documentID: "id" },
+  },
+  listDocumentChanges: {
+    method: "GET",
+    path: "/workspaces/{workspaceID}/documents/changes",
+    params: { workspaceID: "id" },
+  },
+  mintOfficeFrameToken: {
+    method: "POST",
+    path: "/documents/{documentID}/office/frame-token",
+    params: { documentID: "id" },
+  },
+  openOfficeFrameDocument: {
+    method: "GET",
+    path: "/office-frame/documents/{documentID}",
+    params: { documentID: "id" },
+  },
+  getOfficeFrameDocumentContent: {
+    method: "GET",
+    path: "/office-frame/documents/{documentID}/content",
+    params: { documentID: "id" },
+  },
+  uploadOfficeFrameFile: {
+    method: "POST",
+    path: "/office-frame/documents/{documentID}/uploads",
+    params: { documentID: "id" },
+    form: ["file"],
+  },
+  commitOfficeFrameVersion: {
+    method: "POST",
+    path: "/office-frame/documents/{documentID}/versions/commit",
+    params: { documentID: "id" },
+    sdi: "CommitOfficeFrameVersionSDI",
+    body: ["upload_id", "base_revision"],
+  },
+  aiUniworkFrameChatCompletions: {
+    method: "POST",
+    path: "/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
+    params: { documentID: "id" },
+    sdi: "AiUniworkChatCompletionsSDI",
+    body: ["messages"],
+  },
+  aiUniworkDocumentChatCompletions: {
+    method: "POST",
+    path: "/documents/{documentID}/ai/uniwork/chat/completions",
+    params: { documentID: "id" },
+    sdi: "AiUniworkChatCompletionsSDI",
+    body: ["messages"],
+  },
+};
+
+/**
  * The rows the G8-19 cross-host harness (harness/api.mjs) calls on top of
  * API_CALLS: comments, anchors, mentions, notifications, shares, invitations,
  * rename/archive/copy and member deactivation (UNI-1414). Same shape as
@@ -43,8 +142,6 @@ export const API_CALLS = {
  * Pinned against the router by harness/api.test.mjs.
  */
 export const G8_CALLS = {
-  completeOnboarding: { method: "POST", path: "/me/onboarding/complete", sdi: "CompleteOnboardingSDI", body: ["completion_path", "workspace_id"] },
-  getDocument: { method: "GET", path: "/documents/{documentID}", params: { documentID: "id" } },
   patchDocument: { method: "PATCH", path: "/documents/{documentID}", params: { documentID: "id" }, sdi: "PatchDocumentSDI", body: ["revision", "title"] },
   archiveDocument: { method: "POST", path: "/documents/{documentID}/archive", params: { documentID: "id" } },
   restoreDocument: { method: "POST", path: "/documents/{documentID}/restore", params: { documentID: "id" } },
@@ -100,8 +197,8 @@ export const G8_CALLS = {
   deactivateOrgMember: { method: "POST", path: "/orgs/{org}/members/{userID}/deactivate", params: { org: "slug", userID: "id" } },
 };
 
-/** Every row harness/api.mjs may call: the document-step rows plus the G8 rows. */
-export const G8_API_CALLS = { ...API_CALLS, ...G8_CALLS };
+/** Every row harness/api.mjs may call: the document-step, tracer and G8 rows. */
+export const G8_API_CALLS = { ...API_CALLS, ...TRACER_CALLS, ...G8_CALLS };
 
 /** `/api/v1` + the template with each `{param}` replaced by its value (URL-escaped). */
 export function apiPath(name, params = {}, table = API_CALLS) {

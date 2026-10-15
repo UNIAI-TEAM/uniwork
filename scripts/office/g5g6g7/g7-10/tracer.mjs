@@ -29,18 +29,15 @@
 //   write -> Save -> server v2 -> workspace change feed -> commit-intent
 //   reconciliation) are still driven and verified; any broken mechanic fails
 //   with `FAIL` (exit 1), never `BLOCKED` (77).
-import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { inflateRawSync } from "node:zlib";
 
 import {
   API_CALLS,
   API_PREFIX,
   ApiError,
+  TRACER_CALLS,
 } from "../harness/api-contract.mjs";
 import {
   BLOCKED_EXIT as HARNESS_BLOCKED_EXIT,
@@ -49,7 +46,6 @@ import {
   concludeAtStartGate,
   evidenceLine,
   fixtureSha256Of,
-  handoffEnv,
   harnessEvidenceId,
   harnessPaths,
   ledgerIdentity,
@@ -57,12 +53,56 @@ import {
   readStartStatus,
   setAppApiProxyOnline,
   startGate,
-  workingCopyDir,
 } from "../harness/lib.mjs";
+import {
+  APP_LOG_TAIL_LINES,
+  buildSanitizedAppSignInRecord,
+  checkDesktopPrecondition,
+  deliverDeepLink,
+  inspectWorkingCopy,
+  listAppSyncIntentFiles,
+  loadPlaywrightChromium,
+  parseEnvFile,
+  readAppProcessRecord,
+  readRedactedAppLogTail,
+  resolveAppStepTimeoutMs,
+  resolveLoopTimeoutMs,
+  runBoundedAppStep,
+  runDesktopConsentSignIn,
+  sleep,
+  waitForDocsTabReadyToClose,
+} from "../harness/app-steps.mjs";
+import { loadVerifiedFixture, readXlsxSheetCells, sha256Hex } from "../harness/fixture-files.mjs";
+
+// Moved to harness/app-steps.mjs and harness/fixture-files.mjs for G8-19
+// (UNI-1414); re-exported so this module's surface is unchanged.
+export {
+  DEFAULT_APP_STEP_TIMEOUT_MS,
+  DEFAULT_DOCS_CLOSE_SETTLE_MS,
+  DEFAULT_LOOP_TIMEOUT_MS,
+  SIGN_IN_ERROR_MAX_CHARS,
+  buildSanitizedAppSignInRecord,
+  checkDesktopPrecondition,
+  decideAppSignInOutcome,
+  formatAppStepTimeoutReason,
+  formatDocsTabReadyTimeoutReason,
+  inspectWorkingCopy,
+  isProcessAlive,
+  listAppSyncIntentFiles,
+  parseEnvFile,
+  readAppProcessRecord,
+  readRedactedAppLogTail,
+  redactSignInError,
+  resolveAppStepTimeoutMs,
+  resolveDocsCloseSettleMs,
+  resolveLoopTimeoutMs,
+  runBoundedAppStep,
+  waitForDocsTabReadyToClose,
+} from "../harness/app-steps.mjs";
+export { readXlsxSheetCells } from "../harness/fixture-files.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = resolve(HERE, "../../../..");
-const MANIFEST_REL = "docs/office/g5g6g7/fixtures/manifest.json";
 
 export const BLOCKED_EXIT = HARNESS_BLOCKED_EXIT;
 export const UPSTREAM_BLOCKED_REASON = "no real upstream on this runner; contract-p0 §8";
@@ -79,97 +119,7 @@ export const WEB_SHEETS_IFRAME_SELECTOR = 'iframe[src*="/office-frame/sheets/"]'
  */
 export const TRACER_API_CALLS = Object.freeze({
   ...API_CALLS,
-  completeOnboarding: {
-    method: "POST",
-    path: "/me/onboarding/complete",
-    sdi: "CompleteOnboardingSDI",
-    body: ["completion_path", "workspace_id"],
-  },
-  getDesktopConsent: {
-    method: "GET",
-    path: "/auth/desktop/authorize",
-  },
-  submitDesktopConsent: {
-    method: "POST",
-    path: "/auth/desktop/authorize",
-    sdi: "DesktopConsentSDI",
-    body: ["attempt_id", "csrf_token", "decision"],
-  },
-  getDocument: {
-    method: "GET",
-    path: "/documents/{documentID}",
-    params: { documentID: "id" },
-  },
-  listDocumentVersions: {
-    method: "GET",
-    path: "/documents/{documentID}/versions",
-    params: { documentID: "id" },
-  },
-  uploadDocumentFile: {
-    method: "POST",
-    path: "/documents/{documentID}/uploads",
-    params: { documentID: "id" },
-    form: ["file"],
-  },
-  commitDocumentVersion: {
-    method: "POST",
-    path: "/documents/{documentID}/versions/commit",
-    params: { documentID: "id" },
-    sdi: "CommitDocumentVersionSDI",
-    body: ["upload_id", "base_revision"],
-  },
-  lookupCommitIntent: {
-    method: "GET",
-    path: "/documents/{documentID}/versions/commit",
-    params: { documentID: "id" },
-  },
-  listDocumentChanges: {
-    method: "GET",
-    path: "/workspaces/{workspaceID}/documents/changes",
-    params: { workspaceID: "id" },
-  },
-  mintOfficeFrameToken: {
-    method: "POST",
-    path: "/documents/{documentID}/office/frame-token",
-    params: { documentID: "id" },
-  },
-  openOfficeFrameDocument: {
-    method: "GET",
-    path: "/office-frame/documents/{documentID}",
-    params: { documentID: "id" },
-  },
-  getOfficeFrameDocumentContent: {
-    method: "GET",
-    path: "/office-frame/documents/{documentID}/content",
-    params: { documentID: "id" },
-  },
-  uploadOfficeFrameFile: {
-    method: "POST",
-    path: "/office-frame/documents/{documentID}/uploads",
-    params: { documentID: "id" },
-    form: ["file"],
-  },
-  commitOfficeFrameVersion: {
-    method: "POST",
-    path: "/office-frame/documents/{documentID}/versions/commit",
-    params: { documentID: "id" },
-    sdi: "CommitOfficeFrameVersionSDI",
-    body: ["upload_id", "base_revision"],
-  },
-  aiUniworkFrameChatCompletions: {
-    method: "POST",
-    path: "/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
-    params: { documentID: "id" },
-    sdi: "AiUniworkChatCompletionsSDI",
-    body: ["messages"],
-  },
-  aiUniworkDocumentChatCompletions: {
-    method: "POST",
-    path: "/documents/{documentID}/ai/uniwork/chat/completions",
-    params: { documentID: "id" },
-    sdi: "AiUniworkChatCompletionsSDI",
-    body: ["messages"],
-  },
+  ...TRACER_CALLS,
 });
 
 export function tracerApiPath(name, params = {}) {
@@ -198,121 +148,6 @@ export function assertTracerBodyKeys(name, body) {
   if (unknown.length > 0) {
     throw new Error(`${name}: body keys ${unknown.join(", ")} are not in contract table (${call.body.join(", ")})`);
   }
-}
-
-export function parseEnvFile(text) {
-  return Object.fromEntries(
-    String(text)
-      .split("\n")
-      .filter((line) => line.trim() && !line.trim().startsWith("#"))
-      .map((line) => {
-        const at = line.indexOf("=");
-        return at < 0 ? [line.trim(), ""] : [line.slice(0, at).trim(), line.slice(at + 1).trim()];
-      }),
-  );
-}
-
-export function checkDesktopPrecondition(portsEnv = {}) {
-  if (!portsEnv.UNIWORK_USER_DATA || !portsEnv.ELECTRON_BIN || !portsEnv.SHELL_APP_DIR) {
-    return {
-      ok: false,
-      reason:
-        "this run did not start the fork app (no UNIWORK_USER_DATA/ELECTRON_BIN/SHELL_APP_DIR in ports.env; HARNESS_SKIP_APP=1)",
-    };
-  }
-  const sessionBin = join(portsEnv.UNIWORK_USER_DATA, "uniwork-auth", "session.bin");
-  if (!existsSync(sessionBin)) {
-    return {
-      ok: false,
-      reason:
-        "the app is not signed in (no uniwork-auth/session.bin; a headless Linux VM without an unlocked OS keyring cannot keep a desktop session)",
-    };
-  }
-  return { ok: true, reason: "" };
-}
-
-/**
- * Lists encrypted `.rec` intent files in the fork's durable sync store:
- * `<userData>/uniwork-sync/store/<deploymentId>/<userId>/intents/*.rec`
- * (`apps/shell/src/main/uniwork-sync/store/paths.ts`, `intent-store.ts`).
- */
-export function listAppSyncIntentFiles(userDataDir, deploymentId = HARNESS_DEPLOYMENT_ID, userId = "") {
-  if (!userDataDir || !userId) return [];
-  const intentsDir = join(userDataDir, "uniwork-sync", "store", deploymentId, userId, "intents");
-  if (!existsSync(intentsDir)) return [];
-  try {
-    return readdirSync(intentsDir).filter((name) => name.endsWith(".rec"));
-  } catch {
-    return [];
-  }
-}
-
-export function inspectWorkingCopy({
-  userDataDir,
-  deploymentId = HARNESS_DEPLOYMENT_ID,
-  documentId,
-  expectedUserId = null,
-  expectedSha256 = "",
-}) {
-  const root = join(userDataDir, "uniwork-documents", deploymentId);
-  if (!existsSync(root)) {
-    return {
-      bindingPresent: false,
-      filePresent: false,
-      sha256Match: false,
-      bindingState: null,
-      binding: null,
-      workingCopyFilePath: null,
-    };
-  }
-  const accounts = expectedUserId
-    ? [expectedUserId]
-    : readdirSync(root, { withFileTypes: true })
-        .filter((d) => d.isDirectory())
-        .map((d) => d.name);
-
-  for (const acc of accounts) {
-    const dir = workingCopyDir(userDataDir, deploymentId, acc, documentId);
-    const bindingPath = join(dir, "binding.json");
-    if (!existsSync(bindingPath)) continue;
-    try {
-      const binding = JSON.parse(readFileSync(bindingPath, "utf8"));
-      const filePath = binding.filename ? join(dir, binding.filename) : null;
-      const filePresent = Boolean(filePath && existsSync(filePath));
-      const actualSha = filePresent ? sha256Hex(readFileSync(filePath)) : "";
-      const sha256Match = expectedSha256 ? actualSha === expectedSha256 && binding.baseChecksum === expectedSha256 : true;
-      return {
-        bindingPresent: true,
-        filePresent,
-        sha256Match,
-        bindingState: binding.state ?? null,
-        bindingError: binding.error ?? null,
-        binding,
-        workingCopyFilePath: filePath,
-      };
-    } catch {
-      return {
-        bindingPresent: false,
-        filePresent: false,
-        sha256Match: false,
-        bindingState: "invalid",
-        binding: null,
-        workingCopyFilePath: null,
-      };
-    }
-  }
-  return {
-    bindingPresent: false,
-    filePresent: false,
-    sha256Match: false,
-    bindingState: null,
-    binding: null,
-    workingCopyFilePath: null,
-  };
-}
-
-function sha256Hex(buf) {
-  return createHash("sha256").update(buf).digest("hex");
 }
 
 // ---- Deterministic ZIP builder (matches make-fixtures.mjs) -------------------
@@ -400,27 +235,6 @@ function buildStoredZip(entries) {
   eocd.writeUInt16LE(0, 20);
 
   return Buffer.concat([...localParts, centralBuf, eocd]);
-}
-
-function loadManifest(repoRoot = DEFAULT_REPO_ROOT) {
-  return JSON.parse(readFileSync(join(repoRoot, MANIFEST_REL), "utf8"));
-}
-
-function loadVerifiedFixture(fixtureId, repoRoot = DEFAULT_REPO_ROOT) {
-  const manifest = loadManifest(repoRoot);
-  const entry = manifest.fixtures.find((f) => f.id === fixtureId);
-  if (!entry) {
-    throw new Error(`fixture "${fixtureId}" is not in ${MANIFEST_REL}`);
-  }
-  const absPath = resolve(repoRoot, entry.path);
-  const bytes = readFileSync(absPath);
-  const actualSha = sha256Hex(bytes);
-  if (actualSha !== entry.sha256) {
-    throw new Error(
-      `fixture ${fixtureId} sha256 mismatch: expected ${entry.sha256}, got ${actualSha}`,
-    );
-  }
-  return { entry, absPath, bytes, sha256: actualSha };
 }
 
 /**
@@ -515,128 +329,6 @@ export function buildXlsxRevenueWithXyzBytes(repoRoot = DEFAULT_REPO_ROOT) {
     },
   ]);
   return { bytes, sha256: sha256Hex(bytes), expectedXyz };
-}
-
-/**
- * The XML entries of a ZIP buffer, `{name, data}` per entry (supports both the
- * stored method 0 and the deflated method 8). null for a buffer that is not a
- * readable zip, so a caller can say why it read nothing.
- */
-function readZipEntries(xlsxBytes) {
-  if (!xlsxBytes || xlsxBytes.length < 22) return null;
-  const buf = Buffer.isBuffer(xlsxBytes) ? xlsxBytes : Buffer.from(xlsxBytes);
-  try {
-    let eocdOffset = -1;
-    const minEocd = Math.max(0, buf.length - 65557);
-    for (let i = buf.length - 22; i >= minEocd; i -= 1) {
-      if (buf.readUInt32LE(i) === 0x06054b50) {
-        eocdOffset = i;
-        break;
-      }
-    }
-    if (eocdOffset < 0) return null;
-    const totalEntries = buf.readUInt16LE(eocdOffset + 10);
-    const cdOffset = buf.readUInt32LE(eocdOffset + 16);
-    let pos = cdOffset;
-    const entries = [];
-    for (let idx = 0; idx < totalEntries && pos + 46 <= buf.length; idx += 1) {
-      if (buf.readUInt32LE(pos) !== 0x02014b50) break;
-      const method = buf.readUInt16LE(pos + 10);
-      const compSize = buf.readUInt32LE(pos + 20);
-      const nameLen = buf.readUInt16LE(pos + 28);
-      const extraLen = buf.readUInt16LE(pos + 30);
-      const commentLen = buf.readUInt16LE(pos + 32);
-      const localOffset = buf.readUInt32LE(pos + 42);
-      const name = buf.subarray(pos + 46, pos + 46 + nameLen).toString("utf8");
-      pos += 46 + nameLen + extraLen + commentLen;
-      if (localOffset + 30 > buf.length) continue;
-      const localNameLen = buf.readUInt16LE(localOffset + 26);
-      const localExtraLen = buf.readUInt16LE(localOffset + 28);
-      const dataStart = localOffset + 30 + localNameLen + localExtraLen;
-      const rawSlice = buf.subarray(dataStart, dataStart + compSize);
-      let data = null;
-      try {
-        if (method === 0) data = rawSlice;
-        else if (method === 8) data = inflateRawSync(rawSlice);
-      } catch {
-        data = null; // one unreadable entry must not take the whole read down
-      }
-      entries.push({ name, method, data });
-    }
-    return entries.length > 0 ? entries : null;
-  } catch {
-    return null;
-  }
-}
-
-const XML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
-const decodeXmlEntities = (text) =>
-  String(text).replace(/&(#x?[0-9a-fA-F]+|amp|lt|gt|quot|apos);/g, (all, entity) => {
-    if (entity.startsWith("#x") || entity.startsWith("#X")) return String.fromCodePoint(Number.parseInt(entity.slice(2), 16));
-    if (entity.startsWith("#")) return String.fromCodePoint(Number.parseInt(entity.slice(1), 10));
-    return XML_ENTITIES[entity] ?? all;
-  });
-
-const zipEntryText = (entry) => (entry?.data ? entry.data.toString("utf8") : "");
-
-/**
- * The cell values of a workbook's first sheet, keyed by reference
- * (`{ E2: "270", F2: "30" }`) — a real XLSX read: the package's own
- * `xl/workbook.xml`, its relationships and the sheet part they name (with the
- * first worksheet as a fallback), the shared-string table when a cell indexes it
- * (`t="s"`), inline strings, numbers and booleans. null when the bytes hold no
- * readable sheet. Never a substring scan: a value is the cell's own value.
- */
-export function readXlsxSheetCells(xlsxBytes) {
-  const entries = readZipEntries(xlsxBytes);
-  if (!entries) return null;
-  const byName = new Map(entries.map((entry) => [entry.name, entry]));
-  const workbookText = zipEntryText(byName.get("xl/workbook.xml"));
-  const relId = /<sheet\b[^>]*\sr:id="([^"]+)"/.exec(workbookText)?.[1] ?? "";
-  let sheetPath = "";
-  if (relId) {
-    const rels = zipEntryText(byName.get("xl/_rels/workbook.xml.rels"));
-    const target =
-      new RegExp(`<Relationship\\b[^>]*\\bId="${relId}"[^>]*\\bTarget="([^"]+)"`, "i").exec(rels)?.[1] ??
-      new RegExp(`<Relationship\\b[^>]*\\bTarget="([^"]+)"[^>]*\\bId="${relId}"`, "i").exec(rels)?.[1] ??
-      "";
-    if (target) {
-      const normalized = target.replace(/^\//, "").replace(/^\.\//, "");
-      sheetPath = normalized.startsWith("xl/") ? normalized : `xl/${normalized}`;
-    }
-  }
-  if (!sheetPath || !byName.has(sheetPath)) {
-    sheetPath = [...byName.keys()].filter((name) => /^xl\/worksheets\/[^/]+\.xml$/i.test(name)).sort()[0] ?? "";
-  }
-  if (!sheetPath) return null;
-  const sheetText = zipEntryText(byName.get(sheetPath));
-  if (!sheetText) return null;
-
-  const sharedText = zipEntryText(byName.get("xl/sharedStrings.xml"));
-  const sharedStrings = [...sharedText.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((si) =>
-    [...si[1].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((t) => decodeXmlEntities(t[1])).join(""),
-  );
-
-  const cells = new Map();
-  // A self-closing <c r="A1"/> carries no value; dropping those first keeps the
-  // open/close scan from swallowing the cells after one.
-  for (const match of sheetText.replace(/<c\b[^>]*\/>/g, "").matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
-    const attrs = match[1];
-    const ref = /\br="([A-Za-z]+\d+)"/.exec(attrs)?.[1]?.toUpperCase() ?? "";
-    if (!ref) continue;
-    const type = /\bt="([^"]+)"/.exec(attrs)?.[1] ?? "";
-    let value = "";
-    if (type === "inlineStr") {
-      value = [...match[2].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((t) => decodeXmlEntities(t[1])).join("");
-    } else {
-      const raw = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(match[2])?.[1];
-      if (raw !== undefined) {
-        value = type === "s" ? (sharedStrings[Number(raw)] ?? "") : decodeXmlEntities(raw);
-      }
-    }
-    cells.set(ref, value);
-  }
-  return { sheetPath, cells };
 }
 
 /**
@@ -1076,146 +768,6 @@ export function interpretCommitIntentLookup(res) {
 // ---- Pure Outcome Decision Functions (G710-L1, G710-L2, G710-L3, r3) ---------
 
 /**
- * Pure decision function for desktop app sign-in (r3, ADDENDUM r5 G1/G3):
- *   * `appStarted: false` — the run never started the fork app (`HARNESS_SKIP_APP=1`,
- *     or a ports.env without `UNIWORK_USER_DATA`/`ELECTRON_BIN`/`SHELL_APP_DIR`) —
- *     is a step that cannot be driven by design: `BLOCKED` (exit 77).
- *   * Once start.sh reported the app up, every way the app can be missing is a
- *     harness or app failure, never a missing precondition: `FAIL` (exit 1) when
- *     the recorded app process is gone (`appProcessAlive === false`), when a CDP
- *     connection was attempted and refused, and when CDP answered but no shell
- *     renderer window exposing `window.aiOffice` was found. Cloud round r3 read
- *     exactly those three as BLOCKED, and the round passed with a false BLOCKED.
- *   * A CDP connection that was never possible (no `APP_CDP_PORT`, no Playwright)
- *     keeps `BLOCKED`: the app cannot be driven headlessly in this run dir.
- *   * The OS keyring being unavailable or locked (`keyringAvailable === false`, or
- *     `accountState` `"keyring-unavailable"` / `"keystore-locked"`) is the other
- *     precondition the VM may genuinely lack: `BLOCKED` (exit 77).
- *   * With a usable keyring, self sign-in must leave BOTH `accountState ===
- *     "signed-in"` (for `expectedUserId`) AND `uniwork-auth/session.bin` on disk
- *     (`sessionBinExists === true`); any failure returns `FAIL` (exit 1).
- *
- * `appProcessAlive` and `keyringAvailable` are tri-state: `null` means the tracer
- * never learned the fact (no pid file / no `accountStatus` read), which is not the
- * same statement as `false` (G3 — the r3 record said `keyringAvailable: false`
- * next to `sessionBinExists: true` on a path that never asked the app).
- */
-export function decideAppSignInOutcome({
-  appStarted = true,
-  appPid = null,
-  appProcessAlive = null,
-  cdpAttempted = false,
-  cdpConnected = true,
-  shellWindowFound = null,
-  keyringAvailable = null,
-  accountState = "unknown",
-  sessionBinExists = false,
-  signedInUserId = "",
-  expectedUserId = "",
-  signInError = "",
-  blockerReason = "",
-}) {
-  const appRef = appPid === null || appPid === undefined ? "the pid start.sh recorded" : `pid ${appPid}`;
-  if (!appStarted) {
-    return {
-      exitCode: BLOCKED_EXIT,
-      status: "BLOCKED",
-      signedIn: false,
-      reason:
-        blockerReason ||
-        "this run did not start the fork app (no UNIWORK_USER_DATA/ELECTRON_BIN/SHELL_APP_DIR in ports.env; HARNESS_SKIP_APP=1)",
-    };
-  }
-  if (appProcessAlive === false) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      signedIn: false,
-      reason: `start.sh reported the app started, but its process is gone at loop start (${appRef}; the run dir's pids file records it, see the run's logs/app.log)${blockerReason ? `; last CDP error: ${blockerReason}` : ""}`,
-    };
-  }
-  if (cdpAttempted && !cdpConnected) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      signedIn: false,
-      reason:
-        blockerReason ||
-        `the app was started (${appRef} is alive) but its CDP endpoint did not answer; a harness or app failure, not a missing precondition`,
-    };
-  }
-  if (cdpConnected && shellWindowFound === false) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      signedIn: false,
-      reason:
-        blockerReason ||
-        "connected to Electron CDP but found no shell renderer window exposing window.aiOffice",
-    };
-  }
-  if (!cdpConnected) {
-    return {
-      exitCode: BLOCKED_EXIT,
-      status: "BLOCKED",
-      signedIn: false,
-      reason:
-        blockerReason ||
-        "the app's Save cannot be driven headlessly in this run (no CDP connection is possible; ports.env has no APP_CDP_PORT or Playwright is not loadable)",
-    };
-  }
-  if (keyringAvailable === false || accountState === "keyring-unavailable" || accountState === "keystore-locked") {
-    return {
-      exitCode: BLOCKED_EXIT,
-      status: "BLOCKED",
-      signedIn: false,
-      reason:
-        blockerReason ||
-        `the app is not signed in (accountStatus.state=${accountState}, no uniwork-auth/session.bin; a headless Linux VM without an unlocked OS keyring cannot keep a desktop session)`,
-    };
-  }
-  if (signInError) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      signedIn: false,
-      reason: `desktop app sign-in failed while the OS keyring was available: ${signInError}`,
-    };
-  }
-  if (accountState !== "signed-in") {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      signedIn: false,
-      reason: `desktop app sign-in did not reach accountStatus.state="signed-in" while the OS keyring was available (got state="${accountState}")`,
-    };
-  }
-  if (!sessionBinExists) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      signedIn: false,
-      reason:
-        'desktop app reported accountStatus.state="signed-in" while the OS keyring was available, but uniwork-auth/session.bin was not written to disk',
-    };
-  }
-  if (expectedUserId && signedInUserId && signedInUserId !== expectedUserId) {
-    return {
-      exitCode: 1,
-      status: "FAIL",
-      signedIn: false,
-      reason: `desktop app signed in as ${signedInUserId}, expected seeded user ${expectedUserId}`,
-    };
-  }
-  return {
-    exitCode: 0,
-    status: "PASS",
-    signedIn: true,
-    reason: "desktop app is signed in with uniwork-auth/session.bin on disk",
-  };
-}
-
-/**
  * Pure outcome decision for Loop 1 (`fx-xlsx-revenue-xyz`: web open -> AI turn ->
  * editor X/Y/Z save -> workspace change feed -> app reloads v2).
  *
@@ -1549,465 +1101,6 @@ export function decideLoop3Outcome({
 
 // ---- Real Web UI (Playwright) and Real Electron App (CDP + Proxy) Drivers ----
 
-async function sleep(ms) {
-  await new Promise((r) => setTimeout(r, ms));
-}
-
-/**
- * The pid start.sh recorded for the app, and whether that process is alive right
- * now (G1). start.sh writes `<name> <pid> <port>` per line into the run dir's
- * `pids` file and stops exactly those groups; the app line is the last word on
- * whether the app the harness started is still there. `null` means unknown (no
- * pid file, or no app line in it) and is never treated as dead: only a pid that
- * is recorded and gone is evidence of a failure.
- */
-export function isProcessAlive(pid) {
-  if (!Number.isInteger(Number(pid)) || Number(pid) <= 0) return null;
-  try {
-    process.kill(Number(pid), 0);
-    return true;
-  } catch (err) {
-    // EPERM means the process exists and belongs to somebody else.
-    return err?.code === "EPERM";
-  }
-}
-
-export function readAppProcessRecord(runDir) {
-  if (!runDir) return { appPid: null, appProcessAlive: null, appProcessSource: "no-pid-file" };
-  const pidFile = join(runDir, "pids");
-  if (!existsSync(pidFile)) return { appPid: null, appProcessAlive: null, appProcessSource: "no-pid-file" };
-  let appPid = null;
-  try {
-    for (const line of readFileSync(pidFile, "utf8").split("\n")) {
-      const [name, pid] = line.trim().split(/\s+/);
-      if (name === "app" && Number.isInteger(Number(pid))) appPid = Number(pid);
-    }
-  } catch {
-    return { appPid: null, appProcessAlive: null, appProcessSource: "unreadable-pid-file" };
-  }
-  if (appPid === null) return { appPid: null, appProcessAlive: null, appProcessSource: "no-app-line" };
-  return { appPid, appProcessAlive: isProcessAlive(appPid), appProcessSource: "pid-file" };
-}
-
-/**
- * What a sign-in error may say in `tracer-loop-N.json` (G710-BE-13). The field
- * is an open channel — the sign-in flow passes a consent callback URL around,
- * and a future error string can embed a token or a credential — so everything
- * that could carry one is dropped and the error class/context is kept:
- *
- *   * a URL becomes `<url>`: its query (a single-use `code`/`state`), its
- *     userinfo and its path go with it;
- *   * a `key=value`/`key: value` pair whose key names a credential or a session
- *     keeps the key and loses the value;
- *   * a bare `Bearer`/`Basic` credential is replaced;
- *   * a long opaque run (32+ characters of token alphabet) is replaced;
- *   * the whole message is truncated.
- */
-export const SIGN_IN_ERROR_MAX_CHARS = 240;
-const SIGN_IN_ERROR_KEY_VALUE =
-  /(?<=\b(?:access_token|refresh_token|id_token|token|secret|password|passwd|credential|credentials|authorization|api_?key|csrf_?token|csrf|ticket|attempt_id|code|state)\s*[:=]\s*)[^\s,;&"']+/gi;
-const SIGN_IN_ERROR_OPAQUE = /[A-Za-z0-9_-]{32,}/g;
-
-export function redactSignInError(raw) {
-  let text = String(raw ?? "").replace(/\s+/g, " ").trim();
-  if (!text) return "";
-  text = text.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, "<url>");
-  text = text.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, (match, scheme) => `${scheme} <redacted>`);
-  text = text.replace(SIGN_IN_ERROR_KEY_VALUE, "<redacted>");
-  text = text.replace(SIGN_IN_ERROR_OPAQUE, "<redacted>");
-  return text.length > SIGN_IN_ERROR_MAX_CHARS ? `${text.slice(0, SIGN_IN_ERROR_MAX_CHARS)}...` : text;
-}
-
-export const DEFAULT_APP_STEP_TIMEOUT_MS = 90_000;
-export const DEFAULT_LOOP_TIMEOUT_MS = 600_000;
-export const DEFAULT_DOCS_CLOSE_SETTLE_MS = 2_500;
-const APP_LOG_TAIL_LINES = 40;
-
-export function resolveAppStepTimeoutMs(overrideMs, portsEnv = null) {
-  if (Number.isFinite(Number(overrideMs)) && Number(overrideMs) > 0) {
-    return Number(overrideMs);
-  }
-  const fromEnv = Number(process.env.HARNESS_APP_STEP_TIMEOUT_MS);
-  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
-  const fromPorts = Number(portsEnv?.HARNESS_APP_STEP_TIMEOUT_MS);
-  if (Number.isFinite(fromPorts) && fromPorts > 0) return fromPorts;
-  return DEFAULT_APP_STEP_TIMEOUT_MS;
-}
-
-export function resolveLoopTimeoutMs(overrideMs, portsEnv = null) {
-  if (Number.isFinite(Number(overrideMs)) && Number(overrideMs) > 0) {
-    return Number(overrideMs);
-  }
-  const fromEnv = Number(process.env.HARNESS_LOOP_TIMEOUT_MS);
-  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
-  const fromPorts = Number(portsEnv?.HARNESS_LOOP_TIMEOUT_MS);
-  if (Number.isFinite(fromPorts) && fromPorts > 0) return fromPorts;
-  return DEFAULT_LOOP_TIMEOUT_MS;
-}
-
-export function resolveDocsCloseSettleMs(overrideMs, portsEnv = null) {
-  if (overrideMs !== undefined && overrideMs !== null && Number.isFinite(Number(overrideMs)) && Number(overrideMs) >= 0) {
-    return Number(overrideMs);
-  }
-  if (process.env.HARNESS_DOCS_CLOSE_SETTLE_MS !== undefined && process.env.HARNESS_DOCS_CLOSE_SETTLE_MS !== "") {
-    const fromEnv = Number(process.env.HARNESS_DOCS_CLOSE_SETTLE_MS);
-    if (Number.isFinite(fromEnv) && fromEnv >= 0) return fromEnv;
-  }
-  if (portsEnv?.HARNESS_DOCS_CLOSE_SETTLE_MS !== undefined && portsEnv?.HARNESS_DOCS_CLOSE_SETTLE_MS !== "") {
-    const fromPorts = Number(portsEnv.HARNESS_DOCS_CLOSE_SETTLE_MS);
-    if (Number.isFinite(fromPorts) && fromPorts >= 0) return fromPorts;
-  }
-  return DEFAULT_DOCS_CLOSE_SETTLE_MS;
-}
-
-export function formatAppStepTimeoutReason(call, timeoutMs) {
-  const seconds = Number((Number(timeoutMs) / 1000).toFixed(3));
-  return `${call} did not settle within ${seconds} s`;
-}
-
-export function formatDocsTabReadyTimeoutReason(timeoutMs) {
-  const seconds = Number((Number(timeoutMs) / 1000).toFixed(3));
-  return `docs tab not ready to close within ${seconds} s`;
-}
-
-function sanitizeTargetUrl(rawUrl) {
-  const text = String(rawUrl ?? "").trim();
-  if (!text) return null;
-  try {
-    const parsed = new URL(text);
-    const safeParams = new URLSearchParams();
-    for (const [k, v] of parsed.searchParams.entries()) {
-      if (k === "mode") {
-        safeParams.set(k, v);
-      } else {
-        safeParams.set(k, "<redacted>");
-      }
-    }
-    const qs = safeParams.toString();
-    return `${parsed.protocol}//${parsed.host}${parsed.pathname}${qs ? `?${qs}` : ""}`;
-  } catch {
-    return redactSignInError(text);
-  }
-}
-
-export function readRedactedAppLogTail(runDir, maxLines = APP_LOG_TAIL_LINES) {
-  if (!runDir) return [];
-  const appLogPath = join(runDir, "logs", "app.log");
-  if (!existsSync(appLogPath)) return [];
-  try {
-    const raw = readFileSync(appLogPath, "utf8");
-    const lines = raw.split(/\r?\n/);
-    if (lines.length > 0 && lines.at(-1) === "") lines.pop();
-    return lines.slice(-maxLines).map((line) => redactSignInError(line));
-  } catch {
-    return [];
-  }
-}
-
-function readBindingSnapshotAtTimeout({
-  userDataDir,
-  deploymentId = HARNESS_DEPLOYMENT_ID,
-  documentId,
-  expectedUserId,
-}) {
-  if (!userDataDir || !documentId) {
-    return { bindingState: null, binding: null };
-  }
-  try {
-    const wc = inspectWorkingCopy({
-      userDataDir,
-      deploymentId,
-      documentId,
-      expectedUserId,
-    });
-    if (!wc.bindingPresent || !wc.binding) {
-      return { bindingState: null, binding: null };
-    }
-    return {
-      bindingState: wc.bindingState ?? wc.binding?.state ?? null,
-      binding: {
-        state: wc.binding?.state ?? null,
-        baseVersion: wc.binding?.baseVersion ?? null,
-        baseRevision: wc.binding?.baseRevision ?? null,
-        baseVersionId: wc.binding?.baseVersionId ?? null,
-        baseChecksum: wc.binding?.baseChecksum ?? null,
-        error: wc.binding?.error ? redactSignInError(wc.binding.error) : null,
-      },
-    };
-  } catch {
-    return { bindingState: null, binding: null };
-  }
-}
-
-/**
- * Runs an app-side CDP call (`connect`, `page.evaluate` of `window.aiOffice.*`,
- * `aiOfficeTabs.close`, etc.) under a bounded race (`HARNESS_APP_STEP_TIMEOUT_MS`,
- * default 90000 ms). On timeout, throws an Error with `isAppStepTimeout = true`
- * and `appStepTimeout` diagnostics (`call`, `elapsedMs`, `bindingState`, `binding`,
- * `appLogTail`).
- */
-export async function runBoundedAppStep(
-  call,
-  fn,
-  {
-    timeoutMs,
-    portsEnv = null,
-    runDir = null,
-    userDataDir = null,
-    deploymentId = HARNESS_DEPLOYMENT_ID,
-    documentId = null,
-    expectedUserId = null,
-  } = {},
-) {
-  const boundMs = resolveAppStepTimeoutMs(timeoutMs, portsEnv);
-  const startedAt = Date.now();
-  let timer = null;
-  try {
-    return await Promise.race([
-      Promise.resolve().then(fn),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => {
-          const elapsedMs = Math.max(boundMs, Date.now() - startedAt);
-          const reason = formatAppStepTimeoutReason(call, boundMs);
-          const { bindingState, binding } = readBindingSnapshotAtTimeout({
-            userDataDir: userDataDir ?? portsEnv?.UNIWORK_USER_DATA ?? null,
-            deploymentId,
-            documentId,
-            expectedUserId,
-          });
-          const appLogTail = readRedactedAppLogTail(runDir, APP_LOG_TAIL_LINES);
-          const err = new Error(reason);
-          err.isAppStepTimeout = true;
-          err.appStepTimeout = {
-            call,
-            timeoutMs: boundMs,
-            elapsedMs,
-            reason,
-            bindingState,
-            binding,
-            appLogTail,
-          };
-          reject(err);
-        }, boundMs);
-      }),
-    ]);
-  } finally {
-    if (timer !== null) clearTimeout(timer);
-  }
-}
-
-/**
- * Waits (bounded by `HARNESS_APP_STEP_TIMEOUT_MS`) until the open docs tab's
- * `WebContentsView` renderer is ready to answer `docsQueryDirty`'s
- * `'docs:close-check'` IPC (`apps/docs/src/main/docs-main.ts:6288-6308`), and then
- * settles for `HARNESS_DOCS_CLOSE_SETTLE_MS` (default `2500` ms, longer than the
- * fork's 2 s `docsQueryDirty` timer at `apps/docs/src/main/docs-main.ts:6293`) with
- * the renderer still ready before `aiOfficeTabs.close` is called (Finding H2, ADDENDUM r7b H2-1).
- *
- * Fork root cause (`ab12238f`):
- *   - `TabManager.closeTab` -> `confirmTabClose` (`apps/shell/src/main/tab-manager.ts:893-929`)
- *     calls `docsQueryDirty` (`apps/docs/src/main/docs-main.ts:6288-6308`), which sends
- *     `wc.send('docs:close-check')` (`docs-main.ts:6300`) and waits 2 s (`docs-main.ts:6293`).
- *   - If the docs renderer (`genoffice-app://docs/index.html?mode=tab`,
- *     `apps/docs/src/main/docs-main.ts:6425`) has not finished `loadFile(pending)`
- *     (`apps/docs/src/renderer/App.tsx:2242-2256`) and mounted its close-guard
- *     `useEffect` (`window.desktop.onCloseCheck`, `App.tsx:5334-5362`), `docsQueryDirty`
- *     fails closed with `{ dirty: true, autoSave: false, unresponsive: true }`
- *     (`docs-main.ts:6295`) and `performDocsClose` (`docs-main.ts:6355-6376`) opens
- *     a native `dialog.showMessageBox` (`closeNoReplyMsg`: Close Anyway / Cancel) on
- *     the headless Xvfb display where nothing clicks it.
- *   - In addition, the shell's 1 s `editor-state-poll.ts` (`apps/shell/src/main/uniwork-docs/editor-state-poll.ts:12,56-84`)
- *     calls `docsQueryEditorDirty`, which shares `closeStateQueries` (`docs-main.ts:6248,6289-6291`)
- *     with `docsQueryDirty`: any `'docs:close-check'` sent before `onCloseCheck` mounted is
- *     never answered and takes 2 s (`docs-main.ts:6293`) to expire.
- *
- * Positive readiness signal on the docs `WebContentsView` target (never calling
- * `window.desktop.reportCloseCheck`, so the harness never speaks for the product):
- *   1. `document.readyState === "complete"`
- *   2. `typeof window.desktop?.onCloseCheck === "function"` and
- *      `typeof window.desktop?.reportCloseCheck === "function"`
- *      (`apps/docs/src/preload/index.ts:246-261,277`)
- *   3. `!document.querySelector(".start-booting")` (`apps/docs/src/renderer/App.tsx:7519`
- *      while `doc === null`; `<EditorContent editor={editor} />` at `App.tsx:7438` once
- *      `doc !== null`)
- *   4. `window.__genofficeControl({ cmd: "selection" })?.status === "ok"` and
- *      `Boolean(window.__aidocs?.editor)` (`apps/docs/src/renderer/App.tsx:6198-6215`,
- *      `apps/docs/src/renderer/control.ts:16-21`, which commits after the `onCloseCheck`
- *      effect at `App.tsx:5334-5362` and returns `status: "ok"` only when `editor` and
- *      `doc !== null` are both ready).
- *   5. After checks 1-4 pass, waits out any pre-mount query in `closeStateQueries` by
- *      settling for `HARNESS_DOCS_CLOSE_SETTLE_MS` (default `2500` ms > `2000` ms at
- *      `docs-main.ts:6293`) and re-verifying checks 1-4 still hold before returning.
- */
-export async function waitForDocsTabReadyToClose({
-  browser,
-  shellPage = null,
-  filePath = null,
-  timeoutMs,
-  settleMs,
-  portsEnv = null,
-  runDir = null,
-  userDataDir = null,
-  deploymentId = HARNESS_DEPLOYMENT_ID,
-  documentId = null,
-  expectedUserId = null,
-  pollIntervalMs = 50,
-} = {}) {
-  const boundMs = resolveAppStepTimeoutMs(timeoutMs, portsEnv);
-  const requiredSettleMs = resolveDocsCloseSettleMs(settleMs, portsEnv);
-  const startedAt = Date.now();
-  const deadline = startedAt + boundMs;
-  let lastTargetUrl = null;
-  let readySinceMs = null;
-
-  const probeCandidate = async (candidate, remainingMs) => {
-    let evalTimer = null;
-    return Promise.race([
-      Promise.resolve().then(() =>
-        candidate.evaluate((_expectedFilePath) => {
-          if (typeof window === "undefined") return { isDocsTarget: false, ready: false };
-          const href = String(window.location?.href ?? "");
-          const hasDesktopCloseBridge =
-            typeof window.desktop?.onCloseCheck === "function" &&
-            typeof window.desktop?.reportCloseCheck === "function";
-          const isDocsUrl = href.includes("genoffice-app://docs") || href.includes("/docs/");
-          if (!hasDesktopCloseBridge && !isDocsUrl) {
-            return { isDocsTarget: false, ready: false, url: href };
-          }
-          const docObj = window.document ?? globalThis.document ?? null;
-          const readyStateComplete =
-            !docObj || typeof docObj.readyState !== "string" || docObj.readyState === "complete";
-          const bootingEl =
-            docObj && typeof docObj.querySelector === "function"
-              ? docObj.querySelector(".start-booting")
-              : null;
-          const controlProbe =
-            typeof window.__genofficeControl === "function"
-              ? window.__genofficeControl({ cmd: "selection" })
-              : null;
-          const controlReady =
-            controlProbe?.status === "ok" && Boolean(window.__aidocs?.editor);
-          const ready = Boolean(
-            readyStateComplete && hasDesktopCloseBridge && !bootingEl && controlReady,
-          );
-          return {
-            isDocsTarget: true,
-            ready,
-            url: href,
-          };
-        }, filePath),
-      ),
-      new Promise((resolve) => {
-        evalTimer = setTimeout(() => resolve(null), Math.min(remainingMs, 1_500));
-      }),
-    ])
-      .catch(() => null)
-      .finally(() => {
-        if (evalTimer !== null) clearTimeout(evalTimer);
-      });
-  };
-
-  while (Date.now() < deadline) {
-    let sawReadyThisPass = false;
-    const contexts = typeof browser?.contexts === "function" ? browser.contexts() : [];
-    for (const ctx of contexts) {
-      const pages = typeof ctx?.pages === "function" ? ctx.pages() : [];
-      for (const candidate of pages) {
-        if (!candidate || candidate === shellPage) continue;
-        let rawUrl = "";
-        try {
-          rawUrl = typeof candidate.url === "function" ? String(candidate.url() ?? "") : "";
-        } catch {
-          rawUrl = "";
-        }
-        if (rawUrl && (rawUrl.includes("docs") || !lastTargetUrl)) {
-          lastTargetUrl = sanitizeTargetUrl(rawUrl);
-        }
-        const remainingMs = deadline - Date.now();
-        if (remainingMs <= 0) break;
-        const probe = await probeCandidate(candidate, remainingMs);
-
-        if (probe?.url && (probe.isDocsTarget || !lastTargetUrl)) {
-          lastTargetUrl = sanitizeTargetUrl(probe.url);
-        }
-        if (probe?.ready) {
-          sawReadyThisPass = true;
-          const now = Date.now();
-          if (readySinceMs === null) {
-            readySinceMs = now;
-          }
-          if (now - readySinceMs >= requiredSettleMs) {
-            return {
-              ready: true,
-              targetUrl: sanitizeTargetUrl(probe.url || rawUrl || ""),
-              elapsedMs: now - startedAt,
-              settledMs: now - readySinceMs,
-            };
-          }
-        }
-      }
-    }
-    if (!sawReadyThisPass) {
-      readySinceMs = null;
-    }
-    const leftMs = deadline - Date.now();
-    if (leftMs <= 0) break;
-    const settleLeftMs =
-      readySinceMs !== null ? Math.max(1, requiredSettleMs - (Date.now() - readySinceMs)) : pollIntervalMs;
-    await sleep(Math.min(pollIntervalMs, settleLeftMs, leftMs));
-  }
-
-  const elapsedMs = Math.max(boundMs, Date.now() - startedAt);
-  const reason = formatDocsTabReadyTimeoutReason(boundMs);
-  const { bindingState, binding } = readBindingSnapshotAtTimeout({
-    userDataDir: userDataDir ?? portsEnv?.UNIWORK_USER_DATA ?? null,
-    deploymentId,
-    documentId,
-    expectedUserId,
-  });
-  const appLogTail = readRedactedAppLogTail(runDir, APP_LOG_TAIL_LINES);
-  const err = new Error(reason);
-  err.isAppStepTimeout = true;
-  err.owner = "g5-client";
-  err.ownerCandidate = "g5-client";
-  err.appStepTimeout = {
-    call: "docsTabReadyToClose",
-    timeoutMs: boundMs,
-    elapsedMs,
-    reason,
-    targetUrl: lastTargetUrl,
-    bindingState,
-    binding,
-    appLogTail,
-    owner: "g5-client",
-    ownerCandidate: "g5-client",
-  };
-  throw err;
-}
-
-function loadPlaywrightChromium(repoRoot = DEFAULT_REPO_ROOT) {
-  try {
-    const req = createRequire(join(repoRoot, "e2e", "package.json"));
-    return req("@playwright/test").chromium;
-  } catch {
-    try {
-      const req = createRequire(import.meta.url);
-      return req("playwright").chromium;
-    } catch {
-      return null;
-    }
-  }
-}
-
-function deliverDeepLink(portsEnv, deepLink) {
-  const childEnv = handoffEnv(portsEnv);
-  return spawnSync(
-    portsEnv.ELECTRON_BIN,
-    ["--no-sandbox", "--disable-gpu", "--password-store=gnome-libsecret", portsEnv.SHELL_APP_DIR, deepLink],
-    { env: childEnv, timeout: 20_000, encoding: "utf8" },
-  );
-}
-
 /**
  * Drives the real D web UI (`WEB_ORIGIN`) via Playwright for Loop 1 (C2):
  * signs in at `/login`, opens `/${orgSlug}/${wsSlug}/documents/${documentId}`,
@@ -2164,54 +1257,6 @@ export async function driveWebXlsxSave({
   } finally {
     await browser.close().catch(() => {});
   }
-}
-
-/**
- * Builds the sanitized desktop sign-in decision record (`F3`, ADDENDUM r5 G1/G3)
- * for `tracer-loop-N.json`. Never includes any session token, password, or secret:
- * `signInError` goes through `redactSignInError` (G710-BE-13).
- *
- * `appPid` / `appProcessAlive` are the run's own PID-file record (G1), and
- * `cdpAttempted` / `cdpConnected` / `shellWindowFound` say which of the three
- * failures the decision saw. `keyringAvailable` is tri-state: `true`/`false` only
- * when the app itself reported it through `accountStatus()`, `null` when the
- * tracer never reached the app (G3) — the r3 record read
- * `keyringAvailable: false` with `sessionBinExists: true`, which is not a
- * combination the app can report: `session.bin` is written only while a real
- * keyring is there (`apps/shell/src/main/uniwork-auth/credentials.ts`,
- * `ensureAvailable`), and an app that cannot open the keyring keeps the file and
- * reports `keyring-unavailable` — the `false` in that record came from the
- * tracer's CDP-failure path, which never asked.
- */
-export function buildSanitizedAppSignInRecord(rawInput = {}) {
-  const triState = (value) => (value === undefined || value === null ? null : Boolean(value));
-  const decisionInput = {
-    appStarted: Boolean(rawInput.appStarted),
-    appPid: Number.isInteger(Number(rawInput.appPid)) && Number(rawInput.appPid) > 0 ? Number(rawInput.appPid) : null,
-    appProcessAlive: triState(rawInput.appProcessAlive),
-    cdpAttempted: Boolean(rawInput.cdpAttempted),
-    cdpConnected: Boolean(rawInput.cdpConnected),
-    shellWindowFound: triState(rawInput.shellWindowFound),
-    keyringAvailable: triState(rawInput.keyringAvailable),
-    accountState: String(rawInput.accountState ?? "unknown"),
-    sessionBinExists: Boolean(rawInput.sessionBinExists),
-    signedInUserId: String(rawInput.signedInUserId ?? ""),
-    expectedUserId: String(rawInput.expectedUserId ?? ""),
-    signInError: redactSignInError(rawInput.signInError ?? ""),
-    blockerReason: String(rawInput.blockerReason ?? ""),
-  };
-  const out = decideAppSignInOutcome(decisionInput);
-  return {
-    accountStatusState: decisionInput.accountState,
-    sessionBinExists: decisionInput.sessionBinExists,
-    decisionInput,
-    decisionResult: {
-      exitCode: out.exitCode,
-      status: out.status,
-      signedIn: Boolean(out.signedIn),
-      reason: String(out.reason ?? ""),
-    },
-  };
 }
 
 /**
@@ -2429,69 +1474,18 @@ export async function connectAppController({
         });
       }
       try {
-        const authUrl = await runAppCdp("aiOffice.accountLogin", () =>
-          page.evaluate(
-            () =>
-              new Promise((resolveUrl, rejectUrl) => {
-                const timer = setTimeout(() => rejectUrl(new Error("accountLogin url timeout")), 15_000);
-                const off = window.aiOffice.onAccountLogin((ev) => {
-                  if (ev && ev.phase === "url" && ev.url) {
-                    clearTimeout(timer);
-                    off();
-                    resolveUrl(ev.url);
-                  } else if (ev && ev.phase === "error") {
-                    clearTimeout(timer);
-                    off();
-                    rejectUrl(new Error(`accountLogin error: ${ev.error}`));
-                  }
-                });
-                window.aiOffice.accountLogin().catch((err) => {
-                  clearTimeout(timer);
-                  off();
-                  rejectUrl(err);
-                });
-              }),
-          ),
-        );
-        const attemptId = new URL(authUrl).searchParams.get("attempt_id");
-        if (!attemptId) {
-          throw new Error(`accountLogin URL carried no attempt_id: ${authUrl}`);
-        }
-        const consentGet = await callTracerApi({
-          apiOrigin,
-          fetchImpl,
-          name: "getDesktopConsent",
-          query: { attempt_id: attemptId },
-          token,
+        status = await runDesktopConsentSignIn({
+          page,
+          runAppCdp,
+          callApi: (name, opts) => callTracerApi({ apiOrigin, fetchImpl, name, token, ...opts }),
+          deepLinkDeliverer,
+          portsEnv,
+          sessionBinPath,
+          status,
+          onStatus: (next) => {
+            status = next;
+          },
         });
-        const csrfToken = consentGet.data?.csrf_token ?? "";
-        if (!csrfToken) {
-          throw new Error("getDesktopConsent returned no csrf_token");
-        }
-        const consentPost = await callTracerApi({
-          apiOrigin,
-          fetchImpl,
-          name: "submitDesktopConsent",
-          token,
-          body: { attempt_id: attemptId, csrf_token: csrfToken, decision: "approve" },
-        });
-        const callbackUrl = consentPost.data?.callback_url ?? consentPost.data?.redirect_url ?? "";
-        if (!callbackUrl) throw new Error("submitDesktopConsent returned no callback_url");
-        const handoff = deepLinkDeliverer(portsEnv, callbackUrl);
-        if (handoff?.error || (typeof handoff?.status === "number" && handoff.status !== 0)) {
-          throw new Error(
-            `callback deep-link handoff failed (exit ${handoff?.status ?? "err"}): ${handoff?.stderr || handoff?.error?.message || ""}`.trim(),
-          );
-        }
-        const signDeadline = Date.now() + 15_000;
-        while (Date.now() < signDeadline) {
-          status = await runAppCdp("aiOffice.accountStatus", () =>
-            page.evaluate(() => window.aiOffice.accountStatus()),
-          );
-          if (status?.state === "signed-in" && existsSync(sessionBinPath)) break;
-          if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") break;
-          await sleep(250);
-        }
       } catch (err) {
         if (err?.isAppStepTimeout) throw err;
         signInError = err instanceof Error ? err.message : String(err);
