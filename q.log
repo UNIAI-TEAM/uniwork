@@ -1,0 +1,12 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18450 FRONTEND_ORIGIN=http://localhost:13370 API_PUBLIC_URL=http://localhost:18450 PREVIEW_ORIGIN=http://localhost:13371 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18450 NEXT_PUBLIC_WS_URL=ws://localhost:18450 NEXT_PUBLIC_APP_URL=http://localhost:13370 E2E_BASE_URL=http://localhost:13370 E2E_API_URL=http://localhost:18450 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-folders.spec.ts --grep "FD-A01 " --reporter=list > /tmp/wdoc06-FD-A01.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/wdoc06-FD-A01.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/wdoc06-FD-A01.log && echo "skipped: FD-A01 has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/wdoc06-FD-A01.log || { echo "no passing test matched FD-A01"; [ $rc -eq 0 ] && rc=1; }; echo "E2E_FD_A01_EXIT=$rc"
+
+Running 1 test using 1 worker
+
+(node:125410) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:125410) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-folders.spec.ts:34:1 › FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to depth 20; rejects blank, >255 chars, and depth 21 (6.5s)
+
+  1 passed (8.0s)
+E2E_FD_A01_EXIT=0

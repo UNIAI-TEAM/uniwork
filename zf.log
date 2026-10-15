@@ -1,0 +1,172 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18450 FRONTEND_ORIGIN=http://localhost:13370 API_PUBLIC_URL=http://localhost:18450 PREVIEW_ORIGIN=http://localhost:13371 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18450 NEXT_PUBLIC_WS_URL=ws://localhost:18450 NEXT_PUBLIC_APP_URL=http://localhost:13370 E2E_BASE_URL=http://localhost:13370 E2E_API_URL=http://localhost:18450 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-sharing-ui.spec.ts --reporter=list > /tmp/wdoc06-documents-sharing-ui.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/wdoc06-documents-sharing-ui.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/wdoc06-documents-sharing-ui.log && echo "skipped: documents-sharing-ui has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/wdoc06-documents-sharing-ui.log || { echo "no passing test matched documents-sharing-ui"; [ $rc -eq 0 ] && rc=1; }; echo "E2E_DOCUMENTS_SHARING_UI_EXIT=$rc"
+  ✘  1 documents-sharing-ui.spec.ts:29:1 › share, public link, anonymous read, access log and revoke (13.6s)
+
+
+  1) documents-sharing-ui.spec.ts:29:1 › share, public link, anonymous read, access log and revoke ─
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('dialog', { name: /Chia sẻ tài liệu|Share document/ }).getByText('Chủ sở hữu quyền')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('dialog', { name: /Chia sẻ tài liệu|Share document/ }).getByText('Chủ sở hữu quyền')
+
+
+      72 |   await revokeOrg.click();
+      73 |   await expect(revokeOrg).toHaveCount(0, { timeout: 30_000 });
+    > 74 |   await expect(dialog.getByText("Chủ sở hữu quyền")).toBeVisible();
+         |                                                      ^
+      75 |
+      76 |   // Anonymous second session: no app session, only the token.
+      77 |   const anon = await browser.newContext();
+
+    Error Context: test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    documents-sharing-ui.spec.ts:29:1 › share, public link, anonymous read, access log and revoke ──
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-sharing-ui.spec.ts --reporter=list
+===== e2e/test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-sharing-ui.spec.ts >> share, public link, anonymous read, access log and revoke
+- Location: documents-sharing-ui.spec.ts:29:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('dialog', { name: /Chia sẻ tài liệu|Share document/ }).getByText('Chủ sở hữu quyền')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for getByRole('dialog', { name: /Chia sẻ tài liệu|Share document/ }).getByText('Chủ sở hữu quyền')
+
+```
+
+```yaml
+- main:
+  - status
+- region "Notifications alt+T"
+- dialog "Chia sẻ tài liệu":
+  - heading "Chia sẻ tài liệu" [level=2]
+  - paragraph: Cấp quyền cho người, workspace hoặc tổ chức. Danh sách bên dưới là quyền thật đang có.
+  - region "Người và nhóm có quyền":
+    - heading "Người và nhóm có quyền" [level=3]
+    - text: "Mức của bạn: Quản lý"
+    - list:
+      - listitem:
+        - text: Sharing links Chủ sở hữu Quản lý
+        - button "Chuyển quyền sở hữu"
+  - region "Thêm quyền":
+    - heading "Thêm quyền" [level=3]
+    - text: Đối tượng
+    - combobox "Đối tượng": Tổ chức
+    - text: Chọn đối tượng
+    - combobox "Chọn đối tượng": Sharing links 1792079261960
+    - text: Mức quyền
+    - combobox "Mức quyền": Xem
+    - button "Chia sẻ"
+  - region "Chế độ hiển thị":
+    - heading "Chế độ hiển thị" [level=3]
+    - button "Cả workspace Mọi thành viên workspace xem được tài liệu." [pressed]
+    - button "Hạn chế Chỉ người được chia sẻ và người quản lý xem được."
+    - button "Lưu chế độ hiển thị" [disabled]
+  - region "Liên kết công khai":
+    - heading "Liên kết công khai" [level=3]
+    - text: Ai có URL đều xem được, không cần đăng nhập.
+    - paragraph: Liên kết vừa tạo
+    - paragraph: http://localhost:13370/share/MSwQOnYgfzAIPfCuhyl45W6ZYap5m9oSpRXwKDozzpg
+    - paragraph: URL chỉ hiển thị lần này. Sao chép ngay nếu cần dùng lại — mất URL thì tạo liên kết mới.
+    - button "Sao chép liên kết"
+    - text: Hạn dùng (ngày)
+    - spinbutton "Hạn dùng (ngày)": "7"
+    - button "Tạo liên kết mới"
+    - paragraph: Mất URL? Tạo liên kết mới; token cũ không hiện lại được.
+    - list:
+      - listitem:
+        - text: 15:47 Hết hạn 15:47 22 thg 10, 2026 · 0 lượt xem
+        - button "Thu hồi 15:47": Thu hồi
+  - button "Đóng"
+```
+
+# Test source
+
+```ts
+  1   | import { expect, test, type Page } from "@playwright/test";
+  2   | import { resolve } from "node:path";
+  3   | import { createPageWithText, documentAction, onboardDocumentsUser, shooter } from "./documents-onboard";
+  4   | import { workspaceSeed } from "./onboard";
+  5   | 
+  6   | /**
+  7   |  * Lane g1-08 (UNI-682) AC-3: sharing on the real stack, from the UI (the API-level
+  8   |  * sharing spec of G1-09 is documents-sharing.spec.ts). The org admin turns
+  9   |  * public links on in the documents settings tab, grants and revokes an
+  10  |  * organization share, mints a public link whose URL is shown once, and an
+  11  |  * anonymous second session reads the page through it; the access log records
+  12  |  * the link view, and after the revoke the same URL answers the dead-link state.
+  13  |  *
+  14  |  * Needs: documents flag ON (`FF_DOCUMENTS=true`), Postgres + Redis up, this
+  15  |  * worktree's migrations applied, web app on E2E_BASE_URL. Recipe:
+  16  |  * reports/g1-08-versions-share-ui/serve.sh in the run folder.
+  17  |  */
+  18  | test.describe.configure({ timeout: 360_000 });
+  19  | 
+  20  | const seed = workspaceSeed("sharing", "links", Date.now());
+  21  | const shot = shooter(
+  22  |   process.env.DOCUMENT_SHOT_DIR ?? resolve(process.cwd(), "test-results", "documents-sharing-ui-shots"),
+  23  | );
+  24  | 
+  25  | function shareDialog(page: Page) {
+  26  |   return page.getByRole("dialog", { name: /Chia sẻ tài liệu|Share document/ });
+  27  | }
+  28  | 
+  29  | test("share, public link, anonymous read, access log and revoke", async ({ page, browser }) => {
+  30  |   await page.setViewportSize({ width: 1440, height: 900 });
+  31  |   await onboardDocumentsUser(page, seed);
+  32  |   const docUrl = await createPageWithText(page, seed, "Nội dung công khai của trang");
+  33  | 
+  34  |   // Org settings: public links start closed; the admin opens them.
+  35  |   await page.goto(`/${seed.orgSlug}/${seed.wsSlug}/settings?tab=documents`);
+  36  |   const toggle = page.getByRole("switch", { name: "Liên kết công khai" });
+  37  |   await expect(toggle).toBeVisible({ timeout: 60_000 });
+  38  |   await expect(toggle).not.toBeChecked();
+  39  |   await shot(page, "documents-settings-light-vi");
+  40  |   await toggle.click();
+  41  |   await expect(toggle).toBeChecked({ timeout: 30_000 });
+  42  |   await page.reload();
+  43  |   await expect(page.getByRole("switch", { name: "Liên kết công khai" })).toBeChecked({ timeout: 60_000 });
+  44  | 
+  45  |   // Organization share: granted, listed, revoked.
+  46  |   await page.goto(docUrl);
+  47  |   await expect(page.getByRole("textbox", { name: "Nội dung tài liệu" })).toBeVisible({ timeout: 60_000 });
+  48  |   await documentAction(page, "Chia sẻ");
+  49  |   const dialog = shareDialog(page);
+  50  |   await expect(dialog).toBeVisible({ timeout: 30_000 });
+  51  |   await expect(dialog.getByText("Người và nhóm có quyền")).toBeVisible({ timeout: 30_000 });
+  52  |   await dialog.getByRole("combobox", { name: "Đối tượng", exact: true }).click();
+  53  |   await page.getByRole("option", { name: "T�no passing test matched documents-sharing-ui
+E2E_DOCUMENTS_SHARING_UI_EXIT=1

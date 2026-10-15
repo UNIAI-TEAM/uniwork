@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+2350d6ef5576078ae86c6df1c268008e30a53534
+2350d6ef5 Merge origin/feature/UNI-923-office-g5-g6-g7 (07ad36ec4) into UNI-1630 W-DOC06
+07ad36ec4 chore: merge UNI-1643 document access report (9a36185df) into the G5-G7 root
+9a36185df chore: merge G5-G7 root 2950fce8d into the UNI-1643 access report
+3f50910b2 fix(views): 44px coarse targets in the shared person picker
+8de80cbc9 Merge branch 'feature/UNI-1643-w2-web' into feature/UNI-1643-access-report
+3b884099d fix(documents): fit the access report Status chip inside its cell
+588c86751 test(documents): pin the access report Status track and chip containment
+222dd502c fix(documents): wrap the owner row at 390, keep focus and a result title after deactivation

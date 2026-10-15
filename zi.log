@@ -1,0 +1,15 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18450 FRONTEND_ORIGIN=http://localhost:13370 API_PUBLIC_URL=http://localhost:18450 PREVIEW_ORIGIN=http://localhost:13371 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18450 NEXT_PUBLIC_WS_URL=ws://localhost:18450 NEXT_PUBLIC_APP_URL=http://localhost:13370 E2E_BASE_URL=http://localhost:13370 E2E_API_URL=http://localhost:18450 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents.spec.ts --reporter=list > /tmp/wdoc06-documents.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/wdoc06-documents.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/wdoc06-documents.log && echo "skipped: documents has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/wdoc06-documents.log || { echo "no passing test matched documents"; [ $rc -eq 0 ] && rc=1; }; echo "E2E_DOCUMENTS_EXIT=$rc"
+
+Running 4 tests using 1 worker
+
+(node:129256) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:129256) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents.spec.ts:80:1 › a page is created, typed into, and survives a reload (6.8s)
+  ✓  2 documents.spec.ts:128:1 › a file document takes a new version and downloads it (3.8s)
+  ✓  3 documents.spec.ts:160:1 › the library lists pages across its tabs and the tree opens one (4.6s)
+  ✓  4 documents.spec.ts:224:1 › the library and the page editor never call the Office service (2.2s)
+
+  4 passed (18.6s)
+E2E_DOCUMENTS_EXIT=0
