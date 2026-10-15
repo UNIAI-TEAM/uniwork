@@ -125,7 +125,9 @@ export function ConnectConsentView({ consent, state = "pending", errorCode, onDe
                 <p className="font-semibold">{t("auth.connect.shares")}</p>
                 <ul className="list-disc pl-5 text-muted-foreground">
                   <li>{t("auth.connect.shareTasks")}</li>
+                  <li>{t("auth.connect.shareProjects")}</li>
                   <li>{t("auth.connect.shareMeetings")}</li>
+                  <li>{t("auth.connect.shareDocuments")}</li>
                   <li>{t("auth.connect.shareNot")}</li>
                 </ul>
               </div>

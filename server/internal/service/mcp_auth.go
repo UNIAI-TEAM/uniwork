@@ -36,13 +36,13 @@ type McpFlags interface {
 // McpMetrics is the port metrics.Mcp implements; labels never carry ids.
 type McpMetrics interface {
 	IncOAuth(event string)
-	ObserveTool(tool, outcome string, d time.Duration)
+	ObserveTool(tool, kind, outcome string, d time.Duration)
 }
 
 type nopMcpMetrics struct{}
 
-func (nopMcpMetrics) IncOAuth(string)                           {}
-func (nopMcpMetrics) ObserveTool(string, string, time.Duration) {}
+func (nopMcpMetrics) IncOAuth(string)                                   {}
+func (nopMcpMetrics) ObserveTool(string, string, string, time.Duration) {}
 
 const (
 	mcpScopeRead     = "read"

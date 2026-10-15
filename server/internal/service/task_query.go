@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -117,6 +120,44 @@ func (s *TaskService) GetByRef(ctx context.Context, actor Actor, ref string) (db
 		return tier[0], nil
 	}
 	return s.authorizeActor(ctx, actor, ref)
+}
+
+// GetByRefIn is GetByRef inside one workspace. A PREFIX-N reference names a
+// task of that workspace only: prefixes are three letters of the slug and
+// numbers count per workspace, so across workspaces one reference can name
+// several tasks and GetByRef would answer ErrNotFound. A task id must belong
+// to the workspace too. A workspace the actor cannot enter answers as it does
+// for any other call.
+func (s *TaskService) GetByRefIn(ctx context.Context, actor Actor, workspaceID, ref string) (db.Task, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return db.Task{}, ErrNotFound
+	}
+	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+		return db.Task{}, err
+	}
+	prefix, number, ok := parseTaskIdentifier(ref)
+	if !ok {
+		task, err := s.authorizeActor(ctx, actor, ref)
+		if err != nil {
+			return db.Task{}, err
+		}
+		if task.WorkspaceID != workspaceID {
+			return db.Task{}, ErrNotFound
+		}
+		return task, nil
+	}
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return db.Task{}, err
+	}
+	task, err := s.q.GetTaskInWorkspaceByIdentifier(ctx, db.GetTaskInWorkspaceByIdentifierParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Prefix: prefix, Number: number,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Task{}, ErrNotFound
+	}
+	return task, err
 }
 
 // GroupedTasks returns tasks bucketed by status for the board grouped view.

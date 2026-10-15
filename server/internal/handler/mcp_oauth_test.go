@@ -44,6 +44,10 @@ func newMcpTestServerWith(t *testing.T, tune func(*Deps)) (*httptest.Server, Dep
 	d.McpAuth = service.NewMcpAuthService(pool, db.New(pool), d.Organizations, d.Cfg)
 	d.McpAuth.SetFlags(mcpTestFlags(true))
 	d.McpTools = service.NewMcpToolService(db.New(pool), d.AskUNI, d.Home, d.Workspaces, d.Cfg.FrontendOrigin)
+	if d.Documents != nil {
+		d.McpTools.SetDocuments(d.Documents)
+		d.McpTools.SetFlags(mcpTestFlags(true))
+	}
 	if tune != nil {
 		tune(&d)
 	}

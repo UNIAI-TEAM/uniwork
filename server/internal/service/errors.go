@@ -260,6 +260,15 @@ func codedIs(err error, code string) bool {
 	return errors.As(err, &ce) && ce.Code == code
 }
 
+// errMeetingVersionConflict is a meeting edit made against a version that is
+// no longer current (MCP, ADR 0033).
+func errMeetingVersionConflict(current int32) error {
+	return CodedError{
+		Code: "revision_conflict", Status: http.StatusConflict, Msg: "cuộc họp đã được người khác thay đổi; tải lại rồi thử lại",
+		Err: ErrConflict, Fields: map[string]any{"want": current},
+	}
+}
+
 func errInvalidState() error {
 	return coded(http.StatusConflict, "invalid_meeting_state", "thao tác không hợp lệ với trạng thái cuộc họp hiện tại")
 }

@@ -371,6 +371,94 @@ describe("MeetingDetailView", () => {
     success.mockRestore();
   });
 
+  it("lets the host restore a cancelled meeting whose time is still ahead", async () => {
+    const success = vi.spyOn(toast, "success");
+    const cancelled = { ...meeting, status: "CANCELED", version: 4 };
+    rosterMock((p, method) => {
+      if (p === "/api/v1/meetings/m1" && method === undefined) return Promise.resolve({ meeting: cancelled });
+      if (p === "/api/v1/meetings/m1/restore" && method === "POST") return Promise.resolve({ meeting: { ...meeting, version: 5 } });
+      return undefined;
+    });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Khôi phục" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1/restore",
+        expect.objectContaining({ method: "POST", body: { version: 4 } }),
+      ),
+    );
+    await waitFor(() => expect(success).toHaveBeenCalledWith("Đã khôi phục cuộc họp"));
+    success.mockRestore();
+  });
+
+  // The button is there while the end is ahead and goes when the clock passes
+  // it: only the time gate separates the two, so a missing gate fails here.
+  it("withdraws the restore once the cancelled meeting's time has passed", async () => {
+    const cancelled = { ...meeting, status: "CANCELED", version: 4 };
+    rosterMock((p, method) => (p === "/api/v1/meetings/m1" && method === undefined ? Promise.resolve({ meeting: cancelled }) : undefined));
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("button", { name: "Khôi phục" })).toBeInTheDocument();
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date(cancelled.ends_at).getTime() + 60_000);
+      // useNow re-reads the clock when the tab becomes visible.
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Khôi phục" })).not.toBeInTheDocument());
+      expect(screen.getByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("offers no restore to someone who is neither the host nor an admin", async () => {
+    const cancelled = { ...meeting, status: "CANCELED", version: 4, host_user_id: "u-other" };
+    rosterMock((p, method) => {
+      if (p.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u-host", role: "member", source: "membership" } });
+      if (p === "/api/v1/meetings/m1" && method === undefined) return Promise.resolve({ meeting: cancelled });
+      return undefined;
+    });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    // Without the gate the button would show with the meeting; let the
+    // membership load too, so its absence is the gate's answer.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/me"))).toBe(true);
+    expect(screen.queryByRole("button", { name: "Khôi phục" })).not.toBeInTheDocument();
+  });
+
+  it("blocks a second restore while one is in flight", async () => {
+    let release: (value: unknown) => void = () => {};
+    const cancelled = { ...meeting, status: "CANCELED", version: 4 };
+    rosterMock((p, method) => {
+      if (p === "/api/v1/meetings/m1" && method === undefined) return Promise.resolve({ meeting: cancelled });
+      if (p === "/api/v1/meetings/m1/restore" && method === "POST") {
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      }
+      return undefined;
+    });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+
+    const button = await screen.findByRole("button", { name: "Khôi phục" });
+    fireEvent.click(button);
+    await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
+    fireEvent.click(button);
+    const restores = () =>
+      requestMock.mock.calls.filter(([path, opts]) => path === "/api/v1/meetings/m1/restore" && (opts as { method?: string })?.method === "POST");
+    expect(restores()).toHaveLength(1);
+    await act(async () => {
+      release({ meeting: { ...meeting, version: 5 } });
+    });
+  });
+
   it("lists who is in ahead of notes in reading order, for small screens", async () => {
     rosterMock();
     render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
