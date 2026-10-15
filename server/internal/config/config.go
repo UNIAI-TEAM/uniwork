@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -49,6 +50,18 @@ type Config struct {
 	// (BE-F1-11), because a misspelled TTL that reads as 15m in production is
 	// a silent data-lifecycle change. The production number is G5-D2's.
 	OfficeChangeSnapshotTTL time.Duration
+	// The document edit lock (UNI-1645, addendum §7). Every one of these is
+	// read strictly: a value that is set and malformed fails Load, because a
+	// mistyped TTL that silently behaves like the default is a lifecycle
+	// change nobody asked for. Load also rejects HEARTBEAT*2 > TTL (a client
+	// would miss one beat and lose the lock) and HOLD_MAX > HOLD_CHAIN_MAX.
+	DocumentEditLockTTL           time.Duration
+	DocumentEditLockHeartbeat     time.Duration
+	DocumentEditLockSweepInterval time.Duration
+	DocumentEditHoldMax           time.Duration
+	DocumentEditHoldChainMax      time.Duration
+	DocumentEditRequestTTL        time.Duration
+	DocumentEditRequestMaxPerHour int
 	// SecureCookies is derived from FrontendOrigin's scheme: an https origin
 	// gets the Secure flag on the refresh cookie, a plain-http dev origin does
 	// not (browsers silently drop Secure cookies set over http, which would
@@ -245,6 +258,47 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("OFFICE_CHANGE_SNAPSHOT_TTL %w", err)
 	}
+	// The edit-lock settings are parsed before the literal for the same
+	// reason: set and malformed fails the load (addendum §7), unlike
+	// parseDuration which would fall back to the default.
+	editLockTTL, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_LOCK_TTL"), 2*time.Minute)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_LOCK_TTL %w", err)
+	}
+	editLockHeartbeat, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_LOCK_HEARTBEAT"), 30*time.Second)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_LOCK_HEARTBEAT %w", err)
+	}
+	editLockSweep, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL"), 30*time.Second)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL %w", err)
+	}
+	editHoldMax, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_HOLD_MAX"), 8*time.Hour)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_HOLD_MAX %w", err)
+	}
+	editHoldChainMax, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_HOLD_CHAIN_MAX"), 24*time.Hour)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_HOLD_CHAIN_MAX %w", err)
+	}
+	editRequestTTL, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_REQUEST_TTL"), 15*time.Minute)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_REQUEST_TTL %w", err)
+	}
+	editRequestMaxPerHour := 5
+	if raw := strings.TrimSpace(os.Getenv("DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR")); raw != "" {
+		n, convErr := strconv.Atoi(raw)
+		if convErr != nil || n <= 0 {
+			return Config{}, fmt.Errorf("DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR must be a positive integer, got %q", raw)
+		}
+		editRequestMaxPerHour = n
+	}
+	if editLockHeartbeat*2 > editLockTTL {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_LOCK_HEARTBEAT must be at most half of DOCUMENT_EDIT_LOCK_TTL")
+	}
+	if editHoldMax > editHoldChainMax {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_HOLD_MAX must not exceed DOCUMENT_EDIT_HOLD_CHAIN_MAX")
+	}
 	c := Config{
 		Port:                          getenv("PORT", "8080"),
 		DatabaseURL:                   os.Getenv("DATABASE_URL"),
@@ -265,6 +319,13 @@ func Load() (Config, error) {
 		PreviewAssetTTL:               parseRequiredDuration(os.Getenv("PREVIEW_ASSET_TTL")),
 		PreviewAssetMaxBytes:          parseRequiredInt64(os.Getenv("PREVIEW_ASSET_MAX_BYTES")),
 		OfficeChangeSnapshotTTL:       changeSnapshotTTL,
+		DocumentEditLockTTL:           editLockTTL,
+		DocumentEditLockHeartbeat:     editLockHeartbeat,
+		DocumentEditLockSweepInterval: editLockSweep,
+		DocumentEditHoldMax:           editHoldMax,
+		DocumentEditHoldChainMax:      editHoldChainMax,
+		DocumentEditRequestTTL:        editRequestTTL,
+		DocumentEditRequestMaxPerHour: editRequestMaxPerHour,
 		TrustedProxies:                os.Getenv("TRUSTED_PROXIES"),
 		LiveKitURL:                    os.Getenv("LIVEKIT_URL"),
 		LiveKitAPIKey:                 os.Getenv("LIVEKIT_API_KEY"),

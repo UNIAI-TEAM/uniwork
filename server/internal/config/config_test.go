@@ -360,3 +360,67 @@ func TestLoadEmailHubOAuthClients(t *testing.T) {
 		t.Fatalf("EmailHubMicrosoftTenant = %q, want the named tenant", c.EmailHubMicrosoftTenant)
 	}
 }
+
+// UNI-1645 addendum §7: the edit-lock settings are read strictly. A mistyped
+// value must stop the server instead of silently behaving like the default,
+// and the two cross checks keep a client from losing the lock on one missed
+// heartbeat or holding offline longer than the chain cap.
+func TestLoadRejectsBadEditLockConfig(t *testing.T) {
+	cases := []struct {
+		name string
+		env  map[string]string
+		want string // substring of the error; empty = Load must succeed
+	}{
+		{"all unset keeps the defaults", nil, ""},
+		{"valid overrides", map[string]string{"DOCUMENT_EDIT_LOCK_TTL": "4m", "DOCUMENT_EDIT_LOCK_HEARTBEAT": "1m", "DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR": "9"}, ""},
+		{"TTL typo", map[string]string{"DOCUMENT_EDIT_LOCK_TTL": "2mn"}, "DOCUMENT_EDIT_LOCK_TTL"},
+		{"TTL zero", map[string]string{"DOCUMENT_EDIT_LOCK_TTL": "0"}, "DOCUMENT_EDIT_LOCK_TTL"},
+		{"heartbeat typo", map[string]string{"DOCUMENT_EDIT_LOCK_HEARTBEAT": "30"}, "DOCUMENT_EDIT_LOCK_HEARTBEAT"},
+		{"sweep negative", map[string]string{"DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL": "-30s"}, "DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL"},
+		{"hold max typo", map[string]string{"DOCUMENT_EDIT_HOLD_MAX": "eight hours"}, "DOCUMENT_EDIT_HOLD_MAX"},
+		{"hold chain max typo", map[string]string{"DOCUMENT_EDIT_HOLD_CHAIN_MAX": "1d"}, "DOCUMENT_EDIT_HOLD_CHAIN_MAX"},
+		{"request TTL typo", map[string]string{"DOCUMENT_EDIT_REQUEST_TTL": "15 minutes"}, "DOCUMENT_EDIT_REQUEST_TTL"},
+		{"heartbeat x2 above TTL", map[string]string{"DOCUMENT_EDIT_LOCK_TTL": "1m", "DOCUMENT_EDIT_LOCK_HEARTBEAT": "40s"}, "DOCUMENT_EDIT_LOCK_HEARTBEAT must be at most half"},
+		{"hold max above chain max", map[string]string{"DOCUMENT_EDIT_HOLD_MAX": "25h"}, "DOCUMENT_EDIT_HOLD_MAX must not exceed"},
+		{"max per hour zero", map[string]string{"DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR": "0"}, "DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR"},
+		{"max per hour not a number", map[string]string{"DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR": "five"}, "DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR"},
+	}
+	keys := []string{
+		"DOCUMENT_EDIT_LOCK_TTL", "DOCUMENT_EDIT_LOCK_HEARTBEAT", "DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL",
+		"DOCUMENT_EDIT_HOLD_MAX", "DOCUMENT_EDIT_HOLD_CHAIN_MAX", "DOCUMENT_EDIT_REQUEST_TTL",
+		"DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR",
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			for _, k := range keys {
+				t.Setenv(k, tc.env[k])
+			}
+			c, err := Load()
+			if tc.want != "" {
+				if err == nil {
+					t.Fatalf("Load() accepted %v", tc.env)
+				}
+				if !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("error %q does not contain %q", err, tc.want)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load() error = %v, want success", err)
+			}
+			if len(tc.env) == 0 {
+				if c.DocumentEditLockTTL != 2*time.Minute || c.DocumentEditLockHeartbeat != 30*time.Second ||
+					c.DocumentEditLockSweepInterval != 30*time.Second || c.DocumentEditHoldMax != 8*time.Hour ||
+					c.DocumentEditHoldChainMax != 24*time.Hour || c.DocumentEditRequestTTL != 15*time.Minute ||
+					c.DocumentEditRequestMaxPerHour != 5 {
+					t.Fatalf("defaults wrong: %+v", c)
+				}
+				return
+			}
+			if c.DocumentEditLockTTL != 4*time.Minute || c.DocumentEditLockHeartbeat != time.Minute || c.DocumentEditRequestMaxPerHour != 9 {
+				t.Fatalf("overrides not applied: ttl=%v hb=%v max=%d", c.DocumentEditLockTTL, c.DocumentEditLockHeartbeat, c.DocumentEditRequestMaxPerHour)
+			}
+		})
+	}
+}
