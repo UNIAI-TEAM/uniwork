@@ -51,7 +51,7 @@ test("the spec is one command per line: a header, `; true` on every line but the
   for (const l of all.slice(1, -1)) assert.match(l, /; true$/, `ends with '; true': ${l.slice(0, 80)}`);
   const last = all.at(-1);
   assert.doesNotMatch(last, /; true$/);
-  assert.match(last, /awk '/);
+  assert.match(last, /awk (-v [a-z]+="[^"]*" )?'/);
   assert.match(last, /G819_ROUND_EXIT/);
   assert.match(last, /exit \$rc$/);
 });
@@ -150,37 +150,62 @@ test("G8-A10 is an evidence BLOCKED line naming G8-18 part F, never a command th
 
 // ---- the verdict awk ---------------------------------------------------------
 
+/** the whole awk command of the last line: its -v assignments (the expected marker list) and its program */
 function verdictAwk() {
   const last = lines().at(-1);
-  const program = /awk '([^']*)'/.exec(last);
-  assert.ok(program, "an awk program in the last line");
-  return program[1];
+  const m = /awk((?: -v [a-z]+="[^"]*")*) '([^']*)'/.exec(last);
+  assert.ok(m, "an awk program in the last line");
+  return { vars: [...m[1].matchAll(/ -v ([a-z]+)="([^"]*)"/g)].map((v) => `${v[1]}=${v[2]}`), program: m[2] };
 }
 function verdict(markers) {
   const dir = mkdtempSync(join(tmpdir(), "g819-awk-"));
   try {
     const file = join(dir, "markers.txt");
     writeFileSync(file, `${markers.join("\n")}\n`);
-    return spawnSync("awk", [verdictAwk(), file], { encoding: "utf8" }).status;
+    const { vars, program } = verdictAwk();
+    return spawnSync("awk", [...vars.flatMap((v) => ["-v", v]), program, file], { encoding: "utf8" }).status;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
-const REQUIRED = ["G819_UNIT_EXIT 0", "G819_START_EXIT 0", "G819_VERIFY_EXIT 0"];
+const markerOf = (row, fixture) => (SERVER_ROWS.includes(row) && !MODULE_OF[row] ? `G819_SRV_${row}_${fixture}_EXIT` : `G819_${row}_${fixture}_EXIT`);
+const FIXED_MARKERS = ["G819_UNIT_EXIT", "G819_APT_EXIT", "G819_FRAMES_EXIT", "G819_START_EXIT", "G819_STOP_EXIT", "G819_VERIFY_EXIT", "G819_KEYRING_EXEC_EXIT"];
+/** every marker a complete round leaves: the fixed gates, then one per (row, fixture) the matrix declares */
+const EXPECTED = [...FIXED_MARKERS, ...declared.map(({ row, fixture }) => markerOf(row, fixture))];
+const full = (overrides = {}) => EXPECTED.map((name) => `${name} ${overrides[name] ?? 0}`);
 
 test("the verdict awk: UNIT, START, VERIFY, APT, FRAMES, STOP, KEYRING_EXEC and every SRV marker must be 0; rows may be 0 or 77", OPTS, () => {
-  assert.equal(verdict(REQUIRED), 0);
-  assert.equal(verdict([...REQUIRED, "G819_G8-A02_fx-docx-report-vi_EXIT 77", "G819_G8-A10_fx-docx-report-vi_EXIT 77", "G819_SRV_G8-A03_fx-md-notes-vi_EXIT 0", "G819_G8-A09_fx-docx-report-vi_EXIT 0"]), 0);
-  for (const bad of ["G819_UNIT_EXIT 1", "G819_START_EXIT 1", "G819_VERIFY_EXIT 1", "G819_START_EXIT 77", "G819_VERIFY_EXIT 77", "G819_APT_EXIT 1", "G819_FRAMES_EXIT 1", "G819_STOP_EXIT 1", "G819_KEYRING_EXEC_EXIT 1", "G819_SRV_G8-A08_fx-docx-report-vi_EXIT 1", "G819_SRV_G8-A08_fx-docx-report-vi_EXIT 77", "G819_G8-A01_fx-docx-report-vi_EXIT 1", "G819_G8-A01_fx-docx-report-vi_EXIT 2", "G819_G8-A09_fx-docx-report-vi_EXIT 124"]) {
-    const rest = REQUIRED.filter((m) => m.split(" ")[0] !== bad.split(" ")[0]);
-    assert.equal(verdict([...rest, bad]), 1, bad);
-  }
+  assert.equal(verdict(full()), 0);
+  assert.equal(verdict(full({ "G819_G8-A02_fx-docx-report-vi_EXIT": 77, "G819_G8-A10_fx-docx-report-vi_EXIT": 77, "G819_G8-A09_fx-docx-report-vi_EXIT": 0 })), 0);
+  const bad = { G819_UNIT_EXIT: [1], G819_START_EXIT: [1, 77], G819_VERIFY_EXIT: [1, 77], G819_APT_EXIT: [1, 77], G819_FRAMES_EXIT: [1, 77], G819_STOP_EXIT: [1, 77], G819_KEYRING_EXEC_EXIT: [1, 77], "G819_SRV_G8-A08_fx-docx-report-vi_EXIT": [1, 77], "G819_SRV_G8-A03_fx-md-notes-vi_EXIT": [1, 77], "G819_G8-A01_fx-docx-report-vi_EXIT": [1, 2], "G819_G8-A09_fx-docx-report-vi_EXIT": [124] };
+  for (const [name, values] of Object.entries(bad)) for (const value of values) assert.equal(verdict(full({ [name]: value })), 1, `${name} ${value}`);
 });
 
-test("the verdict awk fails when a required marker never appeared (a command died before its echo)", OPTS, () => {
+test("the verdict awk fails when a marker the round has to leave never appeared (a command died before its echo): the gates and every row", OPTS, () => {
   assert.equal(verdict(["G819_START_EXIT 0", "G819_VERIFY_EXIT 0"]), 1);
   assert.equal(verdict(["G819_UNIT_EXIT 0", "G819_VERIFY_EXIT 0"]), 1);
   assert.equal(verdict(["G819_UNIT_EXIT 0", "G819_START_EXIT 0"]), 1);
+  assert.ok(EXPECTED.length >= FIXED_MARKERS.length + 19, `${EXPECTED.length} markers expected`);
+  for (const gone of EXPECTED) assert.equal(verdict(full().filter((l) => l.split(" ")[0] !== gone)), 1, `${gone} absent`);
+});
+
+// ---- credential-bearing files stay out of the collect lines (G819-BE-3) and globs are guarded (G819-BE-4) ----
+
+test("no collect line reads server.env, server-cwd or an .env file other than the redacted ports.env", OPTS, () => {
+  const t = lines().slice(1).join("\n"); // the commands; the header is prose
+  assert.doesNotMatch(t, /server\.env|server-cwd|\*\.env/, "the run dir's credential files are never named");
+  // the only .env the spec names: ports.env (read through the key/secret/password/token filter), local-env.sh, and the VM .env sourced into a variable
+  const names = [...t.replaceAll('"${ENV_FILE:-./.env}"', "").matchAll(/[A-Za-z0-9_./-]*\.env\b/g)].map((m) => m[0]);
+  for (const name of names) assert.match(name, /ports\.env$|local-env\.sh/, `unexpected .env reference: ${name}`);
+  for (const l of lines().filter((x) => /ports\.env/.test(x))) assert.match(l, /grep -v -i -E "key\|secret\|password\|token" "\$HARNESS_RUN_DIR\/ports\.env"/, "ports.env goes through the credential filter");
+  // the VM .env is sourced for one variable, never printed
+  assert.doesNotMatch(t, /\b(cat|head|tail|grep|sed|awk|less|more)\b[^;|]*(\$\{?ENV_FILE|\/\.env\b)/);
+});
+
+test("every glob loop of the spec guards its file with [ -f \"$f\" ] (a missing log is silent, not a grep error in the round log)", OPTS, () => {
+  const loops = [...text().matchAll(/for (\w+) in ([^;]*\*[^;]*); do ([^;]*)/g)];
+  assert.ok(loops.length >= 3, `${loops.length} glob loops`);
+  for (const [whole, variable, , body] of loops) assert.ok(body.trimStart().startsWith(`[ -f "$${variable}" ]`), `unguarded glob loop: ${whole.slice(0, 100)}`);
 });
 
 // ---- no secret ---------------------------------------------------------------
