@@ -1,5 +1,19 @@
 const MEDIA_MESSAGE_PATTERN = /^!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)$/;
 
+// Hosts the picker itself produces (Tenor, the offline GIF set, twemoji
+// stickers). Any other host stays text: an inline image would fetch from a
+// sender-chosen server and tell it who opened the room and when.
+const MEDIA_HOSTS = new Set(["media.tenor.com", "media.giphy.com", "cdn.jsdelivr.net"]);
+
+function isAllowedMediaUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" && MEDIA_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function twemojiStickerUrl(emoji: string): string {
   const codePoints = [...emoji]
     .map((char) => char.codePointAt(0)?.toString(16))
@@ -13,12 +27,12 @@ export function formatChatMediaMessageBody(url: string, alt: string): string {
 }
 
 export function isChatMediaMessageBody(body: string): boolean {
-  return MEDIA_MESSAGE_PATTERN.test(body.trim());
+  return parseChatMediaMessageBody(body) !== null;
 }
 
 export function parseChatMediaMessageBody(body: string): { url: string; alt: string } | null {
   const match = body.trim().match(MEDIA_MESSAGE_PATTERN);
-  if (!match?.[1]) return null;
+  if (!match?.[1] || !isAllowedMediaUrl(match[1])) return null;
   const altMatch = body.trim().match(/^!\[([^\]]*)\]/);
   return { url: match[1], alt: altMatch?.[1]?.trim() || "media" };
 }
