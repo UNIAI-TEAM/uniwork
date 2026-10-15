@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+3565580f193216d92ed3493f87182427859747a6
+3565580f1 Merge origin/feature/UNI-923-office-g5-g6-g7 (49f578729) into W-DOC07
+75dc90c10 Merge W-DOC07 fix1 (RW7-02..06, expiry is not a decline, visual F1-F5, isolation e2e) into W-DOC07
+49f578729 chore: merge W-DOC06 owner transfer (2f9a6a818) into the G5-G7 root
+ee2a3d6cd test(e2e): expect the member locked card on a 404 in the documents isolation spec
+e1e2e424f fix(documents): polish the access request copy, errors and focus after visual review
+b3858ea39 docs: state that an expired access request is not a decline
+9131fcd93 fix(documents): let the device sent flag note a request without blocking a new one
+2f9a6a818 test(e2e): expect the current owner-row copy in the share dialog

@@ -1,0 +1,13 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18500 FRONTEND_ORIGIN=http://localhost:13420 API_PUBLIC_URL=http://localhost:18500 PREVIEW_ORIGIN=http://localhost:13421 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18500 NEXT_PUBLIC_WS_URL=ws://localhost:18500 NEXT_PUBLIC_APP_URL=http://localhost:13420 E2E_BASE_URL=http://localhost:13420 E2E_API_URL=http://localhost:18500 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-folders.spec.ts --grep "FD-A02 " --reporter=list > /tmp/wdoc07r2-FD-A02.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/wdoc07r2-FD-A02.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/wdoc07r2-FD-A02.log && echo "skipped: FD-A02 has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/wdoc07r2-FD-A02.log || { echo "no passing test matched FD-A02"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_FD_A02_EXIT=$rc"
+
+Running 1 test using 1 worker
+
+(node:45742) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:45742) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-folders.spec.ts:198:1 › FD-A02 sidebar folder tree expands/collapses independently, reveals active ?folder= ancestors, and stays collapsed across a refetch (5.8s)
+
+  1 passed (6.9s)
+
+E2E_FD_A02_EXIT=0

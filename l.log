@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18500 13420; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18500/tcp 13420/tcp 2>/dev/null; sleep 1; for p in 18500 13420; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+3565580f193216d92ed3493f87182427859747a6
+3565580f1 Merge origin/feature/UNI-923-office-g5-g6-g7 (49f578729) into W-DOC07
+75dc90c10 Merge W-DOC07 fix1 (RW7-02..06, expiry is not a decline, visual F1-F5, isolation e2e) into W-DOC07
+49f578729 chore: merge W-DOC06 owner transfer (2f9a6a818) into the G5-G7 root
+ee2a3d6cd test(e2e): expect the member locked card on a 404 in the documents isolation spec
