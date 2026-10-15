@@ -1,0 +1,6 @@
+$ pnpm --filter @uniwork/views typecheck; echo "VIEWS_TC_EXIT=$?"
+
+> @uniwork/views@0.0.0 typecheck /workspace/packages/views
+> tsc --noEmit
+
+VIEWS_TC_EXIT=0

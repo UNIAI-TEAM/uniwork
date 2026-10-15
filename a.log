@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+4581f869130d90a96de3f5aace28e75a8e89e4e0
+4581f8691 fix(office): keep the pre-send footer inside the card, give break-glass inbox titles three lines
+ac9868758 chore(office): bump the endpoint and host vendor headers to fork 039c22235
+96934fa83 chore(office): re-vendor the Docs frame protocol at fork 039c22235
