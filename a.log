@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+4ef0961dcf91c9d480b1cec3f9e6ba62af415b90
+4ef0961d merge: fork main 947f68e01 (G5-11f keystore-locked escape) into the G6-09a lane branch
+947f68e0 merge: G5-11f f6 BE review d1 lows (plannedRamOnly per scope, run rejections observed) into the G5-11f lane (UNI-1358)
+8d4a8b58 fix(shell): key the planned RAM-only keys per scope (d1-3)
