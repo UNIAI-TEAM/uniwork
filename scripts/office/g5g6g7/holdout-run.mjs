@@ -94,27 +94,51 @@ export class HarnessAbort extends Error {}
 
 // ---- secret guard: redact in place, never throw away a run (G712-9) ----
 
-const IPV4_RE = /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g;
+const IPV4_RE = /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b(?::\d{1,5}\b)?/g;
 const HOST_PORT_URL_RE = /\bhttps?:\/\/[^\s"'<>]+:\d+\b/gi;
-const KEY_RE = /\b(?:sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,}|Bearer\s+[A-Za-z0-9._-]{16,})\b/g;
+// A URL with credentials before the host (scheme://user:pass@host, scheme://token@host).
+const USERINFO_URL_RE = /\b[a-z][a-z0-9+.-]{1,15}:\/\/[^\s/@"'<>]+@[^\s"'<>]+/gi;
+// Provider-style keys (sk-, ak-, xai-, AIza, AKIA, ghp_/gho_/ghs_, github_pat_, sk_live_/pk_live_, xox*-) and a bearer token of any case.
+const KEY_RE = /\b(?:(?:sk|ak|xai|rk|pk)-[A-Za-z0-9_-]{8,}|(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{8,}|AIza[0-9A-Za-z_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|bearer\s+[A-Za-z0-9._~+/=-]{16,})\b/gi;
+const JWT_RE = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g;
+const CREDENTIAL_ASSIGNMENT_RE = /\b(?:api[_-]?key|secret|token|passwd|password)["']?\s*[:=]\s*["']?(?=[^\s"',;]{12,})(?=[^\s"',;]*\d)[^\s"',;]+/gi;
+// Private-network hosts: localhost, a name in a private zone, a bare host.tld:port, a bracketed or full IPv6 literal.
+const PRIVATE_HOST_RE = /\b(?:localhost(?::\d{1,5})?|(?:[a-z0-9-]+\.)+(?:internal|local|lan|corp|intranet|home|localdomain|svc)(?::\d{1,5})?|[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?!(?:xlsx|xls|docx|doc|pptx|ppt|pdf|md|html|csv|json|txt)\b)[a-z]{2,24}:\d{4,5})\b/gi;
+const IPV6_RE = /\[[0-9a-f:]{2,39}\](?::\d{1,5})?|\b(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}\b|\b[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,5}::(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,5})?(?![\w:])/gi;
+// A hex run of a sha1 or longer (a 32-hex trace id is the server's own id and stays), and a mixed-case base64-looking run with a digit.
+const HEX_RUN_RE = /\b[0-9a-f]{40,}\b/gi;
+const BASE64_RUN_RE = /[A-Za-z0-9+/_-]{40,}={0,2}/g;
 // A Vietnamese amount of a billion or more ("1.100.100.100 đồng") has the shape of an IPv4 literal; with a currency unit
 // beside it, it is money. Without a unit the shape stays ambiguous and is redacted and flagged (a human reads the flag).
 const GROUPED_AMOUNT_RE = /^\d{1,3}(?:\.\d{3}){3}$/;
 const UNIT_AFTER_RE = /^\s?(?:đồng|vnd|vnđ|đ|₫)(?![\p{L}])/iu;
 const UNIT_BEFORE_RE = /(?:₫|vnd|vnđ)\s?$/i;
+const looksEncoded = (run) => /[A-Z]/.test(run) && /[a-z]/.test(run) && /\d/.test(run);
 
 /** Redacts secret-looking values in a string; returns the clean text and what was found, as [{ kind, count }]. */
 export function redactSecrets(text) {
   const found = new Map();
   const note = (kind) => found.set(kind, (found.get(kind) ?? 0) + 1);
+  const swap = (re, kind) => { out = out.replace(re, () => { note(kind); return `[redacted:${kind}]`; }); };
   let out = String(text);
-  out = out.replace(HOST_PORT_URL_RE, () => { note('host_port_url'); return '[redacted:host_port_url]'; });
+  swap(USERINFO_URL_RE, 'userinfo_url');
+  swap(HOST_PORT_URL_RE, 'host_port_url');
+  swap(PRIVATE_HOST_RE, 'private_host');
+  swap(IPV6_RE, 'ipv6');
   out = out.replace(IPV4_RE, (match, offset, whole) => {
     if (GROUPED_AMOUNT_RE.test(match) && (UNIT_AFTER_RE.test(whole.slice(offset + match.length)) || UNIT_BEFORE_RE.test(whole.slice(0, offset)))) return match;
     note('ipv4');
     return '[redacted:ipv4]';
   });
-  out = out.replace(KEY_RE, () => { note('key'); return '[redacted:key]'; });
+  swap(KEY_RE, 'key');
+  swap(JWT_RE, 'jwt');
+  swap(CREDENTIAL_ASSIGNMENT_RE, 'credential');
+  swap(HEX_RUN_RE, 'hex_run');
+  out = out.replace(BASE64_RUN_RE, (run) => {
+    if (!looksEncoded(run)) return run;
+    note('base64_run');
+    return '[redacted:base64_run]';
+  });
   return { text: out, hits: [...found].map(([kind, count]) => ({ kind, count })) };
 }
 

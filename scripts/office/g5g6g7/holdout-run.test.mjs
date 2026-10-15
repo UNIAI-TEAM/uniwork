@@ -810,6 +810,50 @@ describe('runner faults and failures', () => {
     assert.deepEqual(redactSecrets('Tổng 1.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'without a unit the shape is ambiguous: flagged for a human');
   });
 
+  it('also redacts bearer tokens, provider keys, JWTs, userinfo URLs, long hex/base64 runs and private hosts, never money or dates (G712-10)', () => {
+    const cases10 = [
+      ['authorization: bearer abcdefghijklmnop1234', 'key'],
+      ['key sk-live1234abcd5678', 'key'],
+      ['key ak-ABCD1234efgh5678', 'key'],
+      ['key xai-ABCD1234efgh5678', 'key'],
+      ['token ghp_abcdefghijklmnopqrstuvwxyz0123', 'key'],
+      ['id AKIAABCDEFGHIJKLMNOP', 'key'],
+      ['jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkw.abc123_-xyz', 'jwt'],
+      ['open https://user:s3cretpw@gw.example/v1/x now', 'userinfo_url'],
+      ['open https://tok3nvalue@gw.example/v1/x now', 'userinfo_url'],
+      ['call gw.corp.example:8443 now', 'private_host'],
+      ['call build-box.internal today', 'private_host'],
+      ['call localhost:5432 today', 'private_host'],
+      ['call 10.20.30.40:8443 today', 'ipv4'],
+      ['call [fd00::1]:8443 today', 'ipv6'],
+      ['call 2001:db8:85a3:0:0:8a2e:370:7334 today', 'ipv6'],
+      [`digest ${'a1b2c3d4'.repeat(8)}`, 'hex_run'],
+      [`blob ${'Ab3dE6gH9kLm'.repeat(4)}`, 'base64_run'],
+      ['api_key=zx81abcd5678efgh', 'credential'],
+    ];
+    for (const [text, kind] of cases10) {
+      const out = redactSecrets(text);
+      assert.deepEqual(out.hits.map((h) => h.kind), [kind], text);
+      assert.match(out.text, new RegExp(`\\[redacted:${kind}\\]`), text);
+    }
+    const harmless = [
+      'Tổng 31.337.000 đồng và 1.100.100.100 VNĐ', 'Doanh thu Q1!G8 = SUM(G2:G7), Q1!B2:B5', 'Ngày 2026-10-15T09:30:00+07:00 và 15/10/2026 lúc 09:30:45',
+      'Tổng 22060000 VND (31,337,000)', 'tokens: 5600000, input_tokens: 123456789', 'Xem report.xlsx:2026 và Sheet1.A1:B2', 'Thời hạn 12:30, tỷ lệ 10:1',
+      'trace 0123456789abcdef0123456789abcdef', 'Một đoạn văn tiếng Việt dài không có bí mật nào cả, chỉ có chữ và số 12345.',
+    ];
+    for (const text of harmless) assert.deepEqual(redactSecrets(text), { text, hits: [] }, text);
+  });
+
+  it('keeps the per-ask redaction: a leaked token is redacted in the written run, the run counted and flagged (G712-10)', async () => {
+    const leak = mutate((r) => (r.content ? { content: r.content.replace('UNIWORK_ANSWER', 'see https://svc-user:pw12345678@gw.corp.example:8443/v1 and bearer abcdefghijklmnop1234\nUNIWORK_ANSWER') } : r));
+    const { docs, files } = await runWith({ ...only(readOnlyNumeric), model: leak }, 'secret-wide');
+    assert.equal(files.length, 1);
+    const text = fs.readFileSync(files[0], 'utf8');
+    assert.doesNotMatch(text, /pw12345678|gw\.corp\.example|abcdefghijklmnop1234/);
+    assert.ok(docs[0].asks[0].redactions.length > 0);
+    assert.deepEqual(docs[0].asks.map((a) => a.status), ['pass', 'pass']);
+  });
+
   it('turns a transport that always throws into error asks, not a crash', async () => {
     const dir = path.join(tmpRoot, 'throws');
     const facade = await startStubFacade({ model: scriptedModel(cases) });
