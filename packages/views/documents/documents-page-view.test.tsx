@@ -654,7 +654,7 @@ describe("DocumentsPageView", () => {
       },
     });
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.open_office") }));
-    await waitFor(() => expect(launch).toHaveBeenCalledWith("uniwork-office://home"));
+    await waitFor(() => expect(launch).toHaveBeenCalledWith("uniwork-office://home", expect.anything()));
     expect(postCall("POST")).toBeUndefined();
   });
 
