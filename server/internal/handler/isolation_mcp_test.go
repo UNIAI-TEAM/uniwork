@@ -64,6 +64,14 @@ func swapIDs(t *testing.T, args map[string]any, standIns map[string]string) map[
 type writeAnswer struct {
 	Item struct {
 		ID string `json:"id"`
+		// Meeting and Invites are what invite_to_meeting returns in place of an id.
+		Meeting struct {
+			ID string `json:"id"`
+		} `json:"meeting"`
+		Invites []struct {
+			UserID string `json:"user_id"`
+			Result string `json:"result"`
+		} `json:"invites"`
 	} `json:"item"`
 	Changes []writeChange `json:"changes"`
 	Note    string        `json:"note"`
@@ -103,6 +111,17 @@ func (w *isoWorld) projectRevision(t *testing.T, id any) int64 {
 		t.Fatal(err)
 	}
 	return rev
+}
+
+// meetingVersion is a meeting's current revision, the one update_meeting must
+// send.
+func (w *isoWorld) meetingVersion(t *testing.T, id any) int64 {
+	t.Helper()
+	var version int64
+	if err := w.pool.QueryRow(context.Background(), `SELECT version FROM meetings WHERE id = $1`, fmt.Sprint(id)).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	return version
 }
 
 // isToolError reports a tools/call answer that carries result.isError: the way
@@ -149,7 +168,7 @@ func TestIsolationMCP(t *testing.T) {
 	a, b := w.alpha, w.bravo
 	aTask, aMeeting := a.get(t, "task"), a.get(t, "meeting")
 	aTask2, aProject, aLabel, aComment := a.get(t, "task2"), a.get(t, "project"), a.get(t, "label"), a.get(t, "taskComment")
-	bTask, bProject := b.get(t, "task"), b.get(t, "project")
+	bTask, bProject, bMeeting := b.get(t, "task"), b.get(t, "project"), b.get(t, "meeting")
 	// A holds a third task, so it has a PREFIX-N that B's workspace does not:
 	// both workspaces count from 1 under the same prefix, and a ref that B's
 	// own workspace can answer would test nothing.
@@ -169,6 +188,9 @@ func TestIsolationMCP(t *testing.T) {
 	}
 
 	meetingsFrom, meetingsTo := time.Now().Add(-24*time.Hour).UTC().Format(time.RFC3339), time.Now().Add(7*24*time.Hour).UTC().Format(time.RFC3339)
+	// The window a schedule_meeting attack or control asks for, two days ahead.
+	schedFrom := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Minute)
+	schedStarts, schedEnds := schedFrom.Format(time.RFC3339), schedFrom.Add(time.Hour).Format(time.RFC3339)
 	attacks := []struct {
 		tool string
 		args map[string]string
@@ -264,12 +286,35 @@ func TestIsolationMCP(t *testing.T) {
 			map[string]any{"workspace_id": a.wsID, "project_id": aProject, "title": "iso-control"}, ""},
 		{"update_project", map[string]any{"workspace_id": b.wsID, "project_id": bProject, "lead_id": a.userID},
 			map[string]any{"workspace_id": a.wsID, "project_id": aProject, "lead_id": a.userID}, "lead_not_member:"},
+		// The meeting write tools of Phase 3: A's workspace and meeting, A's
+		// meeting named in B's workspace, and A's project and people named in
+		// calls that are about B's own workspace and meeting. An update_meeting
+		// row gets the live revision of its meeting; a schedule_meeting control
+		// carries a title of its own. A person of A's is refused as an attendee
+		// in the words an id nobody has gets.
+		{"schedule_meeting", map[string]any{"workspace_id": a.wsID, "title": "iso-write", "starts_at": schedStarts, "ends_at": schedEnds},
+			map[string]any{"workspace_id": a.wsID, "title": "iso-control", "starts_at": schedStarts, "ends_at": schedEnds}, ""},
+		{"schedule_meeting", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "starts_at": schedStarts, "ends_at": schedEnds, "project_id": aProject},
+			map[string]any{"workspace_id": a.wsID, "title": "iso-control", "starts_at": schedStarts, "ends_at": schedEnds, "project_id": aProject}, ""},
+		{"schedule_meeting", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "starts_at": schedStarts, "ends_at": schedEnds, "attendee_ids": []string{a.peerID}},
+			map[string]any{"workspace_id": a.wsID, "title": "iso-control", "starts_at": schedStarts, "ends_at": schedEnds, "attendee_ids": []string{a.peerID}}, "invalid arguments: attendee_ids holds someone not a member of this workspace"},
+		{"update_meeting", map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "title": "iso"},
+			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "title": "iso-control"}, ""},
+		{"update_meeting", map[string]any{"workspace_id": b.wsID, "meeting_id": aMeeting, "title": "iso"},
+			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "title": "iso-control"}, ""},
+		{"update_meeting", map[string]any{"workspace_id": b.wsID, "meeting_id": bMeeting, "project_id": aProject},
+			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "project_id": aProject}, ""},
+		{"invite_to_meeting", map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "user_ids": []string{a.peerID}},
+			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "user_ids": []string{a.peerID}}, ""},
+		{"invite_to_meeting", map[string]any{"workspace_id": b.wsID, "meeting_id": aMeeting, "user_ids": []string{b.peerID}},
+			map[string]any{"workspace_id": a.wsID, "meeting_id": aMeeting, "user_ids": []string{a.peerID}}, ""},
 	}
 	// missing gives every id of A's that a write attack names a stand-in that
 	// never existed; the twin of an attack is the same call with those swapped in.
 	missing := map[string]string{
 		a.wsID: util.NewID(), aTask: util.NewID(), aProject: util.NewID(), aLabel: util.NewID(),
 		a.userID: util.NewID(), aComment: util.NewID(), aRef3: strings.Split(aRef3, "-")[0] + "-9999",
+		aMeeting: util.NewID(), a.peerID: util.NewID(),
 	}
 	// refused runs every attack with B's access token: each answers 200 with
 	// isError and the not-found text (the tenancy refusal, not a transport
@@ -350,6 +395,9 @@ func TestIsolationMCP(t *testing.T) {
 			if at.tool == "update_project" {
 				args["revision"] = w.projectRevision(t, args["project_id"])
 			}
+			if at.tool == "update_meeting" {
+				args["revision"] = w.meetingVersion(t, args["meeting_id"])
+			}
 			status, raw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, args)
 			text := toolText(raw)
 			want, ok := at.want, strings.HasPrefix(text, at.want)
@@ -367,6 +415,28 @@ func TestIsolationMCP(t *testing.T) {
 			if tStatus, tRaw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, twin); tStatus != status || toolText(tRaw) != text {
 				t.Errorf("%s %s %v: A's rows answer %q, rows that do not exist answer %q", label, at.tool, args, text, toolText(tRaw))
 			}
+		}
+		// invite_to_meeting answers person by person and does not fail on one:
+		// B's host invites B's own peer (the control: invited) and A's people into
+		// B's own meeting. Each of A's reads as an id nobody has, in one answer,
+		// and carries nothing of A's beyond the ids the call named.
+		inviteArgs := map[string]any{"workspace_id": b.wsID, "meeting_id": bMeeting, "user_ids": []string{b.peerID, a.userID, a.peerID, util.NewID()}}
+		status, raw = mcpCallToolJSON(t, w, b.ids["mcpAccess"], "invite_to_meeting", inviteArgs)
+		var invited struct {
+			Result struct {
+				StructuredContent writeAnswer `json:"structuredContent"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(raw, &invited); err != nil || status != http.StatusOK || isToolError(raw) {
+			t.Fatalf("%s invite_to_meeting by B on B's meeting: %d %s", label, status, raw)
+		}
+		invites := invited.Result.StructuredContent.Item.Invites
+		if len(invites) != 4 || invites[0].Result != "invited" || invites[1].Result == "invited" || invites[1].Result != invites[2].Result || invites[1].Result != invites[3].Result {
+			t.Errorf("%s invite_to_meeting outcomes = %+v, want B's peer invited and the rest refused in one answer", label, invites)
+		}
+		reqJSON, _ := json.Marshal(inviteArgs)
+		if leak := a.leakIn(raw, string(reqJSON)); leak != "" {
+			t.Errorf("%s invite_to_meeting leaked %s: %s", label, leak, raw)
 		}
 		if changed := isoDiff(before, w.tenantDigest(t, a)); len(changed) > 0 {
 			t.Errorf("%s: an attack changed A's rows in %v", label, changed)
@@ -435,17 +505,30 @@ func TestIsolationMCP(t *testing.T) {
 			if at.tool == "update_project" {
 				args["revision"] = w.projectRevision(t, args["project_id"])
 			}
+			if at.tool == "update_meeting" {
+				args["revision"] = w.meetingVersion(t, args["meeting_id"])
+			}
 			status, raw := mcpCallToolJSON(t, w, a.ids["mcpAccess"], at.tool, args)
 			var done struct {
 				Result struct {
 					StructuredContent writeAnswer `json:"structuredContent"`
 				} `json:"result"`
 			}
-			if status != http.StatusOK || isToolError(raw) || json.Unmarshal(raw, &done) != nil || done.Result.StructuredContent.Item.ID == "" {
+			// invite_to_meeting returns the meeting and each person's outcome
+			// where the others return the row; every person it was asked about
+			// was invited.
+			if status != http.StatusOK || isToolError(raw) || json.Unmarshal(raw, &done) != nil || done.Result.StructuredContent.Item.ID+done.Result.StructuredContent.Item.Meeting.ID == "" {
 				t.Errorf("A's own %s %v through MCP: %d %s", at.tool, args, status, raw)
 				continue
 			}
-			if at.tool != "update_task" && at.tool != "update_project" {
+			if at.tool == "invite_to_meeting" {
+				for _, in := range done.Result.StructuredContent.Item.Invites {
+					if in.Result != "invited" {
+						t.Errorf("A's own %s %v refused %s: %s", at.tool, args, in.UserID, in.Result)
+					}
+				}
+			}
+			if at.tool != "update_task" && at.tool != "update_project" && at.tool != "update_meeting" {
 				continue
 			}
 			// An update that saved its fields but failed a later step (parent,
@@ -458,6 +541,9 @@ func TestIsolationMCP(t *testing.T) {
 			fields := map[string]string{"title": "title", "project_id": "project_id", "assignee_id": "assignee_id", "parent_task_id": "parent_task_id", "add_label_ids": "labels", "remove_label_ids": "labels"}
 			if at.tool == "update_project" {
 				fields = map[string]string{"title": "title", "lead_id": "lead_id"}
+			}
+			if at.tool == "update_meeting" {
+				fields = map[string]string{"title": "title", "project_id": "project_id"}
 			}
 			for key, field := range fields {
 				if _, named := args[key]; named && !slices.ContainsFunc(sc.Changes, func(c writeChange) bool { return c.Field == field }) {

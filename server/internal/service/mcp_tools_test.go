@@ -41,6 +41,9 @@ var mcpToolCatalogue = []mcpCatalogueEntry{
 	{"create_project", "Create project", ai.ToolWrite, false},
 	{"update_project", "Update project", ai.ToolWrite, true},
 	{"list_meetings", "List meetings", ai.ToolRead, false},
+	{"schedule_meeting", "Schedule meeting", ai.ToolWrite, false},
+	{"update_meeting", "Update meeting", ai.ToolWrite, true},
+	{"invite_to_meeting", "Invite to meeting", ai.ToolWrite, false},
 }
 
 func TestMCPToolCatalogue(t *testing.T) {
@@ -76,6 +79,11 @@ func TestMCPToolCatalogue(t *testing.T) {
 		"list_meetings":  {"soonest first", "most recent day first", "CANCELED", "MISSED", "hosted_by_me", "truncated", "At most 50", "92 days", "narrowing from and to"},
 		"get_meeting":    {"attendees", "revision", "attendees_truncated", "no emails", "description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "Transcripts are not included", "in excerpt", "MISSED"},
 		"update_project": {"revision_conflict", "creator", "lead", "workspace owner or admin", "not_project_editor", "No one is notified", "too long", strconv.Itoa(mcpMaxItemRunes), "led by an agent", "cannot be undone here"},
+		// Who is told about a meeting is the notification rules' (rules.go): an
+		// invitation notifies the person invited, a schedule or an update nobody.
+		"schedule_meeting":  {"host", "Everyone in the workspace", "not notified", "invite_to_meeting", "list_members", "offset", "Asia/Ho_Chi_Minh", strconv.Itoa(mcpMaxItemRunes)},
+		"update_meeting":    {"revision_conflict", "not_meeting_host", "workspace owner or admin", "invalid_meeting_state", "times cannot change once it has started", "Attendees are not notified", "project_id", "null", "does not move starts_at", "too long", strconv.Itoa(mcpMaxItemRunes)},
+		"invite_to_meeting": {"in-app notification", "notified again", "workspace owner or admin", "scheduled or in-progress", "participant_removed", "list_members", "invites", "1-20"},
 	} {
 		tool, _ := r.Get(name)
 		for _, w := range words {
