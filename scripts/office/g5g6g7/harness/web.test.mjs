@@ -45,28 +45,141 @@ test("openDocument goes to the Inbox URL and waits for a settled reading; a page
   assert.match(framed.reason, /Office frame is shown without a D comment panel/);
 });
 
-test("webLogin fills the /login form with the user's credentials and sets the locale cookie per context", async () => {
-  const filled = [];
-  const cookies = [];
+/**
+ * A scripted /login page. `onClick(n, page)` runs on the n-th click of the submit button (1-based) and may call
+ * `page.answer(status, code)` (the API answers) and `page.navigate(path)`. `hydrated` is what the hydration probe reads.
+ */
+const loginRequest = { method: () => "POST", url: () => "http://api.test/api/v1/auth/login" };
+
+function loginPage({ onClick = () => {}, hydrated = true, alerts = "" } = {}) {
+  const handlers = { request: [], response: [] };
+  const log = [];
+  let url = "about:blank";
+  let clicks = 0;
   const page = {
-    goto: async (url) => filled.push(["goto", url]),
+    log,
+    on: (event, fn) => handlers[event].push(fn),
+    url: () => url,
+    goto: async (to) => {
+      log.push(["goto", to]);
+      url = to;
+    },
+    reload: async () => log.push(["reload"]),
     locator: (sel) => ({
       first: () => ({
         waitFor: async () => {},
-        fill: async (v) => filled.push([sel.includes("email") ? "email" : "password", v]),
-        click: async () => filled.push(["click"]),
+        fill: async (v) => log.push([sel.includes("email") ? "email" : "password", v]),
+        click: async () => {
+          clicks += 1;
+          log.push(["click"]);
+          await onClick(clicks, page);
+        },
       }),
     }),
-    waitForURL: async () => {},
+    evaluate: async (fn) => {
+      if (fn.name === "loginFormHydrated") return hydrated;
+      if (fn.name === "readLoginAlerts") return alerts;
+      throw new Error(`unexpected evaluate ${fn.name}`);
+    },
+    waitForURL: async () => {
+      throw new Error("page.waitForURL: Timeout 30000ms exceeded.");
+    },
+    navigate: (path) => {
+      url = `http://web.test${path}`;
+    },
+    send: () => {
+      for (const fn of handlers.request) fn(loginRequest);
+    },
+    answer: (status, code = null) => {
+      const request = loginRequest;
+      for (const fn of handlers.request) fn(request);
+      for (const fn of handlers.response) fn({ request: () => request, url: () => request.url(), status: () => status, json: async () => (code ? { error: { code } } : {}) });
+    },
   };
-  const browser = { newContext: async () => ({ addCookies: async (c) => cookies.push(...c), newPage: async () => page, close: async () => {} }) };
-  const web = await webLogin(browser, { key: "B", email: "b@x.test", password: "pw" }, { webOrigin: "http://127.0.0.1:3000", locale: "vi" });
-  assert.deepEqual(filled, [["goto", "http://127.0.0.1:3000/login"], ["email", "b@x.test"], ["password", "pw"], ["click"]]);
+  return page;
+}
+
+function loginBrowser(page, cookies = [], closed = []) {
+  return { newContext: async () => ({ addCookies: async (c) => cookies.push(...c), newPage: async () => page, close: async () => closed.push(true) }) };
+}
+
+const LOGIN_USER = { key: "B", email: "b@x.test", password: "pw-secret-123" };
+const FAST = { webOrigin: "http://web.test", timeoutMs: 200, attemptMs: 30, hydrateMs: 10, pollMs: 2 };
+
+test("webLogin fills the /login form with the user's credentials and sets the locale cookie per context", async () => {
+  const cookies = [];
+  const page = loginPage({ onClick: (_n, p) => { p.answer(200); p.navigate("/o/w"); } });
+  const web = await webLogin(loginBrowser(page, cookies), LOGIN_USER, { ...FAST, webOrigin: "http://127.0.0.1:3000", locale: "vi" });
+  assert.deepEqual(page.log, [["goto", "http://127.0.0.1:3000/login"], ["email", "b@x.test"], ["password", "pw-secret-123"], ["click"]]);
   assert.deepEqual(cookies[0], { name: "uniwork-locale", value: "vi", domain: "127.0.0.1", path: "/" });
   await web.setLocale("en");
   assert.equal(web.locale, "en");
   assert.equal(cookies[1].value, "en");
-  await assert.rejects(webLogin(browser, { key: "Z" }, { webOrigin: "http://x" }), /no credentials/);
+  await assert.rejects(webLogin(loginBrowser(page), { key: "Z" }, { webOrigin: "http://x" }), /no credentials/);
+});
+
+test("webLogin never ends in a bare waitForURL timeout: a 429 from the harness's own login volume is named as a harness failure", async () => {
+  const closed = [];
+  const page = loginPage({ onClick: (_n, p) => p.answer(429, "rate_limited"), alerts: "Too many attempts, wait a minute" });
+  const err = await webLogin(loginBrowser(page, [], closed), LOGIN_USER, FAST).catch((e) => e);
+  assert.ok(err instanceof Error, "rejects");
+  assert.match(err.message, /web login as B: POST \/auth\/login answered 429 rate_limited/);
+  assert.match(err.message, /harness/);
+  assert.match(err.message, /Too many attempts, wait a minute/);
+  assert.doesNotMatch(err.message, /waitForURL/);
+  assert.equal(page.log.filter(([k]) => k === "click").length, 1, "an answered refusal is not retried");
+  assert.deepEqual(closed, [true], "the failed login closes its context");
+});
+
+test("webLogin: a 401 names its code and the visible error text is redacted (no email, no password)", async () => {
+  const page = loginPage({
+    onClick: (_n, p) => p.answer(401, "invalid_credentials"),
+    alerts: `Wrong password pw-secret-123 for b@x.test token ${"a".repeat(40)}`,
+  });
+  const err = await webLogin(loginBrowser(page), LOGIN_USER, FAST).catch((e) => e);
+  assert.match(err.message, /answered 401 invalid_credentials/);
+  assert.doesNotMatch(err.message, /harness failure/);
+  assert.doesNotMatch(err.message, /pw-secret-123|b@x\.test|a{40}/);
+  assert.match(err.message, /<password>.*<email>/);
+});
+
+test("webLogin: a click that sent no request (form not hydrated yet) is retried on a fresh /login and then succeeds", async () => {
+  const page = loginPage({
+    hydrated: false,
+    onClick: (n, p) => {
+      if (n < 2) return;
+      p.answer(200);
+      p.navigate("/o/w");
+    },
+  });
+  await webLogin(loginBrowser(page), LOGIN_USER, FAST);
+  assert.equal(page.log.filter(([k]) => k === "click").length, 2);
+  assert.equal(page.log.filter(([k]) => k === "goto").length, 2, "the retry loads a clean /login (a native submit can leave credentials in the query)");
+});
+
+test("webLogin: no login request in every attempt fails with the attempts, the hydration state and the path only", async () => {
+  const closed = [];
+  const page = loginPage({ hydrated: false });
+  const err = await webLogin(loginBrowser(page, [], closed), LOGIN_USER, { ...FAST, attempts: 3 }).catch((e) => e);
+  assert.match(err.message, /web login as B: no POST \/auth\/login was sent in 3 submit attempts/);
+  assert.match(err.message, /form hydrated: no/);
+  assert.match(err.message, /page \/login/);
+  assert.doesNotMatch(err.message, /waitForURL|\?/);
+  assert.deepEqual(closed, [true]);
+});
+
+test("webLogin: a 200 answer that leaves the page on /login is named, not left to a URL timeout", async () => {
+  const page = loginPage({ onClick: (_n, p) => p.answer(200) });
+  const err = await webLogin(loginBrowser(page), LOGIN_USER, FAST).catch((e) => e);
+  assert.match(err.message, /answered 200 but the page stayed on \/login/);
+  assert.doesNotMatch(err.message, /waitForURL/);
+});
+
+test("webLogin: a login request that is never answered is named as such", async () => {
+  const page = loginPage({ onClick: (_n, p) => p.send() });
+  const err = await webLogin(loginBrowser(page), LOGIN_USER, FAST).catch((e) => e);
+  assert.match(err.message, /POST \/auth\/login was sent but not answered/);
+  assert.equal(page.log.filter(([k]) => k === "click").length, 1, "a request that left is never re-sent");
 });
 
 // ---- webSave (contract §13, additive) ----------------------------------------------------

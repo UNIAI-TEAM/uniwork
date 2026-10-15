@@ -19,41 +19,164 @@ export function documentUrl({ webOrigin, org, ws, documentId, comment = null, ki
   return url.toString();
 }
 
+// The login API call the /login form ends in (server/internal/handler/router: POST /api/v1/auth/login).
+const LOGIN_API_PATH = /\/auth\/login$/;
+const LOGIN_ATTEMPT_MS = 10_000;
+const LOGIN_ATTEMPTS = 3;
+const HYDRATE_WAIT_MS = 5_000;
+
+function isLoginCall(message) {
+  try {
+    return message.method() === "POST" && LOGIN_API_PATH.test(new URL(message.url()).pathname);
+  } catch {
+    return false;
+  }
+}
+
+/** In the page: has React attached to the login form (a click before that is lost)? */
+export function loginFormHydrated() {
+  const input = document.querySelector('input[type="email"], input[name="email"]');
+  return input !== null && Object.keys(input).some((key) => key.startsWith("__reactProps$") || key.startsWith("__reactFiber$"));
+}
+
+/** In the page: the text of the visible alerts (the login form's error), nothing else. */
+export function readLoginAlerts() {
+  return [...document.querySelectorAll('[role="alert"], [aria-live="assertive"], [data-slot="alert"], .text-destructive')]
+    .map((el) => (el.textContent ?? "").trim())
+    .filter(Boolean)
+    .join(" | ");
+}
+
+/** Visible page text for a failure reason: the user's own credentials and anything token-shaped dropped, short. */
+export function redactLoginText(text, user) {
+  let out = String(text ?? "");
+  for (const [secret, label] of [[user?.password, "<password>"], [user?.email, "<email>"]]) {
+    if (secret) out = out.split(secret).join(label);
+  }
+  return out.replace(/[A-Za-z0-9_.-]{32,}/g, "<redacted>").replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+/**
+ * Why a login did not end on a page other than /login (pure, for the tests). `answers` are the login API
+ * answers seen (`{ status, code }`), `requests` the login requests that left the page, `path` the page path
+ * without a query (a native form submit puts the credentials there), `alerts` the redacted visible error.
+ */
+export function loginFailureReason({ requests, answers, attempts, path, alerts, hydrated }) {
+  const refused = answers.find((a) => a.status < 200 || a.status >= 300);
+  let why;
+  if (refused) {
+    why = `POST /auth/login answered ${refused.status}${refused.code ? ` ${refused.code}` : ""}`;
+    if (refused.status === 429) why += " (the harness's own login volume hit the credential-route budget: a harness failure, not a product finding)";
+  } else if (answers.length > 0) {
+    why = `POST /auth/login answered ${answers[0].status} but the page stayed on ${path}`;
+  } else if (requests > 0) {
+    why = "POST /auth/login was sent but not answered within the bound";
+  } else {
+    why = `no POST /auth/login was sent in ${attempts} submit attempt${attempts === 1 ? "" : "s"} (the submit click did nothing; form hydrated: ${hydrated ? "yes" : "no"})`;
+  }
+  return `${why} | page ${path}${alerts ? ` | visible error: "${alerts}"` : ""}`;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
  * Signs `user` in on the D web in a fresh context of `browser` (a Playwright
  * chromium Browser), with the `uniwork-locale` cookie set to `locale`.
  * Resolves `{ context, page, user, locale, setLocale(locale), close() }`.
+ *
+ * The submit is judged by what the page sends, not by a URL wait: it waits for the form to hydrate, submits,
+ * and when the click sent no login request (a click ahead of hydration is lost) loads a clean /login and
+ * submits again, at most `attempts` times; a request that left is never re-sent. A refusal, an answer that
+ * leaves the page on /login and a silent form each reject with the login API status/code and the page's
+ * visible error (redacted), and close the context.
  */
-export async function webLogin(browser, user, { webOrigin, locale = "en", timeoutMs = LOGIN_TIMEOUT_MS } = {}) {
+export async function webLogin(
+  browser,
+  user,
+  { webOrigin, locale = "en", timeoutMs = LOGIN_TIMEOUT_MS, attemptMs = LOGIN_ATTEMPT_MS, attempts = LOGIN_ATTEMPTS, hydrateMs = HYDRATE_WAIT_MS, pollMs = 100 } = {},
+) {
   if (!webOrigin) throw new Error("webLogin: webOrigin is required");
   if (!user?.email || !user?.password) throw new Error(`webLogin: user ${user?.key ?? "?"} has no credentials`);
   const host = new URL(webOrigin).hostname;
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const setCookie = (value) => context.addCookies([{ name: "uniwork-locale", value, domain: host, path: "/" }]);
-  await setCookie(locale);
-  const page = await context.newPage();
-  // the same /login form the G7-10 tracer drives (scripts/office/g5g6g7/g7-10/tracer.mjs driveWebXlsxSave)
-  await page.goto(`${webOrigin}/login`, { waitUntil: "domcontentloaded", timeout: timeoutMs });
-  const email = page.locator('input[type="email"], input[name="email"]').first();
-  await email.waitFor({ state: "visible", timeout: timeoutMs });
-  await email.fill(user.email);
-  await page.locator('input[type="password"], input[name="password"]').first().fill(user.password);
-  await page.locator('button[type="submit"]').first().click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: timeoutMs });
-  const web = {
-    context,
-    page,
-    user,
-    locale,
-    async setLocale(next) {
-      await setCookie(next);
-      web.locale = next;
-    },
-    async close() {
-      await context.close().catch(() => {});
-    },
-  };
-  return web;
+  try {
+    await setCookie(locale);
+    const page = await context.newPage();
+    const seen = { requests: 0, answers: [], codes: [] };
+    page.on("request", (req) => {
+      if (isLoginCall(req)) seen.requests += 1;
+    });
+    page.on("response", (res) => {
+      if (!isLoginCall(res.request())) return;
+      const answer = { status: res.status(), code: null };
+      seen.answers.push(answer);
+      seen.codes.push(
+        res
+          .json()
+          .then((body) => {
+            answer.code = typeof body?.error?.code === "string" ? body.error.code : null;
+          })
+          .catch(() => {}),
+      );
+    });
+    // about:blank (a page that has not loaded yet) is not a signed-in page
+    const left = () => {
+      const url = new URL(page.url());
+      return url.protocol.startsWith("http") && !url.pathname.startsWith("/login");
+    };
+    const refused = () => seen.answers.some((a) => a.status < 200 || a.status >= 300);
+    let hydrated = false;
+    let attempted = 0;
+    while (attempted < attempts && !left() && !refused()) {
+      attempted += 1;
+      // the same /login form the G7-10 tracer drives (scripts/office/g5g6g7/g7-10/tracer.mjs driveWebXlsxSave)
+      await page.goto(`${webOrigin}/login`, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+      const emailInput = page.locator('input[type="email"], input[name="email"]').first();
+      await emailInput.waitFor({ state: "visible", timeout: timeoutMs });
+      const hydrateBy = Date.now() + hydrateMs;
+      for (;;) {
+        hydrated = await page.evaluate(loginFormHydrated).catch(() => false);
+        if (hydrated || Date.now() >= hydrateBy) break;
+        await sleep(pollMs);
+      }
+      const sent = seen.requests;
+      await emailInput.fill(user.email);
+      await page.locator('input[type="password"], input[name="password"]').first().fill(user.password);
+      await page.locator('button[type="submit"]').first().click();
+      // a request that left the page is waited for up to `timeoutMs`; a silent click only for one attempt window
+      const clickedAt = Date.now();
+      while (!left() && !refused()) {
+        const waited = Date.now() - clickedAt;
+        if (seen.requests === sent ? waited >= attemptMs : waited >= timeoutMs) break;
+        await sleep(pollMs);
+      }
+      if (seen.requests > sent) break; // a request that left is never re-sent
+    }
+    if (!left()) {
+      await Promise.all(seen.codes);
+      const path = new URL(page.url()).pathname;
+      const alerts = redactLoginText(await page.evaluate(readLoginAlerts).catch(() => ""), user);
+      throw new Error(`web login as ${user.key ?? "?"}: ${loginFailureReason({ requests: seen.requests, answers: seen.answers, attempts: attempted, path, alerts, hydrated })}`);
+    }
+    const web = {
+      context,
+      page,
+      user,
+      locale,
+      async setLocale(next) {
+        await setCookie(next);
+        web.locale = next;
+      },
+      async close() {
+        await context.close().catch(() => {});
+      },
+    };
+    return web;
+  } catch (err) {
+    await context.close().catch(() => {});
+    throw err;
+  }
 }
 
 /**
