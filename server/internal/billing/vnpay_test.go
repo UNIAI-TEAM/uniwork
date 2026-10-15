@@ -2,6 +2,7 @@ package billing
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -160,5 +161,86 @@ func TestVNPayParseWebhookZeroTransactionNo(t *testing.T) {
 	}
 	if a.Paid || b.Paid {
 		t.Fatalf("cancel IPN marked paid: %+v %+v", a, b)
+	}
+}
+
+func TestVNPayParseWebhookRejectsTampered(t *testing.T) {
+	t.Parallel()
+	const secret = "testsecret"
+	v, err := NewVNPay(VNPayConfig{TMNCode: "TMN", HashSecret: secret})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := func() map[string]string {
+		return map[string]string{
+			"vnp_Amount":        "50000000",
+			"vnp_BankCode":      "NCB",
+			"vnp_ResponseCode":  "24",
+			"vnp_TmnCode":       "TMN",
+			"vnp_TransactionNo": "14234567",
+			"vnp_TxnRef":        "01INTENT",
+			"vnp_CurrCode":      "VND",
+		}
+	}
+	parse := func(params map[string]string) error {
+		t.Helper()
+		q := url.Values{}
+		for k, val := range params {
+			q.Set(k, val)
+		}
+		_, err := v.ParseWebhook(httptest.NewRequest(http.MethodGet, "/?"+q.Encode(), nil))
+		return err
+	}
+	cases := []struct {
+		name string
+		edit func(map[string]string)
+	}{
+		{name: "response code flipped after signing", edit: func(p map[string]string) {
+			p["vnp_SecureHash"] = vnpSign(p, secret)
+			p["vnp_ResponseCode"] = "00"
+		}},
+		{name: "amount changed after signing", edit: func(p map[string]string) {
+			p["vnp_SecureHash"] = vnpSign(p, secret)
+			p["vnp_Amount"] = "1"
+		}},
+		{name: "other tmn code signed with the same secret", edit: func(p map[string]string) {
+			p["vnp_TmnCode"] = "OTHER"
+			p["vnp_SecureHash"] = vnpSign(p, secret)
+		}},
+		{name: "missing secure hash", edit: func(p map[string]string) {
+			p["vnp_SecureHash"] = vnpSign(p, secret)
+			delete(p, "vnp_SecureHash")
+		}},
+		{name: "signed with another secret", edit: func(p map[string]string) {
+			p["vnp_SecureHash"] = vnpSign(p, "other-secret")
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			params := base()
+			tc.edit(params)
+			if err := parse(params); !errors.Is(err, ErrInvalidWebhookSignature) {
+				t.Fatalf("ParseWebhook err = %v", err)
+			}
+		})
+	}
+}
+
+// The digest is HMAC-SHA512 over the PHP-urlencode checksum (VNPay 2.1.0):
+// keys sorted, space as '+', '/' as %2F. It was computed outside this package,
+// not copied from vnpSign.
+func TestVNPaySignKnownAnswer(t *testing.T) {
+	t.Parallel()
+	params := map[string]string{
+		"vnp_Amount":       "18000000",
+		"vnp_Command":      "pay",
+		"vnp_OrderInfo":    "Thanh toan goi Pro/thang",
+		"vnp_ResponseCode": "00",
+		"vnp_TmnCode":      "TMN",
+		"vnp_TxnRef":       "01INTENT",
+	}
+	const want = "7e0dc992991486b6970b179eec9bfc00bc9108ab96f6f53fa23030f9b9e5967462d897147b9e126d9d3434a30a60967621c5a5c2b8d33481eeb1a78080745557"
+	if got := vnpSign(params, "testsecret"); got != want {
+		t.Fatalf("vnpSign = %s", got)
 	}
 }
