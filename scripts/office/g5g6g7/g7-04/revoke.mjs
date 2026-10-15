@@ -12,36 +12,49 @@
 //     (router/organizations.go:89 -> handler organization_members.go deactivateOrgMember
 //     -> OrganizationMemberService.Deactivate). The deactivated member is refused at
 //     the organization gate with 403 `member_deactivated`
-//     (service/organization.go RequireMemberQ, service/errors.go:55), and
-//     documentScope reads that gate first (service/ai_uniwork.go:382-421) — so the
-//     next AI turn on EITHER route is 403 `member_deactivated`, and the Save path
-//     (decideDocumentAccess, service/document_permissions.go:290-301) is refused too.
+//     (service/organization.go:155-156 RequireMemberQ, service/errors.go:53-57).
+//     The two hosts answer that SAME refusal with two different codes, and the
+//     driver asserts each route exactly (cloud D1-02, read from the Go code, never
+//     assumed): the desktop session route passes the CodedError through as
+//     403 `member_deactivated`, while the web frame route's actor resolver forwards
+//     only ErrNotFound/ErrForbidden to mapServiceError and rewrites everything else
+//     as a generic 401 `unauthorized` (handler/ai_mount.go:101-106) with
+//     error_class `session` (handler/dto/sdo/error_class.go:64) — see FRAME_401_REASON.
+//     The Save path is refused too: preflightDocument's view gate
+//     (service/document_commit.go:272, service/organization.go:155-156) answers
+//     403 `member_deactivated` on both the upload and the commit.
 //
 //   * `downgrade`: the document is set `restricted` and the app's own share goes
 //     edit -> view (PATCH /documents/{id} visibility=restricted + POST
 //     /documents/{id}/shares level=view, the qa-fault FQ-50 path, matrix.md FQ-50).
 //     The AI turn only needs View (frameAIActor rechecks view,
-//     handler/office_frame_ai.go:26-36; the session route's documentScope asks for
+//     handler/office_frame_ai.go:26-35; the session route's documentScope asks for
 //     DocumentLevelView, service/ai_uniwork.go:391), so the next AI turn still
-//     answers 200. What the downgrade refuses is the SAVE: the upload/commit path
-//     asks for DocumentLevelEdit (service/document_files.go:134,
-//     service/document_commit.go commitFileVersion) and answers 403 `forbidden`
-//     (decideDocumentAccess). The driver asserts exactly that and records it, and
-//     never invents a 403 on the AI turn.
+//     answers 200 on both routes — view-only AI is allowed by design (G6-05u,
+//     Advisor; plan-G7-04.md:83-86). What the downgrade refuses is the SAVE: the
+//     upload asks for DocumentLevelEdit (service/document_files.go:132-134) and
+//     answers 403 `forbidden`, while the commit is answered 404 `not_found` at
+//     resolveUpload (service/document_commit.go:277) because that runs BEFORE the
+//     edit gate (:296). The upload's 403 is this case's edit-revoked proof.
 //
 //   * `remove`: DELETE /api/v1/workspaces/{ws}/members/{user} (router/workspaces.go:65
 //     -> handler/workspace.go deleteMember -> WorkspaceService.RemoveMember). A
-//     non-member holds no level, so nothing readable is 404 `not_found` by design
-//     (service/document_permissions.go decideDocumentAccess, the product rule a
-//     non-member never learns an id exists) — as in qa-fault FQ-12.
+//     non-member holds no level, so nothing readable is 404 `not_found` by design on
+//     both routes (service/document_permissions.go decideDocumentAccess:290-293, the
+//     product rule a non-member never learns an id exists) — as in qa-fault FQ-12.
 //
 // Hard rules (spec "Build"):
-//   * A 200 on the next AI turn after the revoke, or any new version, is a FAIL,
-//     never a PASS.
+//   * A 200 on the next AI turn after the revoke, a new version or a committed
+//     commit intent is a FAIL, never a PASS. Each route is compared exactly; the
+//     assertion is never widened to "any 4xx".
 //   * Under `AI_PROVIDER=fake` the turn-1 CONTENT claim is BLOCKED
-//     (exit 77, `no real upstream on this runner; contract-p0 §8`), but the revoke
-//     assertion still runs and its verdict wins over the BLOCKED.
+//     (exit 77, `no real upstream on this runner; contract-p0 §8`), but the
+//     revoke assertion still runs and its verdict wins over the BLOCKED.
 //   * Every HTTP status and version count lands in the artifact log.
+//
+// Each (case, fixture) run seeds its OWN owner/member/workspace, and no world is
+// cached on disk (D1-01, BE-704-04): a run must never inherit an earlier run's
+// revoke, and a bearer token must never survive in the run dir.
 //
 // G7-A02.2 (a late AI result not applied to a newer base) belongs to G7-03a
 // (FQ-28/29/32) and is deliberately NOT implemented here; the README section
@@ -65,17 +78,78 @@ export const REVOKE_FIXTURES = Object.freeze(["fx-docx-report-vi", "fx-xlsx-reve
 export const REVOKE_CASES = Object.freeze(["deactivate", "downgrade", "remove"]);
 
 /**
- * The status each case makes the two hosts answer, and what the Save answers.
- * `aiTurn2` is what the server really does, read from the Go code (see the file
- * header): a closed tenant is 403 on every route; a downgrade to view leaves the
- * AI turn (view) working and refuses the Save (edit).
+ * Why the frame route answers 401 `unauthorized` after a deactivation while the
+ * session route answers 403 `member_deactivated` (cloud D1-02, read from the Go
+ * code): the frame actor resolver frameAIActor (handler/office_frame_ai.go:26-35)
+ * re-runs the document ACL (service/office_frame.go:209-218 ->
+ * service/document_permissions.go:307-335) and the refusal is the CodedError
+ * errMemberDeactivated (service/organization.go:155-156, service/errors.go:53-57),
+ * whose sentinel is deliberately NOT ErrForbidden; handler/ai_mount.go:101-102
+ * forwards only ErrNotFound/ErrForbidden to mapServiceError and :103-106 rewrites
+ * everything else as the generic 401 `unauthorized`. error_class `session` is the
+ * code table's own entry (handler/dto/sdo/error_class.go:64) — the frame token
+ * itself is stateless and still verifies. Both answers refuse the next AI turn.
+ */
+export const FRAME_401_REASON = "handler/ai_mount.go:101-106 rewrites the member_deactivated CodedError (service/organization.go:155-156, service/errors.go:53-57) as 401 unauthorized; error_class session per handler/dto/sdo/error_class.go:64; the session route passes the same refusal through as 403 member_deactivated";
+
+/** Why the downgrade AI turn 2 is a 200: view-only AI is allowed by design (G6-05u, Advisor). */
+export const VIEW_ONLY_AI_REASON = "view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)";
+
+/** Why the downgrade commit is a 404: resolveUpload runs before the edit gate. */
+export const DOWNGRADE_COMMIT_REASON = "resolveUpload runs before the edit gate (service/document_commit.go:277 vs :296) and the refused upload left no resolvable id; the edit-revoked proof of this case is the upload's 403 forbidden (service/document_files.go:132-134)";
+
+/**
+ * What the commit-intent lookup read proves, and what it cannot — the intent is
+ * the CALLER's own (service/document_commit_intent.go:380-384: "another member's
+ * key answers as an unknown one, so it reveals nothing", enforced at :429), so
+ * the read is taken with the owner's token (the revoke never refuses it) and is
+ * the OWNER's own answer; a revoked member's own read is refused 403/404. The
+ * rule that a committed intent FAILs the row is proven by the unit test, and the
+ * write path is refused before any intent is ever claimed
+ * (service/document_commit.go:296 -> :305-309), so no intent can appear after
+ * the revoke in the first place.
+ */
+export const COMMIT_INTENT_READ_REASON = "the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)";
+
+/**
+ * The status each case makes the two hosts answer, per route, and what the Save
+ * answers — read from the Go code (see the file header), never assumed. The AI
+ * turn 2 is what the server really does: a closed tenant is refused on both
+ * routes (403 `member_deactivated` on the session route, the 401 the frame actor
+ * resolver writes on the frame route), a removal is 404 `not_found` on both, and
+ * a downgrade to view leaves the AI turn (view) working and refuses the Save
+ * (edit): the upload 403 `forbidden`, the commit 404 `not_found`.
  */
 export const CASE_EXPECTATIONS = Object.freeze({
-  deactivate: { revoke: 200, aiTurn2: 403, aiTurn2Code: "member_deactivated", saveUpload: 403, saveCommit: 403, saveCommitCode: "member_deactivated" },
-  downgrade: { revoke: 200, aiTurn2: 200, aiTurn2Code: "", saveUpload: 403, saveCommit: 403, saveCommitCode: "forbidden" },
+  deactivate: {
+    revoke: 200,
+    aiTurn2: {
+      session: { status: 403, code: "member_deactivated" },
+      frame: { status: 401, code: "unauthorized", errorClass: "session", why: FRAME_401_REASON },
+    },
+    saveUpload: { status: 403, code: "member_deactivated" },
+    saveCommit: { status: 403, code: "member_deactivated" },
+  },
+  downgrade: {
+    revoke: 200,
+    aiTurn2: {
+      session: { status: 200, why: VIEW_ONLY_AI_REASON },
+      frame: { status: 200, why: VIEW_ONLY_AI_REASON },
+    },
+    saveUpload: { status: 403, code: "forbidden" },
+    saveCommit: { status: 404, code: "not_found", why: DOWNGRADE_COMMIT_REASON },
+  },
   // RemoveMember answers 204 on success (handler/workspace.go deleteMember); the 404
-  // is what the removed member's own next calls answer, by design.
-  remove: { revoke: 204, aiTurn2: 404, aiTurn2Code: "not_found", saveUpload: 404, saveCommit: 404, saveCommitCode: "not_found" },
+  // is what the removed member's own next calls answer, by design, on both routes.
+  remove: {
+    revoke: 204,
+    aiTurn2: {
+      session: { status: 404, code: "not_found" },
+      frame: { status: 404, code: "not_found" },
+    },
+    saveUpload: { status: 404, code: "not_found" },
+    saveCommit: { status: 404, code: "not_found" },
+  },
 });
 
 /** BLOCKED reason under a fake deployment (contract-p0 §8). */
@@ -126,14 +200,39 @@ export function errorCodeOf(res) {
   return typeof code === "string" ? code : "";
 }
 
+/** The error class a refused answer carries (`error.error_class`), or "". */
+export function errorClassOf(res) {
+  const errorClass = res?.body?.error?.error_class ?? res?.data?.error?.error_class ?? "";
+  return typeof errorClass === "string" ? errorClass : "";
+}
+
 function safe(text) {
   return redactSignInError(String(text ?? ""));
 }
 
+/** `403 member_deactivated` / `401 unauthorized error_class=session` for a reason line. */
+function answerOf(answer) {
+  if (!answer) return "none";
+  const code = answer.code ? ` ${answer.code}` : "";
+  const errorClass = answer.errorClass ? ` error_class=${answer.errorClass}` : "";
+  return `${answer.status ?? "none"}${code}${errorClass}`;
+}
+
+/**
+ * "" when the measured answer is exactly the expected one — status first, then
+ * the code and the error_class when the expectation names them. One rule, used
+ * by the step record and by the verdict, so a route's answer is never widened.
+ */
+export function answerMismatch(label, want, got) {
+  if (got?.status === want.status && (!want.code || got.code === want.code) && (!want.errorClass || got.errorClass === want.errorClass)) return "";
+  return `${label} answered ${answerOf(got)}, want ${answerOf(want)}`;
+}
+
 /**
  * The pure verdict of one case. Hard rules first: a new version, a committed
- * intent or a wrong status is a FAIL. Only when every revoke assertion passed may
- * a 503 `ai_disabled` on turn 1 (fake deployment) downgrade the result to BLOCKED.
+ * intent or a per-route AI/Save answer that is not the code's is a FAIL. Only
+ * when every revoke assertion passed may a 503 `ai_disabled` on turn 1 (fake
+ * deployment) downgrade the result to BLOCKED.
  */
 export function decideRevokeOutcome({
   caseName,
@@ -159,37 +258,37 @@ export function decideRevokeOutcome({
   if (commitIntent?.hasCommitted) {
     return { status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: `G7-A02 violation: a commit intent is committed after the revoke (${commitIntent.outcome})` };
   }
-  if (aiTurn2?.session?.status !== x.aiTurn2 || aiTurn2?.frame?.status !== x.aiTurn2) {
+  const turn2Misses = [
+    answerMismatch("the session route", x.aiTurn2.session, aiTurn2?.session),
+    answerMismatch("the frame route", x.aiTurn2.frame, aiTurn2?.frame),
+  ].filter(Boolean);
+  if (turn2Misses.length) {
     return {
       status: "FAIL",
       exitCode: 1,
       owner: REVOKE_OWNER,
-      reason: `G7-A02 violation: AI turn 2 after the ${caseName} revoke answered session=${aiTurn2?.session?.status ?? "none"} frame=${aiTurn2?.frame?.status ?? "none"}, want ${x.aiTurn2} on both routes`,
+      reason: `G7-A02 violation: AI turn 2 after the ${caseName} revoke: ${turn2Misses.join("; ")}`,
     };
   }
-  if (x.aiTurn2Code && (aiTurn2.session.code !== x.aiTurn2Code || aiTurn2.frame.code !== x.aiTurn2Code)) {
+  const saveMisses = [
+    answerMismatch("the upload", x.saveUpload, save?.upload),
+    answerMismatch("the commit", x.saveCommit, save?.commit),
+  ].filter(Boolean);
+  if (saveMisses.length) {
     return {
       status: "FAIL",
       exitCode: 1,
       owner: REVOKE_OWNER,
-      reason: `G7-A02 violation: AI turn 2 answered the wrong code (session=${aiTurn2.session.code || "none"} frame=${aiTurn2.frame.code || "none"}), want ${x.aiTurn2Code}`,
-    };
-  }
-  if (save?.upload?.status !== x.saveUpload || save?.commit?.status !== x.saveCommit) {
-    return {
-      status: "FAIL",
-      exitCode: 1,
-      owner: REVOKE_OWNER,
-      reason: `G7-A02 violation: the revoked user's Save was not refused (upload=${save?.upload?.status ?? "none"} commit=${save?.commit?.status ?? "none"}), want ${x.saveUpload}/${x.saveCommit}`,
+      reason: `G7-A02 violation: the revoked user's Save was not refused: ${saveMisses.join("; ")}`,
     };
   }
   if (revoke?.status !== x.revoke) {
     return { status: "FAIL", exitCode: 1, owner: REVOKE_OWNER, reason: `the ${caseName} revoke answered ${revoke?.status ?? "nothing"}, want ${x.revoke}` };
   }
   if (turn1Disabled) {
-    return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: AI_DISABLED_OWNER, blocker: AI_DISABLED_BLOCKER, reason: `${AI_DISABLED_BLOCKER}; the revoke assertion ran (versions ${versionsBefore} -> ${versionsAfterRevoke}, AI turn 2 ${x.aiTurn2}, Save refused ${x.saveCommit})` };
+    return { status: "BLOCKED", exitCode: BLOCKED_EXIT, owner: AI_DISABLED_OWNER, blocker: AI_DISABLED_BLOCKER, reason: `${AI_DISABLED_BLOCKER}; the revoke assertion ran (versions ${versionsBefore} -> ${versionsAfterRevoke}, AI turn 2 session ${answerOf(x.aiTurn2.session)} frame ${answerOf(x.aiTurn2.frame)}, Save refused ${answerOf(x.saveCommit)})` };
   }
-  return { status: "PASS", exitCode: 0, reason: `${caseName}: revoke refused the next AI turn (${x.aiTurn2}${x.aiTurn2Code ? ` ${x.aiTurn2Code}` : ""}), the Save (${x.saveCommit}${x.saveCommitCode ? ` ${x.saveCommitCode}` : ""}) and left versions at ${versionsAfterRevoke}` };
+  return { status: "PASS", exitCode: 0, reason: `${caseName}: revoke refused the next AI turn (session ${answerOf(x.aiTurn2.session)}, frame ${answerOf(x.aiTurn2.frame)}), the Save (upload ${answerOf(x.saveUpload)}, commit ${answerOf(x.saveCommit)}) and left versions at ${versionsAfterRevoke}` };
 }
 
 // ---- transport -------------------------------------------------------------
@@ -223,33 +322,29 @@ async function call({ apiOrigin, fetchImpl = fetch, name, params = {}, token, he
 
 // ---- the world: an owner, an editor member, one document --------------------
 
+/** The file an earlier driver version cached its world in; it is deleted, never read. */
+const LEGACY_WORLD_CACHE = "g7-04-revoke-world.json";
+
 /**
  * Seeds the owner (the admin who revokes) and the editor member (the second user
  * whose access is revoked), an organization and a workspace, and uploads the
  * fixture as a file document owned by the owner but edited by the member.
- * Nothing here prints or returns a password: the member's is held for cleanup
- * only, in memory.
+ *
+ * Every call seeds a FRESH world. One cloud run reuses a run dir for all six
+ * (case, fixture) runs, and a cached member would already be deactivated by the
+ * second run (D1-01); a cache file would also hold bearer tokens in the run dir
+ * (BE-704-04). A cache an earlier driver version wrote is removed here, never
+ * read back. Nothing here prints or returns a password: the throwaway one both
+ * registrations use lives in this call's memory only.
  */
 async function seedRevokeWorld({ apiOrigin, fetchImpl, fixtureId, repoRoot, runDir, now = Date.now() }) {
-  const cachePath = join(runDir, "g7-04-revoke-world.json");
+  try {
+    rmSync(join(runDir, LEGACY_WORLD_CACHE), { force: true });
+  } catch {
+    // best effort: an older driver's cache file is deleted, never read
+  }
   const stamp = `${now.toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const password = `g704-${Math.random().toString(36).slice(2, 12)}`;
-
-  if (existsSync(cachePath)) {
-    try {
-      const cached = JSON.parse(readFileSync(cachePath, "utf8"));
-      if (cached.apiOrigin === apiOrigin && cached.owner?.token && cached.member?.token && cached.workspaceId) {
-        const fixture = loadVerifiedFixture(fixtureId, repoRoot);
-        const form = new FormData();
-        form.append("file", new Blob([fixture.bytes]), basename(fixture.entry.path));
-        form.append("title", basename(fixture.entry.path));
-        const doc = await call({ apiOrigin, fetchImpl, name: "createFileDocument", params: { workspaceID: cached.workspaceId }, token: cached.owner.token, form });
-        return { ...cached, documentId: doc.body.document.id, revision: String(doc.body.document.revision ?? "1"), password, fixture };
-      }
-    } catch {
-      // a stale cache (another server, expired tokens) seeds a fresh world below
-    }
-  }
 
   const register = async (tag) => {
     const email = `g7-04-${tag}-${stamp}@example.com`;
@@ -279,7 +374,7 @@ async function seedRevokeWorld({ apiOrigin, fetchImpl, fixtureId, repoRoot, runD
   form.append("title", basename(fixture.entry.path));
   const doc = await call({ apiOrigin, fetchImpl, name: "createFileDocument", params: { workspaceID: ws.id }, token: owner.token, form });
 
-  const world = {
+  return {
     apiOrigin,
     owner,
     member,
@@ -288,12 +383,8 @@ async function seedRevokeWorld({ apiOrigin, fetchImpl, fixtureId, repoRoot, runD
     workspaceId: ws.id,
     documentId: doc.body.document.id,
     revision: String(doc.body.document.revision ?? "1"),
-    password,
     fixture,
   };
-  mkdirSync(runDir, { recursive: true });
-  writeFileSync(cachePath, `${JSON.stringify({ ...world, password: undefined }, null, 2)}\n`);
-  return world;
 }
 
 /** Uploads the fixture again as the candidate v2 bytes of a Save (never printed). */
@@ -305,24 +396,32 @@ async function v2BytesOf(fixture) {
 
 // ---- the per-case steps ----------------------------------------------------
 
+/**
+ * The version count, always read with the OWNER's bearer (BE-704-02): the owner
+ * keeps read access in every case, while the revoked member's own read is refused
+ * — 403 `member_deactivated` after a deactivate, 404 `not_found` after a remove —
+ * which would turn the count itself into a hard FAIL before the "+0 versions"
+ * assertion is evaluated.
+ */
 async function versionsCount({ apiOrigin, fetchImpl, world }) {
-  const res = await call({ apiOrigin, fetchImpl, name: "listDocumentVersions", params: { documentID: world.documentId }, token: world.member.token });
-  return (res.body?.versions ?? []).length;
+  const res = await call({ apiOrigin, fetchImpl, name: "listDocumentVersions", params: { documentID: world.documentId }, token: world.owner.token });
+  return { status: res.status, count: (res.body?.versions ?? []).length, by: "owner" };
 }
 
-/** One AI turn on both hosts, with the code the answer carries. */
+/** One AI turn on both hosts, with the status, code and error_class the answer carries. */
 async function aiTurnOnBothRoutes({ apiOrigin, fetchImpl, world, frameToken, prompt }) {
+  const allowed = [400, 401, 403, 404, 409, 429, 503];
   const session = await call({
     apiOrigin, fetchImpl, name: "aiUniworkDocumentChatCompletions", params: { documentID: world.documentId }, token: world.member.token,
-    body: { messages: [{ role: "user", content: prompt }] }, allowStatuses: [400, 403, 404, 409, 429, 503],
+    body: { messages: [{ role: "user", content: prompt }] }, allowStatuses: allowed,
   });
   const frame = await call({
     apiOrigin, fetchImpl, name: "aiUniworkFrameChatCompletions", params: { documentID: world.documentId }, token: frameToken,
-    body: { messages: [{ role: "user", content: prompt }] }, allowStatuses: [400, 403, 404, 409, 429, 503],
+    body: { messages: [{ role: "user", content: prompt }] }, allowStatuses: allowed,
   });
   return {
-    session: { status: session.status, code: errorCodeOf(session), raw: { ok: session.ok, status: session.status, data: session.body } },
-    frame: { status: frame.status, code: errorCodeOf(frame), raw: { ok: frame.ok, status: frame.status, data: frame.body } },
+    session: { status: session.status, code: errorCodeOf(session), errorClass: errorClassOf(session), raw: { ok: session.ok, status: session.status, data: session.body } },
+    frame: { status: frame.status, code: errorCodeOf(frame), errorClass: errorClassOf(frame), raw: { ok: frame.ok, status: frame.status, data: frame.body } },
   };
 }
 
@@ -364,8 +463,9 @@ async function applyRevoke({ apiOrigin, fetchImpl, world, caseName, fetchImpl2 }
 }
 
 /**
- * One (case, fixture) run. `runDir` supplies start.sh's status and ports.env; the
- * apiOrigin may be injected (tests) or read from ports.env (the real stack).
+ * One (case, fixture) run, on a world seeded for that run alone. `runDir`
+ * supplies start.sh's status and ports.env; the apiOrigin may be injected
+ * (tests) or read from ports.env (the real stack).
  */
 export async function runRevokeCase({
   apiOrigin,
@@ -416,7 +516,7 @@ export async function runRevokeCase({
     steps.seed = { status: "PASS", documentId: world.documentId, workspaceId: world.workspaceId, memberId: world.member.userId };
 
     const before = await versionsCount({ apiOrigin, fetchImpl, world });
-    steps.versionsBefore = { status: "PASS", count: before };
+    steps.versionsBefore = { status: "PASS", count: before.count, by: before.by };
 
     // The web host opens through a frame token the member mints.
     const minted = await call({ apiOrigin, fetchImpl, name: "mintOfficeFrameToken", params: { documentID: world.documentId }, token: world.member.token });
@@ -434,30 +534,56 @@ export async function runRevokeCase({
     steps.revoke = { status: revoke.status === expectations.revoke ? "PASS" : "FAIL", route: revoke.via, httpStatus: revoke.status, code: revoke.code, shareLevel: revoke.shareLevel ?? "" };
 
     const aiTurn2 = await aiTurnOnBothRoutes({ apiOrigin, fetchImpl, world, frameToken, prompt: AI_TURN_2_PROMPT });
-    steps.aiTurn2 = { status: aiTurn2.session.status === expectations.aiTurn2 && aiTurn2.frame.status === expectations.aiTurn2 ? "PASS" : "FAIL", session: { status: aiTurn2.session.status, code: aiTurn2.session.code }, frame: { status: aiTurn2.frame.status, code: aiTurn2.frame.code } };
+    const turn2Misses = [
+      answerMismatch("session", expectations.aiTurn2.session, aiTurn2.session),
+      answerMismatch("frame", expectations.aiTurn2.frame, aiTurn2.frame),
+    ].filter(Boolean);
+    steps.aiTurn2 = {
+      status: turn2Misses.length ? "FAIL" : "PASS",
+      session: { status: aiTurn2.session.status, code: aiTurn2.session.code },
+      frame: { status: aiTurn2.frame.status, code: aiTurn2.frame.code, errorClass: aiTurn2.frame.errorClass },
+      reason: turn2Misses.join("; "),
+    };
 
     const save = await saveAttempt({ apiOrigin, fetchImpl, world, key });
-    steps.saveRefused = { status: save.upload.status === expectations.saveUpload && save.commit.status === expectations.saveCommit ? "PASS" : "FAIL", upload: save.upload, commit: save.commit };
+    const saveMisses = [
+      answerMismatch("upload", expectations.saveUpload, save.upload),
+      answerMismatch("commit", expectations.saveCommit, save.commit),
+    ].filter(Boolean);
+    steps.saveRefused = { status: saveMisses.length ? "FAIL" : "PASS", upload: save.upload, commit: save.commit, reason: saveMisses.join("; ") };
 
     const after = await versionsCount({ apiOrigin, fetchImpl, world });
-    steps.versionsAfter = { status: after === before ? "PASS" : "FAIL", count: after };
+    steps.versionsAfter = { status: after.count === before.count ? "PASS" : "FAIL", count: after.count, by: after.by };
 
-    const intentRes = await call({ apiOrigin, fetchImpl, name: "lookupCommitIntent", params: { documentID: world.documentId }, token: world.member.token, headers: { "Idempotency-Key": key }, allowStatuses: [403, 404, 410] });
-    const commitIntent = interpretCommitIntentLookup(intentRes);
-    steps.commitIntent = { status: commitIntent.hasCommitted ? "FAIL" : "PASS", outcome: commitIntent.outcome, httpStatus: commitIntent.httpStatus };
+    // The lookup reads the OWNER's token (the revoked member's own read is refused
+    // by the document gate) and hands interpretCommitIntentLookup the shape it
+    // reads: the tracer helper reads res.data, while this driver's call() answers
+    // { status, ok, body } (BE-704-01) — so the body is passed as `data`, never
+    // silently swallowed. What the read proves is COMMIT_INTENT_READ_REASON.
+    const intentRes = await call({ apiOrigin, fetchImpl, name: "lookupCommitIntent", params: { documentID: world.documentId }, token: world.owner.token, headers: { "Idempotency-Key": key }, allowStatuses: [403, 404, 410] });
+    const commitIntent = interpretCommitIntentLookup({ ...intentRes, data: intentRes.body });
+    steps.commitIntent = { status: commitIntent.hasCommitted ? "FAIL" : "PASS", outcome: commitIntent.outcome, httpStatus: commitIntent.httpStatus, by: "owner" };
+
+    const routeNotes = [
+      ...Object.entries(expectations.aiTurn2).map(([route, want]) => ({ route: `aiTurn2.${route}`, expect: answerOf(want), why: want.why ?? "" })),
+      { route: "saveUpload", expect: answerOf(expectations.saveUpload), why: expectations.saveUpload.why ?? "" },
+      { route: "saveCommit", expect: answerOf(expectations.saveCommit), why: expectations.saveCommit.why ?? "" },
+      { route: "commitIntent", expect: "never committed", why: COMMIT_INTENT_READ_REASON },
+    ].filter((note) => note.why);
 
     const verdict = decideRevokeOutcome({
-      caseName, expectations, versionsBefore: before, versionsAfterRevoke: after, aiTurn1, aiTurn2, revoke, save, commitIntent,
+      caseName, expectations, versionsBefore: before.count, versionsAfterRevoke: after.count, aiTurn1, aiTurn2, revoke, save, commitIntent,
     });
-    const trim = (turn) => ({ session: { status: turn.session.status, code: turn.session.code }, frame: { status: turn.frame.status, code: turn.frame.code } });
-    const details = { aiTurn1: trim(aiTurn1), aiTurn2: trim(aiTurn2), save, revoke, commitIntent, prepared: { restricted: caseName === "downgrade", shareLevel: revoke.shareLevel ?? "" } };
+    const trim = (turn) => ({ session: { status: turn.session.status, code: turn.session.code, errorClass: turn.session.errorClass }, frame: { status: turn.frame.status, code: turn.frame.code, errorClass: turn.frame.errorClass } });
+    const details = { aiTurn1: trim(aiTurn1), aiTurn2: trim(aiTurn2), save, revoke, commitIntent, routeNotes, prepared: { restricted: caseName === "downgrade", shareLevel: revoke.shareLevel ?? "" } };
     if (log) {
-      log(`case ${caseName} (${fixtureId}): versions before ${before}, AI turn 1 session ${aiTurn1.session.status}/frame ${aiTurn1.frame.status}`);
+      log(`case ${caseName} (${fixtureId}): versions before ${before.count} (read by ${before.by}), AI turn 1 session ${aiTurn1.session.status}/frame ${aiTurn1.frame.status}`);
       log(`  revoke ${revoke.via} -> ${revoke.status}${revoke.code ? ` ${revoke.code}` : ""}`);
-      log(`  AI turn 2 session ${aiTurn2.session.status}${aiTurn2.session.code ? ` ${aiTurn2.session.code}` : ""}/frame ${aiTurn2.frame.status}${aiTurn2.frame.code ? ` ${aiTurn2.frame.code}` : ""}; Save upload ${save.upload.status}/commit ${save.commit.status}${save.commit.code ? ` ${save.commit.code}` : ""}`);
-      log(`  versions after ${after}; commit intent ${commitIntent.outcome} (http ${commitIntent.httpStatus}); verdict ${verdict.status}`);
+      log(`  AI turn 2 session ${answerOf(aiTurn2.session)}/frame ${answerOf(aiTurn2.frame)}; Save upload ${answerOf(save.upload)}/commit ${answerOf(save.commit)}`);
+      log(`  versions after ${after.count} (read by ${after.by}); commit intent ${commitIntent.outcome} (http ${commitIntent.httpStatus}); verdict ${verdict.status}`);
+      for (const note of routeNotes) log(`  expected ${note.route} ${note.expect} — ${note.why}`);
     }
-    return finish({ ...verdict, versionCounts: { versionsBefore: before, versionsAfterRevoke: after }, details });
+    return finish({ ...verdict, versionCounts: { versionsBefore: before.count, versionsAfterRevoke: after.count }, details });
   } catch (error) {
     steps.exception = { status: "FAIL", reason: safe(error instanceof Error ? error.message : String(error)) };
     return finish({ status: "FAIL", exitCode: 1, reason: safe(error instanceof Error ? error.message : String(error)), owner: REVOKE_OWNER });
@@ -544,6 +670,8 @@ async function main() {
         lines.push(message);
         console.log(message);
       };
+      // Every (case, fixture) run seeds its own world: no run can see an earlier
+      // run's revoke (D1-01) and nothing but the artifact text is left behind.
       const res = await runRevokeCase({ apiOrigin, runDir: args.runDir, fixtureId, caseName, log });
       const artifact = join(logDir, `g7-04-revoke-${caseName}-${fixtureId}.log`);
       writeFileSync(artifact, `${lines.join("\n")}\n`);

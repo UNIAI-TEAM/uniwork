@@ -4,23 +4,37 @@
 // uses (harness ports.env + an in-memory D server fake, the tracer.test.mjs
 // shape). Covers the three revoke cases the Advisor fixed (Addendum A1):
 //
-//   * `deactivate` (primary): member deactivation, the next AI turn answers
-//     403 `member_deactivated` and no version appears;
+//   * `deactivate` (primary): member deactivation, the next AI turn is refused
+//     per route as the Go code answers it — 403 `member_deactivated` on the
+//     desktop session route and 401 `unauthorized` (error_class session) on the
+//     web frame route, because the frame actor resolver swallows that
+//     CodedError (handler/ai_mount.go:101-106) — and no version appears;
 //   * `downgrade`: the document is `restricted` and the app's own share drops
-//     from edit to view, so the AI turn still answers 200 (it needs view only)
-//     and the Save/commit answers 403 `forbidden`;
+//     from edit to view, so the AI turn still answers 200 (it needs view only,
+//     view-only AI is allowed: G6-05u) and the Save is refused — the upload 403
+//     `forbidden` (the edit gate), then the commit 404 `not_found` because
+//     resolveUpload runs before the edit gate (document_commit.go:277 vs :296);
 //   * `remove`: workspace-member removal, the next AI turn answers 404
-//     `not_found` (a non-member never learns the id exists).
+//     `not_found` on both routes (a non-member never learns the id exists).
+//
+// The fake is state-driven (BE-704-06): the versions route refuses a revoked
+// member's own read (403 deactivate / 404 remove), the commit resolves
+// upload_id before the access gate, the frame AI route answers the 401 after a
+// deactivation, and the lookup answers the { status, ok, body } shape the
+// driver's call() returns. Every run seeds its own owner/member/workspace, so
+// no run inherits an earlier run's revoke (D1-01), and no bearer token is
+// written to the run dir (BE-704-04).
 //
 // Plus the failure directions the row cares about: a 200 after the revoke is a
-// FAIL, a version after the revoke is a FAIL, and a fake deployment answering
-// 503 `ai_disabled` on turn 1 is BLOCKED while the revoke assertion still runs.
-// The routes are pinned against the Go router (server-contract.helper.mjs), so a
-// route rename fails here, not on a cloud VM.
+// FAIL, a version after the revoke is a FAIL, a committed commit intent after
+// the revoke is a FAIL, and a fake deployment answering 503 `ai_disabled` on
+// turn 1 is BLOCKED while the revoke assertion still runs. The routes are
+// pinned against the Go router (server-contract.helper.mjs), so a route rename
+// fails here, not on a cloud VM.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
@@ -41,7 +55,8 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../../../..");
-const SHA_DOCX = "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c";
+/** The world cache an earlier driver version wrote; it must never come back. */
+const LEGACY_WORLD_CACHE = "g7-04-revoke-world.json";
 
 // ---- the run dir the driver reads (start status + ports.env) ----------------
 
@@ -54,8 +69,6 @@ function makeScratchRunDir({ startState = "up", startReason = "" } = {}) {
 
 // ---- the in-memory D server fake -------------------------------------------
 
-const MEMBER_ID = "01JMEMBER0000000000000001";
-const OWNER_ID = "01JOWNER00000000000000001";
 const DOC_ID = "01JDOC00000000000000000001";
 const WS_ID = "01JWS000000000000000000001";
 const ORG_ID = "01JORG00000000000000000001";
@@ -67,38 +80,66 @@ function sha256Of(bytes) {
 }
 
 /**
- * A fake of the D server routes the revoke driver calls. `revoked` is the state
- * the fake revoke route sets; the AI and save routes answer it the way the Go
- * code does (documentScope needs view only; the save path needs edit).
- * `ignoreRevokeOnAiTurn` / `allowSaveAfterRevoke` are the two mutations the
- * failure tests drive.
+ * A state-driven fake of the D server routes the revoke driver calls. The
+ * revoke routes mark the user they name (`state.deactivated` / `state.removed`)
+ * or drop the share to view (`state.viewOnly`), and every later route answers
+ * the real route contract for that state: the versions read and the upload are
+ * refused the way the gates refuse (403 `member_deactivated` / 404 `not_found`
+ * / 403 `forbidden`), the commit resolves upload_id before the access gate
+ * (document_commit.go:272-296), the frame AI route answers the 401 the frame
+ * actor resolver writes after a deactivation (ai_mount.go:101-106), and the
+ * commit-intent lookup answers the { status, ok, body } shape the driver's own
+ * call() returns. `ignoreRevokeOnAiTurn` / `allowSaveAfterRevoke` /
+ * `commitIntentAfterRevoke` are the three mutations the failure tests drive.
  */
-function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false, allowSaveAfterRevoke = false } = {}) {
-  const state = { revoked: null, versions: [], intents: new Map(), uploads: new Map(), calls: [] };
+function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false, allowSaveAfterRevoke = false, commitIntentAfterRevoke = false } = {}) {
+  const state = {
+    users: new Map(),
+    deactivated: new Set(),
+    removed: new Set(),
+    viewOnly: new Set(),
+    frameTokens: new Map(),
+    versions: [],
+    uploads: new Map(),
+    intents: new Map(),
+    registrations: [],
+    calls: [],
+    seq: 0,
+    revokeApplied: false,
+  };
+
+  const json = (status, payload) => new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
+  const unauthorized = () => json(401, { error: { code: "unauthorized", message: "unauthorized", error_class: "session" } });
+  const bearerOf = (init) => String(init.headers?.authorization ?? init.headers?.Authorization ?? "").replace(/^Bearer\s+/i, "");
+  const callerOf = (init) => state.users.get(bearerOf(init)) ?? "";
+  const frameCallerOf = (init) => state.frameTokens.get(bearerOf(init)) ?? "";
+  const headerOf = (init, name) => init.headers?.[name] ?? init.headers?.[name.toLowerCase()] ?? "";
+  /** What the real gates answer this user: the deactivated member 403, the removed one 404. */
+  const refusalOf = (userId) => {
+    if (state.deactivated.has(userId)) return json(403, { error: { code: "member_deactivated", message: "member deactivated" } });
+    if (state.removed.has(userId)) return json(404, { error: { code: "not_found", message: "not found" } });
+    return null;
+  };
 
   const fetchImpl = async (urlStr, init = {}) => {
     const url = new URL(urlStr);
     const method = (init.method ?? "GET").toUpperCase();
     const path = url.pathname;
     state.calls.push({ method, path });
-    const json = (status, payload) => new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
-
-    const refuse = (kind) => {
-      if (state.revoked === "deactivate") return json(403, { error: { code: "member_deactivated", message: "member deactivated" } });
-      if (state.revoked === "remove") return json(404, { error: { code: "not_found", message: "not found" } });
-      if (state.revoked === "downgrade" && kind === "save") return json(403, { error: { code: "forbidden", message: "forbidden" } });
-      return null;
-    };
 
     if (method === "POST" && path === "/api/v1/auth/register") {
       const body = JSON.parse(init.body);
-      const id = body.email.includes("owner") ? OWNER_ID : MEMBER_ID;
-      return json(201, { access_token: `tok-${id}`, user: { id, email: body.email } });
+      state.seq += 1;
+      const id = `01JUSER${String(state.seq).padStart(20, "0")}`;
+      const token = `tok-${id}`;
+      state.users.set(token, id);
+      state.registrations.push({ id, email: body.email });
+      return json(201, { access_token: token, user: { id, email: body.email } });
     }
     if (method === "POST" && path === "/api/v1/me/email/verify") return json(200, { verified: true });
     if (method === "POST" && path === "/api/v1/orgs") return json(201, { organization: { id: ORG_ID, slug: ORG_SLUG } });
     if (method === "POST" && path === `/api/v1/orgs/${ORG_ID}/workspaces`) return json(201, { workspace: { id: WS_ID, slug: "w-g704" } });
-    if (method === "POST" && path === "/api/v1/me/onboarding/complete") return json(200, { user: { id: OWNER_ID } });
+    if (method === "POST" && path === "/api/v1/me/onboarding/complete") return json(200, { user: { id: callerOf(init) } });
     if (method === "POST" && path === `/api/v1/workspaces/${WS_ID}/invitations`) return json(201, { invitations: [] });
     if (method === "GET" && path === "/api/v1/me/invitations") return json(200, { invitations: [{ token: "inv-1", workspace: { id: WS_ID } }] });
     if (method === "POST" && path === "/api/v1/invitations/inv-1/accept") return json(200, { membership: { workspace_id: WS_ID } });
@@ -109,37 +150,62 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
       return json(201, { document: { id: DOC_ID, workspace_id: WS_ID, organization_id: ORG_ID, revision: "1", current_version: 1, file: { version_id: V1_ID } } });
     }
     if (method === "POST" && path === `/api/v1/documents/${DOC_ID}/shares`) {
-      state.shareLevel = JSON.parse(init.body).level;
-      // the downgrade case: the app's own share drops to view, so the Save path
-      // (which asks for edit) is what the server refuses
-      if (state.shareLevel === "view") state.revoked = "downgrade";
-      return json(201, { share: { id: "01JSHARE000000000000000001", level: state.shareLevel } });
+      const body = JSON.parse(init.body);
+      if (body.level === "view") {
+        // the downgrade case: the app's own share drops to view, so the edit
+        // gate (upload, commit) is what the server refuses
+        state.viewOnly.add(body.principal_id);
+        state.revokeApplied = true;
+      }
+      return json(201, { share: { id: "01JSHARE000000000000000001", level: body.level } });
     }
     if (method === "PATCH" && path === `/api/v1/documents/${DOC_ID}`) {
       state.visibility = JSON.parse(init.body).visibility;
       return json(200, { document: { id: DOC_ID, visibility: state.visibility } });
     }
     if (method === "POST" && path === `/api/v1/documents/${DOC_ID}/office/frame-token`) {
-      return json(201, { token: "tok-frame", can_edit: true, module: "docs" });
+      const caller = callerOf(init);
+      if (!caller) return unauthorized();
+      state.seq += 1;
+      const token = `tok-frame-${state.seq}`;
+      state.frameTokens.set(token, caller);
+      return json(201, { token, can_edit: true, module: "docs" });
     }
     if (
       method === "POST" &&
       (path === `/api/v1/documents/${DOC_ID}/ai/uniwork/chat/completions` || path === `/api/v1/office-frame/documents/${DOC_ID}/ai/uniwork/chat/completions`)
     ) {
-      if (aiMode === "disabled" && !state.revoked) return json(503, { error: { code: "ai_disabled", message: "AI chua duoc cau hinh tren server" } });
-      if (state.revoked && !ignoreRevokeOnAiTurn) {
-        const refused = refuse("ai");
-        if (refused) return refused;
+      const isFrame = path.startsWith("/api/v1/office-frame/");
+      const caller = isFrame ? frameCallerOf(init) : callerOf(init);
+      if (!caller) return unauthorized();
+      if (aiMode === "disabled" && !state.revokeApplied) return json(503, { error: { code: "ai_disabled", message: "AI chua duoc cau hinh tren server" } });
+      if (!ignoreRevokeOnAiTurn) {
+        // A deactivated member is 403 member_deactivated on the session route;
+        // the frame resolver only forwards ErrNotFound/ErrForbidden to
+        // mapServiceError and rewrites the member_deactivated CodedError as a
+        // generic 401 (server/internal/handler/ai_mount.go:101-106).
+        if (state.deactivated.has(caller)) {
+          if (isFrame) return unauthorized();
+          return json(403, { error: { code: "member_deactivated", message: "member deactivated" } });
+        }
+        if (state.removed.has(caller)) return json(404, { error: { code: "not_found", message: "not found" } });
       }
       return json(200, { id: "chatcmpl-test", model: "fake-stub", provider: "fake", choices: [{ index: 0, message: { role: "assistant", content: "[fake provider] stub" }, finish_reason: "stop" }] });
     }
     if (method === "GET" && path === `/api/v1/documents/${DOC_ID}/versions`) {
+      const caller = callerOf(init);
+      if (!caller) return unauthorized();
+      const refused = refusalOf(caller);
+      if (refused) return refused;
       return json(200, { versions: state.versions.map((v) => ({ id: v.id, version: v.version, checksum_sha256: v.checksum_sha256, size_bytes: v.size_bytes })) });
     }
     if (method === "POST" && path === `/api/v1/documents/${DOC_ID}/uploads`) {
-      if (state.revoked && !allowSaveAfterRevoke) {
-        const refused = refuse("save");
+      const caller = callerOf(init);
+      if (!caller) return unauthorized();
+      if (!allowSaveAfterRevoke) {
+        const refused = refusalOf(caller);
         if (refused) return refused;
+        if (state.viewOnly.has(caller)) return json(403, { error: { code: "forbidden", message: "forbidden" } });
       }
       const file = init.body.get("file");
       const bytes = Buffer.from(await file.arrayBuffer());
@@ -148,29 +214,43 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
       return json(201, { upload_id: uploadId, checksum_sha256: sha256Of(bytes), size_bytes: bytes.length });
     }
     if (method === "POST" && path === `/api/v1/documents/${DOC_ID}/versions/commit`) {
-      const key = init.headers?.["Idempotency-Key"] ?? init.headers?.["idempotency-key"] ?? "";
-      if (state.revoked && !allowSaveAfterRevoke) {
-        const refused = refuse("save");
+      const caller = callerOf(init);
+      if (!caller) return unauthorized();
+      if (!allowSaveAfterRevoke) {
+        const refused = refusalOf(caller);
         if (refused) return refused;
       }
+      // commitFileVersion order (document_commit.go:272-296): preflightDocument
+      // (view, above) -> resolveUpload (:277) -> decideDocumentAccess(edit, :296)
       const upload = state.uploads.get(JSON.parse(init.body).upload_id);
+      if (!upload) return json(404, { error: { code: "not_found", message: "not found" } });
+      if (!allowSaveAfterRevoke && state.viewOnly.has(caller)) return json(403, { error: { code: "forbidden", message: "forbidden" } });
+      const key = headerOf(init, "Idempotency-Key");
       const next = { id: `01JVER0000000000000000000${state.versions.length + 1}`, version: state.versions.length + 1, revision: String(state.versions.length + 1), checksum_sha256: upload.checksum_sha256, size_bytes: upload.size_bytes, bytes: upload.bytes };
       state.versions.push(next);
       if (key) state.intents.set(key, { state: "committed", version: next });
       return json(200, { document: { id: DOC_ID, revision: next.revision, current_version: next.version }, version: { id: next.id, version: next.version, checksum_sha256: next.checksum_sha256, size_bytes: next.size_bytes } });
     }
     if (method === "GET" && path === `/api/v1/documents/${DOC_ID}/versions/commit`) {
-      const key = init.headers?.["Idempotency-Key"] ?? init.headers?.["idempotency-key"] ?? "";
-      const entry = state.intents.get(key);
+      const caller = callerOf(init);
+      if (!caller) return unauthorized();
+      const refused = refusalOf(caller);
+      if (refused) return refused;
+      if (commitIntentAfterRevoke) return json(200, { outcome: "committed", version_id: V1_ID, version: 1, revision: 1 });
+      const entry = state.intents.get(headerOf(init, "Idempotency-Key"));
       if (entry) return json(200, { outcome: "committed", version_id: entry.version.id, version: entry.version.version, revision: Number(entry.version.revision) });
       return json(410, { error: { code: "commit_intent_unknown", message: "unknown", fields: { outcome: "unknown" } } });
     }
-    if (method === "POST" && path === `/api/v1/orgs/${ORG_SLUG}/members/${MEMBER_ID}/deactivate`) {
-      state.revoked = "deactivate";
-      return json(200, { member: { user_id: MEMBER_ID, deactivated_at: "2026-10-16T00:00:00Z" } });
+    const deactivate = path.match(new RegExp(`^/api/v1/orgs/${ORG_SLUG}/members/([^/]+)/deactivate$`));
+    if (method === "POST" && deactivate) {
+      state.deactivated.add(deactivate[1]);
+      state.revokeApplied = true;
+      return json(200, { member: { user_id: deactivate[1], deactivated_at: "2026-10-16T00:00:00Z" } });
     }
-    if (method === "DELETE" && path === `/api/v1/workspaces/${WS_ID}/members/${MEMBER_ID}`) {
-      state.revoked = "remove";
+    const remove = path.match(new RegExp(`^/api/v1/workspaces/${WS_ID}/members/([^/]+)$`));
+    if (method === "DELETE" && remove) {
+      state.removed.add(remove[1]);
+      state.revokeApplied = true;
       return new Response(null, { status: 204 });
     }
     if (method === "POST" && path === `/api/v1/orgs/${ORG_ID}/privacy/deletion`) return json(202, { status: "scheduled" });
@@ -179,6 +259,20 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
   };
 
   return { state, fetchImpl };
+}
+
+/** The bearer token the fake handed the user, from its own token table. */
+function tokenOf(mock, userId) {
+  return [...mock.state.users.entries()].find(([, id]) => id === userId)?.[0] ?? "";
+}
+
+/** One direct call into the fake, for the route-contract assertions. */
+function fetchFake(mock, path, { method = "GET", token = "", body } = {}) {
+  return mock.fetchImpl(`http://127.0.0.1:1${path}`, {
+    method,
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 }
 
 /** An http server in front of the fake, so the CLI test can spawn the real driver. */
@@ -203,6 +297,16 @@ function startMockHttp(mock) {
   });
   return new Promise((ready) => {
     server.listen(0, "127.0.0.1", () => ready({ server, origin: `http://127.0.0.1:${server.address().port}` }));
+  });
+}
+
+function runCase(overrides = {}) {
+  return runRevokeCase({
+    apiOrigin: "http://127.0.0.1:1",
+    fixtureId: "fx-docx-report-vi",
+    caseName: "deactivate",
+    repoRoot: REPO_ROOT,
+    ...overrides,
   });
 }
 
@@ -267,60 +371,157 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
       const mock = createMockRevokeServer();
       const scratch = makeScratchRunDir();
       try {
-        const res = await runRevokeCase({ apiOrigin: "http://127.0.0.1:1", fetchImpl: mock.fetchImpl, runDir: scratch.dir, fixtureId: "fx-docx-report-vi", caseName, repoRoot: REPO_ROOT });
+        const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName });
         assert.equal(res.status, "PASS", res.reason);
         assert.equal(res.exitCode, 0);
         assert.equal(res.versionCounts.versionsBefore, 1);
         assert.equal(res.versionCounts.versionsAfterRevoke, 1);
         assert.equal(res.details.commitIntent.hasCommitted, false);
-        assert.equal(res.details.aiTurn2.session.status, CASE_EXPECTATIONS[caseName].aiTurn2);
-        assert.equal(res.details.aiTurn2.frame.status, CASE_EXPECTATIONS[caseName].aiTurn2);
-        assert.equal(res.details.save.commit.status, CASE_EXPECTATIONS[caseName].saveCommit);
+        assert.equal(res.details.aiTurn2.session.status, CASE_EXPECTATIONS[caseName].aiTurn2.session.status);
+        assert.equal(res.details.aiTurn2.frame.status, CASE_EXPECTATIONS[caseName].aiTurn2.frame.status);
+        assert.equal(res.details.save.upload.status, CASE_EXPECTATIONS[caseName].saveUpload.status);
+        assert.equal(res.details.save.commit.status, CASE_EXPECTATIONS[caseName].saveCommit.status);
       } finally {
         scratch.cleanup();
       }
     });
   }
 
-  it("deactivate records the 403 member_deactivated the Go gates answer", async () => {
+  it("deactivate asserts each route as the code answers it: 403 member_deactivated on the session route, 401 unauthorized (error_class session) on the frame route with the file:line reason (D1-02)", async () => {
     const mock = createMockRevokeServer();
     const scratch = makeScratchRunDir();
     try {
-      const res = await runRevokeCase({ apiOrigin: "http://127.0.0.1:1", fetchImpl: mock.fetchImpl, runDir: scratch.dir, fixtureId: "fx-docx-report-vi", caseName: "deactivate", repoRoot: REPO_ROOT });
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      assert.equal(res.status, "PASS", res.reason);
       assert.equal(res.details.aiTurn2.session.status, 403);
       assert.equal(res.details.aiTurn2.session.code, "member_deactivated");
+      assert.equal(res.details.aiTurn2.frame.status, 401);
+      assert.equal(res.details.aiTurn2.frame.code, "unauthorized");
+      assert.equal(res.details.aiTurn2.frame.errorClass, "session");
       assert.equal(res.details.save.commit.status, 403);
       assert.equal(res.details.save.commit.code, "member_deactivated");
+      // the artifact carries the file:line reason the frame route is a 401
+      const note = (res.details.routeNotes ?? []).find((n) => n.route === "aiTurn2.frame");
+      assert.ok(note, `no aiTurn2.frame route note in ${JSON.stringify(res.details.routeNotes)}`);
+      assert.match(note.why, /ai_mount\.go:10[0-9]/);
+      assert.match(note.why, /error_class\.go:64/);
     } finally {
       scratch.cleanup();
     }
   });
 
-  it("remove answers 204 on the DELETE itself and records the 404 not_found the removed member gets next", async () => {
+  it("remove answers 204 on the DELETE itself and 404 not_found on both AI routes next", async () => {
     const mock = createMockRevokeServer();
     const scratch = makeScratchRunDir();
     try {
-      const res = await runRevokeCase({ apiOrigin: "http://127.0.0.1:1", fetchImpl: mock.fetchImpl, runDir: scratch.dir, fixtureId: "fx-docx-report-vi", caseName: "remove", repoRoot: REPO_ROOT });
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "remove" });
+      assert.equal(res.status, "PASS", res.reason);
+      assert.equal(res.steps.revoke.httpStatus, 204);
       assert.equal(res.details.aiTurn2.session.status, 404);
       assert.equal(res.details.aiTurn2.session.code, "not_found");
+      assert.equal(res.details.aiTurn2.frame.status, 404);
+      assert.equal(res.details.save.upload.status, 404);
+      assert.equal(res.details.save.commit.status, 404);
     } finally {
       scratch.cleanup();
     }
   });
 
-  it("downgrade asserts what the code does: the AI turn still answers 200 (view is enough) and the Save is refused 403 forbidden", async () => {
+  it("downgrade asserts what the code does: the AI turn still answers 200 (view-only AI is allowed, G6-05u) and the Save proof is the upload 403 forbidden with the commit 404 the route answers (BE-704-03)", async () => {
     const mock = createMockRevokeServer();
     const scratch = makeScratchRunDir();
     try {
-      const res = await runRevokeCase({ apiOrigin: "http://127.0.0.1:1", fetchImpl: mock.fetchImpl, runDir: scratch.dir, fixtureId: "fx-xlsx-revenue-xyz", caseName: "downgrade", repoRoot: REPO_ROOT });
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "downgrade", fixtureId: "fx-xlsx-revenue-xyz" });
       assert.equal(res.status, "PASS", res.reason);
       assert.equal(res.details.aiTurn2.session.status, 200);
       assert.equal(res.details.aiTurn2.frame.status, 200);
-      assert.equal(res.details.save.commit.status, 403);
-      assert.equal(res.details.save.commit.code, "forbidden");
+      assert.equal(res.details.save.upload.status, 403);
+      assert.equal(res.details.save.upload.code, "forbidden");
+      assert.equal(res.details.save.commit.status, 404);
+      assert.equal(res.details.save.commit.code, "not_found");
       assert.equal(res.versionCounts.versionsAfterRevoke, 1);
       assert.equal(res.details.prepared.restricted, true);
       assert.equal(res.details.prepared.shareLevel, "view");
+      const note = (res.details.routeNotes ?? []).find((n) => n.route === "saveCommit");
+      assert.ok(note, `no saveCommit route note in ${JSON.stringify(res.details.routeNotes)}`);
+      assert.match(note.why, /document_commit\.go:2(7[0-9]|9[0-9])/);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("each (case, fixture) run seeds its own world, so a second case on the same run dir is not blocked by the first run's revoke (D1-01)", async () => {
+    const mock = createMockRevokeServer();
+    const scratch = makeScratchRunDir();
+    try {
+      const first = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      assert.equal(first.status, "PASS", first.reason);
+      const second = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "remove" });
+      assert.equal(second.status, "PASS", second.reason);
+      assert.equal(mock.state.registrations.length, 4, "two runs x owner+member");
+      assert.notEqual(first.steps.seed.memberId, second.steps.seed.memberId);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("counts versions with the owner's token, whose read the revoke never refuses (BE-704-02)", async () => {
+    const mock = createMockRevokeServer();
+    const scratch = makeScratchRunDir();
+    try {
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      assert.equal(res.status, "PASS", res.reason);
+      assert.equal(res.steps.versionsBefore.by, "owner");
+      assert.equal(res.steps.versionsAfter.by, "owner");
+      assert.equal(res.steps.commitIntent.by, "owner");
+      // the artifact says what that lookup read is: the caller's own intent
+      const note = (res.details.routeNotes ?? []).find((n) => n.route === "commitIntent");
+      assert.ok(note, `no commitIntent route note in ${JSON.stringify(res.details.routeNotes)}`);
+      assert.match(note.why, /document_commit_intent\.go:380-384, :429/);
+      // and the fake really refuses the member's own read, so the member token
+      // could not have produced this count
+      const memberToken = tokenOf(mock, res.steps.seed.memberId);
+      const memberRead = await fetchFake(mock, `/api/v1/documents/${DOC_ID}/versions`, { token: memberToken });
+      assert.equal(memberRead.status, 403);
+      assert.equal((await memberRead.json()).error.code, "member_deactivated");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("never writes a world cache, deletes a stale one an earlier driver left, and never reuses its tokens (BE-704-04)", async () => {
+    const mock = createMockRevokeServer();
+    const scratch = makeScratchRunDir();
+    const stale = join(scratch.dir, LEGACY_WORLD_CACHE);
+    writeFileSync(stale, `${JSON.stringify({ apiOrigin: "http://127.0.0.1:1", owner: { token: "tok-stale-owner" }, member: { token: "tok-stale-member" }, workspaceId: WS_ID })}\n`);
+    try {
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      assert.equal(res.status, "PASS", res.reason);
+      assert.equal(existsSync(stale), false, "the stale world cache is removed, never read back");
+      assert.equal(mock.state.registrations.length, 2, "the world was seeded fresh, not read from the cache");
+      assert.equal(mock.state.users.has("tok-stale-owner"), false);
+      // no file in the run dir carries a bearer token
+      const files = readdirSync(scratch.dir).filter((name) => statSync(join(scratch.dir, name)).isFile());
+      for (const name of files) {
+        assert.ok(!/tok-/.test(readFileSync(join(scratch.dir, name), "utf8")), `${name} carries a token`);
+      }
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("a committed commit intent after the revoke is a FAIL (exit 1), never a PASS (BE-704-01)", async () => {
+    const mock = createMockRevokeServer({ commitIntentAfterRevoke: true });
+    const scratch = makeScratchRunDir();
+    try {
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      assert.equal(res.status, "FAIL");
+      assert.equal(res.exitCode, 1);
+      assert.match(res.reason, /commit intent is committed/);
+      // the helper really saw the committed body the driver's call() returns
+      assert.equal(res.details.commitIntent.outcome, "committed");
+      assert.equal(res.details.commitIntent.hasCommitted, true);
+      assert.equal(res.steps.commitIntent.status, "FAIL");
     } finally {
       scratch.cleanup();
     }
@@ -330,7 +531,7 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
     const mock = createMockRevokeServer({ ignoreRevokeOnAiTurn: true });
     const scratch = makeScratchRunDir();
     try {
-      const res = await runRevokeCase({ apiOrigin: "http://127.0.0.1:1", fetchImpl: mock.fetchImpl, runDir: scratch.dir, fixtureId: "fx-docx-report-vi", caseName: "deactivate", repoRoot: REPO_ROOT });
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
       assert.equal(res.status, "FAIL");
       assert.equal(res.exitCode, 1);
       assert.match(res.reason, /AI turn 2|200/);
@@ -343,7 +544,7 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
     const mock = createMockRevokeServer({ allowSaveAfterRevoke: true });
     const scratch = makeScratchRunDir();
     try {
-      const res = await runRevokeCase({ apiOrigin: "http://127.0.0.1:1", fetchImpl: mock.fetchImpl, runDir: scratch.dir, fixtureId: "fx-docx-report-vi", caseName: "remove", repoRoot: REPO_ROOT });
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "remove" });
       assert.equal(res.status, "FAIL");
       assert.equal(res.exitCode, 1);
       assert.match(res.reason, /version/i);
@@ -357,7 +558,7 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
     const mock = createMockRevokeServer({ aiMode: "disabled" });
     const scratch = makeScratchRunDir();
     try {
-      const res = await runRevokeCase({ apiOrigin: "http://127.0.0.1:1", fetchImpl: mock.fetchImpl, runDir: scratch.dir, fixtureId: "fx-docx-report-vi", caseName: "deactivate", repoRoot: REPO_ROOT });
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
       assert.equal(res.status, "BLOCKED");
       assert.equal(res.exitCode, 77);
       assert.equal(res.blocker, AI_DISABLED_BLOCKER);
@@ -375,15 +576,71 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
     const blocked = makeScratchRunDir({ startState: "blocked", startReason: "missing xvfb" });
     try {
       const mock = createMockRevokeServer();
-      const f = await runRevokeCase({ apiOrigin: "http://127.0.0.1:1", fetchImpl: mock.fetchImpl, runDir: failed.dir, fixtureId: "fx-docx-report-vi", caseName: "deactivate", repoRoot: REPO_ROOT });
+      const f = await runCase({ fetchImpl: mock.fetchImpl, runDir: failed.dir, caseName: "deactivate" });
       assert.equal(f.exitCode, 1);
       assert.match(f.reason, /server build failed/);
-      const b = await runRevokeCase({ apiOrigin: "http://127.0.0.1:1", fetchImpl: mock.fetchImpl, runDir: blocked.dir, fixtureId: "fx-docx-report-vi", caseName: "deactivate", repoRoot: REPO_ROOT });
+      const b = await runCase({ fetchImpl: mock.fetchImpl, runDir: blocked.dir, caseName: "deactivate" });
       assert.equal(b.exitCode, 77);
       assert.match(b.reason, /missing xvfb/);
     } finally {
       failed.cleanup();
       blocked.cleanup();
+    }
+  });
+});
+
+// ---- the fake's route contracts (BE-704-06) --------------------------------
+
+describe("the fake answers the real route contracts it is driven against", () => {
+  it("after a deactivate: the member's versions read is 403, the session AI route is 403 member_deactivated and the frame AI route is 401 unauthorized", async () => {
+    const mock = createMockRevokeServer();
+    const scratch = makeScratchRunDir();
+    try {
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      const memberToken = tokenOf(mock, res.steps.seed.memberId);
+      const frameToken = [...mock.state.frameTokens.keys()][0];
+      const versions = await fetchFake(mock, `/api/v1/documents/${DOC_ID}/versions`, { token: memberToken });
+      assert.equal(versions.status, 403);
+      const session = await fetchFake(mock, `/api/v1/documents/${DOC_ID}/ai/uniwork/chat/completions`, { method: "POST", token: memberToken, body: { messages: [] } });
+      assert.equal(session.status, 403);
+      assert.equal((await session.json()).error.code, "member_deactivated");
+      const frame = await fetchFake(mock, `/api/v1/office-frame/documents/${DOC_ID}/ai/uniwork/chat/completions`, { method: "POST", token: frameToken, body: { messages: [] } });
+      assert.equal(frame.status, 401);
+      assert.deepEqual((await frame.json()).error, { code: "unauthorized", message: "unauthorized", error_class: "session" });
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("after a remove: the member's versions read and both AI routes are 404 not_found", async () => {
+    const mock = createMockRevokeServer();
+    const scratch = makeScratchRunDir();
+    try {
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "remove" });
+      const memberToken = tokenOf(mock, res.steps.seed.memberId);
+      const versions = await fetchFake(mock, `/api/v1/documents/${DOC_ID}/versions`, { token: memberToken });
+      assert.equal(versions.status, 404);
+      const frameToken = [...mock.state.frameTokens.keys()][0];
+      const frame = await fetchFake(mock, `/api/v1/office-frame/documents/${DOC_ID}/ai/uniwork/chat/completions`, { method: "POST", token: frameToken, body: { messages: [] } });
+      assert.equal(frame.status, 404);
+      assert.equal((await frame.json()).error.code, "not_found");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("the commit resolves upload_id before the access gate: an unresolvable id is 404 even for a view-only member", async () => {
+    const mock = createMockRevokeServer();
+    const scratch = makeScratchRunDir();
+    try {
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "downgrade", fixtureId: "fx-xlsx-revenue-xyz" });
+      const memberToken = tokenOf(mock, res.steps.seed.memberId);
+      assert.ok(memberToken, "the fake handed the member a token");
+      const commit = await fetchFake(mock, `/api/v1/documents/${DOC_ID}/versions/commit`, { method: "POST", token: memberToken, body: { upload_id: "none", base_revision: "1" } });
+      assert.equal(commit.status, 404);
+      assert.equal((await commit.json()).error.code, "not_found");
+    } finally {
+      scratch.cleanup();
     }
   });
 });
@@ -397,9 +654,9 @@ describe("decideRevokeOutcome", () => {
     versionsBefore: 1,
     versionsAfterRevoke: 1,
     aiTurn1: { session: { status: 200 }, frame: { status: 200 } },
-    aiTurn2: { session: { status: 403, code: "member_deactivated" }, frame: { status: 403, code: "member_deactivated" } },
+    aiTurn2: { session: { status: 403, code: "member_deactivated" }, frame: { status: 401, code: "unauthorized", errorClass: "session" } },
     revoke: { status: 200 },
-    save: { upload: { status: 403 }, commit: { status: 403 } },
+    save: { upload: { status: 403, code: "member_deactivated" }, commit: { status: 403, code: "member_deactivated" } },
     commitIntent: { httpStatus: 410, outcome: "unknown", hasCommitted: false },
   });
 
@@ -407,11 +664,31 @@ describe("decideRevokeOutcome", () => {
     assert.equal(decideRevokeOutcome(base()).status, "PASS");
   });
 
-  it("FAILs a version delta, a committed intent, a wrong AI status and a wrong save status", () => {
+  it("FAILs a version delta, a committed intent, a wrong per-route AI answer and a wrong save code", () => {
     assert.equal(decideRevokeOutcome({ ...base(), versionsAfterRevoke: 2 }).status, "FAIL");
     assert.equal(decideRevokeOutcome({ ...base(), commitIntent: { hasCommitted: true } }).status, "FAIL");
-    assert.equal(decideRevokeOutcome({ ...base(), aiTurn2: { session: { status: 200 }, frame: { status: 403 } } }).status, "FAIL");
-    assert.equal(decideRevokeOutcome({ ...base(), save: { upload: { status: 201 }, commit: { status: 200 } } }).status, "FAIL");
+    // the frame route answering the session route's 403 is not what the code does
+    assert.equal(decideRevokeOutcome({ ...base(), aiTurn2: { session: { status: 403, code: "member_deactivated" }, frame: { status: 403, code: "member_deactivated" } } }).status, "FAIL");
+    assert.equal(decideRevokeOutcome({ ...base(), aiTurn2: { session: { status: 200 }, frame: { status: 401, code: "unauthorized", errorClass: "session" } } }).status, "FAIL");
+    // the right status with the wrong code (or the wrong error_class) is a FAIL too
+    assert.equal(decideRevokeOutcome({ ...base(), aiTurn2: { session: { status: 403, code: "forbidden" }, frame: { status: 401, code: "unauthorized", errorClass: "session" } } }).status, "FAIL");
+    assert.equal(decideRevokeOutcome({ ...base(), aiTurn2: { session: { status: 403, code: "member_deactivated" }, frame: { status: 401, code: "unauthorized", errorClass: "permission" } } }).status, "FAIL");
+    assert.equal(decideRevokeOutcome({ ...base(), save: { upload: { status: 403, code: "forbidden" }, commit: { status: 403, code: "member_deactivated" } } }).status, "FAIL");
+  });
+
+  it("downgrade: the Save proof is the upload's 403 forbidden, and the commit's own 404 is a PASS (BE-704-03)", () => {
+    const downgrade = {
+      ...base(),
+      caseName: "downgrade",
+      expectations: CASE_EXPECTATIONS.downgrade,
+      aiTurn2: { session: { status: 200 }, frame: { status: 200 } },
+      save: { upload: { status: 403, code: "forbidden" }, commit: { status: 404, code: "not_found" } },
+    };
+    assert.equal(decideRevokeOutcome(downgrade).status, "PASS");
+    // asserting the edit-level 403 on the commit is the old, wrong expectation
+    assert.equal(decideRevokeOutcome({ ...downgrade, save: { upload: { status: 403, code: "forbidden" }, commit: { status: 403, code: "forbidden" } } }).status, "FAIL");
+    // and the upload must be the edit refusal, not any 4xx
+    assert.equal(decideRevokeOutcome({ ...downgrade, save: { upload: { status: 404, code: "not_found" }, commit: { status: 404, code: "not_found" } } }).status, "FAIL");
   });
 
   it("BLOCKs on a 503 ai_disabled turn 1 only after every revoke assertion passed", () => {
@@ -479,6 +756,7 @@ describe("G7-04 evidence.mjs run + verify", () => {
         const artifact = readFileSync(isAbsolute(line.artifact) ? line.artifact : join(REPO_ROOT, line.artifact), "utf8");
         assert.match(artifact, /versions before/);
         assert.match(artifact, /AI turn 2/);
+        assert.ok(!/tok-/.test(artifact), "the artifact carries a token");
       }
     } finally {
       await new Promise((done) => server.close(done));
