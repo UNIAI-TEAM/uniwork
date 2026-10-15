@@ -1,0 +1,245 @@
+$ for f in .harness-run-r14a/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 60 "$f"; }; done; for f in .harness-run-r14a/fault/.app/*/app.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 30 "$f"; }; done; true
+=== .harness-run-r14a/logs/app.log
+[20742:1015/210338.088386:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[20742:1015/210338.749095:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/210338.749622:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[20742:1015/210338.749634:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+
+DevTools listening on ws://127.0.0.1:44747/devtools/browser/0da30e87-ae59-4571-ab4b-7942463ea872
+[20742:1015/210338.806448:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/210338.820951:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/210338.827089:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/210338.848789:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[20742:1015/210338.849229:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/210338.852691:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/210338.853972:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[20742:1015/210424.819984:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/210441.139374:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/210614.157804:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/210747.308086:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/211128.596843:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20742:1015/211321.708418:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+=== .harness-run-r14a/logs/app-proxy.log
+=== .harness-run-r14a/logs/fork-build.log
+out/main/chunks/menu-pptx@2x-k-uSrZ_N.png             0.43 kB
+out/main/chunks/menu-html-BqQjM_T0.png                0.43 kB
+out/main/chunks/menu-pdf@2x-BlOOpVEW.png              0.49 kB
+out/main/chunks/menu-xlsx@2x-BCbWE1PH.png             0.50 kB
+out/main/chunks/menu-home@2x-DklesmJt.png             0.52 kB
+out/main/chunks/menu-docx@2x-xjkcfgR-.png             0.53 kB
+out/main/chunks/menu-md@2x-DqJbAJX3.png               0.77 kB
+out/main/chunks/menu-html@2x-DPfkhFFT.png             0.90 kB
+out/main/chunks/ppt-uuAePfZZ.js                      42.36 kB
+out/main/chunks/harfbuzz-CVplwa31.wasm              421.96 kB
+out/main/chunks/Carlito-Italic-KkZUqxJW.ttf         619.05 kB
+out/main/chunks/Carlito-Regular-Cbe9FLjp.ttf        631.71 kB
+out/main/chunks/Carlito-Bold-BhbXr__n.ttf           686.24 kB
+out/main/chunks/Carlito-BoldItalic-0dXjwGA0.ttf     812.34 kB
+out/main/chunks/pdf-B6l8FRA5.js                   1,013.76 kB
+out/main/extract-worker-DxEMSf9Z.js               1,548.40 kB
+out/main/chunks/pdf.worker-NB1PBVQH.js            2,340.46 kB
+out/main/ocr-DylNBwk4.js                              1.57 kB
+out/main/annot-delete-DubhLpER.js                     3.66 kB
+out/main/image-edit-C15DSi-_.js                      14.61 kB
+out/main/index-CrqKaREP.js                           16.42 kB
+out/main/ppt-BHIGZr4q.js                             42.29 kB
+out/main/index-MbjUHvFF.js                          268.21 kB
+out/main/pdf-B6l8FRA5.js                          1,013.76 kB
+out/main/pdf.worker-NB1PBVQH.js                   2,340.46 kB
+out/main/index.js                                13,332.08 kB
+✓ built in 19.99s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 45 modules transformed.
+rendering chunks...
+out/preload/pdf-password.js    0.89 kB
+out/preload/update.js          1.05 kB
+out/preload/index.js         102.81 kB
+✓ built in 154ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 556 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                                      0.67 kB
+../../out/renderer/assets/inter-vietnamese-400-DMkecbls.woff2      4.97 kB
+../../out/renderer/assets/inter-vietnamese-600-Cc8MFFhd.woff2      5.10 kB
+../../out/renderer/assets/inter-vietnamese-700-DlLaEgI2.woff2      5.10 kB
+../../out/renderer/assets/inter-vietnamese-500-DOriooB6.woff2      5.11 kB
+../../out/renderer/update.html                                     5.14 kB
+../../out/renderer/pdf-password.html                               9.18 kB
+../../out/renderer/assets/inter-latin-400-BOOGhInR.woff2          23.69 kB
+../../out/renderer/assets/inter-latin-600-D273HNI0.woff2          24.30 kB
+../../out/renderer/assets/inter-latin-700-Sckx8rpT.woff2          24.35 kB
+../../out/renderer/assets/inter-latin-500-D2bGa7uu.woff2          24.37 kB
+../../out/renderer/assets/app-icon-D9R8oDUQ.png                   27.10 kB
+../../out/renderer/assets/inter-latin-ext-400-hnt3BR84.woff2      30.68 kB
+../../out/renderer/assets/inter-latin-ext-500-CIS2RHJS.woff2      31.76 kB
+../../out/renderer/assets/inter-latin-ext-700-CzikT_rs.woff2      31.79 kB
+../../out/renderer/assets/inter-latin-ext-600-BnYJhD27.woff2      31.97 kB
+../../out/renderer/assets/index-BmWWJzG8.css                     264.82 kB
+../../out/renderer/assets/update-MrLAWrKO.js                       2.45 kB
+../../out/renderer/assets/pdf-password-BczXYSzC.js                 2.77 kB
+../../out/renderer/assets/index-Mq8-L1jj.js                    3,626.82 kB
+✓ built in 2.25s
+=== .harness-run-r14a/logs/fork-clone.log
+=== .harness-run-r14a/logs/fork-install.log
+npm warn deprecated rimraf@2.6.3: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated boolean@3.2.0: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated crypto-js@4.2.0: Active development of CryptoJS has been discontinued. This library is no longer maintained.
+
+added 1082 packages, and audited 1114 packages in 17s
+
+240 packages are looking for funding
+  run `npm fund` for details
+
+19 vulnerabilities (2 low, 8 moderate, 7 high, 2 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues possible (including breaking changes), run:
+  npm audit fix --force
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+=== .harness-run-r14a/logs/lib.log
+=== .harness-run-r14a/logs/migrate.log
+21:00:22.986 INF migrate done component=server dir=up
+=== .harness-run-r14a/logs/server-build.log
+=== .harness-run-r14a/logs/server.log
+21:09:20.174 INF http request method=GET path=/api/v1/orgs/01M50P90P2E8N8A5KSQYAQFVZH/workspaces status=200 duration=1.668ms request_id=cursor/HDJ1szaa7y-000525 correlation_id=3780f60f24f0a27e2bfd6ff4c4f22047 trace_id=3780f60f24f0a27e2bfd6ff4c4f22047 span_id=bc51ec7ee5f138e6 actor_id=01M50P90KTNW4FMVSC9HV8CXD7 actor_kind=human
+21:09:20.180 INF http request method=GET path=/api/v1/workspaces/01M50P90PAYY18PBNSHV4EH3FM/documents/changes status=200 duration=3.428ms request_id=cursor/HDJ1szaa7y-000526 correlation_id=e3e0955af418a4be26374fd2f136c1a0 trace_id=e3e0955af418a4be26374fd2f136c1a0 span_id=8533e8ced58ccdb7 organization_id=01M50P90P2E8N8A5KSQYAQFVZH workspace_id=01M50P90PAYY18PBNSHV4EH3FM actor_id=01M50P90KTNW4FMVSC9HV8CXD7 actor_kind=human
+21:10:20.173 INF http request method=GET path=/api/v1/orgs/01M50P90P2E8N8A5KSQYAQFVZH/workspaces status=200 duration=1.318ms request_id=cursor/HDJ1szaa7y-000527 correlation_id=55a542f3a3f8deb6817939138c817a32 trace_id=55a542f3a3f8deb6817939138c817a32 span_id=a22baa79f80a517f actor_id=01M50P90KTNW4FMVSC9HV8CXD7 actor_kind=human
+21:10:20.178 INF http request method=GET path=/api/v1/workspaces/01M50P90PAYY18PBNSHV4EH3FM/documents/changes status=200 duration=2.357ms request_id=cursor/HDJ1szaa7y-000528 correlation_id=f7b1b919d71f1bc0477a41f11f202c74 trace_id=f7b1b919d71f1bc0477a41f11f202c74 span_id=2f13b4354b545d23 organization_id=01M50P90P2E8N8A5KSQYAQFVZH workspace_id=01M50P90PAYY18PBNSHV4EH3FM actor_id=01M50P90KTNW4FMVSC9HV8CXD7 actor_kind=human
+21:11:20.175 INF http request method=GET path=/api/v1/orgs/01M50P90P2E8N8A5KSQYAQFVZH/workspaces status=200 duration=1.914ms request_id=cursor/HDJ1szaa7y-000529 correlation_id=0807bcc094cb6054c0cbdeb5db8864b7 trace_id=0807bcc094cb6054c0cbdeb5db8864b7 span_id=a6461a65c4ab9f5a actor_id=01M50P90KTNW4FMVSC9HV8CXD7 actor_kind=human
+21:11:20.180 INF http request method=GET path=/api/v1/workspaces/01M50P90PAYY18PBNSHV4EH3FM/documents/changes status=200 duration=2.585ms request_id=cursor/HDJ1szaa7y-000530 correlation_id=a604eb07e59ac73508fabe64af77ab4b trace_id=a604eb07e59ac73508fabe64af77ab4b span_id=f441026cab04161d organization_id=01M50P90P2E8N8A5KSQYAQFVZH workspace_id=01M50P90PAYY18PBNSHV4EH3FM actor_id=01M50P90KTNW4FMVSC9HV8CXD7 actor_kind=human
+21:11:28.578 INF http request method=GET path=/api/v1/documents/01M50P90QMS616S9J1K5QG3WPX/versions status=200 duration=2.842ms request_id=cursor/HDJ1szaa7y-000531 correlation_id=9da0e401d43a91ecfefc1ae41bf94594 trace_id=9da0e401d43a91ecfefc1ae41bf94594 span_id=2f0dc24dac395cbb organization_id=01M50P90P2E8N8A5KSQYAQFVZH workspace_id=01M50P90PAYY18PBNSHV4EH3FM actor_id=01M50P90HK81QWNTCC7X9FPEGS actor_kind=human
+21:11:28.582 INF http request method=GET path=/api/v1/documents/01M50P90QMS616S9J1K5QG3WPX status=200 duration=2.323ms request_id=cursor/HDJ1szaa7y-000532 correlation_id=5b6223032fb978258c954fe1aa2ac169 trace_id=5b6223032fb978258c954fe1aa2ac169 span_id=f74ce2d9be2cff01 organization_id=01M50P90P2E8N8A5KSQYAQFVZH workspace_id=01M50P90PAYY18PBNSHV4EH3FM actor_id=01M50P90HK81QWNTCC7X9FPEGS actor_kind=human
+21:11:28.655 INF http request method=GET path=/api/v1/documents/01M50P90QMS616S9J1K5QG3WPX/versions status=200 duration=1.505ms request_id=cursor/HDJ1szaa7y-000533 correlation_id=52796869046b8245559b6a3eae9c6253 trace_id=52796869046b8245559b6a3eae9c6253 span_id=b7bdc95ab965a2fd organization_id=01M50P90P2E8N8A5KSQYAQFVZH workspace_id=01M50P90PAYY18PBNSHV4EH3FM actor_id=01M50P90HK81QWNTCC7X9FPEGS actor_kind=human
+21:11:28.657 INF http request method=GET path=/api/v1/documents/01M50P90QMS616S9J1K5QG3WPX status=200 duration=1.281ms request_id=cursor/HDJ1szaa7y-000534 correlation_id=0d70e5771f78e00bff7fd167a60ccb14 trace_id=0d70e5771f78e00bff7fd167a60ccb14 span_id=9c04f6cef157f475 organization_id=01M50P90P2E8N8A5KSQYAQFVZH workspace_id=01M50P90PAYY18PBNSHV4EH3FM actor_id=01M50P90HK81QWNTCC7X9FPEGS actor_kind=human
+21:11:29.645 INF mail not configured, printing message component=server kind=verification_code to=g7-03a-owner-mva1aer3-c89672@example.com subject="722250 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    722250\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+21:11:29.646 INF http request method=POST path=/api/v1/auth/register status=200 duration=59.971ms request_id=cursor/HDJ1szaa7y-000538 correlation_id=247849681219191d038e16487388225f trace_id=247849681219191d038e16487388225f span_id=8f7116fda4f484cd
+21:11:29.651 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=2.429ms request_id=cursor/HDJ1szaa7y-000539 correlation_id=cb3a89fac369127001b81404502c4806 trace_id=cb3a89fac369127001b81404502c4806 span_id=5239d2e51565c8ba actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:11:29.708 INF mail not configured, printing message component=server kind=verification_code to=g7-03a-app-mva1aet0-4192ce@example.com subject="404904 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    404904\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+21:11:29.709 INF http request method=POST path=/api/v1/auth/register status=200 duration=56.834ms request_id=cursor/HDJ1szaa7y-000540 correlation_id=4074de7980ec2ebfcef6cfd2c47c7458 trace_id=4074de7980ec2ebfcef6cfd2c47c7458 span_id=ea86993de92931fe
+21:11:29.712 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=1.646ms request_id=cursor/HDJ1szaa7y-000541 correlation_id=3fe93cec26dcfe26eab7cc0921736ba0 trace_id=3fe93cec26dcfe26eab7cc0921736ba0 span_id=273b8f43b18babf4 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:11:29.770 INF mail not configured, printing message component=server kind=verification_code to=g7-03a-foreign-mva1aeup-b2654f@example.com subject="578273 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    578273\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+21:11:29.771 INF http request method=POST path=/api/v1/auth/register status=200 duration=57.648ms request_id=cursor/HDJ1szaa7y-000542 correlation_id=f1e7b5c09c5a1019acd1c0fbbab4a71f trace_id=f1e7b5c09c5a1019acd1c0fbbab4a71f span_id=4ba8b6bfe6e44d12
+21:11:29.774 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=1.598ms request_id=cursor/HDJ1szaa7y-000543 correlation_id=b6453a47bf08458760ff4b5089015045 trace_id=b6453a47bf08458760ff4b5089015045 span_id=ebcc4ae9ab210150 actor_id=01M50PFRQ79THHAKK1TSM0YXT4 actor_kind=human
+21:11:29.780 INF http request method=POST path=/api/v1/orgs status=201 duration=4.226ms request_id=cursor/HDJ1szaa7y-000544 correlation_id=46ce0c07da0ba804b58d87e70adc29ce trace_id=46ce0c07da0ba804b58d87e70adc29ce span_id=871672bc41c1c717 actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:11:29.786 INF http request method=POST path=/api/v1/orgs/01M50PFRQHV18VEBQPYV4Q637R/workspaces status=201 duration=4.156ms request_id=cursor/HDJ1szaa7y-000545 correlation_id=17527401b389c5f078ff47cf4f0d6ff6 trace_id=17527401b389c5f078ff47cf4f0d6ff6 span_id=78185c2b5fa29203 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:11:29.789 INF http request method=POST path=/api/v1/workspaces/01M50PFRQQS3ARWHNBC3NCK2VM/invitations status=200 duration=2.126ms request_id=cursor/HDJ1szaa7y-000546 correlation_id=34647f9ace5d9d60af1ec4ef4b87cf08 trace_id=34647f9ace5d9d60af1ec4ef4b87cf08 span_id=7add28287ab99470 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:11:29.789 INF mail not configured, printing message component=server kind=workspace_invite to=g7-03a-app-mva1aet0-4192ce@example.com subject="G7-03a owner invited you to G7-03a fault on UniWork" text="You're invited to G7-03a fault\n\nG7-03a owner invited you to collaborate in the G7-03a fault workspace on UniWork. Open the link below to accept:\n\n    http://localhost:44149/invite/01M50PFRQWTPXWFCN8Q1XHZERW01M50PFRQWTPXWFCN8Q316GDEP\n\nThe invitation expires in 7 days. Sign in or create an account with this email address to join.\n\nDon't know the sender? You can ignore this email — nothing will change.\n"
+21:11:29.791 INF http request method=GET path=/api/v1/me/invitations status=200 duration=671µs request_id=cursor/HDJ1szaa7y-000547 correlation_id=57da0780b38f7e64cb11ae4d3b3021d9 trace_id=57da0780b38f7e64cb11ae4d3b3021d9 span_id=d6d04aedd6530545 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:11:29.796 INF http request method=POST path=/api/v1/invitations/01M50PFRQWTPXWFCN8Q1XHZERW01M50PFRQWTPXWFCN8Q316GDEP/accept status=200 duration=4.248ms request_id=cursor/HDJ1szaa7y-000548 correlation_id=4f5fd71f5aa29f5486297f114894a10b trace_id=4f5fd71f5aa29f5486297f114894a10b span_id=787530f86e1985aa organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:11:29.798 INF http request method=POST path=/api/v1/orgs status=201 duration=1.68ms request_id=cursor/HDJ1szaa7y-000549 correlation_id=0ad57cb5da7fc1cddb8bb2937858249d trace_id=0ad57cb5da7fc1cddb8bb2937858249d span_id=8b95adcbc866e983 actor_id=01M50PFRQ79THHAKK1TSM0YXT4 actor_kind=human
+21:11:29.801 INF http request method=POST path=/api/v1/orgs/01M50PFRR51SW27YRT3EQTK53F/workspaces status=201 duration=2.191ms request_id=cursor/HDJ1szaa7y-000550 correlation_id=56fe97adebc3f11ad3c484045d98299b trace_id=56fe97adebc3f11ad3c484045d98299b span_id=31c21d8ece6bb252 organization_id=01M50PFRR51SW27YRT3EQTK53F workspace_id=01M50PFRR8A0MPSCVNWF7KPXKQ actor_id=01M50PFRQ79THHAKK1TSM0YXT4 actor_kind=human
+21:11:29.821 INF http request method=POST path=/api/v1/workspaces/01M50PFRQQS3ARWHNBC3NCK2VM/documents/files status=201 duration=10.807ms request_id=cursor/HDJ1szaa7y-000552 correlation_id=153a704781c314cbad1129c0a844fde4 trace_id=153a704781c314cbad1129c0a844fde4 span_id=3329d26a9f58307d organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:11:29.823 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R/versions status=200 duration=520µs request_id=cursor/HDJ1szaa7y-000553 correlation_id=e5f0c03e5b4a996576060a7d8e719bb1 trace_id=e5f0c03e5b4a996576060a7d8e719bb1 span_id=26ccad1e08cd3ad5 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:11:29.824 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R status=200 duration=907µs request_id=cursor/HDJ1szaa7y-000554 correlation_id=204e5586b8dd764d7f8e904fde0bd96d trace_id=204e5586b8dd764d7f8e904fde0bd96d span_id=fba72aa08447148c organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:12:00.731 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=1.936ms request_id=cursor/HDJ1szaa7y-000555 correlation_id=ce91b8d1c511eae9dbd8976e265b0308 trace_id=ce91b8d1c511eae9dbd8976e265b0308 span_id=a8cc3b686cad1e5b
+21:12:00.744 INF http request method=GET path=/api/v1/auth/desktop/authorize status=200 duration=1.61ms request_id=cursor/HDJ1szaa7y-000556 correlation_id=684925d87c08ae6baa061f5ed34fe8e7 trace_id=684925d87c08ae6baa061f5ed34fe8e7 span_id=db9382d22848c1c9 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:00.749 INF http request method=POST path=/api/v1/auth/desktop/authorize status=200 duration=1.241ms request_id=cursor/HDJ1szaa7y-000557 correlation_id=d9d7e3615c41c015ac009eae9618f677 trace_id=d9d7e3615c41c015ac009eae9618f677 span_id=6da6254f48656f4e actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:01.411 INF http request method=POST path=/api/v1/auth/desktop/exchange status=200 duration=4.11ms request_id=cursor/HDJ1szaa7y-000558 correlation_id=52894dd12edaed603b68b2ec9d8dfb37 trace_id=52894dd12edaed603b68b2ec9d8dfb37 span_id=8f079dcceec5501e
+21:12:01.422 INF http request method=GET path=/api/v1/me status=200 duration=1.733ms request_id=cursor/HDJ1szaa7y-000559 correlation_id=ed33faccfaec759094b5c055d5400469 trace_id=ed33faccfaec759094b5c055d5400469 span_id=e88a600633819301 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:01.426 INF http request method=GET path=/api/v1/orgs status=200 duration=1.778ms request_id=cursor/HDJ1szaa7y-000560 correlation_id=7b05af0644965c857abd73357023489a trace_id=7b05af0644965c857abd73357023489a span_id=690930e25b3afe79 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:01.430 INF http request method=GET path=/api/v1/orgs/o-fault-mva1aewf-6772/members/me status=200 duration=1.289ms request_id=cursor/HDJ1szaa7y-000561 correlation_id=aff8b1407ca9cb19f407902e1be6fe69 trace_id=aff8b1407ca9cb19f407902e1be6fe69 span_id=f3adfc6241db9613 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:01.438 INF http request method=GET path=/api/v1/orgs/01M50PFRQHV18VEBQPYV4Q637R/billing status=200 duration=4.928ms request_id=cursor/HDJ1szaa7y-000562 correlation_id=d4a46c886274ced2d63fb68adbd56fd2 trace_id=d4a46c886274ced2d63fb68adbd56fd2 span_id=aa5d96419376a16b actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:01.452 INF http request method=GET path=/api/v1/orgs/01M50PFRQHV18VEBQPYV4Q637R/ai/cloud status=200 duration=4.163ms request_id=cursor/HDJ1szaa7y-000563 correlation_id=6ff40f81ea0f32b1eaeca9324d1c0949 trace_id=6ff40f81ea0f32b1eaeca9324d1c0949 span_id=3ba35b0c8b377c3d actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:01.460 INF http request method=GET path=/api/v1/orgs/01M50PFRQHV18VEBQPYV4Q637R/office/capabilities status=200 duration=823µs request_id=cursor/HDJ1szaa7y-000564 correlation_id=92c2b78cbaf9222b6e97e00b252fcdb7 trace_id=92c2b78cbaf9222b6e97e00b252fcdb7 span_id=dc8be2caeaeb0b87 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:01.468 INF http request method=GET path=/api/v1/orgs/01M50PFRQHV18VEBQPYV4Q637R/workspaces status=200 duration=986µs request_id=cursor/HDJ1szaa7y-000565 correlation_id=38db354ce4b2ee0b10bb28a70c4443fb trace_id=38db354ce4b2ee0b10bb28a70c4443fb span_id=4094c6549cb20471 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:01.474 INF http request method=GET path=/api/v1/workspaces/01M50PFRQQS3ARWHNBC3NCK2VM/documents/changes status=200 duration=3.769ms request_id=cursor/HDJ1szaa7y-000566 correlation_id=09e6c13b5f84e3a88e88b1dbf343b55f trace_id=09e6c13b5f84e3a88e88b1dbf343b55f span_id=2385d8cad75e3d24 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:01.479 ERR http request method=GET path=/api/v1/orgs/01M50PFRQHV18VEBQPYV4Q637R/ai/credentials status=503 duration=1.193ms request_id=cursor/HDJ1szaa7y-000567 correlation_id=51070d820169b19c557e3ba0190b6f0f trace_id=51070d820169b19c557e3ba0190b6f0f span_id=67fffa89e0ada3a1 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:01.485 INF http request method=GET path=/api/v1/orgs/01M50PFRQHV18VEBQPYV4Q637R/ai/cloud status=200 duration=4.623ms request_id=cursor/HDJ1szaa7y-000568 correlation_id=f91e57094977a8980511f25e33fb4566 trace_id=f91e57094977a8980511f25e33fb4566 span_id=b7e5ed3624261b20 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:05.444 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R status=200 duration=3.446ms request_id=cursor/HDJ1szaa7y-000569 correlation_id=9c06564406b12ae4e488777546dda7a9 trace_id=9c06564406b12ae4e488777546dda7a9 span_id=e27336441e5869e9 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:05.448 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R/download status=200 duration=1.726ms request_id=cursor/HDJ1szaa7y-000570 correlation_id=7f9fade6228850435c5d795f4ad2ef37 trace_id=7f9fade6228850435c5d795f4ad2ef37 span_id=daad3bebc4dfbbbb organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:05.488 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R status=200 duration=3.909ms request_id=cursor/HDJ1szaa7y-000571 correlation_id=bd8a6aec673fc7a3683a4f7f6caeb24c trace_id=bd8a6aec673fc7a3683a4f7f6caeb24c span_id=ba4d9cd46966b223 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:06.310 INF http request method=GET path=/api/v1/orgs/01M50PFRQHV18VEBQPYV4Q637R/ai/cloud status=200 duration=6.033ms request_id=cursor/HDJ1szaa7y-000572 correlation_id=9f3585c5601e8277a54af97104c082ed trace_id=9f3585c5601e8277a54af97104c082ed span_id=68a736ed5c852ea3 actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:06.575 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R/comments status=200 duration=4.911ms request_id=cursor/HDJ1szaa7y-000573 correlation_id=e336c6cc1831dceed4d4bebc356e35b9 trace_id=e336c6cc1831dceed4d4bebc356e35b9 span_id=ecc2d5e57cb83701 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:12:09.576 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R status=200 duration=2.665ms request_id=cursor/HDJ1szaa7y-000574 correlation_id=3a210a9cd42551840022e90e42080a58 trace_id=3a210a9cd42551840022e90e42080a58 span_id=27fdecad102417d4 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:12:09.587 INF http request method=POST path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R/uploads status=201 duration=7.892ms request_id=cursor/HDJ1szaa7y-000575 correlation_id=4eaa303a3a5f54f78d6a34b223634caa trace_id=4eaa303a3a5f54f78d6a34b223634caa span_id=22c88499d96c985d organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:12:09.595 INF http request method=POST path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R/versions/commit status=200 duration=7.442ms request_id=cursor/HDJ1szaa7y-000576 correlation_id=c582f8bd4da35d642e6594183b3b722c trace_id=c582f8bd4da35d642e6594183b3b722c span_id=0affb1cf9055b9b5 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:13:01.452 INF http request method=GET path=/api/v1/orgs/01M50PFRQHV18VEBQPYV4Q637R/workspaces status=200 duration=1.981ms request_id=cursor/HDJ1szaa7y-000577 correlation_id=79fd6e6ee99b756b0a54ea70c1a8b585 trace_id=79fd6e6ee99b756b0a54ea70c1a8b585 span_id=76d1626be062283f actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:13:01.459 INF http request method=GET path=/api/v1/workspaces/01M50PFRQQS3ARWHNBC3NCK2VM/documents/changes status=200 duration=4.207ms request_id=cursor/HDJ1szaa7y-000578 correlation_id=39f347b75c02a968319b90128e030281 trace_id=39f347b75c02a968319b90128e030281 span_id=6db19f1a35accf75 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:13:01.491 INF http request method=POST path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R/uploads status=201 duration=7.972ms request_id=cursor/HDJ1szaa7y-000579 correlation_id=1c030008c9b0b9323663a179d28c4b8c trace_id=1c030008c9b0b9323663a179d28c4b8c span_id=951a1289b7d12732 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:13:01.498 WRN http request method=POST path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R/versions/commit status=409 duration=3.344ms request_id=cursor/HDJ1szaa7y-000580 correlation_id=8287c73089fc918b27fbc94d10c493c6 trace_id=8287c73089fc918b27fbc94d10c493c6 span_id=c370d61563675a02 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRNANXFZ0A8WV0N81SK7 actor_kind=human
+21:13:21.690 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R/versions status=200 duration=1.998ms request_id=cursor/HDJ1szaa7y-000581 correlation_id=06c34bf18624a179a66f5709cce627eb trace_id=06c34bf18624a179a66f5709cce627eb span_id=96b97dcd1da9998d organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:13:21.693 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R status=200 duration=1.214ms request_id=cursor/HDJ1szaa7y-000582 correlation_id=5936d39346a39fc2d30551731bc8d767 trace_id=5936d39346a39fc2d30551731bc8d767 span_id=ae3af10db54c820a organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:13:21.766 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R/versions status=200 duration=1.364ms request_id=cursor/HDJ1szaa7y-000583 correlation_id=5528e4dc2635aaefd51d6452510d3d6d trace_id=5528e4dc2635aaefd51d6452510d3d6d span_id=36aeffe986f43e5f organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+21:13:21.768 INF http request method=GET path=/api/v1/documents/01M50PFRRVTZBBW42DMKGM9Q2R status=200 duration=889µs request_id=cursor/HDJ1szaa7y-000584 correlation_id=30ebda142a342329f3aba13964baf795 trace_id=30ebda142a342329f3aba13964baf795 span_id=cbc57233b92de632 organization_id=01M50PFRQHV18VEBQPYV4Q637R workspace_id=01M50PFRQQS3ARWHNBC3NCK2VM actor_id=01M50PFRK9SMXE1EHX550HVZ7D actor_kind=human
+=== .harness-run-r14a/logs/web.log
+
+> @uniwork/web@0.0.0 dev /workspace/apps/web
+> node scripts/office-frame-sync.mjs --ensure && sh -c 'next dev --port "${FRONTEND_PORT:-3000}"'
+
+office-frame: docs 46 files verified, installed at /workspace/apps/web/public/office-frame/docs/0.1.0-05fd209
+office-frame: pdf 229 files verified, installed at /workspace/apps/web/public/office-frame/pdf/0.1.0-05fd209
+office-frame: markdown 90 files verified, installed at /workspace/apps/web/public/office-frame/markdown/0.1.0-05fd209
+office-frame: html 7 files verified, installed at /workspace/apps/web/public/office-frame/html/0.1.0-05fd209
+office-frame: slides 19 files verified, installed at /workspace/apps/web/public/office-frame/slides/0.1.0-05fd209
+office-frame: sheets 219 files verified, installed at /workspace/apps/web/public/office-frame/sheets/0.1.0-05fd209
+▲ Next.js 16.3.8 (Turbopack)
+- Local:         http://localhost:44149
+- Network:       http://172.30.0.2:44149
+✓ Ready in 348ms
+✓ Running next.config.mjs took 133ms
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+✓ Generated AGENTS.md and CLAUDE.md for AI agents. Set `agentRules: false` in next.config to disable.
+○ Compiling /login ...
+⚠ ./apps/web/app/globals.css:11595:13
+Warning: Parsing CSS source code failed
+  [90m11593 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11594 |[0m }
+[33m[1m>[0m [90m11595 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11596 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11597 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11598 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11595:13
+  [90m11593 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11594 |[0m }
+[33m[1m>[0m [90m11595 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11596 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11597 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11598 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login 200 in 5.1s (next.js: 4.6s, application-code: 532ms)
+=== .harness-run-r14a/fault/.app/FQ-20-0/app.log
+Debugger ending on ws://127.0.0.1:38775/fee121dd-73b3-4465-a025-de88954f2936
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run-r14a/fault/.app/FQ-21-0/app.log
+Debugger ending on ws://127.0.0.1:38851/77f1fa3a-99c7-4d8f-b2b5-5963ff4a9299
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run-r14a/fault/.app/FQ-22-0/app.log
+[renderer:warning] use 'save' instead of 'getSnapshot'
+Debugger ending on ws://127.0.0.1:40873/263da0bf-8488-49ea-9926-925e78c161ab
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run-r14a/fault/.app/FQ-24-0/app.log
+[renderer:warning] use 'save' instead of 'getSnapshot'
+Debugger ending on ws://127.0.0.1:39769/6f1acb7f-d307-4449-b4dd-e90cb6c6eec9
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run-r14a/fault/.app/FQ-25-0/app.log
+[renderer:warning] use 'save' instead of 'getSnapshot'
+Debugger ending on ws://127.0.0.1:36927/caeb61cc-3966-4d7a-8115-42443be16cfb
+For help, see: https://nodejs.org/learn/getting-started/debugging
