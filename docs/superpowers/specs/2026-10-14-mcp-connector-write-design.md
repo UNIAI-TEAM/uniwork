@@ -1,6 +1,6 @@
 # UniWork — Connector MCP v2: bộ tool đọc và ghi (Task, Dự án, Cuộc họp, Tài liệu)
 
-> **Trạng thái:** in-progress — spec đã duyệt; plan chờ duyệt (UNI-1567); triển khai theo năm phase ở §12.
+> **Trạng thái:** shipped — năm phase đã merge (UNI-1567 và các sub-issue Phase 0–4: UNI-1587, UNI-1626, UNI-1639, UNI-1640, UNI-1651); nộp Directory là UNI-1428.
 
 **Ngày:** 2026-10-14
 **Issue:** UNI-1567 (parent UNI-1308)
@@ -273,7 +273,7 @@ họp trên web cũng vậy). Description của nó nói rõ điều này và ch
 | `list_documents` | `workspace_id`, `parent_id?`, `cursor?` | `ListDocuments` theo thư mục |
 | `get_document` | `document_id` | `GetDocument`. Trang → Markdown + `revision` + `lossy`. File md/html → nội dung text (cắt `mcpMaxItemRunes`). File khác → metadata và link |
 | `create_document` | `workspace_id`, `title`, `content` (Markdown), `parent_id?` | `CreatePage` với `Kind=page`; quyền hiển thị kế thừa thư mục cha |
-| `update_document` | `document_id`, `revision`, `title?`, `content?` (Markdown), `mode` (`append` mặc định, hoặc `replace`) | `CreateDocumentVersion` (lý do `mcp`, bỏ qua khi `document_version_unchanged`) rồi `UpdateDocument`. `append` nối nội dung mới vào cuối nội dung hiện có |
+| `update_document` | `document_id`, `revision`, `title?`, `content?` (Markdown), `mode` (`append` mặc định, hoặc `replace`) | `CreateDocumentVersion` (một version thủ công có nhãn "Trước khi sửa qua <tên ứng dụng>"; bỏ qua khi `document_version_unchanged`) rồi `UpdateDocument`. Nội dung tối đa 50.000 ký tự mỗi lần gọi (`document.MaxMarkdownRunes`, chặn chi phí parse); trang dài hơn thì `append` nhiều lần. `append` nối nội dung mới vào cuối nội dung hiện có |
 | `add_document_comment` | `document_id`, `body` | `AddDocumentComment` |
 
 Tài liệu do Work Product sở hữu không xuất hiện trong `search`/`list_documents` (ADR 0016,
@@ -314,7 +314,7 @@ Tài liệu do Work Product sở hữu không xuất hiện trong `search`/`list
 | `cancel_meeting` | `restore_meeting` |
 | `restore_meeting` | `cancel_meeting` |
 | `create_document` | Người dùng đưa vào thùng rác trên UI (khôi phục được) |
-| `update_document` | Khôi phục version `mcp` trong lịch sử phiên bản |
+| `update_document` | Khôi phục version "Trước khi sửa qua <tên ứng dụng>" trong lịch sử phiên bản; đổi tên thì gọi lại `update_document` với tiêu đề cũ (khôi phục version không đổi tiêu đề) |
 
 Chuỗi trong `ai.Tool.Undo` là cột phải của bảng; test bắt buộc mọi tool ghi có nó.
 
@@ -340,7 +340,7 @@ Chuỗi trong `ai.Tool.Undo` là cột phải của bảng; test bắt buộc m�
 | Ghi vào tổ chức khác | `inGrant` và `RequireMember` như v1; `TestIsolationMCP` thêm ca ghi |
 | Tự nâng scope | Scope đọc từ grant tại lúc gọi; lên `write` chỉ qua màn đồng ý; admin và flag là hai lớp độc lập |
 | Ghi đè thay đổi của người khác | `revision` bắt buộc với mọi `update_*` |
-| Mất nội dung tài liệu khi chuyển Markdown | `lossy` chặn `replace`; version `mcp` trước mỗi lần sửa |
+| Mất nội dung tài liệu khi chuyển Markdown | `lossy` chặn `replace`; một version thủ công trước mỗi lần sửa nội dung |
 | Lộ email qua tra cứu người | `list_members` không trả email |
 | Tạo hàng loạt | Không có tool batch; ngân sách ghi; duplicate guard của task và dự án luôn bật |
 | Chèn HTML/script qua Markdown | `MarkdownToPage` chỉ sinh node của schema đóng và đi qua sanitize; mô tả/comment task là Markdown hiển thị qua renderer hiện có |
@@ -416,7 +416,7 @@ Spec này và ADR 0033 merge trước Phase 0, dưới UNI-1567.
 | --- | --- |
 | Client không hỏi người dùng trước lệnh ghi (cấu hình "luôn cho phép") | Ngân sách ghi, không có xóa, hoàn tác, `via`; admin tắt được tức thì |
 | Model chọn nhầm người (trùng tên) | `list_members` trả vai trò; kết quả ghi nêu tên người được giao để người dùng thấy ngay |
-| Bộ chuyển Markdown thiếu trường hợp | `lossy` mặc định an toàn (chặn `replace`); version `mcp` |
+| Bộ chuyển Markdown thiếu trường hợp | `lossy` mặc định an toàn (chặn `replace`); version thủ công trước mỗi lần sửa |
 | 26 tool làm model chọn sai tool | Description ngắn, động từ rõ; `title` cho mọi tool (UNI-1460) |
 | Directory soi kỹ tool ghi | `destructiveHint` đúng, description nói rõ hoàn tác, không có xóa |
 
