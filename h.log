@@ -1,0 +1,161 @@
+$ for i in 1 2 3; do NODE_ENV=test AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-docs-sign-out-lock.test.ts tests/uniwork-sync-rollback.test.ts tests/uniwork-docs-lock-retry.test.ts tests/uniwork-sync-queue-parked.test.ts --reporter=verbose || echo "SIGNOUT_FAIL_RUN_$i"; done; echo SIGNOUT_LOOP_DONE
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+stderr | tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end 63ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > parks, lists, takes and removes working copies across a reopen 18ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > overwrites an existing parked copy atomically in one record 6ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > refuses a parked copy that exceeds the account budget -> store_full 4ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > reports keystore_locked when the keystore is locked 4ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > returns interrupted after the scope is locked 3ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > writes a record and reads it back without plaintext at rest 3ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > a sign-out locks every handle and keeps only ciphertext; same-account reopen reads every record 5ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > an account switch locks only the switched-out scope; the other scope's handle cannot read it 6ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > after lock the RAM key is gone: a dead handle reads interrupted even with the keyring unlocked 4ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > counts the budget in encrypted bytes and refuses past it 6ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > a write in flight at sign-out resolves interrupted; reopen reads the last durable record, never the torn one 9ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 1. clean sign-out: plan has count=0, locks store (open handle reads interrupted), deletes working copies 17ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 2. dirty sign-out with stored intent and N+1 bytes: plan has count=1, intent ciphertext stays byte-identical, N+1 parked, working copy deleted 14ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 3. dirty sign-out with N+1 in editor/disk: captures via requestModuleSave(..., "capture"), parks N+1, deletes working and recovery copies 9ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 4. park failure (store_full) aborts lockSession: working copy stays on disk and returns { ok: false } 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 5. in-flight upload/commit during sign-out: emits waiting/done, bounds wait to 30s, transitions to reconciling (or settles committed if within 30s), ignores late response 10ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 5b. in-flight commit that answers within the 30s bound settles committed before lock 63ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 6. keystore-locked sign-out: plan reports keystoreLocked=true and ramOnly=1, skips capture, deletes working copies, writes no parked record and keeps the ciphertext byte-identical 5ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 7. cancel on sign-out prompt (or unconfirmed logout when count > 0): closes no tab, locks no store, deletes no working copy 3ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 8. same-account sign-in (restoreParked): B restores nothing of A; A restores working copy + binding, verifies sha256, deletes parked record, and next pollSaveQueue dispatches 71ms
+ ✓ tests/uniwork-sync-rollback.test.ts > uniwork sync rollback and re-upgrade guard (G5-11) > a scope holding level-3 records + a schema-3 binding: lock, reopen, the records are refused and kept byte-for-byte, no intent written 36ms
+ ✓ tests/uniwork-sync-rollback.test.ts > uniwork sync rollback and re-upgrade guard (G5-11) > re-upgrade (layer at the higher level) reads every record and the parked copy after a sign-out/sign-in cycle 20ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 9. RAM cache audit + signed_out lock reason: lockSession clears all 15 caches and refuses residual working copy while signed out 7ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 10. d1-1: a capture that never writes parks a newer recovery copy (or deletes base-only), leaves no plaintext under userData, and account B cannot open it 26ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 11. be-6/be-8: recovery copies go under the module naming, including a path whose folder is already gone 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 12. be-7: a refused binding write leaves no orphan plaintext; the next poll restores 12ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 13. be-10: another account's S11 lock survives the sign-out 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 14. rows 7/9/10: the sign-out shows no prompt, sends no request and mints no intent 30ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 15. row 8: a marker from the N+1 bytes is found in no file under userData after sign-out 9ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 16. be-2 / d1-3: sign-out hands the deleted working copies and their baseChecksum to the module originals clearer 8ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 17. d1-6: a dirty binding whose working copy is missing (crash between binding and file write) is not counted as unsaved by planSignOut 3ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 18. d1-5: refusedParkedKeys drops the refusal when newerStoreIn(dir) turns false 11ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 19. d2-1: a pre-existing slides autosave copy of the owner's deck is gone after sign-out 23ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 20. d2-2: park refused (store_full) for A keeps the folder locked so signed-in B cannot open it; A signing back in reopens 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 22. Q2 = a: B is already live, a cancelled switch prompt cannot keep A open: A is locked, parked and closed, with no new intent 10ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 23. d5-1: a switch whose park is refused (store full) still closes A, keeps no plaintext of A and counts the loss in one notice 24ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 24. d5-1: an explicit sign-out with the same refused park still aborts: the tab stays, nothing is deleted 3ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 21. d2-3: findNewestRecoveryBytes picks the newest candidate by mtime when the disk file is missing 5ms
+
+ Test Files  4 passed (4)
+      Tests  41 passed (41)
+   Start at  14:46:52
+   Duration  873ms (transform 951ms, setup 0ms, import 1.26s, tests 576ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+stderr | tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end 62ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > parks, lists, takes and removes working copies across a reopen 16ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > overwrites an existing parked copy atomically in one record 6ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > refuses a parked copy that exceeds the account budget -> store_full 4ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > reports keystore_locked when the keystore is locked 4ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > returns interrupted after the scope is locked 4ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > writes a record and reads it back without plaintext at rest 3ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > a sign-out locks every handle and keeps only ciphertext; same-account reopen reads every record 5ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > an account switch locks only the switched-out scope; the other scope's handle cannot read it 6ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > after lock the RAM key is gone: a dead handle reads interrupted even with the keyring unlocked 3ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > refuses a record that requires a newer store level and keeps it 3ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > counts the budget in encrypted bytes and refuses past it 7ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > a write in flight at sign-out resolves interrupted; reopen reads the last durable record, never the torn one 8ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 1. clean sign-out: plan has count=0, locks store (open handle reads interrupted), deletes working copies 14ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 2. dirty sign-out with stored intent and N+1 bytes: plan has count=1, intent ciphertext stays byte-identical, N+1 parked, working copy deleted 13ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 3. dirty sign-out with N+1 in editor/disk: captures via requestModuleSave(..., "capture"), parks N+1, deletes working and recovery copies 9ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 4. park failure (store_full) aborts lockSession: working copy stays on disk and returns { ok: false } 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 5. in-flight upload/commit during sign-out: emits waiting/done, bounds wait to 30s, transitions to reconciling (or settles committed if within 30s), ignores late response 11ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 5b. in-flight commit that answers within the 30s bound settles committed before lock 65ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 6. keystore-locked sign-out: plan reports keystoreLocked=true and ramOnly=1, skips capture, deletes working copies, writes no parked record and keeps the ciphertext byte-identical 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 7. cancel on sign-out prompt (or unconfirmed logout when count > 0): closes no tab, locks no store, deletes no working copy 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 8. same-account sign-in (restoreParked): B restores nothing of A; A restores working copy + binding, verifies sha256, deletes parked record, and next pollSaveQueue dispatches 73ms
+ ✓ tests/uniwork-sync-rollback.test.ts > uniwork sync rollback and re-upgrade guard (G5-11) > a scope holding level-3 records + a schema-3 binding: lock, reopen, the records are refused and kept byte-for-byte, no intent written 27ms
+ ✓ tests/uniwork-sync-rollback.test.ts > uniwork sync rollback and re-upgrade guard (G5-11) > re-upgrade (layer at the higher level) reads every record and the parked copy after a sign-out/sign-in cycle 19ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 9. RAM cache audit + signed_out lock reason: lockSession clears all 15 caches and refuses residual working copy while signed out 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 10. d1-1: a capture that never writes parks a newer recovery copy (or deletes base-only), leaves no plaintext under userData, and account B cannot open it 30ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 11. be-6/be-8: recovery copies go under the module naming, including a path whose folder is already gone 5ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 12. be-7: a refused binding write leaves no orphan plaintext; the next poll restores 10ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 13. be-10: another account's S11 lock survives the sign-out 3ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 14. rows 7/9/10: the sign-out shows no prompt, sends no request and mints no intent 29ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 15. row 8: a marker from the N+1 bytes is found in no file under userData after sign-out 9ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 16. be-2 / d1-3: sign-out hands the deleted working copies and their baseChecksum to the module originals clearer 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 17. d1-6: a dirty binding whose working copy is missing (crash between binding and file write) is not counted as unsaved by planSignOut 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 18. d1-5: refusedParkedKeys drops the refusal when newerStoreIn(dir) turns false 9ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 19. d2-1: a pre-existing slides autosave copy of the owner's deck is gone after sign-out 23ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 20. d2-2: park refused (store_full) for A keeps the folder locked so signed-in B cannot open it; A signing back in reopens 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 22. Q2 = a: B is already live, a cancelled switch prompt cannot keep A open: A is locked, parked and closed, with no new intent 9ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 23. d5-1: a switch whose park is refused (store full) still closes A, keeps no plaintext of A and counts the loss in one notice 23ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 24. d5-1: an explicit sign-out with the same refused park still aborts: the tab stays, nothing is deleted 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 21. d2-3: findNewestRecoveryBytes picks the newest candidate by mtime when the disk file is missing 7ms
+
+ Test Files  4 passed (4)
+      Tests  41 passed (41)
+   Start at  14:46:54
+   Duration  906ms (transform 991ms, setup 0ms, import 1.34s, tests 565ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+stderr | tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end 62ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > parks, lists, takes and removes working copies across a reopen 17ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > overwrites an existing parked copy atomically in one record 9ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > refuses a parked copy that exceeds the account budget -> store_full 6ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > reports keystore_locked when the keystore is locked 6ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > returns interrupted after the scope is locked 3ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > writes a record and reads it back without plaintext at rest 3ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > a sign-out locks every handle and keeps only ciphertext; same-account reopen reads every record 8ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > an account switch locks only the switched-out scope; the other scope's handle cannot read it 7ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > after lock the RAM key is gone: a dead handle reads interrupted even with the keyring unlocked 3ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > refuses a record older than the store minimum 3ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > counts the budget in encrypted bytes and refuses past it 7ms
+ ✓ tests/uniwork-sync-queue-parked.test.ts > uniwork sync parked working-copy store > uniwork-sync parked store — store compliance > a write in flight at sign-out resolves interrupted; reopen reads the last durable record, never the torn one 5ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 1. clean sign-out: plan has count=0, locks store (open handle reads interrupted), deletes working copies 15ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 2. dirty sign-out with stored intent and N+1 bytes: plan has count=1, intent ciphertext stays byte-identical, N+1 parked, working copy deleted 16ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 3. dirty sign-out with N+1 in editor/disk: captures via requestModuleSave(..., "capture"), parks N+1, deletes working and recovery copies 9ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 4. park failure (store_full) aborts lockSession: working copy stays on disk and returns { ok: false } 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 5. in-flight upload/commit during sign-out: emits waiting/done, bounds wait to 30s, transitions to reconciling (or settles committed if within 30s), ignores late response 12ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 5b. in-flight commit that answers within the 30s bound settles committed before lock 63ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 6. keystore-locked sign-out: plan reports keystoreLocked=true and ramOnly=1, skips capture, deletes working copies, writes no parked record and keeps the ciphertext byte-identical 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 7. cancel on sign-out prompt (or unconfirmed logout when count > 0): closes no tab, locks no store, deletes no working copy 4ms
+ ✓ tests/uniwork-sync-rollback.test.ts > uniwork sync rollback and re-upgrade guard (G5-11) > a scope holding level-3 records + a schema-3 binding: lock, reopen, the records are refused and kept byte-for-byte, no intent written 28ms
+ ✓ tests/uniwork-sync-rollback.test.ts > uniwork sync rollback and re-upgrade guard (G5-11) > re-upgrade (layer at the higher level) reads every record and the parked copy after a sign-out/sign-in cycle 20ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 8. same-account sign-in (restoreParked): B restores nothing of A; A restores working copy + binding, verifies sha256, deletes parked record, and next pollSaveQueue dispatches 74ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 9. RAM cache audit + signed_out lock reason: lockSession clears all 15 caches and refuses residual working copy while signed out 7ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 10. d1-1: a capture that never writes parks a newer recovery copy (or deletes base-only), leaves no plaintext under userData, and account B cannot open it 25ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 11. be-6/be-8: recovery copies go under the module naming, including a path whose folder is already gone 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 12. be-7: a refused binding write leaves no orphan plaintext; the next poll restores 10ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 13. be-10: another account's S11 lock survives the sign-out 3ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 14. rows 7/9/10: the sign-out shows no prompt, sends no request and mints no intent 29ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 15. row 8: a marker from the N+1 bytes is found in no file under userData after sign-out 7ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 16. be-2 / d1-3: sign-out hands the deleted working copies and their baseChecksum to the module originals clearer 6ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 17. d1-6: a dirty binding whose working copy is missing (crash between binding and file write) is not counted as unsaved by planSignOut 2ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 18. d1-5: refusedParkedKeys drops the refusal when newerStoreIn(dir) turns false 8ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 19. d2-1: a pre-existing slides autosave copy of the owner's deck is gone after sign-out 22ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 20. d2-2: park refused (store_full) for A keeps the folder locked so signed-in B cannot open it; A signing back in reopens 5ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 22. Q2 = a: B is already live, a cancelled switch prompt cannot keep A open: A is locked, parked and closed, with no new intent 11ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 23. d5-1: a switch whose park is refused (store full) still closes A, keeps no plaintext of A and counts the loss in one notice 24ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 24. d5-1: an explicit sign-out with the same refused park still aborts: the tab stays, nothing is deleted 4ms
+ ✓ tests/uniwork-docs-sign-out-lock.test.ts > G5-11 sign-out lock-and-keep, N+1 park, and restoreParked > 21. d2-3: findNewestRecoveryBytes picks the newest candidate by mtime when the disk file is missing 6ms
+
+ Test Files  4 passed (4)
+      Tests  41 passed (41)
+   Start at  14:46:55
+   Duration  870ms (transform 936ms, setup 0ms, import 1.26s, tests 572ms, environment 0ms)
+
+SIGNOUT_LOOP_DONE

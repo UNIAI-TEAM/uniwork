@@ -1,0 +1,855 @@
+$ for a in docs sheets slides pdf markdown html; do (cd apps/$a && NODE_ENV=test AI_PROVIDER=fake npx vitest run $(ls tests | grep -E 'uniwork' | sed 's#^#tests/#' | tr '\n' ' ') --reporter=verbose) || echo "MODULE_FAIL_$a"; done; echo MODULES_DONE
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ✓ tests/uniwork-save-handler.test.ts > docs real handlers on a UniWork copy > docs:save fires the hook once for an explicit Save and never for autosave 10ms
+ ✓ tests/uniwork-save-handler.test.ts > docs real handlers on a UniWork copy > docs:save refuses a view-only copy 1ms
+ ✓ tests/uniwork-save-handler.test.ts > docs real handlers on a UniWork copy > docs:save-as onto another file is a plain copy: no hook 3ms
+ ✓ tests/uniwork-save-handler.test.ts > docs real handlers on a UniWork copy > docs:save-as of a bound copy starts from the file name, not the hidden working-copy folder 1ms
+ ✓ tests/uniwork-save-handler.test.ts > docs real handlers on a UniWork copy > docs:save-as onto the open file itself is an explicit Save and fires once 4ms
+ ✓ tests/uniwork-save-handler.test.ts > docs real handlers on a UniWork copy > docs:save-as onto a view-only copy is refused 1ms
+ ✓ tests/uniwork-save-handler.test.ts > docs real handlers on a UniWork copy > docs:save-to (agent save) never reports a user save and never lands on a view-only copy 3ms
+ ✓ tests/uniwork-save-handler.test.ts > docs:comment-author (G8-02, BE-7) > answers the display name for a bound document and "User" for anything else 0ms
+ ✓ tests/uniwork-save-handler.test.ts > docs:comment-author (G8-02, BE-7) > follows the account live: after sign-out / session expiry the same path answers "User" 1ms
+ ✓ tests/uniwork-save-handler.test.ts > docs:comment-author (G8-02, BE-7) > without a shell policy (standalone app) the answer is "User" 0ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > picking UniWork AI saves the choice to the account store; ai-settings.json keeps the BYOK provider and keys 20ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > picking a BYOK provider clears that account choice 5ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > switching account restores that account choice, not the previous one 4ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > while UniWork AI is unavailable the choice falls back like selectedProvider (genspark) and survives 1ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > a save while UniWork AI is hidden (the degraded genspark) keeps the stored pick 3ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > a save while hidden still takes the key edits, and without a pick the renderer provider is saved as is 2ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > a deliberate BYOK choice while UniWork AI is hidden and the pick is on is written and clears the pick 1ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > saving the degraded provider back while hidden (pick on) still keeps the file provider and the pick 4ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > BYOK edits made while UniWork AI is chosen still reach ai-settings.json 1ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > without an account store (standalone) uniwork is never written to the file 2ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > the pick reaches editor tabs only: My AI, email and Settings read the file provider 1ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > ai:chat and the settings test with provider uniwork run the file provider, never ask a key for uniwork 4ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > a Settings save from the home window (same BYOK provider) keeps the pick 4ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > a provider change from the home window is a choice: the pick is cleared 3ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > the home Settings window reads the pick (pick on: uniwork; pick off: the file provider) while My AI still gets the file provider 2ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > the Settings read follows the availability flag: hidden entry, degraded provider; the pick stays 4ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > a Settings save that goes back to the file provider clears the pick it showed 1ms
+ ✓ tests/uniwork-ai-choice.test.ts > UniWork AI choice per account (desktop) > a Settings save that keeps UniWork AI keeps the pick and the BYOK provider underneath 1ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > fires the user-save hook exactly once for an explicit Save onto a bound path 2ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > never fires the hook for a auto save 3ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > never fires the hook for a save-as save 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > never fires the hook for a save-new save 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > never fires the hook for a mcp save 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > refuses autosave onto a bound path without writing 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > refuses every write to a view-only path (no write, no hook) 1ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > a Save As that picks the open file is judged as the explicit Save it is 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > lets Save As from a view-only document land on another, plain path 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > keeps autosave of an unbound path unchanged 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > with no policy every save writes, and the null hook is inert 1ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > reports bound / read-only state for the renderer query 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main) > writes a bound editable file on capture without firing the user-save hook, and still refuses read-only 0ms
+ ✓ tests/uniwork-save-seam.test.ts > renderer save gate > forces autosave off for a bound document but lets explicit Save through 0ms
+ ✓ tests/uniwork-save-seam.test.ts > renderer save gate > blocks in-place Save of a view-only document, keeps Save As 0ms
+ ✓ tests/uniwork-save-seam.test.ts > renderer save gate > ignores an answer that belongs to another path (renamed / saved-as) 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSamePath > matches the same file however the dialog spells it 0ms
+ ✓ tests/uniwork-originals.test.ts > the docs originals archive at the UniWork boundary (G5-11 be-2) > opening a bound working copy writes nothing to userData/originals 8ms
+ ✓ tests/uniwork-originals.test.ts > the docs originals archive at the UniWork boundary (G5-11 be-2) > still archives a plain local file, as before 3ms
+ ✓ tests/uniwork-originals.test.ts > the docs originals archive at the UniWork boundary (G5-11 be-2) > clearDocsOriginalsFor removes the archived copy of the open-time baseChecksum and the bytes on disk, and only those (d1-3) 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave switch > is hidden for a UniWork document, shown for a local file 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave switch > stays hidden where the platform has no local path to autosave to 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > keeps only read-only tools 64ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > refuses an edit tool call and leaves the document untouched 17ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > keeps generate_mindmap: it only returns a display payload 12ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > keeps the full tool set on an editable document 9ms
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > shows the reason, drops the track-changes toggle and the edit starters
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > keeps the edit affordances on an editable document
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > only allowlists tools that exist 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > shows the reason, drops the track-changes toggle and the edit starters 43ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > keeps the edit affordances on an editable document 20ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is English in en and Vietnamese in vi 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is translated in every shipped locale 0ms
+ ✓ tests/uniwork-view-only-clean.test.ts > setEditorEditable > does not emit an update (so the doc is not marked dirty) when going read-only 46ms
+ ✓ tests/uniwork-view-only-clean.test.ts > setEditorEditable > documents the root cause: the plain setEditable call emits update 7ms
+ ✓ tests/uniwork-view-only-clean.test.ts > saveStateLabel > shows view only for a read-only document even when marked dirty 1ms
+ ✓ tests/uniwork-view-only-clean.test.ts > saveStateLabel > keeps the genoffice labels for editable documents 0ms
+ ✓ tests/uniwork-view-only-clean.test.ts > saveStateLabel > never says "All changes saved" for a UniWork copy: the title-bar chip owns that state 0ms
+ ✓ tests/uniwork-view-only-clean.test.ts > saveStateLabel > has en and vi copy 0ms
+ ✓ tests/uniwork-error-text.test.ts > docs transport: UniWork error text by code > vi: session_expired shows the S9 text, not the chunk fallback 3ms
+ ✓ tests/uniwork-error-text.test.ts > docs transport: UniWork error text by code > en: session_expired shows the S9 text, not the chunk fallback 0ms
+ ✓ tests/uniwork-error-text.test.ts > docs transport: UniWork error text by code > vi: credits_exhausted shows the S9 text, not the chunk fallback 0ms
+ ✓ tests/uniwork-error-text.test.ts > docs transport: UniWork error text by code > en: ai_rate_limited shows the S9 text, not the chunk fallback 0ms
+ ✓ tests/uniwork-error-text.test.ts > docs transport: UniWork error text by code > en: the 413 code is the desktop "unavailable" text (Q-5) 0ms
+ ✓ tests/uniwork-error-text.test.ts > docs transport: UniWork error text by code > a chunk without a uniworkCode keeps its own text 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > waiting shows Stop only, no Retry 3328ms
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a wait after an earlier failed turn still shows Stop only (the old error keeps no Retry live)
+An update to AiPanel inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a wait that gives up ends as an error with one idle, and Retry IS offered 3236ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a wait after an earlier failed turn still shows Stop only (the old error keeps no Retry live) 4845ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it 1632ms
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a question_too_long refusal shows its error, offers no Retry or regenerate, and puts the question back in the composer
+An update to AiPanel inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a restarted conversation shows its note and not an empty-reply line 3237ms
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a question_rejected refusal shows its error, offers no Retry or regenerate, and puts the question back in the composer
+An update to AiPanel inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a question_too_long refusal shows its error, offers no Retry or regenerate, and puts the question back in the composer 3230ms
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a refused question does not overwrite a newer draft typed while the turn ran
+An update to AiPanel inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a question_rejected refusal shows its error, offers no Retry or regenerate, and puts the question back in the composer 3227ms
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > another failure still offers regenerate and leaves the composer alone (control)
+An update to AiPanel inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a refused question does not overwrite a newer draft typed while the turn ran 3228ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > another failure still offers regenerate and leaves the composer alone (control) 1629ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > the images-not-sent note shows above the answer and the turn is no error 1630ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line 3230ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a provider boundary and dropped calls become notes above the answer 1633ms
+
+ Test Files  8 passed (8)
+      Tests  83 passed (83)
+   Start at  14:45:49
+   Duration  38.01s (transform 5.34s, setup 0ms, import 9.31s, tests 34.43s, environment 2.87s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+ ✓ tests/uniwork-view-only-ai.test.ts > isUniworkViewOnly > is true only for a bound, read-only workbook 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only workbook: the AI can read but not edit > offers only reading tools and notes the workbook is view-only 2ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only workbook: the AI can read but not edit > refuses an edit tool the model calls anyway and never reaches the workbook 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only workbook: the AI can read but not edit > keeps the full tool set for an editable (or unbound) workbook 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only workbook: the AI can read but not edit > has a reason in en and vi that every locale carries 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only wiring > restricts every skill of the loop and refuses auto-applied plans 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only wiring > disables the editing ribbon AI action and shows the composer notice 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave toggle of a UniWork workbook > is not rendered when the workbook is bound or view-only 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave toggle of a UniWork workbook > never ticks the autosave timer for a locked workbook 0ms
+ ✓ tests/uniwork-preload-bound.test.ts > preload keeps uniworkBound on a workbook file > open result of a bound workbook 2ms
+ ✓ tests/uniwork-preload-bound.test.ts > preload keeps uniworkBound on a workbook file > save result of a bound workbook (the file the renderer reopens from) 1ms
+ ✓ tests/uniwork-preload-bound.test.ts > preload keeps uniworkBound on a workbook file > an unbound workbook stays unflagged 0ms
+ ✓ tests/uniwork-preload-bound.test.ts > preload keeps uniworkBound on a workbook file > rejects a non-boolean flag 1ms
+ ✓ tests/uniwork-view-only-load.test.ts > view-only lock > locks the workbook when set 2ms
+ ✓ tests/uniwork-view-only-load.test.ts > view-only lock > opens for a programmatic install and closes again afterwards 0ms
+ ✓ tests/uniwork-view-only-load.test.ts > view-only lock > stays locked when set during an install window until it ends 0ms
+ ✓ tests/uniwork-view-only-load.test.ts > view-only lock > does nothing for an editable workbook or after release 0ms
+ ✓ tests/uniwork-view-only-load.test.ts > view-only lock > survives a workbook whose permission call throws 1ms
+ ✓ tests/uniwork-view-only-load.test.ts > workbookDisplayName > shows the opened file, not the engine temp snapshot 0ms
+ ✓ tests/uniwork-view-only-load.test.ts > workbookDisplayName > shows the original of a recovered copy and the source of a CSV import 0ms
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices are announced through a separate status node (G05FE-7) > AiChatPanel > the live status node exists, empty, before the notice, and the notice text lands in the same node
+An update to AiModelPicker inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to AiModelPicker inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices are announced through a separate status node (G05FE-7) > AiChatPanel > the AI panel adds no role=status node: a workbook with it mounted keeps exactly one, the workbook status
+An update to AiModelPicker inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to AiModelPicker inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | tests/uniwork-ai-notice.test.ts > a refused UniWork AI question (too long, rejected): no Retry, the question goes back to the composer > AiChatPanel > the refusal shows its error with no Retry; the composer holds the question
+An update to AiModelPicker inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to AiModelPicker inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | tests/uniwork-ai-notice.test.ts > a refused UniWork AI question (too long, rejected): no Retry, the question goes back to the composer > AiChatPanel > another failure shows Retry (control)
+An update to AiModelPicker inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to AiModelPicker inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (sheets panel text) > a wait is a status line in the text; the resend resets it and the answer streams in 2ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (sheets panel text) > a partial answer dropped by a reset does not come back as the fallback of a tools-only resend (G05FE-8) 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (sheets panel text) > a restarted conversation: the note is the whole answer, quiet end, not an empty-reply fallback 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (sheets panel text) > the images-not-sent note sits above the answer, which still follows 1ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (sheets panel text) > a dropped tool call and a provider boundary are notes above the answer 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (sheets panel text) > UniWork AI off: one note, a quiet end, no no-action fallback and nothing persisted 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (sheets panel text) > a new run starts clean (clear) 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (sheets panel text) > a stop keeps the stopped line; the turn-limit and truncated lines are added to the answer 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (sheets panel text) > App.tsx forwards the loop events to the run notices and clears them on reset 1ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices are announced through a separate status node (G05FE-7) > announcement() is the latest notice or wait line, and a reset or a new run empties it 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices are announced through a separate status node (G05FE-7) > AiChatPanel > the live status node exists, empty, before the notice, and the notice text lands in the same node 41ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices are announced through a separate status node (G05FE-7) > AiChatPanel > the AI panel adds no role=status node: a workbook with it mounted keeps exactly one, the workbook status 7ms
+ ✓ tests/uniwork-ai-notice.test.ts > a refused UniWork AI question (too long, rejected): no Retry, the question goes back to the composer > aiErrQuestionTooLong ends the run with the error and the user message is not marked undelivered 1ms
+ ✓ tests/uniwork-ai-notice.test.ts > a refused UniWork AI question (too long, rejected): no Retry, the question goes back to the composer > aiErrQuestionRejected ends the run with the error and the user message is not marked undelivered 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > a refused UniWork AI question (too long, rejected): no Retry, the question goes back to the composer > another failure still marks the message undelivered (control) 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > a refused UniWork AI question (too long, rejected): no Retry, the question goes back to the composer > App.tsx puts the refused question back in the composer 1ms
+ ✓ tests/uniwork-ai-notice.test.ts > a refused UniWork AI question (too long, rejected): no Retry, the question goes back to the composer > AiChatPanel > the refusal shows its error with no Retry; the composer holds the question 10ms
+ ✓ tests/uniwork-ai-notice.test.ts > a refused UniWork AI question (too long, rejected): no Retry, the question goes back to the composer > AiChatPanel > another failure shows Retry (control) 6ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveAsDefault > starts Save As of a bound workbook from its name, outside the hidden working-copy folder 1ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > an explicit Save to the same path writes and fires the hook exactly once 1ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > AutoSave never writes a bound document 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > AutoSave of an unbound file writes as before, without the hook 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > Save As to another path writes but does not fire 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > a Save As that picks the open file itself is an explicit Save and fires once 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > first save of a new / converted workbook does not fire 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > an MCP save-to (even onto the same path) does not fire 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > a request without an origin saves as before and does not fire 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > read-only: Save is refused (no write, no hook) 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > read-only: Save As to a plain local path stays allowed 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > a throwing policy reads as a plain local file 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkSaveDecision (main workbook:save gate) > capture origin writes a bound editable workbook without firing the user-save hook, and refuses read-only 0ms
+ ✓ tests/uniwork-save-seam.test.ts > null policy = unchanged > every save writes; autosave is not locked 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkRequestOrigin > keeps an explicit origin as sent 0ms
+ ✓ tests/uniwork-save-seam.test.ts > uniworkRequestOrigin > reads a request without one by its quiet flag, so a missing origin cannot write a bound document 0ms
+ ✓ tests/uniwork-save-seam.test.ts > renderer seam helpers > quiet saves are AutoSave, others are the user 0ms
+ ✓ tests/uniwork-save-seam.test.ts > renderer seam helpers > a bound or view-only workbook locks AutoSave 0ms
+ ✓ tests/uniwork-save-seam.test.ts > renderer seam helpers > only a bound, editable workbook forces the write 0ms
+ ✓ tests/uniwork-save-seam.test.ts > workbookSaveRequestSchema forceWrite / origin > a clean plain save is still rejected, a forced bound save is accepted 3ms
+ ✓ tests/uniwork-save-seam.test.ts > handleSave carries the UniWork origin > explicit Save sends origin user 2ms
+ ✓ tests/uniwork-save-seam.test.ts > handleSave carries the UniWork origin > AutoSave sends origin auto 0ms
+ ✓ tests/uniwork-save-seam.test.ts > handleSave carries the UniWork origin > MCP save-to sends no origin 0ms
+ ✓ tests/uniwork-save-seam.test.ts > handleSave carries the UniWork origin > the recovery copy is untouched by the seam 0ms
+ ✓ tests/uniwork-save-seam.test.ts > handleSave carries the UniWork origin > a clean bound workbook still writes on explicit Save 0ms
+ ✓ tests/uniwork-save-seam.test.ts > handleSave carries the UniWork origin > a clean unbound workbook keeps the "nothing to save" short-circuit 0ms
+ ✓ tests/uniwork-save-seam.test.ts > handleSave carries the UniWork origin > a clean bound workbook is not force-written by AutoSave 0ms
+
+ Test Files  5 passed (5)
+      Tests  65 passed (65)
+   Start at  14:46:28
+   Duration  4.92s (transform 8.79s, setup 0ms, import 12.37s, tests 283ms, environment 344ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > waiting shows Stop only, no Retry
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > waiting shows Stop only, no Retry
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > waiting shows Stop only, no Retry
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > waiting shows Stop only, no Retry
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > waiting shows Stop only, no Retry
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > waiting shows Stop only, no Retry
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > waiting shows Stop only, no Retry 65ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered 20ms
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > another failure still offers regenerate and leaves the composer alone (control)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > another failure still offers regenerate and leaves the composer alone (control)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > another failure still offers regenerate and leaves the composer alone (control)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > another failure still offers regenerate and leaves the composer alone (control)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > another failure still offers regenerate and leaves the composer alone (control)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > another failure still offers regenerate and leaves the composer alone (control)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a provider boundary and dropped calls become notes
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a provider boundary and dropped calls become notes
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a provider boundary and dropped calls become notes
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only 23ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it 18ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line 19ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer 12ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer 12ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > another failure still offers regenerate and leaves the composer alone (control) 12ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line 17ms
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a provider boundary and dropped calls become notes
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a provider boundary and dropped calls become notes
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a provider boundary and dropped calls become notes 17ms
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a plain local deck shows it
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a plain local deck shows it
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a UniWork-bound deck shows no AutoSave toggle at all
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a UniWork-bound deck shows no AutoSave toggle at all
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a plain local deck shows it 76ms
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a view-only UniWork deck shows no AutoSave toggle either
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a view-only UniWork deck shows no AutoSave toggle either
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > an editable deck has the AI edit entries enabled
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > an editable deck has the AI edit entries enabled
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > a view-only deck turns every AI edit entry off and gives the reason
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a UniWork-bound deck shows no AutoSave toggle at all 29ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a view-only UniWork deck shows no AutoSave toggle either 34ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > an editable deck has the AI edit entries enabled 36ms
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > a view-only deck turns every AI edit entry off and gives the reason
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > Review > spell check and translate are off for a view-only deck
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > Review > spell check and translate are off for a view-only deck
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel of a view-only deck > shows the reason and no edit starters; an editable deck shows starters and no reason
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel of a view-only deck > shows the reason and no edit starters; an editable deck shows starters and no reason
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > a view-only deck turns every AI edit entry off and gives the reason 45ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > Review > spell check and translate are off for a view-only deck 41ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI skill of a view-only deck > an editable deck keeps the editing tools 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI skill of a view-only deck > a view-only deck offers read-only tools only 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI skill of a view-only deck > the tool list follows the live predicate 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI skill of a view-only deck > the executor refuses an editing tool a model still asks for, and changes nothing 2ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI skill of a view-only deck > read_slide still runs on a view-only deck 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI panel of a view-only deck > shows the reason and no edit starters; an editable deck shows starters and no reason 14ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > is English in en and Vietnamese in vi 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > is translated in every shipped locale, not the English fallback 2ms
+ ✓ tests/uniwork-save-origin.test.ts > slides save origin (UniWork seam) > tags an explicit save 'user' and an AutoSave pass 'auto' 2ms
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure gate) > fires the hook only for an explicit in-place save of a titled deck 40ms
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure gate) > refuses read-only targets and AutoSave on bound paths 18ms
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure gate) > reads a missing or unknown origin as an explicit save, and preserves capture 8ms
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure gate) > capture origin writes a bound editable deck without firing the hook and refuses read-only 9ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > null policy: an explicit save writes and fires the hook once 19ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > an AutoSave pass on an unbound deck still writes but never fires the hook 11ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > bound: an AutoSave pass writes nothing 7ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > bound: an explicit save of a clean deck still writes and fires the hook once 13ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > read-only: Save is refused with no write and no hook 8ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > an untitled deck save (first save into drafts) does not fire the hook 13ms
+ ✓ tests/uniwork-save.test.ts > slides:save UniWork seam > reports bound / read-only for the sender deck only 6ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As of a bound deck to another path writes a plain copy, no hook 10ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As of a bound deck starts from its name in the remembered folder, not next to the copy 12ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As onto the open deck itself is an explicit Save: it writes and fires once 9ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As onto a read-only path is refused 7ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > Save As of a locked working copy is refused before the target picker opens 5ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > MCP save to the same bound path writes but never fires the hook 8ms
+ ✓ tests/uniwork-save.test.ts > slides:save-as and MCP save UniWork seam > MCP save onto a read-only path throws without writing 7ms
+ ✓ tests/uniwork-save.test.ts > crash-recovery copy > a dirty bound deck writes no autosave copy 61ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > re-opens the queued deck from disk instead of returning the stale in-memory session 70ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > keeps aliased peers on the old session during the reload window, then swaps them to the fresh one 15ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > a failed re-open (file gone) restores the reloading view and keeps the peers on the old session 9ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > a refused re-open (newer-store working copy) restores the reloading view on its UniWork path 6ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > a re-open that throws resolves with the previous deck instead of rejecting (no blank boot) 7ms
+ ✓ tests/uniwork-save.test.ts > queueSlidesForView and slides:consume-pending-open reload routing > restores the in-memory session when reloading without queueSlidesForView (freeze recovery) 9ms
+ ✓ tests/uniwork-save.test.ts > reload window state tied to the webContents lifecycle > a peer destroyed during the reload window is not swapped onto the fresh session 13ms
+ ✓ tests/uniwork-save.test.ts > reload window state tied to the webContents lifecycle > a reloading view destroyed before it consumes leaves no queue, no session and no restored deck 5ms
+ ✓ tests/uniwork-save.test.ts > recovery copy cleared while an autosave tick is in flight > removes the copy the tick wrote after queueSlidesForView cleared it (target gone) 1507ms
+
+ Test Files  4 passed (4)
+      Tests  53 passed (53)
+   Start at  14:46:33
+   Duration  5.67s (transform 6.05s, setup 0ms, import 8.75s, tests 2.42s, environment 1.47s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/pdf
+
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure) > is a pass-through without a policy: writes, hook only for an explicit in-place save 2ms
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure) > a Save As onto the open file is an explicit Save, onto another file it is a copy 0ms
+ ✓ tests/uniwork-save.test.ts > uniworkSaveDecision (pure) > capture origin writes a bound editable PDF with forceWrite and without firing the hook, and refuses read-only 1ms
+ ✓ tests/uniwork-save.test.ts > pdf:save UniWork seam > fires the hook once after an explicit Save of a bound document 9ms
+ ✓ tests/uniwork-save.test.ts > pdf:save UniWork seam > refuses autosave onto a bound path: no write, no hook 1ms
+ ✓ tests/uniwork-save.test.ts > pdf:save UniWork seam > never fires the hook for autosave, internal flushes or a missing origin on plain files 7ms
+ ✓ tests/uniwork-save.test.ts > pdf:save UniWork seam > never fires the hook for Save As to another path 2ms
+ ✓ tests/uniwork-save.test.ts > pdf:save UniWork seam > writes and fires the hook on an explicit Save of a clean bound document 2ms
+ ✓ tests/uniwork-save.test.ts > pdf:save UniWork seam > refuses every write to a view-only document, but allows Save As elsewhere 2ms
+ ✓ tests/uniwork-save.test.ts > pdf:save UniWork seam > answers uniwork-state only for paths granted to the view 1ms
+ ✓ tests/uniwork-save.test.ts > flushPdfSave UniWork seam > asks a clean bound view to save on menu Save; a clean local view resolves at once 2ms
+ ✓ tests/uniwork-save.test.ts > flushPdfSave UniWork seam > an export flush ({ explicit: false }) asks the renderer to save as internal 3ms
+ ✓ tests/uniwork-save.test.ts > flushPdfSave UniWork seam > a user Save landing while an export flush is pending still fires the hook 2ms
+ ✓ tests/uniwork-save.test.ts > pdf:save Save As onto the open file > is an explicit Save: it writes and fires the hook once 2ms
+ ✓ tests/uniwork-save.test.ts > pdf:save Save As onto the open file > still never fires for a view-only document 1ms
+stderr | tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > keeps only read-only tools and says the document is view-only 2ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > refuses an edit tool call before it reaches the document 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > keeps the full tool set on an editable document 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > only allowlists tools that exist 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only 37ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is English in en and Vietnamese in vi 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is translated in every shipped locale 1ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > waiting shows Stop only, no Retry 57ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a wait that gives up ends as an error and Retry IS offered 23ms
+ ✓ tests/uniwork-renderer-save.test.ts > forcesBoundSave > forces an explicit Save of a bound editable document even when clean 1ms
+ ✓ tests/uniwork-renderer-save.test.ts > forcesBoundSave > does not force a Save queued behind a user Save that just wrote (one click, one report) 0ms
+ ✓ tests/uniwork-renderer-save.test.ts > forcesBoundSave > never forces autosave 0ms
+ ✓ tests/uniwork-renderer-save.test.ts > forcesBoundSave > never forces an internal flush 0ms
+ ✓ tests/uniwork-renderer-save.test.ts > forcesBoundSave > never forces a plain local file 0ms
+ ✓ tests/uniwork-renderer-save.test.ts > forcesBoundSave > never forces a view-only copy 0ms
+ ✓ tests/uniwork-renderer-save.test.ts > forcesBoundSave > never forces pending redactions 0ms
+ ✓ tests/uniwork-renderer-save.test.ts > drainedOrigin > one explicit request makes the batch explicit 0ms
+ ✓ tests/uniwork-renderer-save.test.ts > drainedOrigin > keeps an all-autosave batch silent and mixed internal work internal 0ms
+ ✓ tests/uniwork-renderer-save.test.ts > isUniworkRefusal > recognises main declining a view-only or autosave write, nothing else 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a wait after an earlier failed turn still shows Stop only 23ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > the notice line has its own style rule (set apart from the reply, no raw colours) 1ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it 17ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a restarted conversation keeps its note and no empty-reply line 22ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer 14ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer 18ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > another failure still offers Retry and leaves the composer alone (control) 12ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line 13ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a provider boundary and dropped calls become notes 17ms
+ ✓ tests/uniwork-state.test.ts > queryPdfUniworkState > returns main’s answer for the path 2ms
+ ✓ tests/uniwork-state.test.ts > queryPdfUniworkState > reads a missing method (browser harness) as an unbound, editable file 0ms
+ ✓ tests/uniwork-state.test.ts > queryPdfUniworkState > reads a rejected call as an unbound, editable file 0ms
+ ✓ tests/uniwork-state.test.ts > queryPdfUniworkState > treats a malformed answer as not bound and not read only 0ms
+
+ Test Files  5 passed (5)
+      Tests  47 passed (47)
+   Start at  14:46:39
+   Duration  2.35s (transform 2.77s, setup 286ms, import 3.57s, tests 309ms, environment 1.82s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ✓ tests/uniwork-save.test.ts > markdown UniWork user-save hook > fires once for an explicit Save that rewrote the same file 10ms
+ ✓ tests/uniwork-save.test.ts > markdown UniWork user-save hook > does not fire for an AutoSave of a plain local file, which still writes 3ms
+ ✓ tests/uniwork-save.test.ts > markdown UniWork user-save hook > does not fire for Save As to another path 3ms
+ ✓ tests/uniwork-save.test.ts > markdown UniWork user-save hook > fires once for a Save As that picks the open file itself 2ms
+ ✓ tests/uniwork-save.test.ts > markdown UniWork user-save hook > does not fire for an agent save-to-path 3ms
+ ✓ tests/uniwork-save.test.ts > markdown bound and view-only UniWork copies > AutoSave never writes a bound copy 1ms
+ ✓ tests/uniwork-save.test.ts > markdown bound and view-only UniWork copies > an explicit Save of a clean bound copy still asks the renderer to write 1ms
+ ✓ tests/uniwork-save.test.ts > markdown bound and view-only UniWork copies > refuses to write a view-only copy and does not fire the hook 2ms
+ ✓ tests/uniwork-save.test.ts > markdown bound and view-only UniWork copies > still lets Save As make a plain local copy of a view-only document 3ms
+ ✓ tests/uniwork-save.test.ts > markdown bound and view-only UniWork copies > reports bound and view-only state to the renderer for its own document 2ms
+ ✓ tests/uniwork-save.test.ts > markdown bound and view-only UniWork copies > every Save of a bound copy (toolbar, menu, Ctrl+S) writes in place with no dialog and reports a user save 3ms
+ ✓ tests/uniwork-save.test.ts > markdown bound and view-only UniWork copies > Save As of a bound copy starts from the file name, not the hidden working-copy folder 1ms
+ ✓ tests/uniwork-save.test.ts > markdown bound and view-only UniWork copies > Save As of a plain local file still starts next to it 1ms
+ ✓ tests/uniwork-save.test.ts > markdown bound and view-only UniWork copies > capture origin writes a bound editable copy without firing the user-save hook, and refuses read-only 3ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > exposes only the reading tools 3ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > tells the model the document is view-only 5ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > keeps the full catalogue on an editable document 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > refuses every editing tool and leaves the document untouched 70ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > still runs the reading tools 21ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > waiting shows Stop only, no Retry 117ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a wait that gives up ends as an error and Retry IS offered 44ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > keeps generate_mindmap: it only returns a display payload 15ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > reads the predicate live: lifting view-only restores editing 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AutoSave switch > shows it for a local file 65ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a wait after an earlier failed turn still shows Stop only 48ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > the notice line has its own style rule (set apart from the reply, no raw colours) 1ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it 42ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a restarted conversation keeps its note and no empty-reply line 31ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer 22ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AutoSave switch > hides it for a UniWork copy, editable or view-only 62ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI buttons on a view-only copy > keeps summarize and turns the editing presets off with the reason as tooltip 34ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI buttons on a view-only copy > leaves every preset on for an editable copy 27ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > is real text in English and Vietnamese 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > exists in every locale and is translated outside English 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows the notice and no edit queue 32ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows no notice and keeps the edit queue on an editable copy 22ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer 31ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > another failure still offers Retry and leaves the composer alone (control) 24ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line 44ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a provider boundary and dropped calls become notes 26ms
+ ✓ tests/uniwork-ribbon.test.ts > Ribbon on a UniWork copy > a plain local file keeps the genoffice toggle and a clean Save stays off 105ms
+ ✓ tests/uniwork-ribbon.test.ts > Ribbon on a UniWork copy > a bound copy has no AutoSave toggle at all, and Save works while clean 30ms
+ ✓ tests/uniwork-ribbon.test.ts > Ribbon on a UniWork copy > a view-only copy disables Save but keeps Save As for a local copy 24ms
+ ✓ tests/uniwork-ribbon.test.ts > Ribbon on a UniWork copy > a view-only copy can still be read: Find, outline, spelling and properties stay on 27ms
+ ✓ tests/uniwork-ribbon.test.ts > Ribbon on a UniWork copy > a view-only copy keeps the read-only AI entries (summarize, mind map) on and edits off 21ms
+ ✓ tests/uniwork-view-only-app.test.ts > markdown App on a UniWork copy > shows the properties panel of a view-only copy read-only and ignores typing into it 372ms
+ ✓ tests/uniwork-view-only-app.test.ts > markdown App on a UniWork copy > keeps the properties panel editable on an editable copy 277ms
+ ✓ tests/uniwork-view-only-app.test.ts > markdown App on a UniWork copy > renders an editable, unbound copy when the UniWork state query is missing 267ms
+ ✓ tests/uniwork-view-only-app.test.ts > markdown App on a UniWork copy > renders an editable, unbound copy when the UniWork state query is rejects 261ms
+ ✓ tests/uniwork-view-only-app.test.ts > markdown App on a UniWork copy > hands every save request to main, even for a view-only copy 269ms
+ ✓ tests/uniwork-view-only-app.test.ts > markdown App on a UniWork copy > after a Save of a copy bound=true the status bar says null (the chip owns the UniWork outcome) 277ms
+ ✓ tests/uniwork-view-only-app.test.ts > markdown App on a UniWork copy > after a Save of a copy bound=false the status bar says Saved (the chip owns the UniWork outcome) 274ms
+ ✓ tests/uniwork-view-only-app.test.ts > markdown App on a UniWork copy > Ctrl+S on a UniWork copy is a plain Save (no dialog); only Ctrl+Shift+S is Save As 304ms
+
+ Test Files  5 passed (5)
+      Tests  53 passed (53)
+   Start at  14:46:42
+   Duration  5.15s (transform 2.70s, setup 0ms, import 4.65s, tests 3.34s, environment 1.82s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > waiting shows Stop only, no Retry 72ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a wait that gives up ends as an error and Retry IS offered 22ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > exposes only the reading tools 4ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > tells the model the document is view-only 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > keeps the full catalogue on an editable document 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > refuses every editing tool and leaves the document untouched 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > still runs the reading tools 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > reads the predicate live: lifting view-only restores editing 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AutoSave switch > shows it for a local file 39ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AutoSave switch > hides it for a UniWork copy, editable or view-only 28ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI buttons on a view-only copy > keeps summarize and turns the editing presets off with the reason as tooltip 16ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI buttons on a view-only copy > leaves every preset on for an editable copy 19ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > is real text in English and Vietnamese 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > exists in every locale and is translated outside English 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows the notice and no edit queue 33ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows no notice and keeps the edit queue on an editable copy 11ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a wait after an earlier failed turn still shows Stop only 25ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > the notice line has its own style rule (set apart from the reply, no raw colours) 1ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it 25ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a restarted conversation keeps its note and no empty-reply line 18ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer 13ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer 15ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > another failure still offers Retry and leaves the composer alone (control) 18ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line 15ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a provider boundary and dropped calls become notes 15ms
+ ✓ tests/uniwork-save.test.ts > html UniWork user-save hook > fires once for an explicit Save that rewrote the same file 14ms
+ ✓ tests/uniwork-save.test.ts > html UniWork user-save hook > does not fire for an AutoSave of a plain local file, which still writes 3ms
+ ✓ tests/uniwork-save.test.ts > html UniWork user-save hook > does not fire for Save As to another path 5ms
+ ✓ tests/uniwork-save.test.ts > html UniWork user-save hook > fires once for a Save As that picks the open file itself 7ms
+ ✓ tests/uniwork-save.test.ts > html UniWork user-save hook > does not fire for an agent save-to-path 2ms
+ ✓ tests/uniwork-save.test.ts > html bound and view-only UniWork copies > AutoSave never writes a bound copy 4ms
+ ✓ tests/uniwork-save.test.ts > html bound and view-only UniWork copies > an explicit Save of a clean bound copy still asks the renderer to write 1ms
+ ✓ tests/uniwork-save.test.ts > html bound and view-only UniWork copies > refuses to write a view-only copy and does not fire the hook 3ms
+ ✓ tests/uniwork-save.test.ts > html bound and view-only UniWork copies > still lets Save As make a plain local copy of a view-only document 3ms
+ ✓ tests/uniwork-save.test.ts > html bound and view-only UniWork copies > reports bound and view-only state to the renderer for its own document 1ms
+ ✓ tests/uniwork-save.test.ts > html bound and view-only UniWork copies > capture origin writes a bound editable copy without firing the user-save hook, and refuses read-only 2ms
+ ✓ tests/uniwork-ribbon.test.ts > Ribbon on a UniWork copy > a plain local file keeps the genoffice toggle and a clean Save stays off 41ms
+ ✓ tests/uniwork-ribbon.test.ts > Ribbon on a UniWork copy > a bound copy has no AutoSave switch at all, and Save works while clean 11ms
+ ✓ tests/uniwork-ribbon.test.ts > Ribbon on a UniWork copy > a view-only copy disables Save but keeps Save As for a local copy 11ms
+ ✓ tests/uniwork-ribbon.test.ts > Ribbon on a UniWork copy > a view-only copy can still be searched, while editing stays off 13ms
+ ✓ tests/uniwork-view-only-app.test.ts > html App on a view-only UniWork copy > still renders and saves as a plain local file when the UniWork state query is missing 511ms
+ ✓ tests/uniwork-view-only-app.test.ts > html App on a view-only UniWork copy > still renders and saves as a plain local file when the UniWork state query is rejects 303ms
+ ✓ tests/uniwork-view-only-app.test.ts > html App on a view-only UniWork copy > hands a save request to main instead of refusing it in the renderer 290ms
+
+ Test Files  5 passed (5)
+      Tests  43 passed (43)
+   Start at  14:46:48
+   Duration  4.12s (transform 3.36s, setup 0ms, import 5.29s, tests 1.63s, environment 1.80s)
+
+MODULES_DONE
