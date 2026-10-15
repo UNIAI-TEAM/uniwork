@@ -96,7 +96,7 @@ export interface FolderPickerDialogProps {
 
 /**
  * Tree folder picker (addendum §3.6, FD-09): collapsible folder tree with
- * "Documents (gốc)" root as a target. Current location, the moved item's own
+ * "Tài liệu (gốc)" root as a target. Current location, the moved item's own
  * subtree, and targets past `TREE_MAX_LEVEL` are shown with `aria-disabled`
  * (still focusable and keyboard-reachable) and a visible text reason below the
  * name; selecting them does nothing.

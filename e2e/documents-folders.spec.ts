@@ -45,7 +45,7 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to
   await sidebar.getByRole("button", { name: "Tạo thư mục" }).click();
 
   const dialog = page.getByRole("dialog", {
-    name: "Thư mục mới ở Documents (gốc)",
+    name: "Thư mục mới ở Tài liệu (gốc)",
   });
   const input = dialog.getByLabel("Tên thư mục");
   await expect(input).toBeVisible();
@@ -861,11 +861,11 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
   const searchPageA = await page.context().newPage();
   await searchPageA.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
   const searchInputA = searchPageA.getByRole("searchbox", {
-    name: "Tìm trong Documents",
+    name: "Tìm trong Tài liệu",
   });
   await searchInputA.fill("Hồ sơ Realtime Move");
   const resultsListA = searchPageA.getByRole("list", {
-    name: "Tìm trong Documents",
+    name: "Tìm trong Tài liệu",
   });
   await expect(
     resultsListA.getByText("Đường dẫn: Nguồn"),
@@ -1171,7 +1171,7 @@ test("FD-A06 (FD-09 UI) Move-to picker lists self and descendants as focusable a
   const picker = page.getByRole("dialog", { name: "Di chuyển tới" });
   const submit = picker.getByRole("button", { name: "Di chuyển", exact: true });
   const rootRow = picker.getByRole("treeitem", {
-    name: "Documents (gốc)",
+    name: "Tài liệu (gốc)",
     exact: true,
   });
   const selfRow = picker.getByRole("treeitem", { name: "Nhánh A", exact: true });
@@ -1463,7 +1463,7 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
       page.getByRole("alert").getByText("Không mở được thư mục này"),
     ).toBeVisible();
     await expect(page.getByText("Thư mục này chưa có gì")).toHaveCount(0);
-    await page.getByRole("link", { name: "Về Documents (gốc)" }).click();
+    await page.getByRole("link", { name: "Về Tài liệu (gốc)" }).click();
     await expect(page).toHaveURL(
       new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents$`),
     );
@@ -1510,7 +1510,7 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
     page.getByRole("alert").getByText("Không mở được thư mục này"),
   ).toBeVisible();
   await expect(page.getByText("Thư mục Cha Bí Mật")).toHaveCount(0);
-  await page.getByRole("link", { name: "Về Documents (gốc)" }).click();
+  await page.getByRole("link", { name: "Về Tài liệu (gốc)" }).click();
   await expect(page).toHaveURL(
     new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents$`),
   );
@@ -1668,11 +1668,11 @@ test("FD-A09 unified search and ⌘K find folders and documents by title, filter
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
 
   const searchInput = page.getByRole("searchbox", {
-    name: "Tìm trong Documents",
+    name: "Tìm trong Tài liệu",
   });
   await searchInput.fill("hop dong");
 
-  const resultsList = page.getByRole("list", { name: "Tìm trong Documents" });
+  const resultsList = page.getByRole("list", { name: "Tìm trong Tài liệu" });
   await expect(resultsList.getByText("Hợp đồng Đối tác")).toBeVisible();
   await expect(resultsList.getByText("Báo cáo Hợp đồng Quý 1")).toBeVisible();
   await expect(resultsList.getByText("Bảng tính Hợp đồng Quý 1")).toBeVisible();
@@ -2260,11 +2260,11 @@ test("FD-A12 another member archiving and restoring a folder subtree is seen liv
     searchPageA = await page.context().newPage();
     await searchPageA.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
     const searchInputA = searchPageA.getByRole("searchbox", {
-      name: "Tìm trong Documents",
+      name: "Tìm trong Tài liệu",
     });
     await searchInputA.fill("Dự án Đóng");
     const resultsListA = searchPageA.getByRole("list", {
-      name: "Tìm trong Documents",
+      name: "Tìm trong Tài liệu",
     });
     await expect(resultsListA.getByText("Dự án Đóng")).toBeVisible();
 
