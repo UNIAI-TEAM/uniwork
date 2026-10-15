@@ -425,3 +425,74 @@ func TestBusyThreadStillReportsFollowing(t *testing.T) {
 		t.Fatalf("older page: %d rows, want root and the oldest reply", len(older))
 	}
 }
+
+func TestListRoomMessagesAroundKeepsThreadRepliesInTheThread(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	send := func(body string) ChatMessageRow {
+		t.Helper()
+		m, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: body})
+		if err != nil {
+			t.Fatalf("send %q: %v", body, err)
+		}
+		return m
+	}
+	reply := func(rootID, body string) ChatMessageRow {
+		t.Helper()
+		m, err := s.SendThreadReply(ctx, ub.ID, w.ID, room.RoomID, rootID, SendChatMessageInput{Body: body})
+		if err != nil {
+			t.Fatalf("reply %q: %v", body, err)
+		}
+		return m
+	}
+	root := send("ke hoach Q4")
+	r1 := reply(root.ID, "mot")
+	mainA := send("tin chinh A")
+	r2 := reply(root.ID, "hai")
+	mainB := send("tin chinh B")
+	r3 := reply(root.ID, "ba")
+	// Two main-timeline messages on the same instant sit on the anchor's boundary.
+	if _, err := pool.Exec(ctx, `UPDATE chat_messages SET created_at = $1 WHERE id = $2`, mainA.CreatedAt, mainB.ID); err != nil {
+		t.Fatal(err)
+	}
+	replyIDs := map[string]bool{r1.ID: true, r2.ID: true, r3.ID: true}
+
+	check := func(anchor string) {
+		t.Helper()
+		around, err := s.ListRoomMessagesAround(ctx, ua.ID, w.ID, room.RoomID, anchor, 50)
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := map[string]int{}
+		for i, m := range around {
+			seen[m.ID]++
+			if replyIDs[m.ID] {
+				t.Fatalf("around %s: thread reply %s on the main timeline", anchor, m.ID)
+			}
+			if m.ID == root.ID && m.ReplyCount != 3 {
+				t.Fatalf("around %s: root reply_count=%d want 3", anchor, m.ReplyCount)
+			}
+			if i > 0 {
+				prev := around[i-1]
+				if m.CreatedAt.Before(prev.CreatedAt) || (m.CreatedAt.Equal(prev.CreatedAt) && m.ID <= prev.ID) {
+					t.Fatalf("around %s: rows not ascending by (created_at, id) at %d", anchor, i)
+				}
+			}
+		}
+		for _, id := range []string{root.ID, mainA.ID, mainB.ID} {
+			if seen[id] != 1 {
+				t.Fatalf("around %s: %s seen %d times, want once", anchor, id, seen[id])
+			}
+		}
+	}
+	check(mainA.ID)
+	check(mainB.ID)
+	check(r2.ID)
+}

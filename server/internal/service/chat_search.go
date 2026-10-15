@@ -112,63 +112,51 @@ func (s *ChatService) ListRoomMessagesAround(
 	if half < 1 {
 		half = 1
 	}
-	anchorAt := pgtype.Timestamptz{Time: target.CreatedAt.Time, Valid: true}
-	beforeRows, err := s.q.ListChatMessagesBeforeOrAtInRoom(ctx, db.ListChatMessagesBeforeOrAtInRoomParams{
-		RoomID: roomID, WorkspaceID: wsID, BeforeOrAt: anchorAt, MsgLimit: int32(half),
-	})
-	if err != nil {
-		return nil, err
-	}
-	afterRows, err := s.q.ListChatMessagesAfterInRoom(ctx, db.ListChatMessagesAfterInRoomParams{
-		RoomID: roomID, WorkspaceID: wsID, AfterAt: anchorAt, MsgLimit: int32(half),
-	})
-	if err != nil {
-		return nil, err
-	}
-	byID := make(map[string]ChatMessageRow, len(beforeRows)+len(afterRows))
-	for i := len(beforeRows) - 1; i >= 0; i-- {
-		row := chatMessageRowFromBeforeOrAtRow(beforeRows[i], userID)
-		byID[row.ID] = row
-	}
-	for _, row := range afterRows {
-		converted := chatMessageRowFromAfterRow(row, userID)
-		byID[converted.ID] = converted
-	}
-	out := make([]ChatMessageRow, 0, len(byID))
-	for _, row := range byID {
-		out = append(out, row)
-	}
-	// Sort ASC by created_at.
-	for i := 0; i < len(out); i++ {
-		for j := i + 1; j < len(out); j++ {
-			if out[j].CreatedAt.Before(out[i].CreatedAt) {
-				out[i], out[j] = out[j], out[i]
-			}
+	// A thread reply never shows on the main timeline: center on its root.
+	// If the root is gone, keep the reply's instant but leave the reply out.
+	center := target
+	if target.ThreadRootID.Valid {
+		root, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
+			ID: target.ThreadRootID.String, RoomID: roomID, WorkspaceID: wsID,
+		})
+		if err == nil {
+			center = root
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
 		}
+	}
+	at := pgtype.Timestamptz{Time: center.CreatedAt.Time, Valid: true}
+	older, err := s.q.ListChatMessagesByRoom(ctx, db.ListChatMessagesByRoomParams{
+		RoomID: roomID, WorkspaceID: wsID, BeforeAt: at, BeforeID: center.ID, MsgLimit: int32(half),
+	})
+	if err != nil {
+		return nil, err
+	}
+	newer, err := s.q.ListChatMessagesByRoomAfter(ctx, db.ListChatMessagesByRoomAfterParams{
+		RoomID: roomID, WorkspaceID: wsID, AfterAt: at, AfterID: center.ID, MsgLimit: int32(half),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ChatMessageRow, 0, len(older)+1+len(newer))
+	for i := len(older) - 1; i >= 0; i-- {
+		out = append(out, chatMessageRowFromListRow(older[i], userID))
+	}
+	if !center.ThreadRootID.Valid {
+		u, err := s.q.GetUserByID(ctx, center.SenderID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, chatMessageRowFromDBForViewer(center, u.DisplayName, userID))
+	}
+	for _, row := range newer {
+		out = append(out, chatMessageRowFromListRow(db.ListChatMessagesByRoomRow(row), userID))
 	}
 	s.signChatMedia(ctx, room, out)
 	return out, nil
 }
 
 func chatMessageRowFromSearchRow(row db.SearchChatMessagesByRoomRow, viewerID string) ChatMessageRow {
-	out := chatMessageRowFromMessageFields(
-		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
-		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
-	)
-	out.ClientMsgID = row.ClientMsgID.String
-	return out
-}
-
-func chatMessageRowFromBeforeOrAtRow(row db.ListChatMessagesBeforeOrAtInRoomRow, viewerID string) ChatMessageRow {
-	out := chatMessageRowFromMessageFields(
-		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
-		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
-	)
-	out.ClientMsgID = row.ClientMsgID.String
-	return out
-}
-
-func chatMessageRowFromAfterRow(row db.ListChatMessagesAfterInRoomRow, viewerID string) ChatMessageRow {
 	out := chatMessageRowFromMessageFields(
 		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
 		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
