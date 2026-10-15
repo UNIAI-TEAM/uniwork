@@ -246,7 +246,8 @@ export function failureInfo(error) {
   return info;
 }
 
-function redact(text) {
+/** Drops token/ticket/password values from a response or error text (JSON fields and `ticket=` query values). */
+export function redact(text) {
   return String(text ?? "")
     .replace(/("(?:access_token|refresh_token|launch_ticket|ticket|token|password)"\s*:\s*)"[^"]*"/gi, '$1"<redacted>"')
     .replace(/ticket=[^&\s"]+/g, "ticket=<redacted>");
