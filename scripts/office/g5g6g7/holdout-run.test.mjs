@@ -426,6 +426,26 @@ describe('answer adapter', () => {
     assert.deepEqual(outcome('SUM(B2:B5)'), ['fail', 0, 1, 0], 'a text without the leading = is no formula write');
   });
 
+  it('decides the formula branch by the expectation when the case spells its formula without a leading = (G712-27)', () => {
+    const bare = { kind: 'formula', anchor: 'Q1!C3', value: 'SUM(B2:B5)' };
+    const bareCase = synthCase({
+      category: 'edit', tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: { numeric: [], structural: [bare], writes: 1, mustNotContain: [] },
+      referenceAnswer: { numeric: {}, structural: [bare], writes: 1, text: 'test reference' },
+    });
+    const line = reportFor({ items: [bare] });
+    const outcome = (formula) => {
+      const out = deriveAnswer(bareCase, { reply: line, calls: [{ name: 'propose_operations' }], writes: 1, dropped: [], modules: ['sheets'], sheetNames: ['Q1'], writeLog: [{ name: 'propose_operations', applied: true, args: { operations: [{ range: 'Q1!C3', formula }] } }] });
+      return [out.adapter.writeBacked, out.adapter.writeUnbacked, out.adapter.writeFormula];
+    };
+    assert.deepEqual(outcome('SUM(B2:B5)'), [1, 0, 1], 'the leaf equal to the expected formula is the formula, with or without the =');
+    assert.deepEqual(outcome('=SUM(B2:B5)'), [1, 0, 1]);
+    assert.deepEqual(outcome('= sum( $B$2 : $B$5 )'), [1, 0, 1]);
+    assert.deepEqual(outcome('=1+1'), [0, 1, 0], 'a wrong formula still fails');
+    assert.deepEqual(outcome('SUM(B2:B6)'), [0, 1, 0], 'another range fails whatever its =');
+    assert.deepEqual(outcome('hello'), [0, 1, 0], 'a text that is not the formula is not credited');
+  });
+
   it('judges the real formula-expecting case (read at runtime) by the formula text (G712-25)', () => {
     const real = cases.find((c) => c.expected.structural.some((x) => x.kind === 'formula'));
     assert.ok(real, 'the set has a formula-expecting case');

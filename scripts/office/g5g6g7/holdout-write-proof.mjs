@@ -103,13 +103,17 @@ export const normalizeFormula = (text) => String(text ?? '').toLowerCase().repla
 
 /**
  * 'value' when the leaf is the wanted value (a percent string "10%" is 0.1), 'formula' for a formula string, else null.
- * With `expectFormula` (the item expects a formula) a formula leaf counts only when it equals the expected one (G712-25).
+ * With `expectFormula` (the item expects a formula) a formula leaf counts only when it equals the expected one (G712-25, G712-27).
  */
 function judgeLeaf(leaf, value, expectFormula) {
-  if (typeof leaf === 'string' && leaf.trim().startsWith('=')) {
-    if (!expectFormula) return 'formula';
-    return normalizeFormula(leaf) === normalizeFormula(value) ? 'formula' : null;
-  }
+  if (expectFormula && typeof leaf === 'string') {
+    // The expectation decides the branch (G712-27): a case may spell its formula with or without the leading `=`. A leaf equal to the
+    // expected formula is the formula whatever its `=` when the case spells it without one; when the case spells it with one, a text
+    // leaf lacking `=` is no formula write. A leaf with `=` that is not the expected formula never credits.
+    const sameFormula = normalizeFormula(leaf) === normalizeFormula(value);
+    if (leaf.trim().startsWith('=')) return sameFormula ? 'formula' : null;
+    if (sameFormula && !String(value).trim().startsWith('=')) return 'formula';
+  } else if (typeof leaf === 'string' && leaf.trim().startsWith('=')) return 'formula';
   if (leaf === null || leaf === undefined || typeof leaf === 'object') return null;
   const wanted = toNumber(value);
   if (wanted !== null) {
