@@ -90,7 +90,9 @@ test("the README documents HARNESS_APP_STEP_TIMEOUT_MS (90000) and HARNESS_LOOP_
   assert.match(README, /600000/, "the default 600000 ms is documented");
 });
 
-test("the README documents the docs tab close-readiness wait before aiOfficeTabs.close (r7 H2)", () => {
+test("the README documents the docs tab close-readiness wait and HARNESS_DOCS_CLOSE_SETTLE_MS (2500) before aiOfficeTabs.close (r7 H2, r7b H2-1)", () => {
   assert.match(README, /docs tab not ready to close within/, "the README names the docs tab close-readiness timeout reason");
   assert.match(README, /onCloseCheck|__genofficeControl/, "the README names the docs renderer readiness signal waited on before aiOfficeTabs.close");
+  assert.match(README, /HARNESS_DOCS_CLOSE_SETTLE_MS/, "the README documents HARNESS_DOCS_CLOSE_SETTLE_MS");
+  assert.match(README, /2500/, "the default 2500 ms settle window is documented");
 });

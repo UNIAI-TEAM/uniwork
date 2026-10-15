@@ -2986,7 +2986,7 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
       `server ${process.pid} 1\nweb ${process.pid} 2\napp ${pid} 0\n`,
     );
 
-  it("H2(1): exports formatDocsTabReadyTimeoutReason ('docs tab not ready to close within <n> s') and waitForDocsTabReadyToClose", () => {
+  it("H2(1): exports formatDocsTabReadyTimeoutReason ('docs tab not ready to close within <n> s'), DEFAULT_DOCS_CLOSE_SETTLE_MS (2500), and waitForDocsTabReadyToClose", () => {
     assert.equal(typeof tracerMod.formatDocsTabReadyTimeoutReason, "function");
     assert.equal(
       tracerMod.formatDocsTabReadyTimeoutReason(90_000),
@@ -2996,24 +2996,31 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
       tracerMod.formatDocsTabReadyTimeoutReason(60),
       "docs tab not ready to close within 0.06 s",
     );
+    assert.equal(tracerMod.DEFAULT_DOCS_CLOSE_SETTLE_MS, 2_500);
+    assert.equal(typeof tracerMod.resolveDocsCloseSettleMs, "function");
+    assert.equal(tracerMod.resolveDocsCloseSettleMs(undefined, {}), 2_500);
     assert.equal(typeof tracerMod.waitForDocsTabReadyToClose, "function");
   });
 
-  it("H2(2): a fake docs target that becomes ready late -> closeOpenTabForPath waits for readiness before calling aiOfficeTabs.close and the step PASSes", async () => {
+  it("H2(2): a fake docs target that becomes ready late -> closeOpenTabForPath waits for readiness + HARNESS_DOCS_CLOSE_SETTLE_MS settle without calling reportCloseCheck before aiOfficeTabs.close, and the step PASSes (r7b H2-1)", async () => {
     const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
     withCdpPort(scratch);
     withAppPid(scratch, process.pid);
     const mock = createMockDServer({ aiMode: "real-xyz" });
     mock.fetchImpl.allowRealAiUpstream = true;
     const prevTimeout = process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+    const prevSettle = process.env.HARNESS_DOCS_CLOSE_SETTLE_MS;
     process.env.HARNESS_APP_STEP_TIMEOUT_MS = "2000";
+    process.env.HARNESS_DOCS_CLOSE_SETTLE_MS = "150";
     try {
       let wcFilePath = "";
       let docDir = "";
       let tabOpen = true;
       let docsProbeCount = 0;
       let docsReady = false;
+      let readyFirstSeenAt = 0;
       let closeCallCount = 0;
+      let closeCalledAt = 0;
       let readyWhenCloseCalled = false;
       let probeCountWhenCloseCalled = 0;
       let reportCloseCheckCalls = 0;
@@ -3025,8 +3032,9 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
         url: () => "genoffice-app://docs/index.html?mode=tab",
         evaluate: async (fn, arg) => {
           docsProbeCount += 1;
-          if (docsProbeCount >= 4) {
+          if (docsProbeCount >= 4 && !docsReady) {
             docsReady = true;
+            readyFirstSeenAt = Date.now();
           }
           const prevWindow = globalThis.window;
           const prevDocument = globalThis.document;
@@ -3075,6 +3083,7 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
                       : [],
                   close: async () => {
                     closeCallCount += 1;
+                    closeCalledAt = Date.now();
                     readyWhenCloseCalled = docsReady;
                     probeCountWhenCloseCalled = docsProbeCount;
                     if (!docsReady) {
@@ -3088,7 +3097,7 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
               return await fn(arg);
             } finally {
               globalThis.window = prevWindow;
-            }
+              }
           }
           if (src.includes("uniworkSave")) {
             const docId = mock.state.docId;
@@ -3170,13 +3179,19 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
       assert.equal(res.exitCode, 0, `late-ready docs target must PASS: ${res.reason}`);
       assert.equal(res.status, "PASS");
       assert.equal(res.steps.saveV2.status, "PASS");
-      assert.equal(closeCallCount, 1, "aiOfficeTabs.close must be called exactly once after readiness");
+      assert.equal(closeCallCount, 1, "aiOfficeTabs.close must be called exactly once after readiness + settle");
       assert.equal(readyWhenCloseCalled, true, "aiOfficeTabs.close must never be called before docs target is ready");
-      assert.ok(probeCountWhenCloseCalled >= 4, `expected >= 4 readiness probes before close, got ${probeCountWhenCloseCalled}`);
-      assert.ok(reportCloseCheckCalls >= 1, "readiness probe flushes any pre-mount closeCheckWaiter via reportCloseCheck");
+      assert.ok(
+        closeCalledAt - readyFirstSeenAt >= 130,
+        `aiOfficeTabs.close must not be called before HARNESS_DOCS_CLOSE_SETTLE_MS (150ms) elapses; elapsed=${closeCalledAt - readyFirstSeenAt}ms`,
+      );
+      assert.ok(probeCountWhenCloseCalled >= 5, `expected >= 5 readiness probes (initial + post-settle recheck) before close, got ${probeCountWhenCloseCalled}`);
+      assert.equal(reportCloseCheckCalls, 0, "harness must NEVER call window.desktop.reportCloseCheck (H2-1)");
     } finally {
       if (prevTimeout === undefined) delete process.env.HARNESS_APP_STEP_TIMEOUT_MS;
       else process.env.HARNESS_APP_STEP_TIMEOUT_MS = prevTimeout;
+      if (prevSettle === undefined) delete process.env.HARNESS_DOCS_CLOSE_SETTLE_MS;
+      else process.env.HARNESS_DOCS_CLOSE_SETTLE_MS = prevSettle;
       scratch.cleanup();
     }
   });
@@ -3188,7 +3203,6 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
       const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
       withCdpPort(scratch);
       withAppPid(scratch, process.pid);
-      const mock = createMockDServer({ aiMode: "503-disabled" });
 
       const logsDir = join(scratch.dir, "logs");
       mkdirSync(logsDir, { recursive: true });
@@ -3202,6 +3216,7 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
       try {
         let wcFilePath = "";
         let closeCallCount = 0;
+        let reportCloseCheckCalls = 0;
 
         const neverReadyDocsTarget = {
           url: () => "genoffice-app://docs/index.html?mode=tab",
@@ -3218,7 +3233,9 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
               globalThis.window = {
                 desktop: {
                   onCloseCheck: () => () => {},
-                  reportCloseCheck: () => {},
+                  reportCloseCheck: () => {
+                    reportCloseCheckCalls += 1;
+                  },
                 },
                 __genofficeControl: () => ({ status: "not_ready" }),
                 __aidocs: { editor: null },
@@ -3299,6 +3316,7 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
           });
 
           assert.equal(closeCallCount, 0, `loop ${loop}: aiOfficeTabs.close must NEVER be called when docs target is not ready`);
+          assert.equal(reportCloseCheckCalls, 0, `loop ${loop}: harness must NEVER call reportCloseCheck`);
           assert.equal(res.exitCode, 1, `loop ${loop}: must exit 1 (FAIL), never 77`);
           assert.equal(res.status, "FAIL");
           assert.equal(res.reason, "docs tab not ready to close within 0.06 s");
@@ -3327,3 +3345,4 @@ describe("G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)", () =
     },
   );
 });
+
