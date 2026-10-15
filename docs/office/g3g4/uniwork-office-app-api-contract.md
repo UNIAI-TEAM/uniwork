@@ -213,13 +213,14 @@ prompt. MIME của phiên âm phải là token `type/subtype` (audio/*, video/mp
 | --- | --- | --- |
 | 400 | `provider_not_supported`, `base_url_refused` | Nhà cung cấp ngoài danh sách / URL `custom` bị rào SSRF từ chối |
 | 402 | `credits_exhausted` | Hết token của kỳ (client hiện "hết credit") |
-| 403 | `entitlement_required` | Plan thiếu `office.ai_byok` hoặc `office.ai_cloud`; hoặc không phải thành viên |
+| 403 | `entitlement_required` | Plan thiếu `office.ai_byok` hoặc `office.ai_cloud` (không phải thành viên: xem dòng 404) |
 | 404 | `credential_missing` | Chưa có khóa cho nhà cung cấp này (hoặc không thấy tổ chức; cũng khi `AI_CREDENTIAL_KEY` đã đổi và khóa cũ không giải mã được — lưu lại khóa) |
 | 422 | `media_unsupported` | Loại tệp ngoài danh sách phân tích media hoặc mô hình không đọc được |
 | 424 | `provider_auth_failed` | Nhà cung cấp trả 401/403 cho khóa của người dùng |
 | 429 | — | Giới hạn tốc độ của UniWork hoặc 429 của nhà cung cấp (chuyển tiếp, kèm `retry-after`) |
 | 502 | `provider_unreachable` | Mạng/timeout tới nhà cung cấp |
 | 503 | `cloud_unavailable` | Công cụ đám mây chưa cấu hình ở server |
+| 503 | `ai_credentials_unavailable`, `ai_byok_not_configured` | Proxy BYOK / route khóa: server chưa cấu hình `AI_CREDENTIAL_KEY` hoặc chưa nối dịch vụ BYOK (client hiện là "khóa trên UniWork tạm thời chưa dùng được") |
 
 - **Giới hạn tốc độ** (theo bearer user và **theo nhóm route**, không theo URL; cần Redis,
   fail-open): nhóm khóa (3 route) 30/phút, nhóm proxy (4 route, mọi nhà cung cấp và tổ chức) 60/phút,
