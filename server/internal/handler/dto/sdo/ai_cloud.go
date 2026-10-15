@@ -26,6 +26,9 @@ type AiCloudStatusSDO struct {
 	Reason  string            `json:"reason,omitempty" description:"Khi enabled=false: entitlement_required, subscription_inactive hoặc cloud_unavailable. Khi enabled=true: credits_exhausted nếu credit của kỳ đã hết (client hiện trạng thái credits-exhausted), rỗng nếu sẵn sàng" example:"entitlement_required"`
 	Tools   AiCloudToolsDTO   `json:"tools"`
 	Credits AiCloudCreditsDTO `json:"credits"`
+	// UniworkModel is the model the Gateway serves for UniWork AI in the
+	// Office editors (G6-05m, the chip's UniWork AI row).
+	UniworkModel string `json:"uniwork_model" description:"Mô hình Gateway phục vụ cho UniWork AI trong Office (G6-05m); rỗng khi máy chủ chưa cấu hình nhà cung cấp AI hoặc UniWork AI đang tắt cho người gọi — client chỉ hiện nhãn \"UniWork AI\". Máy chủ cũ không gửi trường này, client cũng chỉ hiện nhãn." example:"claude-opus-5"`
 }
 
 // AiCloudSearchResultDTO is one search hit.

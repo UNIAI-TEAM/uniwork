@@ -253,6 +253,71 @@ describe("DocumentsPageView", () => {
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
   });
 
+  describe("access filter (UNI-1642)", () => {
+    const accessRows = () => [
+      summary({ my_level: "manage" }),
+      file("f1", "Báo giá.docx", { my_level: "edit" }),
+      file("f2", "Số liệu.xlsx", { my_level: "view" }),
+      file("f3", "Hợp đồng.docx", { my_level: "manage", visibility: "restricted" }),
+    ];
+    const accessGroup = () => screen.getByRole("group", { name: t("documents.home.access_filter_label") });
+    const typeGroup = () => screen.getByRole("group", { name: t("documents.home.chips_label") });
+    const pressed = (group: HTMLElement, name: string) => within(group).getByRole("button", { name }).getAttribute("aria-pressed");
+
+    it("filters through the real hook, and clear-filters puts every row and both All chips back", async () => {
+      route({ list: accessRows });
+      renderView(vi.fn());
+      await screen.findByText("Số liệu.xlsx");
+
+      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.edit") }));
+      expect(pressed(accessGroup(), t("documents.home.access_filters.edit"))).toBe("true");
+      expect(screen.getByText("Kế hoạch Q4")).toBeInTheDocument();
+      expect(screen.getByText("Báo giá.docx")).toBeInTheDocument();
+      expect(screen.getByText("Hợp đồng.docx")).toBeInTheDocument();
+      expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
+
+      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.restricted") }));
+      expect(screen.getByText("Hợp đồng.docx")).toBeInTheDocument();
+      expect(screen.queryByText("Báo giá.docx")).toBeNull();
+
+      // Nothing is both restricted and a spreadsheet: the empty state offers the clear action.
+      fireEvent.click(within(typeGroup()).getByRole("button", { name: t("documents.home.chips.xlsx") }));
+      expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: t("documents.library.clear_filters") }));
+
+      expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
+      expect(screen.getByText("Báo giá.docx")).toBeInTheDocument();
+      expect(pressed(accessGroup(), t("documents.home.access_filters.all"))).toBe("true");
+      expect(pressed(typeGroup(), t("documents.home.chips.all"))).toBe("true");
+    });
+
+    it("ANDs a type chip with the access filter, and the empty line names the filters when both are on", async () => {
+      route({ list: accessRows });
+      renderView(vi.fn());
+      await screen.findByText("Số liệu.xlsx");
+
+      fireEvent.click(within(typeGroup()).getByRole("button", { name: t("documents.home.chips.docx") }));
+      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
+      expect(screen.getByText("Hợp đồng.docx")).toBeInTheDocument();
+      expect(screen.queryByText("Báo giá.docx")).toBeNull();
+      expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
+      expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
+
+      fireEvent.click(within(typeGroup()).getByRole("button", { name: t("documents.home.chips.xlsx") }));
+      expect(await screen.findByText(t("documents.home.no_matches_filters_description"))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.home.no_matches_access_description"))).toBeNull();
+    });
+
+    it("keeps the access-only empty line when only the access filter is on", async () => {
+      route({ list: () => [summary({ my_level: "view" })] });
+      renderView(vi.fn());
+      await screen.findByText("Kế hoạch Q4");
+
+      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
+      expect(await screen.findByText(t("documents.home.no_matches_access_description"))).toBeInTheDocument();
+    });
+  });
+
   it("groups by folder by default and by file type on request", async () => {
     route({
       tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
@@ -627,7 +692,7 @@ describe("DocumentsPageView", () => {
   it("gates Move and Archive by the level of each row, not by the open folder", async () => {
     route({
       list: () => [
-        summary({ id: "m1", title: "Quản lý", my_level: "manage" }),
+        summary({ id: "m1", title: "Báo cáo quản lý", my_level: "manage" }),
         summary({ id: "e1", title: "Chỉnh sửa", my_level: "edit" }),
         summary({ id: "v1", title: "Chỉ xem", my_level: "view" }),
         summary({ id: "n1", title: "Chưa rõ", my_level: undefined }),
@@ -644,7 +709,7 @@ describe("DocumentsPageView", () => {
       await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeNull());
       return out;
     };
-    expect(await menuItems("Quản lý")).toEqual({ move: true, archive: true });
+    expect(await menuItems("Báo cáo quản lý")).toEqual({ move: true, archive: true });
     expect(await menuItems("Chỉnh sửa")).toEqual({ move: true, archive: false });
     expect(await menuItems("Chỉ xem")).toEqual({ move: false, archive: false });
     // A row the server sent no level for reads as view: nothing it would refuse.
@@ -1244,6 +1309,21 @@ describe("DocumentsPageView", () => {
       for (const btn of within(crumbs).getAllByRole("button")) {
         expect(btn).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
       }
+    });
+
+    // overflow-x-auto alone turns overflow-y into auto too; the tab underline
+    // sits below the strip, so the scope tabs grew a stray vertical scrollbar
+    // (UNI-1752). Both strips scroll sideways only, with no visible scrollbar.
+    it("keeps the scope tabs and type chips scrolling sideways only, without a visible scrollbar", async () => {
+      route({ list: () => [summary({ id: "d1", title: "Kế hoạch Q4" })] });
+      renderView(vi.fn());
+      await screen.findByText("Kế hoạch Q4");
+
+      const tabList = screen.getByRole("tablist", { name: t("documents.home.scope_label") });
+      expect(tabList).toHaveClass("overflow-x-auto", "overflow-y-hidden", "no-scrollbar");
+
+      const chipGroup = screen.getByRole("group", { name: t("documents.home.chips_label") });
+      expect(chipGroup).toHaveClass("overflow-x-auto", "overflow-y-hidden", "no-scrollbar");
     });
   });
 });

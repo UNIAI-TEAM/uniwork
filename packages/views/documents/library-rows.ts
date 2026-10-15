@@ -18,6 +18,13 @@ export type LibraryRow =
 export const TYPE_CHIPS = ["all", "page", "docx", "xlsx", "pptx", "pdf", "md", "html"] as const;
 export type TypeChip = (typeof TYPE_CHIPS)[number];
 
+/**
+ * The access filter beside the type chips: every row, the rows the viewer
+ * manages, the rows the viewer can edit (edit or manage), or restricted rows.
+ */
+export const ACCESS_FILTERS = ["all", "manage", "edit", "restricted"] as const;
+export type AccessFilter = (typeof ACCESS_FILTERS)[number];
+
 export const GROUP_BY = ["folder", "source", "type", "none"] as const;
 export type GroupBy = (typeof GROUP_BY)[number];
 
@@ -121,6 +128,61 @@ export function matchesChip(row: LibraryRow, chip: TypeChip): boolean {
   if (chip === "all") return true;
   if (isFolderRow(row)) return chip !== "page";
   return rowFormat(row) === chip;
+}
+
+/**
+ * The translation key for the viewer's level on a row (the "My access"
+ * column), or null when the row carries none (a source row, an older server, a
+ * level this client does not know). A display mapping, not `rowLevel()`, which
+ * reads an unknown level as view to keep commands hidden. The words match
+ * `documents.share.level_*`; "comment" is mapped ahead of the server sending it.
+ */
+export function rowAccessLabelKey(row: LibraryRow): string | null {
+  if (row.type !== "document") return null;
+  // Widened: the server may send levels this client's type does not list yet.
+  const level: string | null | undefined = row.doc.my_level;
+  switch (level) {
+    case "view":
+    case "comment":
+    case "edit":
+    case "manage":
+      return `documents.home.access.${level}`;
+    default:
+      return null;
+  }
+}
+
+/** The translation key for a row's visibility, or null when it carries none this client knows. */
+export function rowVisibilityLabelKey(row: LibraryRow): string | null {
+  if (row.type !== "document") return null;
+  const visibility: string | null | undefined = row.doc.visibility;
+  switch (visibility) {
+    case "workspace":
+    case "restricted":
+      return `documents.home.visibility.${visibility}`;
+    default:
+      return null;
+  }
+}
+
+/**
+ * The access filter runs on the rows already loaded, AND-ed with the type chip.
+ * An unknown level never matches "I manage" / "I can edit"; a source row has
+ * neither a level nor a visibility, so only "all" keeps it.
+ */
+export function matchesAccess(row: LibraryRow, filter: AccessFilter): boolean {
+  if (filter === "all") return true;
+  if (row.type !== "document") return false;
+  switch (filter) {
+    case "manage":
+      return row.doc.my_level === "manage";
+    case "edit":
+      return row.doc.my_level === "edit" || row.doc.my_level === "manage";
+    case "restricted":
+      return row.doc.visibility === "restricted";
+    default:
+      return true;
+  }
 }
 
 /** Newest first; a row with no usable date sinks to the end. */

@@ -51,10 +51,8 @@ func requireDocumentACLChange(doc db.Document, access DocumentAccess) error {
 // the history of every grant; the same level again changes nothing. Shares
 // never inherit to child pages (C-01 §4).
 func (s *DocumentService) ShareDocument(ctx context.Context, actor Actor, documentID string, in DocumentShareInput) (db.DocumentShare, error) {
-	switch in.Level {
-	case DocumentLevelView, DocumentLevelEdit, DocumentLevelManage:
-	default:
-		return db.DocumentShare{}, Invalid("level phải là view, edit hoặc manage")
+	if err := validShareLevel(in.Level); err != nil {
+		return db.DocumentShare{}, err
 	}
 	var out db.DocumentShare
 	err := s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
@@ -64,69 +62,89 @@ func (s *DocumentService) ShareDocument(ctx context.Context, actor Actor, docume
 		if err := s.validateSharePrincipal(ctx, q, doc, in); err != nil {
 			return err
 		}
-		prev, err := q.GetDocumentShare(ctx, db.GetDocumentShareParams{
-			OrganizationID: doc.OrganizationID,
-			WorkspaceID:    doc.WorkspaceID,
-			DocumentID:     doc.ID,
-			PrincipalType:  in.PrincipalType,
-			PrincipalID:    in.PrincipalID,
-		})
-		var before map[string]any
-		switch {
-		case err == nil:
-			if prev.Level == string(in.Level) {
-				out = prev
-				return nil
-			}
-			if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
-				ID: prev.ID, OrganizationID: prev.OrganizationID, WorkspaceID: prev.WorkspaceID,
-				DocumentID: prev.DocumentID, RevokedBy: nullText(actor.ID),
-			}); err != nil {
-				return err
-			}
-			before = map[string]any{"level": prev.Level}
-		case errors.Is(err, pgx.ErrNoRows):
-		default:
-			return err
-		}
-		sh, err := q.InsertDocumentShare(ctx, db.InsertDocumentShareParams{
-			ID:             util.NewID(),
-			OrganizationID: doc.OrganizationID,
-			WorkspaceID:    doc.WorkspaceID,
-			DocumentID:     doc.ID,
-			PrincipalType:  in.PrincipalType,
-			PrincipalID:    in.PrincipalID,
-			Level:          string(in.Level),
-			GrantedBy:      actor.ID,
-			GrantedByKind:  string(actor.Kind),
-		})
-		if err != nil {
-			return err
-		}
-		if err := auditRecorder.Record(ctx, q, audit.Entry{
-			OrganizationID: doc.OrganizationID,
-			WorkspaceID:    doc.WorkspaceID,
-			Actor:          actor,
-			Action:         audit.ActionDocumentShared,
-			ResourceType:   "document",
-			ResourceID:     doc.ID,
-			Changes:        audit.Diff(before, map[string]any{"level": sh.Level}),
-			Metadata: map[string]any{
-				"share_id":       sh.ID,
-				"principal_type": sh.PrincipalType,
-				"principal_id":   sh.PrincipalID,
-			},
-		}, audit.Event{Topic: "document.shared", Payload: map[string]string{
-			"document_id":  doc.ID,
-			"workspace_id": doc.WorkspaceID,
-			"share_id":     sh.ID,
-		}}); err != nil {
-			return err
-		}
+		sh, err := applyDocumentShare(ctx, q, actor, doc, in)
 		out = sh
-		return nil
+		return err
 	})
 	return out, err
+}
+
+// validShareLevel is the one level check every share command shares, so a
+// level added to the set reaches the single and the batch path together.
+func validShareLevel(level DocumentLevel) error {
+	switch level {
+	case DocumentLevelView, DocumentLevelEdit, DocumentLevelManage:
+		return nil
+	default:
+		return Invalid("level phải là view, edit hoặc manage")
+	}
+}
+
+// applyDocumentShare writes one grant inside the caller's transaction, after
+// the caller has gated the actor and validated the principal: the same live
+// level is returned unchanged with no audit row, another live level is
+// revoked and replaced, and a new grant is inserted with its audit row and
+// document.shared event.
+func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, in DocumentShareInput) (db.DocumentShare, error) {
+	prev, err := q.GetDocumentShare(ctx, db.GetDocumentShareParams{
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		DocumentID:     doc.ID,
+		PrincipalType:  in.PrincipalType,
+		PrincipalID:    in.PrincipalID,
+	})
+	var before map[string]any
+	switch {
+	case err == nil:
+		if prev.Level == string(in.Level) {
+			return prev, nil
+		}
+		if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
+			ID: prev.ID, OrganizationID: prev.OrganizationID, WorkspaceID: prev.WorkspaceID,
+			DocumentID: prev.DocumentID, RevokedBy: nullText(actor.ID),
+		}); err != nil {
+			return db.DocumentShare{}, err
+		}
+		before = map[string]any{"level": prev.Level}
+	case errors.Is(err, pgx.ErrNoRows):
+	default:
+		return db.DocumentShare{}, err
+	}
+	sh, err := q.InsertDocumentShare(ctx, db.InsertDocumentShareParams{
+		ID:             util.NewID(),
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		DocumentID:     doc.ID,
+		PrincipalType:  in.PrincipalType,
+		PrincipalID:    in.PrincipalID,
+		Level:          string(in.Level),
+		GrantedBy:      actor.ID,
+		GrantedByKind:  string(actor.Kind),
+	})
+	if err != nil {
+		return db.DocumentShare{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Actor:          actor,
+		Action:         audit.ActionDocumentShared,
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		Changes:        audit.Diff(before, map[string]any{"level": sh.Level}),
+		Metadata: map[string]any{
+			"share_id":       sh.ID,
+			"principal_type": sh.PrincipalType,
+			"principal_id":   sh.PrincipalID,
+		},
+	}, audit.Event{Topic: "document.shared", Payload: map[string]string{
+		"document_id":  doc.ID,
+		"workspace_id": doc.WorkspaceID,
+		"share_id":     sh.ID,
+	}}); err != nil {
+		return db.DocumentShare{}, err
+	}
+	return sh, nil
 }
 
 // validateSharePrincipal keeps every grant inside the document's
@@ -274,14 +292,12 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 			}
 			entry.Effective = acc
 			entry.Active = acc.Level != DocumentLevelNone
-		case sh.PrincipalType == DocumentPrincipalWorkspace:
-			ok, err := workspaceInOrganization(ctx, s.q, sh.PrincipalID, doc.OrganizationID)
+		case sh.PrincipalType == DocumentPrincipalWorkspace || sh.PrincipalType == DocumentPrincipalOrganization:
+			ok, err := groupShareActive(ctx, s.q, doc.OrganizationID, sh.PrincipalType, sh.PrincipalID)
 			if err != nil {
 				return DocumentAccessOverview{}, err
 			}
 			entry.Active = ok
-		case sh.PrincipalType == DocumentPrincipalOrganization:
-			entry.Active = sh.PrincipalID == doc.OrganizationID
 		}
 		if entry.Active && sh.PrincipalType != DocumentPrincipalUser {
 			entry.Effective = DocumentAccess{Level: DocumentLevel(sh.Level), Via: DocumentViaShare}
@@ -298,6 +314,21 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 		out.Links = links
 	}
 	return out, nil
+}
+
+// groupShareActive is whether a workspace or organization share still
+// reaches anyone: a workspace principal while it is a workspace of the
+// document's organization, an organization principal when it is that
+// organization. DocumentAccessList and the access report both answer
+// "active" through it.
+func groupShareActive(ctx context.Context, q *db.Queries, organizationID, principalType, principalID string) (bool, error) {
+	switch principalType {
+	case DocumentPrincipalWorkspace:
+		return workspaceInOrganization(ctx, q, principalID, organizationID)
+	case DocumentPrincipalOrganization:
+		return principalID == organizationID, nil
+	}
+	return false, nil
 }
 
 // personAccess is one person's level with a closed-tenant answer folded to

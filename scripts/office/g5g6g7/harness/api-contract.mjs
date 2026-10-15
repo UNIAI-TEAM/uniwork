@@ -27,16 +27,182 @@ export const API_CALLS = {
     path: "/documents/{documentID}/office/sessions",
     params: { documentID: "id" },
     sdi: "CreateOfficeLaunchSessionSDI",
-    body: ["operation", "deployment_id", "client_id", "return_hint"],
+    // comment_id (G8-07): the launch ticket names the comment the app reveals; G8-19 sends it
+    body: ["operation", "deployment_id", "client_id", "return_hint", "comment_id"],
   },
   desktopDevices: { method: "GET", path: "/auth/desktop/devices" },
   requestOrganizationDeletion: { method: "POST", path: "/orgs/{orgID}/privacy/deletion", params: { orgID: "id" }, sdi: "CreatePrivacyDeletionSDI", body: ["confirm_slug"] },
   deleteAccount: { method: "POST", path: "/me/delete", sdi: "DeleteAccountSDI", body: ["password"] },
 };
 
+/**
+ * The G7-10 tracer's rows on top of API_CALLS (moved here from
+ * g7-10/tracer.mjs TRACER_API_CALLS for G8-19, UNI-1414, so the G8 harness
+ * shares them); pinned against the router by g7-10/tracer.test.mjs.
+ */
+export const TRACER_CALLS = {
+  completeOnboarding: {
+    method: "POST",
+    path: "/me/onboarding/complete",
+    sdi: "CompleteOnboardingSDI",
+    body: ["completion_path", "workspace_id"],
+  },
+  getDesktopConsent: {
+    method: "GET",
+    path: "/auth/desktop/authorize",
+  },
+  submitDesktopConsent: {
+    method: "POST",
+    path: "/auth/desktop/authorize",
+    sdi: "DesktopConsentSDI",
+    body: ["attempt_id", "csrf_token", "decision"],
+  },
+  getDocument: {
+    method: "GET",
+    path: "/documents/{documentID}",
+    params: { documentID: "id" },
+  },
+  listDocumentVersions: {
+    method: "GET",
+    path: "/documents/{documentID}/versions",
+    params: { documentID: "id" },
+  },
+  uploadDocumentFile: {
+    method: "POST",
+    path: "/documents/{documentID}/uploads",
+    params: { documentID: "id" },
+    form: ["file"],
+  },
+  commitDocumentVersion: {
+    method: "POST",
+    path: "/documents/{documentID}/versions/commit",
+    params: { documentID: "id" },
+    sdi: "CommitDocumentVersionSDI",
+    body: ["upload_id", "base_revision"],
+  },
+  lookupCommitIntent: {
+    method: "GET",
+    path: "/documents/{documentID}/versions/commit",
+    params: { documentID: "id" },
+  },
+  listDocumentChanges: {
+    method: "GET",
+    path: "/workspaces/{workspaceID}/documents/changes",
+    params: { workspaceID: "id" },
+  },
+  mintOfficeFrameToken: {
+    method: "POST",
+    path: "/documents/{documentID}/office/frame-token",
+    params: { documentID: "id" },
+  },
+  openOfficeFrameDocument: {
+    method: "GET",
+    path: "/office-frame/documents/{documentID}",
+    params: { documentID: "id" },
+  },
+  getOfficeFrameDocumentContent: {
+    method: "GET",
+    path: "/office-frame/documents/{documentID}/content",
+    params: { documentID: "id" },
+  },
+  uploadOfficeFrameFile: {
+    method: "POST",
+    path: "/office-frame/documents/{documentID}/uploads",
+    params: { documentID: "id" },
+    form: ["file"],
+  },
+  commitOfficeFrameVersion: {
+    method: "POST",
+    path: "/office-frame/documents/{documentID}/versions/commit",
+    params: { documentID: "id" },
+    sdi: "CommitOfficeFrameVersionSDI",
+    body: ["upload_id", "base_revision"],
+  },
+  aiUniworkFrameChatCompletions: {
+    method: "POST",
+    path: "/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
+    params: { documentID: "id" },
+    sdi: "AiUniworkChatCompletionsSDI",
+    body: ["messages"],
+  },
+  aiUniworkDocumentChatCompletions: {
+    method: "POST",
+    path: "/documents/{documentID}/ai/uniwork/chat/completions",
+    params: { documentID: "id" },
+    sdi: "AiUniworkChatCompletionsSDI",
+    body: ["messages"],
+  },
+};
+
+/**
+ * The rows the G8-19 cross-host harness (harness/api.mjs) calls on top of
+ * API_CALLS: comments, anchors, mentions, notifications, shares, invitations,
+ * rename/archive/copy and member deactivation (UNI-1414). Same shape as
+ * API_CALLS; `params` kinds here may also be `token` (an invitation token).
+ * Pinned against the router by harness/api.test.mjs.
+ */
+export const G8_CALLS = {
+  patchDocument: { method: "PATCH", path: "/documents/{documentID}", params: { documentID: "id" }, sdi: "PatchDocumentSDI", body: ["revision", "title"] },
+  archiveDocument: { method: "POST", path: "/documents/{documentID}/archive", params: { documentID: "id" } },
+  restoreDocument: { method: "POST", path: "/documents/{documentID}/restore", params: { documentID: "id" } },
+  copyDocument: { method: "POST", path: "/documents/{documentID}/copies", params: { documentID: "id" }, sdi: "CopyDocumentSDI", body: ["consent", "title"] },
+  listSharedWithMe: { method: "GET", path: "/workspaces/{workspaceID}/documents/shared-with-me", params: { workspaceID: "id" } },
+  listDocumentComments: { method: "GET", path: "/documents/{documentID}/comments", params: { documentID: "id" }, query: ["kind", "since_token"] },
+  createDocumentComment: {
+    method: "POST",
+    path: "/documents/{documentID}/comments",
+    params: { documentID: "id" },
+    sdi: "CreateDocumentCommentSDI",
+    body: ["body", "parent_id", "kind", "anchor", "base_version_id"],
+  },
+  putDocumentCommentAnchors: {
+    method: "PUT",
+    path: "/documents/{documentID}/comments/anchors",
+    params: { documentID: "id" },
+    sdi: "PutDocumentCommentAnchorsSDI",
+    body: ["version_id", "anchors"],
+  },
+  updateDocumentComment: {
+    method: "PATCH",
+    path: "/documents/{documentID}/comments/{commentID}",
+    params: { documentID: "id", commentID: "id" },
+    sdi: "UpdateDocumentCommentSDI",
+    body: ["body"],
+  },
+  deleteDocumentComment: { method: "DELETE", path: "/documents/{documentID}/comments/{commentID}", params: { documentID: "id", commentID: "id" } },
+  resolveDocumentComment: { method: "POST", path: "/documents/{documentID}/comments/{commentID}/resolve", params: { documentID: "id", commentID: "id" } },
+  reopenDocumentComment: { method: "DELETE", path: "/documents/{documentID}/comments/{commentID}/resolve", params: { documentID: "id", commentID: "id" } },
+  listDocumentCommentRevisions: {
+    method: "GET",
+    path: "/documents/{documentID}/comments/{commentID}/revisions",
+    params: { documentID: "id", commentID: "id" },
+  },
+  listMentionCandidates: { method: "GET", path: "/documents/{documentID}/mention-candidates", params: { documentID: "id" }, query: ["q", "limit"] },
+  listNotifications: { method: "GET", path: "/me/notifications" },
+  unreadNotificationCount: { method: "GET", path: "/me/notifications/unread-count" },
+  markNotificationsRead: { method: "POST", path: "/me/notifications/read", sdi: "NotificationIDsSDI", body: ["ids", "all", "workspace_id"] },
+  listDocumentShares: { method: "GET", path: "/documents/{documentID}/shares", params: { documentID: "id" } },
+  createDocumentShare: {
+    method: "POST",
+    path: "/documents/{documentID}/shares",
+    params: { documentID: "id" },
+    sdi: "ShareDocumentSDI",
+    body: ["principal_type", "principal_id", "level"],
+  },
+  revokeDocumentShare: { method: "DELETE", path: "/documents/{documentID}/shares/{shareID}", params: { documentID: "id", shareID: "id" } },
+  createInvitation: { method: "POST", path: "/workspaces/{workspaceID}/invitations", params: { workspaceID: "id" }, sdi: "CreateInvitationSDI", body: ["email", "role"] },
+  myInvitations: { method: "GET", path: "/me/invitations" },
+  acceptInvitation: { method: "POST", path: "/invitations/{token}/accept", params: { token: "token" } },
+  // `{org}` of this route is the organization SLUG (handler/organization_members.go deactivateOrgMember -> orgIDFromSlug)
+  deactivateOrgMember: { method: "POST", path: "/orgs/{org}/members/{userID}/deactivate", params: { org: "slug", userID: "id" } },
+};
+
+/** Every row harness/api.mjs may call: the document-step, tracer and G8 rows. */
+export const G8_API_CALLS = { ...API_CALLS, ...TRACER_CALLS, ...G8_CALLS };
+
 /** `/api/v1` + the template with each `{param}` replaced by its value (URL-escaped). */
-export function apiPath(name, params = {}) {
-  const call = API_CALLS[name];
+export function apiPath(name, params = {}, table = API_CALLS) {
+  const call = table[name];
   if (!call) throw new Error(`unknown API call ${name}`);
   const wanted = Object.keys(call.params ?? {});
   const given = Object.keys(params);
@@ -51,8 +217,8 @@ export function apiPath(name, params = {}) {
 }
 
 /** Throws unless `body` has exactly keys from the call's table (so the step cannot send a key the contract does not pin). */
-export function assertBodyKeys(name, body) {
-  const call = API_CALLS[name];
+export function assertBodyKeys(name, body, table = API_CALLS) {
+  const call = table[name];
   const sent = Object.keys(body ?? {});
   const unknown = sent.filter((key) => !(call.body ?? []).includes(key));
   if (unknown.length > 0) throw new Error(`API call ${name} sends body keys ${unknown.join(", ")} that the contract table does not list`);
@@ -80,7 +246,8 @@ export function failureInfo(error) {
   return info;
 }
 
-function redact(text) {
+/** Drops token/ticket/password values from a response or error text (JSON fields and `ticket=` query values). */
+export function redact(text) {
   return String(text ?? "")
     .replace(/("(?:access_token|refresh_token|launch_ticket|ticket|token|password)"\s*:\s*)"[^"]*"/gi, '$1"<redacted>"')
     .replace(/ticket=[^&\s"]+/g, "ticket=<redacted>");

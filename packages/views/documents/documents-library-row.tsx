@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, ArchiveRestore, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, Lock, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -28,10 +28,12 @@ import {
   formatBytes,
   isFolderRow,
   rowFormat,
+  rowAccessLabelKey,
   rowOrigin,
   rowSizeBytes,
   rowTitle,
   rowUpdatedAt,
+  rowVisibilityLabelKey,
   type DocumentSummaryRow,
   type LibraryRow,
 } from "./library-rows";
@@ -122,6 +124,10 @@ export function LibraryRowView({
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const level = rowLevel(doc);
+  const accessKey = rowAccessLabelKey(row);
+  const visibilityKey = rowVisibilityLabelKey(row);
+  const restricted = doc?.visibility === "restricted";
+  const metaLine = [editor, updated, size].filter(Boolean).join(" · ");
 
   // A trashed folder is not browsable: its primary action is Restore when the
   // viewer may restore it, and without that the name is plain text, not a link.
@@ -216,9 +222,23 @@ export function LibraryRowView({
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}
         </span>
-        <span className="block truncate text-caption text-muted-foreground md:hidden">
-          {[editor, updated, size].filter(Boolean).join(" · ")}
-        </span>
+        {/* Below `xl` the My access / Visibility columns are hidden, so the level and the restricted mark ride on this line; below `md` it also carries editor, date and size. */}
+        {metaLine || accessKey || restricted ? (
+          <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground xl:hidden">
+            {metaLine ? <span className="truncate md:hidden">{metaLine}</span> : null}
+            {metaLine && (accessKey || restricted) ? (
+              <span aria-hidden className="shrink-0 md:hidden">·</span>
+            ) : null}
+            {accessKey ? <span className="shrink-0">{t(accessKey)}</span> : null}
+            {accessKey && restricted ? <span aria-hidden className="shrink-0">·</span> : null}
+            {restricted && visibilityKey ? (
+              <span className="flex shrink-0 items-center gap-1">
+                <Lock aria-hidden className="size-3 shrink-0" />
+                {t(visibilityKey)}
+              </span>
+            ) : null}
+          </span>
+        ) : null}
       </span>
     </>
   );
@@ -262,6 +282,20 @@ export function LibraryRowView({
         </td>
         <td className="hidden px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground md:table-cell">{updated || "—"}</td>
         <td className="hidden px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground md:table-cell">{size || "—"}</td>
+        {/* Wide screens only (xl): below it the fixed columns leave Name too little room, and the secondary line carries this. */}
+        <td className="hidden px-3 py-2 text-caption text-foreground xl:table-cell">
+          {accessKey ? <span className="block truncate">{t(accessKey)}</span> : <span className="text-muted-foreground">—</span>}
+        </td>
+        <td className="hidden px-3 py-2 text-caption xl:table-cell">
+          {visibilityKey ? (
+            <span className="flex items-center gap-1.5 text-foreground">
+              {restricted ? <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+              <span className="truncate">{t(visibilityKey)}</span>
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </td>
         <td className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
             {quick ? (

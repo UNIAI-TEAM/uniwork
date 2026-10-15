@@ -390,6 +390,20 @@
       "gate": "G7-D1",
       "blocker": null,
       "evidence": [],
+      "partialEvidence": [
+        {
+          "task": "G6-08",
+          "revision": "bb52510af320ce01232175f20819397cb96799a7",
+          "run": "run-1a8f3513 (cloud r2 @c7eb06397, Go + node) + run-7b0a7699-b910-4d3f-b16c-f63bafd881d0 (cloud r3 @bb52510af, node scorer/report)",
+          "report": "docs/office/g5g6g7/g6-08-devset-report.md; dev-set runs docs/office/g5g6g7/devset/runs/run-v1-4df589a37.json (office_uniwork_ai@1 16/20) and run-v2-9a6aadeb2.json (office_uniwork_ai@2 17/20), model gpt-6-luna, 0 tool calls outside the allowlist; synthetic dev set, not the fx-xlsx-revenue-xyz holdout",
+          "review": "reports/g5-server/review-be-g6-08-2.md (delta r2 clear; r1 review-be-g6-08-1.md changes_required, fixed)",
+          "tests": [
+            "scripts/office/devset.test.mjs (dev-set schema, holdout disjointness, secret scan, oracle scoring, committed runs + report drift)",
+            "server/internal/ai TestGatewayOfficeModuleMaxTokens (per-module output ceilings on the provider request)",
+            "server/internal/ai TestOfficePackGoldens/TestOfficePackTokenCaps/TestOfficePackVersionPins (@1 frozen, @2 pinned)"
+          ]
+        }
+      ],
       "status": "NOT_RUN",
       "reviewer": "pending reviewer_be (UNI-1376)"
     },
@@ -424,6 +438,19 @@
       "gate": "G7-D1",
       "blocker": null,
       "evidence": [],
+      "partialEvidence": [
+        {
+          "task": "G6-08",
+          "revision": "bb52510af320ce01232175f20819397cb96799a7",
+          "run": "run-1a8f3513 (cloud r2 @c7eb06397, Go + node) + run-7b0a7699-b910-4d3f-b16c-f63bafd881d0 (cloud r3 @bb52510af, node scorer/report)",
+          "report": "docs/office/g5g6g7/g6-08-devset-report.md; dev-set runs docs/office/g5g6g7/devset/runs/run-v1-4df589a37.json (office_uniwork_ai@1 16/20) and run-v2-9a6aadeb2.json (office_uniwork_ai@2 17/20), model gpt-6-luna, 0 tool calls outside the allowlist; synthetic dev set, not the fx-xlsx-revenue-xyz holdout",
+          "review": "reports/g5-server/review-be-g6-08-2.md (delta r2 clear; r1 review-be-g6-08-1.md changes_required, fixed)",
+          "tests": [
+            "scripts/office/devset.test.mjs (claim-based negative oracles: stale cached value or error cell as 0 asserted as the result fails; ask-back and unsupported-formula cases)",
+            "dev-set cases DV-XLSX-005..008 (error cells, stale cache) scored in both runs"
+          ]
+        }
+      ],
       "status": "NOT_RUN",
       "reviewer": "pending reviewer_be (UNI-1376)"
     },
@@ -1217,7 +1244,7 @@
         "G8-11",
         "G8-20"
       ],
-      "command": "`go test ./internal/service ./internal/handler -run 'DocumentComment(Kind|Tombstone|Revision|Purge|Copy|ListToken)'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents packages/core/api/endpoints/document-comments.test.ts` (gồm ca `unchanged`, dòng `discussion` ở client cũ) · F vitest panel G8-11",
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentComment(Kind|CollabTombstoneHTTP|Revision|RevisionsTombstoneRefused|ListToken)|DocumentPurgeDropsTheCommentOrbit|DocumentCopyCarriesNoComments'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents packages/core/api/endpoints/document-comments.test.ts` (gồm ca `unchanged`, dòng `discussion` ở client cũ) · F vitest panel G8-11",
       "artifact": "`reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md` + ảnh S13 light/dark vi/en, `reports/g8-fork_editors/cloud-test-*.md`",
       "gate": "G8-D5",
       "blocker": null,
@@ -1413,7 +1440,7 @@
         "G8-06",
         "G8-08"
       ],
-      "command": "`go test ./internal/handler -run 'IsolationMatrix|IsolationRealtime|EveryBodyIDFieldHasAReferenceCase'` · `go test ./internal/service -run AuditCoverage` · `node --test scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs`",
+      "command": "`go test ./internal/handler -run 'IsolationMatrix|IsolationRealtime|EveryBodyIDFieldHasAReferenceCase'` · `go test ./internal/service -run 'EveryAuditedCommandWritesItsRow|ReusedAuditActionCommandsWriteTheirOwnRows'` · `node --test scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs`",
       "artifact": "`reports/g8-server/cloud-test-*.md`",
       "gate": null,
       "blocker": null,

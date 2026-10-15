@@ -54,7 +54,7 @@ if [ "$DRY_RUN" = "1" ]; then
   DRY_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/harness-dry-run.XXXXXX")"
   RUN_DIR="$DRY_RUN_DIR"
 fi
-mkdir -p "$RUN_DIR/logs" "$RUN_DIR/userdata"
+mkdir -p "$RUN_DIR/logs"
 # Absolute from here on: the D server is started from another directory, and a
 # relative HARNESS_RUN_DIR would point its log redirect at the wrong place.
 RUN_DIR="$(cd "$RUN_DIR" && pwd)"
@@ -90,6 +90,34 @@ fail() {
   write_status failed "$1"
   exit 1
 }
+
+# ---- what an earlier start left in this run dir (ADDENDUM r5 G2) --------------
+# A warm run dir may still hold the start before it. The r3 cloud rerun shared
+# HARNESS_RUN_DIR with an attempt whose harness was never stopped: that attempt's
+# app was still alive, the rerun's app shared its userData, lost Electron's
+# single-instance lock to it and quit, and every loop then read a missing app as
+# BLOCKED. So this start cleans the run dir first, and only then starts anything:
+#
+#   * the process groups the run dir's own PID file records are stopped through
+#     stop.sh (its PID-file logic, never a process by name). A stop that cannot
+#     finish is a FAIL of this start, never a silent second stack on one run dir.
+#   * the earlier start's userData is moved aside, so the app gets one of its own
+#     per start: its `session.bin`, its sync store and the single-instance lock
+#     all live there, and a second app instance can never hand off to a stale one.
+#     It is moved, never deleted, so the round's artifacts stay readable.
+if [ "$DRY_RUN" != "1" ]; then
+  if [ -f "$RUN_DIR/pids" ]; then
+    echo "harness: an earlier start left a pids file in $RUN_DIR; stopping the process groups it records (stop.sh)..."
+    HARNESS_RUN_DIR="$RUN_DIR" bash "$HERE/stop.sh" \
+      || fail "the process groups recorded in $RUN_DIR/pids could not be stopped (see stop.sh above); refusing to start a second stack on one run dir"
+  fi
+  if [ -e "$RUN_DIR/userdata" ]; then
+    PREVIOUS_USERDATA="$RUN_DIR/userdata.previous-$(date -u +%Y%m%dT%H%M%SZ)"
+    mv "$RUN_DIR/userdata" "$PREVIOUS_USERDATA"
+    echo "harness: the earlier start's userData is now $PREVIOUS_USERDATA; this start gets a fresh one"
+  fi
+fi
+mkdir -p "$RUN_DIR/logs" "$RUN_DIR/userdata"
 
 # The Electron runtime libraries are probed from `ldconfig -p` captured once,
 # then matched with bash's own substring test — never a `ldconfig -p | grep -q`
@@ -417,6 +445,12 @@ FORK_DIR="$(run_lib "resolve the fork cache dir" --fork-dir "$FORK_CACHE" "$FORK
   || fail "could not resolve the fork cache dir for $FORK_SHA (see the step above and $LOG_DIR/lib.log)"
 [ -n "$FORK_DIR" ] || fail "lib.mjs --fork-dir returned an empty path for $FORK_SHA"
 mkdir -p "$FORK_CACHE"
+# Defined before the clone, its first caller.
+fork_log_tail() { # fork_log_tail <log> <what> — the last 60 lines on stdout before a FAILED
+  echo "harness: ---- last 60 lines of $2 ($1) ----" >&2
+  tail -n 60 "$1" >&2 2> /dev/null || true
+  already_tailed="$already_tailed $1"
+}
 # Is the fork reachable? A VM without network is the one precondition that makes
 # every fork step impossible, so it is probed on its own and reported as BLOCKED;
 # with the network up, a clone or install that fails is this harness's step
@@ -477,11 +511,6 @@ git -C "$FORK_DIR" checkout -q --detach "$FORK_SHA"
 # do is for Windows packaging (electron-winstaller's 7z copy) or a version-scheme
 # warning (protobufjs) and is deliberately skipped.
 FORK_INSTALL_LOG="$RUN_DIR/logs/fork-install.log"
-fork_log_tail() { # fork_log_tail <log> <what> — the last 60 lines on stdout before a FAILED
-  echo "harness: ---- last 60 lines of $2 ($1) ----" >&2
-  tail -n 60 "$1" >&2 2> /dev/null || true
-  already_tailed="$already_tailed $1"
-}
 
 # The fork's dependency tree is complete when npm ci has run and esbuild links a
 # working binary; a cache from an older strategy (a plain `npm ci`, or one that
@@ -612,13 +641,19 @@ fi
 # The app gets an allow-listed environment (lib.mjs: appEnv), never the VM's .env
 # this script sourced above: DATABASE_URL, JWT_SECRET and the rest are the
 # server's, and the app is only its client (reviewer_be H1-8).
+if [ -n "${APP_PROXY_PORT:-}" ]; then
+  setsid node "$HERE/lib.mjs" --app-proxy "$RUN_DIR" "$APP_PROXY_PORT" "$API_PORT" >> "$RUN_DIR/logs/app-proxy.log" 2>&1 &
+  APP_PROXY_PID=$!
+  echo "app $APP_PROXY_PID $APP_PROXY_PORT" >> "$RUN_DIR/pids"
+  wait_for "http://127.0.0.1:$APP_PROXY_PORT/healthz" "the app API proxy" 15 || fail "the app API proxy did not answer /healthz in 15s"
+fi
 APP_ENV=()
 while IFS= read -r -d '' entry; do APP_ENV+=("$entry"); done \
   < <(node "$HERE/lib.mjs" --app-env "$API_ORIGIN" "$RUN_DIR/userdata" 2>> "$LOG_DIR/lib.log")
 [ "${#APP_ENV[@]}" -gt 0 ] || fail "could not build the app's environment (see $LOG_DIR/lib.log)"
 setsid env -i "${APP_ENV[@]}" \
   ${APP_WRAP[@]+"${APP_WRAP[@]}"} \
-  bash -c "printf '%s\\n%s\\n' \"\$DISPLAY\" \"\${XAUTHORITY:-}\" > '$XVFB_DISPLAY_FILE'; exec '$ELECTRON_BIN' --no-sandbox --disable-gpu --password-store=gnome-libsecret '$FORK_DIR/apps/shell'" \
+  bash -c "printf '%s\\n%s\\n' \"\$DISPLAY\" \"\${XAUTHORITY:-}\" > '$XVFB_DISPLAY_FILE'; exec '$ELECTRON_BIN' --no-sandbox --disable-gpu --password-store=gnome-libsecret --remote-debugging-port=${APP_CDP_PORT:-0} '$FORK_DIR/apps/shell'" \
   >> "$RUN_DIR/logs/app.log" 2>&1 &
 APP_PID=$!
 echo "app $APP_PID 0" >> "$RUN_DIR/pids"
@@ -630,6 +665,36 @@ for i in $(seq 1 60); do
   sleep 1
 done
 [ -s "$XVFB_DISPLAY_FILE" ] || fail "xvfb never reported a display for the app"
+
+# The app must still be there once its DevTools endpoint answers (ADDENDUM r5 G2).
+# The display file above is written *before* Electron starts, so "the wrapper
+# ran" is not evidence of an app: an instance that loses Electron's
+# single-instance lock to another app on the same userData quits quietly (the r3
+# rerun's app printed "DevTools listening" and then vanished, and the loops read
+# a missing app as BLOCKED), and any other crash looks the same from here. The
+# app's userData is per start and the recorded groups of an earlier start were
+# stopped above, so nothing else may hold its lock — an app that is gone is a
+# FAIL with the reason, before the loops are handed a run they cannot use.
+[ -n "${APP_CDP_PORT:-}" ] || fail "ports.env carries no APP_CDP_PORT (lib.mjs --write owns it)"
+APP_CDP_WAIT_SECONDS="${HARNESS_APP_CDP_WAIT_SECONDS:-60}"
+APP_SETTLE_SECONDS="${HARNESS_APP_SETTLE_SECONDS:-2}"
+app_ready=0
+for _ in $(seq 1 "$APP_CDP_WAIT_SECONDS"); do
+  kill -0 "$APP_PID" 2>/dev/null \
+    || fail "the Electron app exited while starting (pid $APP_PID; the run dir's userData is per start, so another app cannot hold its single-instance lock; see $RUN_DIR/logs/app.log)"
+  if curl -sf -o /dev/null --max-time 2 "http://127.0.0.1:$APP_CDP_PORT/json/version"; then
+    settled=1
+    for _ in $(seq 1 "$APP_SETTLE_SECONDS"); do
+      sleep 1
+      kill -0 "$APP_PID" 2>/dev/null || { settled=0; break; }
+    done
+    [ "$settled" = 1 ] && { app_ready=1; break; }
+  fi
+  sleep 1
+done
+[ "$app_ready" = 1 ] \
+  || fail "the Electron app's DevTools endpoint on 127.0.0.1:$APP_CDP_PORT did not answer within ${APP_CDP_WAIT_SECONDS}s (pid $APP_PID; see $RUN_DIR/logs/app.log)"
+
 # Line 1 is the display, line 2 the X auth file the app was given ("" when the
 # invoking desktop session uses none).
 DISPLAY_VALUE="$(sed -n 1p "$XVFB_DISPLAY_FILE")"

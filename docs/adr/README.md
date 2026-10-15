@@ -45,6 +45,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0031](0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md) | UniWork là OAuth authorization server cho client AI bên ngoài (Claude, ChatGPT, Gemini): token MCP opaque tách khỏi JWT phiên, chỉ `/mcp` chấp nhận; route OAuth/MCP ngoài wrapper `api`; mặc định tắt theo tổ chức; chỉ đọc |
 | [0032](0032-mot-tai-khoan-mot-to-chuc.md) | Một tài khoản, một tổ chức đang hoạt động: advisory lock theo user ở mọi đường ghi membership, không unique index; tài khoản đa tổ chức cũ giữ nguyên; đóng tổ chức là lưu trữ (`archived`), không xóa; chuyển tổ chức là một lệnh atomic |
 | [0033](0033-tool-ghi-qua-mcp-chay-truc-tiep-bang-actor-human.md) | Tool ghi qua MCP chạy trực tiếp bằng actor human của người đã đồng ý, không qua `action_proposals`; cần scope `write`, công tắc ghi của tổ chức, không có tool xóa, mọi tool ghi có hoàn tác, `revision` cho mọi lệnh sửa, audit ghi `via`; thay §3 của 0031 |
+| [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) | Desktop đã đăng nhập dùng khóa cá nhân đã lưu trên UniWork qua proxy BYOK của 0029: khóa không bao giờ rời server, dùng lại route proxy và cổng của web, khóa trên máy thắng theo từng nhà cung cấp, dòng sử dụng ghi `office.byok_desktop`; khóa dùng chung do quản trị tổ chức đặt là hướng mở rộng; bổ sung cho 0028/0029 |
 
 ## Bản nháp
 
@@ -57,7 +58,12 @@ không được governance test đếm. Khi chấp nhận: chuyển ra thư mụ
 0021 land cùng G1/G2; đến lúc đó 0021 không thêm luật vào `CLAUDE.md`.
 
 `drafts/0022-fileservice-so-huu-blob-intent-gc.md` được chấp nhận thành
-[0024](0024-fileservice-so-huu-blob-intent-gc.md) ngày 2026-09-27 (U-2, plan G1-G2; đánh số 0022 lúc chấp nhận, đổi thành 0024 khi merge develop vì 0022 đã là Email Hub). Hiện `drafts/` không còn bản nháp.
+[0024](0024-fileservice-so-huu-blob-intent-gc.md) ngày 2026-09-27 (U-2, plan G1-G2; đánh số 0022 lúc chấp nhận, đổi thành 0024 khi merge develop vì 0022 đã là Email Hub).
+
+`drafts/0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md` (G6-05k, UNI-1637,
+2026-10-14) được chấp nhận thành [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md)
+ngày 2026-10-15 (người dùng trả lời Q-K1 = (a): khóa cá nhân đã lưu trên UniWork; khóa dùng chung
+do quản trị tổ chức đặt là hướng mở rộng). Giữ số 0034.
 
 [0025](0025-mot-process-cho-api-va-worker.md) chưa có guard test (test chạy hai bản của mỗi
 job, land cùng việc làm worker an toàn đa replica); đến lúc đó 0025 không thêm luật vào `CLAUDE.md`.

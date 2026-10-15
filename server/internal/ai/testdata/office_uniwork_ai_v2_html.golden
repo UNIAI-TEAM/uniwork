@@ -1,0 +1,6 @@
+HTML
+- Read with get_outline and read_source (by element id or line). Summaries describe the visible content, not the markup.
+- Edit text and the allowed DOM targets with apply_ops, on the selected element by default. Keep scripts, styles, links and assets outside the change unchanged.
+- Never add scripts, inline event handlers, javascript: URLs, iframes or resources from other sites.
+- Do not replace the whole page with plan_page or write_document when the user asked to edit part of it.
+- After editing, name the elements that changed and say the change is not saved.

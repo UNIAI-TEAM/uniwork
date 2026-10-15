@@ -18,11 +18,12 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 )
 
-// The office pack (G6-14, UNI-1369) ships as one registry entry
-// office_uniwork_ai@1 with six assembled System variants. These tests pin its
-// text three ways: golden files (wording), the draft's token estimator (the
-// G6-D1 A2 caps) and a per-version sha256 pin (a wording change cannot ride a
-// regenerated golden into @1).
+// The office pack (G6-14, UNI-1369; tuned in G6-08, UNI-1373) ships as
+// versioned registry entries office_uniwork_ai@1 and office_uniwork_ai@2 with
+// six assembled System variants. These tests pin their text three ways: golden
+// files (wording), the draft's token estimator (the G6-D1 A2 caps) and a
+// per-version sha256 pin (a wording change cannot ride a regenerated golden
+// into an existing version).
 
 func officePack(t *testing.T) Prompt {
 	t.Helper()
@@ -30,19 +31,24 @@ func officePack(t *testing.T) Prompt {
 	if !ok {
 		t.Fatalf("%s is not registered", PromptOfficeUniworkAI)
 	}
-	if p.ID != "office_uniwork_ai" || p.Version != 1 {
-		t.Fatalf("registry entry is %s, want office_uniwork_ai@1", p.Key())
+	if p.ID != "office_uniwork_ai" || p.Version != 2 {
+		t.Fatalf("registry entry is %s, want office_uniwork_ai@2", p.Key())
 	}
 	return p
 }
 
-func officeGolden(t *testing.T, name string) string {
+func officeGoldenVersion(t *testing.T, version int, name string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("testdata", "office_uniwork_ai_v1_"+name+".golden"))
+	b, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("office_uniwork_ai_v%d_%s.golden", version, name)))
 	if err != nil {
-		t.Fatalf("%s golden: %v", name, err)
+		t.Fatalf("v%d %s golden: %v", version, name, err)
 	}
 	return string(b)
+}
+
+func officeGolden(t *testing.T, name string) string {
+	t.Helper()
+	return officeGoldenVersion(t, 2, name)
 }
 
 // firstDiff names the first differing byte so a wording drift points at the
@@ -72,7 +78,7 @@ func clip(s string) string {
 
 // TestOfficePackGoldens pins every section verbatim (one golden per section)
 // and the assembled system text: COMMON + "\n\n" + MODULE[section] + "\n" +
-// UntrustedFooter (draft §0).
+// UntrustedFooter (draft §0), for both @1 and @2.
 func TestOfficePackGoldens(t *testing.T) {
 	p := officePack(t)
 
@@ -104,6 +110,20 @@ func TestOfficePackGoldens(t *testing.T) {
 				t.Errorf("%s assembled drift: %s", m.module, firstDiff(want, got))
 			}
 		})
+	}
+
+	// @1 stays registered and matches its v1 goldens untouched.
+	p1, ok := LookupPrompt("office_uniwork_ai@1")
+	if !ok {
+		t.Fatal("office_uniwork_ai@1 is not registered")
+	}
+	if c1 := officeGoldenVersion(t, 1, "common"); c1 != p1.System {
+		t.Errorf("v1 common section drift: %s", firstDiff(c1, p1.System))
+	}
+	for _, m := range officeModuleSections {
+		if s1 := officeGoldenVersion(t, 1, m.section); s1 != p1.Sections[m.section] {
+			t.Errorf("v1 %s section drift: %s", m.section, firstDiff(s1, p1.Sections[m.section]))
+		}
 	}
 
 	// Every section is reachable from a module key and no section is orphaned.
@@ -171,56 +191,74 @@ func officeEstimate(s string) int {
 // each module <= 1200, every assembled variant <= 2000 — with the draft's
 // estimator, pinned on purpose: the provider tokenizer of the target models
 // is not vendored in the repo, and the estimator over-counts English BPE
-// (chars/3.5 is ~15% above ~4 chars/token). The numbers are the draft §3 table
-// re-measured after the review round 1 wording (g14-w7-fix-report.md);
-// wording changes move them and fail here too.
+// (chars/3.5 is ~15% above ~4 chars/token).
 func TestOfficePackTokenCaps(t *testing.T) {
-	p := officePack(t)
-	wantEst := map[string]int{
-		"common": 800, "sheets": 1090, "docs": 571, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
+	versions := []struct {
+		key     string
+		wantEst map[string]int
+		worst   int
+	}{
+		{
+			key: "office_uniwork_ai@1",
+			wantEst: map[string]int{
+				"common": 800, "sheets": 1090, "docs": 571, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
+			},
+			worst: 1890,
+		},
+		{
+			key: "office_uniwork_ai@2",
+			wantEst: map[string]int{
+				"common": 790, "sheets": 1190, "docs": 595, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
+			},
+			worst: 1980,
+		},
 	}
-	commonVariant := p.System + "\n" + UntrustedFooter
-	if got := officeEstimate(commonVariant); got != wantEst["common"] || got > 800 {
-		t.Errorf("common+footer estimate %d (pinned %d), cap 800", got, wantEst["common"])
-	}
-	for _, m := range officeModuleSections {
-		if got := officeEstimate(p.Sections[m.section]); got != wantEst[m.section] || got > 1200 {
-			t.Errorf("%s estimate %d (pinned %d), cap 1200", m.section, got, wantEst[m.section])
-		}
-	}
-	// The A2 cap is on the assembled turn: common + the largest module + the
-	// join separators. Each variant is counted whole, so the separators are
-	// measured, not assumed.
-	worst := 0
-	for _, m := range officeModuleSections {
-		text, err := OfficeSystemPrompt(m.module)
-		if err != nil {
-			t.Fatalf("%s: %v", m.module, err)
-		}
-		if got := officeEstimate(text); got > 2000 {
-			t.Errorf("%s assembled estimate %d, cap 2000", m.module, got)
-		} else if got > worst {
-			worst = got
-		}
-	}
-	if worst != 1890 {
-		t.Errorf("worst assembled estimate %d, pinned 1890", worst)
+	for _, v := range versions {
+		v := v
+		t.Run(v.key, func(t *testing.T) {
+			p, ok := LookupPrompt(v.key)
+			if !ok {
+				t.Fatalf("%s is not registered", v.key)
+			}
+			commonVariant := p.System + "\n" + UntrustedFooter
+			if got := officeEstimate(commonVariant); got != v.wantEst["common"] || got > 800 {
+				t.Errorf("%s common+footer estimate %d (pinned %d), cap 800", v.key, got, v.wantEst["common"])
+			}
+			for _, m := range officeModuleSections {
+				if got := officeEstimate(p.Sections[m.section]); got != v.wantEst[m.section] || got > 1200 {
+					t.Errorf("%s %s estimate %d (pinned %d), cap 1200", v.key, m.section, got, v.wantEst[m.section])
+				}
+			}
+			// The A2 cap is on the assembled turn: common + the largest module + the
+			// join separators. Each variant is counted whole, so the separators are
+			// measured, not assumed.
+			worst := 0
+			for _, m := range officeModuleSections {
+				text, err := officeAssemble(p, m.module)
+				if err != nil {
+					t.Fatalf("%s %s: %v", v.key, m.module, err)
+				}
+				if got := officeEstimate(text); got > 2000 {
+					t.Errorf("%s %s assembled estimate %d, cap 2000", v.key, m.module, got)
+				} else if got > worst {
+					worst = got
+				}
+			}
+			if worst != v.worst {
+				t.Errorf("%s worst assembled estimate %d, pinned %d", v.key, worst, v.worst)
+			}
+		})
 	}
 }
 
 // officePackPins pins the released text of every office pack version: one
 // sha256 over the common variant and all assembled module variants.
 // Regenerating the goldens does not re-pin a version — to change wording,
-// bump office_uniwork_ai to @2 and add its pin, so a usage row's prompt_id
-// keeps explaining the text that was actually sent.
-//
-// The @1 pin was updated in place twice, with the G6-14 review round 1 wording
-// (UNI-1369) and the round 2 wording (FE14-13..-15): @1 had never left the lane
-// branch (not merged, never served),
-// so no usage row could name the earlier text. That exception closes when @1
-// is merged.
+// bump office_uniwork_ai to a new version and add its pin, so a usage row's
+// prompt_id keeps explaining the text that was actually sent.
 var officePackPins = map[string]string{
 	"office_uniwork_ai@1": "610071c053949cca830cacac60883e3491fa131418e377757893b5965d8b1faa",
+	"office_uniwork_ai@2": "1e47cf912b53dfb5c481f34bce6c27cc0c7e2e310f1ba22088083c8b0a3e5a82",
 }
 
 // officePackDigest is sha256 over the released text of one pack version in
@@ -454,5 +492,126 @@ func TestGatewayOfficeUniworkUsageRow(t *testing.T) {
 		if row.Capability != string(CapOfficeUniworkAI) {
 			t.Fatalf("%s: usage row capability = %q, want %q", name, row.Capability, CapOfficeUniworkAI)
 		}
+	}
+}
+
+func TestOfficePackModuleMaxTokens(t *testing.T) {
+	want := map[string]int{
+		"xlsx": 2048,
+		"docx": 3072,
+		"pptx": 2048,
+		"pdf":  2048,
+		"md":   3072,
+		"html": 4096,
+	}
+	capCeiling := policies[CapOfficeUniworkAI].MaxTokens
+	for _, m := range officeModuleSections {
+		got := OfficeModuleMaxTokens(m.module)
+		if got != want[m.module] {
+			t.Errorf("OfficeModuleMaxTokens(%q) = %d, want %d", m.module, got, want[m.module])
+		}
+		if got <= 0 || got > capCeiling {
+			t.Errorf("OfficeModuleMaxTokens(%q) = %d outside (0, %d]", m.module, got, capCeiling)
+		}
+	}
+	if got := OfficeModuleMaxTokens("unknown"); got != capCeiling {
+		t.Errorf("OfficeModuleMaxTokens(unknown) = %d, want %d", got, capCeiling)
+	}
+}
+
+// TestGatewayOfficeModuleMaxTokens verifies BE68-1: Gateway.Complete sets
+// provider.CompletionRequest.MaxTokens from OfficeModuleMaxTokens(req.Module)
+// for CapOfficeUniworkAI (lowering xlsx/pptx/pdf to 2048 and docx/md to 3072
+// while keeping html at 4096), refuses unknown/empty modules on the sectioned
+// office prompt before reaching the provider, falls back to 4096 when a
+// non-sectioned prompt runs under CapOfficeUniworkAI with an empty/unknown
+// module, and leaves every other capability's MaxTokens unchanged.
+func TestGatewayOfficeModuleMaxTokens(t *testing.T) {
+	ctx := context.Background()
+	fp := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: "ok", Model: "fake", UsagePresent: true, InputTokens: 20, OutputTokens: 5}
+	}}
+	g, _ := gatewayFixture(t, fp, &fakeQuota{})
+
+	wantByModule := map[string]int{
+		"xlsx": 2048,
+		"docx": 3072,
+		"pptx": 2048,
+		"pdf":  2048,
+		"md":   3072,
+		"html": 4096,
+	}
+	for _, m := range officeModuleSections {
+		req := Request{
+			Actor:          audit.User("u1"),
+			OrganizationID: "org1",
+			WorkspaceID:    "ws1",
+			Capability:     CapOfficeUniworkAI,
+			PromptID:       PromptOfficeUniworkAI,
+			Module:         m.module,
+			History:        []provider.Message{{Role: "user", Content: "check"}},
+		}
+		if _, err := g.Complete(ctx, req); err != nil {
+			t.Fatalf("module %s: %v", m.module, err)
+		}
+		if fp.Last.MaxTokens != wantByModule[m.module] {
+			t.Fatalf("module %s: provider MaxTokens = %d, want %d", m.module, fp.Last.MaxTokens, wantByModule[m.module])
+		}
+	}
+
+	// Empty and unknown modules on the sectioned office prompt are refused by
+	// systemText before reaching the provider; OfficeModuleMaxTokens itself
+	// falls back to 4096 (and a non-sectioned prompt under CapOfficeUniworkAI
+	// with an empty/unknown module receives 4096).
+	for _, badModule := range []string{"", "unknown"} {
+		callsBefore := fp.Calls
+		_, err := g.Complete(ctx, Request{
+			Actor:          audit.User("u1"),
+			OrganizationID: "org1",
+			WorkspaceID:    "ws1",
+			Capability:     CapOfficeUniworkAI,
+			PromptID:       PromptOfficeUniworkAI,
+			Module:         badModule,
+			History:        []provider.Message{{Role: "user", Content: "check"}},
+		})
+		if err == nil || !strings.HasPrefix(err.Error(), "ai: policy:") {
+			t.Fatalf("module %q on sectioned office prompt: got err %v, want policy refusal", badModule, err)
+		}
+		if fp.Calls != callsBefore {
+			t.Fatalf("module %q reached provider (%d -> %d calls)", badModule, callsBefore, fp.Calls)
+		}
+	}
+
+	const nonSectionedKey = "test_office_ceiling_fallback@1"
+	prompts[nonSectionedKey] = Prompt{
+		ID: "test_office_ceiling_fallback", Version: 1, System: "sys " + UntrustedFooter,
+		Render: func(map[string]any) string { return "q" },
+	}
+	t.Cleanup(func() { delete(prompts, nonSectionedKey) })
+	for _, fallbackMod := range []string{"", "unknown"} {
+		if _, err := g.Complete(ctx, Request{
+			Actor:          audit.User("u1"),
+			OrganizationID: "org1",
+			WorkspaceID:    "ws1",
+			Capability:     CapOfficeUniworkAI,
+			PromptID:       nonSectionedKey,
+			Module:         fallbackMod,
+		}); err != nil {
+			t.Fatalf("fallback module %q: %v", fallbackMod, err)
+		}
+		if fp.Last.MaxTokens != 4096 {
+			t.Fatalf("fallback module %q: provider MaxTokens = %d, want 4096", fallbackMod, fp.Last.MaxTokens)
+		}
+	}
+
+	// Other capabilities ignore Request.Module and keep their own policy.MaxTokens.
+	copilotReq := askReq()
+	copilotReq.Module = "xlsx"
+	fp.Reply = FakeReply
+	if _, err := g.Complete(ctx, copilotReq); err != nil {
+		t.Fatalf("copilot with Module=xlsx: %v", err)
+	}
+	if wantCopilot := policies[CapCopilotAnswer].MaxTokens; fp.Last.MaxTokens != wantCopilot {
+		t.Fatalf("copilot MaxTokens = %d, want %d", fp.Last.MaxTokens, wantCopilot)
 	}
 }

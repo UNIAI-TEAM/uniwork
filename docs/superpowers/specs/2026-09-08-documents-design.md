@@ -334,6 +334,23 @@ Agent: `RequireAgentMember` cho đọc; agent không bao giờ có `edit` trực
 proposal (§8). Platform admin `/admin/*` không đọc nội dung tài liệu (đã là luật F-11); admin chỉ
 thấy đếm và dung lượng theo org.
 
+> **Bổ sung 2026-10-14 (UNI-1413 G8-18, UNI-1628 DOC-05)** — bộ mức quyền và quyền admin được ký lại ở
+> [phụ lục mức quyền](2026-10-14-documents-permission-levels-addendum.md); §4 này **không viết lại**, đọc kèm phụ lục.
+> Phụ lục thay: (1) thang `view < edit < manage` thành `view < comment < edit < manage` và bảng hành động ở trên (thêm cột
+> Comment; viết bình luận cần Comment hoặc Edit); (2) dòng `manage nếu … effective ws role ∈ {owner, admin}` **chỉ cho tài liệu
+> `visibility=workspace`**: trên tài liệu `restricted` admin quản lý nhưng không đọc nội dung, trừ truy cập khẩn cấp có ghi vết
+> (DOC-05). Mọi dòng khác của §4 giữ nguyên.
+
+> **Bổ sung 2026-10-15 (UNI-1629 DOC-02, UNI-1630 DOC-06, UNI-1631 DOC-07)** — "Hạn chế" một chạm khi tạo (mặc định vẫn
+> `workspace`), chuyển quyền sở hữu (`acl_owner_id`) từng tài liệu và hàng loạt khi vô hiệu hóa thành viên, và xin quyền truy
+> cập (không tự cấp, thẻ khóa `variant="member"`, người quản lý duyệt) ở [phụ lục truy cập](2026-10-15-documents-access-addendum.md);
+> §4 này **không viết lại**, phụ lục chỉ thêm lệnh và cổng `canAdminister()` của DOC-05.
+
+> **Bổ sung 2026-10-15 (SRS Share v1.0)** — [phụ lục căn chỉnh SRS Share](2026-10-15-documents-share-srs-addendum.md) thay
+> dòng `edit nếu visibility=workspace ∧ actor là effective member` bằng **dòng Workspace gốc** có mức riêng (`workspace_level`
+> ∈ view/comment/edit, mặc định `edit` cho tài liệu có sẵn), đổi mặc định tạo ở gốc thành **riêng tư** (`restricted`), và thêm
+> ghi quyền theo lô (tất cả hoặc không), nguồn quyền, phạm vi chia sẻ trên danh sách và thông báo `document_shared`.
+
 ## 5. API
 
 Tag `Documents`; SDI/SDO ở `dto/{sdi,sdo}/document.go`; route `router/documents.go` sau

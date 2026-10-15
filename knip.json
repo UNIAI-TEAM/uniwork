@@ -16,7 +16,9 @@
         "docs/office/g3g4/samples/web-launch-ticket.mjs"
       ],
       "ignoreBinaries": [
-        "rustc"
+        "rustc",
+        "awk",
+        "go"
       ],
       "ignoreDependencies": [
         "@playwright/test",

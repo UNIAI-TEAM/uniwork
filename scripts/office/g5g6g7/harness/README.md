@@ -12,7 +12,9 @@ Linux runner VM and records one evidence line through the G7-01 evidence runner.
 Fresh ports matter: a warm cloud VM still holds `:3000`/`:8080` from an earlier
 round, and a run that silently reuses them tests old code against new specs.
 Nothing outside the run's own PID file is ever touched — `stop.sh` signals
-exactly the process groups `start.sh` recorded, never a process by name. Each
+exactly the process groups `start.sh` recorded, never a process by name; `start.sh`
+uses that same logic on an earlier start's recorded groups before it starts
+anything (see "A warm run dir is cleaned before anything starts" below). Each
 piece starts with `setsid`, so the recorded PID is its group leader and one
 signal reaches its children too (that is what takes down the `Xvfb` this run's
 `xvfb-run` started, and leaves every other display alone).
@@ -65,10 +67,14 @@ failure from the round log alone — the r1 round ended on a bare
 `usage: lib.mjs --write <runDir>` with nothing saying which step produced it.
 `HARNESS_LOG_TAIL_LINES` (default `40`) sets the length.
 
-`lib.mjs` has two CLI modes and `start.sh` calls both directly (never through
-`node -e`): `node lib.mjs --write <runDir>` writes a run's ports and env, and
-`node lib.mjs --fork-dir <cacheRoot> <sha>` prints the fork checkout path. A
-failed call names its step and the exact command in `start.sh`'s output.
+`lib.mjs` has four CLI modes and `start.sh` calls them directly (never through
+`node -e`): `node lib.mjs --write <runDir>` writes a run's ports and env,
+`node lib.mjs --fork-dir <cacheRoot> <sha>` prints the fork checkout path,
+`node lib.mjs --app-env <apiOrigin> <userDataDir>` writes NUL-delimited allow-listed
+environment variables for the Electron app, and
+`node lib.mjs --app-proxy <runDir> <listenPort> <targetPort>` runs the harness-local
+TCP proxy between the Electron app and the D server. A failed call names its step
+and the exact command in `start.sh`'s output.
 
 ## What start.sh records, and what it hands to the processes it starts
 
@@ -91,9 +97,57 @@ failed call names its step and the exact command in `start.sh`'s output.
   the fork's few switches. start.sh sources the VM's `.env`, and none of it
   (`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, any `*_KEY`/`*_SECRET`/`*_TOKEN`/
   `*PASSWORD`) reaches the app; `appEnv` throws on such a name.
+* `writeRunEnv` also allocates `APP_PROXY_PORT` and `APP_CDP_PORT` in `ports.env`,
+  writes `userdata/deployment-profile.json` (`apiOrigin: http://127.0.0.1:<APP_PROXY_PORT>`),
+  and initializes `app-proxy.state` (`online`). `start.sh` launches the harness-local
+  TCP proxy (`lib.mjs --app-proxy`) forwarding `APP_PROXY_PORT` to `API_PORT` and passes
+  `--remote-debugging-port=<APP_CDP_PORT>` to the Electron app. Toggling `app-proxy.state`
+  to `offline` (`setAppApiProxyOnline(runDir, false)`) severs the app's link to the D
+  server for offline-save testing (G7-10 Loop 3) while keeping the D server up for the
+  web UI and the test.
 * The deep-link instance is recorded in `pids` as `handoff` while it lives
   (stop.sh stops it too) and killed as a group if it outlives its timeout.
 * `stop.sh` also removes the run's `uploads/` and `server-cwd/` by exact path.
+* **A warm run dir is cleaned before anything starts.** If the run dir still holds
+  a `pids` file, `start.sh` runs `stop.sh` for it — the same PID-file logic, never
+  a process by name — and a stop that cannot finish is a **FAIL** with the reason,
+  not a second stack on one run dir. The earlier start's `userdata/` is then moved
+  to `userdata.previous-<utc stamp>` (kept, never deleted) and this start's app
+  gets a fresh `userdata/`: `session.bin`, the sync store and Electron's
+  single-instance lock all live in there, so a second app instance can never hand
+  off to a stale one. Cloud round r3 shared one run dir between two starts whose
+  harness was never stopped; the rerun's app lost the single-instance lock to the
+  stale app, quit, and every loop read the missing app as BLOCKED.
+* **The app must still be alive once its DevTools endpoint answers.** The display
+  file start.sh waits for is written *before* Electron starts, so "the wrapper
+  ran" is not evidence of an app: an app that is already gone (or whose endpoint
+  never answers within `HARNESS_APP_CDP_WAIT_SECONDS`) makes the start **FAIL**
+  with the reason, instead of an "up" that the loops then cannot use. An app that
+  was started and is then missing at a loop start is a FAIL there too, never
+  BLOCKED — see the tracer's `decideAppSignInOutcome`.
+* **Every app-side CDP call and every tracer loop is bounded.** Each CDP `connect`
+  or `page.evaluate` call into `window.aiOffice.*` (`uniworkSave`, `accountStatus`,
+  `accountRetry`, `accountLogin`) and `aiOfficeTabs.close` races against
+  `HARNESS_APP_STEP_TIMEOUT_MS` (default `90000` ms). On timeout the step is
+  **FAIL** (exit `1`, never `77` BLOCKED) with `<call> did not settle within <n> s`,
+  and the loop JSON records the call name, elapsed ms, `binding.json` state at
+  that moment, and the redacted last 40 lines of `logs/app.log`. Before closing an
+  open docs tab via `aiOfficeTabs.close`, the tracer also waits (bounded by
+  `HARNESS_APP_STEP_TIMEOUT_MS`) on the docs `WebContentsView` target until its
+  close-check bridge (`window.desktop.onCloseCheck` / `reportCloseCheck`) and
+  loaded document control (`window.__genofficeControl` / `window.__aidocs.editor`,
+  with `.start-booting` gone) are ready, and then settles for
+  `HARNESS_DOCS_CLOSE_SETTLE_MS` (default `2500` ms, longer than the fork's 2 s
+  `docsQueryDirty` timer) with the renderer still ready without calling
+  `reportCloseCheck` itself — waiting out any pre-mount close-check query so
+  `docsQueryDirty`'s 2 s no-reply timeout does not open a headless native
+  `dialog.showMessageBox` (`closeNoReplyMsg`); if the docs tab never becomes ready
+  within the bound, the step **FAIL**s with `docs tab not ready to close within <n> s`
+  (recording `targetUrl`, `elapsedMs`, `bindingState`, redacted `appLogTail`, and
+  `owner: "g5-client"`). An outer per-loop
+  watchdog (`HARNESS_LOOP_TIMEOUT_MS`, default `600000` ms) bounds each tracer
+  loop as a whole: if exceeded, it writes `tracer-loop-<N>.json` with status
+  `FAIL` and reason `"loop watchdog"` and exits `1`.
 
 ## Exit codes
 
@@ -120,8 +174,13 @@ ran, the claim was false).
 | `HARNESS_DRY_RUN` | `0` | `1` = ports and preconditions only |
 | `HARNESS_SKIP_APP` | `0` | `1` = server + web only |
 | `HARNESS_LOG_TAIL_LINES` | `40` | lines of each component log printed on failure |
+| `HARNESS_APP_CDP_WAIT_SECONDS` | `60` | how long the app's DevTools endpoint may take to answer before the start FAILs |
+| `HARNESS_APP_SETTLE_SECONDS` | `2` | how long the app must stay alive after DevTools answered before the start calls the run up |
 | `HARNESS_DOC_WAIT_MS` | `60000` | how long `document-step.mjs` waits for the app's working copy |
 | `HARNESS_HANDOFF_TIMEOUT_MS` | `30000` | how long the second Electron instance that carries the deep link may run before it is killed (as a process group) |
+| `HARNESS_APP_STEP_TIMEOUT_MS` | `90000` | per-call timeout (ms) for app-side CDP calls (`connect`, `page.evaluate` of `aiOffice.*` / `aiOfficeTabs.close`, and the docs tab close-readiness wait before `aiOfficeTabs.close`); timeout is a FAIL (`<call> did not settle within <n> s` or `docs tab not ready to close within <n> s`) |
+| `HARNESS_DOCS_CLOSE_SETTLE_MS` | `2500` | post-readiness settle window (ms) with the docs renderer still ready before `aiOfficeTabs.close` is called, waiting out any pre-mount 2 s `docsQueryDirty` query without calling `reportCloseCheck` from the harness |
+| `HARNESS_LOOP_TIMEOUT_MS` | `600000` | per-loop watchdog timeout (ms) for `g7-10/tracer.mjs`; timeout writes `tracer-loop-<N>.json` with `status: "FAIL"`, `reason: "loop watchdog"` and exits `1` |
 | `HARNESS_DOC_EMAIL` / `HARNESS_DOC_PASSWORD` | unset | document step, desktop mode: reuse this existing account instead of seeding one (both or neither) |
 
 The harness fills the gap the VM's profile left, as the Advisor's rule requires:
@@ -310,8 +369,22 @@ cat my-spec.txt scripts/office/g5g6g7/harness/keyring.spec.txt > spec.txt
 | --- | --- |
 | `keyring.spec.txt` | the spec fragment: four lines, one exit marker each, `; true` on all but the last |
 | `keyring-fork.sh` | clone the fork at `OFFICE_FORK_SHA` into `OFFICE_FORK_CACHE` (the same dir `start.sh` uses), `npm ci --ignore-scripts`, the Electron binary, esbuild, the Electron runtime libraries; no build |
-| `keyring-session.sh` | inside `dbus-run-session`: unlock the daemon, then `KEYRING_RT` and the `SAFESTORAGE*` probes; stops the daemon by PID, removes its scratch dir |
+| `keyring-session.sh` | inside `dbus-run-session`: unlock the daemon, then `KEYRING_RT` and the `SAFESTORAGE*` probes (or, with `--exec <cmd...>`, enter a private `dbus-run-session`, unlock the daemon, run `<cmd...>` and pass its exit code through); stops the daemon by PID, removes its scratch dir |
 | `keyring-probe.mjs` | bundles the fork's `credentials.ts` with the fork's esbuild, runs it in the fork's Electron (`keyring-probe-main.mjs`, logic in `keyring-probe-core.mjs`) and prints one JSON line |
+
+To wrap `start.sh`, the evidence runs and `stop.sh` inside one headless keyring session (so the app launched by `start.sh` inherits `DBUS_SESSION_BUS_ADDRESS`, `XDG_DATA_HOME` and `XDG_RUNTIME_DIR`):
+
+```sh
+bash scripts/office/g5g6g7/harness/keyring-session.sh --exec bash -c '
+  bash scripts/office/g5g6g7/harness/start.sh || exit $?
+  OFFICE_FORK_SHA="${OFFICE_FORK_SHA:-ab12238f}" \
+    node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+    node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1
+  rc=$?
+  bash scripts/office/g5g6g7/harness/stop.sh || true
+  exit $rc
+'
+```
 
 What each marker means (every probe line is JSON with `label`, `backend`,
 `encryptionAvailable`, `canStore`, `roundTrip`, `status`; only booleans, a coarse
@@ -349,3 +422,40 @@ Local dry run (a host that already has the daemon, `xvfb-run` and a fork checkou
 `OFFICE_FORK_DIR=<fork checkout> dbus-run-session -- bash scripts/office/g5g6g7/harness/keyring-session.sh`;
 `OFFICE_FORK_DIR=<fork checkout> node --test scripts/office/g5g6g7/harness/keyring-probe.test.mjs`
 also runs the fork's real credential module against a fake `safeStorage`.
+
+
+## G8-19 cross-host rows (UNI-1414)
+
+The G8 rows (`g8-19/<module>.mjs`, one file per module) share one harness. The
+contract they code against is `harness/g8-contract.md`; `g8-19/fake-world.mjs`
+implements it in memory, so a row module can be written and tested before a
+live run exists.
+
+| Module | What it gives a row |
+| --- | --- |
+| `harness/world.mjs` | the seeded world: users A, B, C (organization X, workspaces W1/W2, B and C invited into W2) and M (organization Y, workspace WY); cached 0600 at `$HARNESS_RUN_DIR/g8-19-world.json`, every user re-logged in on reuse; `world.refreshTokens()` re-logs in on demand (access tokens live 15 min); `cleanup()` reports leftovers and never deletes by SQL |
+| `harness/api.mjs` | `session(user)` / `createApi(origin)`: one bearer session per user over the rows in `api-contract.mjs`, which are checked against the Go router and SDI structs |
+| `harness/app.mjs` | the desktop driver over CDP: sign-in with the org choice, editor pages, the comments/discussion bridges, tabs focus |
+| `harness/web.mjs` | one Playwright context per user on the D web; `openDocument` reads the Inbox state and comment-panel markers |
+| `g8-19/run-row.mjs` | `runRowModule` / `rowMain`: the start gate, `ports.env`, the step ctx, the watchdog and the exit mapping |
+
+A row module ends with:
+
+```sh
+# inside g8-19/<module>.mjs (JavaScript, shown here for the entry line only):
+#   if (isMainModule({ moduleUrl: import.meta.url })) process.exit(await rowMain("comments", run));
+node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR"
+```
+
+Exit codes: `0` PASS, `1` FAIL, `77` BLOCKED with a named blocker and owner
+(`ctx.block(blocker, owner)`); a BLOCKED without a named blocker is rewritten to
+FAIL. The artifact is `<runDir>/reports/g7-qa/<g8-aXX>/<fixture>.json`, truncated
+at the start of every run and redacted (bearer tokens, tickets, secrets).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OFFICE_FORK_SHA` | — | the spec must export `7d665a54` for G8 runs; the start default (`0d03b18`) predates the comment bridges |
+| `G819_ALLOW_SQL_MEMBERSHIP` | unset | `1` lets the seed add M to X/W1 by a direct SQL insert (no API can create a multi-organization account since ADR 0032); otherwise the multi-org rows are BLOCKED with that reason |
+| `G819_DATABASE_URL` / `DATABASE_URL` | unset | the database the SQL membership insert uses |
+| `G819_ROW_TIMEOUT_MS` | `600000` | row watchdog; the running step and the row FAIL with `row watchdog` |
+| `G819_WRITE_EVIDENCE` | unset | `1` makes `rowMain` append its own `evidence.jsonl` line when no `OFFICE_EVIDENCE_ID` wrapper writes one |
