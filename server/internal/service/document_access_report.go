@@ -69,6 +69,8 @@ type DocumentAccessReportExport struct {
 	Rows, Documents, Skipped int
 	GeneratedAt              time.Time
 	FolderTitle              string
+	// Format is csv or xlsx; FileName is ASCII, ready for Content-Disposition.
+	Format, FileName string
 }
 
 // EffectiveAccessReportLimit clamps a requested page size (<= 0 or > 100 ->
