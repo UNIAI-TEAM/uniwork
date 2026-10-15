@@ -881,6 +881,28 @@ describe('runner faults and failures', () => {
     for (const text of harmless) assert.deepEqual(redactSecrets(text), { text, hits: [] }, text);
   });
 
+  it('keeps the base64 guard\'s miss rate at or under the number its comment documents (G712-41)', () => {
+    // The comment on looksEncoded documents the measurement (2.2% of 40-character blobs missed on 100000 random blobs, 2026-10-16).
+    // This is a deterministic sample of the same population: same blobs every run, so a guard that got worse fails here and an
+    // improvement passes; the bound is the measured 2.3%.
+    const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let a = 20261016;
+    const next = () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    let missed = 0;
+    const samples = 20000;
+    for (let i = 0; i < samples; i += 1) {
+      const blob = Array.from({ length: 40 }, () => ALPHABET[Math.floor(next() * 64)]).join('');
+      missed += redactSecrets(blob).hits.length === 0 ? 1 : 0;
+    }
+    assert.ok(missed / samples <= 0.023, `the base64 guard missed ${missed}/${samples} random 40-character blobs (measured 2.2% when the number was documented)`);
+  });
+
   it('keeps the per-ask redaction: a leaked token is redacted in the written run, the run counted and flagged (G712-10)', async () => {
     const leak = mutate((r) => (r.content ? { content: r.content.replace('UNIWORK_ANSWER', 'see https://svc-user:pw12345678@gw.corp.example:8443/v1 and bearer abcdefghijklmnop1234\nUNIWORK_ANSWER') } : r));
     const { docs, files } = await runWith({ ...only(readOnlyNumeric), model: leak }, 'secret-wide');

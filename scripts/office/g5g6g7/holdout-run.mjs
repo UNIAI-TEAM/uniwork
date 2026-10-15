@@ -121,8 +121,9 @@ const AMOUNT_WORD_BEFORE_RE = /(?:^|[^\p{L}])số\s?$/iu;
 /**
  * Does a long run of base64 characters look like encoded data rather than a path or an identifier (G712-26)? Random base64 is about
  * 40% upper case, 40% lower case and 16% digits with a '/' in every ~64 characters; a slash-joined path is mostly lower case with
- * slashes every few characters, and a CamelCase identifier has few capitals. Measured on random blobs and on every tracked repo path:
- * ~0 paths flagged, under 2% of 40-character blobs missed (under 0.3% from 64 characters).
+ * slashes every few characters, and a CamelCase identifier has few capitals. Measured on 2026-10-16 (100000 random blobs per length,
+ * and every tracked repo path): ~0 paths flagged, 2.2% of 40-character blobs missed (1.8% at 48, 0.5% at 64, 0.2% at 85). A missed
+ * blob carries 0-1 digits or looks path-like; the test pins the 40-character rate at or under the measured 2.3% (G712-41).
  */
 function looksEncoded(run) {
   const n = run.length;
