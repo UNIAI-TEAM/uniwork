@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { createFakeWorld } from "./fake-world.mjs";
 import { B7_ANCHOR, WEB_FRAME_PIN_BLOCKER, WEB_FRAME_PIN_OWNER, exitCodeFor } from "./run-row.mjs";
 import {
+  CLOSED_PANEL_OWNER,
   EDIT_DRIVERS,
   FIXTURE_FORMAT,
   PANEL_OPENERS,
@@ -29,6 +30,22 @@ const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 
 const B8 = { ...B7_ANCHOR, range: "B8" };
 const bodyInvalid = { error: { code: "anchor_version_invalid", message: "phiên bản neo không hợp lệ" } };
+
+/** The closed-panel Save on its own document: the anchor moved to the new head (xlsx). */
+function closedMoved(over = {}) {
+  return {
+    ran: true,
+    documentId: "doc-c",
+    commentId: "cc",
+    edited: { status: "ok" },
+    saved: true,
+    versionBefore: "vc-1",
+    headVersionId: "vc-2",
+    expected: B8,
+    row: { id: "cc", anchor: B8, anchor_state: "exact", anchor_version_id: "vc-2", deleted_at: null },
+    ...over,
+  };
+}
 
 /** A record where every sub-step passed (xlsx), the web frame pin already re-pinned. */
 function passingRecord(over = {}) {
@@ -58,6 +75,7 @@ function passingRecord(over = {}) {
     ],
     afterInvalid: { anchor: B8, anchor_state: "lost", anchor_version_id: "ver-2" },
     webToDesktop: { status: "PASS" },
+    closedPanel: closedMoved(),
     ...over,
   };
 }
@@ -266,14 +284,33 @@ function fakeCtx(fake, fixture) {
   };
 }
 
-/** Scripts a server that moves the anchor on the first Save after the shift and loses it after the remove. */
+const CLOSED_DOC = "doc-3";
+const CLOSED_PATH = `/wc/${CLOSED_DOC}.xlsx`;
+
+/**
+ * Scripts a server that moves the anchor on the first Save after the shift and loses it after the remove.
+ * The closed-panel document (doc-3, uploaded third) has its own row "cc": its Save moves it to B8 on the
+ * new head unless `state.closedStays` (the r1 behaviour: the editor never listed it).
+ */
 function scriptXlsxServer(fake) {
   const state = { head: "ver-1", anchor: null, anchorState: null, anchorVersion: null, saves: 0, comment: null };
+  const closed = { head: "vc-1", row: null, saves: 0 };
+  state.closed = closed;
+  const docOf = (call) => call.args.pathParams?.documentID;
   fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
-  fake.script.respond("app.openByTicket", (call) => ({ path: "/wc/doc.xlsx", documentId: call.args[1]?.documentId ?? "doc-1", kind: "sheets" }));
-  fake.script.respond("app.comments.context", () => ({ ok: true, value: { documentId: "doc-1", versionId: state.head } }));
+  fake.script.respond("app.openByTicket", (call) => {
+    const id = call.args[1]?.documentId ?? "doc-1";
+    return { path: id === CLOSED_DOC ? CLOSED_PATH : "/wc/doc.xlsx", documentId: id, kind: "sheets" };
+  });
+  fake.script.respond("app.comments.context", (call) =>
+    call.args[0].path === CLOSED_PATH ? { ok: true, value: { documentId: CLOSED_DOC, versionId: closed.head } } : { ok: true, value: { documentId: "doc-1", versionId: state.head } },
+  );
   fake.script.respond("app.comments.create", (call) => {
     const input = call.args[0];
+    if (input.path === CLOSED_PATH) {
+      closed.row = { id: "cc", anchor: input.anchor, anchor_state: "exact", anchor_version_id: input.baseVersionId, deleted_at: null, parent_id: null };
+      return { ok: true, value: { comment: closed.row } };
+    }
     if (input.parentId) return { ok: true, value: { comment: { id: "r1", parent_id: input.parentId } } };
     state.anchor = input.anchor;
     state.anchorState = "exact";
@@ -288,7 +325,13 @@ function scriptXlsxServer(fake) {
     if (arg?.selector === "button.styles-row") state.panel = true;
     return { status: "ok" };
   });
-  fake.script.respond("app.save", () => {
+  fake.script.respond("app.save", (call) => {
+    if (call.args[0] === CLOSED_PATH) {
+      closed.saves += 1;
+      closed.head = `vc-${closed.saves + 1}`;
+      if (!state.closedStays) closed.row = { ...closed.row, anchor: { ...closed.row.anchor, range: "B8" }, anchor_version_id: closed.head };
+      return { state: "saved" };
+    }
     state.saves += 1;
     state.head = `ver-${state.saves + 1}`;
     if (state.saves === 1) {
@@ -299,35 +342,41 @@ function scriptXlsxServer(fake) {
     }
     return { state: "saved" };
   });
-  state.docAnswer = () => ({ status: 200, body: { document: { id: "doc-1", file: { version_id: state.head } } } });
-  state.listAnswer = () => ({
-    status: 200,
-    body: {
-      comments: [
-        { id: "c1", body: state.comment?.body, anchor: state.anchor, anchor_state: state.anchorState, anchor_version_id: state.anchorVersion, deleted_at: null, parent_id: null },
-        { id: "r1", parent_id: "c1", body: "reply", deleted_at: null },
-      ],
-      list_token: `lt-${state.saves}`,
-    },
-  });
-  fake.script.respond("api.getDocument", () => state.docAnswer());
-  fake.script.respond("api.listDocumentComments", () => state.listAnswer());
+  state.docAnswer = (call) =>
+    docOf(call) === CLOSED_DOC
+      ? { status: 200, body: { document: { id: CLOSED_DOC, file: { version_id: closed.head } } } }
+      : { status: 200, body: { document: { id: "doc-1", file: { version_id: state.head } } } };
+  state.listAnswer = (call) =>
+    docOf(call) === CLOSED_DOC
+      ? { status: 200, body: { comments: closed.row ? [closed.row] : [], list_token: `c-${closed.saves}` } }
+      : {
+          status: 200,
+          body: {
+            comments: [
+              { id: "c1", body: state.comment?.body, anchor: state.anchor, anchor_state: state.anchorState, anchor_version_id: state.anchorVersion, deleted_at: null, parent_id: null },
+              { id: "r1", parent_id: "c1", body: "reply", deleted_at: null },
+            ],
+            list_token: `lt-${state.saves}`,
+          },
+        };
+  fake.script.respond("api.getDocument", (call) => state.docAnswer(call));
+  fake.script.respond("api.listDocumentComments", (call) => state.listAnswer(call));
   fake.script.respond("api.putDocumentCommentAnchors", { status: 400, body: bodyInvalid });
   return state;
 }
 
 /**
- * The web -> desktop document (doc-3, uploaded third): A comments on B7 over REST, the web
+ * The web -> desktop document (doc-4, uploaded fourth): A comments on B7 over REST, the web
  * frame's Save moves it to B8 on the saved version, and the desktop list reads it there.
  */
 function scriptWebDoc(fake, xlsx, { webSave = null } = {}) {
   const web = { head: "ver-3", row: null, saves: 0 };
-  const isWeb = (call) => call.args.pathParams.documentID === "doc-3";
+  const isWeb = (call) => call.args.pathParams.documentID === "doc-4";
   fake.script.respond("api.getDocument", (call) =>
-    isWeb(call) ? { status: 200, body: { document: { id: "doc-3", file: { version_id: web.head } } } } : xlsx.docAnswer(),
+    isWeb(call) ? { status: 200, body: { document: { id: "doc-4", file: { version_id: web.head } } } } : xlsx.docAnswer(call),
   );
   fake.script.respond("api.listDocumentComments", (call) =>
-    isWeb(call) ? { status: 200, body: { comments: web.row ? [web.row] : [], list_token: `w-${web.saves}` } } : xlsx.listAnswer(),
+    isWeb(call) ? { status: 200, body: { comments: web.row ? [web.row] : [], list_token: `w-${web.saves}` } } : xlsx.listAnswer(call),
   );
   fake.script.respond("api.createDocumentComment", (call) => {
     const b = call.args.body;
@@ -346,9 +395,12 @@ function scriptWebDoc(fake, xlsx, { webSave = null } = {}) {
   );
   fake.script.respond("web.webFrameEval", { status: "ok" });
   fake.script.respond("app.comments.list", (call) =>
-    call.args[0].path === "/wc/doc-3.xlsx" ? { ok: true, value: { comments: web.row ? [web.row] : [], listToken: "d" } } : { ok: true, value: { comments: [], listToken: "x" } },
+    call.args[0].path === "/wc/doc-4.xlsx" ? { ok: true, value: { comments: web.row ? [web.row] : [], listToken: "d" } } : { ok: true, value: { comments: [], listToken: "x" } },
   );
-  fake.script.respond("app.openByTicket", (call) => ({ path: `/wc/${call.args[1]?.documentId ?? "doc-1"}.xlsx`, documentId: call.args[1]?.documentId ?? "doc-1", kind: "sheets" }));
+  fake.script.respond("app.openByTicket", (call) => {
+    const id = call.args[1]?.documentId ?? "doc-1";
+    return { path: id === "doc-1" ? "/wc/doc.xlsx" : `/wc/${id}.xlsx`, documentId: id, kind: "sheets" };
+  });
   return web;
 }
 
@@ -362,7 +414,7 @@ test("runG8A02 after a re-pin: the web frame's Save moves A's B7 comment to B8 a
   assert.equal(record.status, "PASS", JSON.stringify(record.steps, null, 1));
   assert.equal(record.steps["check:web-to-desktop"].status, "PASS");
   const w = record.details.webToDesktop;
-  assert.equal(w.documentId, "doc-3");
+  assert.equal(w.documentId, "doc-4");
   assert.equal(w.saved.versionId, "ver-web-1");
   assert.equal(w.desktopRow.anchor.range, "B8");
   const created = fake.calls.api.find((c) => c.key === "createDocumentComment");
@@ -503,4 +555,68 @@ test("decideG8A02 remove: the kept-version rule speaks only about a lost row (an
   const lostMoved = passingRecord();
   lostMoved.remove.row.anchor_version_id = "ver-3";
   assert.match(decideG8A02(lostMoved).steps["check:remove-lost"].reason, /keep its last version ver-2, got ver-3/);
+});
+
+
+test("decideG8A02 closed-panel Save: an anchor that moved to the new head with the panel closed -> that check PASS", () => {
+  const d = decideG8A02(passingRecord());
+  assert.equal(d.steps["check:closed-panel-save"]?.status, "PASS", JSON.stringify(d.steps["check:closed-panel-save"]));
+  assert.equal(d.status, "PASS");
+  assert.equal(Object.keys(d.steps)[0], "check:closed-panel-save", "it runs first and is listed first");
+});
+
+test("decideG8A02 closed-panel Save: an anchor left on the old version is FAIL with the product reason, the row FAILs even when the panel path passes", () => {
+  for (const format of ["xlsx", "docx", "pptx", "pdf"]) {
+    const rec = passingRecord({ format, closedPanel: closedMoved({ row: { id: "cc", anchor: B7_ANCHOR, anchor_state: "exact", anchor_version_id: "vc-1", deleted_at: null } }) });
+    const d = decideG8A02(rec);
+    const c = d.steps["check:closed-panel-save"];
+    assert.equal(c.status, "FAIL", format);
+    assert.match(c.reason, /^desktop re-anchors on Save only the roots its open comments panel listed \(packages\/electron-utils\/src\/comments-poll\.ts:128-131, apps\/[a-z]+\/src\/renderer\/[^)]*\.tsx?:\d+-\d+\); with the panel closed the server anchor stays on the old version/, format);
+    assert.match(c.reason, /vc-1.*vc-2/, `${format}: the observed versions are in the reason`);
+    assert.equal(c.owner, CLOSED_PANEL_OWNER);
+    assert.equal(CLOSED_PANEL_OWNER, "g8-fork_editors / Lead F");
+    assert.equal(d.status, "FAIL", `${format}: not BLOCKED, not hidden`);
+  }
+  assert.match(decideG8A02(passingRecord({ format: "docx", closedPanel: closedMoved() })).steps["check:closed-panel-save"].reason ?? "", /ServerCommentsHost\.tsx:194-203/, "docx cites its anchor round");
+});
+
+test("decideG8A02 closed-panel Save: moved but wrong place, a failed edit or Save, or a part that did not run -> FAIL with that reason", () => {
+  const wrong = decideG8A02(passingRecord({ closedPanel: closedMoved({ row: { id: "cc", anchor: B7_ANCHOR, anchor_state: "exact", anchor_version_id: "vc-2" } }) })).steps["check:closed-panel-save"];
+  assert.equal(wrong.status, "FAIL");
+  assert.match(wrong.reason, /anchor at sheet-2!B7, want sheet-2!B8/);
+  assert.doesNotMatch(wrong.reason, /stays on the old version/);
+  assert.match(decideG8A02(passingRecord({ closedPanel: closedMoved({ edited: { status: "error", reason: "no Insert row" } }) })).steps["check:closed-panel-save"].reason, /edit driver: no Insert row/);
+  assert.match(decideG8A02(passingRecord({ closedPanel: { status: "FAIL", reason: "upload: boom" } })).steps["check:closed-panel-save"].reason, /upload: boom/);
+  assert.equal(decideG8A02(passingRecord({ closedPanel: undefined })).steps["check:closed-panel-save"].status, "FAIL");
+});
+
+test("runG8A02 runs the closed-panel Save first on its own document: no opener before its edit, row FAIL with the product reason when the anchor stays", async () => {
+  const fake = createFakeWorld();
+  const state = scriptXlsxServer(fake);
+  state.closedStays = true;
+  let t = 0;
+  const ctx = fakeCtx(fake, "fx-xlsx-revenue-xyz");
+  const record = await runG8A02(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, now: () => (t += 1_000), framePin: { gitSha: "05fd209" } });
+  assert.deepEqual(Object.keys(ctx.steps).slice(0, 3), ["upload", "closed-panel-save", "open-desktop"], JSON.stringify(Object.keys(ctx.steps)));
+  const c = record.steps["check:closed-panel-save"];
+  assert.equal(c.status, "FAIL");
+  assert.match(c.reason, /with the panel closed the server anchor stays on the old version/);
+  assert.equal(record.status, "FAIL");
+  assert.equal(record.steps["check:shift"].status, "PASS", "the panel-open path is still its own check");
+  const closedCreate = fake.calls.app.find((c2) => c2.key === "comments.create" && c2.args[0].path === CLOSED_PATH);
+  assert.deepEqual(closedCreate.args[0].anchor, B7_ANCHOR);
+  assert.equal(closedCreate.args[0].baseVersionId, "vc-1");
+  const order = fake.calls.app.filter((c2) => ["comments.create", "save", "evalBounded"].includes(c2.key)).map((c2) => (c2.key === "evalBounded" ? c2.args[2] : `${c2.key}:${c2.args[0]?.path ?? c2.args[0]}`));
+  const closedSave = order.indexOf(`save:${CLOSED_PATH}`);
+  assert.ok(closedSave > 0, order.join(","));
+  assert.ok(!order.slice(0, closedSave).includes("probe:listed"), "the panel is never opened for the closed-panel document");
+  assert.equal(record.details.closedPanel.documentId, CLOSED_DOC);
+});
+
+test("runG8A02 closed-panel Save that moves the anchor: that check PASS, the rest unchanged", async () => {
+  const fake = createFakeWorld();
+  scriptXlsxServer(fake);
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  assert.equal(record.steps["check:closed-panel-save"].status, "PASS", JSON.stringify(record.details.closedPanel));
+  assert.equal(record.status, "BLOCKED", "only R1 is left");
 });
