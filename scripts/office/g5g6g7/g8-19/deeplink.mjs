@@ -63,6 +63,8 @@ export const FRAME_PIN_FILE = Object.freeze({ docx: "docs.pin.json", xlsx: "shee
 export const KNOWN_PRE_G812_FRAME_SHAS = Object.freeze(["05fd209", "0d03b18"]);
 const PIN_DIR = "apps/web/platform/office-frame";
 const DELETED_THREAD_WAIT_MS = 5_000;
+/** How long the B7 selection may trail the thread focus before it is read as final. */
+const SELECTION_WAIT_MS = 5_000;
 const WEB_SHORT_TIMEOUT_MS = 15_000;
 
 /** `{file, gitSha}` of the format's frame pin, or null when the format has no pinned frame. */
@@ -282,6 +284,21 @@ export async function openSignedOut(browser, url, { timeoutMs = 30_000 } = {}) {
   }
 }
 
+/** The sheets control `selection` of the page that shows the document (never the app's first sheets window). */
+export function readSelection(ctrl, page) {
+  return ctrl.evalBounded(page, () => globalThis.__genofficeControl?.({ cmd: "selection" }) ?? null, undefined, "__genofficeControl.selection");
+}
+
+/** Reads the selection until it is `want` or the bound passes (the reveal's cell may trail its thread focus). */
+async function settledSelection(ctrl, page, want, d) {
+  const opts = pollOpts(d);
+  const out = await pollUntil(async () => {
+    const reply = await readSelection(ctrl, page);
+    return { done: normalizeSelection(reply) === want, reply };
+  }, { ...opts, timeoutMs: Math.min(SELECTION_WAIT_MS, opts.timeoutMs ?? SELECTION_WAIT_MS) });
+  return out.reply ?? null;
+}
+
 /** The row module (contract §8) for G8-A07. */
 export async function runDeeplink(ctx, deps = {}) {
   const d = resolveDeps(ctx, deps);
@@ -351,8 +368,15 @@ export async function runDeeplink(ctx, deps = {}) {
       const opened = await openOnDesktop(ctrl, world, "B", s.main.documentId, format, ticketCommentId);
       s.mainOpened = opened;
       const thread = await readThread(ctrl, opened.page, s.c1, d);
-      const selection = format === "xlsx" ? await ctrl.selection(opened.kind) : null;
-      rec.desktop = { ticketCommentId, ticketCommentSource: fromHref ? "inbox-href" : "notification", openedDocumentId: opened.openedDocumentId, thread, selection };
+      const selection = format === "xlsx" ? await settledSelection(ctrl, opened.page, `${B7_SHEET_NAME}!${B7_ANCHOR.range}`, d) : null;
+      rec.desktop = {
+        ticketCommentId,
+        ticketCommentSource: fromHref ? "inbox-href" : "notification",
+        openedDocumentId: opened.openedDocumentId,
+        thread,
+        selection,
+        ...(selection ? { selectionSource: "document page" } : {}),
+      };
       return { details: { ...rec.desktop } };
     }))) return finishDecisions(ctx, rec);
 

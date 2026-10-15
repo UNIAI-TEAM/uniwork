@@ -320,12 +320,14 @@ function scriptedWorld({ hrefWorkspace = "ws-w2" } = {}) {
   };
   // the editor's thread reading: a live comment is revealed (focused), a deleted one is not
   script.respond("app.evalBounded", (call) => {
-    const [, commentId] = call.args;
+    const [, commentId, label] = call.args;
+    if (label === "__genofficeControl.selection") return { status: "ok", result: { sheet: B7_SHEET_NAME, range: "B7" } };
     const c = comments.get(commentId);
     if (!c || c.deleted) return { present: false, focusedThreadId: null, anchorState: null };
     return { present: true, focusedThreadId: commentId, anchorState: commentId === "c3" ? "lost" : "exact" };
   });
-  script.respond("app.selection", { status: "ok", result: { sheet: B7_SHEET_NAME, range: "B7" } });
+  // the first sheets window of the app shows another workbook (an earlier row's tab)
+  script.respond("app.selection", { status: "ok", result: { sheet: "Doanh thu Q1", range: "A1" } });
   let docPathSeq = 0;
   script.respond("app.openByTicket", (call) => {
     docPathSeq += 1;
@@ -428,4 +430,13 @@ test("decideG8A07: a cross-workspace row filed under the document's workspace is
   // a row already in B's workspace that is still not listed is not blamed on the filter
   const same = decideG8A07(a07({ crossWorkspace: { ...cw, notificationWorkspaceId: "ws-id-w2" } }));
   assert.doesNotMatch(same.checks["cross-workspace"].reason, /inbox-view\.tsx/);
+});
+
+test("runDeeplink: the B7 selection is read in the page that shows the document, not the app's first sheets window", async () => {
+  const { fake, deps } = scriptedWorld();
+  await runA07({ ...deps, world: fake.world });
+  const a = artifact();
+  assert.equal(a.steps["desktop-reveal"].status, "PASS", JSON.stringify(a.steps["observe-desktop"], null, 1));
+  assert.equal(a.steps["observe-desktop"].details.selectionSource, "document page");
+  assert.equal(fake.calls.app.filter((c) => c.key === "selection").length, 0);
 });
