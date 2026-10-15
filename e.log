@@ -1,0 +1,20 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && AI_PROVIDER=fake go test -count=1 -v ./internal/service -run 'TestDocumentCopy|TestDocumentCopyPristineArchive|TestDocumentArchive|TestDocumentArchiveImpact|TestDocumentFolderArchive|TestDocumentRestore|TestDocumentPurge|TestDocumentOfficeQ7|TestEveryAuditedCommandWritesItsRow|TestReusedAuditActionCommandsWriteTheirOwnRows|TestDocumentChangesFeedArchiveRestoreAreUpserts|TestDocument05bAgentWritesRefused' 2>&1 | grep -E '^(--- FAIL|--- PASS|FAIL|ok|panic)'; echo "G512_SERVICE_EXIT=${PIPESTATUS[0]}"
+--- PASS: TestEveryAuditedCommandWritesItsRow (25.57s)
+--- PASS: TestReusedAuditActionCommandsWriteTheirOwnRows (0.80s)
+--- PASS: TestDocument05bAgentWritesRefused (0.28s)
+--- PASS: TestDocumentArchiveWalkIndexExists (0.25s)
+--- PASS: TestDocumentArchiveImpact (0.56s)
+--- PASS: TestDocumentArchiveRowCap (0.29s)
+--- PASS: TestDocumentChangesFeedArchiveRestoreAreUpserts (0.24s)
+--- PASS: TestDocumentCopyCarriesNoComments (0.31s)
+--- PASS: TestDocumentPurgeDropsTheCommentOrbit (0.29s)
+--- PASS: TestDocumentCopy (0.60s)
+--- PASS: TestDocumentCopyPristineArchive (0.55s)
+--- PASS: TestDocumentRestoreNames (0.25s)
+--- PASS: TestDocumentFolderArchiveBound (0.27s)
+--- PASS: TestDocumentFolderArchiveAccess (0.27s)
+--- PASS: TestDocumentArchive (0.24s)
+--- PASS: TestDocumentPurge (0.25s)
+--- PASS: TestDocumentOfficeQ7 (0.70s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	31.795s
+G512_SERVICE_EXIT=0

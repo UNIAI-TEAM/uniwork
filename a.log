@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+84f5f448d06350bfb6e8643799bfd8330ecc2ab7
+84f5f448d docs(spec): name the pristine-copy archive root gate in the permission addendum (G5-12, BE-12-04)
+902932075 test(server): impact preview and in-tx seat check of the copy (G5-12, BE-12-01/02)
+16c5b9a82 fix(server): archive impact runs the command's root gate (G5-12, BE-12-01)
+d8be67d2c test(server): CopyDocument writes its own document.created row (G5-12)
