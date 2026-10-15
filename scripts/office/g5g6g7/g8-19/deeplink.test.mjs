@@ -140,14 +140,19 @@ test("decideDesktopReveal: xlsx PASS needs the ticket comment, the opened docume
 
 // ---- the five exceptions (UNI-1389) --------------------------------------------------------------
 
+const noAccessOk = () => ({
+  stranger: { web: { status: "not-found" } },
+  revoked: { web: { status: "no-access" }, notification: { resource_access_lost: true } },
+});
+
 test("DEEP_LINK_EXCEPTIONS lists the five UNI-1389 cases", () => {
   assert.deepEqual(Object.keys(DEEP_LINK_EXCEPTIONS).sort(), ["anchor_lost", "comment_deleted", "deleted", "no_access", "session_expired"]);
 });
 
 test("decideException maps each observed state", () => {
   const pin = framePinVerdict(null);
-  assert.equal(decideException("no_access", { web: { status: "no-access" } }, { pin }).status, "PASS");
-  assert.equal(decideException("no_access", { web: { status: "ok" } }, { pin }).status, "FAIL");
+  assert.equal(decideException("no_access", noAccessOk(), { pin }).status, "PASS");
+  assert.equal(decideException("no_access", { ...noAccessOk(), revoked: { ...noAccessOk().revoked, web: { status: "ok" } } }, { pin }).status, "FAIL");
 
   const gone = { web: { status: "not-found" }, notification: { resource_deleted: true, params: { comment_id: "c1" } } };
   assert.equal(decideException("deleted", gone, { pin }).status, "PASS");
@@ -167,6 +172,23 @@ test("decideException maps each observed state", () => {
   assert.equal(decideException("session_expired", { web: { url: "http://127.0.0.1:2/login?next=%2Forg-x" } }, { pin }).status, "PASS");
   assert.equal(decideException("session_expired", { web: { url: "http://127.0.0.1:2/org-x/ws-w2/documents/doc-1" } }, { pin }).status, "FAIL");
   assert.equal(decideException("session_expired", undefined, { pin }).status, "FAIL");
+});
+
+test("decideException no_access: C (never shared) gets the gone page, B (revoked, row reads resource_access_lost) gets S15 no-access", () => {
+  const pin = framePinVerdict(null);
+  // C never had access and has no row: the server's 404 (Backend ID Rules) is the S15 gone page, never no-access
+  const leak = decideException("no_access", { ...noAccessOk(), stranger: { web: { status: "no-access" } } }, { pin });
+  assert.equal(leak.status, "FAIL");
+  assert.match(leak.reason, /C, who was never given the document/);
+  assert.equal(decideException("no_access", { ...noAccessOk(), stranger: null }, { pin }).status, "FAIL");
+  // B after the revoke: the gone page while the row reads resource_access_lost is the product finding of revoke.mjs
+  const gone = decideException("no_access", { ...noAccessOk(), revoked: { web: { status: "not-found" }, notification: { resource_access_lost: true } } }, { pin });
+  assert.equal(gone.status, "FAIL");
+  assert.match(gone.reason, /^product: /);
+  assert.match(gone.reason, /owner candidate Lead D/);
+  const notRun = decideException("no_access", { ...noAccessOk(), revoked: null }, { pin });
+  assert.equal(notRun.status, "FAIL");
+  assert.match(notRun.reason, /revoked recipient was not observed/);
 });
 
 test("decideException comment_deleted: a refused launch ticket is a product FAIL citing the contract's silent drop; the row flag is judged first", () => {
@@ -208,7 +230,7 @@ test("decideException: the web half of comment_deleted inside an old frame is BL
 // ---- decideG8A07 -----------------------------------------------------------------------------------
 
 const exceptionsOk = () => ({
-  no_access: { web: { status: "no-access" } },
+  no_access: noAccessOk(),
   deleted: { web: { status: "not-found" }, notification: { resource_deleted: true, params: {} } },
   comment_deleted: { notification: { comment_deleted: true }, desktop: { openedDocumentId: "doc-1", documentId: "doc-1", focusedThreadId: null }, web: { status: "error", panelCount: 1, focusedCommentId: null } },
   anchor_lost: { commentId: "c3", listedBeforeLaunch: true, desktop: { focusedThreadId: "c3", anchorState: "lost" } },
@@ -282,7 +304,7 @@ beforeEach(() => {
 afterEach(() => rmSync(runDir, { recursive: true, force: true }));
 
 /** Scripts a fake server where every mention reaches B and every revoke/archive flips the row flags. */
-function scriptedWorld({ hrefWorkspace = "ws-w2", launchRefusesGoneComment = false } = {}) {
+function scriptedWorld({ hrefWorkspace = "ws-w2", launchRefusesGoneComment = false, revokedShowsGone = false } = {}) {
   const fake = createFakeWorld();
   const { world, script } = fake;
   let commentSeq = 0;
@@ -397,7 +419,9 @@ function scriptedWorld({ hrefWorkspace = "ws-w2", launchRefusesGoneComment = fal
     openDocument: async (page, opts) => {
       opens.push({ user: page.user, documentId: opts.documentId, comment: opts.comment ?? null, archived: archived.has(opts.documentId) });
       const revoked = Object.values(world.shares).some((s) => s.documentId === opts.documentId && s.revoked);
-      if (page.user === "C" || revoked) return { url: "u", status: "no-access", panelCount: 0, focusedCommentId: null };
+      // C was never given the W1 document: 404, the gone page (Backend ID Rules); B after the revoke: S15 no-access
+      if (page.user === "C") return { url: "u", status: "not-found", panelCount: 0, focusedCommentId: null };
+      if (revoked) return { url: "u", status: revokedShowsGone ? "not-found" : "no-access", panelCount: 0, focusedCommentId: null };
       if (archived.has(opts.documentId)) return { url: "u", status: "not-found", panelCount: 0, focusedCommentId: null };
       const c = comments.get(opts.comment);
       if (c?.deleted) return { url: "u", status: "error", panelCount: 1, focusedCommentId: null };
@@ -507,4 +531,13 @@ test("runDeeplink: a launch refused for the deleted comment is a product FAIL, a
   assert.equal(step.details.launch.status, 404);
   assert.match(a.steps.exceptions.reason, /comment_deleted: product: /);
   assert.doesNotMatch(a.steps.exceptions.reason, /does not read comment_deleted/);
+});
+
+test("runDeeplink: C's link shows the gone page (PASS); B's revoked link on the gone page is the product FAIL in revoke and no_access", async () => {
+  const { fake, deps } = scriptedWorld({ revokedShowsGone: true });
+  assert.equal(await runA07({ ...deps, world: fake.world }), 1);
+  const a = artifact();
+  assert.equal(a.steps["observe-no-access"].details.web, "not-found");
+  assert.match(a.steps.revoke.reason, /web-no-access: product: /);
+  assert.match(a.steps.exceptions.reason, /no_access: product: /);
 });

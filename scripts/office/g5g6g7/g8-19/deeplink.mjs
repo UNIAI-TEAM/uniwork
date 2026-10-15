@@ -19,7 +19,9 @@
 //   a finding for L23, not this row (lead decision Q3).
 // - cross-workspace: a W1 document shared directly with B (W2 only) and a mention of B; the
 //   row must be in B's Inbox and link into W2, B's open workspace (resource-href.ts:10-12).
-// - the five UNI-1389 exceptions: no access (S15 no_access, document-detail-view.tsx:92-93),
+// - the five UNI-1389 exceptions: no access (S15 row 2 no_access, document-detail-view.tsx:92-93) for B
+//   once A revoked the share (the row reads resource_access_lost), while C - never given the W1 document,
+//   no row - must get the gone page: the server answers 404 to a non-reader (CLAUDE.md Backend ID Rules),
 //   deleted/archived (S15 gone :108-109 + resource_deleted, notification/service.go:238-244),
 //   comment deleted (comment_deleted, service.go:250; the document opens, no thread),
 //   anchor lost (the reveal opens the thread only, use-collab-threads.ts:373-376), session expired (/login).
@@ -53,7 +55,7 @@ import {
   verdictStep,
   waitForRows,
 } from "./inbox.mjs";
-import { revokeSteps } from "./revoke.mjs";
+import { decideRevokedLink, revokeSteps } from "./revoke.mjs";
 import { B7_ANCHOR, B7_SHEET_NAME, WEB_FRAME_PIN_BLOCKER, WEB_FRAME_PIN_OWNER, rowMain } from "./run-row.mjs";
 
 export const formatOfFixture = formatOf;
@@ -158,7 +160,7 @@ export function normalizeSelection(reply) {
 
 /** The five UNI-1389 exceptions and what each must show. */
 export const DEEP_LINK_EXCEPTIONS = Object.freeze({
-  no_access: { web: "S15 no-access (document-detail-view.tsx:92-93)" },
+  no_access: { web: "B after the revoke: S15 no-access (EXPERIENCE-G8 S15 row 2, document-detail-view.tsx:92-93); C, never given it: the gone page (404)" },
   deleted: { web: "S15 gone (document-detail-view.tsx:108-109)", notification: "resource_deleted, no snippet/document (notification/service.go:238-244)" },
   comment_deleted: { notification: "comment_deleted (notification/service.go:250)", desktop: "the document opens, no thread takes focus", web: "one panel, no thread focused (in-frame: R1)" },
   anchor_lost: { desktop: "the thread opens with the lost label, no jump (use-collab-threads.ts:373-376)", web: "in-frame: R1" },
@@ -186,8 +188,14 @@ export function decideException(name, observed, { pin } = {}) {
   const o = observed ?? null;
   if (o?.notApplicable) return { status: "N/A", reason: o.notApplicable };
   switch (name) {
-    case "no_access":
-      return o?.web?.status === "no-access" ? pass() : fail(`the link shows ${o?.web?.status ?? "nothing"}, want S15 no-access`);
+    case "no_access": {
+      const stranger = o?.stranger?.web?.status;
+      if (stranger !== "not-found") {
+        return fail(`C, who was never given the document, sees ${stranger ?? "nothing"}; want the gone page (the server answers 404 to a non-reader, CLAUDE.md Backend ID Rules)`);
+      }
+      if (!o?.revoked?.web) return fail("the revoked recipient was not observed (revoke-after did not run)");
+      return decideRevokedLink(o.revoked.web, o.revoked.notification);
+    }
     case "deleted": {
       if (o?.web?.status !== "not-found") return fail(`the link shows ${o?.web?.status ?? "nothing"}, want S15 gone`);
       if (o?.notification?.resource_deleted !== true) return fail("the row does not read resource_deleted");
@@ -427,9 +435,10 @@ export async function runDeeplink(ctx, deps = {}) {
     });
 
     await ctx.step("observe-no-access", async () => {
-      // C (W2 only, never shared) follows a link to the W1 document
-      rec.exceptions.no_access = { web: await openWeb(s.webC.page, s.shared.documentId, s.c2) };
-      return { details: { web: rec.exceptions.no_access.web?.status ?? null } };
+      // C (W2 only, never shared) follows a link to the W1 document: the gone page (404, no existence leak);
+      // B's S15 no-access half is observed after the revoke (revokeSteps)
+      rec.exceptions.no_access = { stranger: { web: await openWeb(s.webC.page, s.shared.documentId, s.c2) } };
+      return { details: { web: rec.exceptions.no_access.stranger.web?.status ?? null } };
     });
 
     await ctx.step("observe-anchor-lost", async () => {
@@ -502,6 +511,7 @@ export async function runDeeplink(ctx, deps = {}) {
         shared: { documentId: s.shared.documentId, shareId: s.shareId, commentId: s.c2, path: s.sharedOpened.path, page: s.sharedOpened.page },
         archive: { documentId: s.main.documentId, commentId: s.c1 },
       });
+      if (revoked.after?.web) rec.exceptions.no_access = { ...rec.exceptions.no_access, revoked: { web: revoked.after.web, notification: revoked.after.notification } };
       if (revoked.archive) rec.exceptions.deleted = { web: revoked.archive.web, notification: revoked.archive.notification };
     }
     return finishDecisions(ctx, rec);
