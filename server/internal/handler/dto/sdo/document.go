@@ -26,8 +26,8 @@ type DocumentDTO struct {
 	Revision       string                  `json:"revision" description:"Revision làm việc, chuỗi thập phân" example:"41"`
 	CurrentVersion int32                   `json:"current_version" description:"Ordinal phiên bản mới nhất; 0 = chưa có mốc" example:"3"`
 	Position       float64                 `json:"position" description:"Thứ tự trong cây" example:"0"`
-	MyLevel        string                  `json:"my_level,omitempty" description:"view, edit hoặc manage của actor" example:"edit"`
-	Via            string                  `json:"via,omitempty" description:"member, share, link hoặc ai_context" example:"member"`
+	MyLevel        string                  `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của actor" example:"edit"`
+	Via            string                  `json:"via,omitempty" description:"member, share, link, owner, ai_context hoặc break_glass" example:"member"`
 	File           *DocumentFileDTO        `json:"file,omitempty" description:"Metadata bản file hiện hành; chỉ kind=file"`
 	Breadcrumbs    []DocumentBreadcrumbDTO `json:"breadcrumbs,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha"`
 	OwnerKind      *string                 `json:"owner_kind,omitempty" description:"work_product khi tài liệu thuộc sở hữu" example:"work_product"`
@@ -187,8 +187,8 @@ type DocumentSummaryDTO struct {
 	SizeBytes      int64   `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
 	Origin         string  `json:"origin" description:"upload (file tải lên) hoặc created (trang, thư mục, file trống, bản chuyển đổi)" example:"upload"`
 	Snippet        *string `json:"snippet,omitempty" description:"Đoạn khớp ≤ 160 ký tự khi tìm bằng q" example:"…kế hoạch quý 4 gồm ba mốc…"`
-	MyLevel        *string `json:"my_level,omitempty" description:"view, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view" example:"view"`
-	Via            *string `json:"via,omitempty" description:"member, share, link hoặc ai_context" example:"share"`
+	MyLevel        *string `json:"my_level,omitempty" description:"view, comment, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view" example:"view"`
+	Via            *string `json:"via,omitempty" description:"member, share, link, owner, ai_context hoặc break_glass" example:"share"`
 	OwnerKind      *string `json:"owner_kind,omitempty" example:"work_product"`
 	OwnerID        *string `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
 	ArchivedAt     *string `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
@@ -257,7 +257,7 @@ type DocumentShareDTO struct {
 	ID             string  `json:"id" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
 	PrincipalType  string  `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
 	PrincipalID    string  `json:"principal_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Level          string  `json:"level" description:"Mức của chính grant này: view, edit hoặc manage" example:"view"`
+	Level          string  `json:"level" description:"Mức của chính grant này: view, comment, edit hoặc manage" example:"view"`
 	Active         bool    `json:"active" description:"Grant còn tới được principal không" example:"true"`
 	EffectiveLevel *string `json:"effective_level,omitempty" description:"Mức hiệu lực của principal qua mọi đường" example:"edit"`
 	EffectiveVia   *string `json:"effective_via,omitempty" example:"member"`
@@ -269,8 +269,8 @@ type DocumentShareDTO struct {
 // DocumentPersonAccessDTO is one person's effective level (acl_owner block).
 type DocumentPersonAccessDTO struct {
 	UserID string `json:"user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Level  string `json:"level" description:"view, edit hoặc manage" example:"manage"`
-	Via    string `json:"via" description:"member, share, link hoặc ai_context" example:"member"`
+	Level  string `json:"level" description:"view, comment, edit hoặc manage" example:"manage"`
+	Via    string `json:"via" description:"member, share, link, owner, ai_context hoặc break_glass" example:"member"`
 }
 
 // DocumentLinkDTO is one public share link. The token itself is never stored;
@@ -288,8 +288,8 @@ type DocumentLinkDTO struct {
 // own level always; the grants, acl owner and live links only for a caller at
 // manage level. Everyone else reads `my_level`/`via` alone.
 type DocumentAccessSDO struct {
-	MyLevel  string                   `json:"my_level" description:"view, edit hoặc manage" example:"manage"`
-	Via      string                   `json:"via" description:"member, share, link hoặc ai_context" example:"member"`
+	MyLevel  string                   `json:"my_level" description:"view, comment, edit hoặc manage" example:"manage"`
+	Via      string                   `json:"via" description:"member, share, link, owner, ai_context hoặc break_glass" example:"member"`
 	ACLOwner *DocumentPersonAccessDTO `json:"acl_owner,omitempty" description:"Người nắm ACL owner; chỉ khi manage"`
 	Shares   []DocumentShareDTO       `json:"shares,omitempty" description:"Grant sống; chỉ khi manage"`
 	Links    []DocumentLinkDTO        `json:"links,omitempty" description:"Liên kết công khai sống; chỉ khi manage"`
@@ -314,7 +314,7 @@ type DocumentLinkSDO struct {
 type DocumentAccessLogDTO struct {
 	ID          string    `json:"id" example:"01J8X4LOG0N1P2Q3R4S5T6U7"`
 	Action      string    `json:"action" description:"view, download, export hoặc link_view" example:"view"`
-	Via         string    `json:"via" description:"member, share, link hoặc ai_context" example:"share"`
+	Via         string    `json:"via" description:"member, share, link, owner, ai_context hoặc break_glass" example:"share"`
 	Version     *int32    `json:"version,omitempty" description:"Ordinal phiên bản đã đọc; vắng mặt khi đọc bản làm việc" example:"3"`
 	ActorKind   string    `json:"actor_kind" description:"human, agent hoặc anonymous" example:"human"`
 	ActorID     *string   `json:"actor_id,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
