@@ -1,0 +1,33 @@
+$ NODE_ENV=test AI_PROVIDER=fake npx vitest run --root apps/shell tests/live --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 1. capability: every field parses and the fork cache reads the org once
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 2. snapshot: FeedConsumer applies every seeded id and moves the cursor after the commit
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 3. paging: limit=1 chains every page by next_cursor and lists each id once
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 4. replay: the saved feed cursor falls back to exactly one snapshot, deleting nothing
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 5. tampered cursor: 400 change_cursor_invalid, one full resync, nothing deleted
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 6. expired cursor: 410 change_cursor_expired clears into one full resync
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 7. capability and feed with a bad token: 401 maps to session_expired
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 8. sync_feed off: 403 office_capability_off and no feed request at all
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 1. lookup of a never-received key: 410 commit_intent_unknown, never a false not_committed
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 2. commit with a key: a receipt, and the lookup reports the same version and revision
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 3. replay of the same key: the stored answer, no second version
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 4. a queued intent dispatched by the QueueDispatcher: exactly one version, a second pass does nothing
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 5. an intent left committing at rest resolves by lookup to committed, no second version
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 5b. an uploading record at rest for a never-received key re-sends the SAME key
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 6. lookup in_flight: needs a way to hold a claim open
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 7. lookup unknown after the retention sweep: pending G5-D2 retention numbers
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 8. sync_write off: a queued intent parks paused_admin and no request reaches the server
+ ↓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I0. cold start: the real feed lists every seeded head through the runtime
+ ↓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I1. docx clean reload: a web save lands as the new head (bytes sha, base, bar updated)
+ ↓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I2. docx dirty kept: the next web save moves nothing (bytes, base, no download)
+ ↓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I3. xlsx clean reload: the web save lands as the new head (bytes sha, base, bar updated)
+ ↓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I4. xlsx dirty kept: the next web save moves nothing (bytes, base, no download)
+ ↓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I5. self-echo: this app's own commit raises no bar on the copy that made it
+
+ Test Files  3 skipped (3)
+      Tests  23 skipped (23)
+   Start at  01:55:52
+   Duration  384ms (transform 632ms, setup 0ms, import 772ms, tests 0ms, environment 0ms)
+
