@@ -276,7 +276,9 @@ async function runOne({ row, run, runs, caseDir, shared }) {
   const proxyRaw = await proxyLogRaw().catch(() => "");
   const proxyEntries = parseProxyLog(proxyRaw);
   const evidence = runEvidenceOf(traceLines, proxyEntries, docId);
-  const result = runResult({ label: run.label, assertions: outcome.assertions, blocker: outcome.blocker, predicted: predictedFor(row, run), evidence });
+  // `ordinal` is the exit's place in its ROW, so a `--exits` slice still numbers
+  // its result.json exits 2,3,4 like its printed [k/N] lines (review r6 R6-1)
+  const result = runResult({ ordinal: run.index, label: run.label, assertions: outcome.assertions, blocker: outcome.blocker, predicted: predictedFor(row, run), evidence });
   for (const [name, text] of Object.entries(appTraceArtifacts({ caseId: row.id, traceLines, log: proxyEntries, documentId: docId }))) {
     writeFileSync(join(runDirOut, name), text);
   }
@@ -286,7 +288,11 @@ async function runOne({ row, run, runs, caseDir, shared }) {
     writeJson(join(runDirOut, "server-versions.json"),
       await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: docId }).catch((e) => ({ ...EMPTY_SERVER_VERSIONS, documentId: docId, document_id: docId, error: e.message })));
   } else writeJson(join(runDirOut, "server-versions.json"), EMPTY_SERVER_VERSIONS);
-  if (runs > 1) writeJson(join(runDirOut, "result.json"), { case: row.id, exit: run.index, ...result });
+  if (runs > 1) {
+    // the per-exit artifact already names its exit: `ordinal` only feeds `exits[].n`
+    const { ordinal, ...exitResult } = result;
+    writeJson(join(runDirOut, "result.json"), { case: row.id, exit: run.index, ...exitResult });
+  }
   return result;
 }
 

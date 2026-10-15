@@ -277,10 +277,14 @@ export function infraFailureOf(assertions = []) {
  * `infraFailure` and never `predicted`: a predicted FAIL is a claim about the
  * product, and a run that never reached it proves nothing about it.
  */
-export function runResult({ label = null, assertions = [], blocker = null, predicted = null, evidence = null }) {
+export function runResult({ ordinal = 0, label = null, assertions = [], blocker = null, predicted = null, evidence = null }) {
   const result = blocker ? "BLOCKED" : assertions.length > 0 && assertions.every((a) => a.ok === true) ? "PASS" : "FAIL";
   const infraFailure = result === "FAIL" ? infraFailureOf(assertions) : null;
   return {
+    // the exit's ordinal in its ROW (1-based), not in the ran subset (review r6
+    // R6-1): a sliced row's `[k/N]` lines and per-exit artifacts say 2,3,4, so
+    // its result.json must too. 0 = a row that lists no exits (one run).
+    ordinal,
     label,
     result,
     assertions,
@@ -306,6 +310,12 @@ export function caseResult(row, runs) {
   const predicted = failed.every((run) => run.predicted) ? failed.map((run) => run.predicted) : [];
   // the runner/infra failures stay apart from the product ones: never folded into `predicted`
   const infra = failed.filter((run) => run.infraFailure).map((run) => (run.label ? `${run.label}: ${run.infraFailure}` : run.infraFailure));
+  // the exit's own ordinal, else the position in a full row: every run of a run
+  // that names its exits carries one (`runOne`), so a sliced row numbers its
+  // exits as the row does (review r6 R6-1) while a hand-built or blocked run
+  // keeps the positional rule
+  const ordinalOf = (run, index) => (run.ordinal > 0 ? run.ordinal : runs.length > 1 ? index + 1 : 0);
+  const labelled = runs.some((run, i) => ordinalOf(run, i) > 0);
   return {
     case: row.id,
     ac: [...(row.ac ?? [])],
@@ -315,8 +325,11 @@ export function caseResult(row, runs) {
     ...(blockers.length ? { blocker: blockers.join("; ") } : {}),
     ...(predicted.length ? { predicted: [...new Set(predicted)].join(", ") } : {}),
     ...(infra.length ? { infraFailure: infra.join("; ") } : {}),
-    exits: runs.map((run, i) => ({ n: runs.length > 1 ? i + 1 : 0, ...run })),
-    assertions: runs.flatMap((run) => run.assertions.map((a) => ({ ...a, ...(runs.length > 1 ? { exit: run.label } : {}) }))),
+    exits: runs.map((run, i) => {
+      const { ordinal, ...rest } = run;
+      return { n: ordinalOf(run, i), ...rest };
+    }),
+    assertions: runs.flatMap((run) => run.assertions.map((a) => ({ ...a, ...(labelled ? { exit: run.label } : {}) }))),
   };
 }
 
@@ -341,7 +354,9 @@ export function noServerReason({ probed, apiOrigin, error = null }) {
  */
 export function blockedAfterFailure(run, runResults) {
   const failed = runResults.find((r) => r.result === "FAIL" && !r.predicted);
-  return failed ? runResult({ label: run.label, blocker: `earlier exit ${failed.label} failed` }) : null;
+  // the exit keeps its row ordinal too, so a sliced row's result.json never
+  // renumbers around an exit that was held back
+  return failed ? runResult({ label: run.label, ordinal: run.index ?? 0, blocker: `earlier exit ${failed.label} failed` }) : null;
 }
 
 /** Result of a row that never ran (pending dependency, missing precondition). */

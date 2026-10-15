@@ -7,7 +7,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { SYNC_STORE_BUDGET_BYTES, syncStoreScopeDir } from "./app-cases-lib.mjs";
+import { caseResult, expandExits, runResult, SYNC_STORE_BUDGET_BYTES, syncStoreScopeDir, assertion } from "./app-cases-lib.mjs";
+import { parseExitRange, partialCaseResult, selectExitRange } from "./app-cases-exits.mjs";
 import { signOut, signedOutFacts } from "./app-session.mjs";
 import { deactivateApp, reactivateApp } from "./app-tenant.mjs";
 
@@ -85,6 +86,27 @@ test("signOut answers the G5-11 S3 prompt the way the product's UI does", async 
     { call: "native-dialog", answers: [0] },
     { call: "logout", options: { confirmed: true } },
   ]);
+});
+
+test("a sliced row's exits keep their row ordinal, a whole row and a one-exit row unchanged (review r6 R6-1)", () => {
+  const row = { id: "FQ-50", ac: ["G5-A08"], fixture: "fx", exits: [1, 2, 3, 4, 5].map((n) => ({ exit: `exit ${n}` })) };
+  const runs = expandExits(row);
+  const range = parseExitRange("2-4");
+  const { ran, skipped } = selectExitRange(runs, range, row.id);
+  const results = ran.map((run) => runResult({ ordinal: run.index, label: run.label, assertions: [assertion("x", 1, 1, true)] }));
+
+  const sliced = partialCaseResult(caseResult(row, results), { range, total: runs.length, skipped });
+  // FQ-50 --exits 2-4 prints [2/5] [3/5] [4/5]: result.json says the same
+  assert.deepEqual(sliced.exits.map((e) => e.n), [2, 3, 4]);
+  assert.ok(sliced.exits.every((e) => !("ordinal" in e)), "the ordinal is an input, never an output");
+  assert.ok(sliced.assertions.every((a) => a.exit), "a sliced row still labels each assertion with its exit");
+  assert.deepEqual(sliced.exitRange, { from: 2, to: 4, of: 5, skipped: [1, 5] });
+
+  const whole = caseResult(row, runs.map((run) => runResult({ ordinal: run.index, label: run.label, assertions: [assertion("x", 1, 1, true)] })));
+  assert.deepEqual(whole.exits.map((e) => e.n), [1, 2, 3, 4, 5]);
+  const one = caseResult({ id: "FQ-22", ac: [], scenario: "one run" }, [runResult({ assertions: [assertion("x", 1, 1, true)] })]);
+  assert.equal(one.exits[0].n, 0);
+  assert.equal(one.assertions[0].exit, undefined);
 });
 
 test("the signed-out facts probe reports a missing sync center instead of throwing", async () => {
