@@ -491,9 +491,13 @@ log) and in that JSON.
 `g7-04/revoke.mjs` proves one thing on the running harness stack: a revocation
 between two UniWork AI turns refuses the NEXT turn on both hosts, refuses the
 revoked user's Save, and leaves the version count unchanged with no committed
-commit intent. It reuses the harness by import (ports.env, the start gate, the
-fixture loader, `evidence.mjs`) and the G7-10 tracer's `classifyAiResponse` /
-`interpretCommitIntentLookup`; nothing is copied.
+commit intent. The helpers it names are imported, never copied: ports.env / the
+start gate / the fixture loader (`harness/lib.mjs`, `harness/fixture-files.mjs`),
+`evidence.mjs`, and the G7-10 tracer's `classifyAiResponse` /
+`interpretCommitIntentLookup`; its own HTTP transport wraps the shared
+`harness/api-contract.mjs` `G8_API_CALLS` table and answers `{ status, ok, body }`
+(the commit-intent lookup hands the tracer helper that body as `data`, the shape
+it reads).
 
 ```sh
 node scripts/office/g5g6g7/evidence.mjs run \
@@ -505,35 +509,71 @@ node scripts/office/g5g6g7/evidence.mjs verify
 CLI: `--fixture fx-docx-report-vi|fx-xlsx-revenue-xyz|all`, `--case
 deactivate|downgrade|remove|all`, `--run-dir <dir>`, `--dry-run`. One evidence
 line per (case, fixture) for G7-A02; the artifact log under `logs/` carries every
-status code and both version counts. Exit `0` PASS / `1` FAIL / `77` BLOCKED.
+status code, both version counts and the file:line reason behind each expected
+answer. Exit `0` PASS / `1` FAIL / `77` BLOCKED.
 
-The driver seeds an owner and an editor member, uploads the fixture as a file
-document, opens it on both hosts (the member's desktop session route and a frame
-token the member mints) and runs AI turn 1. Then it revokes and runs AI turn 2,
-a Save attempt and a commit-intent lookup. What each case does, and what the
-server really answers — read from the Go code, never assumed:
+Every (case, fixture) run seeds its OWN world (owner, editor member, organization,
+workspace, document): a run must never inherit an earlier run's revoke and be
+handed a member a previous case already revoked (D1-01). There is no world cache
+— nothing but the artifact text is written to the run dir, and a cache file an
+earlier driver version left there is deleted, never read back, so no bearer token
+survives on disk (BE-704-04). The version counts and the commit-intent lookup are
+read with the **owner's** token, which keeps read access in every case: a revoked
+member's own reads are refused (403/404) and would turn the count itself into a
+failure before the "+0 versions" assertion is evaluated (BE-704-02).
 
-| `--case` | revoke step | AI turn 2 (both routes) | the member's Save | version |
+The driver opens the document on both hosts (the member's desktop session route
+and a frame token the member mints) and runs AI turn 1. Then it revokes and runs
+AI turn 2, a Save attempt and a commit-intent lookup. What each case does, and
+what the server really answers — read from the Go code, never assumed, and
+asserted per route (the two hosts do not always answer the same code):
+
+| `--case` | revoke step | AI turn 2 | the member's Save | version |
 | --- | --- | --- | --- | --- |
-| `deactivate` (primary) | `POST /api/v1/orgs/{org}/members/{userID}/deactivate` (`router/organizations.go:89`) | **403 `member_deactivated`** | 403 `member_deactivated` | +0 |
-| `downgrade` | `PATCH /documents/{id}` `visibility=restricted` + `POST /documents/{id}/shares` `level=view` (the FQ-50 path) | **200** (the AI turn needs view only: `handler/office_frame_ai.go` rechecks view; `service/ai_uniwork.go` asks `DocumentLevelView`) | **403 `forbidden`** (the save path asks `DocumentLevelEdit`, `service/document_files.go:134` / `commitFileVersion`) | +0 |
-| `remove` | `DELETE /api/v1/workspaces/{ws}/members/{user}` (`router/workspaces.go:65`) — answers **204** | **404 `not_found`** (a non-member holds no level: `service/document_permissions.go` `decideDocumentAccess`, the product rule a non-member never learns an id exists) | 404 `not_found` | +0 |
+| `deactivate` (primary) | `POST /api/v1/orgs/{org}/members/{userID}/deactivate` (`router/organizations.go:89`) | session **403 `member_deactivated`** (`service/organization.go:155-156` → `service/errors.go:53-57`); frame **401 `unauthorized`**, `error_class=session` — the frame actor resolver forwards only `ErrNotFound`/`ErrForbidden` and rewrites the same CodedError as a generic 401 (`handler/ai_mount.go:101-106`; class from `handler/dto/sdo/error_class.go:64`) | 403 `member_deactivated` | +0 |
+| `downgrade` | `PATCH /documents/{id}` `visibility=restricted` + `POST /documents/{id}/shares` `level=view` (the FQ-50 path) | **200 on both** — the AI turn needs view only and view-only AI is allowed by design (G6-05u, Advisor; `handler/office_frame_ai.go:26-35`, `service/ai_uniwork.go:391`) | upload **403 `forbidden`** (the edit gate, `service/document_files.go:132-134`); commit **404 `not_found`** (`resolveUpload` runs before the edit gate, `service/document_commit.go:277` vs `:296`) | +0 |
+| `remove` | `DELETE /api/v1/workspaces/{ws}/members/{user}` (`router/workspaces.go:65`) — answers **204** | **404 `not_found` on both** (a non-member holds no level: `service/document_permissions.go` `decideDocumentAccess:290-293`, the product rule a non-member never learns an id exists) | 404 `not_found` | +0 |
 
-The `downgrade` row is the one to read twice: the AI turn keeps answering 200
+The `downgrade` row is the one to read twice: its AI turn keeps answering 200
 because it only ever needed view, so the driver asserts exactly that and does NOT
-fake a 403 on it — the refusal the case produces is on the Save (edit). A 200 on
-the next turn where a case expects a refusal, or any new version, is a **FAIL**,
-never a PASS. Under `AI_PROVIDER=fake` the turn-1 content claim cannot be proven:
-that step is **BLOCKED** (`no real upstream on this runner; contract-p0 §8`,
-owner `g7-qa`, exit 77) while the revoke assertion still runs, and a broken revoke
-assertion wins over the BLOCKED.
+fake a 403 on it. The refusal that proves the edit right is gone is the UPLOAD's
+403 `forbidden` (the edit gate); the commit's 404 `not_found` is the route's own
+answer, not an edit refusal — its order is `preflightDocument` (view) →
+`resolveUpload` → the edit gate, and the refused upload left no resolvable id, so
+the commit is refused before the edit check is reached. Both are asserted as the
+code answers them and neither is widened to "any 4xx".
+
+The `deactivate` row refuses the next turn on both routes with two different
+codes, and both are the code's: the session route passes the
+`member_deactivated` CodedError through as 403, while the frame route's actor
+resolver swallows it into a generic 401 `unauthorized` `error_class=session` —
+the 401 is not frame-token auth (the token is stateless and still verifies) and
+not a session revocation; it is that resolver's default branch.
+
+The commit-intent lookup is read with the owner's token — the revoke never
+refuses that read — and the intent the route answers for is the CALLER's own
+(`service/document_commit_intent.go:380-384`, enforced at `:429`): the owner's
+read is the owner's own answer, a revoked member's own read is refused 403/404,
+and the write path is refused before any intent is claimed
+(`service/document_commit.go:296` → `:305-309`), so no intent can appear after
+the revoke in the first place. The rule that a committed intent FAILs the row is
+pinned by the unit test (the fake's committed-answer mutation), and the artifact
+records both the read and the reason with its file:line. A 200 on the next turn
+where a case expects a refusal, any new version, or a committed commit intent is
+a **FAIL**, never a PASS. Under `AI_PROVIDER=fake` the turn-1 content claim
+cannot be proven: that step is **BLOCKED** (`no real upstream on this runner;
+contract-p0 §8`, owner `g7-qa`, exit 77) while the revoke assertion still runs,
+and a broken revoke assertion wins over the BLOCKED.
 
 **G7-A02.2 (a late AI result not applied to a newer base) is not implemented
 here.** It belongs to G7-03a (FQ-28/29/32); G7-04 records the cross-reference
 only and runs no duplicate.
 
-Local tests: `node --test scripts/office/g5g6g7/g7-04/revoke.test.mjs` (the fake
-stack; the real harness is Linux-only).
+Local tests: `node --test scripts/office/g5g6g7/g7-04/revoke.test.mjs` (the
+state-driven fake stack: it refuses a revoked member's own reads, resolves
+`upload_id` before the access gate, answers the frame route's 401 and pins the
+`{ status, ok, body }` lookup shape the driver's own `call()` returns; the real
+harness is Linux-only).
 ## G8-19 cross-host rows (UNI-1414)
 
 The G8 rows (`g8-19/<module>.mjs`, one file per module) share one harness. The
