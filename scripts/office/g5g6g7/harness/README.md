@@ -423,3 +423,39 @@ Local dry run (a host that already has the daemon, `xvfb-run` and a fork checkou
 `OFFICE_FORK_DIR=<fork checkout> node --test scripts/office/g5g6g7/harness/keyring-probe.test.mjs`
 also runs the fork's real credential module against a fake `safeStorage`.
 
+
+## G8-19 cross-host rows (UNI-1414)
+
+The G8 rows (`g8-19/<module>.mjs`, one file per module) share one harness. The
+contract they code against is `harness/g8-contract.md`; `g8-19/fake-world.mjs`
+implements it in memory, so a row module can be written and tested before a
+live run exists.
+
+| Module | What it gives a row |
+| --- | --- |
+| `harness/world.mjs` | the seeded world: users A, B, C (organization X, workspaces W1/W2, B and C invited into W2) and M (organization Y, workspace WY); cached 0600 at `$HARNESS_RUN_DIR/g8-19-world.json`, every user re-logged in on reuse; `world.refreshTokens()` re-logs in on demand (access tokens live 15 min); `cleanup()` reports leftovers and never deletes by SQL |
+| `harness/api.mjs` | `session(user)` / `createApi(origin)`: one bearer session per user over the rows in `api-contract.mjs`, which are checked against the Go router and SDI structs |
+| `harness/app.mjs` | the desktop driver over CDP: sign-in with the org choice, editor pages, the comments/discussion bridges, tabs focus |
+| `harness/web.mjs` | one Playwright context per user on the D web; `openDocument` reads the Inbox state and comment-panel markers |
+| `g8-19/run-row.mjs` | `runRowModule` / `rowMain`: the start gate, `ports.env`, the step ctx, the watchdog and the exit mapping |
+
+A row module ends with:
+
+```sh
+# inside g8-19/<module>.mjs (JavaScript, shown here for the entry line only):
+#   if (isMainModule({ moduleUrl: import.meta.url })) process.exit(await rowMain("comments", run));
+node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR"
+```
+
+Exit codes: `0` PASS, `1` FAIL, `77` BLOCKED with a named blocker and owner
+(`ctx.block(blocker, owner)`); a BLOCKED without a named blocker is rewritten to
+FAIL. The artifact is `<runDir>/reports/g7-qa/<g8-aXX>/<fixture>.json`, truncated
+at the start of every run and redacted (bearer tokens, tickets, secrets).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OFFICE_FORK_SHA` | — | the spec must export `7d665a54` for G8 runs; the start default (`0d03b18`) predates the comment bridges |
+| `G819_ALLOW_SQL_MEMBERSHIP` | unset | `1` lets the seed add M to X/W1 by a direct SQL insert (no API can create a multi-organization account since ADR 0032); otherwise the multi-org rows are BLOCKED with that reason |
+| `G819_DATABASE_URL` / `DATABASE_URL` | unset | the database the SQL membership insert uses |
+| `G819_ROW_TIMEOUT_MS` | `600000` | row watchdog; the running step and the row FAIL with `row watchdog` |
+| `G819_WRITE_EVIDENCE` | unset | `1` makes `rowMain` append its own `evidence.jsonl` line when no `OFFICE_EVIDENCE_ID` wrapper writes one |
