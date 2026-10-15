@@ -1,0 +1,6 @@
+$ pnpm knip 2>&1 | tail -40; echo "KNIP_EXIT=${PIPESTATUS[0]}"
+
+> uniwork@ knip /workspace
+> knip
+
+KNIP_EXIT=0

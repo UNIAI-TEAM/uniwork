@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; echo "INSTALL_EXIT=$?"
+83b1753cbfe1ec504ddf9094dadc0789b3a36227
+83b1753cb feat(office): holdout report judges each criterion on its own run set
+d2efea0e0 feat(office): ship the signed G7-D1 holdout thresholds file
+b52c195fb fix(office): holdout run-JSON secret guard covers more than the devset's three shapes
+4c6ce8af2 fix(office): holdout credits a formula at a formula item only when it matches the expected one
+463e7fd2b chore: merge G7-12 holdout eval harness (3cfda31fe) into the G5-G7 root
+3cfda31fe fix(office): holdout credits a formula at a cell only for an item that expects a formula
+INSTALL_EXIT=0
