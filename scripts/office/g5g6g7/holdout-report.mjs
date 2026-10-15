@@ -161,7 +161,14 @@ export function summarizeRun(run, flaky = new Set()) {
     },
     load: {
       asks: run.asks.length, modelCalls: sum((a) => a.calls.length), modelTurns: sum((a) => a.modelTurns), retries: sum((a) => a.counts.retries),
-      rateLimited: sum((a) => a.counts.rateLimited), serverErrors: sum((a) => a.counts.serverErrors), remounts: sum((a) => a.counts.remounts),
+      rateLimited: sum((a) => a.counts.rateLimited), serverErrors: sum((a) => a.counts.serverErrors),
+      // Token renewals (G7-12 pilot blocker): the access token of the session and the frame token of a document expire
+      // mid-run, and the runner renews them. A renewal is a credential fact, never a measurement problem (see the note
+      // under section 2): it voids no run and enters no latency (a retried call keeps its own clientMs).
+      renewals: {
+        session: sum((a) => (a.renewals ?? []).filter((r) => r.kind === 'session').length),
+        frame: sum((a) => (a.renewals ?? []).filter((r) => r.kind === 'frame').length),
+      },
       inputTokens: sum((a) => a.tokens?.input ?? 0), outputTokens: sum((a) => a.tokens?.output ?? 0),
       tokensFromUsageRows: run.asks.filter((a) => a.tokens?.source === 'ai_usage_events').length,
       tokenCallsWithRow: sum((a) => a.tokens?.callsWithRow ?? 0), tokenCalls: sum((a) => (a.tokens?.source === 'ai_usage_events' ? a.tokens.calls ?? a.calls.length : 0)),
@@ -812,10 +819,16 @@ export function renderReport(report) {
   w();
   w('## 2. Tải của lần chạy');
   w();
-  w('| Lần | Luồng | Lượt hỏi | Lượt gọi model | Thử lại | 429 | 5xx/mạng | Token vào | Token ra | Nguồn token |');
-  w('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |');
+  w('| Lần | Luồng | Lượt hỏi | Lượt gọi model | Thử lại | 429 | 5xx/mạng | Gia hạn token (phiên / khung) | Token vào | Token ra | Nguồn token |');
+  w('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |');
   const tokenSource = (s) => (s.load.tokensFromUsageRows > 0 ? `ai_usage_events (${s.load.tokenCallsWithRow}/${s.load.tokenCalls} lượt gọi có dòng)` : s.load.inputTokens > 0 ? 'phản hồi façade' : 'không có');
-  report.summaries.forEach((s, i) => w(`| ${s.runIndex} | ${report.config[i].threads} | ${s.load.asks} | ${s.load.modelCalls} | ${s.load.retries} | ${s.load.rateLimited} | ${s.load.serverErrors} | ${s.load.inputTokens} | ${s.load.outputTokens} | ${tokenSource(s)} |`));
+  report.summaries.forEach((s, i) => w(`| ${s.runIndex} | ${report.config[i].threads} | ${s.load.asks} | ${s.load.modelCalls} | ${s.load.retries} | ${s.load.rateLimited} | ${s.load.serverErrors} | ${s.load.renewals.session} / ${s.load.renewals.frame} | ${s.load.inputTokens} | ${s.load.outputTokens} | ${tokenSource(s)} |`));
+  w();
+  // G7-12 pilot blocker: the credentials outlived by a run are renewed by the runner. The column above and this note are
+  // the whole story: a renewal is not a defect, it voids no run, and it never enters the model latency (a retried call
+  // keeps its own latency; the renewal time is recorded on the ask's `renewals` notes, outside every call).
+  const renewals = report.summaries.reduce((n, s) => ({ session: n.session + s.load.renewals.session, frame: n.frame + s.load.renewals.frame }), { session: 0, frame: 0 });
+  w(`Gia hạn token: ${renewals.session} lần gia hạn phiên, ${renewals.frame} lần gia hạn token khung. Token truy cập hết hạn sau 15 phút và token khung sau 10 phút, còn một lần chạy dài hơn cả hai cửa sổ, nên bộ chạy gia hạn trước khi dùng (phiên ở 12 phút, khung ở 8 phút) và gia hạn một lần nữa khi một lượt gọi trả 401; một lần gia hạn không làm mất hiệu lực lần chạy và không tính vào độ trễ model.`);
   w();
   w('## 3. Chỉ số §9.2 (min / trung vị / max trên các lần chạy)');
   w();

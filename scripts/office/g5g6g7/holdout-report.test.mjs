@@ -555,6 +555,19 @@ describe('measurement conditions (G712-3, G712-5, G712-8, G712-9)', () => {
     inconclusive([run(1, key, { redactions: [{ ask: 'HO-B-001/vi', kinds: keyKinds }] }), run(2, bigSuite()), run(3, bigSuite())], /redacted in run\(s\) 1; a flagged run cannot count as a pass/);
   });
 
+  it('counts token renewals per run, and a renewed run keeps its verdict (G7-12 pilot blocker)', () => {
+    const renewed = (a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, renewals: [{ kind: 'session', ms: 3 }, { kind: 'frame', ms: 5 }] } : a);
+    const runs = [run(1, bigSuite(renewed)), run(2, bigSuite()), run(3, bigSuite())];
+    const o = judge(runs);
+    assert.equal(o.status, 'PASS', o.blockers.join(' | '));
+    assert.deepEqual(summarizeRun(runs[0]).load.renewals, { session: 1, frame: 1 });
+    assert.deepEqual(summarizeRun(runs[1]).load.renewals, { session: 0, frame: 0 }, 'a run file without renewal notes counts as none');
+    const md = renderReport(buildReport([runs[0]]));
+    assert.match(md, /Gia hạn token \(phiên \/ khung\)/, 'the load table names the renewals');
+    assert.match(md, /\| 1 \/ 1 \|/, 'the row carries the per-run counts');
+    assert.match(md, /Gia hạn token: 1 lần gia hạn phiên, 1 lần gia hạn token khung\./);
+  });
+
   it('prints every condition problem even without a signed file, and no verdict word', () => {
     const runs = make(cfg({ anchors: 'lenient' }), { tuple: { ...TUPLE, providers: ['fake'] } });
     const md = renderReport(buildReport(runs, { session: makeSession(runs) }));
