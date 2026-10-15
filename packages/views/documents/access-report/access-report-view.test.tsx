@@ -600,9 +600,26 @@ describe("AccessReportView - layout", () => {
     expect(Number.parseFloat(tracks[5]!.replace("rem", ""))).toBeGreaterThanOrEqual(11);
     // Status stays a fixed track so the chip is never pushed out of the card.
     expect(tracks[6]).toMatch(/^\d+(\.\d+)?rem$/);
+    // 8rem clipped the vi "Không còn hiệu lực" chip (146.5px) at 1280 (visual r3, VC-1).
+    expect(Number.parseFloat(tracks[6]!.replace("rem", ""))).toBeGreaterThanOrEqual(9.5);
     const grantedAt = within(row).getAllByRole("cell")[5]!;
     expect(grantedAt.getAttribute("title")).toMatch(/2026/);
     expect(grantedAt.getAttribute("title")).toMatch(/\d{1,2}:\d{2}:\d{2}/);
+  });
+
+  it("caps the inactive chip at its cell width, truncates the label and keeps the full text in a title", async () => {
+    serve(wide);
+    renderView();
+    const table = await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    const row = within(table).getByRole("row", { name: /Trần Bình/ });
+    const label = t("documents.accessReport.inactive");
+    const text = within(row).getByText(label);
+    const chip = text.closest("[data-slot='badge']") as HTMLElement;
+    expect(chip).not.toBeNull();
+    // A longer future label must never escape the cell (visual r3, VC-1).
+    expect(chip.className).toContain("max-w-full");
+    expect(chip.getAttribute("title")).toBe(label);
+    expect(text.className).toContain("truncate");
   });
 });
 
