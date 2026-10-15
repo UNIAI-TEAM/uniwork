@@ -73,9 +73,9 @@ type DocumentAccessReportExport struct {
 	Format, FileName string
 }
 
-// EffectiveAccessReportLimit clamps a requested page size (<= 0 or > 100 ->
-// 50), exported so the handler can tell a full page without a second copy.
-func EffectiveAccessReportLimit(limit int) int {
+// effectiveAccessReportLimit clamps a requested page size (<= 0 or > 100 ->
+// 50). The handler tells a full page from NextAfterID, not from the limit.
+func effectiveAccessReportLimit(limit int) int {
 	if limit <= 0 || limit > 100 {
 		return 50
 	}
@@ -577,7 +577,7 @@ func (s *DocumentService) DocumentAccessReport(ctx context.Context, actor Actor,
 	if err != nil {
 		return DocumentAccessReportPage{}, err
 	}
-	res, err := run.page(ctx, in.AfterID, EffectiveAccessReportLimit(in.Limit))
+	res, err := run.page(ctx, in.AfterID, effectiveAccessReportLimit(in.Limit))
 	if err != nil {
 		return DocumentAccessReportPage{}, err
 	}
