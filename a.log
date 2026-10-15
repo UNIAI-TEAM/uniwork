@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo; echo "INSTALL_EXIT=$rc"
+415cb6eee76b837aa6e599dd5bff8a0045b7e6a7
+415cb6eee docs(office): holdout README for G712-40 and G712-42
+88a2f9a4d feat(office): print the redacted-ask counts in the holdout report markdown
+0a4980ccc fix(office): document the measured base64-guard miss rate in the runner
+d91bc2943 fix(office): keep the holdout one-digit-lead quad only in the money context
+f10ff0d87 docs(office): holdout README for the four grader-support fixes
+c6de158f8 fix(office): holdout --validate accepts the run-less human review entry
+
+INSTALL_EXIT=0
