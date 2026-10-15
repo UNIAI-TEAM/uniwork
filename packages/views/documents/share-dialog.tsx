@@ -3,11 +3,9 @@
 import { useMemo, useState } from "react";
 import { Building2, Link2, ShieldCheck, UserRound, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage } from "@uniwork/core/api";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import {
-  useDocumentShares,
   useRevokeDocumentShare,
   useShareDocument,
 } from "@uniwork/core/documents/hooks-sharing";
@@ -38,8 +36,8 @@ import {
 } from "@uniwork/ui/components/ui/select";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
+import { ShareDialogBreakGlassSection, hasAdminScope, shareErrorMessage, useShareAccessQuery, useShareWorkspace } from "./share-dialog-break-glass";
 import { ShareLinksSection } from "./share-links-section";
 
 export interface ShareDialogProps {
@@ -47,9 +45,10 @@ export interface ShareDialogProps {
   onOpenChange: (open: boolean) => void;
   wsId: string;
   doc: Document;
+  initialSection?: "break_glass";
 }
 
-const LEVELS: readonly DocumentAccessLevel[] = ["view", "edit", "manage"];
+const LEVELS: readonly DocumentAccessLevel[] = ["view", "comment", "edit", "manage"];
 const PRINCIPAL_TYPES = ["user", "workspace", "organization"] as const;
 type PrincipalType = (typeof PRINCIPAL_TYPES)[number];
 /** The schema keeps nested rows as raw strings; the hook's answer is the source. */
@@ -58,7 +57,7 @@ type AccessShare = NonNullable<DocumentAccess["shares"]>[number];
 /**
  * `documents.detail` share dialog (C-01 §5.3; G1-08, UNI-682).
  *
- * Three principals (person, workspace, organization) × three levels. The list
+ * Three principals (person, workspace, organization) × four levels. The list
  * is the access that actually exists — the caller's own level always, the ACL
  * owner and the live grants only at manage level — and every write is a
  * server round-trip with its own failure state. A public link's raw URL exists
@@ -68,14 +67,14 @@ type AccessShare = NonNullable<DocumentAccess["shares"]>[number];
  * Owned (work-product) documents never open this dialog: their access is
  * delegated through the owning screen, so no control here could be honest.
  */
-export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps) {
+export function ShareDialog({ open, onOpenChange, wsId, doc, initialSection }: ShareDialogProps) {
   const { t, i18n } = useTranslation();
-  const { workspace } = useWorkspace();
+  const workspace = useShareWorkspace(doc, wsId);
   const { push } = useNavigation();
-  const canManage = doc.my_level === "manage";
+  const canManage = doc.my_level === "manage" || hasAdminScope(doc);
   const owned = !!doc.owner_kind;
 
-  const access = useDocumentShares(wsId, doc.id, { enabled: open && canManage && !owned });
+  const access = useShareAccessQuery(wsId, doc.id, { enabled: open && canManage && !owned });
   const share = useShareDocument(wsId, doc.id);
   const revokeShare = useRevokeDocumentShare(wsId, doc.id);
   const update = useUpdateDocument(wsId, doc.id);
@@ -113,11 +112,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
   };
 
   const levelLabel = (value: string | null | undefined) => {
+    if (value === "comment") return t("documents.levels.comment");
     const key = `documents.share.level_${value ?? ""}`;
     const fallback = t("documents.share.level_view");
     return LEVELS.includes(value as DocumentAccessLevel) ? t(key) : fallback;
   };
   const viaLabel = (via: string | null | undefined) => {
+    if (via === "break_glass") return t("documents.breakGlass.viaBreakGlass");
     const key = `documents.share.via_${via ?? ""}`;
     return via ? t(key, { defaultValue: via }) : "";
   };
@@ -145,7 +146,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
       // workspace grants clear the choice for the next one.
       setPrincipalId(principalType === "organization" ? doc.organization_id : "");
     } catch (err) {
-      setAddError(apiErrorMessage(err) ?? t("documents.share.submit_failed"));
+      setAddError(shareErrorMessage(err, t) ?? t("documents.share.submit_failed"));
     }
   };
 
@@ -159,7 +160,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
       setVisibilityError(
         cls === "conflict"
           ? t("documents.versions.restore_conflict")
-          : apiErrorMessage(err) ?? t("documents.share.visibility_failed"),
+          : shareErrorMessage(err, t) ?? t("documents.share.visibility_failed"),
       );
     }
   };
@@ -199,6 +200,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
             </div>
           ) : (
             <div className="flex flex-col gap-4">
+              <ShareDialogBreakGlassSection wsId={wsId} docId={doc.id} grants={access.data.break_glass} initialOpen={initialSection === "break_glass"} resolveName={memberName} />
               <section aria-labelledby="share-access-title" className="rounded-lg border border-border">
                 <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
                   <h3 id="share-access-title" className="text-label font-medium text-foreground">
@@ -474,4 +476,3 @@ function VisibilitySection({
     </section>
   );
 }
-

@@ -4780,6 +4780,8 @@
       "document_discussion_replied_untitled": "{{actor}} replied to your discussion post in a document.",
       "document_comment_resolved": "{{actor}} marked your comment in “{{document}}” as resolved.",
       "document_comment_resolved_untitled": "{{actor}} marked your comment in a document as resolved.",
+      "document_break_glass": "{{actor}} opened emergency view access (24h) to “{{document}}”.",
+      "document_break_glass_untitled": "{{actor}} opened emergency view access (24h) to a document.",
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
       "chat_dm": "{{actor}} sent you a message",
       "chat_thread_replied": "{{actor}} replied to a thread in {{room}}"
@@ -4789,7 +4791,8 @@
       "document_comment_replied": "New reply to your comment",
       "document_discussion_mentioned": "You were mentioned in a discussion",
       "document_discussion_replied": "New reply in a discussion",
-      "document_comment_resolved": "Comment resolved"
+      "document_comment_resolved": "Comment resolved",
+      "document_break_glass": "Emergency access to document"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",
@@ -8682,6 +8685,31 @@
     },
     "levels": {
       "comment": "Comment"
+    },
+    "breakGlass": {
+      "lockedTitle": "This document is restricted",
+      "lockedBody": "Admins can manage this document, but can read its content only with emergency access.",
+      "openButton": "Open emergency access (24h)",
+      "reasonLabel": "Reason for emergency access",
+      "reasonHint": "The owner will be notified and this action is recorded in the audit log. View access expires after 24 hours.",
+      "reasonCounter": "{{count}}/500",
+      "confirmButton": "Grant view access (24h)",
+      "reasonTooShort": "Enter a reason of at least 10 characters.",
+      "reasonTooLong": "Reason must be 500 characters or fewer.",
+      "activeBanner": "You're viewing with emergency access (view only) until {{time}}.",
+      "endAccessButton": "End access",
+      "expiredBanner": "Emergency access has expired. Reopen emergency access if you still need to inspect this document.",
+      "accessPanelSection": "Active emergency access",
+      "accessPanelRow": "{{name}} · expires {{time}} · Reason: {{reason}}",
+      "revokeButton": "Revoke",
+      "viaBreakGlass": "Emergency access",
+      "selfShareError": "Admins can't grant themselves access through Share. Use Emergency access (24 hours, audited).",
+      "memberTitle": "You need access to this document",
+      "memberBody": "This document is restricted. Contact the owner or a document manager to request access.",
+      "ownerLabel": "Owner: {{owner}}",
+      "updatedLabel": "Updated {{time}}",
+      "submitFailed": "Could not open emergency access. Try again.",
+      "endAccessFailed": "Could not end emergency access. Try again."
     },
     "home": {
       "create_failed": "Could not create the document. Try again.",

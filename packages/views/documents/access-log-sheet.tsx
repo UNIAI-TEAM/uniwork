@@ -23,6 +23,7 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { formatWhen } from "./document-format";
+import { hasAdminScope } from "./document-locked-card";
 
 export interface AccessLogSheetProps {
   open: boolean;
@@ -44,7 +45,7 @@ type AccessLogRow = DocumentAccessLogList["logs"][number];
  */
 export function AccessLogSheet({ open, onOpenChange, wsId, doc }: AccessLogSheetProps) {
   const { t, i18n } = useTranslation();
-  const canManage = doc.my_level === "manage";
+  const canManage = doc.my_level === "manage" || hasAdminScope(doc);
   const [action, setAction] = useState<string>("");
   const logs = useDocumentAccessLogs(wsId, doc.id, {
     enabled: open && canManage,
@@ -86,6 +87,8 @@ export function AccessLogSheet({ open, onOpenChange, wsId, doc }: AccessLogSheet
       case "link":
       case "ai_context":
         return t(`documents.share.via_${via}`);
+      case "break_glass":
+        return t("documents.breakGlass.viaBreakGlass");
       default:
         return via;
     }

@@ -4776,6 +4776,8 @@
       "document_discussion_replied_untitled": "{{actor}} đã phản hồi nội dung thảo luận của bạn trong một tài liệu.",
       "document_comment_resolved": "{{actor}} đã đánh dấu bình luận của bạn trong tài liệu “{{document}}” là đã giải quyết.",
       "document_comment_resolved_untitled": "{{actor}} đã đánh dấu bình luận của bạn trong một tài liệu là đã giải quyết.",
+      "document_break_glass": "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “{{document}}”.",
+      "document_break_glass_untitled": "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào một tài liệu.",
       "chat_mentioned": "{{actor}} đã nhắc đến bạn trong {{room}}",
       "chat_dm": "{{actor}} đã nhắn tin cho bạn",
       "chat_thread_replied": "{{actor}} đã trả lời thread trong {{room}}"
@@ -4785,7 +4787,8 @@
       "document_comment_replied": "Có phản hồi bình luận mới",
       "document_discussion_mentioned": "Bạn được nhắc tên trong thảo luận",
       "document_discussion_replied": "Có phản hồi thảo luận mới",
-      "document_comment_resolved": "Bình luận đã được giải quyết"
+      "document_comment_resolved": "Bình luận đã được giải quyết",
+      "document_break_glass": "Truy cập khẩn cấp vào tài liệu"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",
@@ -8677,6 +8680,31 @@
     },
     "levels": {
       "comment": "Bình luận"
+    },
+    "breakGlass": {
+      "lockedTitle": "Tài liệu này ở chế độ hạn chế",
+      "lockedBody": "Quản trị viên quản lý được tài liệu nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
+      "openButton": "Mở truy cập khẩn cấp (24 giờ)",
+      "reasonLabel": "Lý do truy cập khẩn cấp",
+      "reasonHint": "Chủ tài liệu sẽ được thông báo và hành động này được ghi vào nhật ký kiểm toán. Quyền Xem hết hạn sau 24 giờ.",
+      "reasonCounter": "{{count}}/500",
+      "confirmButton": "Mở quyền Xem (24 giờ)",
+      "reasonTooShort": "Hãy nhập lý do ít nhất 10 ký tự.",
+      "reasonTooLong": "Lý do tối đa 500 ký tự.",
+      "activeBanner": "Bạn đang xem bằng truy cập khẩn cấp (chỉ xem) đến {{time}}.",
+      "endAccessButton": "Kết thúc truy cập",
+      "expiredBanner": "Truy cập khẩn cấp đã hết hạn. Mở lại truy cập khẩn cấp nếu bạn vẫn cần kiểm tra tài liệu này.",
+      "accessPanelSection": "Truy cập khẩn cấp đang mở",
+      "accessPanelRow": "{{name}} · hết hạn {{time}} · Lý do: {{reason}}",
+      "revokeButton": "Thu hồi",
+      "viaBreakGlass": "Truy cập khẩn cấp",
+      "selfShareError": "Quản trị viên không thể tự cấp quyền qua mục Chia sẻ. Hãy dùng Truy cập khẩn cấp (24 giờ, có ghi nhật ký).",
+      "memberTitle": "Bạn cần quyền truy cập tài liệu này",
+      "memberBody": "Tài liệu này đang ở chế độ hạn chế. Hãy liên hệ chủ sở hữu hoặc người quản lý tài liệu để được cấp quyền.",
+      "ownerLabel": "Chủ sở hữu: {{owner}}",
+      "updatedLabel": "Cập nhật {{time}}",
+      "submitFailed": "Không mở được truy cập khẩn cấp. Thử lại.",
+      "endAccessFailed": "Không kết thúc được truy cập khẩn cấp. Thử lại."
     },
     "home": {
       "create_failed": "Không thể tạo tài liệu. Thử lại.",

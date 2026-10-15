@@ -30,10 +30,10 @@ export function titleParts(render: (params: Record<string, string>) => string, p
 }
 
 /**
- * The locale key of the row's sentence. A document comment row whose title
- * snapshot is gone (the server drops it once the reader lost access) uses the
- * title-less variant of the sentence, so it never quotes an empty name or a
- * bare `{{document}}`.
+ * The locale key of the row's sentence. A document comment or break-glass row
+ * whose title snapshot is gone (the server drops it once the reader lost
+ * access) uses the title-less variant of the sentence, so it never quotes an
+ * empty name or a bare `{{document}}`.
  */
 export function notificationTitleKey(n: Notification): string {
   const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_");
