@@ -234,27 +234,6 @@ func syncDefaultChatRoomMembers(ctx context.Context, q *db.Queries, workspaceID 
 	return q.InsertChatRoomMembers(ctx, in)
 }
 
-// syncRoomMember adds the member when absent and raises an existing member to
-// admin when the workspace role demands it; it never demotes.
-func (s *ChatService) syncRoomMember(ctx context.Context, room db.ChatRoom, workspaceID, userID, floorRole string) error {
-	existing, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: room.ID, UserID: userID,
-	})
-	if err == nil {
-		if floorRole != "admin" || existing.Role == "admin" {
-			return nil
-		}
-		return s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
-			RoomID: room.ID, UserID: userID, Role: "admin",
-		})
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	_, err = s.addRoomMember(ctx, s.q, room, workspaceID, userID, floorRole)
-	return err
-}
-
 func (s *ChatService) ensureRoomMember(ctx context.Context, room db.ChatRoom, workspaceID, userID, role string) error {
 	return s.ensureRoomMemberTx(ctx, s.q, room, workspaceID, userID, role)
 }

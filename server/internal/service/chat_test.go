@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -380,6 +381,85 @@ func TestCreateGroupAndInvite(t *testing.T) {
 	}
 	if _, err := s.ListRoomMessages(ctx, ub.ID, w.ID, group.ID, ListChatMessagesInput{}); err != ErrForbidden {
 		t.Fatalf("left member list: %v", err)
+	}
+}
+
+// groupTrioFixture seeds ua, ub, uc in one workspace and a group ua created for them.
+func groupTrioFixture(t *testing.T) (*ChatService, *db.Queries, db.User, db.User, db.User, db.Workspace, ChatRoomSummary) {
+	t.Helper()
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, q, as, "chat-c@example.com", "C")
+	for _, u := range []db.User{ub, uc} {
+		addOrgMember(t, q, w.OrganizationID, u.ID)
+		addWorkspaceMember(t, q, w.ID, u.ID)
+	}
+	group, err := s.CreateGroup(context.Background(), ua.ID, w.ID, CreateGroupInput{
+		Name: "Trio", MemberUserIDs: []string{ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	return s, q, ua, ub, uc, w, group
+}
+
+func TestCreateGroupDoesNotReadmitAKickedMember(t *testing.T) {
+	s, _, ua, ub, uc, w, group := groupTrioFixture(t)
+	ctx := context.Background()
+	if err := s.RemoveChatRoomMember(ctx, ua.ID, w.ID, group.ID, uc.ID); err != nil {
+		t.Fatalf("kick: %v", err)
+	}
+	again, err := s.CreateGroup(ctx, uc.ID, w.ID, CreateGroupInput{MemberUserIDs: []string{ua.ID, ub.ID}})
+	if err != nil {
+		t.Fatalf("recreate group: %v", err)
+	}
+	if again.ID == group.ID {
+		t.Fatal("kicked member got the old group back")
+	}
+	if _, err := s.ListRoomMessages(ctx, uc.ID, w.ID, group.ID, ListChatMessagesInput{}); err != ErrForbidden {
+		t.Fatalf("kicked member reads the old group: %v", err)
+	}
+}
+
+func TestCreateGroupReturnsANewRoomWhenMembersChanged(t *testing.T) {
+	s, q, ua, ub, uc, w, group := groupTrioFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	ud := registerVerified(t, q, as, "chat-d@example.com", "D")
+	addOrgMember(t, q, w.OrganizationID, ud.ID)
+	if _, err := s.InviteGroupMembers(ctx, ua.ID, w.ID, group.ID, []string{ud.ID}); err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+	again, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatalf("recreate group: %v", err)
+	}
+	if again.ID == group.ID {
+		t.Fatal("got the group that now includes D")
+	}
+	ids, err := q.ListChatRoomMemberUserIDs(ctx, again.ID)
+	if err != nil || len(ids) != 3 || slices.Contains(ids, ud.ID) {
+		t.Fatalf("new group members = %v, %v", ids, err)
+	}
+}
+
+func TestCreateGroupDoesNotRepromoteADemotedCreator(t *testing.T) {
+	s, q, ua, ub, uc, w, group := groupTrioFixture(t)
+	ctx := context.Background()
+	// No API demotes a group creator today; the row is set directly to pin
+	// that CreateGroup never grants a role.
+	if err := q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
+		RoomID: group.ID, UserID: ua.ID, Role: "member",
+	}); err != nil {
+		t.Fatalf("demote: %v", err)
+	}
+	again, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil || again.ID != group.ID {
+		t.Fatalf("dedupe: err=%v id=%q want %q", err, again.ID, group.ID)
+	}
+	m, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: group.ID, UserID: ua.ID})
+	if err != nil || m.Role != "member" {
+		t.Fatalf("creator role = %q, %v; want member", m.Role, err)
 	}
 }
 

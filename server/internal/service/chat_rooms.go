@@ -250,6 +250,19 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 		Kind:           chatRoomKindGroup,
 		MemberSetKey:   pgtype.Text{String: key, Valid: true},
 	})
+	if err == nil {
+		// The key is minted at creation and never follows invites, leaves or
+		// kicks: reuse the room only while its members are still exactly this
+		// set, otherwise a kicked member walks back in, or a message meant for
+		// three reaches a fourth. A mismatch starts a new keyless group.
+		current, lerr := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
+		if lerr != nil {
+			return ChatRoomSummary{}, lerr
+		}
+		if memberSetKey(current) != memberSetKey(allIDs) {
+			err, key = pgx.ErrNoRows, ""
+		}
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		if name == "" {
 			name = defaultGroupNameFromUsers(ctx, s.q, memberIDs)
@@ -261,16 +274,7 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 	} else if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	if err := s.ensureExistingRoomAccess(ctx, room, userID); err != nil {
-		return ChatRoomSummary{}, err
-	}
-	anchorWS := roomAnchorWorkspaceID(room)
-	if room.CreatedBy == userID {
-		if err := s.syncRoomMember(ctx, room, anchorWS, userID, "admin"); err != nil {
-			return ChatRoomSummary{}, err
-		}
-	}
-	return s.roomSummaryWithPreview(ctx, userID, anchorWS, room.ID, room.Kind, room.Name, 0, memberSetKeyFromRoom(room), room.MemberPermissions)
+	return s.roomSummaryWithPreview(ctx, userID, roomAnchorWorkspaceID(room), room.ID, room.Kind, room.Name, 0, memberSetKeyFromRoom(room), room.MemberPermissions)
 }
 
 // chatInviteMaxIDs caps the people one invite request names.
@@ -463,7 +467,7 @@ func (s *ChatService) createChatRoom(
 		WorkspaceID:     pgtype.Text{String: anchorWorkspaceID, Valid: true},
 		OrganizationID:  orgID,
 		Name:            name,
-		MemberSetKey:    pgtype.Text{String: memberSetKey, Valid: true},
+		MemberSetKey:    pgtype.Text{String: memberSetKey, Valid: memberSetKey != ""},
 		LivekitRoomName: liveKitRoomFromChatID(roomID),
 		CreatedBy:       creatorID,
 		CreatedByKind:   string(audit.KindHuman),
