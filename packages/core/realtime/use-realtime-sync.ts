@@ -11,8 +11,7 @@ import { auditKeys } from "../audit/hooks";
 import { emitQuotaThreshold } from "../billing/quota-threshold-bus";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
-import { catchUpLoadedRoomTimelines, catchUpOnChatSubscribeAck } from "../chat/room-timeline";
-import { documentKeys } from "../documents/keys";
+import { catchUpOnChatSubscribeAck, refreshLoadedRoomTimelines } from "../chat/room-timeline";
 import { graphKeys } from "../graph/keys";
 import { invalidateEmailHubCounts, invalidateEmailHubForInboxChanged } from "../email-hub/query-cache";
 import { homeKeys } from "../home/keys";
@@ -34,6 +33,7 @@ import {
   shouldInvalidateMeetingDetail,
   TRANSCRIPT_INVALIDATE_MS,
 } from "./invalidate-scheduler";
+import { allWorkspaceKeys } from "./reconnect-keys";
 import { shouldInvalidateCalendar } from "./should-invalidate-calendar";
 import { createSourcesRefresher } from "./source-events";
 
@@ -429,40 +429,6 @@ const RENAMED_EVENTS: Record<string, WSEventType> = {
   "comment.created": "task.comment_added",
 };
 
-/** Keys that could have gone stale while the socket was down. */
-function allWorkspaceKeys(wsId: string) {
-  return [
-    taskKeys.list(wsId),
-    taskKeys.myTasks(wsId),
-    taskKeys.queryRoot(wsId),
-    taskKeys.tableRoot(wsId),
-    taskKeys.statuses(wsId),
-    taskKeys.labels(wsId),
-    taskKeys.properties(wsId),
-    taskKeys.views(wsId),
-    taskKeys.viewPrefs(wsId),
-    taskKeys.pins(wsId),
-    taskKeys.projects(wsId),
-    chatKeys.rooms(wsId),
-    chatKeys.room(wsId),
-    // Open room timelines catch up by cursor instead (catchUpLoadedRoomTimelines).
-    chatKeys.messages(wsId),
-    chatKeys.threadMessagesRoot(wsId),
-    meetingKeys.list(wsId),
-    meetingKeys.stats(wsId),
-    calendarKeys.all(wsId),
-    meetingKeys.joinRequestsRoot,
-    notificationKeys.lists(),
-    notificationKeys.unreadCount(),
-    // Documents go stale while the socket is down; workspace root is the
-    // prefix of every document key, and the org-scoped favorites list is a
-    // different branch of the same feature.
-    documentKeys.workspace(wsId),
-    documentKeys.favoritesRoot,
-    graphKeys.workspace(wsId),
-  ];
-}
-
 /**
  * Events after which the projector re-reads a TASK node. The refresh covers
  * the whole workspace graph, not that node: an open Related panel lists its
@@ -566,7 +532,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         if (isChatRoomsKey(wsId, queryKey)) chatScheduler.scheduleRoomActivity();
         else scheduler.schedule(queryKey);
       }
-      catchUpLoadedRoomTimelines(qc, wsId);
+      refreshLoadedRoomTimelines(qc, wsId);
     });
     return () => {
       offAny();

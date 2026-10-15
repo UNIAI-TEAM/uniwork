@@ -1109,7 +1109,8 @@ describe("useRealtimeSync", () => {
     );
   });
 
-  // H5: an open timeline reads what it missed instead of refetching every page.
+  // UNI-1662: a reconnect refreshes an open timeline's newest page (a read
+  // `after` misses edits and deletes); a resubscribe still reads `after` (H5).
   it("catches open chat timelines up after a reconnect and a chat resubscribe", async () => {
     vi.useFakeTimers();
     const list = vi.spyOn(chatApi, "listChatRoomMessages").mockResolvedValue([]);
@@ -1124,8 +1125,9 @@ describe("useRealtimeSync", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(list).toHaveBeenCalledTimes(2);
+    expect(list).toHaveBeenCalledTimes(1);
     expect(list).toHaveBeenCalledWith("ws1", "dm1", expect.objectContaining({ after: "1.m1" }));
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(chatKeys.roomMessages("ws1", "dm1")));
     expect(keysCalled(invalidate)).not.toContain(JSON.stringify(chatKeys.roomMessagesRoot("ws1")));
     vi.useRealTimers();
   });
@@ -1154,6 +1156,12 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["meeting-stats", "ws1"]),
         JSON.stringify(["meeting-join-requests"]),
         JSON.stringify(["documents", "ws1"]),
+        JSON.stringify(["chat", "room-members", "ws1"]),
+        JSON.stringify(["chat", "follow-ups", "ws1"]),
+        JSON.stringify(["chat", "room-message-links", "ws1"]),
+        JSON.stringify(["chat", "followed-threads", "ws1"]),
+        JSON.stringify(["chat", "channels", "ws1"]),
+        JSON.stringify(["chat", "project-channels", "ws1"]),
       ]),
     );
   });
