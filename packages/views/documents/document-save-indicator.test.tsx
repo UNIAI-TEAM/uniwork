@@ -9,7 +9,7 @@ const { t } = initI18n();
 
 const state = (phase: DocumentSaveState["phase"]): DocumentSaveState => ({
   phase, revision: "3", dirty: true, idempotencyKey: null, errorClass: null, errorCode: null,
-  errorFields: undefined, sentEditLockId: undefined, acked: null,
+  errorFields: undefined, sentEditLockId: undefined, sendSeq: 0, acked: null,
 });
 
 // V-1: at a phone width the header cannot fit title + status + holder chip; the status keeps its icon

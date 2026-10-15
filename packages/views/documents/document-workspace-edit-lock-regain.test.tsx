@@ -103,6 +103,45 @@ describe("DocumentWorkspace edit lock: regaining after a 423", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
+  it("two 423s without holder fields around a regain: the second ends the hold too (CFE-2-1)", async () => {
+    let regained = false;
+    editLockRoute.mockImplementation((path: string, opts: RouteOpts) => {
+      if (opts?.method === "POST" && path.endsWith("/edit-lock")) {
+        return Promise.resolve(grantedLock("d1", { lock_id: regained ? "lock-new" : "lock-d1", granted_via: "acquire" }));
+      }
+      if ((opts?.method ?? "GET") === "GET") return Promise.resolve(lockState());
+      return defaultEditLockRoute(path, opts);
+    });
+    const patches: Array<Record<string, unknown>> = [];
+    // Every write is refused, and the refusal carries no fields (a proxy, a body that does not parse).
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === "/api/v1/documents/d1" && opts?.method === "PATCH") {
+        patches.push(opts.body ?? {});
+        return Promise.reject(new ApiError("locked", "document_locked", 423));
+      }
+      return Promise.resolve({});
+    });
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:copy"), revokeObjectURL: vi.fn() });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+
+    renderPage();
+    const editor = await screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });
+    await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "true"));
+    pasteText("chưa lưu");
+    const dialog = await screen.findByRole("alertdialog", { name: "Bạn không còn quyền sửa" }, { timeout: 8_000 });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tải bản của tôi" }));
+    await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "false"));
+    expect(patches).toHaveLength(1);
+
+    regained = true;
+    fireEvent.click(await screen.findByRole("button", { name: "Sửa ngay" }));
+    await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "true"));
+    // The kept draft goes out under the new id and is refused again: that is a second loss, not a no-op.
+    await waitFor(() => expect(patches.at(-1)).toMatchObject({ edit_lock_id: "lock-new" }), { timeout: 8_000 });
+    await waitFor(() => expect(editor).toHaveAttribute("contenteditable", "false"), { timeout: 8_000 });
+    await screen.findByRole("alertdialog", { name: "Bạn không còn quyền sửa" });
+  });
+
   it("a restore / file commit refused 423 under the held id ends the hold; one under an older id does not (CFE-1-12)", async () => {
     renderPage();
     const editor = await screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });

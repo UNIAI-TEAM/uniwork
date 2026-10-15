@@ -56,6 +56,8 @@ export interface DocumentSaveState {
   /** The edit lock id the last send carried (UNI-1645): a 423 ends the hold only
    *  when this is still the editor's current id. */
   sentEditLockId: string | undefined;
+  /** Counts sends: a refusal belongs to exactly one, whatever fields it carried. */
+  sendSeq: number;
   /** The document of the last acknowledged save. */
   acked: Document | null;
 }
@@ -127,6 +129,7 @@ export class DocumentSaveMachine {
       errorCode: null,
       errorFields: undefined,
       sentEditLockId: undefined,
+      sendSeq: 0,
       acked: null,
     };
   }
@@ -314,6 +317,7 @@ export class DocumentSaveMachine {
       errorCode: null,
       errorFields: undefined,
       sentEditLockId: lockId,
+      sendSeq: this.state.sendSeq + 1,
     });
     try {
       const doc = await this.opts.transport({
