@@ -130,6 +130,7 @@ var tenantExportIncludedTables = []string{
 	"task_views",
 	"tasks",
 	"workspace_agent_members",
+	"workspace_aliases",
 	"workspace_members",
 	"workspaces",
 }
