@@ -1117,10 +1117,19 @@ func (q *Queries) ListTaskDependenciesInWorkspace(ctx context.Context, arg ListT
 }
 
 const listTasksByIdentifier = `-- name: ListTasksByIdentifier :many
-SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at FROM tasks t
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at, (upper(w.task_prefix) = upper($1))::bool AS current_match
+FROM tasks t
 INNER JOIN workspaces w
   ON w.id = t.workspace_id AND w.organization_id = t.organization_id
-WHERE upper(w.task_prefix) = upper($1)
+WHERE (
+    upper(w.task_prefix) = upper($1)
+    -- An old prefix the workspace keeps (spec 2026-10-14 §5.3).
+    OR EXISTS (
+      SELECT 1 FROM workspace_aliases a
+      WHERE a.workspace_id = w.id AND a.organization_id = w.organization_id
+        AND a.kind = 'task_prefix' AND upper(a.value) = upper($1)
+    )
+  )
   AND t.number = $2
 `
 
@@ -1129,53 +1138,61 @@ type ListTasksByIdentifierParams struct {
 	Number int64       `json:"number"`
 }
 
+type ListTasksByIdentifierRow struct {
+	Task         Task `json:"task"`
+	CurrentMatch bool `json:"current_match"`
+}
+
 // tenant: by-id
 // Prefix compare is case-insensitive so ALP-1 and alp-1 resolve the same.
-func (q *Queries) ListTasksByIdentifier(ctx context.Context, arg ListTasksByIdentifierParams) ([]Task, error) {
+// current_match tells a workspace's current prefix from an old one it keeps,
+// so the caller can prefer the current owner of a reused prefix.
+func (q *Queries) ListTasksByIdentifier(ctx context.Context, arg ListTasksByIdentifierParams) ([]ListTasksByIdentifierRow, error) {
 	rows, err := q.db.Query(ctx, listTasksByIdentifier, arg.Prefix, arg.Number)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Task{}
+	items := []ListTasksByIdentifierRow{}
 	for rows.Next() {
-		var i Task
+		var i ListTasksByIdentifierRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Description,
-			&i.Status,
-			&i.Priority,
-			&i.AssigneeID,
-			&i.DueDate,
-			&i.Position,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Kind,
-			&i.CreatedByKind,
-			&i.AssigneeKind,
-			&i.OrganizationID,
-			&i.Number,
-			&i.ProjectID,
-			&i.ParentTaskID,
-			&i.AssigneeType,
-			&i.CreatorType,
-			&i.CreatorID,
-			&i.AcceptanceCriteria,
-			&i.ContextRefs,
-			&i.Metadata,
-			&i.Properties,
-			&i.StartDate,
-			&i.Stage,
-			&i.OriginType,
-			&i.OriginID,
-			&i.FirstExecutedAt,
-			&i.Revision,
-			&i.LastActivityAt,
-			&i.StartAt,
-			&i.DueAt,
+			&i.Task.ID,
+			&i.Task.WorkspaceID,
+			&i.Task.Title,
+			&i.Task.Description,
+			&i.Task.Status,
+			&i.Task.Priority,
+			&i.Task.AssigneeID,
+			&i.Task.DueDate,
+			&i.Task.Position,
+			&i.Task.CreatedBy,
+			&i.Task.CreatedAt,
+			&i.Task.UpdatedAt,
+			&i.Task.Kind,
+			&i.Task.CreatedByKind,
+			&i.Task.AssigneeKind,
+			&i.Task.OrganizationID,
+			&i.Task.Number,
+			&i.Task.ProjectID,
+			&i.Task.ParentTaskID,
+			&i.Task.AssigneeType,
+			&i.Task.CreatorType,
+			&i.Task.CreatorID,
+			&i.Task.AcceptanceCriteria,
+			&i.Task.ContextRefs,
+			&i.Task.Metadata,
+			&i.Task.Properties,
+			&i.Task.StartDate,
+			&i.Task.Stage,
+			&i.Task.OriginType,
+			&i.Task.OriginID,
+			&i.Task.FirstExecutedAt,
+			&i.Task.Revision,
+			&i.Task.LastActivityAt,
+			&i.Task.StartAt,
+			&i.Task.DueAt,
+			&i.CurrentMatch,
 		); err != nil {
 			return nil, err
 		}

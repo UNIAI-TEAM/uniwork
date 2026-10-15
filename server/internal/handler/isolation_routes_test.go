@@ -491,6 +491,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/tasks/{taskID}/reactions":                                                    {body: isoJSON(map[string]any{"emoji": "👍"})},
 	"POST /api/v1/workspaces/{workspaceID}/ai/ask":                                             {body: isoJSON(map[string]any{"question": "what is overdue?"})},
 	"POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up":                                   {body: isoWith(map[string]string{"room_id": "room"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/icon":                                               {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/attachments":                                        {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/dm":                                            {body: isoWith(map[string]string{"user_id": "peer"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/messages":                                      {body: isoJSON(map[string]any{"body": "hello"})},

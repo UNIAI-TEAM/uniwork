@@ -493,6 +493,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	w.buildOfficeFrame(t, tn)
 	w.buildSeeded(t, tn)
 	w.buildActivity(t, tn)
+	w.buildWorkspaceAliases(t, tn)
 	// The isolation world runs no outbox dispatcher; project the tenant's graph
 	// the way an operator would, so every graph table holds a row of A's.
 	if _, err := projector.RebuildOrg(context.Background(), w.pool, w.q, tn.orgID, projector.RebuildOptions{}); err != nil {
@@ -946,6 +947,22 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		tn.ids["aiUniworkRun"], tn.orgID, tn.ids["aiUniworkConversation"], tn.userID); err != nil {
 		t.Fatalf("uniwork ai run: %v", err)
 	}
+}
+
+// buildWorkspaceAliases leaves an old task prefix and an old slug on record and
+// the current ones unchanged, so workspace_aliases holds a row of each tenant's.
+func (w *isoWorld) buildWorkspaceAliases(t *testing.T, tn *isoTenant) {
+	t.Helper()
+	ws := "/api/v1/workspaces/" + tn.wsID
+	out := w.call(t, "GET", "/api/v1/orgs/"+tn.orgSlug+"/workspaces/"+tn.wsSlug, tn.token, nil)
+	prefix, _ := out["workspace"].(map[string]any)["task_prefix"].(string)
+	if prefix == "" {
+		t.Fatal("workspace has no task_prefix")
+	}
+	w.call(t, "PATCH", ws, tn.token, map[string]string{"task_prefix": "ISO" + strings.ToUpper(tn.tag[:1]) + "OLD"})
+	w.call(t, "PATCH", ws, tn.token, map[string]string{"task_prefix": prefix})
+	w.call(t, "PATCH", ws, tn.token, map[string]string{"slug": tn.wsSlug + "-old"})
+	w.call(t, "PATCH", ws, tn.token, map[string]string{"slug": tn.wsSlug})
 }
 
 // buildActivity leaves the traces people leave by using the product - a

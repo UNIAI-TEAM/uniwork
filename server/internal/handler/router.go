@@ -346,6 +346,8 @@ func New(d Deps) http.Handler {
 		GetWorkspaceBySlugs: h.getWorkspaceBySlugs,
 		ListWorkspaces:      h.listWorkspaces,
 		PatchWorkspace:      h.patchWorkspace,
+		UploadWorkspaceIcon: h.uploadWorkspaceIcon,
+		RemoveWorkspaceIcon: h.removeWorkspaceIcon,
 		GetWorkspaceMe:      h.getWorkspaceMe,
 		ListMembers:         h.listMembers,
 		PatchMember:         h.patchMember,

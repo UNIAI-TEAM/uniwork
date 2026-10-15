@@ -127,6 +127,8 @@ type Routes struct {
 	GetWorkspaceBySlugs http.HandlerFunc
 	ListWorkspaces      http.HandlerFunc
 	PatchWorkspace      http.HandlerFunc
+	UploadWorkspaceIcon http.HandlerFunc
+	RemoveWorkspaceIcon http.HandlerFunc
 	GetWorkspaceMe      http.HandlerFunc
 	ListMembers         http.HandlerFunc
 	PatchMember         http.HandlerFunc

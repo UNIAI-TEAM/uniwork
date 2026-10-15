@@ -153,9 +153,34 @@ export async function getInvitationPreview(token: string): Promise<InvitationPre
   });
 }
 
-export async function patchWorkspace(workspaceId: string, body: { name: string }): Promise<Workspace | null> {
+/** PATCH /workspaces/{id}: a field left out keeps its value. */
+export interface WorkspacePatch {
+  name?: string;
+  description?: string;
+  icon_emoji?: string;
+  slug?: string;
+  task_prefix?: string;
+}
+
+export async function patchWorkspace(workspaceId: string, body: WorkspacePatch): Promise<Workspace | null> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}`, { method: "PATCH", body });
   return parseWithFallback<{ workspace: Workspace } | null>(raw, WorkspaceResponse, null, {
     endpoint: "PATCH /api/v1/workspaces/{ws}",
+  })?.workspace ?? null;
+}
+
+export async function uploadWorkspaceIcon(workspaceId: string, file: File): Promise<Workspace | null> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/icon`, { method: "POST", body: form });
+  return parseWithFallback<{ workspace: Workspace } | null>(raw, WorkspaceResponse, null, {
+    endpoint: "POST /api/v1/workspaces/{ws}/icon",
+  })?.workspace ?? null;
+}
+
+export async function removeWorkspaceIcon(workspaceId: string): Promise<Workspace | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/icon`, { method: "DELETE" });
+  return parseWithFallback<{ workspace: Workspace } | null>(raw, WorkspaceResponse, null, {
+    endpoint: "DELETE /api/v1/workspaces/{ws}/icon",
   })?.workspace ?? null;
 }

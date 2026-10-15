@@ -338,7 +338,7 @@ func (q *Queries) ListActiveOrganizationsForUser(ctx context.Context, userID str
 }
 
 const listMemberWorkspacesInOrg = `-- name: ListMemberWorkspacesInOrg :many
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, o.slug AS organization_slug, o.name AS organization_name
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
 JOIN workspace_members m ON m.workspace_id = w.id
@@ -362,6 +362,9 @@ type ListMemberWorkspacesInOrgRow struct {
 	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix       string             `json:"task_prefix"`
 	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -386,6 +389,9 @@ func (q *Queries) ListMemberWorkspacesInOrg(ctx context.Context, arg ListMemberW
 			&i.MatrixRoomID,
 			&i.TaskPrefix,
 			&i.TaskCounter,
+			&i.Description,
+			&i.IconEmoji,
+			&i.IconFileID,
 			&i.OrganizationSlug,
 			&i.OrganizationName,
 		); err != nil {
@@ -607,7 +613,7 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 }
 
 const listWorkspacesInOrg = `-- name: ListWorkspacesInOrg :many
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, o.slug AS organization_slug, o.name AS organization_name
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE w.organization_id = $1
 ORDER BY w.created_at
@@ -624,6 +630,9 @@ type ListWorkspacesInOrgRow struct {
 	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix       string             `json:"task_prefix"`
 	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -648,6 +657,9 @@ func (q *Queries) ListWorkspacesInOrg(ctx context.Context, organizationID string
 			&i.MatrixRoomID,
 			&i.TaskPrefix,
 			&i.TaskCounter,
+			&i.Description,
+			&i.IconEmoji,
+			&i.IconFileID,
 			&i.OrganizationSlug,
 			&i.OrganizationName,
 		); err != nil {
