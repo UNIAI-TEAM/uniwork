@@ -939,9 +939,10 @@ func TestAIUniworkUpstreamRateLimitedRetryAfter(t *testing.T) {
 // G6-09a (UNI-1374) N1: the slides tools a UniWork AI turn never gets (the web
 // stubs, whole-deck generation and style templates) are out of the table, so a
 // modified client cannot offer them to the model and a call for one is dropped
-// as not_allowlisted. The tools the client hides only for a bound document
-// (create_document, the pdf file-level page tools) stay: the table cannot tell
-// a bound document from a local file the user opened under UniWork AI.
+// as not_allowlisted, not view_only. The tools the client hides only for a
+// bound document (create_document, the pdf file-level page tools) stay: the
+// table is keyed by module alone and carries no document scope, and R1 (the
+// local-file route) is viewOnly today.
 func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 	removed := []string{"generate_deck", "insert_web_image", "regenerate_slide", "replace_image", "save_style_template"}
 	slides := officeUniworkModulesV1["slides"]
@@ -968,6 +969,28 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 			if w == name {
 				t.Errorf("%q is still a named write tool, so a call for it would read as view_only", name)
 			}
+		}
+	}
+
+	// A view-only turn drops the removed names too, and the reason is
+	// not_allowlisted, not view_only: the five are out of the module table
+	// altogether, so the write set no longer names them (before G6-09a a call
+	// for one read as view_only and drove aiErrViewOnlyEdit).
+	viewOnly := UniworkModuleAllowlist("slides", offered, true)
+	if got := strings.Join(viewOnly.Tools.Names(), ","); got != "read_slide" {
+		t.Fatalf("slides view-only allowlist = %q, want only read_slide", got)
+	}
+	calls := make([]provider.ToolCall, 0, len(removed))
+	for i, name := range removed {
+		calls = append(calls, provider.ToolCall{ID: fmt.Sprintf("call_%d", i), Name: name, Input: json.RawMessage(`{}`)})
+	}
+	kept, dropped := FilterUniworkToolCalls(calls, viewOnly)
+	if len(kept) != 0 || len(dropped) != len(removed) {
+		t.Fatalf("removed-name calls = %d kept, %d dropped, want 0/%d", len(kept), len(dropped), len(removed))
+	}
+	for i, drop := range dropped {
+		if drop.Name != removed[i] || drop.Reason != UniworkDropNotAllowlisted {
+			t.Errorf("dropped[%d] = %+v, want %q not_allowlisted", i, drop, removed[i])
 		}
 	}
 
@@ -1000,5 +1023,74 @@ func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
 				t.Errorf("%s table lost %q, which only a bound document hides", module, name)
 			}
 		}
+	}
+
+	// The exact name sets of the other five modules are pinned here: the
+	// mechanical block of docs/office/g5g6g7/genoffice-tools.md §3 plus the
+	// group-B rows decide them, so a name that disappears without the document
+	// changing — or that moves between read and write — fails here.
+	pinned := map[string]uniworkModuleTools{
+		"docs": {
+			Read: []string{
+				"analyze_media", "ask_clarification", "get_document_context", "image_search", "list_styles",
+				"read_attachment", "read_blocks", "read_comments", "read_notes", "read_revisions", "web_search",
+			},
+			Write: []string{
+				"accept_changes", "add_comment", "apply_ops", "create_document", "define_style", "delete_comment",
+				"delete_note", "edit_chart", "edit_note", "generate_image", "insert_chart", "insert_content",
+				"insert_endnote", "insert_footnote", "insert_image", "insert_picture", "insert_section_break",
+				"insert_text_box", "reject_changes", "replace_blocks", "replace_selection", "reply_comment",
+				"resolve_comment", "set_header_footer", "set_page_setup", "set_watermark", "write_document",
+			},
+		},
+		"html": {
+			Read:  []string{"ask_clarification", "get_outline", "read_attachment", "read_source", "web_search"},
+			Write: []string{"apply_ops", "plan_page", "write_document"},
+		},
+		"markdown": {
+			Read:  []string{"ask_clarification", "get_document_context", "image_search", "read_blocks", "read_frontmatter", "web_search"},
+			Write: []string{"apply_ops", "generate_image", "insert_image", "write_document"},
+		},
+		"pdf": {
+			Read: []string{
+				"ask_clarification", "generate_image", "get_outline", "goto_page", "image_search", "list_form_fields",
+				"list_inserted_text", "list_page_images", "read_annotations", "read_pages", "search_text",
+			},
+			Write: []string{
+				"add_form_mark", "add_note", "apply_ops", "create_document", "crop_image", "crop_pages", "delete_image",
+				"delete_inserted_text", "delete_markup", "delete_note", "edit_block", "edit_inserted_text", "edit_note",
+				"edit_text", "extract_pages", "flip_image", "insert_blank_page", "insert_image", "insert_text",
+				"markup_text", "merge_pages", "move_inserted_text", "move_text_block", "remove_image_background",
+				"replace_image", "replace_pages", "reply_note", "rotate_image", "set_header_footer", "set_image_opacity",
+				"set_page_size", "set_watermark", "split_pages", "split_pdf", "transform_image",
+			},
+		},
+		"sheets": {
+			Read: []string{
+				"aggregate_range", "ask_clarification", "compare_ranges", "find_cells", "generate_image",
+				"get_workbook_context", "image_search", "load_guide", "read_attachment", "read_cells", "read_formats",
+				"read_range", "read_sheet_features", "select_range", "summarize_range", "trace_dependents",
+				"trace_precedents", "web_search",
+			},
+			Write: []string{"create_document", "merge_attached_workbooks", "propose_operations"},
+		},
+	}
+	for module, want := range pinned {
+		got := officeUniworkModulesV1[module]
+		facadeAssertExactNames(t, module, "read", got.Read, want.Read)
+		facadeAssertExactNames(t, module, "write", got.Write, want.Write)
+	}
+}
+
+// facadeAssertExactNames fails when a module's pinned name set and the table's
+// disagree; both sides are sorted first, so the order in the table is not part
+// of the pin.
+func facadeAssertExactNames(t *testing.T, module, kind string, got, want []string) {
+	t.Helper()
+	g, w := append([]string(nil), got...), append([]string(nil), want...)
+	slices.Sort(g)
+	slices.Sort(w)
+	if !slices.Equal(g, w) {
+		t.Errorf("%s %s names = %v, want the pinned %v", module, kind, g, w)
 	}
 }
