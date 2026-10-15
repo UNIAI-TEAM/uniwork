@@ -3,11 +3,12 @@
 // result/exit-code aggregation, missing-harness BLOCKED, and all 13 server case drivers.
 
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createRuleEngine } from "./rules.mjs";
+import { SETUP_STATUS, readVerificationCode, registerAndVerifyUser, seedFaultTenant } from "./server-cases-setup.mjs";
 import {
   BLOCKED_EXIT_CODE,
   aggregateExitCode,
@@ -440,4 +441,83 @@ test("runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts 
   } finally {
     rmSync(tempRunDir, { recursive: true, force: true });
   }
+});
+
+// A fake of the setup routes with the statuses the handlers really write
+// (SETUP_STATUS cites each file:line); the verify route only takes `code`.
+function createFakeSetupServer({ code, statuses = {} } = {}) {
+  const calls = [];
+  const status = (key) => statuses[key] ?? SETUP_STATUS[key];
+  let seq = 0;
+  async function http(_origin, path, { method = "GET", token, body } = {}) {
+    calls.push({ method, path, token, body });
+    if (path === "/api/v1/auth/register") return { status: status("register"), body: { access_token: `tok-${++seq}`, user: { id: `user-${seq}` } } };
+    if (path === "/api/v1/auth/login") return { status: status("login"), body: { access_token: "tok-login" } };
+    if (path === "/api/v1/me/email/verify") return { status: body?.code === code ? status("verifyEmail") : 400, body: {} };
+    if (path === "/api/v1/me/onboarding/complete") return { status: status("completeOnboarding"), body: {} };
+    if (path === "/api/v1/orgs") return { status: status("createOrganization"), body: { organization: { id: "org-1" } } };
+    if (path === "/api/v1/orgs/org-1/workspaces") return { status: status("createWorkspace"), body: { workspace: { id: "ws-1" } } };
+    if (path === "/api/v1/workspaces/ws-1/invitations") return { status: status("createInvitation"), body: {} };
+    if (path === "/api/v1/me/invitations") return { status: 200, body: { invitations: [{ token: "inv-1", workspace: { id: "ws-1" } }] } };
+    if (path === "/api/v1/invitations/inv-1/accept") return { status: status("acceptInvitation"), body: {} };
+    return { status: 404, body: null };
+  }
+  return { http, calls };
+}
+
+test("SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201", () => {
+  assert.equal(SETUP_STATUS.register, 200);
+  assert.equal(SETUP_STATUS.login, 200);
+  assert.equal(SETUP_STATUS.createOrganization, 201);
+  assert.equal(SETUP_STATUS.createWorkspace, 201);
+  assert.equal(SETUP_STATUS.createInvitation, 200);
+  assert.equal(SETUP_STATUS.acceptInvitation, 200);
+});
+
+test("readVerificationCode reads the run's server.env, then the process env, then the harness default", () => {
+  const runDir = mkdtempSync(join(tmpdir(), "fault-setup-env-"));
+  try {
+    assert.equal(readVerificationCode(runDir, {}), "123456");
+    assert.equal(readVerificationCode(runDir, { DEV_VERIFICATION_CODE: "654321" }), "654321");
+    writeFileSync(join(runDir, "server.env"), "APP_ENV='development'\nDEV_VERIFICATION_CODE='424242'\nJWT_SECRET='x'\n", "utf8");
+    assert.equal(readVerificationCode(runDir, { DEV_VERIFICATION_CODE: "654321" }), "424242");
+  } finally {
+    rmSync(runDir, { recursive: true, force: true });
+  }
+});
+
+test("registerAndVerifyUser accepts register 200 and sends the run's verification code", async () => {
+  const fake = createFakeSetupServer({ code: "424242" });
+  const user = await registerAndVerifyUser({ http: fake.http, apiOrigin: "http://api", tag: "deviceA", verificationCode: "424242" });
+  assert.equal(user.token, "tok-1");
+  assert.equal(user.userId, "user-1");
+  assert.deepEqual(fake.calls.map((c) => c.path), ["/api/v1/auth/register", "/api/v1/me/email/verify", "/api/v1/me/onboarding/complete"]);
+  assert.deepEqual(fake.calls[1].body, { code: "424242" });
+});
+
+test("registerAndVerifyUser names the step and both statuses when the server answers otherwise", async () => {
+  const wrongStatus = createFakeSetupServer({ code: "123456", statuses: { register: 201 } });
+  await assert.rejects(
+    registerAndVerifyUser({ http: wrongStatus.http, apiOrigin: "http://api", tag: "t", verificationCode: "123456" }),
+    /register t failed: status 201 \(expected 200\)/,
+  );
+  const wrongCode = createFakeSetupServer({ code: "424242" });
+  await assert.rejects(
+    registerAndVerifyUser({ http: wrongCode.http, apiOrigin: "http://api", tag: "t", verificationCode: "000000" }),
+    /verify t failed: status 400 \(expected 200\)/,
+  );
+});
+
+test("seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently", async () => {
+  const fake = createFakeSetupServer({ code: "424242" });
+  const tenant = await seedFaultTenant({ http: fake.http, apiOrigin: "http://api", verificationCode: "424242" });
+  assert.equal(tenant.orgId, "org-1");
+  assert.equal(tenant.workspaceId, "ws-1");
+  assert.equal(tenant.tokens.deviceB, "tok-login");
+  assert.equal(tenant.tokens.memberB, "tok-2");
+  const before = fake.calls.length;
+  await tenant.ensureMemberBInWorkspace();
+  assert.equal(fake.calls.length - before, 3);
+  const broken = createFakeSetupServer({ code: "424242", statuses: { createWorkspace: 200 } });
+  await assert.rejects(seedFaultTenant({ http: broken.http, apiOrigin: "http://api", verificationCode: "424242" }), /create workspace failed: status 200 \(expected 201\)/);
 });
