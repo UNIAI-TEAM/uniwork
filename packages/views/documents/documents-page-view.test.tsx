@@ -1245,6 +1245,21 @@ describe("DocumentsPageView", () => {
         expect(btn).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
       }
     });
+
+    // overflow-x-auto alone turns overflow-y into auto too; the tab underline
+    // sits below the strip, so the scope tabs grew a stray vertical scrollbar
+    // (UNI-1752). Both strips scroll sideways only, with no visible scrollbar.
+    it("keeps the scope tabs and type chips scrolling sideways only, without a visible scrollbar", async () => {
+      route({ list: () => [summary({ id: "d1", title: "Kế hoạch Q4" })] });
+      renderView(vi.fn());
+      await screen.findByText("Kế hoạch Q4");
+
+      const tabList = screen.getByRole("tablist", { name: t("documents.home.scope_label") });
+      expect(tabList).toHaveClass("overflow-x-auto", "overflow-y-hidden", "no-scrollbar");
+
+      const chipGroup = screen.getByRole("group", { name: t("documents.home.chips_label") });
+      expect(chipGroup).toHaveClass("overflow-x-auto", "overflow-y-hidden", "no-scrollbar");
+    });
   });
 });
 
