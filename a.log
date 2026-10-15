@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+00ed3540bb43fae606f3d4dfa82cf62bbd20c393
+00ed3540 merge: G6-09a 4ef0961dc (fork main 947f68e01) into the G6-09b lane branch
+4ef0961d merge: fork main 947f68e01 (G5-11f keystore-locked escape) into the G6-09a lane branch
+677bb6ea test(ai): pdf flags test deps leave the optional imageUrls host dep absent (UNI-1374)
