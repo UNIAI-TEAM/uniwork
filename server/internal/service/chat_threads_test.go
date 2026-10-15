@@ -275,3 +275,52 @@ func TestOpeningAThreadDoesNotFollowIt(t *testing.T) {
 		t.Fatal("still following after Unfollow")
 	}
 }
+
+// A thread with more replies than one page still answers whether the viewer
+// follows it: the root, the oldest row, falls off the newest-first page, so the
+// first page carries it on top (UNI-1682).
+func TestBusyThreadStillReportsFollowing(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "Ke hoach quy 4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range defaultChatMessageLimit + 1 {
+		if _, err := s.SendThreadReply(ctx, ua.ID, w.ID, room.RoomID, root.ID, SendChatMessageInput{Body: "ok"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.FollowThread(ctx, ub.ID, w.ID, root.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	thread, err := s.ListThreadMessages(ctx, ub.ID, w.ID, room.RoomID, root.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(thread) != defaultChatMessageLimit+1 || thread[0].ID != root.ID {
+		t.Fatalf("first page: %d rows, first=%q, want root then %d replies", len(thread), thread[0].ID, defaultChatMessageLimit)
+	}
+	if !thread[0].ThreadFollowing {
+		t.Fatal("follower reported as not following on a busy thread")
+	}
+	if thread[0].ReplyCount != defaultChatMessageLimit+1 {
+		t.Fatalf("root reply_count=%d", thread[0].ReplyCount)
+	}
+
+	older, err := s.ListThreadMessages(ctx, ub.ID, w.ID, room.RoomID, root.ID, ListChatMessagesInput{Before: &thread[1].CreatedAt})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(older) != 2 || older[0].ID != root.ID {
+		t.Fatalf("older page: %d rows, want root and the oldest reply", len(older))
+	}
+}

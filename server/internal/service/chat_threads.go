@@ -80,7 +80,8 @@ func (s *ChatService) ListThreadMessages(
 	if !threadAllowedOnRoom(room) {
 		return nil, errChatThreadNotFound()
 	}
-	if _, err := s.resolveThreadRoot(ctx, room, threadRootID); err != nil {
+	root, err := s.resolveThreadRoot(ctx, room, threadRootID)
+	if err != nil {
 		return nil, err
 	}
 	limit := in.Limit
@@ -104,9 +105,19 @@ func (s *ChatService) ListThreadMessages(
 	if err != nil {
 		return nil, err
 	}
-	out := make([]ChatMessageRow, 0, len(rows))
+	out := make([]ChatMessageRow, 0, len(rows)+1)
 	for i := len(rows) - 1; i >= 0; i-- {
 		out = append(out, chatMessageRowFromThreadListRow(rows[i], userID))
+	}
+	// The root is the oldest row, so a busy thread's newest-first page drops it;
+	// the first page always leads with it because it carries the viewer's
+	// follow and unread state.
+	if in.Before == nil && (len(out) == 0 || out[0].ID != threadRootID) {
+		sender, err := s.q.GetUserByID(ctx, root.SenderID)
+		if err != nil {
+			return nil, err
+		}
+		out = append([]ChatMessageRow{chatMessageRowFromDBForViewer(root, sender.DisplayName, userID)}, out...)
 	}
 	unread, following, err := s.threadViewerState(ctx, userID, threadRootID)
 	if err != nil {
