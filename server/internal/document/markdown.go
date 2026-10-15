@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -22,6 +23,11 @@ import (
 // MentionScheme is the link a mention takes in Markdown:
 // [@Lan](uniwork://user/<id>), [Báo cáo](uniwork://document/<id>).
 const MentionScheme = "uniwork://"
+
+// MaxMarkdownRunes is the longest Markdown MarkdownToPage and AppendMarkdown
+// read; longer input fails as document_too_large before any parsing. The tool
+// layer states the same figure to the model.
+const MaxMarkdownRunes = 200_000
 
 type pmNode struct {
 	Type    string         `json:"type"`
@@ -42,8 +48,14 @@ var mdParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.S
 // sanitizes it. assets are the asset ids the page may show as images (those
 // it already holds); any other image becomes a link.
 func MarkdownToPage(md string, assets map[string]bool) (json.RawMessage, error) {
+	if utf8.RuneCountInString(md) > MaxMarkdownRunes {
+		return nil, errTooLarge(fmt.Sprintf("markdown exceeds %d characters", MaxMarkdownRunes))
+	}
+	if err := checkNesting(md, DefaultLimits().MaxDepth); err != nil {
+		return nil, err
+	}
 	src := []byte(md)
-	r := &mdReader{src: src, assets: assets}
+	r := &mdReader{src: src, assets: foldAssets(assets)}
 	doc := pmNode{Type: "doc", Content: r.blocks(mdParser.Parse(text.NewReader(src)))}
 	if len(doc.Content) == 0 {
 		doc.Content = []pmNode{{Type: "paragraph"}}
@@ -82,6 +94,9 @@ func AssetsOf(content json.RawMessage) map[string]bool {
 
 // AppendMarkdown adds the blocks of md after the page's own.
 func AppendMarkdown(content json.RawMessage, md string) (json.RawMessage, error) {
+	if strings.TrimSpace(md) == "" {
+		return content, nil // nothing to add: not even an empty paragraph
+	}
 	doc := pmNode{Type: "doc"}
 	if len(content) > 0 {
 		if err := json.Unmarshal(content, &doc); err != nil {
@@ -108,7 +123,159 @@ func AppendMarkdown(content json.RawMessage, md string) (json.RawMessage, error)
 
 type mdReader struct {
 	src    []byte
-	assets map[string]bool
+	assets map[string]string // upper-cased asset id -> the id as the page spells it
+}
+
+// foldAssets lets Markdown name a held asset in either case (isULID accepts
+// both) while the image keeps the spelling the page already stores.
+func foldAssets(assets map[string]bool) map[string]string {
+	out := make(map[string]string, len(assets))
+	for id, held := range assets {
+		if held {
+			out[strings.ToUpper(id)] = id
+		}
+	}
+	return out
+}
+
+// checkNesting refuses Markdown whose containers nest past what Sanitize
+// accepts, before goldmark spends time on it: goldmark's block parse is
+// quadratic in the markers a line opens (200 KB of "- " took 15 s) and
+// Sanitize's depth bound only applies after the parse. A quote adds one level
+// of page depth and a list item two (list + item), so a document past
+// maxDepth is certain to fail Sanitize and no valid page is refused. It
+// follows the containers as CommonMark does, line by line: a line continues a
+// quote by its ">" and a list item by its indentation, and text indented 4+
+// columns past the innermost container is code, not a marker.
+// Shortcuts: a fence or thematic break holding 25+ "- " or 50+ ">" on one
+// line is refused too (upgrade only if a real page does that); and an
+// under-indented paragraph line (a lazy continuation) is read as ending the
+// containers it really keeps open, so some over-deep input passes here and
+// fails in Sanitize after the parse, which costs no more than the byte cap
+// lets it (that nesting takes one line per level).
+func checkNesting(md string, maxDepth int) error {
+	var stack []container
+	for len(md) > 0 {
+		var line string
+		line, md, _ = strings.Cut(md, "\n") // as goldmark: a lone "\r" is no line break
+		var err error
+		if stack, err = scanLine(line, stack, maxDepth); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// container is an open quote, or a list item whose content starts at column
+// offset.
+type container struct {
+	list   bool
+	offset int
+}
+
+func scanLine(line string, stack []container, maxDepth int) ([]container, error) {
+	col, i, base := 0, 0, 0 // base: where the innermost container's content starts
+	skip := func() {
+		for ; i < len(line) && (line[i] == ' ' || line[i] == '\t'); i++ {
+			if line[i] == '\t' {
+				col += 4 - col%4
+			} else {
+				col++
+			}
+		}
+	}
+	quote := func() { // line[i] is ">"
+		i++
+		col++
+		if i < len(line) && line[i] == ' ' {
+			i++
+			col++
+		}
+		base = col
+	}
+	kept := 0
+	for ; kept < len(stack); kept++ {
+		skip()
+		c := stack[kept]
+		if c.list {
+			if col < c.offset && i < len(line) {
+				break // not indented into the item: it ends here
+			}
+			base = c.offset
+		} else if i == len(line) || line[i] != '>' || col-base >= 4 {
+			break // a quote needs its ">"; a blank line ends it
+		} else {
+			quote()
+		}
+	}
+	stack = stack[:kept]
+	depth := 0
+	for _, c := range stack {
+		depth += 1 + b2i(c.list)
+	}
+	for {
+		skip()
+		if i == len(line) || col-base >= 4 {
+			return stack, nil
+		}
+		if line[i] == '>' {
+			stack = append(stack, container{})
+			depth++
+			quote()
+		} else {
+			w := listMarker(line[i:])
+			if w == 0 {
+				return stack, nil
+			}
+			start := col + w
+			i += w
+			col = start
+			skip()
+			if i == len(line) {
+				return stack, nil // an empty item holds nothing the next lines nest under
+			}
+			offset := col
+			if col-start >= 5 {
+				offset = start + 1
+				i = len(line) // the rest is code inside the item
+			}
+			stack = append(stack, container{list: true, offset: offset})
+			depth += 2
+			base = offset
+		}
+		if depth > maxDepth {
+			return nil, errInvalid("document exceeds depth limit")
+		}
+	}
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// listMarker is the width of the list marker s starts with ("-", "*", "+",
+// "12." or "12)", then a space, tab or the end of the line), or 0.
+func listMarker(s string) int {
+	n := 0
+	switch s[0] {
+	case '-', '*', '+':
+		n = 1
+	default:
+		for n < len(s) && n < 10 && s[n] >= '0' && s[n] <= '9' {
+			n++
+		}
+		if n == 0 || n > 9 || n == len(s) || (s[n] != '.' && s[n] != ')') {
+			return 0
+		}
+		n++
+	}
+	if n < len(s) && s[n] != ' ' && s[n] != '\t' {
+		return 0
+	}
+	return n
 }
 
 func (r *mdReader) blocks(parent ast.Node) []pmNode {
@@ -128,6 +295,15 @@ func textNodes(s string, marks []pmMark) []pmNode {
 		m = append(m, marks...)
 	}
 	return []pmNode{{Type: "text", Text: s, Marks: m}}
+}
+
+func hasLink(marks []pmMark) bool {
+	for _, m := range marks {
+		if m.Type == "link" {
+			return true
+		}
+	}
+	return false
 }
 
 func withMark(marks []pmMark, m pmMark) []pmMark {
@@ -208,11 +384,17 @@ func (r *mdReader) list(v *ast.List) pmNode {
 		}
 	}
 	for item := v.FirstChild(); item != nil; item = item.NextSibling() {
-		li := pmNode{Type: "listItem", Content: r.blocks(item)}
+		li := pmNode{Type: "listItem"}
 		if task {
+			// The box becomes the checked attr. In a list that mixes task and
+			// plain items it stays where it is and is read as text ("[x] "),
+			// so no state is lost.
+			cb := checkBox(item)
 			li.Type = "taskItem"
-			li.Attrs = map[string]any{"checked": checkBox(item).IsChecked}
+			li.Attrs = map[string]any{"checked": cb.IsChecked}
+			cb.Parent().RemoveChild(cb.Parent(), cb)
 		}
+		li.Content = r.blocks(item)
 		if len(li.Content) == 0 {
 			li.Content = []pmNode{{Type: "paragraph"}}
 		}
@@ -364,16 +546,28 @@ func (r *mdReader) inline(n ast.Node, marks []pmMark) []pmNode {
 		return textNodes(string(v.Label(r.src)), withMark(marks, pmMark{Type: "link", Attrs: map[string]any{"href": href}}))
 	case *ast.Image:
 		dest, alt := unescape(v.Destination), r.plain(v)
-		if id, ok := strings.CutPrefix(dest, "asset://"); ok && r.assets[id] {
-			attrs := map[string]any{"src": dest}
+		if id, ok := strings.CutPrefix(dest, "asset://"); ok && r.assets[strings.ToUpper(id)] != "" {
+			attrs := map[string]any{"src": "asset://" + r.assets[strings.ToUpper(id)]}
 			if alt != "" {
 				attrs["alt"] = alt
 			}
 			return []pmNode{{Type: "image", Attrs: attrs}}
 		}
-		return textNodes(alt, withMark(marks, pmMark{Type: "link", Attrs: map[string]any{"href": dest}}))
+		// Any other image is a link to it; without alt text its address is the
+		// text, so an image the model wrote never leaves nothing behind.
+		label := alt
+		if label == "" {
+			label = dest
+		}
+		if hasLink(marks) {
+			return textNodes(label, marks) // [![badge](img)](url): the outer link stays
+		}
+		return textNodes(label, withMark(marks, pmMark{Type: "link", Attrs: map[string]any{"href": dest}}))
 	case *east.TaskCheckBox:
-		return nil
+		if v.IsChecked {
+			return textNodes("[x] ", marks)
+		}
+		return textNodes("[ ] ", marks)
 	default:
 		return r.inlines(n, marks)
 	}
