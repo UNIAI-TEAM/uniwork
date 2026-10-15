@@ -1,0 +1,7 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19000 FRONTEND_ORIGIN=http://localhost:13900 API_PUBLIC_URL=http://localhost:19000 PREVIEW_ORIGIN=http://localhost:13901 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19000 NEXT_PUBLIC_WS_URL=ws://localhost:19000 NEXT_PUBLIC_APP_URL=http://localhost:13900 E2E_BASE_URL=http://localhost:13900 E2E_API_URL=http://localhost:19000; cd e2e; pnpm exec playwright test files-chat.spec.ts --workers=1 --retries=0 --reporter=line > /tmp/r21-CHAT_W1.log 2>&1; echo "CHAT_W1_EXIT=$?"; grep -E '^ +[0-9]+ (passed|failed|flaky)' /tmp/r21-CHAT_W1.log; sed -n '/1) files-chat/,/at .*files-chat.spec.ts:[0-9]*:[0-9]*/p' /tmp/r21-CHAT_W1.log | head -150; echo ----API; grep -n '\[api\] [45]' /tmp/r21-CHAT_W1.log | head -30; true
+CHAT_W1_EXIT=0
+  6 passed (17.1s)
+----API
+14:[api] 401 POST http://localhost:19000/api/v1/auth/refresh
+16:[api] 401 POST http://localhost:19000/api/v1/auth/refresh
+24:[api] 403 POST http://localhost:19000/api/v1/workspaces/01M4Z4QSCRM68W63086Z982N44/chat/rooms/01M4Z4R69VEKZ6XKEZ1H16FZDB/read
