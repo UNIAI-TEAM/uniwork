@@ -159,10 +159,14 @@ export function SharePeoplePicker({
           </ComboboxList>
         </ComboboxContent>
       </Combobox>
-      <p id={hintId} role="status" className="text-caption text-muted-foreground">
+      <p id={hintId} className="text-caption text-muted-foreground">
         {atCap
           ? t("documents.share.people_limit", { max: SHARE_PEOPLE_MAX })
           : t("documents.share.people_selected", { count: value.length })}
+      </p>
+      {/* Only reaching the cap is spoken; the count above is read on demand through aria-describedby. */}
+      <p role="status" className="sr-only">
+        {atCap ? t("documents.share.people_limit", { max: SHARE_PEOPLE_MAX }) : null}
       </p>
       {selected.length ? (
         <ul aria-label={t("documents.share.people_chosen")} className="flex flex-wrap gap-1">

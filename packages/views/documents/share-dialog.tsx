@@ -171,7 +171,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
   if (owned) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) people.change([]);
+        onOpenChange(next);
+      }}
+    >
       <DialogContent className="max-h-[85dvh] overflow-hidden sm:max-w-xl" closeLabel={t("common.close")}>
         <DialogHeader>
           <DialogTitle>{t("documents.share.title")}</DialogTitle>
@@ -295,6 +301,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
                         const picked = next as PrincipalType;
                         setPrincipalType(picked);
                         setPrincipalId(picked === "organization" ? doc.organization_id : "");
+                        if (picked !== "user") people.change([]);
                         setAddError(null);
                       }}
                     >

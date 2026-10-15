@@ -59,12 +59,24 @@ describe("SharePeoplePicker", () => {
     expect(change).toHaveBeenCalledWith(["m1", "m2"]);
   });
 
+  it("describes the count as plain text and keeps the live region silent below the cap", () => {
+    render(<SharePeoplePicker id="p" members={[member(1, "Bình"), member(2, "Chi")]} shares={[]} people={people(["m1", "m2"])} />);
+
+    const count = t("documents.share.people_selected", { count: 2 });
+    expect(screen.getByText(count)).not.toHaveAttribute("role");
+    expect(screen.getByRole("combobox")).toHaveAccessibleDescription(count);
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
   it("disables unpicked people at the 50-person cap and says why", async () => {
     const members = Array.from({ length: SHARE_PEOPLE_MAX + 1 }, (_, i) => member(i, `Người ${i}`));
     const picked = members.slice(0, SHARE_PEOPLE_MAX).map((m) => m.user_id);
     render(<SharePeoplePicker id="p" members={members} shares={[]} people={people(picked)} />);
 
     expect(screen.getByRole("status")).toHaveTextContent(t("documents.share.people_limit", { max: SHARE_PEOPLE_MAX }));
+    expect(screen.getByRole("combobox")).toHaveAccessibleDescription(
+      t("documents.share.people_limit", { max: SHARE_PEOPLE_MAX }),
+    );
     // A picked person can still be removed at the cap.
     expect(screen.getByRole("button", { name: t("documents.share.people_remove", { name: "Người 0" }) })).toBeEnabled();
     openWith(`Người ${SHARE_PEOPLE_MAX}`);

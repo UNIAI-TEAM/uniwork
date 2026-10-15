@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
@@ -407,6 +408,42 @@ describe("ShareDialog", () => {
 
     expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
     expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeDisabled();
+  });
+
+  it("drops the picked people when the principal type moves away from person", async () => {
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickPerson("Chi");
+    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_workspace"));
+    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_user"));
+
+    expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeDisabled();
+  });
+
+  it("drops the picked people when the dialog closes and opens again", async () => {
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <button type="button" onClick={() => setOpen(true)}>
+            reopen
+          </button>
+          <ShareDialog open={open} onOpenChange={setOpen} wsId={WS} doc={documentFixture()} />
+        </WorkspaceProvider>
+      );
+    }
+    render(wrapWithNav(<Harness />));
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickPerson("Chi");
+    fireEvent.click(screen.getByRole("button", { name: t("common.close") }));
+    await waitFor(() => expect(screen.queryByText(t("documents.share.title"))).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "reopen" }));
+    await screen.findByText(t("documents.share.access_title"));
+
+    expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
   });
 
   it("revokes one grant without touching the others", async () => {
