@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -160,6 +161,13 @@ func TestShareDocumentBatch(t *testing.T) {
 		if n := countAudit(t, f, audit.ActionDocumentShared, doc.ID); n != 0 {
 			t.Fatalf("audit rows after 51 reject = %d, want 0", n)
 		}
+		var rows int
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM document_shares WHERE document_id = $1`, doc.ID).Scan(&rows); err != nil {
+			t.Fatal(err)
+		}
+		if rows != 0 {
+			t.Fatalf("document_shares rows after 51 reject = %d, want 0", rows)
+		}
 
 		shares, err := f.svc.ShareDocumentBatch(f.ctx, mgr, doc.ID, ids51[:50], DocumentLevelView)
 		if err != nil {
@@ -218,6 +226,24 @@ func TestShareDocumentBatch(t *testing.T) {
 			var ve ValidationError
 			if _, err := f.svc.ShareDocumentBatch(f.ctx, mgr, doc.ID, tc.ids, tc.level); !errors.As(err, &ve) {
 				t.Fatalf("%s: err = %v, want ValidationError", tc.name, err)
+			}
+		}
+	})
+
+	t.Run("an invalid id list answers the ids error before the level error", func(t *testing.T) {
+		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		for _, tc := range []struct {
+			name string
+			ids  []string
+		}{
+			{name: "nil slice", ids: nil},
+			{name: "empty slice", ids: []string{}},
+			{name: "blank element", ids: []string{tn.outsider.ID, "   "}},
+		} {
+			_, err := f.svc.ShareDocumentBatch(f.ctx, mgr, doc.ID, tc.ids, "bad")
+			var ve ValidationError
+			if !errors.As(err, &ve) || !strings.Contains(ve.Msg, "principal_ids") {
+				t.Fatalf("%s with invalid level: err = %v, want the principal_ids error", tc.name, err)
 			}
 		}
 	})
