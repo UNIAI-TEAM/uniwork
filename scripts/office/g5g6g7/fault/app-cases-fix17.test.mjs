@@ -21,7 +21,11 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { EXTRA_EXITS } from "./app-case-drivers-blocked.mjs";
-import { blockedAfterFailure, expandExits, predictedFor, runResult } from "./app-cases-lib.mjs";
+import {
+  HOOK_SIGNED_OUT_CODES, assertStatePath, blockedAfterFailure, expandExits, isHookSignedOutLift, matchStatePath,
+  predictedFor, runResult,
+} from "./app-cases-lib.mjs";
+import { caseExpect } from "./case-expect.mjs";
 import { loadFaultCases } from "./server-cases-lib.mjs";
 
 const FAULT_DIR = fileURLToPath(new URL(".", import.meta.url));
@@ -105,4 +109,96 @@ test("with every FQ-50 exit tagged, a FAIL on one exit never blocks the exits af
   }
   assert.deepEqual(ran, [1, 2, 3, 4, 5], "no exit is held back");
   assert.ok(results.every((r) => r.result === "FAIL" && ["OQ-F12", "OQ-F6"].includes(r.predicted)));
+});
+
+// ---- FQ-51: the hook's signed-out render read as the lift --------------------------------
+const DOC = "01M50NZWJK33YJPYKF6BGSFCJH";
+const INTENT = "office-intent-214c6021-6135-4582-a6d1-c53f8b0845ed";
+/** One trace line as the fork writes it (`{ts, intentId, documentId, from, to, httpStatus?, code?}`). */
+const line = (from, to, extra = {}) => ({ ts: "2026-10-15T21:03:28.681Z", intentId: INTENT, documentId: DOC, from, to, ...extra });
+
+/** r13/r14's FQ-51 exit-1 trace, verbatim: the hook's render, then the record's own lift to `validating`. */
+const R14_EXIT1 = [
+  line(null, "queued"),
+  line("queued", "blocked", { code: "session_expired" }),
+  line("queued", "validating"),
+  line("validating", "uploading"),
+  line("uploading", "committing"),
+  line("committing", "committed", { httpStatus: 200 }),
+];
+
+/** A REAL machine blocked: the record entered `blocked` (a persisted move), then a move out of it. */
+const MACHINE_COMMIT_FAILURE = [
+  line(null, "queued"),
+  line("queued", "validating"),
+  line("validating", "uploading"),
+  line("uploading", "committing"),
+  line("committing", "blocked", { code: "session_expired" }),
+  line("blocked", "validating"),
+  line("validating", "uploading"),
+  line("uploading", "committing"),
+  line("committing", "committed", { httpStatus: 200 }),
+];
+
+/** The machine's capability verdict: `commitFailed` with no cause (dispatcher.ts:326-327) writes the same line. */
+const MACHINE_CAPABILITY_VERDICT = [
+  line(null, "queued"),
+  line("queued", "blocked", { code: "session_expired" }),
+  line("blocked", "validating"),
+  line("validating", "committing"),
+  line("committing", "committed", { httpStatus: 200 }),
+];
+
+const fq51Expect = () => caseExpect(row("FQ-51"), row("FQ-51").exits[0]);
+
+test("(a) the r13/r14 FQ-51 exit-1 shape passes client_path, expectation unchanged", () => {
+  const check = assertStatePath("client_path", R14_EXIT1, fq51Expect().clientPath());
+  assert.equal(check.ok, true, `${check.expected} -> ${check.actual}`);
+  // the raw record path is the one that failed r13/r14: without the reading there is no
+  // `queued` after `blocked`, and the record never entered `blocked` at all
+  assert.ok(!matchStatePath(["queued", "blocked", "validating", "uploading", "committing", "committed"], fq51Expect().clientPath()));
+});
+
+test("(b) a real queue-machine blocked followed by validating still fails client_path", () => {
+  for (const [name, lines] of [["commit failure", MACHINE_COMMIT_FAILURE], ["capability verdict", MACHINE_CAPABILITY_VERDICT]]) {
+    const check = assertStatePath("client_path", lines, fq51Expect().clientPath());
+    assert.equal(check.ok, false, `${name}: a real blocked is never the lift (${check.actual})`);
+  }
+  // the collision the Advisor named: the machine can write `code=session_expired` too
+  assert.equal(MACHINE_CAPABILITY_VERDICT[1].code, "session_expired");
+  assert.ok(MACHINE_CAPABILITY_VERDICT[1].httpStatus === undefined, "no cause, no status - the same line as the hook's");
+});
+
+test("only the hook's signed-out render is a lift: its own code AND the record staying put", () => {
+  assert.deepEqual([...HOOK_SIGNED_OUT_CODES], ["session_expired", "not_signed_in", "wrong_deployment"]);
+  for (const code of HOOK_SIGNED_OUT_CODES) {
+    const lines = [line(null, "queued"), line("queued", "blocked", { code }), line("queued", "validating")];
+    assert.equal(isHookSignedOutLift(lines, 1), true, `${code}: the hook's signed-out code renders as blocked`);
+  }
+  const noLift = [line(null, "queued"), line("queued", "blocked", { code: "session_expired" })];
+  assert.equal(isHookSignedOutLift(noLift, 1), false, "a render with no lift after it is not read as one");
+  const fq50 = [line(null, "queued"), line("queued", "blocked", { code: "permission_revoked", httpStatus: 403 }), line("queued", "validating")];
+  assert.equal(isHookSignedOutLift(fq50, 1), false, "FQ-50's own blocked is not a signed-out render");
+  assert.equal(isHookSignedOutLift(MACHINE_COMMIT_FAILURE, 4), false, "the machine's blocked moved the record");
+  assert.equal(isHookSignedOutLift(MACHINE_CAPABILITY_VERDICT, 1), false, "same code, but the record entered blocked");
+});
+
+test("(c) FQ-50 and FQ-51 keep their expectations; the reading does not loosen FQ-50", () => {
+  assert.deepEqual(row("FQ-50").expect.clientPath, ["*", "blocked", "queued", "*", "committed"]);
+  assert.deepEqual(row("FQ-51").exits[0].expect.clientPath, row("FQ-50").expect.clientPath);
+  // r13's FQ-50 exit-1 trace: the same hook render, a permission_revoked code and no lift
+  const fq50R13 = [line(null, "queued"), line("queued", "blocked", { code: "permission_revoked", httpStatus: 403 })];
+  const check = assertStatePath("client_path", fq50R13, row("FQ-50").expect.clientPath);
+  assert.equal(check.ok, false, "FQ-50 stays FAIL: its lift never happens");
+});
+
+test("the matrix FQ-51 row and the §6 clientPath line name the hook-lift reading and the decision id", () => {
+  const line51 = matrixRow("FQ-51");
+  assert.match(line51, /trace\.ts:169-173/);
+  assert.match(line51, /machine\.ts:502-504/);
+  assert.match(line51, /qa-fault_local:46/);
+  const clientPathRow = matrix.split(/\r?\n/).find((l) => l.startsWith("| `clientPath` |"));
+  assert.match(clientPathRow, /trace\.ts:165-173/);
+  assert.match(clientPathRow, /save-coordinator\.ts:697-700/);
+  assert.match(clientPathRow, /qa-fault_local:46/);
 });

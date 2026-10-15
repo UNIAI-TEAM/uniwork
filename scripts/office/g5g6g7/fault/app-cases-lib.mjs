@@ -78,13 +78,41 @@ export function intentIdsOf(lines) {
   return [...new Set(lines.map((line) => line.intentId))];
 }
 
-/** The states an intent passed through: the first line's `from` (when known), then every `to`. */
+/**
+ * The states an intent passed through: the first line's `from` (when known), then every `to`.
+ * A `blocked` step the fork's test hook wrote for the coordinator's signed-out lock counts as
+ * the lift point too: the hook renders a *binding* state as `blocked` (trace.ts:169-173) while
+ * the queue record never enters it, so its implied `queued` step is read in. Only that render
+ * qualifies (`isHookSignedOutLift`); a queue-machine `blocked` is a persisted move
+ * (machine.ts:502-504, 617-625), so a real one is never read as a lift (Advisor qa-fault_local:46).
+ */
 export function statePath(lines, intentId = null) {
   const own = intentId ? lines.filter((line) => line.intentId === intentId) : lines;
   if (own.length === 0) return [];
   const path = own[0].from ? [own[0].from] : [];
-  for (const line of own) if (path[path.length - 1] !== line.to) path.push(line.to);
+  own.forEach((line, i) => {
+    if (path[path.length - 1] !== line.to) path.push(line.to);
+    if (isHookSignedOutLift(own, i)) path.push("queued");
+  });
   return path;
+}
+
+/** The codes `applyFailure` writes the coordinator's `signed-out` binding state for (save-coordinator.ts:697-700); trace.ts:165-173 renders that state as `blocked`. */
+export const HOOK_SIGNED_OUT_CODES = Object.freeze(["session_expired", "not_signed_in", "wrong_deployment"]);
+
+/**
+ * True at the trace line where the hook's signed-out render stands for the lift: the render's own
+ * code (`HOOK_SIGNED_OUT_CODES`; the machine writes the mapped reason instead, so `session_expired`
+ * alone is no marker) AND the proof the record never entered `blocked` - the intent's next line
+ * leaves the same `from` state for `validating`, which a persisted `blocked` record can never do
+ * (only `queued` dispatches, machine.ts:502-504; a blocked record is left only by abandon,
+ * machine.ts:617-625). A machine blocked line is never read as a lift, whatever its code.
+ */
+export function isHookSignedOutLift(lines, index) {
+  const line = lines[index];
+  if (line?.to !== "blocked" || !HOOK_SIGNED_OUT_CODES.includes(line.code)) return false;
+  const next = lines[index + 1];
+  return Boolean(next) && next.intentId === line.intentId && next.from === line.from && next.to === "validating";
 }
 
 /**
