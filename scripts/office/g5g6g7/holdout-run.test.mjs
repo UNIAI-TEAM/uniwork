@@ -20,7 +20,7 @@ import {
 } from './holdout-run.mjs';
 import { OPERATIONS, loadCases, score } from './holdout-score.mjs';
 import { readWorkbook } from './holdout-xlsx-truth.mjs';
-import { referenceLine, scriptedModel, startStubFacade } from './holdout-stub-facade.helper.mjs';
+import { argumentsFor, referenceLine, scriptedModel, startStubFacade, toolsToCall } from './holdout-stub-facade.helper.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const { cases } = loadCases(DEFAULT_CASES_DIR);
@@ -390,6 +390,116 @@ describe('answer adapter', () => {
       assert.ok(run(c, (item) => op(item, { value: 987654321 })).includes('fail'), `${c.id}: a wrong value at the right cells`);
       assert.ok(run(c, (item) => op({ ...item, anchor: `${item.anchor.split('!')[0]}!ZZ900` })).includes('fail'), `${c.id}: the right values at the wrong cell`);
     }
+  });
+
+  describe('edit scoring of the 11 real edit cases (G712-16)', () => {
+    const edits = cases.filter((c) => c.expected.writes > 0);
+    // Per case: the items an applied write must back (introduced), those the document already held (preserved) and the counts.
+    const SPLIT = {
+      'HO-CROSS-020': { backed: 0, preserved: 1, counts: 2 },
+      'HO-DOCX-012': { backed: 0, preserved: 1, counts: 3 },
+      'HO-DOCX-013': { backed: 0, preserved: 0, counts: 3 },
+      'HO-DOCX-014': { backed: 0, preserved: 0, counts: 4 },
+      'HO-PPTX-004': { backed: 0, preserved: 2, counts: 2 },
+      'HO-PDF-005': { backed: 1, preserved: 0, counts: 1 },
+      'HO-MD-004': { backed: 0, preserved: 0, counts: 4 },
+      'HO-HTML-002': { backed: 1, preserved: 2, counts: 2 },
+      'HO-XLSX-028': { backed: 7, preserved: 0, counts: 1 },
+      'HO-XLSX-029': { backed: 6, preserved: 0, counts: 1 },
+      'HO-XLSX-030': { backed: 4, preserved: 2, counts: 1 },
+    };
+
+    /** One ask over the real case: the reference reply, every required read, and the write tool called with `args` (null = not called). */
+    function ask(c, args) {
+      const backend = createBackend(c);
+      const names = toolsToCall(c, offeredTools(c));
+      const writeTool = names.find((n) => opsOfTool(modulesOfCase(c), n).some((op) => op === 'write_range' || op === 'edit_paragraph'));
+      assert.ok(writeTool, `${c.id}: a write tool is offered`);
+      for (const name of names) backend.execute(name, name === writeTool ? (args === null ? '{}' : JSON.stringify(args)) : '{}');
+      const input = { reply: `${c.referenceAnswer.text}\n${referenceLine(c)}`, calls: names.map((name) => ({ name })), writes: backend.writes(), writeLog: backend.writeLog(), dropped: [], modules: modulesOfCase(c), sheetNames: backend.sheetNames(), sourceText: backend.sourceText() };
+      const out = deriveAnswer(c, input);
+      const result = score(c, out.answer);
+      return { backend, writeTool, adapter: out.adapter, result, check: (id) => result.checks.find((x) => x.id === id)?.status };
+    }
+    const writeOp = (c) => c.tools.required.find((op) => op === 'write_range' || op === 'edit_paragraph');
+    const correct = (c) => JSON.parse(argumentsFor(c, toolsToCall(c, offeredTools(c)).find((n) => opsOfTool(modulesOfCase(c), n).some((op) => op === writeOp(c)))));
+
+    it('covers the 11 real edit cases', () => {
+      assert.deepEqual(edits.map((c) => c.id).sort(), Object.keys(SPLIT).sort());
+    });
+
+    it('fails an edit that was only a dry run, even with the right content (a)', () => {
+      for (const c of edits) {
+        const r = ask(c, { ...correct(c), dryRun: true });
+        assert.equal(r.backend.writes(), 0, `${c.id}: a dry run is not a write`);
+        assert.equal(r.result.status, 'fail', `${c.id}: dry run only`);
+        assert.equal(r.check(`tool_required:${writeOp(c)}`), 'fail', `${c.id}: the write operation is not used`);
+        assert.equal(r.adapter.noAppliedWrite, true, `${c.id}: flagged as no applied write`);
+      }
+    });
+
+    it('fails an edit whose applied write is `{}`, or has nothing but a note (b)', () => {
+      for (const c of edits) {
+        for (const args of [{}, { note: 'edit applied', dryRun: false }]) {
+          const r = ask(c, args);
+          assert.equal(r.backend.writes(), 1, `${c.id}: the empty write was applied`);
+          assert.equal(r.result.status, 'fail', `${c.id}: ${JSON.stringify(args)}`);
+          assert.equal(r.check(`tool_required:${writeOp(c)}`), 'fail', c.id);
+          assert.equal(r.adapter.noAppliedWrite, true, c.id);
+        }
+      }
+    });
+
+    it('fails an edit whose applied write is unrelated to it (c)', () => {
+      for (const c of edits) {
+        const sheets = c.format === 'xlsx';
+        // A sheet edit elsewhere with a value of its own; a text edit that only writes back a line the document already holds.
+        const first = createBackend(c).sourceText().split('\n').find((line) => line.trim().length > 3);
+        const args = sheets ? { edits: [{ anchor: 'Doanh thu Q1!ZZ900', value: 'unrelated' }] } : { text: first };
+        const r = ask(c, args);
+        assert.equal(r.result.status, 'fail', `${c.id}: unrelated write`);
+        assert.ok(r.result.checks.some((x) => x.status === 'fail'), c.id);
+        if (!sheets) {
+          assert.equal(r.check(`tool_required:${writeOp(c)}`), 'fail', `${c.id}: a write of what is already there is no edit`);
+          assert.equal(r.adapter.noAppliedWrite, true, c.id);
+        }
+      }
+    });
+
+    it('passes the correct applied write, with the introduced items backed and the preserved ones labelled self-reported (d)', () => {
+      for (const c of edits) {
+        const r = ask(c, correct(c));
+        assert.ok(r.result.checks.every((x) => x.status !== 'fail'), `${c.id}: ${JSON.stringify(r.result.checks.filter((x) => x.status === 'fail'))}`);
+        assert.equal(r.check(`tool_required:${writeOp(c)}`), 'pass', c.id);
+        assert.equal(r.adapter.noAppliedWrite, false, c.id);
+        const want = SPLIT[c.id];
+        assert.deepEqual(
+          [r.adapter.writeBacked, r.adapter.writeUnbacked, r.adapter.writeSelfPreserved, r.adapter.writeSelfReported - r.adapter.writeSelfPreserved],
+          [want.backed, 0, want.preserved, want.counts],
+          `${c.id}: backed / unbacked / self-reported (preserved) / self-reported (counts)`,
+        );
+      }
+    });
+
+    it('fails an introduced value that no applied write carries, while the edit itself is applied', () => {
+      const introducing = edits.filter((c) => SPLIT[c.id].backed > 0);
+      assert.equal(introducing.length, 5);
+      for (const c of introducing) {
+        const r = ask(c, { text: 'new words that are not the edit values', edits: [{ anchor: 'Doanh thu Q1!ZZ900', value: 'elsewhere' }] });
+        assert.equal(r.check(`tool_required:${writeOp(c)}`), 'pass', `${c.id}: the write is applied and contentful`);
+        assert.equal(r.adapter.writeBacked, 0, c.id);
+        assert.equal(r.adapter.writeUnbacked, SPLIT[c.id].backed, `${c.id}: every introduced item is unbacked`);
+        assert.equal(r.result.status, 'fail', `${c.id}: the item fails`);
+      }
+    });
+
+    it('does not mistake an edited heading or cell for one the document already held', () => {
+      const html = edits.find((c) => c.id === 'HO-HTML-002');
+      const source = createBackend(html).sourceText();
+      assert.ok(source.toLowerCase().includes('doanh thu quý 1 theo khu vực'), 'the old heading holds most of the new one as text');
+      const r = ask(html, { text: 'Doanh thu quý 1 theo khu vực' });
+      assert.equal(r.adapter.writeUnbacked, 1, 'a partial text does not back the new heading');
+    });
   });
 
   it('flags a figure of the reporting line that the prose never states, apart from rounding and grouping (G712-5)', () => {
