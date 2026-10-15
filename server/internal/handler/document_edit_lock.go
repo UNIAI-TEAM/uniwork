@@ -22,6 +22,13 @@ import (
 
 func editLockTime(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 
+// statusClientClosedRequest is the client-closed marker (nginx's 499) R1
+// answers when the request's own context is already cancelled: the browser
+// left the page and aborted its in-flight read, so nothing of ours failed.
+// It is not a 5xx, so the access log and the request metrics read it as a
+// client-closed line, never as an internal error (FA2 r1-500).
+const statusClientClosedRequest = 499
+
 func editLockTimePtr(t *time.Time) *string {
 	if t == nil {
 		return nil
@@ -101,6 +108,18 @@ func (h *handlers) getDocumentEditLock(w http.ResponseWriter, r *http.Request) {
 	}
 	st, err := h.Documents.GetDocumentEditLockState(r.Context(), editLockActor(r), chi.URLParam(r, "documentID"))
 	if err != nil {
+		if r.Context().Err() != nil {
+			// The client went away while its read was in flight (a page
+			// unmount aborting R1, a closed tab): the failure is the
+			// cancellation, not the server, so this is no internal error to
+			// log and no 500 to answer. The socket is gone, so the status is
+			// only a marker - the client-closed 499 - and the request log
+			// and metrics read it as client-closed, never as an ERR internal
+			// line (FA2 r1-500). Same stance as mcpToolResult's cancelled
+			// case and the stream-copy guards (document_sources.go).
+			respondError(w, statusClientClosedRequest, "client_closed_request", "client closed request")
+			return
+		}
 		h.mapServiceError(w, err)
 		return
 	}

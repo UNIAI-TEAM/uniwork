@@ -1,8 +1,11 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,10 +18,39 @@ import (
 // UNI-1645 (addendum 2026-10-15): the edit lock commands R1-R10 and the
 // write gate, service level. Handler-level cases are A2's.
 
+// TestEditLockStateCancelledRequestFailsFast (FA2 r1-500) pins the cause of
+// the 500 a browser could mint by leaving the page: R1's first read is the
+// document row, and on a request the client already cancelled it fails with
+// context.Canceled before RequireMember resolves the tenant - which is why
+// the production line carried actor_id but no organization_id/workspace_id.
+func TestEditLockStateCancelledRequestFailsFast(t *testing.T) {
+	w := newLockWorld(t)
+	d := w.page(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	started := time.Now()
+	_, err := w.svc.GetDocumentEditLockState(ctx, human(w.tn.member), d.ID)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled R1: err = %v, want context.Canceled", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("cancelled R1 took %v: it must fail on the first read, not wait", elapsed)
+	}
+}
+
 func TestEditLockWritesRefusedWith423(t *testing.T) {
 	w := newLockWorld(t)
 	d := w.page(t)
+	// Two saves first, so the revision the 423 carries is not the document's
+	// first: a stale value cannot slip past the assertion below (CBE-1a-5).
+	if err := w.patch(t, human(w.tn.member), d.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.patch(t, human(w.tn.member), d.ID, ""); err != nil {
+		t.Fatal(err)
+	}
 	held := w.acquire(t, w.tn.aclOwner, d.ID, "editor-a")
+	cur := w.env.doc(t, d.ID)
 
 	// Another editor's save, with no id and with a made-up id: 423 with the
 	// holder in fields, never the lock id.
@@ -35,6 +67,9 @@ func TestEditLockWritesRefusedWith423(t *testing.T) {
 			if _, ok := ce.Fields[k]; !ok {
 				t.Fatalf("423 lacks %s: %v", k, ce.Fields)
 			}
+		}
+		if ce.Fields["current_revision"] != strconv.FormatInt(cur.Revision, 10) {
+			t.Fatalf("423 current_revision %v, want the locked revision %d", ce.Fields["current_revision"], cur.Revision)
 		}
 		if _, ok := ce.Fields["offline_hold_until"]; ok {
 			t.Fatalf("offline_hold_until without a hold: %v", ce.Fields)
@@ -69,7 +104,7 @@ func TestEditLockWritesRefusedWith423(t *testing.T) {
 	}
 	// Q5: a rename never needs the lock.
 	w.acquire(t, w.tn.aclOwner, d.ID, "editor-b")
-	cur := w.env.doc(t, d.ID)
+	cur = w.env.doc(t, d.ID)
 	if _, err := w.svc.UpdateDocument(w.ctx, human(w.tn.member), d.ID, UpdateDocumentInput{Revision: cur.Revision, Title: strPtr("Đổi tên")}); err != nil {
 		t.Fatalf("rename while locked: %v", err)
 	}
@@ -239,6 +274,32 @@ func TestDocumentSaveOutcomeForLockIsNotConflict(t *testing.T) {
 	}
 	if len(m.ops) != 1 || m.ops[0] != "acquire" {
 		t.Fatalf("ops %v, want [acquire]", m.ops)
+	}
+}
+
+// TestEditLockRefusedRoutesCommitFrameRestore pins the refused-write label
+// set of §7 (CBE-1a-4): a refused commit, a refused frame commit and a
+// refused restore are counted apart, each on its own route.
+func TestEditLockRefusedRoutesCommitFrameRestore(t *testing.T) {
+	w := newLockWorld(t)
+	m := &recordingDocMetrics{}
+	w.svc.SetMetrics(m)
+	file := w.env.createFile(t, human(w.tn.aclOwner), "routes.pdf", pdfBody("v1"))
+	docID := file.Document.ID
+	w.acquire(t, w.tn.aclOwner, docID, "editor-a")
+	cur := w.env.doc(t, docID)
+	up := w.env.upload(t, human(w.tn.member), docID, "routes.pdf", pdfBody("v2"))
+	for _, frame := range []bool{false, true} {
+		_, err := w.svc.CommitFileVersion(w.ctx, human(w.tn.member), docID, CommitFileVersionInput{
+			UploadID: up.UploadID, BaseRevision: cur.Revision, Frame: frame,
+		})
+		wantCode(t, err, "document_locked")
+	}
+	_, err := w.svc.RestoreDocumentVersion(w.ctx, human(w.tn.member), docID, RestoreDocumentVersionInput{Version: 1, BaseRevision: cur.Revision})
+	wantCode(t, err, "document_locked")
+	want := []string{DocumentEditLockRouteCommit, DocumentEditLockRouteFrameCommit, DocumentEditLockRouteRestore}
+	if !slices.Equal(m.refused, want) {
+		t.Fatalf("refused routes %v, want %v", m.refused, want)
 	}
 }
 
@@ -479,6 +540,69 @@ func TestEditLockHeartbeatRechecksLevel(t *testing.T) {
 	// {lockID} of another document: 404.
 	_, err = w.svc.HeartbeatDocumentEditLock(w.ctx, human(w.tn.member), d.ID, held3.Lock.ID)
 	wantNotFound(t, err)
+}
+
+// TestEditLockHeartbeatForeignTenureTruthful (CBE-1a-3): R3 on a live tenure
+// of another account names no end reason the tenure does not have. The
+// reason taken_over/handed_over appears only when the chain of tenures leads
+// back to the caller's own, and a tenure that never was the caller's leaks
+// neither a reason nor its holder.
+func TestEditLockHeartbeatForeignTenureTruthful(t *testing.T) {
+	w := newLockWorld(t)
+	d := w.page(t)
+	held := w.acquire(t, w.tn.aclOwner, d.ID, "editor-a")
+	// The member never held this document: live tenure, no reason, no holder.
+	before := w.lockRow(t, held.Lock.ID)
+	_, err := w.svc.HeartbeatDocumentEditLock(w.ctx, human(w.tn.member), d.ID, held.Lock.ID)
+	ce := wantCode(t, err, "edit_lock_lost")
+	if _, ok := ce.Fields["reason"]; ok {
+		t.Fatalf("live foreign tenure got a reason: %v", ce.Fields)
+	}
+	if _, ok := ce.Fields["by_id"]; ok {
+		t.Fatalf("live foreign tenure leaked the holder: %v", ce.Fields)
+	}
+	if got := w.lockRow(t, held.Lock.ID); got.EndedAt.Valid || got.HeartbeatAt != before.HeartbeatAt {
+		t.Fatal("the live foreign tenure was touched")
+	}
+	// A live tenure that took over from the caller's says so, holder named.
+	d2 := w.page(t)
+	old := w.acquire(t, w.tn.member, d2.ID, "editor-m")
+	took, err := w.svc.TakeOverDocumentEditLock(w.ctx, human(w.tn.aclOwner), d2.ID, TakeOverDocumentEditLockInput{
+		EditorID: "editor-a", Client: DocumentEditClientWebPage, ExpectedLockID: old.Lock.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = w.svc.HeartbeatDocumentEditLock(w.ctx, human(w.tn.member), d2.ID, took.Lock.ID)
+	ce = wantCode(t, err, "edit_lock_lost")
+	if ce.Fields["reason"] != "taken_over" || ce.Fields["by_id"] != w.tn.aclOwner.ID || ce.Fields["by_name"] != w.tn.aclOwner.DisplayName {
+		t.Fatalf("take-over chain fields %v", ce.Fields)
+	}
+	// The caller's own ended tenure keeps answering as it did.
+	_, err = w.svc.HeartbeatDocumentEditLock(w.ctx, human(w.tn.member), d2.ID, old.Lock.ID)
+	ce = wantCode(t, err, "edit_lock_lost")
+	if ce.Fields["reason"] != "taken_over" || ce.Fields["by_id"] != w.tn.aclOwner.ID {
+		t.Fatalf("own ended tenure fields %v", ce.Fields)
+	}
+	// A live tenure the caller handed over says handed_over, not taken_over.
+	d3 := w.page(t)
+	handed := w.acquire(t, w.tn.member, d3.ID, "editor-m")
+	req, err := w.svc.CreateDocumentEditRequest(w.ctx, human(w.tn.aclOwner), d3.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.svc.AnswerDocumentEditRequest(w.ctx, human(w.tn.member), d3.ID, req.Request.ID, AnswerDocumentEditRequestInput{Decision: "accept", LockID: handed.Lock.ID}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := w.svc.AcquireDocumentEditLock(w.ctx, human(w.tn.aclOwner), d3.ID, AcquireDocumentEditLockInput{EditorID: "editor-a", Client: DocumentEditClientWebPage, SessionID: "sid-a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = w.svc.HeartbeatDocumentEditLock(w.ctx, human(w.tn.member), d3.ID, claimed.Lock.ID)
+	ce = wantCode(t, err, "edit_lock_lost")
+	if ce.Fields["reason"] != "handed_over" || ce.Fields["by_id"] != w.tn.aclOwner.ID {
+		t.Fatalf("handover chain fields %v", ce.Fields)
+	}
 }
 
 func TestEditLockUsesServerClock(t *testing.T) {

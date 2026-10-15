@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -114,8 +115,8 @@ func wantLocked(t *testing.T, what string, res *http.Response, out map[string]an
 // the owner holds the page, the other editor's PATCH content and restore
 // answer 423 with the documented body, before any revision check, and the
 // holder's own PATCH with its edit_lock_id passes. A rename needs no lock.
-// The file commit and frame commit carry the same field into the same
-// service gate (service TestEditLockWritesRefusedWith423OnCommitFrameAndRestore).
+// The two file-commit routes carry the same field into the same service gate
+// and are covered by TestEditLockRefusesCommitRoutesHandler (CBE-1b-2).
 func TestEditLockWritesRefusedWith423Handler(t *testing.T) {
 	w := newEditLockWorld(t)
 	_, id := createPage(t, w.docsWorld, "Locked", nil)
@@ -153,6 +154,131 @@ func TestEditLockWritesRefusedWith423Handler(t *testing.T) {
 	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.token, map[string]any{"revision": "2", "content": pageContent("stale"), "edit_lock_id": lockID})
 	if code, _ := errCodeClass(out); res.StatusCode != 422 || code != "revision_conflict" {
 		t.Fatalf("holder's stale write: %d %v", res.StatusCode, out)
+	}
+}
+
+// TestEditLockRefusesCommitRoutesHandler is r1b CBE-1b-2: the two file-commit
+// routes carry edit_lock_id into the same service gate the PATCH and restore
+// cases above cover. A non-holder is refused 423 whether the field arrives or
+// not, so the holder's own commit with its edit_lock_id is the case that
+// fails if a handler drops or mis-maps the field; both are driven over HTTP
+// here. The office world supplies the DOCX and the frame token the frame
+// route needs (office_frame.go:234).
+func TestEditLockRefusesCommitRoutesHandler(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	enableOfficeDocsWeb(t, w.q)
+	editor, _ := w.officeJoinWorkspace(t, "lock-commit-editor@example.com")
+	docID := w.createDocx(t, "locked.docx", frameDocx(t, "v1"))
+
+	stage := func(t *testing.T, token string) string {
+		t.Helper()
+		res, raw := doMultipart(t, w.srv, "POST", "/api/v1/documents/"+docID+"/uploads", token, nil,
+			"locked.docx", frameDocx(t, "staged"), nil)
+		if res.StatusCode != http.StatusCreated {
+			t.Fatalf("stage upload: %d %s", res.StatusCode, raw)
+		}
+		var up struct {
+			UploadID string `json:"upload_id"`
+		}
+		if err := json.Unmarshal(raw, &up); err != nil || up.UploadID == "" {
+			t.Fatalf("upload sdo %s: %v", raw, err)
+		}
+		return up.UploadID
+	}
+	revision := func(t *testing.T) string {
+		t.Helper()
+		res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+docID, w.token, nil)
+		doc, _ := out["document"].(map[string]any)
+		if res.StatusCode != http.StatusOK || doc == nil {
+			t.Fatalf("read document: %d %v", res.StatusCode, out)
+		}
+		return doc["revision"].(string)
+	}
+	frameToken := func(t *testing.T, token string) string {
+		t.Helper()
+		res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/frame-token", token, nil)
+		if res.StatusCode != http.StatusCreated || out["can_edit"] != true {
+			t.Fatalf("frame token: %d %v", res.StatusCode, out)
+		}
+		return out["token"].(string)
+	}
+
+	// The owner holds the document while both routes are driven.
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/edit-lock", w.token,
+		map[string]any{"editor_id": "editor-holder", "client": "web_page"})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("acquire: %d %v", res.StatusCode, out)
+	}
+	lockID := out["lock_id"].(string)
+
+	// POST /documents/{id}/versions/commit: the other member is refused even
+	// while naming the holder's tenure, and the revision does not move.
+	base := revision(t)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/versions/commit", editor,
+		map[string]any{"upload_id": stage(t, editor), "base_revision": base, "edit_lock_id": lockID})
+	wantLocked(t, "commit by the other member", res, out, w.userID, false)
+	if got := revision(t); got != base {
+		t.Fatalf("a refused commit moved the revision %s -> %s", base, got)
+	}
+	// The holder's commit with its own edit_lock_id passes: the field hop.
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "lock-commit-holder"},
+		map[string]any{"upload_id": stage(t, w.token), "base_revision": base, "edit_lock_id": lockID})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("holder commit: %d %v", res.StatusCode, out)
+	}
+	committed := revision(t)
+	if committed == base {
+		t.Fatalf("holder commit did not move the revision from %s", base)
+	}
+
+	// POST /api/v1/office-frame/documents/{id}/versions/commit: same pair;
+	// the member's frame token carries its own user, never the holder's.
+	memberFrame := frameToken(t, editor)
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/office-frame/documents/"+docID+"/versions/commit", memberFrame,
+		map[string]string{"Idempotency-Key": "lock-frame-other"},
+		map[string]any{"upload_id": stage(t, editor), "base_revision": committed, "edit_lock_id": lockID})
+	wantLocked(t, "frame commit by the other member", res, out, w.userID, false)
+	if got := revision(t); got != committed {
+		t.Fatalf("a refused frame commit moved the revision %s -> %s", committed, got)
+	}
+	holderFrame := frameToken(t, w.token)
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/office-frame/documents/"+docID+"/versions/commit", holderFrame,
+		map[string]string{"Idempotency-Key": "lock-frame-holder"},
+		map[string]any{"upload_id": stage(t, w.token), "base_revision": committed, "edit_lock_id": lockID})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("holder frame commit: %d %v", res.StatusCode, out)
+	}
+	if got := revision(t); got == committed {
+		t.Fatalf("holder frame commit did not move the revision from %s", committed)
+	}
+}
+
+// TestEditLockRouteStatusesClientCancel (FA2 r1-500) is the wire-level pin:
+// a browser leaving the page aborts R1's in-flight read, the service fails on
+// the cancelled context before RequireMember stamps the tenant, and R1 must
+// not answer that as an internal failure (the ERR 500 the cloud round caught,
+// 6 ms after the same user's release). The access log follows the status, so
+// a client-closed answer is a WRN 499 line and never an ERR line.
+func TestEditLockRouteStatusesClientCancel(t *testing.T) {
+	w := newEditLockWorld(t)
+	_, id := createPage(t, w.docsWorld, "Cancelled", nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodGet, lockPath(id, ""), nil)
+	req.Header.Set("Authorization", "Bearer "+w.token)
+	rec := httptest.NewRecorder()
+	w.srv.Config.Handler.ServeHTTP(rec, req.WithContext(ctx))
+	if rec.Code != statusClientClosedRequest {
+		t.Fatalf("cancelled R1: status %d body %s, want %d client-closed (a 500 here is the r1-500 false internal error)",
+			rec.Code, rec.Body.String(), statusClientClosedRequest)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("cancelled R1 body %q: %v", rec.Body.String(), err)
+	}
+	if code, class := errCodeClass(out); code != "client_closed_request" || class != "" {
+		t.Fatalf("cancelled R1: code %q class %q, want client_closed_request with no class", code, class)
 	}
 }
 
