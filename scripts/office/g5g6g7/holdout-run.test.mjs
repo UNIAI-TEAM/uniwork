@@ -408,6 +408,41 @@ describe('answer adapter', () => {
     assert.deepEqual([elsewhere.adapter.writeBacked, elsewhere.adapter.writeUnbacked, elsewhere.adapter.writeFormula], [0, 1, 0], 'the address still has to be the right one');
   });
 
+  it('credits a formula at a formula item only when it equals the expected formula after normalising (G712-25)', () => {
+    const formulaCase = synthCase({
+      category: 'edit', tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: { numeric: [], structural: [{ kind: 'formula', anchor: 'Q1!C3', value: '=SUM(B2:B5)' }], writes: 1, mustNotContain: [] },
+      referenceAnswer: { numeric: {}, structural: [{ kind: 'formula', anchor: 'Q1!C3', value: '=SUM(B2:B5)' }], writes: 1, text: 'test reference' },
+    });
+    const line = reportFor({ items: [{ kind: 'formula', anchor: 'Q1!C3', value: '=SUM(B2:B5)' }] });
+    const outcome = (formula) => {
+      const out = deriveAnswer(formulaCase, { reply: line, calls: [{ name: 'propose_operations' }], writes: 1, dropped: [], modules: ['sheets'], sheetNames: ['Q1'], writeLog: [{ name: 'propose_operations', applied: true, args: { operations: [{ range: 'Q1!C3', formula }] } }] });
+      return [score(formulaCase, out.answer).checks.find((x) => x.id.startsWith('structural:')).status, out.adapter.writeBacked, out.adapter.writeUnbacked, out.adapter.writeFormula];
+    };
+    assert.deepEqual(outcome('=1+1'), ['fail', 0, 1, 0], 'a wrong formula at the right cell fails');
+    assert.deepEqual(outcome('=SUM(B2:B6)'), ['fail', 0, 1, 0], 'another range fails');
+    assert.deepEqual(outcome('=SUM(B2:B5)'), ['pass', 1, 0, 1]);
+    assert.deepEqual(outcome('= sum( $B$2 : $B$5 )'), ['pass', 1, 0, 1], 'case, spaces and absolute references are normalised');
+    assert.deepEqual(outcome('SUM(B2:B5)'), ['fail', 0, 1, 0], 'a text without the leading = is no formula write');
+  });
+
+  it('judges the real formula-expecting case (read at runtime) by the formula text (G712-25)', () => {
+    const real = cases.find((c) => c.expected.structural.some((x) => x.kind === 'formula'));
+    assert.ok(real, 'the set has a formula-expecting case');
+    // The real case reads only (writes: 0); an edit variant of it is what makes the write proof reachable.
+    const edit = { ...real, category: 'edit', tools: { allowed: [...real.tools.allowed, 'write_range'], required: ['write_range'] }, expected: { ...real.expected, numeric: [], writes: 1 } };
+    const items = edit.expected.structural.filter((x) => x.kind === 'formula');
+    const line = reportFor({ items });
+    const run = (make) => {
+      const backend = createBackend(edit);
+      backend.execute('propose_operations', JSON.stringify({ edits: items.map(make) }));
+      const out = deriveAnswer(edit, { reply: line, calls: [{ name: 'propose_operations' }], writes: backend.writes(), writeLog: backend.writeLog(), dropped: [], modules: ['sheets'], sheetNames: backend.sheetNames(), sourceText: backend.sourceText() });
+      return [out.adapter.writeBacked, out.adapter.writeUnbacked, out.adapter.writeFormula];
+    };
+    assert.deepEqual(run((x) => ({ anchor: x.anchor, formula: `=${x.value}` })), [items.length, 0, items.length], 'the expected formulas credit');
+    assert.deepEqual(run((x) => ({ anchor: x.anchor, formula: '=1+1' })), [0, items.length, 0], 'wrong formulas do not');
+  });
+
   it('does not pass a real xlsx value edit written with wrong formulas (G712-23)', () => {
     const edits = cases.filter((c) => c.format === 'xlsx' && c.expected.writes > 0 && c.expected.structural.some((x) => x.kind === 'cell' && !x.anchor.includes('#') && String(x.value) !== ''));
     assert.ok(edits.length >= 1);

@@ -98,9 +98,18 @@ function matrixAt(matrix, range, row, col) {
   return matrix[ro * width + co];
 }
 
-/** 'value' when the leaf is the wanted value (a percent string "10%" is 0.1), 'formula' for a formula string, else null. */
-function judgeLeaf(leaf, value) {
-  if (typeof leaf === 'string' && leaf.trim().startsWith('=')) return 'formula';
+/** A formula as compared (G712-25): case, spaces, absolute-reference `$` and the leading `=` do not matter. */
+export const normalizeFormula = (text) => String(text ?? '').toLowerCase().replace(/[\s$]+/g, '').replace(/^=+/, '');
+
+/**
+ * 'value' when the leaf is the wanted value (a percent string "10%" is 0.1), 'formula' for a formula string, else null.
+ * With `expectFormula` (the item expects a formula) a formula leaf counts only when it equals the expected one (G712-25).
+ */
+function judgeLeaf(leaf, value, expectFormula) {
+  if (typeof leaf === 'string' && leaf.trim().startsWith('=')) {
+    if (!expectFormula) return 'formula';
+    return normalizeFormula(leaf) === normalizeFormula(value) ? 'formula' : null;
+  }
   if (leaf === null || leaf === undefined || typeof leaf === 'object') return null;
   const wanted = toNumber(value);
   if (wanted !== null) {
@@ -131,15 +140,15 @@ function* operationsCovering(writes, anchorBase, sheetNames) {
 
 /**
  * Does ONE applied write operation carry both the address of the cell and the value for it? Returns 'value', 'formula' (the
- * operation puts a formula at the cell: the harness cannot evaluate it, so the address is all it can prove) or null.
+ * operation puts a formula at the cell: the harness cannot evaluate it, so it compares the formula text when `expectFormula`) or null.
  * A value written at another cell, or another value at this cell, proves nothing.
  */
-export function cellProof(writes, anchorBase, value, { sheetNames = [] } = {}) {
+export function cellProof(writes, anchorBase, value, { sheetNames = [], expectFormula = false } = {}) {
   let best = null;
   for (const { held, range, cell } of operationsCovering(writes, anchorBase, sheetNames)) {
     const candidates = [...held.scalars, ...held.arrays.map((m) => matrixAt(m, range, cell.r1, cell.c1))];
     for (const leaf of candidates) {
-      const verdict = judgeLeaf(leaf, value);
+      const verdict = judgeLeaf(leaf, value, expectFormula);
       if (verdict === 'value') return 'value';
       if (verdict === 'formula') best = 'formula';
     }
