@@ -77,6 +77,60 @@ func TestUploadRefusalOrder(t *testing.T) {
 			t.Fatalf("status = %d", ce.Status)
 		}
 	})
+
+	// DOC-05 §4: the save routes stay on the content gate. A workspace admin
+	// with no read level (AdminScope only) on a live restricted file gets
+	// document_restricted with can_break_glass on upload, commit and restore;
+	// on an archived one the archived answer comes first (not_found below
+	// edit); a member with no read level and no AdminScope is not_found.
+	admin := human(env.tn.wsAdmin)
+	stranger := human(env.tn.aclOwner)
+	restricted := func(t *testing.T, name string) DocumentFileResult {
+		t.Helper()
+		created := env.createFile(t, manager, name, pdfBody(name))
+		if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, created.Document.ID); err != nil {
+			t.Fatal(err)
+		}
+		return created
+	}
+	saveRoutes := func(t *testing.T, actor Actor, created DocumentFileResult, uploadID string) map[string]error {
+		t.Helper()
+		id := created.Document.ID
+		_, upErr := env.svc.UploadDocumentFile(ctx, actor, id, body())
+		_, commitErr := env.commit(actor, id, uploadID, created.Document.Revision, util.NewID())
+		_, restoreErr := env.svc.RestoreFileVersion(ctx, actor, id, RestoreFileVersionInput{
+			Version: 1, BaseRevision: created.Document.Revision, IdempotencyKey: util.NewID(),
+		})
+		return map[string]error{"upload": upErr, "commit": commitErr, "restore": restoreErr}
+	}
+	live := restricted(t, "admin-live.pdf")
+	liveStaged := env.upload(t, manager, live.Document.ID, "admin-live-v2.pdf", pdfBody("admin-live-v2"))
+	t.Run("AdminScope only on a live restricted file: 403 document_restricted", func(t *testing.T) {
+		for route, err := range saveRoutes(t, admin, live, liveStaged.UploadID) {
+			var ce CodedError
+			if !errors.Is(err, ErrDocumentRestricted) || !errors.As(err, &ce) || ce.Status != 403 || ce.Fields["can_break_glass"] != true {
+				t.Fatalf("%s = %v (%+v), want 403 document_restricted with can_break_glass", route, err, ce)
+			}
+		}
+	})
+	t.Run("no read level and no AdminScope on a live restricted file: 404", func(t *testing.T) {
+		for route, err := range saveRoutes(t, stranger, live, liveStaged.UploadID) {
+			if !errors.Is(err, ErrNotFound) || errors.Is(err, ErrDocumentRestricted) {
+				t.Fatalf("%s = %v, want not_found", route, err)
+			}
+		}
+	})
+	t.Run("AdminScope only on an archived restricted file: 404 not_found", func(t *testing.T) {
+		gone := restricted(t, "admin-archived.pdf")
+		staged := env.upload(t, manager, gone.Document.ID, "admin-archived-v2.pdf", pdfBody("admin-archived-v2"))
+		_, err := env.svc.ArchiveDocument(ctx, manager, gone.Document.ID, ArchiveDocumentInput{})
+		mustf(t, err, "archive file")
+		for route, err := range saveRoutes(t, admin, gone, staged.UploadID) {
+			if !errors.Is(err, ErrNotFound) || errors.Is(err, ErrDocumentRestricted) {
+				t.Fatalf("%s = %v, want not_found", route, err)
+			}
+		}
+	})
 }
 
 // TestArchivedSaveRecheckInTransaction proves the in-transaction gate of
