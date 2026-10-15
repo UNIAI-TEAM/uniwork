@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; pnpm install --frozen-lockfile >/dev/null 2>&1; echo "INSTALL_EXIT=$?"
+3cfda31feab873f0ef2a69e70cd17c3f2f7f8e15
+3cfda31fe fix(office): holdout credits a formula at a cell only for an item that expects a formula
+c39b48b9e docs(office): holdout README quotes the frame tool-table counts of genoffice-tools §3
+219aae582 chore: merge the G5-G7 root (07ad36ec4) into G7-12
+07ad36ec4 chore: merge UNI-1643 document access report (9a36185df) into the G5-G7 root
+9a36185df chore: merge G5-G7 root 2950fce8d into the UNI-1643 access report
+c11b4cbee docs(office): holdout README describes the edit-scoring rules of G712-16
+INSTALL_EXIT=0
