@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { blockedCase, caseResult, runResult } from "./app-cases-lib.mjs";
 import {
-  crashTargets, guardCaseResult, harnessDownReason, harnessPidsFromFile, ownGroupTarget, parsePsTable, serverShutdownOf,
+  crashTargets, guardCaseResult, harnessDownReason, harnessPidsFromFile, ownGroupTarget, parsePsTable, seedBehindGuard, serverShutdownOf,
 } from "./app-process-guard.mjs";
 
 // pid ppid pgid. 500 = the runner (group 400, under dbus-run-session 400).
@@ -157,4 +157,26 @@ test("FIX-6-2: a BLOCKED downgrade leaves no predicted tag at the case level or 
   assert.equal(guardCaseResult(complete, "down"), complete);
   assert.equal(guardCaseResult(fq40, null).exits[0].predicted, "OQ-F11");
   assert.equal(guardCaseResult(fq40, null).predicted, "OQ-F11");
+});
+
+const DOWN = "harness server down (killed at unknown?): /healthz: fetch failed";
+
+test("FIX-6-4: a server already dead before seeding gives the guard's reason and never calls seed", async () => {
+  let seeded = 0;
+  const out = await seedBehindGuard({ probe: async () => DOWN, seed: async () => { seeded += 1; return {}; } });
+  assert.deepEqual(out, { downReason: DOWN });
+  assert.equal(seeded, 0);
+  // and that reason turns every ready row into a BLOCKED case with it
+  const blocked = blockedCase(ROW, out.downReason);
+  assert.equal(blocked.result, "BLOCKED");
+  assert.equal(blocked.blocker.includes("harness server down"), true);
+});
+
+test("FIX-6-4: a failing seed against a server that died meanwhile is BLOCKED; with the server up it is rethrown", async () => {
+  const dies = [null, DOWN];
+  const died = await seedBehindGuard({ probe: async () => dies.shift(), seed: async () => { throw new Error("fetch failed"); } });
+  assert.deepEqual(died, { downReason: DOWN });
+  await assert.rejects(seedBehindGuard({ probe: async () => null, seed: async () => { throw new Error("signup refused"); } }), /signup refused/);
+  const tenant = { owner: "o" };
+  assert.deepEqual(await seedBehindGuard({ probe: async () => null, seed: async () => tenant }), { tenant });
 });

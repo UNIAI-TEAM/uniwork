@@ -108,3 +108,22 @@ export function guardCaseResult(result, downReason, { complete = true } = {}) {
   const exits = Array.isArray(result.exits) ? result.exits.map(({ predicted: exitPredicted, ...exit }) => exit) : null;
   return { ...rest, ...(exits ? { exits } : {}), result: "BLOCKED", blocker: result.blocker ? `${downReason}; ${result.blocker}` : downReason, resultBeforeBlock: result.result };
 }
+
+/**
+ * The seeding step behind the guard (review r2b FIX-6-4): `{downReason}` when the
+ * harness server is already down before seeding, or goes down while seeding
+ * fails, so every row is BLOCKED with the same reason instead of `runAppCases`
+ * rejecting; `{tenant}` otherwise. A seeding failure with the server still up is
+ * a real error and is rethrown. `probe` is the harness guard (null while up).
+ */
+export async function seedBehindGuard({ probe, seed }) {
+  const before = await probe();
+  if (before) return { downReason: before };
+  try {
+    return { tenant: await seed() };
+  } catch (error) {
+    const after = await probe();
+    if (after) return { downReason: after };
+    throw error;
+  }
+}

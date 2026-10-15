@@ -31,7 +31,7 @@ import {
   BLOCKED_EXIT_CODE, appTraceArtifacts, blockedAfterFailure, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
   noServerReason, parseTraceText, predictedFor, runEvidenceOf, runExitCode, runResult, selectAppCases,
 } from "./app-cases-lib.mjs";
-import { guardCaseResult, harnessDownReason } from "./app-process-guard.mjs";
+import { guardCaseResult, harnessDownReason, seedBehindGuard } from "./app-process-guard.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
   clearSyncWrite, createFileDocument, enrollTotp, errorText, freshToken, grantPlatformAdmin, login, runnerApiOrigin, seedAppTenant, setSyncWrite,
@@ -300,7 +300,17 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
   const proxy = await startFaultProxy({ target: runnerApi, port: 0, logFile: join(runDir, "logs", "fault-app-proxy.jsonl") });
   process.stdout.write(`APP_RUNNER api=${runnerApi} app_api=${proxy.origin} proxy_upstream=${runnerApi}\n`);
   try {
-    const tenant = await seedAppTenant(runnerApi, { verificationCode: serverEnv.DEV_VERIFICATION_CODE || "123456" });
+    // review r2b FIX-6-4: a server already dead at seeding is BLOCKED rows with the guard's reason, not a rejection
+    const seeded = await seedBehindGuard({
+      probe: () => harnessDown(runnerApi, runDir),
+      seed: () => seedAppTenant(runnerApi, { verificationCode: serverEnv.DEV_VERIFICATION_CODE || "123456" }),
+    });
+    if (seeded.downReason) {
+      const results = runnable.map((row) => finishCase(row, blockedCase(row, seeded.downReason), join(runDir, "fault", row.id), runDir, forkSha));
+      process.stdout.write(`HARNESS_DOWN before seeding: ${seeded.downReason}; no app row runs\n`);
+      return { results, blockedResults, exitCode: runExitCode(results) };
+    }
+    const { tenant } = seeded;
     let admin;
     const shared = {
       ports, proxy, tenant, playwright, runDir, fixtures: loadFixtures(), databaseUrl: serverEnv.DATABASE_URL || "",
