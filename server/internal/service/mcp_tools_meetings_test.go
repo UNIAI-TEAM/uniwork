@@ -88,9 +88,10 @@ func TestMcpListMeetingsValidatesInput(t *testing.T) {
 			t.Errorf("%s: %v, want invalid arguments with %q", name, err, tc.want)
 		}
 	}
-	// 92 days exactly is the longest range.
-	exact := time.Now().Add(92 * 24 * time.Hour).UTC().Format(time.RFC3339)
-	if _, err := callMcpTool(t, x.tools, x.p, "list_meetings", `{"workspace_id":"`+ws+`","from":"`+from+`","to":"`+exact+`"}`); err != nil {
+	// 92 days exactly is the longest range; both ends come from one reading of
+	// the clock, so a tick between two readings cannot make it 92 days and a second.
+	start := time.Now()
+	if _, err := callMcpTool(t, x.tools, x.p, "list_meetings", `{"workspace_id":"`+ws+`","from":"`+start.UTC().Format(time.RFC3339)+`","to":"`+start.Add(mcpMaxRange).UTC().Format(time.RFC3339)+`"}`); err != nil {
 		t.Errorf("92 days: %v", err)
 	}
 	// The schema offers the statuses the tool accepts.
@@ -146,17 +147,28 @@ func TestMcpListMeetingsOrderStatusAndHost(t *testing.T) {
 			t.Errorf("status %s = %v, want %v", c.status, got, c.want)
 		}
 	}
-	// A missed meeting still reads SCHEDULED, as the tool description says.
-	for _, m := range x.meetingList(t, from, to, `"status":"MISSED"`).Meetings {
-		if m.Status != MeetingScheduled {
-			t.Errorf("missed meeting %s has status %s, want %s", m.Title, m.Status, MeetingScheduled)
+	// The status of a row is the one its filter selects: a scheduled meeting
+	// whose time passed reads MISSED, listed with or without a filter and by
+	// get_meeting; a cancelled one reads CANCELED. The services keep SCHEDULED.
+	for title, want := range map[string]string{"Sớm": MeetingScheduled, "Sau": MeetingScheduled, "Đã hủy": MeetingCanceled, "Hai ngày trước": mcpMeetingMissed, "Ba ngày trước": mcpMeetingMissed} {
+		for _, m := range all.Meetings {
+			if m.Title == title && m.Status != want {
+				t.Errorf("%s has status %s, want %s", title, m.Status, want)
+			}
 		}
 	}
-	// A cancelled meeting shows as CANCELED when no status asks otherwise.
-	for _, m := range all.Meetings {
-		if (m.Title == "Đã hủy") != (m.Status == MeetingCanceled) {
-			t.Errorf("%s has status %s", m.Title, m.Status)
+	for _, status := range []string{MeetingScheduled, mcpMeetingMissed} {
+		for _, m := range x.meetingList(t, from, to, `"status":"`+status+`"`).Meetings {
+			if m.Status != status {
+				t.Errorf("a row of the %s filter reads %s: %s", status, m.Status, m.Title)
+			}
 		}
+	}
+	if got, err := x.tools.GetMeeting(ctx, x.p, x.w.ID, old2.ID); err != nil || got.Status != mcpMeetingMissed {
+		t.Errorf("get_meeting of a missed meeting = %q (%v), want %s", got.Status, err, mcpMeetingMissed)
+	}
+	if stored, err := x.tools.ask.meetings.Get(ctx, x.ua.ID, old2.ID); err != nil || stored.Status != MeetingScheduled {
+		t.Errorf("stored status of the missed meeting = %q (%v), want %s", stored.Status, err, MeetingScheduled)
 	}
 	// hosted_by_me keeps the principal's own; the other host's is not theirs.
 	mine := x.meetingList(t, from, to, `"hosted_by_me":true`)
@@ -316,7 +328,8 @@ func TestMcpMeetingLookupStaysInTheGrantAndTheWorkspace(t *testing.T) {
 	if !errors.Is(unknown, ErrNotFound) {
 		t.Fatalf("unknown meeting: %v", unknown)
 	}
-	// Another workspace of the same grant, and a workspace outside it.
+	// A meeting of a workspace the person belongs to in another organization,
+	// and a workspace outside the grant.
 	if _, err := x.tools.meeting(ctx, x.p, x.w.ID, otherM.ID); !errors.Is(err, ErrNotFound) || err.Error() != unknown.Error() {
 		t.Errorf("meeting of another workspace: %v, want %v", err, unknown)
 	}
@@ -335,6 +348,51 @@ func TestMcpMeetingLookupStaysInTheGrantAndTheWorkspace(t *testing.T) {
 		if _, err := x.tools.GetMeeting(ctx, x.p, x.w.ID, id); !errors.As(err, &bad) {
 			t.Errorf("GetMeeting id %q: %v, want invalid arguments", id, err)
 		}
+	}
+}
+
+// The excerpt of get_meeting is the AI summary alone: the description has its
+// own field, so a long one neither repeats in the excerpt nor pushes the summary
+// out of it.
+func TestMcpGetMeetingExcerptIsTheSummaryAlone(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	long := strings.Repeat("ẹ", mcpMaxItemRunes)
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Họp dài", long)
+	bare := x.meeting(t, x.ua.ID, x.w.ID, "Họp trống", "mô tả riêng")
+	got, err := x.tools.GetMeeting(ctx, x.p, x.w.ID, bare.ID)
+	if err != nil || got.Excerpt != "" || deref(got.Description) != "mô tả riêng" {
+		t.Fatalf("no summary: excerpt %q, description %q (%v)", got.Excerpt, deref(got.Description), err)
+	}
+	summary := db.InsertMeetingSummaryParams{
+		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: "Giữ ngân sách", ActionItems: "Gửi biên bản",
+		Model: "fake", CreatedBy: x.ua.ID, OrganizationID: x.w.OrganizationID,
+	}
+	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, summary); err != nil {
+		t.Fatal(err)
+	}
+	got, err = x.tools.GetMeeting(ctx, x.p, x.w.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range []string{"Tóm tắt: Đã chốt OKR quý", "Quyết định: Giữ ngân sách", "Việc cần làm: Gửi biên bản"} {
+		if !strings.Contains(got.Excerpt, w) {
+			t.Errorf("excerpt does not hold %q: %.200s", w, got.Excerpt)
+		}
+	}
+	if strings.Contains(got.Excerpt, "ẹẹẹ") || deref(got.Description) != long || got.DescriptionTruncated {
+		t.Errorf("excerpt repeats the description, or the description changed: excerpt %d characters, description %d characters, truncated %v",
+			utf8.RuneCountInString(got.Excerpt), utf8.RuneCountInString(deref(got.Description)), got.DescriptionTruncated)
+	}
+	// A summary longer than the item limit is cut there, with the marker; the
+	// latest one is the one shown.
+	summary.ID, summary.Summary = util.NewID(), strings.Repeat("ạ", mcpMaxItemRunes+10)
+	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, summary); err != nil {
+		t.Fatal(err)
+	}
+	got, err = x.tools.GetMeeting(ctx, x.p, x.w.ID, m.ID)
+	if err != nil || utf8.RuneCountInString(got.Excerpt) != mcpMaxItemRunes || !strings.HasSuffix(got.Excerpt, mcpItemCut) {
+		t.Errorf("long summary: excerpt %d characters, ends %q (%v)", utf8.RuneCountInString(got.Excerpt), got.Excerpt[max(0, len(got.Excerpt)-30):], err)
 	}
 }
 

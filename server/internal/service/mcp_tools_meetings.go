@@ -30,7 +30,8 @@ type McpAttendee struct {
 // are only set by get_meeting: the description is the stored text, exact, cut
 // at mcpMaxItemRunes with DescriptionTruncated when longer, so a model edits
 // from the real text and not from the excerpt; the attendees stop at
-// mcpMaxList with AttendeesTruncated.
+// mcpMaxList with AttendeesTruncated. get_meeting's excerpt is the AI summary
+// alone; the description is not repeated in it.
 type McpMeeting struct {
 	McpItem
 	Revision             int64         `json:"revision"`
@@ -55,7 +56,8 @@ const (
 	mcpMaxRange = 92 * 24 * time.Hour
 
 	// mcpMeetingMissed is a scheduled meeting whose time passed without it
-	// starting. Only a list filter knows it; the service stores SCHEDULED.
+	// starting. The service stores SCHEDULED; the list filter and meetingOf
+	// know it as MISSED.
 	mcpMeetingMissed = "MISSED"
 )
 
@@ -73,9 +75,17 @@ func mcpParseTime(field, v string) (time.Time, error) {
 	return t, nil
 }
 
+// meetingOf shows a meeting row. Its status is display-only, what the meetings
+// screen shows (displayMeetingStatus) and what the MISSED filter of
+// list_meetings selects: a scheduled meeting whose end has passed reads MISSED.
+// The services keep the stored SCHEDULED, and no tool writes this value.
 func (s *McpToolService) meetingOf(base string, m db.Meeting) McpMeeting {
+	status := m.Status
+	if status == MeetingScheduled && m.EndsAt.Valid && m.EndsAt.Time.Before(time.Now()) {
+		status = mcpMeetingMissed
+	}
 	out := McpMeeting{
-		McpItem:  McpItem{Kind: "meeting", ID: m.ID, WorkspaceID: m.WorkspaceID, Title: m.Title, Status: m.Status, URL: s.frontend + base + "/meetings/" + m.ID, Excerpt: capRunes(m.Description, mcpMaxHitRunes, mcpHitCut)},
+		McpItem:  McpItem{Kind: "meeting", ID: m.ID, WorkspaceID: m.WorkspaceID, Title: m.Title, Status: status, URL: s.frontend + base + "/meetings/" + m.ID, Excerpt: capRunes(m.Description, mcpMaxHitRunes, mcpHitCut)},
 		Revision: int64(m.Version), Timezone: m.Timezone, HostUserID: m.HostUserID, ProjectID: m.ProjectID.String,
 	}
 	if m.StartsAt.Valid {
@@ -125,14 +135,10 @@ func (s *McpToolService) attendees(ctx context.Context, p McpPrincipal, meetingI
 	return out, truncated, nil
 }
 
-// GetMeeting reads one meeting: its row, the summary Ask UNI's reader puts in
-// the excerpt, and its attendees. No transcript is read.
+// GetMeeting reads one meeting: its row, its attendees, and the AI summary in
+// the excerpt. No transcript is read.
 func (s *McpToolService) GetMeeting(ctx context.Context, p McpPrincipal, workspaceID, meetingID string) (McpMeeting, error) {
 	m, err := s.meeting(ctx, p, workspaceID, meetingID)
-	if err != nil {
-		return McpMeeting{}, err
-	}
-	item, err := s.one(ctx, p, workspaceID, m.ID, "meeting_id", s.ask.meetingContext)
 	if err != nil {
 		return McpMeeting{}, err
 	}
@@ -140,9 +146,18 @@ func (s *McpToolService) GetMeeting(ctx context.Context, p McpPrincipal, workspa
 	if err != nil {
 		return McpMeeting{}, err
 	}
-	// The row says everything but the excerpt, which carries the summary.
 	out := s.meetingOf(base, m)
-	out.Excerpt = item.Excerpt
+	// The description has a field of its own here, and Ask UNI's reader puts it
+	// before the summary, so a long one would push the summary out of the
+	// excerpt: the excerpt is the summary alone.
+	out.Excerpt = ""
+	sum, err := s.ask.meetings.Summary(ctx, p.UserID, m.ID)
+	if err != nil {
+		return McpMeeting{}, hidden(err)
+	}
+	if sum != nil {
+		out.Excerpt = capRunes("Tóm tắt: "+sum.Summary+"\nQuyết định: "+sum.Decisions+"\nViệc cần làm: "+sum.ActionItems, mcpMaxItemRunes, mcpItemCut)
+	}
 	desc := capRunes(m.Description, mcpMaxItemRunes, "")
 	out.Description, out.DescriptionTruncated = &desc, desc != m.Description
 	if out.Attendees, out.AttendeesTruncated, err = s.attendees(ctx, p, m.ID); err != nil {
@@ -199,11 +214,11 @@ func (s *McpToolService) ListMeetings(ctx context.Context, p McpPrincipal, in mc
 	return out, nil
 }
 
-var mcpSchemaListMeetings = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"from":{"type":"string","description":"ISO 8601 with a timezone offset, e.g. 2026-10-15T00:00:00+07:00."},"to":{"type":"string","description":"ISO 8601 with a timezone offset, after from and at most 92 days later."},"hosted_by_me":{"type":"boolean","description":"Only the meetings the user hosts."},"status":{"type":"string","enum":["SCHEDULED","IN_PROGRESS","ENDED","CANCELED","MISSED"],"description":"MISSED is a scheduled meeting whose time passed without it starting (its status still reads SCHEDULED); SCHEDULED is one that can still start. Omit for every status."}},"required":["workspace_id","from","to"],"additionalProperties":false}`)
+var mcpSchemaListMeetings = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"from":{"type":"string","description":"ISO 8601 with a timezone offset, e.g. 2026-10-15T00:00:00+07:00."},"to":{"type":"string","description":"ISO 8601 with a timezone offset, after from and at most 92 days later."},"hosted_by_me":{"type":"boolean","description":"Only the meetings the user hosts."},"status":{"type":"string","enum":["SCHEDULED","IN_PROGRESS","ENDED","CANCELED","MISSED"],"description":"MISSED is a scheduled meeting whose time passed without it starting, and its status reads MISSED; SCHEDULED is one that can still start. Omit for every status."}},"required":["workspace_id","from","to"],"additionalProperties":false}`)
 
 func mcpMeetingTools(s *McpToolService) []ai.Tool {
 	return []ai.Tool{
-		mcpReadTool("list_meetings", "List meetings", "Meetings of one workspace that start between from and to (ISO 8601 with a timezone offset, at most 92 days apart), each with its revision. Ordered like the meetings screen: those starting today (UTC) or later first, soonest first, then earlier days, most recent day first, each day by start time. Cancelled ones are included with status CANCELED unless status narrows the list; MISSED is a scheduled meeting whose time passed without it starting (its status still reads SCHEDULED). hosted_by_me keeps only the meetings the user hosts. At most "+strconv.Itoa(mcpMaxList)+"; truncated says more matched. Attendees come with get_meeting.", mcpSchemaListMeetings,
+		mcpReadTool("list_meetings", "List meetings", "Meetings of one workspace that start between from and to (ISO 8601 with a timezone offset, at most 92 days apart), each with its revision. Ordered like the meetings screen: those starting today (UTC) or later first, soonest first, then earlier days, most recent day first, each day by start time. Cancelled ones are included with status CANCELED unless status narrows the list; MISSED is a scheduled meeting whose time passed without it starting, and its status reads MISSED. hosted_by_me keeps only the meetings the user hosts. At most "+strconv.Itoa(mcpMaxList)+"; truncated says more matched, and then narrowing from and to shows the rest. Attendees come with get_meeting.", mcpSchemaListMeetings,
 			func(ctx context.Context, p McpPrincipal, in mcpListMeetingsIn) (any, error) {
 				return s.ListMeetings(ctx, p, in)
 			}),

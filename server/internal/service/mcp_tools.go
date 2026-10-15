@@ -360,7 +360,7 @@ func McpTools(s *McpToolService) ai.Registry {
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetTask(ctx, p, a.WorkspaceID, a.TaskID)
 			}),
-		tool("get_meeting", "Get meeting", "One meeting with its host, timezone, revision, description exactly as stored, attendees (name, role and status ACTIVE or REMOVED; no emails) and, when there is one, the AI summary with its decisions and action items. Transcripts are not included. description_truncated says the description was longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters and was cut; attendees_truncated says the meeting has more than "+strconv.Itoa(mcpMaxList)+" attendees and the first "+strconv.Itoa(mcpMaxList)+", in the order they were added, are listed.", mcpSchemaMeeting, []string{"workspace_id", "meeting_id"},
+		tool("get_meeting", "Get meeting", "One meeting with its host, timezone, revision, description exactly as stored, attendees (name, role and status ACTIVE or REMOVED; no emails) and, in excerpt when there is one, the AI summary with its decisions and action items. Its status reads MISSED for a scheduled meeting whose time passed without it starting. Transcripts are not included. description_truncated says the description was longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters and was cut; attendees_truncated says the meeting has more than "+strconv.Itoa(mcpMaxList)+" attendees and the first "+strconv.Itoa(mcpMaxList)+", in the order they were added, are listed.", mcpSchemaMeeting, []string{"workspace_id", "meeting_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetMeeting(ctx, p, a.WorkspaceID, a.MeetingID)
 			}),

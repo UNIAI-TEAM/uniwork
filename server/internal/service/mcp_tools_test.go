@@ -73,8 +73,8 @@ func TestMCPToolCatalogue(t *testing.T) {
 		"get_project":    {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count", "and status to narrow"},
 		"list_projects":  {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
 		"create_project": {"without a chat channel", "Everyone in the workspace", "No one is notified", "duplicate_project_title", strconv.Itoa(mcpMaxItemRunes), "its title stays taken"},
-		"list_meetings":  {"soonest first", "most recent day first", "CANCELED", "MISSED", "hosted_by_me", "truncated", "At most 50", "92 days"},
-		"get_meeting":    {"attendees", "revision", "attendees_truncated", "no emails", "description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "Transcripts are not included"},
+		"list_meetings":  {"soonest first", "most recent day first", "CANCELED", "MISSED", "hosted_by_me", "truncated", "At most 50", "92 days", "narrowing from and to"},
+		"get_meeting":    {"attendees", "revision", "attendees_truncated", "no emails", "description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "Transcripts are not included", "in excerpt", "MISSED"},
 		"update_project": {"revision_conflict", "creator", "lead", "workspace owner or admin", "not_project_editor", "No one is notified", "too long", strconv.Itoa(mcpMaxItemRunes), "led by an agent", "cannot be undone here"},
 	} {
 		tool, _ := r.Get(name)
@@ -1124,7 +1124,13 @@ func TestMcpExcerptsAreCapped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkCut("get_meeting", meetingItem.Excerpt, 16000, "Trạng thái:")
+	// A meeting's excerpt is its summary alone and the description is its own
+	// field, cut at the same limit with the flag; a long summary is cut like
+	// any item (TestMcpGetMeetingExcerptIsTheSummaryAlone).
+	if meetingItem.Excerpt != "" || deref(meetingItem.Description) != strings.Repeat("ố", 16000) || !meetingItem.DescriptionTruncated {
+		t.Errorf("get_meeting of a long meeting: excerpt %d characters, description %d characters, truncated %v; want no excerpt, the first 16000 and the flag",
+			utf8.RuneCountInString(meetingItem.Excerpt), utf8.RuneCountInString(deref(meetingItem.Description)), meetingItem.DescriptionTruncated)
+	}
 
 	// Short items are returned whole, with no marker.
 	whole, err := x.tools.GetTask(ctx, x.p, x.w.ID, x.taskID)
