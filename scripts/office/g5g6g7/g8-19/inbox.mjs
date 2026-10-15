@@ -33,6 +33,8 @@ import { DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, isMainModule } from "../harness/l
 import { connectApp as realConnectApp, editorKindOfFormat, editorKindOfUrl } from "../harness/app.mjs";
 import { loadPlaywrightChromium } from "../harness/app-steps.mjs";
 import * as realWeb from "../harness/web.mjs";
+import { apiErrorText } from "../harness/api.mjs";
+import { anchorForFixture } from "./anchors.mjs";
 import { rowMain } from "./run-row.mjs";
 
 export const DEFAULT_POLL_MS = 500;
@@ -225,7 +227,7 @@ export function pollOpts(deps) {
 /** A user's notification rows (GET /me/notifications); throws on a non-200 (an app failure). */
 export async function notificationsOf(world, userKey) {
   const res = await world.session(userKey).call("listNotifications");
-  if (res.status !== 200) throw new Error(`GET /me/notifications as ${userKey} answered ${res.status}${res.error ? ` (${res.error})` : ""}`);
+  if (res.status !== 200) throw new Error(`GET /me/notifications as ${userKey} answered ${apiErrorText(res)}`);
   return res.body?.notifications ?? [];
 }
 
@@ -240,15 +242,30 @@ export async function waitForRows(world, userKey, documentId, commentId, deps) {
 
 export async function unreadTotal(world, userKey) {
   const res = await world.session(userKey).call("unreadNotificationCount");
-  if (res.status !== 200) throw new Error(`unread-count as ${userKey} answered ${res.status}`);
+  if (res.status !== 200) throw new Error(`unread-count as ${userKey} answered ${apiErrorText(res)}`);
   return Number(res.body?.total);
 }
 
-/** Creates a comment over REST as `userKey`; resolves the comment id. */
-export async function createCommentRest(world, userKey, documentId, body, extra = {}) {
-  const res = await world.session(userKey).call("createDocumentComment", { documentID: documentId }, { body, kind: "comment", ...extra });
+/**
+ * The anchor half of a root kind=comment for `fixture`: the anchor the desktop
+ * editor writes (anchors.mjs anchorForFixture, the A01 plan) on `versionId`.
+ * D refuses a root kind=comment without both (service/document_comment_anchors.go:262-263).
+ */
+export function commentAnchor(repoRoot, fixture, versionId) {
+  if (!versionId) throw new Error("commentAnchor: the document's version id is required (base_version_id)");
+  return { anchor: anchorForFixture(fixture, { repoRoot, pdfPage: 1 }), base_version_id: versionId };
+}
+
+/**
+ * Creates a root kind=comment over REST as `userKey`; resolves the comment id.
+ * `anchored` is `commentAnchor(...)`: an anchorless root comment is a 400 on D,
+ * so it is refused here as a harness error before any request.
+ */
+export async function createCommentRest(world, userKey, documentId, body, anchored) {
+  if (!anchored?.anchor || !anchored?.base_version_id) throw new Error("createCommentRest: a root kind=comment needs anchor + base_version_id (commentAnchor)");
+  const res = await world.session(userKey).call("createDocumentComment", { documentID: documentId }, { body, kind: "comment", anchor: anchored.anchor, base_version_id: anchored.base_version_id });
   const id = res.body?.comment?.id;
-  if (res.status < 200 || res.status >= 300 || !id) throw new Error(`POST comments as ${userKey} answered ${res.status}${res.body?.error ? ` ${res.body.error}` : ""}`);
+  if (res.status < 200 || res.status >= 300 || !id) throw new Error(`POST comments as ${userKey} answered ${apiErrorText(res)}`);
   return id;
 }
 
@@ -258,7 +275,7 @@ export async function mintLaunchUrl(world, userKey, documentId, commentId) {
   if (commentId) body.comment_id = commentId;
   const res = await world.session(userKey).call("mintLaunch", { documentID: documentId }, body);
   const url = res.body?.launch_url;
-  if (res.status < 200 || res.status >= 300 || !url) throw new Error(`office/sessions as ${userKey} answered ${res.status}${res.body?.error ? ` ${res.body.error}` : ""}`);
+  if (res.status < 200 || res.status >= 300 || !url) throw new Error(`office/sessions as ${userKey} answered ${apiErrorText(res)}`);
   return url;
 }
 
@@ -429,7 +446,9 @@ async function runA05(ctx, d) {
 
     rec.sentBody = mentionBody(users, tag);
     const created = await ctx.step("desktop-create", async () => {
-      const reply = await bridge.create({ path: opened.path, kind: "comment", body: rec.sentBody });
+      // a root kind=comment carries the fixture's anchor on the uploaded version, as A01's
+      // desktop create does; without it the bridge answers malformed (fork comments-ipc.ts:270-276)
+      const reply = await bridge.create({ path: opened.path, kind: "comment", body: rec.sentBody, anchor: anchorForFixture(ctx.fixture, { repoRoot: d.repoRoot, pdfPage: 1 }), baseVersionId: doc.versionId });
       rec.created = reply?.ok ? { ok: true, commentId: reply.value?.comment?.id ?? null } : { ok: false, error: reply?.error ?? null };
       rec.commentId = rec.created.commentId ?? null;
       if (!rec.created.ok) throw new Error(`uniworkComments.create failed (${rec.created.error?.code ?? "no reply"})`);
@@ -480,8 +499,9 @@ async function runA06(ctx, d) {
     let plainId;
     let mentionId;
     const comments = await ctx.step("comments", async () => {
-      plainId = await createCommentRest(world, "A", doc.documentId, `Ghi chú không nhắc ai (G8-19 ${tag})`);
-      mentionId = await createCommentRest(world, "A", doc.documentId, mentionBody(users, tag));
+      const anchored = commentAnchor(d.repoRoot, ctx.fixture, doc.versionId);
+      plainId = await createCommentRest(world, "A", doc.documentId, `Ghi chú không nhắc ai (G8-19 ${tag})`, anchored);
+      mentionId = await createCommentRest(world, "A", doc.documentId, mentionBody(users, tag), anchored);
       return { details: { plainId, mentionId } };
     });
     if (comments.status !== "PASS") return {};

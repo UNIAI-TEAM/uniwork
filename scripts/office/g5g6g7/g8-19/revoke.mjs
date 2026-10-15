@@ -16,10 +16,12 @@
 //
 // deeplink.mjs runs these steps inside its G8-A07 run (revokeSteps), so the
 // cloud spec needs no separate revoke line; this CLI reruns them alone.
+import { apiErrorText } from "../harness/api.mjs";
 import { isMainModule } from "../harness/lib.mjs";
 import {
   closeAll,
   combineChecks,
+  commentAnchor,
   connectOrFail,
   createCommentRest,
   formatOf,
@@ -127,7 +129,7 @@ export async function revokeSteps(ctx, { world, d, ctrl, webPage, shared, archiv
       const row = (await waitForRows(world, "B", archive.documentId, archive.commentId, d))[0] ?? null;
       if (!row) throw new Error("B got no row on the document to archive");
       const res = await world.session("A").call("archiveDocument", { documentID: archive.documentId });
-      if (res.status < 200 || res.status >= 300) throw new Error(`archive answered ${res.status}`);
+      if (res.status < 200 || res.status >= 300) throw new Error(`archive answered ${apiErrorText(res)}`);
       const gone = await pollUntil(async () => {
         const n = rowsForComment(await notificationsOf(world, "B"), archive.documentId, archive.commentId)[0] ?? null;
         return { done: n?.resource_deleted === true, n };
@@ -155,9 +157,9 @@ export async function runRevoke(ctx, deps = {}) {
     const seed = await ctx.step("seed", async () => {
       const shared = await world.upload("A", "W1", ctx.fixture, { title: `G8-19 revoke ${tag}` });
       const { shareId } = await world.share("A", shared.documentId, users.B.id, "edit");
-      const commentId = await createCommentRest(world, "A", shared.documentId, mentionBody(users, tag));
+      const commentId = await createCommentRest(world, "A", shared.documentId, mentionBody(users, tag), commentAnchor(d.repoRoot, ctx.fixture, shared.versionId));
       const toArchive = await world.upload("A", "W2", ctx.fixture, { title: `G8-19 archive ${tag}` });
-      const archiveCommentId = await createCommentRest(world, "A", toArchive.documentId, mentionBody(users, `${tag}-archive`));
+      const archiveCommentId = await createCommentRest(world, "A", toArchive.documentId, mentionBody(users, `${tag}-archive`), commentAnchor(d.repoRoot, ctx.fixture, toArchive.versionId));
       Object.assign(seeded, { shared: { documentId: shared.documentId, shareId, commentId }, archive: { documentId: toArchive.documentId, commentId: archiveCommentId } });
       return { details: { shared: shared.documentId, archive: toArchive.documentId } };
     });
