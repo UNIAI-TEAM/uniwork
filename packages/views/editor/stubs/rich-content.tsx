@@ -9,7 +9,7 @@
  * the source string, so a sent comment showed `![…]` and `>` literally.
  */
 
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, type MouseEvent, type ReactNode } from "react";
 import { Markdown, isAllowedFileCardHref } from "@uniwork/ui/markdown";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useConfigStore } from "@uniwork/core/editor/config-store";
@@ -17,6 +17,11 @@ import type { Attachment as AttachmentRecord } from "@uniwork/core/types";
 import { Attachment as AttachmentRenderer } from "../attachment";
 import { AttachmentDownloadProvider } from "../attachment-download-context";
 import { preprocessMarkdown } from "../utils/preprocess";
+import { isInternalDocumentHref, openLink } from "../utils/link-handler";
+import { useEditorLinkContext } from "../editor-link-context";
+import { useEditorWorkspaceSlug } from "../workspace-slug";
+import { useAppOrigin } from "../use-app-origin";
+import { navigateWithFallback, useOptionalNavigation } from "@uniwork/views/navigation";
 
 export type RichContentDensity = "document" | "compact";
 export type RichContentPhase = "settled" | "streaming";
@@ -38,6 +43,31 @@ export function RichContent({
   [key: string]: unknown;
 }) {
   const cdnDomain = useConfigStore((s) => s.cdnDomain);
+  const linkContext = useEditorLinkContext();
+  const slug = useEditorWorkspaceSlug();
+  const appOrigin = useAppOrigin();
+  const navigation = useOptionalNavigation();
+  // Only a host that set an EditorLinkContext intercepts clicks, and only for
+  // internal document links (to tag them with their source). Every other link
+  // keeps the Markdown default (new tab), and so does a modified click.
+  const onUrlClick = useCallback(
+    (href: string, event?: MouseEvent) => {
+      const modified = !!event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0);
+      if (modified || !isInternalDocumentHref(href, appOrigin)) {
+        window.open(href, "_blank", "noopener,noreferrer");
+        return;
+      }
+      openLink(
+        href,
+        slug,
+        appOrigin,
+        "push",
+        (path, disposition) => navigateWithFallback(navigation, path, disposition),
+        linkContext,
+      );
+    },
+    [slug, appOrigin, navigation, linkContext],
+  );
   const source = typeof content === "string" ? content : "";
   const prepared = useMemo(
     () =>
@@ -56,6 +86,7 @@ export function RichContent({
         className,
       )}
       cdnDomain={cdnDomain || undefined}
+      onUrlClick={linkContext ? onUrlClick : undefined}
       renderImage={({ src, alt }) => (
         <AttachmentRenderer
           attachment={{

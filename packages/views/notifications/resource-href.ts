@@ -36,6 +36,8 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
       // A discussion post adds its kind: the tab to open when it is gone.
       const target = documentWorkspace(n, workspace, workspaces);
       const href = paths.workspace(target.organization_slug, target.slug).document(n.resource_id);
+      // A manager's request row lands on the share dialog's requests section (DOC-07).
+      if (n.kind === "document_access_requested") return `${href}?access=requests`;
       const commentId = n.params.comment_id;
       if (!commentId) return href;
       const query = new URLSearchParams({ comment: commentId });

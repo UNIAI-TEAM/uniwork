@@ -9,6 +9,11 @@ export {
   type TitleEditorRef,
   titleShortcutSubmitAllowed,
 } from "./title-editor";
+export {
+  EditorLinkProvider,
+  useEditorLinkContext,
+  type EditorLinkContext,
+} from "./editor-link-context";
 export { ReadonlyContent } from "./readonly-content";
 export { useFileDropZone } from "./use-file-drop-zone";
 export { useUploadGate, type UploadGate } from "./use-upload-gate";
