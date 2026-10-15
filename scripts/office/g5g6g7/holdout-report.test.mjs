@@ -16,7 +16,8 @@ import {
   distribution, evaluateThresholds, exitCodeOf, findFlaky, loadRuns, loadSession, parseReviews, parseThresholds, percentile, renderReport,
   summarizeRun, tupleConsistency,
 } from './holdout-report.mjs';
-import { MANIFEST_KIND, RUN_KIND, sha256Hex } from './holdout-run.mjs';
+import { DEFAULT_CASES_DIR, MANIFEST_KIND, RUN_KIND, caseSetSha256, sha256Hex } from './holdout-run.mjs';
+import { loadCases } from './holdout-score.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
@@ -269,7 +270,7 @@ describe('thresholds file', () => {
     assert.equal(size.status, 'INCONCLUSIVE');
   });
 
-  it('ships no thresholds file: the numbers of the G7-D1 draft are proposals until the user signs', () => {
+  it('ships exactly one thresholds file, the signed G7-D1 one (the draft numbers became the signed values on 2026-10-15)', () => {
     const found = [];
     const walk = (dir) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -278,7 +279,7 @@ describe('thresholds file', () => {
       }
     };
     for (const dir of ['docs/office', 'scripts/office']) walk(path.join(repoRoot, dir));
-    assert.deepEqual(found, []);
+    assert.deepEqual(found.map((f) => path.relative(repoRoot, f)), ['docs/office/g5g6g7/holdout/thresholds-G7-D1.json']);
   });
 });
 
@@ -601,7 +602,9 @@ describe('reviewer input (G712-4)', () => {
 
   it('keeps a rubric ask "awaiting reviewer" and a signed rate gate inconclusive when no review exists, even if the rate would hold', () => {
     const o = judge(null);
-    assert.equal(o.metrics.successRateOverall.verdict, 'pass', 'the rate of the deterministic asks alone clears the bar');
+    assert.equal(o.metrics.successRateOverall.verdict, 'inconclusive', 'the rate of the deterministic asks alone clears the bar, but the criterion depends on the reviewer cases (G7-D1 signed)');
+    assert.match(o.metrics.successRateOverall.reasons.join(' '), /still wait for a reviewer/);
+    assert.equal(o.metrics.leaks.verdict, 'pass', 'a criterion that no reviewer case feeds is judged');
     assert.equal(o.status, 'INCONCLUSIVE');
     assert.match(o.blockers.join(' '), /40 ask\(s\) still wait for a reviewer/);
     const md = renderReport(buildReport(runs(), { session: makeSession(runs()) }));
@@ -884,5 +887,140 @@ describe('exit codes (G712-12)', () => {
     assert.equal(inRepo.status, 4);
     assert.match(inRepo.stderr, /inside the repo/);
     assert.equal(fs.existsSync(path.join(repoRoot, 'docs/x')), false);
+  });
+});
+
+describe('the signed G7-D1 thresholds file', () => {
+  const file = path.join(repoRoot, 'docs/office/g5g6g7/holdout/thresholds-G7-D1.json');
+  const text = fs.readFileSync(file, 'utf8');
+  const doc = JSON.parse(text);
+
+  it('is accepted by parseThresholds and carries exactly the signed D1 values', () => {
+    assert.doesNotThrow(() => parseThresholds(doc));
+    assert.deepEqual(doc.thresholds, {
+      outsideAllowlistCases: { max: 0 }, numericPassRate: { min: 1 }, unauthorizedWrites: { max: 0 }, leaks: { max: 0 }, staleApplied: { max: 0 },
+      successRateOverall: { min: 0.95 }, successRateGroupMin: { min: 0.9 }, modelLatencyP50Ms: { max: 5000 }, modelLatencyP95Ms: { max: 12000 },
+    });
+    assert.equal(doc.minRuns, 3);
+    assert.equal(doc.aggregation, 'every_run');
+    assert.deepEqual(doc.signed, { date: '2026-10-15', by: 'G7-D1 signed by the user', source: 'decisions/G7-D1-signed.md' });
+    assert.equal(doc.signedBy, 'G7-D1 signed by the user');
+    assert.ok(Date.parse(doc.signedAt) >= Date.parse('2026-10-15T00:00:00+07:00'));
+  });
+
+  it('names the case set it was signed for, read at runtime, and holds no case content', () => {
+    const { cases } = loadCases(DEFAULT_CASES_DIR);
+    assert.equal(doc.caseCount, cases.length);
+    assert.equal(doc.caseSetSha256, caseSetSha256(cases), 'the case set changed after the signature: sign again');
+    assert.doesNotMatch(text, /HO-[A-Z]+-\d{3}/, 'no case id');
+    for (const c of cases) assert.ok(!text.includes(c.query.vi) && !text.includes(c.query.en), 'no case question');
+  });
+
+  it('gates the emulated stale-apply row never', () => {
+    assert.ok(parseThresholds(doc).thresholds.staleApplied);
+    const runs = [1, 2, 3].map((i) => run(i, bigSuite(), { caseSetSha256: doc.caseSetSha256 }));
+    const report = buildReport(runs, { thresholds: parseThresholds(doc), session: makeSession(runs, { caseSetSha256: doc.caseSetSha256 }) });
+    assert.equal(report.overall.metrics.staleApplied.verdict, 'not_gating');
+    assert.equal(report.overall.status, 'PASS', report.overall.blockers.join(' | '));
+  });
+});
+
+describe('verdict per criterion (G7-D1 signed)', () => {
+  const limits = { outsideAllowlistCases: { max: 0 }, unauthorizedWrites: { max: 0 }, leaks: { max: 0 }, numericPassRate: { min: 1 }, successRateOverall: { min: 0.95 }, successRateGroupMin: { min: 0.9 }, modelLatencyP50Ms: { max: 5000 }, modelLatencyP95Ms: { max: 12000 } };
+  const MODULES_OF = { xlsx: ['sheets'], docx: ['docs'], other: ['slides'], cross: ['sheets'] };
+  const withModules = (a) => ({ ...a, modules: MODULES_OF[a.group] });
+  const three = (over = (a) => a, config = {}) => [1, 2, 3].map((i) => run(i, bigSuite((a) => over(withModules(a))), { config }));
+  const judge = (runs, extra = {}) => buildReport(runs, { thresholds: signed(limits), session: makeSession(runs), ...extra }).overall;
+  const verdicts = (o) => Object.fromEntries(Object.entries(o.metrics).map(([k, m]) => [k, m.verdict]));
+  const nameOnlySurface = { ...SURFACE, slides: { ...SURFACE.slides, source: 'name-only' } };
+  const waiting = (a) => (a.group === 'docx' ? { ...a, status: 'needs_reviewer' } : a);
+
+  it('judges a criterion PASS while another stays "chưa kết luận" until a reviews file covers the reviewer cases', () => {
+    const o = judge(three(waiting));
+    assert.equal(verdicts(o).leaks, 'pass');
+    assert.equal(verdicts(o).outsideAllowlistCases, 'pass');
+    assert.equal(verdicts(o).numericPassRate, 'pass');
+    assert.equal(verdicts(o).modelLatencyP95Ms, 'pass');
+    assert.equal(verdicts(o).successRateOverall, 'inconclusive');
+    assert.equal(verdicts(o).successRateGroupMin, 'inconclusive');
+    assert.equal(o.status, 'INCONCLUSIVE');
+    assert.deepEqual(o.criteria, { pass: 6, fail: 0, inconclusive: 2, notGating: 0 });
+    const groups = Object.fromEntries(o.metrics.successRateGroupMin.groups.map((g) => [g.group, g.verdict]));
+    assert.deepEqual(groups, { xlsx: 'pass', docx: 'inconclusive', other: 'pass', cross: 'pass' }, 'only the group with reviewer cases is open');
+    const md = renderReport(buildReport(three(waiting), { thresholds: signed(limits), session: makeSession(three(waiting)) }));
+    assert.match(md, /\| successRateOverall \| ≥ 0\.95 \| [^|]+ \| chưa kết luận \| [^|]*wait for a reviewer/);
+    assert.match(md, /\| leaks \| ≤ 0 \| 0 \| PASS \|/);
+    assert.match(md, /↳ nhóm docx .* chưa kết luận/);
+    assert.match(md, /Tóm tắt: 6 PASS, 0 FAIL, 2 chưa kết luận, 0 không gate/);
+  });
+
+  it('turns the success criteria into PASS once a reviews file covers every reviewer case', () => {
+    const rs = three(waiting);
+    const reviews = parseReviews({ schemaVersion: 1, kind: REVIEWS_KIND, ...BOUND, reviews: bigSuite(waiting).filter((a) => a.status === 'needs_reviewer').map((a) => ({ id: a.id, lang: a.lang, verdict: 'pass', reviewer: 'QA reviewer', date: '2026-10-21' })) });
+    const o = judge(rs, { reviews });
+    assert.equal(o.status, 'PASS', o.blockers.join(' | '));
+    assert.ok(Object.values(verdicts(o)).every((v) => v === 'pass'));
+  });
+
+  it('makes a module with name-only schemas INCONCLUSIVE for its group and for the criteria its cases feed, and says why', () => {
+    const o = judge(three((a) => a, { toolSurface: nameOnlySurface }));
+    const groups = Object.fromEntries(o.metrics.successRateGroupMin.groups.map((g) => [g.group, g.verdict]));
+    assert.deepEqual(groups, { xlsx: 'pass', docx: 'pass', other: 'inconclusive', cross: 'pass' });
+    assert.match(o.metrics.successRateGroupMin.groups.find((g) => g.group === 'other').reasons.join(' '), /module\(s\) slides is name-only/);
+    assert.ok(Object.values(verdicts(o)).every((v) => v === 'inconclusive'), JSON.stringify(verdicts(o)));
+    assert.match(o.metrics.leaks.reasons.join(' '), /name-only \(no real schemas\)/);
+    assert.equal(o.status, 'INCONCLUSIVE');
+    const md = renderReport(buildReport(three((a) => a, { toolSurface: nameOnlySurface }), { thresholds: signed(limits), session: makeSession(three((a) => a, { toolSurface: nameOnlySurface })) }));
+    assert.match(md, /↳ nhóm other .* chưa kết luận .* name-only/);
+  });
+
+  it('does not let a name-only module that no case used block anything', () => {
+    const o = judge(three((a) => a, { toolSurface: { ...SURFACE, markdown: { ...SURFACE.markdown, source: 'name-only' } } }));
+    assert.equal(o.status, 'PASS', o.blockers.join(' | '));
+  });
+
+  it('taints only the groups that used the name-only module', () => {
+    const mixed = (a) => (a.group === 'cross' ? { ...a, modules: ['sheets', 'slides'] } : a);
+    const o = judge(three(mixed, { toolSurface: nameOnlySurface }));
+    const groups = Object.fromEntries(o.metrics.successRateGroupMin.groups.map((g) => [g.group, g.verdict]));
+    assert.deepEqual(groups, { xlsx: 'pass', docx: 'pass', other: 'inconclusive', cross: 'inconclusive' });
+  });
+
+  it('keeps a measured failure FAIL whatever else is open', () => {
+    const leaky = (a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, expects: { numeric: 0, writes: 0, mustNotContain: 1 }, checks: [{ id: 'must_not_contain:m', status: 'fail', detail: '' }], status: 'fail' } : a);
+    const o = judge(three((a) => waiting(leaky(a)), { toolSurface: nameOnlySurface }));
+    assert.equal(o.metrics.leaks.verdict, 'fail');
+    assert.equal(o.status, 'FAIL');
+  });
+
+  it('blocks only the latency criteria when a call has client-side latency only', () => {
+    const o = judge(three((a) => ({ ...a, calls: [{ step: 0, attempt: 0, status: 200, clientMs: 200 }] })));
+    assert.equal(verdicts(o).modelLatencyP50Ms, 'inconclusive');
+    assert.equal(verdicts(o).modelLatencyP95Ms, 'inconclusive');
+    assert.match(o.metrics.modelLatencyP50Ms.reasons.join(' '), /client-side latency only/);
+    assert.equal(verdicts(o).leaks, 'pass');
+    assert.equal(verdicts(o).successRateOverall, 'pass');
+    assert.equal(o.status, 'INCONCLUSIVE');
+  });
+
+  it('is never PASS while any criterion is not PASS', () => {
+    const scenarios = {
+      awaiting: three(waiting),
+      nameOnly: three((a) => a, { toolSurface: nameOnlySurface }),
+      clientLatency: three((a) => ({ ...a, calls: [{ step: 0, attempt: 0, status: 200, clientMs: 200 }] })),
+      readerError: three((a) => a, { usageReaderError: 'psql failed' }),
+      tooFewRuns: three().slice(0, 2),
+      tupleDrift: [run(1, bigSuite(withModules)), run(2, bigSuite(withModules)), run(3, bigSuite(withModules), { tuple: { ...TUPLE, resolvedModels: ['model-y'] } })],
+      allGood: three(),
+    };
+    for (const [name, runs] of Object.entries(scenarios)) {
+      const o = judge(runs);
+      const gating = Object.values(o.metrics).filter((m) => m.verdict !== 'not_gating');
+      if (gating.some((m) => m.verdict !== 'pass')) assert.notEqual(o.status, 'PASS', name);
+      if (o.status === 'PASS') assert.ok(gating.every((m) => m.verdict === 'pass'), name);
+    }
+    assert.equal(judge(scenarios.allGood).status, 'PASS');
+    for (const name of ['awaiting', 'nameOnly', 'clientLatency', 'readerError', 'tooFewRuns', 'tupleDrift']) assert.notEqual(judge(scenarios[name]).status, 'PASS', name);
+    assert.equal(exitCodeOf({ overall: judge(scenarios.awaiting) }), EXIT.inconclusive);
   });
 });

@@ -210,7 +210,7 @@ async function callFacade({ transport, mount, remount, headers, body, step, reco
 export async function askOne({ caseDoc, lang, transport, session, catalogue, opts }) {
   const started = performance.now();
   const record = {
-    id: caseDoc.id, lang, format: caseDoc.format, group: groupOf(caseDoc), category: caseDoc.category,
+    id: caseDoc.id, lang, format: caseDoc.format, group: groupOf(caseDoc), modules: modulesOfCase(caseDoc), category: caseDoc.category,
     oracleType: caseDoc.oracle.type, calls: [], toolCalls: [], dropped: [],
     expects: { numeric: caseDoc.expected.numeric.length, writes: caseDoc.expected.writes, mustNotContain: caseDoc.expected.mustNotContain.length },
     counts: { rateLimited: 0, serverErrors: 0, retries: 0, remounts: 0 }, modelTurns: 0, error: null,
@@ -349,7 +349,7 @@ async function askSafely({ caseDoc, lang, ...rest }) {
     const message = redactSecrets(`harness exception: ${String(err?.message ?? err).slice(0, 160)}`).text;
     const scored = score(caseDoc, null);
     return {
-      id: caseDoc.id, lang, format: caseDoc.format, group: groupOf(caseDoc), category: caseDoc.category, oracleType: caseDoc.oracle.type,
+      id: caseDoc.id, lang, format: caseDoc.format, group: groupOf(caseDoc), modules: modulesOfCase(caseDoc), category: caseDoc.category, oracleType: caseDoc.oracle.type,
       calls: [], toolCalls: [], dropped: [], writeLog: [], invalidArguments: [], denied: [], writes: 0, models: [], modelTurns: 0,
       expects: { numeric: caseDoc.expected.numeric.length, writes: caseDoc.expected.writes, mustNotContain: caseDoc.expected.mustNotContain.length },
       counts: { rateLimited: 0, serverErrors: 0, retries: 0, remounts: 0 }, tokens: { input: 0, output: 0, source: 'none' },

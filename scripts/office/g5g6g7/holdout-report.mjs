@@ -8,11 +8,13 @@
 //
 // Without --thresholds the overall status is ALWAYS "chưa có ngưỡng" (no threshold): the numbers are shown, no metric
 // gets a verdict and the words PASS/FAIL do not appear (G7-D1 decision D5). A verdict exists only with a signed
-// thresholds file, and then the rule is "every run must pass" (the worst run decides, never the best). The verdict is
-// INCONCLUSIVE, never PASS, unless the run set is complete and consistent (exactly the runs of one invocation, each
-// complete over the whole case set), the release tuple is known and unchanged, the measurement policy is the default
-// and the same in every run, no tool surface is name-only, nothing was redacted, every latency is the gateway's own and
-// no ask still waits for a reviewer.
+// thresholds file, and then the rule is "every run must pass" (the worst run decides, never the best).
+// Verdicts are per criterion (G7-D1 signed): a criterion is PASS only where its own run set is complete and known and its
+// inputs are reviewed, and is otherwise "chưa kết luận" with the reason: the run set and release tuple, the measurement
+// policy, redactions and the case set concern every criterion; reviewer cases concern the two success rates (and each group
+// of the group minimum); a name-only tool surface concerns the criteria its cases feed (and names the groups it taints);
+// client-side latency and a failed usage reader concern the latency criteria. A measured failure stays FAIL. The overall
+// status is PASS only if every gating criterion is PASS, otherwise FAIL when one failed, otherwise INCONCLUSIVE.
 //
 // Exit codes: 0 signed PASS, 1 signed FAIL, 2 INCONCLUSIVE, 3 no threshold (no verdict), 4 usage or read error.
 
@@ -377,8 +379,23 @@ export function checkRunSet(runs, session = null) {
 }
 
 /** Facts and problems about HOW the runs were measured; a problem blocks a signed verdict. */
+// Without a recorded module list (an older run file) an ask's modules follow its group; a cross ask can use any module.
+const MODULE_GROUP = { sheets: 'xlsx', docs: 'docx', slides: 'other', pdf: 'other', markdown: 'other', html: 'other' };
+const modulesOfAsk = (ask) => ask.modules ?? (ask.group === 'cross' ? Object.keys(MODULE_GROUP) : Object.keys(MODULE_GROUP).filter((m) => MODULE_GROUP[m] === ask.group));
+
+/** The groups with at least one ask that used one of the (name-only) modules. */
+export function nameOnlyGroups(runs, modules) {
+  if (modules.length === 0) return [];
+  const hit = new Set();
+  for (const run of runs) for (const ask of run.asks) if (modulesOfAsk(ask).some((m) => modules.includes(m))) hit.add(ask.group);
+  return GROUPS.filter((g) => hit.has(g));
+}
+
 export function measurementConditions(runs, summaries) {
-  const problems = [];
+  // Each problem carries the criteria it blocks (G7-D1 signed, per-criterion verdicts): `all` blocks every criterion, `latency`
+  // only the two latency ones; a name-only module is kept apart because it blocks by group.
+  const scoped = { all: [], latency: [] };
+  const problems = { push: (text) => scoped.all.push(text) };
   const footer = sha256Hex(reportingFooter());
   const field = (get) => new Set(runs.map((r) => JSON.stringify(get(r) ?? null)));
   const policyKeys = ['threads', 'answerProtocol', 'numbers', 'anchors', 'computeByReply', 'maxRetries', 'footerSha256', 'toolSurfaceSha256'];
@@ -407,18 +424,19 @@ export function measurementConditions(runs, summaries) {
   if (unknownParts.size > 0) problems.push(`the release tuple has unknown part(s): ${[...unknownParts].join(', ')}`);
   if (runs.some((r) => (r.tuple?.providers ?? []).includes('fake'))) problems.push('the provider is "fake": a plumbing run, not a measurement of a model');
   const clientCalls = summaries.reduce((n, s) => n + s.latency.source.client, 0);
-  if (clientCalls > 0) problems.push(`${clientCalls} model call(s) have client-side latency only (no gateway latency_ms row); D1 defines latency on the gateway value`);
+  if (clientCalls > 0) scoped.latency.push(`${clientCalls} model call(s) have client-side latency only (no gateway latency_ms row); D1 defines latency on the gateway value`);
   const readerErrors = runs.filter((r) => r.config?.usageReaderError).map((r) => r.runIndex);
-  if (readerErrors.length > 0) problems.push(`the usage reader failed in run(s) ${readerErrors.join(', ')}`);
+  if (readerErrors.length > 0) scoped.latency.push(`the usage reader failed in run(s) ${readerErrors.join(', ')}`);
   const surface = runs[0]?.config?.toolSurface;
+  let nameOnly = [];
   if (!surface) problems.push('the tool surface was not recorded');
   else {
-    const hollow = Object.entries(surface).filter(([, v]) => v.source === 'name-only').map(([m]) => m);
-    if (hollow.length > 0) problems.push(`the tool surface of module(s) ${hollow.join(', ')} is name-only (no real schemas)`);
+    nameOnly = Object.entries(surface).filter(([, v]) => v.source === 'name-only').map(([m]) => m);
   }
   const flagged = runs.filter((r) => (r.redactions ?? []).length > 0 || r.asks.some((a) => (a.redactions ?? []).length > 0));
   if (flagged.length > 0) problems.push(`secret-looking values were redacted in run(s) ${flagged.map((r) => r.runIndex).join(', ')}; a flagged run cannot count as a pass`);
-  return { problems, footerSha256: footer, policy: { threads: c.threads, numbers: c.numbers ?? 'strict', anchors: c.anchors ?? 'strict', computeByReply: c.computeByReply, maxRetries: c.maxRetries, answerProtocol: c.answerProtocol }, toolSurface: surface ?? null, harness: c.harness ?? null };
+  const nameOnlyText = nameOnlyGroups(runs, nameOnly).length > 0 ? `the tool surface of module(s) ${nameOnly.join(', ')} is name-only (no real schemas): the criteria its cases feed (${nameOnlyGroups(runs, nameOnly).join(', ')}) cannot be judged` : null;
+  return { problems: [...scoped.all, ...scoped.latency, ...(nameOnlyText ? [nameOnlyText] : [])], scoped: { ...scoped, nameOnly: { modules: nameOnly, groups: nameOnlyGroups(runs, nameOnly), text: nameOnlyText } }, footerSha256: footer, policy: { threads: c.threads, numbers: c.numbers ?? 'strict', anchors: c.anchors ?? 'strict', computeByReply: c.computeByReply, maxRetries: c.maxRetries, answerProtocol: c.answerProtocol }, toolSurface: surface ?? null, harness: c.harness ?? null };
 }
 
 // ---- thresholds ----
@@ -476,36 +494,80 @@ function metricValue(key, s) {
 
 const holds = (comparator, value, limit) => (comparator === 'max' ? value <= limit : value >= limit);
 
+// Which blockers reach which criterion (G7-D1 signed: a verdict only where that criterion has a complete, known, reviewed run set).
+// Everything else blocks every criterion; a name-only module blocks every criterion its cases feed (all of them, since each
+// case-level count and every latency turn includes them) and names the groups it taints.
+const CRITERION_SCOPE = { modelLatencyP50Ms: 'latency', modelLatencyP95Ms: 'latency', successRateOverall: 'reviewer', successRateGroupMin: 'reviewer' };
+
+/** One group of the group-min criterion: the worst run's rate against the limit, with what blocks a verdict for this group alone. */
+function groupVerdict(group, summaries, limit, { reasons, nameOnly, awaiting }) {
+  const all = summaries.map((s) => s.byGroup[group]);
+  const perRun = all.filter((t) => t.total > 0);
+  if (perRun.length === 0) return null;
+  const worst = Math.min(...perRun.map((t) => t.rate));
+  const rescued = perRun.every((t) => t.rateIfReviewed >= limit);
+  const blocked = [...reasons, ...(perRun.length < all.length ? [`the group has no asks in ${all.length - perRun.length} run(s)`] : []), ...(nameOnly.groups.includes(group) ? [nameOnly.text] : []), ...(awaiting.has(group) ? [`${awaiting.get(group)} ask(s) of this group still wait for a reviewer`] : [])];
+  if (worst >= limit && blocked.length === 0) return { group, worst, verdict: 'pass', reasons: [] };
+  if (!rescued && worst < limit) return { group, worst, verdict: 'fail', reasons: [] };
+  return { group, worst, verdict: 'inconclusive', reasons: worst >= limit ? blocked : [...blocked, 'only passes if every case awaiting a reviewer is confirmed'] };
+}
+
 /**
- * Verdict per gated metric: the WORST run is judged; a rate that only a reviewer case can rescue is "inconclusive".
- * `blockers` (run set, tuple, conditions, awaiting reviewers, too few runs) can only turn a PASS into INCONCLUSIVE.
+ * Verdict per criterion (a gated metric): the WORST run is judged. A criterion is PASS only when it holds in every run AND
+ * nothing that reaches it is open (the run set, tuple and conditions, the reviewers for the success rates, real schemas, gateway
+ * latency for the latency rows); otherwise it is inconclusive ("chưa kết luận"). A measured failure stays FAIL whatever else is
+ * open: a failure that even a reviewer's pass could not undo is not made unknown by missing paperwork. The overall status is
+ * PASS only if every gating criterion is PASS.
+ * `scoped` = { latency: [], reviewer: [], nameOnly: { groups, text }, awaiting: Map(group -> asks) }; `extraBlockers` reach every criterion.
  */
-export function evaluateThresholds(summaries, thresholds, { completeRuns, tuple, extraBlockers = [] }) {
+export function evaluateThresholds(summaries, thresholds, { completeRuns, tuple, extraBlockers = [], scoped = {} }) {
+  const everyCriterion = [...extraBlockers];
+  if (completeRuns < thresholds.minRuns) everyCriterion.push(`only ${completeRuns} complete run(s), the signed file needs ${thresholds.minRuns}`);
+  if (!tuple.consistent) everyCriterion.push(`the release tuple changed between runs (${tuple.differing.join(', ')})`);
+  const nameOnly = { groups: scoped.nameOnly?.groups ?? [], text: scoped.nameOnly?.text ?? null };
+  const awaiting = scoped.awaiting ?? new Map();
   const metrics = {};
   for (const [key, spec] of Object.entries(thresholds.thresholds)) {
     const comparator = THRESHOLD_KEYS[key];
     const limit = spec[comparator];
+    const perRun = summaries.map((s) => ({ runIndex: s.runIndex, ...metricValue(key, s) }));
     if (NON_GATING[key]) {
-      metrics[key] = { comparator, limit, perRun: summaries.map((s) => ({ runIndex: s.runIndex, ...metricValue(key, s) })), verdict: 'not_gating', reason: NON_GATING[key] };
+      metrics[key] = { comparator, limit, perRun, verdict: 'not_gating', reason: NON_GATING[key] };
       continue;
     }
-    const perRun = summaries.map((s) => ({ runIndex: s.runIndex, ...metricValue(key, s) }));
+    const reasons = [...everyCriterion, ...(scoped[CRITERION_SCOPE[key]] ?? []), ...(nameOnly.text ? [nameOnly.text] : [])];
     if (perRun.some((r) => r.value === null || Number.isNaN(r.value))) {
-      metrics[key] = { comparator, limit, perRun, verdict: 'inconclusive', reason: 'no measurement for this metric in at least one run' };
+      metrics[key] = { comparator, limit, perRun, verdict: 'inconclusive', reason: 'no measurement for this metric in at least one run', reasons: [...reasons, 'no measurement for this metric in at least one run'] };
       continue;
     }
     const worst = comparator === 'max' ? Math.max(...perRun.map((r) => r.value)) : Math.min(...perRun.map((r) => r.value));
     const okAll = perRun.every((r) => holds(comparator, r.value, limit));
     const rescued = !okAll && perRun.every((r) => holds(comparator, r.optimistic ?? r.value, limit));
-    metrics[key] = { comparator, limit, worst, perRun, verdict: okAll ? 'pass' : rescued ? 'inconclusive' : 'fail', reason: rescued ? 'only passes if every case awaiting a reviewer is confirmed' : null };
+    const entry = { comparator, limit, worst, perRun };
+    if (key === 'successRateGroupMin') {
+      const groups = GROUPS.map((g) => groupVerdict(g, summaries, limit, { reasons: everyCriterion, nameOnly, awaiting })).filter(Boolean);
+      entry.groups = groups;
+      entry.verdict = groups.some((g) => g.verdict === 'fail') ? 'fail' : groups.every((g) => g.verdict === 'pass') && reasons.length === 0 ? 'pass' : 'inconclusive';
+      entry.reasons = entry.verdict === 'inconclusive' ? [...new Set([...reasons, ...groups.flatMap((g) => g.reasons)])] : [];
+    } else if (!okAll && !rescued) {
+      entry.verdict = 'fail';
+      entry.reasons = [];
+    } else if (okAll && reasons.length === 0) {
+      entry.verdict = 'pass';
+      entry.reasons = [];
+    } else {
+      entry.verdict = 'inconclusive';
+      entry.reasons = okAll ? reasons : [...reasons, 'only passes if every case awaiting a reviewer is confirmed'];
+    }
+    entry.reason = entry.reasons.length > 0 ? entry.reasons.join('; ') : null;
+    metrics[key] = entry;
   }
-  const blockers = [...extraBlockers];
-  if (completeRuns < thresholds.minRuns) blockers.push(`only ${completeRuns} complete run(s), the signed file needs ${thresholds.minRuns}`);
-  if (!tuple.consistent) blockers.push(`the release tuple changed between runs (${tuple.differing.join(', ')})`);
   const verdicts = Object.values(metrics).map((m) => m.verdict).filter((v) => v !== 'not_gating');
+  const blockers = [...new Set([...everyCriterion, ...(scoped.latency ?? []), ...(scoped.reviewer ?? []), ...(nameOnly.text ? [nameOnly.text] : [])])];
   if (verdicts.length === 0) blockers.push('every metric of the signed file is non-gating: nothing can be judged');
-  const status = verdicts.includes('fail') ? 'FAIL' : blockers.length > 0 || verdicts.includes('inconclusive') ? 'INCONCLUSIVE' : 'PASS';
-  return { status, blockers, metrics, signedBy: thresholds.signedBy, signedAt: thresholds.signedAt };
+  const status = verdicts.includes('fail') ? 'FAIL' : verdicts.length > 0 && verdicts.every((v) => v === 'pass') ? 'PASS' : 'INCONCLUSIVE';
+  const count = (v) => Object.values(metrics).filter((m) => m.verdict === v).length;
+  return { status, blockers, metrics, criteria: { pass: count('pass'), fail: count('fail'), inconclusive: count('inconclusive'), notGating: count('not_gating') }, signedBy: thresholds.signedBy, signedAt: thresholds.signedAt };
 }
 
 // ---- report ----
@@ -561,14 +623,17 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
   };
   if (thresholds) {
     const adjusted = runs.map((r) => summarizeRun(r, flakyKeys));
-    const extraBlockers = [...runSet, ...conditions.problems];
+    const extraBlockers = [...runSet, ...conditions.scoped.all];
     const seen = session?.manifest && !session.manifest.unreadable ? session.manifest : runs[0];
     if (thresholds.caseSetSha256 !== seen?.caseSetSha256 || thresholds.caseCount !== seen?.caseCount) {
       extraBlockers.push(`the run set was made over a different case set than the one the thresholds were signed for (${seen?.caseCount ?? '?'} cases, sha256 ${String(seen?.caseSetSha256 ?? 'unknown').slice(0, 12)} vs signed ${thresholds.caseCount}, ${String(thresholds.caseSetSha256).slice(0, 12)})`);
     }
-    for (const reason of refusal) extraBlockers.push(`the reviews file was refused and applied to nothing: ${reason}`);
-    if (waiting.length > 0) extraBlockers.push(`${waiting.length} ask(s) still wait for a reviewer (no review for them in --reviews)`);
-    report.overall = evaluateThresholds(adjusted, thresholds, { completeRuns, tuple, extraBlockers });
+    const reviewerBlockers = refusal.map((reason) => `the reviews file was refused and applied to nothing: ${reason}`);
+    if (waiting.length > 0) reviewerBlockers.push(`${waiting.length} ask(s) still wait for a reviewer (no review for them in --reviews)`);
+    const awaitingByGroup = new Map();
+    for (const w of waiting) awaitingByGroup.set(w.group, (awaitingByGroup.get(w.group) ?? 0) + 1);
+    const scoped = { latency: conditions.scoped.latency, reviewer: reviewerBlockers, nameOnly: conditions.scoped.nameOnly, awaiting: awaitingByGroup };
+    report.overall = evaluateThresholds(adjusted, thresholds, { completeRuns, tuple, extraBlockers, scoped });
     report.flakyCountedAsFailed = flaky.length;
   } else {
     report.overall = { status: 'no_threshold', label: NO_THRESHOLD };
@@ -768,9 +833,18 @@ export function renderReport(report) {
     if (report.overall.blockers.length > 0) for (const b of report.overall.blockers) w(`- Chưa kết luận được: ${b}.`);
     if (report.flakyCountedAsFailed > 0) w(`- ${report.flakyCountedAsFailed} lượt hỏi không ổn định được tính là lệch ở mọi lần chạy.`);
     w();
-    w('| Chỉ số | Ngưỡng | Xấu nhất | Kết luận |');
-    w('| --- | --- | ---: | --- |');
-    for (const [key, m] of Object.entries(report.overall.metrics)) w(`| ${key} | ${m.comparator === 'max' ? '≤' : '≥'} ${m.limit} | ${num(m.worst)} | ${m.verdict === 'not_gating' ? 'KHÔNG GATE' : m.verdict.toUpperCase()}${m.reason ? ` (${m.reason})` : ''} |`);
+    w('Mỗi tiêu chí chỉ có PASS hoặc FAIL khi bộ lần chạy của riêng nó đầy đủ, đã biết và đã được duyệt; còn lại là **chưa kết luận** kèm lý do. Một lỗi đo được vẫn là FAIL. Dòng tổng chỉ PASS khi mọi tiêu chí là PASS.');
+    w();
+    w('| Tiêu chí | Ngưỡng | Xấu nhất | Kết luận | Lý do chưa kết luận |');
+    w('| --- | --- | ---: | --- | --- |');
+    const word = (v) => (v === 'not_gating' ? 'KHÔNG GATE' : v === 'inconclusive' ? 'chưa kết luận' : v.toUpperCase());
+    for (const [key, m] of Object.entries(report.overall.metrics)) {
+      w(`| ${key} | ${m.comparator === 'max' ? '≤' : '≥'} ${m.limit} | ${num(m.worst)} | ${word(m.verdict)} | ${(m.verdict === 'not_gating' ? m.reason : (m.reasons ?? []).join('; ')) || '-'} |`);
+      for (const g of m.groups ?? []) w(`| ↳ nhóm ${g.group} | ≥ ${m.limit} | ${num(g.worst)} | ${word(g.verdict)} | ${g.reasons.join('; ') || '-'} |`);
+    }
+    const c = report.overall.criteria;
+    w();
+    w(`Tóm tắt: ${c.pass} PASS, ${c.fail} FAIL, ${c.inconclusive} chưa kết luận, ${c.notGating} không gate.`);
   }
   return `${out.join('\n')}\n`;
 }
