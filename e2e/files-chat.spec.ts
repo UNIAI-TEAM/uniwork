@@ -269,7 +269,10 @@ test.describe.serial("chat file and voice messages", () => {
     await member.getByRole("menuitem", { name: "Nhắn tin với người mới" }).click();
     // The owner's display name comes from registerVerified("chat-owner").
     await member.getByLabel("Tên hoặc email").fill("chat-owner");
-    await member.getByRole("button", { name: /chat-owner/ }).first().click();
+    // Scoped to the start-DM dialog: the room behind it also has a button
+    // named after the owner (the sender's person-card avatar).
+    const startDm = member.getByRole("dialog").filter({ has: member.getByLabel("Tên hoặc email") });
+    await startDm.getByRole("button", { name: /chat-owner/ }).first().click();
 
     const dmComposer = member.getByPlaceholder("Nhập tin nhắn…");
     await expect(dmComposer).toBeVisible({ timeout: 20_000 });
