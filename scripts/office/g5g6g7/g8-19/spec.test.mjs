@@ -51,7 +51,7 @@ test("the spec is one command per line: a header, `; true` on every line but the
   for (const l of all.slice(1, -1)) assert.match(l, /; true$/, `ends with '; true': ${l.slice(0, 80)}`);
   const last = all.at(-1);
   assert.doesNotMatch(last, /; true$/);
-  assert.match(last, /awk '/);
+  assert.match(last, /awk (-v [a-z]+="[^"]*" )?'/);
   assert.match(last, /G819_ROUND_EXIT/);
   assert.match(last, /exit \$rc$/);
 });
@@ -155,7 +155,7 @@ function verdictAwk() {
   const last = lines().at(-1);
   const m = /awk((?: -v [a-z]+="[^"]*")*) '([^']*)'/.exec(last);
   assert.ok(m, "an awk program in the last line");
-  return { vars: [...m[1].matchAll(/ -v ([a-z]+="[^"]*")/g)].map((v) => v[1]), program: m[2] };
+  return { vars: [...m[1].matchAll(/ -v ([a-z]+)="([^"]*)"/g)].map((v) => `${v[1]}=${v[2]}`), program: m[2] };
 }
 function verdict(markers) {
   const dir = mkdtempSync(join(tmpdir(), "g819-awk-"));

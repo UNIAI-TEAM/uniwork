@@ -80,12 +80,12 @@ on that pin themselves.
 bash scripts/office/g5g6g7/g8-19/server-row.sh G8-A03 --dry-run   # prints what would run
 ```
 
-`G8-A03` service + handler comment tests and `./migrations`; `G8-A05` notification / service /
+`G8-A03` service + handler comment tests (kind, tombstone, revisions, list token, and the purge and copy tests, which start with `Document`, not `DocumentComment`: `TestDocumentCommentCollabTombstoneHTTP`, `TestDocumentCommentRevisionsTombstoneRefused`, `TestDocumentPurgeDropsTheCommentOrbit`, `TestDocumentCopyCarriesNoComments`) and `./migrations`; `G8-A05` notification / service /
 mentions; `G8-A06` notification; `G8-A08` isolation matrix, the audit coverage tests (`TestEveryAuditedCommandWritesItsRow`, `TestReusedAuditActionCommandsWriteTheirOwnRows`: `-run AuditCoverage` matches nothing) and the node
 events-catalogue / no-PII-log tests. A `go test` that matched no test, or a test named by `-run`
 that was SKIPped (no database on the VM), is a FAIL; nested `--- SKIP` lines are listed too.
 `server-row.test.mjs` also checks statically that every `-run` alternative of every row names a Test func
-of the package it runs. `scripts/local-env.sh` prints `STORAGE_BACKEND is unset` when the spec sources it
+of the package it runs; a grouped pattern such as `A(b|c)` is expanded first (`Ab`, `Ac`), so one dead alternative fails the unit suite. `scripts/local-env.sh` prints `STORAGE_BACKEND is unset` when the spec sources it
 before the row; the service and handler tests use their own fake storage, so it is noise, not a skip. The spec chains the inbox module after the
 server checks for A05 and A06 (`--then`), so each (row, fixture) has one ledger line.
 
@@ -101,8 +101,16 @@ verifies the ledger, collect lines, and the verdict awk last.
   G8-A01..A10; each is followed by `echo "G819_<row>_<fixture>_EXIT $?"` (`G819_SRV_<row>_<fixture>_EXIT`
   for the two server-only rows).
 - The round FAILS if UNIT, APT, FRAMES, START, STOP, VERIFY, KEYRING_EXEC or any `G819_SRV_*` marker is
-  not 0, if any other marker is not 0 or 77, or if UNIT, START or VERIFY never appeared. 77 needs a
+  not 0, if any other marker is not 0 or 77, or if any marker the round has to leave never appeared:
+  the verdict awk gets the expected list (the seven gates and one marker per declared (row, fixture))
+  in `-v expected=...`, and `spec.test.mjs` fails when that list and the matrix disagree. 77 needs a
   BLOCKED record with a blocker in the ledger, which `evidence.mjs verify` checks.
+- Credentials on the VM: `<runDir>/server.env` (`DATABASE_URL`, `REDIS_URL`) and
+  `<runDir>/server-cwd/**/.env` (a copy of the VM's `.env`) are written mode 0600 by `harness/lib.mjs`
+  and hold the VM's credentials. They must never be collected: no collect line names `server.env`,
+  `server-cwd` or an `.env` file, and the only env file read is `ports.env`, through the
+  key/secret/password/token filter (`spec.test.mjs` pins it). `ls -R $R` lists their names only.
+  Every glob loop of the collect lines guards its file with `[ -f "$f" ]`, so a missing log is silent.
 - The spec exports `OFFICE_FORK_SHA=7d665a54` (start.sh defaults to an older fork) and
   `G819_ALLOW_SQL_MEMBERSHIP=1`. `G819_DATABASE_URL` is read from the VM's `.env` inside the keyring
   session and is never printed. The world cache `g8-19-world.json` holds passwords and tokens (mode
