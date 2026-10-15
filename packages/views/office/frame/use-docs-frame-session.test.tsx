@@ -505,7 +505,7 @@ describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)"
   });
 
   it("commits with the held lock id", async () => {
-    const save = vi.fn(async () => ({ ok: true, file: FILE, versionId: "v2" }));
+    const save = vi.fn(async (_payload: unknown, _call: unknown) => ({ ok: true, file: FILE, versionId: "v2" }));
     const frame = setup({ editLock: lockOf(true), api: { save } as unknown as Partial<DocsFrameApi> });
     await frame.boot();
     expect(frame.hook.result.current.viewOnly).toBe(false);

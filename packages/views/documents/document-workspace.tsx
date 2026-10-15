@@ -5,19 +5,12 @@ import { ArrowLeft, Eye, FileExclamationPoint } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
-import { useDocumentSave, useUploadDocumentAsset } from "@uniwork/core/documents/hooks";
+import { useUploadDocumentAsset } from "@uniwork/core/documents/hooks";
 import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
 import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { QuietPreferenceToast } from "../layout/preference-toast";
@@ -27,7 +20,14 @@ import { Notice } from "../common/notice";
 import { leaveGuardAllows, registerLeaveGuard, useNavigation } from "../navigation";
 import type { DocumentAssetUploader } from "./document-asset-upload";
 import { DocumentCommentsHeaderActions } from "./document-comments-context";
-import { DocumentConflictDialog } from "./conflict-dialog";
+import { DocumentConflictDialog, DocumentLockLostDialog } from "./conflict-dialog";
+import { DocumentEditLockBanner } from "./document-edit-lock-banner";
+import { DocumentLeaveDialog } from "./document-leave-dialog";
+import { EditLockHolderChip } from "./edit-lock-holder-chip";
+import { EditRequestPrompt } from "./edit-request-prompt";
+import { FrameEditLockContext } from "../office/frame/frame-edit-lock";
+import { TakeOverDialog } from "./take-over-dialog";
+import { useDocumentEditLockUi } from "./use-document-edit-lock-ui";
 import type { DocumentEditorHandle } from "./document-editor";
 import { DocumentFileView, useDocumentOfficeGate, usesOfficeEditor } from "./document-file-view";
 import { DocumentSaveIndicator } from "./document-save-indicator";
@@ -97,10 +97,6 @@ export function DocumentWorkspace({
 }: DocumentWorkspaceProps) {
   const { t } = useTranslation();
   const { push } = useNavigation();
-  const save = useDocumentSave(wsId, doc.id, doc.revision);
-  const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
-  const state = save.state as DocumentSaveState;
-
   // One live gate for the layout and the file view: a pending leave guard keeps both on the editor (R3).
   const officeGate = useDocumentOfficeGate(doc);
   const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(doc, officeGate.editorOpen, Boolean(officeEditorHost));
@@ -108,6 +104,14 @@ export function DocumentWorkspace({
   const editorRef = useRef<DocumentEditorHandle>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [pageTitle, setPageTitle] = useState(doc.title);
+  // The edit lock (UNI-1645) owns the save machine: every gated write carries the held id.
+  const unsavedRef = useRef<() => boolean>(() => false);
+  const checkUnsaved = useCallback(() => unsavedRef.current(), []);
+  const editLock = useDocumentEditLockUi({ wsId, doc, canEdit, active: doc.kind === "page" || officeEditorMounted,
+    hasUnsavedWork: checkUnsaved, refetch, editorRef, title: doc.kind === "page" ? pageTitle : doc.title });
+  const { save, editable } = editLock;
+  const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
+  const state = save.state as DocumentSaveState;
   const metadataRef = useRef<DocumentPageMetadataHandle>(null);
   const [metadataStatus, setMetadataStatus] = useState<DocumentPageMetadataStatus>({ dirty: false, pending: false, failed: false });
   const metadataStatusRef = useRef(metadataStatus);
@@ -151,6 +155,7 @@ export function DocumentWorkspace({
     () => stateRef.current.dirty || bodyQueuedRef.current || pendingUploadsRef.current > 0 || Boolean(metadataRef.current?.hasUnsavedWork()),
     [],
   );
+  unsavedRef.current = hasUnsavedWork;
 
   // The machine stops on a stale base; the dialog is the only way forward.
   useEffect(() => {
@@ -481,6 +486,8 @@ export function DocumentWorkspace({
             {/* An embedded Office editor's save + desktop cluster comes first. */}
             <HeaderActionsSlot />
             {doc.kind === "page" && canEdit && !recoveryNotice ? saveIndicator : null}
+            {editLock.acquiringSlow ? <Spinner label={t("documents.editLock.acquiring")} /> : null}
+            {editLock.holder ? <EditLockHolderChip name={editLock.holder.holder_name} avatarUrl={editLock.holder.holder_avatar_url} /> : null}
             {/* A file's view-only state is announced once, by the banner below with its explanation;
                 a page keeps the chip where that banner is hidden (a phone). */}
             {!canEdit && doc.kind === "page" ? (
@@ -507,6 +514,7 @@ export function DocumentWorkspace({
           {saveIndicator}
         </Notice>
       ) : null}
+      {canEdit ? <DocumentEditLockBanner {...editLock.banner} /> : null}
 
       <div
         className={
@@ -519,7 +527,8 @@ export function DocumentWorkspace({
       >
         {doc.kind === "page" ? (
           <div className="mx-auto w-full min-w-0 max-w-3xl">
-            <DocumentPageHeader wsId={wsId} doc={doc} editable={canEdit} titleRef={titleRef} metadataRef={metadataRef}
+            {editLock.prompt ? <EditRequestPrompt {...editLock.prompt} /> : null}
+            <DocumentPageHeader wsId={wsId} doc={doc} editable={editable} titleRef={titleRef} metadataRef={metadataRef}
               onTitleChange={setPageTitle} onFocusBody={() => editorRef.current?.focus("start")}
               canPersist={!dirty && state.phase !== "saving" && pendingUploads === 0}
               getRevision={() => stateRef.current.revision}
@@ -542,7 +551,7 @@ export function DocumentWorkspace({
                 content={doc.content}
                 contentRevision={doc.revision}
                 dirty={dirty}
-                editable={canEdit}
+                editable={editable}
                 onChange={handleChange}
                 onUploadAsset={uploader}
                 onAssetError={handleAssetError}
@@ -553,13 +562,16 @@ export function DocumentWorkspace({
               />
             </div>
           </Suspense>
-          {canEdit ? <Button type="button" variant="ghost" tabIndex={-1}
+          {editable ? <Button type="button" variant="ghost" tabIndex={-1}
             className="mt-4 h-32 w-full cursor-text hover:bg-transparent" aria-label={t("documents.page_ui.focus_end")}
             onClick={() => editorRef.current?.focus("end")}><span className="sr-only">{t("documents.page_ui.focus_end")}</span></Button> : null}
           </div>
         ) : (
-          <DocumentFileView wsId={wsId} doc={doc} readonly={!canEdit} officeEditorHost={officeEditorHost}
-            officeGate={officeGate} permissionNoticeShown />
+          <FrameEditLockContext.Provider value={editLock.frameEditLock}>
+            {editLock.prompt ? <div className="pt-4"><EditRequestPrompt {...editLock.prompt} /></div> : null}
+            <DocumentFileView wsId={wsId} doc={doc} readonly={!canEdit} officeEditorHost={officeEditorHost}
+              officeGate={officeGate} permissionNoticeShown />
+          </FrameEditLockContext.Provider>
         )}
       </div>
 
@@ -584,29 +596,10 @@ export function DocumentWorkspace({
         onLoadServer={loadServer}
       />
 
-      <Dialog open={leaveOpen} onOpenChange={(next) => (!next && !leavePending ? finishLeave(false) : undefined)}>
-        <DialogContent className="sm:max-w-md" showCloseButton={!leavePending} closeLabel={t("common.close")}>
-          <DialogHeader>
-            <DialogTitle>{t("documents.leave.title")}</DialogTitle>
-            <DialogDescription>{t("documents.leave.description")}</DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center gap-2 text-caption text-muted-foreground">
-            <FileExclamationPoint aria-hidden className="size-4" />
-            {leaveCaption}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={leavePending} onClick={() => finishLeave(false)}>
-              {t("documents.leave.stay")}
-            </Button>
-            <Button type="button" variant="ghost" disabled={leavePending} onClick={() => finishLeave(true)}>
-              {t("documents.leave.discard")}
-            </Button>
-            <Button type="button" disabled={leavePending} aria-busy={leavePending || undefined} onClick={saveThenLeave}>
-              {leavePending ? t("documents.leave.waiting") : t("documents.leave.save_and_leave")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DocumentLeaveDialog open={leaveOpen} pending={leavePending} caption={leaveCaption}
+        onStay={() => finishLeave(false)} onDiscard={() => finishLeave(true)} onSaveAndLeave={saveThenLeave} />
+      <TakeOverDialog {...editLock.takeOverDialog} />
+      <DocumentLockLostDialog {...editLock.lostDialog} />
     </div>
     </HeaderActionsSlotProvider>
   );

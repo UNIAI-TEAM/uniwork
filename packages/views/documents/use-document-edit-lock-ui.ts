@@ -1,0 +1,274 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { ApiError } from "@uniwork/core/api";
+import { useDocumentEditLock } from "@uniwork/core/documents/hooks-edit-lock";
+import { useDocumentSave } from "@uniwork/core/documents/hooks";
+import { documentKeys } from "@uniwork/core/documents/keys";
+import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
+import type { Document } from "@uniwork/core/types/document";
+import { useNavigation } from "../navigation";
+import type { FrameEditLock } from "../office/frame/frame-edit-lock";
+import type { DocumentEditorHandle } from "./document-editor";
+import { downloadPageCopy } from "./edit-lock-copy";
+import { editLockBannerView } from "./edit-lock-view-model";
+
+/**
+ * The lost-lock reason a 423 on a write implies (addendum §11.1, rule 2):
+ * the same user elsewhere moved it here, anyone else took it over.
+ */
+function lostFrom423(fields: Record<string, unknown> | undefined): { reason: string; by: { id: string; name: string } | null } {
+  if (fields?.held_by_me === true) return { reason: "moved_here", by: null };
+  const id = typeof fields?.holder_id === "string" ? fields.holder_id : "";
+  const name = typeof fields?.holder_name === "string" ? fields.holder_name : "";
+  return { reason: "taken_over", by: id ? { id, name } : null };
+}
+
+/** A save that ended without landing: nothing is handed over. */
+const FAILED_SAVE = new Set(["error", "unverifiable", "conflict", "locked"]);
+
+export interface UseDocumentEditLockUiOptions {
+  wsId: string;
+  doc: Document;
+  /** my_level is edit or manage. */
+  canEdit: boolean;
+  /** The editor that takes the lock is on screen: the page, or the mounted Office frame. */
+  active: boolean;
+  /** Bytes the server has not acknowledged (the page's own definition, uploads included). */
+  hasUnsavedWork: () => boolean;
+  refetch: () => Promise<{ data?: Document | null; isError?: boolean }>;
+  editorRef: RefObject<DocumentEditorHandle | null>;
+  /** The title the page shows now (the downloaded copy is named after it). */
+  title: string;
+}
+
+/**
+ * The document page's side of the edit lock (UNI-1645, addendum §9, §11.3):
+ * the lock and the save machine together (every gated write carries the held
+ * id; a 423 ends the hold; holding it again restarts autosave), and the state
+ * the banner, the take-over dialog, the lost dialog, the holder's request
+ * prompt and the Office frame read.
+ */
+export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWork, refetch, editorRef, title }: UseDocumentEditLockUiOptions) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { searchParams } = useNavigation();
+  const page = doc.kind === "page";
+  const baseRef = useRef(doc.revision);
+  // After an expiry while away: take the lock back only if the server is still at the editor's base.
+  const canReclaim = useCallback(async () => {
+    const fresh = await refetch();
+    return !fresh.isError && fresh.data?.revision === baseRef.current;
+  }, [refetch]);
+  const lock = useDocumentEditLock(wsId, doc.id, { canEdit: canEdit && active, client: page ? "web_page" : "web_office", canReclaim });
+  const save = useDocumentSave(wsId, doc.id, doc.revision, { editLockId: lock.editLockId });
+  const saveState = save.state as DocumentSaveState;
+  baseRef.current = saveState.revision;
+  const { phase, lostReason, lostBy } = lock.state;
+  const r1 = lock.lockState.data;
+
+  // A gated write answered 423 while this editor held the lock: end the hold like any lost lock.
+  useEffect(() => {
+    if (saveState.phase !== "locked" || phase !== "mine") return;
+    const lost = lostFrom423(saveState.errorFields);
+    lock.markLost(lost.reason, lost.by);
+  }, [saveState.phase, saveState.errorFields, phase, lock]);
+  // Holding it again (edit now, edit here, a handover): the kept draft goes out after the quiet window.
+  useEffect(() => {
+    if (phase === "mine" && saveState.phase === "locked") save.lockRestored();
+  }, [phase, saveState.phase, save]);
+
+  /* ---- lost with unsaved changes: the dialog (page only; the frame keeps its drafts) ---- */
+  const [lostOpen, setLostOpen] = useState(false);
+  const prevPhase = useRef(phase);
+  useEffect(() => {
+    const was = prevPhase.current;
+    prevPhase.current = phase;
+    if (phase !== "lost" || was === "lost") return;
+    if (page && lostReason !== "session_revoked" && hasUnsavedWork()) setLostOpen(true);
+  }, [phase, lostReason, page, hasUnsavedWork]);
+
+  const loadLatest = useCallback(async () => {
+    save.discardDraft();
+    const fresh = await refetch();
+    const next = fresh.data ?? doc;
+    editorRef.current?.adoptContent(next.content, next.revision);
+    save.updateBase(next.revision, next);
+  }, [save, refetch, doc, editorRef]);
+
+  const lostDialog = {
+    open: lostOpen,
+    onOpenChange: setLostOpen,
+    reason: lostReason,
+    byName: lostBy?.name ?? "",
+    onDownload: () => {
+      const name = title || t("documents.detail.untitled");
+      downloadPageCopy(editorRef.current?.getHTML() ?? "", name, t("documents.editLock.myCopyName", { title: name }));
+      setLostOpen(false);
+    },
+    onReload: () => {
+      setLostOpen(false);
+      void loadLatest();
+    },
+  };
+
+  /* ---- the request this user sent: declined/expired, rate limit; a handover lands here ---- */
+  const [notReleased, setNotReleased] = useState(false);
+  const [rateLimitedMinutes, setRateLimitedMinutes] = useState<number | null>(null);
+  const sentRequest = useRef<string | null>(null);
+  const lastHolder = useRef("");
+  useEffect(() => {
+    if (!r1) return;
+    if (r1.lock && !r1.lock.held_by_me) lastHolder.current = r1.lock.holder_name;
+    if (r1.my_request?.status === "pending") {
+      sentRequest.current = r1.my_request.request_id;
+      setNotReleased(false);
+      return;
+    }
+    // The pending request is gone while someone else still holds it: declined, or it ran out.
+    if (sentRequest.current && r1.lock && !r1.lock.held_by_me) setNotReleased(true);
+    if (!r1.lock || r1.lock.held_by_me) setNotReleased(false);
+    sentRequest.current = null;
+  }, [r1]);
+  useEffect(() => {
+    if (rateLimitedMinutes === null) return;
+    const timer = setTimeout(() => setRateLimitedMinutes(null), rateLimitedMinutes * 60_000);
+    return () => clearTimeout(timer);
+  }, [rateLimitedMinutes]);
+  const grantedVia = lock.state.lock?.granted_via;
+  useEffect(() => {
+    if (phase === "mine" && grantedVia === "handover") {
+      toast.success(t("documents.editLock.handedToYou", { name: lastHolder.current || t("documents.editLock.lostSomeone") }));
+    }
+  }, [phase, grantedVia, t]);
+
+  const invalidate = useCallback(() => qc.invalidateQueries({ queryKey: documentKeys.editLock(wsId, doc.id) }), [qc, wsId, doc.id]);
+  const [busy, setBusy] = useState(false);
+  const run = (work: () => Promise<unknown>) => {
+    setBusy(true);
+    void work().finally(() => setBusy(false));
+  };
+  const onRequest = () =>
+    run(() =>
+      lock.requestEdit.mutateAsync().catch((err: unknown) => {
+        if (err instanceof ApiError && err.code === "edit_request_rate_limited") {
+          const seconds = Number(err.fields?.retry_after_s);
+          setRateLimitedMinutes(Math.max(1, Math.ceil((Number.isFinite(seconds) ? seconds : 60) / 60)));
+        } else if (!(err instanceof ApiError && err.code === "edit_lock_free")) {
+          toast.error(t("documents.editLock.requestFailed"));
+        }
+      }),
+    );
+  const onCancelRequest = (requestId: string) => {
+    sentRequest.current = null;
+    run(() => lock.cancelRequest.mutateAsync(requestId).catch(() => toast.error(t("documents.editLock.requestFailed"))));
+  };
+  // "Edit now": a newer server copy is loaded before the editor turns editable (addendum §9).
+  const onEditNow = () =>
+    run(async () => {
+      if (page && !hasUnsavedWork()) {
+        const fresh = await refetch();
+        if (fresh.data && !fresh.isError && fresh.data.revision !== saveState.revision) {
+          editorRef.current?.adoptContent(fresh.data.content, fresh.data.revision);
+          save.updateBase(fresh.data.revision, fresh.data);
+        }
+      }
+      await lock.acquire();
+    });
+  const onEditHere = () => run(() => lock.moveHere());
+
+  const [takeOverOpen, setTakeOverOpen] = useState(false);
+  const takeOverDialog = {
+    open: takeOverOpen,
+    onOpenChange: setTakeOverOpen,
+    lock: r1?.lock ?? null,
+    onConfirm: (expected: string) => lock.takeOver.mutateAsync(expected),
+    onReread: () => void invalidate(),
+  };
+
+  /* ---- a request to this holder: the prompt, opened again by ?edit_request=<id> ---- */
+  const linked = searchParams.get("edit_request");
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    if (linked) setDismissed((now) => (now.has(linked) ? new Set([...now].filter((id) => id !== linked)) : now));
+  }, [linked]);
+  const incoming = phase === "mine" ? (r1?.pending_requests ?? []).filter((req) => req.status === "pending" && !dismissed.has(req.request_id)) : [];
+  const request = incoming.find((req) => req.request_id === linked) ?? incoming[0] ?? null;
+  const [accepting, setAccepting] = useState<string | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const answer = useCallback(
+    (requestId: string, decision: "accept" | "decline") =>
+      lock.answerRequest.mutateAsync({ requestId, decision }).then(
+        () => setDismissed((now) => new Set(now).add(requestId)),
+        () => toast.error(t("documents.editLock.requestFailed")),
+      ),
+    [lock.answerRequest, t],
+  );
+  // "Save and hand over": hand over only once the save landed; a failed save hands nothing over.
+  useEffect(() => {
+    if (!accepting) return;
+    if (FAILED_SAVE.has(saveState.phase)) {
+      setAccepting(null);
+      setSaveFailed(true);
+      return;
+    }
+    if (saveState.phase === "saving" || saveState.phase === "debouncing" || (page && hasUnsavedWork())) return;
+    const requestId = accepting;
+    setAccepting(null);
+    void answer(requestId, "accept");
+  }, [accepting, saveState.phase, page, hasUnsavedWork, answer]);
+  const prompt = request
+    ? {
+        requesterName: request.requester_name,
+        pending: accepting !== null || lock.answerRequest.isPending,
+        saveFailed,
+        focusOnMount: request.request_id === linked,
+        onAccept: () => {
+          setSaveFailed(false);
+          // A frame saves through its own Save; the page only flushes its own editor.
+          if (page && hasUnsavedWork()) save.flush();
+          setAccepting(request.request_id);
+        },
+        onDecline: () => void answer(request.request_id, "decline"),
+        onDismiss: () => setDismissed((now) => new Set(now).add(request.request_id)),
+      }
+    : null;
+
+  const markLost = lock.markLost;
+  const frameEditLock = useMemo<FrameEditLock>(
+    () => ({
+      held: phase === "mine",
+      lockId: lock.editLockId,
+      onLocked: (fields) => {
+        const lost = lostFrom423(fields);
+        markLost(lost.reason, lost.by);
+      },
+    }),
+    [phase, lock.editLockId, markLost],
+  );
+
+  return {
+    save,
+    /** Only the holder may type; acquiring blocks input without saying "read-only" (§9 FE-8). */
+    editable: canEdit && phase === "mine",
+    acquiringSlow: phase === "acquiring" && lock.state.slow,
+    /** Someone else holds it: the header names them. */
+    holder: r1?.lock && !(phase === "mine" && r1.lock.held_by_me) ? r1.lock : null,
+    banner: {
+      view: editLockBannerView({ session: lock.state, lockState: r1, showLost: !page, notReleased, rateLimitedMinutes }),
+      pending: busy,
+      onTakeOver: () => setTakeOverOpen(true),
+      onRequest,
+      onCancelRequest,
+      onEditHere,
+      onEditNow,
+    },
+    takeOverDialog,
+    lostDialog,
+    prompt,
+    frameEditLock,
+  };
+}
