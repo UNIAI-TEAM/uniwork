@@ -101,9 +101,9 @@ const PDF_ANCHOR_PAGE = 2;
  * - docx block 2 (the first body paragraph), path/start/end/quote/prefix/suffix
  *   (fork apps/docs/src/renderer/server-comments/anchor-codec.ts:26-36,97-120);
  * - pptx the second slide by its p:sldId (fork apps/slides/src/renderer/server-comments.ts:37-50,67-81);
- * - pdf page 2 of the deck the pdf prepare plan builds (fork apps/pdf/src/renderer/server-comments/pdf-anchor.ts:23-50).
+ * - pdf page 2 of the deck the pdf prepare plan builds, or `pdfPage` (fork apps/pdf/src/renderer/server-comments/pdf-anchor.ts:23-50).
  */
-export function anchorForFixture(fixtureId, { repoRoot, bytes = null } = {}) {
+export function anchorForFixture(fixtureId, { repoRoot, bytes = null, pdfPage = PDF_ANCHOR_PAGE } = {}) {
   const format = FIXTURE_FORMAT[fixtureId];
   const read = () => bytes ?? loadVerifiedFixture(fixtureId, repoRoot).bytes;
   if (format === "xlsx") return { ...B7_ANCHOR };
@@ -120,7 +120,7 @@ export function anchorForFixture(fixtureId, { repoRoot, bytes = null } = {}) {
     if (ids.length < 2) throw new Error("pptx fixture needs two slides");
     return { format: "pptx", v: 1, slide_id: ids[1], slide_index: 1 };
   }
-  if (format === "pdf") return { format: "pdf", v: 1, page: PDF_ANCHOR_PAGE, rect: [72, 700, 96, 724] };
+  if (format === "pdf") return { format: "pdf", v: 1, page: pdfPage, rect: [72, 700, 96, 724] };
   throw new Error(`no anchor plan for fixture ${fixtureId}`);
 }
 
