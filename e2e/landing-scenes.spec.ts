@@ -1,12 +1,12 @@
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 test("original UNI artwork and face stay unchanged while the foreleg waves", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const character = page.locator('[data-scene="character"]');
   await character.scrollIntoViewIfNeeded();
@@ -57,7 +57,7 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "
   test(`mascot expression and native scene handoff: ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    await page.goto("/");
+    await gotoLanding(page, "/");
     await landingReady(page);
     const character = page.locator('[data-scene="character"]');
     await character.scrollIntoViewIfNeeded();
@@ -102,7 +102,7 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "
 
 test("missing original artwork leaves the shared mark without removed controls", async ({ page }) => {
   await page.route("**/uni-horse-v2.webp", route => route.abort());
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const character = page.locator('[data-scene="character"]');
   await character.scrollIntoViewIfNeeded();
@@ -115,7 +115,7 @@ test("missing original artwork leaves the shared mark without removed controls",
 
 test("shirt mark and artwork share coordinates before and after resize", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#nhan-su-ai");
+  await gotoLanding(page, "/#nhan-su-ai");
   await landingReady(page);
   const character = page.locator('[data-scene="character"]');
   const portrait = character.locator(".mascot-portrait");

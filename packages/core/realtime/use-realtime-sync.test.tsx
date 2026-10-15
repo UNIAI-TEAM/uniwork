@@ -127,6 +127,37 @@ describe("useRealtimeSync", () => {
     );
   });
 
+  it("refreshes the workspace list and every open workspace on workspace.updated", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "workspace.updated", payload: { workspace_id: "ws1", organization_id: "o1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([JSON.stringify(["workspaces"]), JSON.stringify(["workspace"])]),
+    );
+  });
+
+  it("refetches the workspace's tasks on workspace.updated so identifiers show a new prefix", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "workspace.updated", payload: { workspace_id: "ws1", organization_id: "o1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["tasks", "ws1"]),
+        JSON.stringify(["my-tasks", "ws1"]),
+        JSON.stringify(["tasks-query", "ws1"]),
+        JSON.stringify(["tasks-grouped", "ws1"]),
+        JSON.stringify(["tasks-table", "ws1"]),
+        JSON.stringify(["task"]),
+      ]),
+    );
+  });
+
   it("invalidates Work Management list roots on task.updated via planCacheUpdate", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

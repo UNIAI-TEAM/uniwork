@@ -1,10 +1,10 @@
 import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 test("one workspace stage replaces the index and separate feature bands", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const stage = page.locator("#product-preview");
   await openManualPreview(page);
@@ -22,7 +22,7 @@ test("one workspace stage replaces the index and separate feature bands", async 
 test("feature deep links select the right panel and sidebar works with keyboard", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#email");
+  await gotoLanding(page, "/#email");
   await landingReady(page);
   const stage = page.locator("#product-preview");
   await openManualPreview(page);
@@ -39,7 +39,7 @@ test("feature deep links select the right panel and sidebar works with keyboard"
 
 test("local state survives view switches and the global reset clears every demo", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const stage = page.locator("#product-preview");
   await openManualPreview(page);
@@ -68,7 +68,7 @@ test("local state survives view switches and the global reset clears every demo"
 test("tablet product stage stays readable and Starter keeps one honest action", async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const stage = page.locator("#product-preview");
   const selector = stage.locator(".workspace-selector");

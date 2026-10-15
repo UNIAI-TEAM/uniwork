@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 for (const sample of [
   { width: 1440, locale: "en", theme: "light" },
@@ -11,7 +11,7 @@ for (const sample of [
     await context.addCookies([{ name: "uniwork-locale", value: sample.locale, url: baseURL! }]);
     await page.setViewportSize({ width: sample.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: sample.theme });
-    await page.goto("/#tong-quan");
+    await gotoLanding(page, "/#tong-quan");
     await landingReady(page);
     await page.waitForLoadState("networkidle");
     await page.evaluate(theme => document.documentElement.classList.toggle("dark", theme === "dark"), sample.theme);
@@ -43,7 +43,7 @@ for (const sample of [
     await expect(page.locator(".work-journey")).toHaveCount(0);
     if (sample.width >= 1100) {
       await page.locator(".header-directory-toggle").first().click();
-      await expect(page.locator('#header-directory-products a[href^="/features/"]')).toHaveCount(18);
+      await expect(page.locator('#header-directory-products a[href*="/features/"]')).toHaveCount(18);
     }
   });
 }

@@ -1,4 +1,16 @@
 import type { Page } from "@playwright/test";
+import { marketingHref } from "../packages/core/paths/marketing";
+
+/** Visit the URL of the fixture's selected language; public copy no longer follows cookies. */
+export async function landingHref(page: Page, href: string): Promise<string> {
+  const cookies = await page.context().cookies();
+  const locale = cookies.find(cookie => cookie.name === "uniwork-locale")?.value === "vi" ? "vi" : "en";
+  return marketingHref(href, locale);
+}
+
+export async function gotoLanding(page: Page, href: string, options?: Parameters<Page["goto"]>[1]) {
+  return page.goto(await landingHref(page, href), options);
+}
 
 /**
  * React streams the page body into a hidden `<div id="S:n">` and moves it into

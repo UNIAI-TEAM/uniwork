@@ -9,16 +9,16 @@ import {
   toggleChatVoicePlayback,
   useChatVoicePlaybackStore,
 } from "@uniwork/core/chat/voice-playback-store";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, ChatThreadRepliesLink, chatBubbleShape } from "./chat-message-row";
-import { initialOf } from "./chat-initials";
 import { useFreshChatMediaUrl } from "./use-chat-media-url";
 import { senderNameClass } from "./sender-colors";
+import type { ChatNameContextEntry } from "./chat-page-utils";
+import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { useMessageActionsReveal } from "./use-message-actions-reveal";
 
 function formatDuration(durationMs: number): string {
@@ -107,6 +107,7 @@ function ChatVoiceMessageRowImpl({
   showSenderName,
   compactTop,
   showAvatar,
+  nameContext = [],
   onReply,
   onReact,
   onToggleReaction,
@@ -127,6 +128,7 @@ function ChatVoiceMessageRowImpl({
   showSenderName: boolean;
   compactTop: boolean;
   showAvatar: boolean;
+  nameContext?: ChatNameContextEntry[];
   onReply?: (message: ChatMessage) => void;
   onReact?: (message: ChatMessage) => void;
   onToggleReaction?: (message: ChatMessage, emoji: string) => void;
@@ -153,14 +155,13 @@ function ChatVoiceMessageRowImpl({
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
       {!isOwn ? (
-        <div className="w-8 shrink-0" aria-hidden>
+        <div className="w-8 shrink-0">
           {showAvatar ? (
-            <ActorAvatar
+            <ChatSenderAvatar
+              userId={message.sender}
               name={senderLabel}
-              initials={initialOf(senderLabel)}
               avatarUrl={senderAvatarUrl}
-              size="lg"
-              className="shrink-0"
+              nameContext={nameContext}
             />
           ) : null}
         </div>

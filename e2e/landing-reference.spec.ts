@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { selectWorkspaceFeature } from "./landing-catalog-helpers";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 for (const width of [1440, 390]) {
   test(`Lovable reference structure and remaining landing sections at ${width}px`, async ({ page }) => {
@@ -10,7 +10,7 @@ for (const width of [1440, 390]) {
     page.on("pageerror", error => errors.push(error.message));
     await page.setViewportSize({ width, height: 960 });
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/#du-an");
+    await gotoLanding(page, "/#du-an");
     await landingReady(page);
     const dir = resolve(import.meta.dirname, "../.impeccable/review");
     await mkdir(dir, { recursive: true });
@@ -69,7 +69,7 @@ for (const width of [1440, 390]) {
 for (const width of [1440, 390]) test(`Today rows and counts share completion, reopening and reset state at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 960 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#daily-tools");
+  await gotoLanding(page, "/#daily-tools");
   await landingReady(page);
   await selectWorkspaceFeature(page, "today");
   await page.locator(".today-task-panel button").first().click();
@@ -96,7 +96,7 @@ test("skip link remains hidden without focus across tall section captures", asyn
   for (const width of [1440, 390]) {
   await page.setViewportSize({ width, height: 960 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   // The shared app Providers remount landing after auth/config settles.
   // Focus assertions must use that final tree, not the pre-refresh DOM.
@@ -109,7 +109,7 @@ test("skip link remains hidden without focus across tall section captures", asyn
   await region.screenshot();
   expect((await probe()).bottom).toBeLessThanOrEqual(0);
   await expect(link).toHaveCSS("clip-path", "inset(50%)");
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   await page.reload();
   await page.waitForLoadState("networkidle");

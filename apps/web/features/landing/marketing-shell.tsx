@@ -1,4 +1,5 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { landingFont } from "../../platform/landing-font";
@@ -44,7 +45,7 @@ export function MarketingShell({ children, closingTitle, closingDescription, clo
 }) {
   const { t } = useTranslation();
   return <div className={`landing-site marketing-site ${landingFont.variable} ${className}`} data-design-contract="uniwork-product-pages">
-    <a className="landing-skip" href="#marketing-main">{t("landing.studio.skip")}</a>
+    <MarketingAnchor className="landing-skip" href="#marketing-main">{t("landing.studio.skip")}</MarketingAnchor>
     <SiteHeader />
     <main id="marketing-main">{children}{showClosing && <FinalCta compact titleKey={closingTitle} descriptionKey={closingDescription} demoHref={closingDemoHref} secondaryAction={closingAction} />}</main>
     <SiteFooter />

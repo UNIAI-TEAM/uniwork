@@ -1,9 +1,9 @@
 import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 test("landing demo controls perform the actions they advertise without workspace writes", async ({ page }) => {
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const demo = page.locator("#product-preview");
   await openManualPreview(page);
@@ -28,7 +28,7 @@ test("landing demo controls perform the actions they advertise without workspace
 
 test("product showcase, cinematic playback and reduced motion remain usable", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const core = page.locator('.landing-hero');
   await expect(core).toBeVisible();
@@ -54,7 +54,7 @@ test("product showcase, cinematic playback and reduced motion remain usable", as
 
 test("hero offers registration and a demo request in a minimal opening", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const hero = page.locator(".landing-hero");
   await expect(hero.locator(".landing-hero-actions a")).toHaveCount(2);
@@ -73,7 +73,7 @@ test("hero offers registration and a demo request in a minimal opening", async (
 
 test("Starter and FAQ signals animate only while visible and respect reduced motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const pricing = page.locator("#bang-gia");
   const faq = page.locator(".landing-faq");
@@ -100,7 +100,7 @@ test("Starter and FAQ signals animate only while visible and respect reduced mot
 test("framed scenes arrive on scroll and remain readable after the entrance", async ({ page }) => {
   await page.setViewportSize({ width: 1294, height: 584 });
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   await expect(page.locator(".landing-signal, .landing-chapter-junction")).toHaveCount(0);
   await expect(page.locator(".landing-product-story > section")).toHaveCount(4);
@@ -149,7 +149,7 @@ test("framed scenes arrive on scroll and remain readable after the entrance", as
 
 test("nonessential motion stops offscreen", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   await selectWorkspaceFeature(page, "meetings");
   await openManualPreview(page);
@@ -182,7 +182,7 @@ test("GPU unavailable leaves the product showcase and demo intact", async ({ pag
       return Reflect.apply(original, this, args);
     } as typeof original;
   });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   await expect(page.locator('#landing-title')).toBeVisible();
   await selectWorkspaceFeature(page, "chat");

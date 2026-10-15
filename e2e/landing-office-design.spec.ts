@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
 import vi from "../packages/core/i18n/locales/vi.json" with { type: "json" };
 import en from "../packages/core/i18n/locales/en.json" with { type: "json" };
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 const scenarios = [
   { width: 1306, theme: "light", locale: "en" },
@@ -22,7 +22,7 @@ for (const scenario of scenarios) {
     await page.setViewportSize({ width: scenario.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: scenario.theme });
     const configResponse = page.waitForResponse(response => response.url().includes("/api/v1/config") && response.request().method() === "GET");
-    await page.goto("/office");
+    await gotoLanding(page, "/office");
     await landingReady(page);
     const config = await (await configResponse).json();
     const published = [config.office_installers?.stable, config.office_installers?.beta, config.office_installers?.dev]
@@ -103,7 +103,7 @@ for (const scenario of scenarios) {
     await closing.click();
     await expect(page).toHaveURL(/#office-editors$/);
     await expect(preview).toBeInViewport();
-    await hero.locator('a[href="/request-demo"]').click();
+    await hero.locator('a[href$="/request-demo"]').click();
     await expect(page).toHaveURL(/\/request-demo$/);
     await expect(page.locator("h1")).toBeVisible();
   });
@@ -112,7 +112,7 @@ for (const scenario of scenarios) {
 test("Office images follow an explicit theme change", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-  await page.goto("/office");
+  await gotoLanding(page, "/office");
   await landingReady(page);
   await expect(page.locator(".office-hero-preview img:visible")).toHaveAttribute("data-theme", "light");
   await page.getByRole("button", { name: "Giao diện", exact: true }).click();

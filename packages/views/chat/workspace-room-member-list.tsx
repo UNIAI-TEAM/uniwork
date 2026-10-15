@@ -20,6 +20,7 @@ import {
   canUnmuteChatMember,
 } from "./chat-room-moderation-utils";
 import { foldedIncludes } from "./chat-search-fold";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChatMemberRow } from "./chat-settings-ui";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 
@@ -41,6 +42,7 @@ export function WorkspaceRoomMemberList({
   currentUserId,
   youLabel,
   isModerator,
+  onMessage,
 }: {
   workspaceId: string;
   roomId: string;
@@ -49,6 +51,7 @@ export function WorkspaceRoomMemberList({
   currentUserId: string;
   youLabel: string;
   isModerator: boolean;
+  onMessage?: (member: ChatMemberMessageTarget) => void;
 }) {
   const { t } = useTranslation();
   const { decideRemove } = useWorkspacePermissions(workspaceId);
@@ -130,6 +133,20 @@ export function WorkspaceRoomMemberList({
                 }
                 name={label}
                 detail={detail}
+                profile={{
+                  userId: member.user_id,
+                  email: member.email,
+                  avatarUrl: memberAvatarUrl(wsMember?.avatar_url),
+                  onMessage:
+                    !isSelf && onMessage
+                      ? () =>
+                          onMessage({
+                            user_id: member.user_id,
+                            email: member.email,
+                            display_name: member.display_name?.trim() || member.email,
+                          })
+                      : undefined,
+                }}
                 actions={
                   !isSelf && isModerator ? (
                     <ChatRoomMemberActions

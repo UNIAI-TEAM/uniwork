@@ -1,7 +1,6 @@
 "use client";
 
 import { memo } from "react";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatFileAttachment, chatFileIsEdgeToEdge } from "./chat-file-attachment";
@@ -10,8 +9,9 @@ import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLa
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
 import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, ChatThreadRepliesLink, chatBubbleShape } from "./chat-message-row";
-import { initialOf } from "./chat-initials";
 import { useMessageActionsReveal } from "./use-message-actions-reveal";
+import type { ChatNameContextEntry } from "./chat-page-utils";
+import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { senderNameClass } from "./sender-colors";
 
 function ChatFileMessageRowImpl({
@@ -24,6 +24,7 @@ function ChatFileMessageRowImpl({
   showSenderName,
   compactTop,
   showAvatar,
+  nameContext = [],
   replyToMessage,
   onReply,
   onReact,
@@ -46,6 +47,7 @@ function ChatFileMessageRowImpl({
   showSenderName: boolean;
   compactTop: boolean;
   showAvatar: boolean;
+  nameContext?: ChatNameContextEntry[];
   replyToMessage?: ChatMessage;
   onReply?: (message: ChatMessage) => void;
   onReact?: (message: ChatMessage) => void;
@@ -76,13 +78,12 @@ function ChatFileMessageRowImpl({
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
       <div className={cn("flex max-w-[min(85%,26rem)] gap-2", isOwn && "flex-row-reverse")}>
         {isOwn ? null : showAvatar ? (
-          <span className="shrink-0" aria-hidden>
-            <ActorAvatar
+          <span className="shrink-0">
+            <ChatSenderAvatar
+              userId={message.sender}
               name={senderLabel}
-              initials={initialOf(senderLabel)}
               avatarUrl={senderAvatarUrl}
-              size="lg"
-              className="shrink-0"
+              nameContext={nameContext}
             />
           </span>
         ) : (

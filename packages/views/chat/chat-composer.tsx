@@ -73,6 +73,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionAnchorRef = useRef<HTMLDivElement>(null);
   const mentionListId = useId();
   const counterId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -279,7 +280,7 @@ export function ChatComposer({
               />
             </div>
 
-            <div className="relative min-w-0 flex-1">
+            <div ref={mentionAnchorRef} className="relative min-w-0 flex-1">
               {mentions.open ? (
                 <ChatMentionAutocomplete
                   listId={mentionListId}
@@ -287,6 +288,7 @@ export function ChatComposer({
                   selectedIndex={mentions.activeIndex}
                   onSelect={mentions.insert}
                   onHover={mentions.setSelectedIndex}
+                  anchorRef={mentionAnchorRef}
                   memberAvatarByUserId={memberAvatarByUserId}
                 />
               ) : null}

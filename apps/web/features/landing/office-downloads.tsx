@@ -1,4 +1,5 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import { Download } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -96,7 +97,7 @@ export function OfficeDownloadColumns() {
       <h3><OSGlyph os={os} />{t(`office.desktop.install.os.${os}`)}</h3>
       <p>{t("landing.office.download.requirements", { value: requirement })}</p>
       <ul>{installers.map((installer) => <li key={installer.platform}>
-        <a className={buttonVariants({ variant: "outline", size: "lg" })} href={installer.url} download><Download aria-hidden /><VariantLabel installer={installer} /></a>
+        <MarketingAnchor className={buttonVariants({ variant: "outline", size: "lg" })} href={installer.url} download><Download aria-hidden /><VariantLabel installer={installer} /></MarketingAnchor>
       </li>)}</ul>
       {installers.some((installer) => installer.unsigned) && <small>{t("landing.office.download.unsigned")}</small>}
     </section>;

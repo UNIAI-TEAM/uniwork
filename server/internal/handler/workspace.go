@@ -15,7 +15,8 @@ import (
 
 func toWorkspaceDTO(w service.WorkspaceView) sdo.WorkspaceDTO {
 	return sdo.WorkspaceDTO{ID: w.ID, Slug: w.Slug, Name: w.Name, OrganizationID: w.OrganizationID,
-		OrganizationSlug: w.OrganizationSlug, OrganizationName: w.OrganizationName}
+		OrganizationSlug: w.OrganizationSlug, OrganizationName: w.OrganizationName,
+		Description: w.Description, IconEmoji: w.IconEmoji.String, IconURL: w.IconURL, TaskPrefix: w.TaskPrefix}
 }
 
 func toMemberDTO(m db.ListWorkspaceMembersRow) sdo.MemberDTO {
@@ -70,7 +71,7 @@ func (h *handlers) patchWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws, err := h.Workspaces.Update(r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), service.UpdateWorkspaceInput{Name: in.Name})
+		chi.URLParam(r, "workspaceID"), service.UpdateWorkspaceInput{Name: in.Name, Description: in.Description, IconEmoji: in.IconEmoji, TaskPrefix: in.TaskPrefix, Slug: in.Slug})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

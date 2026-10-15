@@ -12,6 +12,8 @@ import {
   listMembers,
   myInvitations,
   patchWorkspace,
+  removeWorkspaceIcon,
+  uploadWorkspaceIcon,
 } from "./workspaces";
 
 const json = (body: unknown, status = 200) =>
@@ -260,5 +262,48 @@ describe("workspaces endpoints", () => {
     expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/workspaces/ws1/me");
     vi.mocked(fetch).mockResolvedValueOnce(json({ membership: null }));
     await expect(getMyMembership("ws1")).resolves.toBeNull();
+  });
+
+  it("patchWorkspace sends only the fields it is given", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ workspace: { ...ws, description: "Mô tả", icon_emoji: "🚀" } }));
+    const got = await patchWorkspace("ws1", { description: "Mô tả", icon_emoji: "🚀" });
+    expect(got?.description).toBe("Mô tả");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body))).toEqual({ description: "Mô tả", icon_emoji: "🚀" });
+  });
+
+  it("parses a workspace from a server that does not send the profile fields", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ workspace: ws }));
+    const got = await getBySlugs("acme", "team");
+    expect(got?.id).toBe("ws1");
+    expect(got?.description).toBeUndefined();
+    expect(got?.icon_url).toBeUndefined();
+  });
+
+  it("drops a profile field of the wrong type instead of dropping the workspace", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ workspace: { ...ws, description: 42, icon_url: null } }));
+    const got = await getBySlugs("acme", "team");
+    expect(got?.id).toBe("ws1");
+    expect(got?.description).toBeUndefined();
+    expect(got?.icon_url).toBeUndefined();
+  });
+
+  it("uploadWorkspaceIcon posts multipart and returns the workspace or null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ workspace: { ...ws, icon_url: "https://cdn/i.png" } }));
+    const file = new File(["x"], "i.png", { type: "image/png" });
+    expect((await uploadWorkspaceIcon("ws1", file))?.icon_url).toBe("https://cdn/i.png");
+    const init = vi.mocked(fetch).mock.calls[0]![1]!;
+    expect(init.method).toBe("POST");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/workspaces/ws1/icon");
+    expect(init.body).toBeInstanceOf(FormData);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    await expect(uploadWorkspaceIcon("ws1", file)).resolves.toBeNull();
+  });
+
+  it("removeWorkspaceIcon sends DELETE and returns the workspace or null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ workspace: ws }));
+    expect((await removeWorkspaceIcon("ws1"))?.id).toBe("ws1");
+    expect(vi.mocked(fetch).mock.calls[0]![1]!.method).toBe("DELETE");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    await expect(removeWorkspaceIcon("ws1")).resolves.toBeNull();
   });
 });

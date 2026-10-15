@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 // Fast Refresh needs a local dev server and changes a dictionary temporarily.
 test.skip(process.env.E2E_FAST_REFRESH !== "1", "Run explicitly against next dev with E2E_FAST_REFRESH=1");
@@ -18,7 +18,7 @@ for (const locale of ["en", "vi"] as const) {
 
     await context.addCookies([{ name: "uniwork-locale", value: locale, url: baseURL! }]);
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/#business-os");
+    await gotoLanding(page, "/#business-os");
     await landingReady(page);
     const os = page.locator("#business-os");
     const label = os.locator("[data-showcase=gateway] .business-os-showcase-label > span");

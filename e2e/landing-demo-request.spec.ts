@@ -2,13 +2,13 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
-import { landingReady } from "./landing-ready";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 for (const width of [1440, 390]) {
  test(`demo request keeps details on failure and confirms a saved receipt at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   await page.locator(".landing-hero-actions").getByRole("link", { name: "Yêu cầu demo" }).click();
   await expect(page).toHaveURL(/\/request-demo$/);
@@ -44,11 +44,11 @@ for (const width of [1440, 390]) {
 for (const mode of ["light", "dark"] as const) {
  test(`hero and demo text stay readable in ${mode} mode`, async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce", colorScheme: mode });
-  await page.goto("/");
+  await gotoLanding(page, "/");
   await landingReady(page);
   const hero = await auditText(page, ".landing-hero");
   expect(hero.fails).toEqual([]);
-  await page.goto("/request-demo");
+  await gotoLanding(page, "/request-demo");
   await landingReady(page);
   const form = await auditText(page, ".demo-request-page");
   expect(form.fails).toEqual([]);

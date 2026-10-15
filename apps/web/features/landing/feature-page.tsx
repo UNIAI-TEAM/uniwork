@@ -1,6 +1,7 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import { ArrowRight, ChevronRight, Play } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { Logo } from "@uniwork/ui/brand";
@@ -69,9 +70,9 @@ export function FeaturesPage() {
   const { t } = useTranslation();
   return <MarketingShell closingTitle="landing.chapters.features.closing"><div className="chapter-world">
     <ChapterHero titleKey="landing.productPages.directoryTitle" descriptionKey="landing.productPages.directoryDescription" visual={<ChapterScene featureKey="projects" index={1} />}>
-      <div className="marketing-actions"><a href="#family-work" className={cn(buttonVariants({ variant: "brand", size: "lg" }))}>{t("landing.chapters.features.browse")}<ArrowRight aria-hidden /></a><Link href="/#platform" className="chapter-link"><Play aria-hidden />{t("landing.productPages.watchDemo")}</Link></div><p className="marketing-scope">{t("landing.featureVisuals.directoryDisclosure")}</p>
+      <div className="marketing-actions"><MarketingAnchor href="#family-work" className={cn(buttonVariants({ variant: "brand", size: "lg" }))}>{t("landing.chapters.features.browse")}<ArrowRight aria-hidden /></MarketingAnchor><Link href="/#platform" className="chapter-link"><Play aria-hidden />{t("landing.productPages.watchDemo")}</Link></div><p className="marketing-scope">{t("landing.featureVisuals.directoryDisclosure")}</p>
     </ChapterHero>
-    <nav className="feature-family-nav chapter-width" aria-label={t("landing.chapters.features.navigation")}>{PRODUCT_GROUPS.map(group => <a href={`#family-${group.key}`} key={group.key}><group.icon aria-hidden /><strong>{t(`landing.catalog.groups.${group.key}`)}</strong><small>{PRODUCT_FEATURES.filter(item => item.group === group.key).length}</small></a>)}</nav>
+    <nav className="feature-family-nav chapter-width" aria-label={t("landing.chapters.features.navigation")}>{PRODUCT_GROUPS.map(group => <MarketingAnchor href={`#family-${group.key}`} key={group.key}><group.icon aria-hidden /><strong>{t(`landing.catalog.groups.${group.key}`)}</strong><small>{PRODUCT_FEATURES.filter(item => item.group === group.key).length}</small></MarketingAnchor>)}</nav>
     <div className="feature-directory feature-directory-visual">{PRODUCT_GROUPS.map(group => <section key={group.key} id={`family-${group.key}`} data-feature-group={group.key}>
       <div className="feature-directory-group-copy"><h2><group.icon aria-hidden />{t(`landing.catalog.groups.${group.key}`)}</h2><p>{t(`landing.chapters.features.groups.${group.key}`)}</p></div>
       <div>{PRODUCT_FEATURES.filter(item => item.group === group.key).map(feature => <Link href={paths.feature(feature.key)} key={feature.key}><FeatureIllustration featureKey={feature.key} decorative /><div className="feature-directory-caption"><feature.icon aria-hidden /><span><h3>{t(feature.label)}</h3><p>{t(`landing.productPages.features.${feature.key}.description`)}</p><span className="feature-directory-status">{t(`landing.chapters.features.status.${feature.status}`)}</span></span><ArrowRight aria-hidden /></div></Link>)}</div>

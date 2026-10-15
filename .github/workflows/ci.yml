@@ -517,6 +517,8 @@ jobs:
           curl -sf http://localhost:8080/healthz && curl -sf http://localhost:3000 > /dev/null
           # Readiness includes the storage probe: MinIO must answer too.
           curl -sf http://localhost:8080/readyz
+      - name: Public SEO contracts
+        run: pnpm seo:check
       - run: pnpm --filter @uniwork/e2e exec playwright install --with-deps chromium
       - run: pnpm --filter @uniwork/e2e test
       - if: failure()

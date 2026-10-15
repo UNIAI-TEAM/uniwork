@@ -1,6 +1,7 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 import { ArrowRight, Download, FolderOpen, MessageSquare, RotateCcwClock } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
@@ -33,7 +34,7 @@ export function OfficePage() {
         <h1 id="office-title">{t("landing.office.hero.title")}</h1>
         <p className="office-sub">{t("landing.office.hero.sub")}</p>
         <div className="office-hero-actions">
-          <a href="#office-download" className={`${buttonVariants({ variant: "brand", size: "lg" })} office-trial-action`}><Download aria-hidden />{t("landing.office.hero.trial")}</a>
+          <MarketingAnchor href="#office-download" className={`${buttonVariants({ variant: "brand", size: "lg" })} office-trial-action`}><Download aria-hidden />{t("landing.office.hero.trial")}</MarketingAnchor>
           <Link href={paths.requestDemo()} className={`${buttonVariants({ variant: "outline", size: "lg" })} office-explore-action`}>{t("landing.demo.cta")}<ArrowRight aria-hidden /></Link>
         </div>
       </div>

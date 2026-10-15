@@ -20,6 +20,7 @@ import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-grou
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@uniwork/ui/components/ui/sheet";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChannelSettingsMembers } from "./channel-settings-members";
 import { ChannelSettingsReadonly } from "./channel-settings-readonly";
 import { ChatSettingsMenuRow, ChatSettingsTitleRow } from "./chat-settings-ui";
@@ -43,6 +44,7 @@ export function ChannelSettingsSheet({
   leaveDisabled,
   onOpenSearch,
   memberAvatarByUserId = {},
+  onMessage,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -57,6 +59,7 @@ export function ChannelSettingsSheet({
   leaving?: boolean;
   leaveDisabled?: boolean;
   onOpenSearch?: () => void;
+  onMessage?: (member: ChatMemberMessageTarget) => void;
 }) {
   const { t } = useTranslation();
   const updateChannel = useUpdateChatChannel(workspaceId);
@@ -325,6 +328,7 @@ export function ChannelSettingsSheet({
               currentUserId={currentUserId}
               youLabel={youLabel}
               memberAvatarByUserId={memberAvatarByUserId}
+              onMessage={onMessage}
             />
           ) : null}
 
