@@ -1,0 +1,8 @@
+$ OFFICE_FORK_SHA=d65e549e dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --run-dir .harness-run; echo "APP_CASES_EXIT $?"; for f in .harness-run/fault/FQ-[2-5]*/result.json .harness-run/fault/FL-*/result.json; do [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+dbus-daemon[32697]: [session uid=1000 pid=32697] Activating service name='org.freedesktop.secrets' requested by ':1.0' (uid=1000 pid=32709 comm="dbus-send --session --print-reply --dest=org.freed" label="kernel")
+GNOME_KEYRING_CONTROL=/home/ubuntu/.cache/keyring-GL09W3
+dbus-daemon[32697]: [session uid=1000 pid=32697] Successfully activated service 'org.freedesktop.secrets'
+APP_KEYRING unlocked=no
+BLOCKED: the keyring daemon did not come up unlocked; its log tail:
+** Message: 03:23:47.115: another secret service is running
+APP_CASES_EXIT 77
