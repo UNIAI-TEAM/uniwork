@@ -40,6 +40,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
+import { AccessRequestsSection } from "./access-requests-section";
 import { OwnerTransferAction } from "./owner-transfer-dialog";
 import type { ShareDialogTarget } from "./share-dialog-target";
 import { ShareLinksSection } from "./share-links-section";
@@ -51,6 +52,8 @@ export interface ShareDialogProps {
   onOpenChange: (open: boolean) => void;
   wsId: string;
   doc: ShareDialogTarget;
+  /** Opened from `?access=requests`: the requests section takes focus. */
+  focusRequests?: boolean;
 }
 
 const LEVELS: readonly DocumentAccessLevel[] = ["view", "edit", "manage"];
@@ -72,7 +75,7 @@ type AccessShare = NonNullable<DocumentAccess["shares"]>[number];
  * Owned (work-product) documents never open this dialog: their access is
  * delegated through the owning screen, so no control here could be honest.
  */
-export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps) {
+export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = false }: ShareDialogProps) {
   const { t, i18n } = useTranslation();
   const { workspace, user } = useWorkspace();
   const { push } = useNavigation();
@@ -219,6 +222,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
             </div>
           ) : (
             <div className="flex flex-col gap-4">
+              {!doc.archived_at ? <AccessRequestsSection wsId={wsId} documentId={doc.id} focusOnOpen={focusRequests} /> : null}
               <section aria-labelledby="share-access-title" className="rounded-lg border border-border">
                 <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
                   <h3 id="share-access-title" className="text-label font-medium text-foreground">
