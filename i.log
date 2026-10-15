@@ -1,0 +1,261 @@
+$ for f in .harness-run/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 60 "$f"; }; done; for f in .harness-run/fault/.app/*/app.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 30 "$f"; }; done; true
+=== .harness-run/logs/app.log
+[34427:1015/032903.188085:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[34427:1015/032903.751317:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/032903.751392:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[34427:1015/032903.751446:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused
+[34427:1015/032903.797911:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/032903.811516:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/032903.813821:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/032903.833609:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[34427:1015/032903.833800:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/032903.837727:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/032903.840388:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[34427:1015/032948.811975:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/033005.081348:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/033136.788031:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/033308.613703:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/033648.484504:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/033840.286071:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034012.072564:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034251.452974:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034532.575079:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034603.553604:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034634.512138:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034705.508984:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034736.511197:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034807.492955:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034838.484575:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034909.386344:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/034940.385445:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035011.329065:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035042.233188:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035113.172037:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035144.089980:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035215.062408:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035246.062310:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035316.978604:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035347.911467:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035418.876723:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035449.806269:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035520.745252:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035551.693402:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035622.608842:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035653.571656:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035724.496761:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[34427:1015/035755.416456:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+=== .harness-run/logs/lib.log
+=== .harness-run/logs/migrate.log
+03:28:54.014 INF migrate done component=server dir=up
+=== .harness-run/logs/server-build.log
+=== .harness-run/logs/server.log
+03:52:15.176 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=8.531ms request_id=cursor/ID5bgJFZfw-000595 correlation_id=5f8c43d888cf5f2f164351e6c70079a8 trace_id=5f8c43d888cf5f2f164351e6c70079a8 span_id=116658d520aadaa3 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:52:15.177 INF http request method=GET path=/api/v1/documents/01M4YV0VJ5VWHHZTNVHN71QM06/versions status=200 duration=683µs request_id=cursor/ID5bgJFZfw-000596 correlation_id=acd9d9261744f3573763cc7e41ab4d4d trace_id=acd9d9261744f3573763cc7e41ab4d4d span_id=c6594e4e0184efee organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:52:46.042 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=1.317ms request_id=cursor/ID5bgJFZfw-000597 correlation_id=21e91d61b596a30b649d75e203b2a707 trace_id=21e91d61b596a30b649d75e203b2a707 span_id=5eb4009155c51ef7
+03:52:46.051 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=366µs request_id=cursor/ID5bgJFZfw-000598 correlation_id=600697acd1f62bb0b1a515d705020d69 trace_id=600697acd1f62bb0b1a515d705020d69 span_id=fdc8a5881b0f664e
+03:52:46.097 INF http request method=GET path=/api/v1/documents/01M4YV0VJ5VWHHZTNVHN71QM06/versions status=200 duration=1.185ms request_id=cursor/ID5bgJFZfw-000599 correlation_id=acee14b2723ae4d0c95fddebc66af3e3 trace_id=acee14b2723ae4d0c95fddebc66af3e3 span_id=f5bd2ec4bf9fb3aa organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:52:46.108 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=8.348ms request_id=cursor/ID5bgJFZfw-000600 correlation_id=c9b5924386a734ea377d9c3f566cfb91 trace_id=c9b5924386a734ea377d9c3f566cfb91 span_id=882963cf3cef6d31 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:52:46.110 INF http request method=GET path=/api/v1/documents/01M4YV1SRTRXGQQFKAHMZS0X68/versions status=200 duration=575µs request_id=cursor/ID5bgJFZfw-000601 correlation_id=4344862793046c510cc4888351be1aca trace_id=4344862793046c510cc4888351be1aca span_id=9bad2b6c2036c8fb organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:52:54.093 INF document change snapshot sweep component=server snapshots=1 items=5
+03:53:16.959 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=1.316ms request_id=cursor/ID5bgJFZfw-000602 correlation_id=21e5e78e29e87e42ee440b9cde74f0ce trace_id=21e5e78e29e87e42ee440b9cde74f0ce span_id=b0c4707dfe81662f
+03:53:16.967 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=324µs request_id=cursor/ID5bgJFZfw-000603 correlation_id=9c76243743d5f20ba581fc367ce6c2e0 trace_id=9c76243743d5f20ba581fc367ce6c2e0 span_id=af212772911978ae
+03:53:17.022 INF http request method=GET path=/api/v1/documents/01M4YV1SRTRXGQQFKAHMZS0X68/versions status=200 duration=1.312ms request_id=cursor/ID5bgJFZfw-000604 correlation_id=4702286b08fe950b1190fa0fef4d064b trace_id=4702286b08fe950b1190fa0fef4d064b span_id=ac532a82f5c9bf99 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:53:17.032 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=7.86ms request_id=cursor/ID5bgJFZfw-000605 correlation_id=11aaad068c6df441629233e4c3d81688 trace_id=11aaad068c6df441629233e4c3d81688 span_id=89cf26c668a876d0 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:53:17.034 INF http request method=GET path=/api/v1/documents/01M4YV2QZ60HG7HP1ATJD6N0RX/versions status=200 duration=678µs request_id=cursor/ID5bgJFZfw-000606 correlation_id=6ead7b132d89b9d15a7d3db4dd251f13 trace_id=6ead7b132d89b9d15a7d3db4dd251f13 span_id=3fe51405e1a868b6 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:53:47.893 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=1.905ms request_id=cursor/ID5bgJFZfw-000607 correlation_id=fb3baee7af552d495e2d1a4112566744 trace_id=fb3baee7af552d495e2d1a4112566744 span_id=3946c76009696a2c
+03:53:47.902 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=317µs request_id=cursor/ID5bgJFZfw-000608 correlation_id=c453d986f17d01c34a50d4ee369f75f9 trace_id=c453d986f17d01c34a50d4ee369f75f9 span_id=bd51948f17bed1f8
+03:53:47.965 INF http request method=GET path=/api/v1/documents/01M4YV2QZ60HG7HP1ATJD6N0RX/versions status=200 duration=2.563ms request_id=cursor/ID5bgJFZfw-000609 correlation_id=d6443b8940f3fc449be39adf5a118e61 trace_id=d6443b8940f3fc449be39adf5a118e61 span_id=39d1e1609c2bdba6 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:53:48.028 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=9.4ms request_id=cursor/ID5bgJFZfw-000610 correlation_id=d9b001dfab862ce013f43a12e35db164 trace_id=d9b001dfab862ce013f43a12e35db164 span_id=1bafb7938fffe1d3 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:53:48.030 INF http request method=GET path=/api/v1/documents/01M4YV3P7T4XAVS37NSVNG2XE6/versions status=200 duration=639µs request_id=cursor/ID5bgJFZfw-000611 correlation_id=6721218f2e8b5fc42110b2dae453136f trace_id=6721218f2e8b5fc42110b2dae453136f span_id=75e2d528d15d1451 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:53:54.122 INF uniwork ai conversation sweep component=server expired=2 kill_switch=0 runs_expired=0 runs_orphan=4 live=2
+03:54:18.858 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=2.293ms request_id=cursor/ID5bgJFZfw-000612 correlation_id=d9941ffc11a181dc1e7ee0986a27b85d trace_id=d9941ffc11a181dc1e7ee0986a27b85d span_id=178e1e87ed19ff33
+03:54:18.867 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=328µs request_id=cursor/ID5bgJFZfw-000613 correlation_id=bbb17782622cb89dd9fb82db9dbb5335 trace_id=bbb17782622cb89dd9fb82db9dbb5335 span_id=2a45166c43561f4b
+03:54:18.925 INF http request method=GET path=/api/v1/documents/01M4YV3P7T4XAVS37NSVNG2XE6/versions status=200 duration=1.129ms request_id=cursor/ID5bgJFZfw-000614 correlation_id=92c2ee4dfbc85f030f99e1bdc416a851 trace_id=92c2ee4dfbc85f030f99e1bdc416a851 span_id=9c058ee40bfc4046 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:54:18.934 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=6.903ms request_id=cursor/ID5bgJFZfw-000615 correlation_id=e737fa31250982a7baf5be368738db32 trace_id=e737fa31250982a7baf5be368738db32 span_id=7f186c104b13a097 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:54:18.936 INF http request method=GET path=/api/v1/documents/01M4YV4MDMH4JTYDJ017RAA768/versions status=200 duration=650µs request_id=cursor/ID5bgJFZfw-000616 correlation_id=93b8073c8069b92e77c61daaf085e771 trace_id=93b8073c8069b92e77c61daaf085e771 span_id=1734917ae9ad1f5e organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:54:49.786 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=2.127ms request_id=cursor/ID5bgJFZfw-000617 correlation_id=8478b44ea9acae899a7b3ca4f3ca6c9f trace_id=8478b44ea9acae899a7b3ca4f3ca6c9f span_id=6d983b9a04cf20b1
+03:54:49.795 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=334µs request_id=cursor/ID5bgJFZfw-000618 correlation_id=8e77449227e0b76c52a99c8d37aabafa trace_id=8e77449227e0b76c52a99c8d37aabafa span_id=e7a07c9a5135e969
+03:54:49.852 INF http request method=GET path=/api/v1/documents/01M4YV4MDMH4JTYDJ017RAA768/versions status=200 duration=2.239ms request_id=cursor/ID5bgJFZfw-000619 correlation_id=0139313d1c737d17bc1b27610001bdde trace_id=0139313d1c737d17bc1b27610001bdde span_id=99cebbc4787460f6 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:54:49.864 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=10.885ms request_id=cursor/ID5bgJFZfw-000620 correlation_id=e9ac4536bf86fee11d6db10abed9eebc trace_id=e9ac4536bf86fee11d6db10abed9eebc span_id=3b9ba6e2317f308c organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:54:49.866 INF http request method=GET path=/api/v1/documents/01M4YV5JM6AD6Z1PG2CHFNGG2P/versions status=200 duration=610µs request_id=cursor/ID5bgJFZfw-000621 correlation_id=e17af599d51607f711b4144e57b926d5 trace_id=e17af599d51607f711b4144e57b926d5 span_id=7b968c58041e0600 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:54:54.096 INF document change snapshot sweep component=server snapshots=1 items=6
+03:55:20.723 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=1.377ms request_id=cursor/ID5bgJFZfw-000622 correlation_id=89ae3a18037ef4f71b5bb607ada3a17c trace_id=89ae3a18037ef4f71b5bb607ada3a17c span_id=0067b5af10849429
+03:55:20.735 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=352µs request_id=cursor/ID5bgJFZfw-000623 correlation_id=9ba17ae19f6e1624fddb42128ce97db8 trace_id=9ba17ae19f6e1624fddb42128ce97db8 span_id=a95e203a9c40002f
+03:55:20.790 INF http request method=GET path=/api/v1/documents/01M4YV5JM6AD6Z1PG2CHFNGG2P/versions status=200 duration=2.177ms request_id=cursor/ID5bgJFZfw-000624 correlation_id=3237f6b59d7b4dbfe412b27a49da5810 trace_id=3237f6b59d7b4dbfe412b27a49da5810 span_id=69546a59a725dbb0 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:55:20.800 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=7.129ms request_id=cursor/ID5bgJFZfw-000625 correlation_id=a40a05ef55b1bfab9fcaa930bfab79ec trace_id=a40a05ef55b1bfab9fcaa930bfab79ec span_id=07eaeb7a77922362 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:55:20.802 INF http request method=GET path=/api/v1/documents/01M4YV6GTYV9KDF579CP0J90WC/versions status=200 duration=868µs request_id=cursor/ID5bgJFZfw-000626 correlation_id=93f430fb4e6b96c1ebcc4d6d19c547d1 trace_id=93f430fb4e6b96c1ebcc4d6d19c547d1 span_id=6659b454a10a2fe7 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:55:51.675 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=1.343ms request_id=cursor/ID5bgJFZfw-000627 correlation_id=2d9a3f5cb27dff2ced18bd326606ae73 trace_id=2d9a3f5cb27dff2ced18bd326606ae73 span_id=5603b251f2fbfa0c
+03:55:51.684 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=716µs request_id=cursor/ID5bgJFZfw-000628 correlation_id=5d574ed46f13f50298719cded128ef93 trace_id=5d574ed46f13f50298719cded128ef93 span_id=36dce20cce25d38e
+03:55:51.737 INF http request method=GET path=/api/v1/documents/01M4YV6GTYV9KDF579CP0J90WC/versions status=200 duration=1.222ms request_id=cursor/ID5bgJFZfw-000629 correlation_id=15e91800bdc337047473f9880d1aab9c trace_id=15e91800bdc337047473f9880d1aab9c span_id=bbc45c8033e34649 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:55:51.745 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=6.585ms request_id=cursor/ID5bgJFZfw-000630 correlation_id=2efec1ec56ad44cf2135866c92112be3 trace_id=2efec1ec56ad44cf2135866c92112be3 span_id=f47522b32523d293 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:55:51.747 INF http request method=GET path=/api/v1/documents/01M4YV7F206VFJXCK9KDDWA9RP/versions status=200 duration=543µs request_id=cursor/ID5bgJFZfw-000631 correlation_id=d19a4a13f91b840452b23519ad472b75 trace_id=d19a4a13f91b840452b23519ad472b75 span_id=ef56febaf68577e5 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:55:54.098 INF document change snapshot sweep component=server snapshots=1 items=7
+03:56:22.591 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=2.036ms request_id=cursor/ID5bgJFZfw-000632 correlation_id=4101d7b1f88fb7b5fc95fac63f5ceb24 trace_id=4101d7b1f88fb7b5fc95fac63f5ceb24 span_id=7a73c038a6d9af80
+03:56:22.599 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=342µs request_id=cursor/ID5bgJFZfw-000633 correlation_id=2fbf73f52fb61e585676d6bb989ab7b7 trace_id=2fbf73f52fb61e585676d6bb989ab7b7 span_id=bea4ea8bd982a770
+03:56:22.654 INF http request method=GET path=/api/v1/documents/01M4YV7F206VFJXCK9KDDWA9RP/versions status=200 duration=1.457ms request_id=cursor/ID5bgJFZfw-000634 correlation_id=0f551b6a7b81463a910064c12f7ca7ff trace_id=0f551b6a7b81463a910064c12f7ca7ff span_id=d66a598027d676ab organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:56:22.718 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=10.984ms request_id=cursor/ID5bgJFZfw-000635 correlation_id=cf1146b49c08b45451678fe330847da1 trace_id=cf1146b49c08b45451678fe330847da1 span_id=def76bb37de4be69 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:56:22.720 INF http request method=GET path=/api/v1/documents/01M4YV8D9W8ADQNP54TZ1KFH8Z/versions status=200 duration=726µs request_id=cursor/ID5bgJFZfw-000636 correlation_id=48b7a2fcbe680eeffaa8bfa5579937fd trace_id=48b7a2fcbe680eeffaa8bfa5579937fd span_id=45b9058965960a54 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:56:53.553 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=1.873ms request_id=cursor/ID5bgJFZfw-000637 correlation_id=ab93cc3a75ecb5ec3929a759c32f2c4f trace_id=ab93cc3a75ecb5ec3929a759c32f2c4f span_id=6b906d95fb5daa75
+03:56:53.561 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=348µs request_id=cursor/ID5bgJFZfw-000638 correlation_id=fd9147cba0777357b9fb459f219d106a trace_id=fd9147cba0777357b9fb459f219d106a span_id=a7c2e4fbfc82c345
+03:56:53.620 INF http request method=GET path=/api/v1/documents/01M4YV8D9W8ADQNP54TZ1KFH8Z/versions status=200 duration=1.498ms request_id=cursor/ID5bgJFZfw-000639 correlation_id=4de1deec01c24563b29f80499f26355e trace_id=4de1deec01c24563b29f80499f26355e span_id=23a8174463b505c5 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:56:53.633 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=10.818ms request_id=cursor/ID5bgJFZfw-000640 correlation_id=0da9acbda9eb6378c3cb45ebb8332b59 trace_id=0da9acbda9eb6378c3cb45ebb8332b59 span_id=789f19bc91202b49 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:56:53.634 INF http request method=GET path=/api/v1/documents/01M4YV9BFZR244J07TGWW4146C/versions status=200 duration=511µs request_id=cursor/ID5bgJFZfw-000641 correlation_id=26440ccdb19579cb6ca6353da762cf24 trace_id=26440ccdb19579cb6ca6353da762cf24 span_id=8a7f638fc63ad1f0 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:57:24.479 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=1.686ms request_id=cursor/ID5bgJFZfw-000642 correlation_id=6877b0ef4bf0a3bad059e2d99152c991 trace_id=6877b0ef4bf0a3bad059e2d99152c991 span_id=4b08d0ada0f9e037
+03:57:24.487 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=365µs request_id=cursor/ID5bgJFZfw-000643 correlation_id=879f2856d39728d3b14b745c911979ad trace_id=879f2856d39728d3b14b745c911979ad span_id=f0806109f7eed1e8
+03:57:24.538 INF http request method=GET path=/api/v1/documents/01M4YV9BFZR244J07TGWW4146C/versions status=200 duration=1.128ms request_id=cursor/ID5bgJFZfw-000644 correlation_id=85ce044fe3909ed386facce9c0eb17ec trace_id=85ce044fe3909ed386facce9c0eb17ec span_id=ad1d5b4c40b3e973 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:57:24.549 INF http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=201 duration=8.441ms request_id=cursor/ID5bgJFZfw-000645 correlation_id=1a1d281d529f0ecb3a2ac01f74e30c27 trace_id=1a1d281d529f0ecb3a2ac01f74e30c27 span_id=7d87e69f00d5e77b organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:57:24.550 INF http request method=GET path=/api/v1/documents/01M4YVA9P3AWBBCXB822QREHGE/versions status=200 duration=717µs request_id=cursor/ID5bgJFZfw-000646 correlation_id=e8d23f98c4857ae2adbd1a59d334e35e trace_id=e8d23f98c4857ae2adbd1a59d334e35e span_id=4895b01c508a5c28 organization_id=01M4YSPM1S64A20HF8YPATE96N workspace_id=01M4YSPM1XM3QRPBATNH8M3GS6 actor_id=01M4YSPKXBWDWYY9VHQPS9P57T actor_kind=human
+03:57:55.397 INF http request method=GET path=/api/v1/auth/desktop/start status=200 duration=1.9ms request_id=cursor/ID5bgJFZfw-000647 correlation_id=ca9f16f5952c50658c31c5b27a179356 trace_id=ca9f16f5952c50658c31c5b27a179356 span_id=f690620602486238
+03:57:55.406 WRN http request method=GET path=/api/v1/auth/desktop/authorize status=401 duration=365µs request_id=cursor/ID5bgJFZfw-000648 correlation_id=e1883576d1fe6622255ccc73bbc47a42 trace_id=e1883576d1fe6622255ccc73bbc47a42 span_id=4fe78c7c84364dfc
+03:57:55.443 WRN http request method=GET path=/api/v1/documents/01M4YVA9P3AWBBCXB822QREHGE/versions status=401 duration=300µs request_id=cursor/ID5bgJFZfw-000649 correlation_id=032074a2c200790142fc01a0e3f60eac trace_id=032074a2c200790142fc01a0e3f60eac span_id=176fa7a1be91cfba
+03:57:55.502 WRN http request method=POST path=/api/v1/workspaces/01M4YSPM1XM3QRPBATNH8M3GS6/documents/files status=401 duration=467µs request_id=cursor/ID5bgJFZfw-000650 correlation_id=d0de96f2a1209a9da1186647f2605b3c trace_id=d0de96f2a1209a9da1186647f2605b3c span_id=53568ce10415a347
+=== .harness-run/logs/web.log
+
+> @uniwork/web@0.0.0 dev /workspace/apps/web
+> node scripts/office-frame-sync.mjs --ensure && sh -c 'next dev --port "${FRONTEND_PORT:-3000}"'
+
+office-frame: docs 46 files verified, installed at /workspace/apps/web/public/office-frame/docs/0.1.0-05fd209
+office-frame: pdf 229 files verified, installed at /workspace/apps/web/public/office-frame/pdf/0.1.0-05fd209
+office-frame: markdown 90 files verified, installed at /workspace/apps/web/public/office-frame/markdown/0.1.0-05fd209
+office-frame: html 7 files verified, installed at /workspace/apps/web/public/office-frame/html/0.1.0-05fd209
+office-frame: slides 19 files verified, installed at /workspace/apps/web/public/office-frame/slides/0.1.0-05fd209
+office-frame: sheets 219 files verified, installed at /workspace/apps/web/public/office-frame/sheets/0.1.0-05fd209
+▲ Next.js 16.3.8 (Turbopack)
+- Local:         http://localhost:33455
+- Network:       http://172.30.0.2:33455
+✓ Ready in 304ms
+✓ Running next.config.mjs took 112ms
+
+✓ Generated AGENTS.md and CLAUDE.md for AI agents. Set `agentRules: false` in next.config to disable.
+○ Compiling /login ...
+⚠ ./apps/web/app/globals.css:11455:13
+Warning: Parsing CSS source code failed
+  [90m11453 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11454 |[0m }
+[33m[1m>[0m [90m11455 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11456 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11457 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11458 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11455:13
+  [90m11453 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11454 |[0m }
+[33m[1m>[0m [90m11455 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11456 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11457 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11458 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login 200 in 4.2s (next.js: 3.8s, application-code: 437ms)
+=== .harness-run/fault/.app/FQ-20-0/app.log
+Debugger ending on ws://127.0.0.1:44363/b4466964-c42d-473e-88d5-6602642ad4ca
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-21-0/app.log
+Debugger ending on ws://127.0.0.1:33427/acecd141-e47b-455e-be75-4195b4961233
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-22-0/app.log
+[renderer:warning] use 'save' instead of 'getSnapshot'
+Debugger ending on ws://127.0.0.1:37433/e4e5e974-9da3-4a6b-bd2d-4942d659ee7b
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-24-0/app.log
+[renderer:warning] use 'save' instead of 'getSnapshot'
+Debugger ending on ws://127.0.0.1:39569/ebcc4204-2864-40b0-bd33-058c1f495efd
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-25-0/app.log
+[renderer:warning] use 'save' instead of 'getSnapshot'
+Debugger ending on ws://127.0.0.1:34277/d6471f2a-2166-4e82-961a-3099ff382093
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-40-1/app.log
+[renderer:warning] use 'save' instead of 'getSnapshot'
+Debugger ending on ws://127.0.0.1:39219/6ea75ee8-5968-490d-af00-299256052260
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-40-2/app.log
+[renderer:warning] use 'save' instead of 'getSnapshot'
+Debugger ending on ws://127.0.0.1:37953/4f397fb5-20a8-4bdc-98b7-5ec2fa7a027e
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-40-3/app.log
+[renderer:warning] use 'save' instead of 'getSnapshot'
+Debugger ending on ws://127.0.0.1:33951/57774397-549e-4adf-98fa-73266c9709ad
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-40-4/app.log
+Debugger ending on ws://127.0.0.1:40601/565c3689-ca54-4907-946c-9977c089dd4a
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-40-5/app.log
+Debugger ending on ws://127.0.0.1:41067/c6d12ff2-b05d-4367-b987-a6cfb83078ed
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-41-1/app.log
+Debugger ending on ws://127.0.0.1:34315/cf01e6b9-45f2-4663-93e1-8e72d36d2029
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-42-1/app.log
+Debugger ending on ws://127.0.0.1:44203/30d864c4-2dca-409f-ab98-05e8df5b1fd2
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-43-1/app.log
+Debugger ending on ws://127.0.0.1:40431/29cb21f7-6458-44a3-a3e0-9b3d4afa1981
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-43-2/app.log
+Debugger ending on ws://127.0.0.1:41057/63cbb9f1-cdce-4b97-b626-aad92ba5d9ff
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-43-3/app.log
+Debugger ending on ws://127.0.0.1:42591/584b291d-2e5a-4dab-a17b-9f58875886ac
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-43-4/app.log
+Debugger ending on ws://127.0.0.1:41317/a6f73ea6-5ebc-46c0-8f2c-5d4e4733e4fa
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-43-5/app.log
+Debugger ending on ws://127.0.0.1:46555/056c1f61-3db9-4361-9a83-a510702fa9fc
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-43-6/app.log
+Debugger ending on ws://127.0.0.1:40791/97cf439d-dca0-46f6-8d92-eccacea55a89
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-43-7/app.log
+Debugger ending on ws://127.0.0.1:36949/bfe5697b-4d83-464f-9823-bfa3f37a703a
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-43-8/app.log
+Debugger ending on ws://127.0.0.1:35845/cd140945-86d7-4571-9b49-fd6494731332
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-43-9/app.log
+Debugger ending on ws://127.0.0.1:37905/a3ad4ade-e1d7-4236-b359-3f1fb1d69f1f
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-44-1/app.log
+Debugger ending on ws://127.0.0.1:42685/05d4e483-256e-46db-a2f7-75547751ec9c
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-44-2/app.log
+Debugger ending on ws://127.0.0.1:35279/9f1b797a-40f5-456c-8298-fb3bae3d25d3
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-44-3/app.log
+Debugger ending on ws://127.0.0.1:46395/7b9738fc-2e1c-4547-9067-7329a8ffaaa3
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-50-1/app.log
+Debugger ending on ws://127.0.0.1:37149/c52ed19d-47c7-4713-806c-c6926c122552
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-50-2/app.log
+Debugger ending on ws://127.0.0.1:34705/26de3e3c-41d4-4ec2-822c-df69f020926f
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-50-3/app.log
+Debugger ending on ws://127.0.0.1:37335/509bc515-ddf5-42f2-a7d4-cf4d1d5ee705
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-50-4/app.log
+Debugger ending on ws://127.0.0.1:33113/f1ece143-4786-434b-83e9-7eb01adac961
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-50-5/app.log
+Debugger ending on ws://127.0.0.1:46157/12313d87-5957-49b7-9f72-7dcc2cfec99b
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-51-1/app.log
+Debugger ending on ws://127.0.0.1:35003/c52b238f-a826-444f-b7a7-16fa60c75713
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-51-2/app.log
+Debugger ending on ws://127.0.0.1:33099/a9d54a32-c093-4bfd-888c-fcc887137870
+For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-51-3/app.log
+Debugger ending on ws://127.0.0.1:43253/c9695dd9-c78f-4c94-b873-01032da24fa9
+For help, see: https://nodejs.org/learn/getting-started/debugging

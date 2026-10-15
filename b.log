@@ -1,0 +1,297 @@
+$ node --test scripts/office/g5g6g7/fault/*.test.mjs; echo "FAULT_UNIT_EXIT $?"; true
+TAP version 13
+# Subtest: selectAppCases runs the ready app rows and reports pending ones with their dependency
+ok 1 - selectAppCases runs the ready app rows and reports pending ones with their dependency
+  ---
+  duration_ms: 2.159309
+  ...
+# Subtest: every ready app row has a driver and every driver serves a ready row
+ok 2 - every ready app row has a driver and every driver serves a ready row
+  ---
+  duration_ms: 0.752576
+  ...
+# Subtest: the client assertions of every app row read the trace hook
+ok 3 - the client assertions of every app row read the trace hook
+  ---
+  duration_ms: 2.184357
+  ...
+# Subtest: FQ-42 drops the first commit so the intent reconciles, then the lookup only says in_flight
+ok 4 - FQ-42 drops the first commit so the intent reconciles, then the lookup only says in_flight
+  ---
+  duration_ms: 0.683712
+  ...
+# Subtest: parseTraceText keeps allow-listed keys and counts torn or foreign lines
+ok 5 - parseTraceText keeps allow-listed keys and counts torn or foreign lines
+  ---
+  duration_ms: 0.332244
+  ...
+# Subtest: filterTrace keeps one document, in order, optionally since a timestamp
+ok 6 - filterTrace keeps one document, in order, optionally since a timestamp
+  ---
+  duration_ms: 0.190938
+  ...
+# Subtest: statePath and matchStatePath: adjacency, '*' gaps and 'a|b' alternation
+ok 7 - statePath and matchStatePath: adjacency, '*' gaps and 'a|b' alternation
+  ---
+  duration_ms: 0.275956
+  ...
+# Subtest: transition assertions report the expected and the actual path
+ok 8 - transition assertions report the expected and the actual path
+  ---
+  duration_ms: 0.334389
+  ...
+# Subtest: proxy log helpers split commit, lookup and upload traffic per document
+ok 9 - proxy log helpers split commit, lookup and upload traffic per document
+  ---
+  duration_ms: 0.649776
+  ...
+# Subtest: expandExits runs each exit once; a row without exits is one run
+ok 10 - expandExits runs each exit once; a row without exits is one run
+  ---
+  duration_ms: 1.197979
+  ...
+# Subtest: runResult and caseResult: FAIL wins, PASS needs every run, a blocked run is never a PASS
+ok 11 - runResult and caseResult: FAIL wins, PASS needs every run, a blocked run is never a PASS
+  ---
+  duration_ms: 0.402928
+  ...
+# Subtest: runExitCode: ready rows decide; nothing ready ran is BLOCKED (77)
+ok 12 - runExitCode: ready rows decide; nothing ready ran is BLOCKED (77)
+  ---
+  duration_ms: 0.121362
+  ...
+# Subtest: predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL
+ok 13 - predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL
+  ---
+  duration_ms: 0.70736
+  ...
+# Subtest: app plumbing: attempt id, store scope, fault env through appEnv, env files, process tree
+ok 14 - app plumbing: attempt id, store scope, fault env through appEnv, env files, process tree
+  ---
+  duration_ms: 1.114628
+  ...
+# Subtest: parseAppCasesArgs reads --case, --run-dir, --cases-file and --verify-result
+ok 15 - parseAppCasesArgs reads --case, --run-dir, --cases-file and --verify-result
+  ---
+  duration_ms: 0.316162
+  ...
+# Subtest: deviceBCommit sends base_revision as a decimal string, like CommitDocumentVersionSDI
+ok 16 - deviceBCommit sends base_revision as a decimal string, like CommitDocumentVersionSDI
+  ---
+  duration_ms: 36.460979
+  ...
+# Subtest: case ids are unique and carry the card prefix
+ok 17 - case ids are unique and carry the card prefix
+  ---
+  duration_ms: 0.746203
+  ...
+# Subtest: the card AC lists in the file match the plan cards
+ok 18 - the card AC lists in the file match the plan cards
+  ---
+  duration_ms: 0.457456
+  ...
+# Subtest: every AC a card lists appears in at least one of its rows
+ok 19 - every AC a card lists appears in at least one of its rows
+  ---
+  duration_ms: 0.244662
+  ...
+# Subtest: a row lists only AC rows of its own card
+ok 20 - a row lists only AC rows of its own card
+  ---
+  duration_ms: 0.21157
+  ...
+# Subtest: every row has a layer, an expectation, artifacts and a status
+ok 21 - every row has a layer, an expectation, artifacts and a status
+  ---
+  duration_ms: 1.497465
+  ...
+# Subtest: pending rows name a dependency and ready rows have none
+ok 22 - pending rows name a dependency and ready rows have none
+  ---
+  duration_ms: 0.203335
+  ...
+# Subtest: every G7-03b row is pending and notes the G5-D1 gate
+ok 23 - every G7-03b row is pending and notes the G5-D1 gate
+  ---
+  duration_ms: 0.138488
+  ...
+# Subtest: a row runs on a fixture every one of its AC rows declares
+ok 24 - a row runs on a fixture every one of its AC rows declares
+  ---
+  duration_ms: 0.213408
+  ...
+# Subtest: proxy rules follow the proxy contract
+ok 25 - proxy rules follow the proxy contract
+  ---
+  duration_ms: 0.445837
+  ...
+# Subtest: proxy forwards methods, rewrites Host to target, passes multipart intact, and never forwards control paths
+ok 26 - proxy forwards methods, rewrites Host to target, passes multipart intact, and never forwards control paths
+  ---
+  duration_ms: 32.204538
+  ...
+# Subtest: proxy proves delay, drop_request, drop_response_after_forward, status, reset, nth, once, and hold + release
+ok 27 - proxy proves delay, drop_request, drop_response_after_forward, status, reset, nth, once, and hold + release
+  ---
+  duration_ms: 95.77669
+  ...
+# Subtest: proxy log records required fields only and never logs bodies, Authorization, cookies, tokens or key values
+ok 28 - proxy log records required fields only and never logs bodies, Authorization, cookies, tokens or key values
+  ---
+  duration_ms: 10.822686
+  ...
+# Subtest: proxy passes WebSocket upgrade connections through and CLI prints FAULT_PROXY_ORIGIN
+ok 29 - proxy passes WebSocket upgrade connections through and CLI prints FAULT_PROXY_ORIGIN
+  ---
+  duration_ms: 50.569898
+  ...
+# Subtest: collect.mjs reads paginated document versions via public API, writes server-versions.json, and enforces FAULT_API_TOKEN from env only
+ok 30 - collect.mjs reads paginated document versions via public API, writes server-versions.json, and enforces FAULT_API_TOKEN from env only
+  ---
+  duration_ms: 7.358142
+  ...
+# Subtest: stripQuery removes query strings and fragments and normalizes full URLs
+ok 31 - stripQuery removes query strings and fragments and normalizes full URLs
+  ---
+  duration_ms: 0.645578
+  ...
+# Subtest: validateRule and validateRules accept all six action types and reject malformed rules
+ok 32 - validateRule and validateRules accept all six action types and reject malformed rules
+  ---
+  duration_ms: 0.949797
+  ...
+# Subtest: first matching rule wins and once rules disarm after the first hit
+ok 33 - first matching rule wins and once rules disarm after the first hit
+  ---
+  duration_ms: 0.470586
+  ...
+# Subtest: nth (1-based) triggers only on the nth matching request
+ok 34 - nth (1-based) triggers only on the nth matching request
+  ---
+  duration_ms: 0.852515
+  ...
+# Subtest: hold action blocks until release(ruleId) is called
+ok 35 - hold action blocks until release(ruleId) is called
+  ---
+  duration_ms: 15.237148
+  ...
+# Subtest: selectServerCases selects all 13 ready server rows or a single --case row
+ok 36 - selectServerCases selects all 13 ready server rows or a single --case row
+  ---
+  duration_ms: 1.277863
+  ...
+# Subtest: parseServerCasesArgs parses --case, --run-dir, env defaults, and rejects unknown flags
+ok 37 - parseServerCasesArgs parses --case, --run-dir, env defaults, and rejects unknown flags
+  ---
+  duration_ms: 0.261639
+  ...
+# Subtest: renderCaseRules renders server rules, substitutes <id>, and substitutes per-exit for FQ-43
+ok 38 - renderCaseRules renders server rules, substitutes <id>, and substitutes per-exit for FQ-43
+  ---
+  duration_ms: 1.107335
+  ...
+# Subtest: evaluateCaseResult, aggregateExitCode, and buildIntentLogEntry follow contract rules
+ok 39 - evaluateCaseResult, aggregateExitCode, and buildIntentLogEntry follow contract rules
+  ---
+  duration_ms: 0.777278
+  ...
+# Subtest: runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a fake transport
+ok 40 - runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a fake transport
+  ---
+  duration_ms: 28.319224
+  ...
+# Subtest: runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent
+ok 41 - runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent
+  ---
+  duration_ms: 2.542035
+  ...
+# Subtest: SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201
+ok 42 - SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201
+  ---
+  duration_ms: 0.109162
+  ...
+# Subtest: readVerificationCode reads the run's server.env, then the process env, then the harness default
+ok 43 - readVerificationCode reads the run's server.env, then the process env, then the harness default
+  ---
+  duration_ms: 0.697038
+  ...
+# Subtest: registerAndVerifyUser accepts register 200 and sends the run's verification code
+ok 44 - registerAndVerifyUser accepts register 200 and sends the run's verification code
+  ---
+  duration_ms: 0.705992
+  ...
+# Subtest: registerAndVerifyUser names the step and both statuses when the server answers otherwise
+ok 45 - registerAndVerifyUser names the step and both statuses when the server answers otherwise
+  ---
+  duration_ms: 0.574675
+  ...
+# Subtest: seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently
+ok 46 - seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently
+  ---
+  duration_ms: 0.716461
+  ...
+# Subtest: revisions go on the wire as decimal strings and are never a Number (sdi.CommitDocumentVersionSDI.base_revision)
+ok 47 - revisions go on the wire as decimal strings and are never a Number (sdi.CommitDocumentVersionSDI.base_revision)
+  ---
+  duration_ms: 0.293842
+  ...
+# Subtest: revisionGreater compares decimal strings exactly past 2^53
+ok 48 - revisionGreater compares decimal strings exactly past 2^53
+  ---
+  duration_ms: 0.095023
+  ...
+# Subtest: the fake server refuses a numeric base_revision like the real commit handler (400 invalid_request)
+ok 49 - the fake server refuses a numeric base_revision like the real commit handler (400 invalid_request)
+  ---
+  duration_ms: 1.467826
+  ...
+# Subtest: commit requests carry upload_id and a string base_revision, and the Idempotency-Key header
+ok 50 - commit requests carry upload_id and a string base_revision, and the Idempotency-Key header
+  ---
+  duration_ms: 0.283295
+  ...
+# Subtest: a lookup 410 is parsed from the real envelope {error:{code,fields}} and a 200 from CommitIntentSDO
+ok 51 - a lookup 410 is parsed from the real envelope {error:{code,fields}} and a 200 from CommitIntentSDO
+  ---
+  duration_ms: 0.235739
+  ...
+# Subtest: describeResponse names the error code of every refusal, not `undefined`
+ok 52 - describeResponse names the error code of every refusal, not `undefined`
+  ---
+  duration_ms: 0.074367
+  ...
+# Subtest: a conflict reads fields.current_revision from the envelope as a string revision
+ok 53 - a conflict reads fields.current_revision from the envelope as a string revision
+  ---
+  duration_ms: 0.377934
+  ...
+# Subtest: the AI turn sends {messages:[{role:user}]} and continues with the X-UniWork-AI-Conversation header
+ok 54 - the AI turn sends {messages:[{role:user}]} and continues with the X-UniWork-AI-Conversation header
+  ---
+  duration_ms: 0.300354
+  ...
+# Subtest: restore then move sends a string revision and parent_id, a folder is created with kind folder
+ok 55 - restore then move sends a string revision and parent_id, a folder is created with kind folder
+  ---
+  duration_ms: 0.189477
+  ...
+# Subtest: workspace member removal targets /workspaces/{ws}/members/{userId} and answers 204
+ok 56 - workspace member removal targets /workspaces/{ws}/members/{userId} and answers 204
+  ---
+  duration_ms: 0.084059
+  ...
+# Subtest: createWireContext builds each upload as a multipart file with the Idempotency-Key header
+ok 57 - createWireContext builds each upload as a multipart file with the Idempotency-Key header
+  ---
+  duration_ms: 0.316773
+  ...
+1..57
+# tests 57
+# suites 0
+# pass 57
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 259.746068
+FAULT_UNIT_EXIT 0
