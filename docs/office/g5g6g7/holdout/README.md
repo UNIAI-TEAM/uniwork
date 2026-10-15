@@ -165,7 +165,10 @@ do đứng sau ` (` hoặc `;` (một khoá thường kết thúc ở dấu các
 
 Runner **đọc ca lúc chạy** từ `cases/`; không câu hỏi, đáp án hay marker nào được chép vào mã hay test. Vì câu trả lời của
 model có thể lặp lại giá trị tham chiếu, file kết quả mặc định nằm **ngoài repo** (`~/office-g5g6g7/reports/g6-ai_server/g712-runs/`);
-runner từ chối `--out` trong repo, và từ chối ghi một file có dấu hiệu bí mật.
+runner từ chối `--out` trong repo (kể cả khi đi qua symlink; báo cáo cũng vậy), và **che** (`[redacted:<loại>]`) mọi giá trị trông
+như bí mật ngay trong từng lượt hỏi thay vì bỏ cả lần chạy: lần chạy vẫn được ghi và đếm, nhưng bị đánh dấu `redactions` và
+không thể là kết luận đạt. Một lần gọi runner ghi **một thư mục phiên** `<out>/<sessionId>/` gồm `run-NN.json` và `manifest.json`
+(mã phiên, hash bộ ca, sha256 của từng file run); báo cáo chỉ tính đúng các lần chạy mà manifest liệt kê.
 
 ### Chạy trên bản giả (không cần model thật)
 
@@ -189,32 +192,87 @@ Máy chủ phải chạy trên đúng release tuple cần ký (SHA của D, ghim
 
 ```bash
 node scripts/office/g5g6g7/holdout-run.mjs --server-url <origin máy chủ> --db-url <postgres của máy chủ> \
-  --runs 3 --threads 2 --redis on|off --server-sha <sha nếu runner không chạy trong checkout của D>
-node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-ai_server/g712-runs/<thư mục lần chạy>
+  --runs 3 --threads 2 --redis on|off --tool-schemas <lược đồ công cụ thật> \
+  --server-sha <sha nếu runner không chạy trong checkout của D>
+node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-ai_server/g712-runs/<mã phiên> \
+  --reviews <tệp duyệt> --thresholds <tệp đã ký>
 ```
 
 - Ít nhất **3 lần chạy**, cùng một model ở cả ba lần, tối đa **2 luồng**, một người dùng thử. Không chọn lần chạy đẹp nhất.
-- `--db-url` để đọc `ai_usage_events` (token vào/ra, `latency_ms`, `prompt_id`, nhà cung cấp, model đã phân giải). Thiếu nó,
-  độ trễ lấy từ thời gian phía client và token ghi "không có"; báo cáo ghi rõ nguồn.
-- `--redis on|off|unknown` ghi vào release tuple (runner không tự biết). `--tool-schemas <file>` cấp lược đồ công cụ thật của
-  slides/pdf/markdown/html (mặc định chỉ có tên); ca không công cụ nào phục vụ được thao tác bắt buộc bị liệt kê riêng ở mục 7
-  của báo cáo để không bị đọc nhầm là lỗi model. `--numbers lenient` bỏ luật "con số thừa là lệch" (mặc định `strict`).
+- Runner **từ chối chạy** khi thiếu `--redis on|off` (giá trị `unknown` bị từ chối) hoặc khi một module không có lược đồ công cụ
+  thật (`--tool-schemas <file>` phải phủ slides/pdf/markdown/html; sheets và docs dùng lược đồ của dev set), trừ khi có
+  `--allow-name-only` (chạy cố ý với công cụ chỉ có tên; kết luận đã ký trên lần chạy đó là `INCONCLUSIVE`). Nguồn lược đồ
+  từng module (`devset` | `file:<sha256>` | `name-only`) và sha256 bộ công cụ được ghi vào `config.toolSurface`.
+- **Mọi ca của một module nhận cùng một danh sách công cụ** (toàn bộ công cụ của module, kể cả công cụ ghi, không lọc theo
+  allowlist hay kết quả mong đợi của ca; viewer cũng nhận công cụ ghi và backend từ chối như khung sẽ làm). Allowlist chỉ để
+  **chấm** công cụ model đã gọi, không bao giờ để chọn công cụ cấp cho model.
+- `--db-url` để đọc `ai_usage_events` (token vào/ra, `latency_ms`, `prompt_id`, nhà cung cấp, model đã phân giải). Thiếu nó
+  hoặc đọc lỗi (lỗi được ghi vào `config.usageReaderError`, không bị nuốt), độ trễ lấy từ thời gian phía client, nhà cung
+  cấp/`prompt_id` là `unknown`, và kết luận đã ký là `INCONCLUSIVE`.
+- `--anchors strict|lenient` (mặc định `strict`: giá trị đúng ở neo khác là sai). `lenient` là chọn tay, báo cáo liệt kê từng ca
+  được chấm nới và kết luận đã ký là `INCONCLUSIVE`. `--numbers lenient` bỏ luật "con số thừa là lệch" và cũng chặn kết luận đã ký.
+- Với ca sửa đổi, ô model báo cáo chỉ được tính khi đối số của một lần ghi đã áp (backend giả lập) mang giá trị đó hoặc phủ
+  địa chỉ ô; ô trống, dò định dạng, số đếm và tiêu đề chỉ có tự báo cáo (báo cáo đếm riêng ba loại). Lời văn và dòng báo cáo
+  được so: con số của dòng mà lời văn không nêu bị gắn cờ theo từng lượt hỏi (cảnh báo, không tự làm sai).
+- Một tham số công cụ sai (JSON hỏng, `addresses` không phải mảng...) được backend trả `invalid_arguments` như công cụ thật; lượt
+  hỏi đó bị ghi là lỗi (`errored`) và tính là lệch, lần chạy vẫn tiếp tục và giữ các lượt đã xong. Chỉ khi harness không gắn
+  được fixture nào thì lần chạy mới dừng (`aborted`), vẫn giữ các lượt đã xong.
 - Dòng báo cáo `UNIWORK_ANSWER <json>` được nối vào câu hỏi để model báo đáp án ở dạng máy đọc được; dòng này giống nhau
-  cho mọi ca và không nêu gì về đáp án. Nó **thay đổi prompt**, nên là điều kiện của phép đo, không phải của sản phẩm.
+  cho mọi ca và không nêu gì về đáp án. Nó **thay đổi prompt**, nên là điều kiện của phép đo, không phải của sản phẩm;
+  `report.md` in nguyên văn đoạn này cùng sha256, chính sách chấm, danh sách mô phỏng và bộ công cụ ở mục 0.
 
 ### Đọc báo cáo và "chưa có ngưỡng"
 
-`report.md` (và `report.json`) có: release tuple mỗi lần, tải (lượt gọi, 429/5xx, thử lại, token), mọi chỉ số §9.2 với
+`report.md` (và `report.json`) có: **mục 0 điều kiện của phép đo** (đoạn nối cuối câu hỏi nguyên văn + sha256, chính sách chấm,
+backend giả lập, đường façade, bộ công cụ từng module và nguồn lược đồ, nguồn độ trễ, phần release tuple chỉ khai báo), bộ lần chạy
+và release tuple, tải (lượt gọi, 429/5xx, thử lại, token và tỷ lệ lượt gọi có dòng `ai_usage_events`), mọi chỉ số §9.2 với
 **min / trung vị / max** trên các lần chạy, theo nhóm (XLSX 40, DOCX 20, định dạng khác 20, cross 20) và theo định dạng, độ
 trễ p50/p95 mỗi lần và gộp, ca không ổn định (khớp ở lần này, lệch ở lần khác), ca **chờ người duyệt** (ca `rubric` và ca có
-`caveat`: scorer không bao giờ tự xác nhận).
+`caveat`: scorer không bao giờ tự xác nhận), và giới hạn của adapter.
+
+Hai hàng "ghi áp lên bản cũ" và "ghi trái phép" của viewer/thu hồi quyền ghi rõ **mô phỏng, bằng 0 theo cấu trúc** (backend từ
+chối mọi lần ghi của các ca đó); có thêm hàng "số lần ghi bị backend giả lập từ chối". Chúng không phải bằng chứng về khung hay
+máy chủ. Trong tệp ngưỡng, `staleApplied` được chấp nhận nhưng **không gate** (báo cáo ghi `KHÔNG GATE` kèm lý do); `unauthorizedWrites`
+vẫn gate vì đo thật việc ghi vượt trần ở vai editor.
+
+**Người duyệt (`--reviews <tệp>`).** 32 ca (64 lượt hỏi) chờ người duyệt. Tệp duyệt có dạng:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-g7-holdout-reviews",
+  "reviews": [
+    { "id": "<mã ca>", "lang": "vi", "verdict": "pass", "reviewer": "<tên người duyệt>", "date": "<ngày>" },
+    { "id": "<mã ca>", "lang": "en", "run": 2, "verdict": "fail", "reviewer": "<tên>", "date": "<ngày>" }
+  ]
+}
+```
+
+Mỗi mục là một ca + ngôn ngữ (chỉ mã ca, không chứa văn bản). Không có `run` thì áp cho lượt hỏi đó ở **mọi** lần chạy (QA xác
+nhận một lần cho cả ba lần); có `run` thì chỉ áp cho lần đó và thắng mục chung. `pass` tính là khớp, `fail` tính là lệch; một mục
+duyệt không bao giờ cứu một lượt hỏi đã lệch ở mức tất định. Lượt hỏi chưa có mục duyệt vẫn là "chờ người duyệt" và **chặn kết
+luận đã ký ở mức tốt nhất là chưa kết luận được**. Báo cáo in sha256 của tệp duyệt (tệp này thuộc gói người dùng ký) và danh sách mục không khớp.
 
 **"Chưa có ngưỡng"** nghĩa là: chưa có tệp ngưỡng do người dùng ký, nên báo cáo chỉ đưa số đo; **không có PASS hay FAIL ở
 bất cứ đâu**, và một ca bị bỏ qua, bị chặn hoặc chờ người duyệt không bao giờ được tính là đạt. Chỉ khi truyền
-`--thresholds <tệp đã ký>` thì báo cáo mới có kết luận, theo luật G7-D1: **mọi lần chạy phải đạt** (lần xấu nhất quyết định),
-ca không ổn định tính là lệch, và kết luận là `INCONCLUSIVE` (không phải PASS) khi thiếu lần chạy, có lần chạy dở dang hoặc bị
-chặn, release tuple đổi giữa các lần, hoặc tỷ lệ chỉ đạt nếu mọi ca chờ duyệt được xác nhận. Mã thoát: 0 đạt hoặc không có
-ngưỡng, 1 trượt, 2 chưa kết luận.
+`--thresholds <tệp đã ký>` thì báo cáo mới có kết luận, theo luật G7-D1: **mọi lần chạy phải đạt** (lần xấu nhất quyết định) và
+ca không ổn định tính là lệch. Kết luận là `INCONCLUSIVE` (không bao giờ PASS) khi một trong các điều sau xảy ra, và báo cáo nói rõ
+điều nào:
+
+- bộ lần chạy không phải đúng các lần của một lần gọi runner: không có manifest, mã phiên khác nhau, có file run ngoài manifest
+  hoặc thiếu file manifest liệt kê, sha256 một file khác manifest, lần chạy dở dang/`aborted`/một phần, một lần không đủ
+  2 × số ca lượt hỏi, hoặc bộ ca có dưới 100 ca (thư mục `--cases` con) (cũng được in khi không có ngưỡng);
+- release tuple đổi giữa các lần, hoặc một phần chưa biết (SHA D, ghim khung, `prompt_id`, nhà cung cấp, model, Redis) hoặc
+  nhà cung cấp là `fake`, hoặc cây làm việc có thay đổi;
+- chính sách đo đổi giữa các lần hoặc khác mặc định (`numbers`, `anchors`, `computeByReply`, `maxRetries`, đoạn nối cuối câu hỏi,
+  bộ công cụ), một module chỉ có tên công cụ, có lượt gọi chỉ có độ trễ phía client, đọc `ai_usage_events` lỗi, có giá trị bị che;
+- còn lượt hỏi chờ người duyệt, hoặc tỷ lệ chỉ đạt nếu mọi ca chờ duyệt được xác nhận, hoặc không còn chỉ số nào gate được.
+
+`threads` được yêu cầu **giống nhau** giữa các lần (1 hoặc 2 đều là cấu hình hợp lệ), không bắt buộc bằng mặc định.
+
+**Mã thoát của `holdout-report.mjs`** (in cả ở `--help`): `0` kết luận đã ký đạt, `1` trượt, `2` chưa kết luận được
+(INCONCLUSIVE), `3` chưa có ngưỡng (không có kết luận; **không phải thành công**), `4` lỗi dùng lệnh hoặc đọc file.
+Mã `0` chỉ dành cho kết luận đã ký đạt.
 
 Dạng tệp ngưỡng (repo **không chứa** tệp này; các con số trong bản nháp G7-D1 là đề xuất cho tới khi được ký):
 
@@ -241,6 +299,12 @@ Khoá hợp lệ trong `thresholds`: `outsideAllowlistCases`, `unauthorizedWrite
 
 ### Giới hạn đã biết của bản v1
 
-- Quyền viewer và thu hồi quyền được mô phỏng trong backend (không có người dùng thứ hai); lượt ghi được đếm chứ không áp lên fixture.
+- Quyền viewer, thu hồi quyền và bản cũ được mô phỏng trong backend (không có người dùng thứ hai); lượt ghi được đếm chứ không áp
+  lên fixture, nên các hàng "ghi trái phép" của các vai đó và "ghi áp lên bản cũ" là 0 theo cấu trúc (xem trên).
 - "Ghi đè im lặng" và "mất bản nháp đã xác nhận" chưa đo được ở mức ca (không có chỉ báo xác định); báo cáo ghi rõ điều này.
-- Adapter v1 suy đáp án từ dòng báo cáo: giá trị khớp nhưng sai anchor được đếm riêng (`anchorLenient`), không giấu.
+- Adapter v1 suy đáp án từ dòng báo cáo của model; neo mặc định là nghiêm (giá trị đúng ở neo khác là sai). Ca sửa đổi chỉ được
+  chứng minh một phần từ đối số ghi (giá trị hoặc địa chỉ), không phải kết quả công thức.
+- Lớp bảo vệ bí mật (G712-10, chỉ ghi nhận) chỉ phủ IPv4, `http(s)://host:cổng`, khoá `sk-`/`AIza`/`Bearer` như dev set; các dạng khác
+  (host không cổng, IPv6, `ghp_`, `xai-`, JWT, `bearer` viết thường) không bị che. Một chuỗi dạng "1.100.100.100" không kèm đơn vị
+  tiền bị che và gắn cờ vì giống địa chỉ IP. Đường duy nhất để host upstream vào file kết quả là thân lỗi của façade hoặc lời model
+  lặp lại, nên rủi ro thực tế thấp; lớp này là lưới, không phải tường.
