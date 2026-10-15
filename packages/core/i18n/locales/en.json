@@ -3663,6 +3663,7 @@
     "unselect_member": "Remove {{name}}",
     "workspace_members_all_picked": "You've picked everyone in this workspace.",
     "workspace_members_none": "No one else is in this workspace yet. Invite teammates from workspace settings.",
+    "workspace_member_unnamed": "Member",
     "member_search_placeholder": "e.g. Minh or minh@company.com",
     "member_search_label": "Name or email",
     "expression_gifs_empty": "No GIFs match. Try another word.",

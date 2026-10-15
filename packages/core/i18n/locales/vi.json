@@ -3662,6 +3662,7 @@
     "unselect_member": "Bỏ chọn {{name}}",
     "workspace_members_all_picked": "Bạn đã chọn hết thành viên trong workspace.",
     "workspace_members_none": "Workspace này chưa có ai khác. Mời đồng nghiệp trong phần cài đặt workspace.",
+    "workspace_member_unnamed": "Thành viên",
     "member_search_placeholder": "VD: Minh hoặc minh@congty.vn",
     "member_search_label": "Tên hoặc email",
     "expression_gifs_empty": "Không có GIF nào khớp. Thử từ khóa khác.",
