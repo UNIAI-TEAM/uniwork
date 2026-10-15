@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+cab1382152d8bb0bb37530210e6c2a0b331554be
+fa2ed957a653b838f8ddf42727a41e8caf12657e
+cab13821 test(slides): the slide-qc org case uses anthropic, a provider that can be org-served (G05K3-4)
+45533b2b fix(shell): Settings keeps one model pick per provider and sends them all in one save (G05K3-3)
+83c836bf fix(web-ai): a 503 with no JSON error body is a temporary outage, not "not set up on the server" (G05K3-2)
