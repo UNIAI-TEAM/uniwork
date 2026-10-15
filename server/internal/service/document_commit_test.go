@@ -189,8 +189,8 @@ func TestDocumentCommit(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, err = env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
-			if ce := wantCode(t, err, "document_deleted"); ce.Status != 410 {
-				t.Fatalf("document_deleted status = %d", ce.Status)
+			if ce := wantCode(t, err, "document_archived"); ce.Status != 403 {
+				t.Fatalf("document_archived status = %d", ce.Status)
 			}
 			_, err = env.commit(human(env.tn.bMember), created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
 			wantNotFound(t, err)
@@ -261,4 +261,66 @@ func TestDocumentCommit(t *testing.T) {
 			wantNotFound(t, err)
 		})
 	})
+}
+
+// TestArchivedDocumentCommitUploadRestore proves F6 (G5-07): on an archived
+// file document, commit, upload staging and file-version restore answer
+// 403 document_archived to any actor who can see the document (both its
+// manager and a non-manager workspace peer), while an actor who cannot see
+// the document still gets 404 not_found with no existence leak.
+func TestArchivedDocumentCommitUploadRestore(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	ctx := context.Background()
+	manager := human(env.tn.member)
+	peer := human(env.tn.creator)
+	nonMember := human(env.tn.bMember)
+
+	created := env.createFile(t, manager, "archived-save.pdf", pdfBody("v1"))
+	v2Up := env.upload(t, manager, created.Document.ID, "archived-save-v2.pdf", pdfBody("v2"))
+	v2, err := env.commit(manager, created.Document.ID, v2Up.UploadID, created.Document.Revision, util.NewID())
+	mustf(t, err, "commit v2 before archive")
+	stagedBeforeArchive := env.upload(t, manager, created.Document.ID, "archived-save-v3.pdf", pdfBody("v3"))
+
+	_, err = env.svc.ArchiveDocument(ctx, manager, created.Document.ID, ArchiveDocumentInput{})
+	mustf(t, err, "archive document")
+
+	for _, tc := range []struct {
+		name  string
+		actor Actor
+	}{
+		{"manager", manager},
+		{"workspace peer", peer},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := env.commit(tc.actor, created.Document.ID, stagedBeforeArchive.UploadID, v2.Document.Revision, util.NewID())
+			if ce := wantCode(t, err, "document_archived"); ce.Status != 403 || !errors.Is(err, ErrDocumentArchived) {
+				t.Fatalf("commit on archived = %+v (err=%v), want 403 document_archived", ce, err)
+			}
+			_, err = env.svc.UploadDocumentFile(ctx, tc.actor, created.Document.ID, DocumentUploadInput{
+				Filename: "after-archive.pdf", Body: bytes.NewReader(pdfBody("after")),
+			})
+			if ce := wantCode(t, err, "document_archived"); ce.Status != 403 || !errors.Is(err, ErrDocumentArchived) {
+				t.Fatalf("upload on archived = %+v (err=%v), want 403 document_archived", ce, err)
+			}
+			_, err = env.svc.RestoreFileVersion(ctx, tc.actor, created.Document.ID, RestoreFileVersionInput{
+				Version: 1, BaseRevision: v2.Document.Revision, IdempotencyKey: util.NewID(),
+			})
+			if ce := wantCode(t, err, "document_archived"); ce.Status != 403 || !errors.Is(err, ErrDocumentArchived) {
+				t.Fatalf("restore on archived = %+v (err=%v), want 403 document_archived", ce, err)
+			}
+		})
+	}
+
+	// An actor in the same organization who is not a member of the workspace
+	// (and has no share) still gets plain not_found on every write path.
+	_, err = env.commit(nonMember, created.Document.ID, stagedBeforeArchive.UploadID, v2.Document.Revision, util.NewID())
+	wantNotFound(t, err)
+	_, err = env.svc.UploadDocumentFile(ctx, nonMember, created.Document.ID, DocumentUploadInput{
+		Filename: "stranger.pdf", Body: bytes.NewReader(pdfBody("stranger")),
+	})
+	wantNotFound(t, err)
+	_, err = env.svc.RestoreFileVersion(ctx, nonMember, created.Document.ID, RestoreFileVersionInput{
+		Version: 1, BaseRevision: v2.Document.Revision, IdempotencyKey: util.NewID(),
+	})
+	wantNotFound(t, err)
 }
