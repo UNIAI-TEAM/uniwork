@@ -86,15 +86,16 @@ export function scriptedModel(cases) {
  * behave like the D server past a credential's window: an access token that has served that many calls, or a frame token
  * that has served that many chat calls, answers 401 with error_class session until it is renewed. `setRefreshCookie:
  * false` models a sign-in that left no refresh cookie, so the runner has to renew through POST /api/v1/auth/login.
- * `mintDelayMs` holds a frame-token answer back, so a test can widen the window in which a second ask's renewal joins
- * the first one's mint (G712-60). Returns { url, requests, stats, close }.
+ * `hooks.mint(docId, mintIndex)` may answer a frame-token request with a status instead (404 says the document is gone,
+ * G712-63). `mintDelayMs` holds a frame-token answer back, so a test can widen the window in which a second ask's
+ * renewal joins the first one's mint (G712-60). Returns { url, requests, stats, close }.
  */
 export async function startStubFacade({
   model, hooks = {}, model_name = 'stub-model', delayMs = 0, mintDelayMs = 0,
   sessionExpiresAfterCalls = Infinity, frameExpiresAfterCalls = Infinity, setRefreshCookie = true,
 }) {
   const requests = [];
-  const stats = { inflight: 0, maxInflight: 0, registers: 0, logins: 0, refreshes: 0, uploads: 0, mints: 0 };
+  const stats = { inflight: 0, maxInflight: 0, registers: 0, logins: 0, refreshes: 0, uploads: 0, mints: 0, mintRequests: 0 };
   const conversations = new Map();
   const frames = new Map();
   let docCount = 0;
@@ -144,6 +145,9 @@ export async function startStubFacade({
       const mint = /\/documents\/([^/]+)\/office\/frame-token$/.exec(url);
       if (mint) {
         if (!sessionOk(req)) return unauthorized(res);
+        stats.mintRequests += 1;
+        const forced = hooks.mint?.(mint[1], stats.mintRequests);
+        if (forced && forced !== 200) return json(res, forced, { error: `forced ${forced}` });
         stats.mints += 1;
         serial += 1;
         const token = `stub-frame-${mint[1]}-${serial}`;

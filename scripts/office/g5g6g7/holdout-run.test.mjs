@@ -1160,6 +1160,32 @@ describe('token renewal mid-run (G7-12 pilot blocker)', () => {
     }
   });
 
+  it('re-uploads the fixture once when the mint says the document is gone, then mints for the new one (G712-63)', async () => {
+    const dir = path.join(tmpRoot, 'renew-404');
+    const mintedOnce = new Set();
+    const goneAfterFirstMint = (docId) => { const again = mintedOnce.has(docId); mintedOnce.add(docId); return again ? 404 : null; };
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i === 0 ? { status: 401 } : null), mint: goneAfterFirstMint } });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-renew-404', opts: { sleep: noSleep },
+      });
+      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
+      assert.equal(doc.status, 'completed');
+      const [renewing] = doc.asks;
+      assert.equal(renewing.errored, false, 'the renewal re-uploads and the ask goes on');
+      assert.equal(facade.stats.uploads, 2, 'the fixture is uploaded again exactly once');
+      assert.equal(facade.stats.mints, 2, 'the first mount minted, the 404 mint minted nothing, the new document minted');
+      const askedDocs = [...new Set(facade.requests.map((r) => r.doc))];
+      assert.equal(askedDocs.length, 2, 'the retried call goes to the document uploaded in its place');
+      assert.notEqual(askedDocs[0], askedDocs[1]);
+      assert.equal(renewing.renewals.filter((r) => r.kind === 'frame').length, 1, 'the re-upload renewal is one token minted');
+    } finally {
+      await facade.close();
+    }
+  });
+
   it('renews through POST /api/v1/auth/login when the sign-in left no refresh cookie', async () => {
     const dir = path.join(tmpRoot, 'renew-login');
     const facade = await startStubFacade({ model: scriptedModel(cases), sessionExpiresAfterCalls: 1, setRefreshCookie: false });
