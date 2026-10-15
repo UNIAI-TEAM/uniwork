@@ -79,6 +79,8 @@ func viewFromInOrgRow(r db.ListWorkspacesInOrgRow) WorkspaceView {
 // views with the icon URL signed.
 func (s *WorkspaceService) ViewsFromOrgRows(ctx context.Context, rows []db.ListWorkspacesInOrgRow) []WorkspaceView {
 	out := make([]WorkspaceView, 0, len(rows))
+	// shortcut: one presign per workspace with an icon file on list reads,
+	// bounded by the organization's workspace count; batch if lists grow.
 	for _, r := range rows {
 		out = append(out, s.withIconURL(ctx, viewFromInOrgRow(r)))
 	}
@@ -188,7 +190,7 @@ func (s *WorkspaceService) GetView(ctx context.Context, userID, workspaceID stri
 	if err != nil {
 		return WorkspaceView{}, err
 	}
-	return s.withIconURL(ctx, viewFromInOrgRow(db.ListWorkspacesInOrgRow(r))), nil
+	return viewFromInOrgRow(db.ListWorkspacesInOrgRow(r)), nil
 }
 
 func (s *WorkspaceService) ListForUser(ctx context.Context, userID string) ([]WorkspaceView, error) {
@@ -197,6 +199,8 @@ func (s *WorkspaceService) ListForUser(ctx context.Context, userID string) ([]Wo
 		return nil, err
 	}
 	out := make([]WorkspaceView, 0, len(rows))
+	// shortcut: one presign per workspace with an icon file on list reads,
+	// bounded by membership count; batch if lists grow.
 	for _, r := range rows {
 		out = append(out, s.withIconURL(ctx, viewFromInOrgRow(db.ListWorkspacesInOrgRow(r))))
 	}
@@ -344,7 +348,7 @@ func (s *WorkspaceService) updateFrom(ctx context.Context, userID string, before
 	// below from the locked row.
 	_, hint := workspaceChanges(before, in)
 	if len(hint) == 0 {
-		return s.GetView(ctx, userID, workspaceID)
+		return s.viewWithIcon(ctx, userID, workspaceID)
 	}
 	_, releaseIcon := hint["icon_emoji"]
 
@@ -363,7 +367,7 @@ func (s *WorkspaceService) updateFrom(ctx context.Context, userID string, before
 	}
 	from, to := workspaceChanges(locked, in)
 	if len(to) == 0 {
-		return s.GetView(ctx, userID, workspaceID)
+		return s.viewWithIcon(ctx, userID, workspaceID)
 	}
 	if _, writesIcon := to["icon_emoji"]; writesIcon != releaseIcon && locked.IconFileID.Valid {
 		// An icon file appeared after the unlocked read: either it was not
@@ -390,7 +394,7 @@ func (s *WorkspaceService) updateFrom(ctx context.Context, userID string, before
 	if err := tx.Commit(ctx); err != nil {
 		return WorkspaceView{}, err
 	}
-	return s.GetView(ctx, userID, workspaceID)
+	return s.viewWithIcon(ctx, userID, workspaceID)
 }
 
 // requireWorkspaceAdmin is the gate every workspace-settings write shares:

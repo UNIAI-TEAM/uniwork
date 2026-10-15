@@ -112,7 +112,7 @@ func (s *WorkspaceService) UploadIcon(ctx context.Context, userID, workspaceID, 
 		cancel()
 		return WorkspaceView{}, err
 	}
-	return s.GetView(ctx, userID, workspaceID)
+	return s.viewWithIcon(ctx, userID, workspaceID)
 }
 
 // RemoveIcon drops the emoji or the file, so the workspace shows its initial
@@ -123,7 +123,7 @@ func (s *WorkspaceService) RemoveIcon(ctx context.Context, userID, workspaceID s
 		return WorkspaceView{}, err
 	}
 	if !before.IconEmoji.Valid && !before.IconFileID.Valid {
-		return s.GetView(ctx, userID, workspaceID)
+		return s.viewWithIcon(ctx, userID, workspaceID)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -146,7 +146,7 @@ func (s *WorkspaceService) RemoveIcon(ctx context.Context, userID, workspaceID s
 	if err := tx.Commit(ctx); err != nil {
 		return WorkspaceView{}, err
 	}
-	return s.GetView(ctx, userID, workspaceID)
+	return s.viewWithIcon(ctx, userID, workspaceID)
 }
 
 // releaseIconFileInTx releases the uploaded icon that is current inside the
@@ -206,6 +206,16 @@ func workspaceIconUploadError(err error) error {
 		}
 	}
 	return filesError(err)
+}
+
+// viewWithIcon is GetView with the icon signed, for a view that is
+// returned to the client. Server-internal reads use GetView and sign nothing.
+func (s *WorkspaceService) viewWithIcon(ctx context.Context, userID, workspaceID string) (WorkspaceView, error) {
+	v, err := s.GetView(ctx, userID, workspaceID)
+	if err != nil {
+		return WorkspaceView{}, err
+	}
+	return s.withIconURL(ctx, v), nil
 }
 
 // withIconURL presigns the uploaded icon, if any. A failure leaves IconURL

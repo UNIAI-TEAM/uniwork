@@ -204,7 +204,7 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.members.emailHub, out.mailboxes)
 	result := AcceptResult{Organization: out.org}
 	if out.workspaceID != "" {
-		view, err := s.GetView(ctx, userID, out.workspaceID)
+		view, err := s.viewWithIcon(ctx, userID, out.workspaceID)
 		switch {
 		case err == nil:
 			result.Workspace = &view
