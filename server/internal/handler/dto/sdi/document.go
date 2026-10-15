@@ -244,6 +244,13 @@ type ShareDocumentSDI struct {
 	Level         string `json:"level" description:"view, comment, edit hoặc manage" example:"view"`
 }
 
+// BreakGlassSDI is POST /api/v1/documents/{documentID}/break-glass: a workspace
+// admin opens 24-hour view-only access to a restricted document they do not
+// own (DOC-05; UNI-1628). The reason is trimmed, then 10-500 characters.
+type BreakGlassSDI struct {
+	Reason string `json:"reason" description:"Lý do mở truy cập khẩn cấp, 10–500 ký tự sau khi cắt khoảng trắng hai đầu" example:"Kiểm tra hợp đồng theo yêu cầu của kiểm toán"`
+}
+
 // CreateDocumentLinkSDI is POST /api/v1/documents/{documentID}/links:
 // an anonymous view link. Requires the documents.public_links entitlement and
 // the organization switch; at most five live links per document.
