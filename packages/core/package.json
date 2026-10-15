@@ -63,6 +63,8 @@
     "./documents/hooks-collections": "./documents/hooks-collections.ts",
     "./documents/hooks-sharing": "./documents/hooks-sharing.ts",
     "./documents/hooks-owner": "./documents/hooks-owner.ts",
+    "./documents/hooks-access-requests": "./documents/hooks-access-requests.ts",
+    "./documents/hooks-access-decisions": "./documents/hooks-access-decisions.ts",
     "./documents/doc05-fake": "./documents/doc05-fake.ts",
     "./documents/hooks-access-report": "./documents/hooks-access-report.ts",
     "./documents/hooks-public": "./documents/hooks-public.ts",

@@ -1,10 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
-import { requestMock, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { useAdminManageAccess } from "./admin-manage-access";
 
 // DOC6-W01, pure admin (access addendum §2.5, N-01). DocumentLockedCard
@@ -46,20 +46,39 @@ function Host() {
   );
 }
 
-function renderHost() {
-  return render(
+function renderHost(url = "/") {
+  const nav = fakeNav(url);
+  render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
         <Host />
       </WorkspaceProvider>,
+      nav,
     ),
   );
+  return nav;
 }
 
 function serve(summary: () => Promise<unknown>) {
   requestMock.mockReset();
   requestMock.mockImplementation((path: string) => {
     if (path === "/api/v1/documents/d1/admin-summary") return summary();
+    if (path === "/api/v1/documents/d1/access-requests") {
+      return Promise.resolve({
+        requests: [
+          {
+            id: "r1",
+            requester_id: "u3",
+            requester_name: "Chi",
+            requested_level: "view",
+            message: "Cần xem",
+            source: null,
+            created_at: "2026-10-15T01:00:00Z",
+            expires_at: "2026-11-14T01:00:00Z",
+          },
+        ],
+      });
+    }
     if (path === "/api/v1/documents/d1/shares") {
       return Promise.resolve({
         my_level: "",
@@ -112,5 +131,40 @@ describe("useAdminManageAccess (DOC6-W01, N-01)", () => {
     renderHost();
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByRole("button", { name: t("documents.share.admin_manage_button") })).toBeNull();
+  });
+  it("opens at the requests section from ?access=requests once admin-summary answered, then drops the parameter (DOC7-W02, N-01)", async () => {
+    const nav = renderHost("/acme/team/documents/d1?access=requests&x=1");
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    const heading = await within(dialog).findByRole("heading", {
+      name: t("documents.access_request.section_title", { count: 1 }),
+    });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(within(dialog).getByText("Chi")).toBeInTheDocument();
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1?x=1"));
+  });
+
+  it("drops ?access=requests silently when admin-summary refuses or the document is archived", async () => {
+    serve(() => Promise.reject(new ApiError("forbidden", "forbidden", 403)));
+    const nav = renderHost("/acme/team/documents/d1?access=requests");
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("does not open for an archived document and still drops the parameter", async () => {
+    serve(() =>
+      Promise.resolve({
+        id: "d1",
+        title: "Lương 2026",
+        kind: "page",
+        visibility: "restricted",
+        organization_id: "o1",
+        revision: "4",
+        archived_at: "2026-10-14T00:00:00Z",
+        acl_owner: { user_id: "u2" },
+      }),
+    );
+    const nav = renderHost("/acme/team/documents/d1?access=requests");
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1"));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

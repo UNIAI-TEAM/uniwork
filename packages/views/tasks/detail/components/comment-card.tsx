@@ -5,6 +5,7 @@ import type { UploadFileFn } from "@uniwork/core/hooks/use-file-upload";
 import { TASK_COMMENT_ATTACHMENT_PURPOSE } from "@uniwork/core/constants/upload";
 import type { Attachment, TaskComment } from "@uniwork/core/types";
 import { useEditorUpload } from "../../../editor";
+import { EditorLinkProvider } from "../../../editor/editor-link-context";
 import { CommentCard } from "../../../comments/comment-card";
 
 /**
@@ -36,30 +37,32 @@ export function TaskCommentCard({
   const editorUpload = useEditorUpload(uploadFile);
 
   return (
-    <CommentCard
-      comment={comment}
-      replies={replies}
-      tPrefix="tasks.detail"
-      testIdPrefix="task-comment"
-      attachments={attachments}
-      upload={{
-        onFile: (file) =>
-          editorUpload.upload(file, {
-            taskId: taskId ?? comment.task_id,
-            purpose: TASK_COMMENT_ATTACHMENT_PURPOSE,
-          }),
-        uploading: editorUpload.uploading,
-      }}
-      editorTaskId={taskId ?? comment.task_id}
-      highlighted={highlighted}
-      highlightedId={highlightedId}
-      canModerate={canModerate}
-      getActorName={getActorName}
-      replyComposer={replyComposer}
-      onToggleReaction={onToggleReaction}
-      onEdit={onEdit}
-      onResolveToggle={onResolveToggle}
-      onDelete={onDelete}
-    />
+    <EditorLinkProvider value={{ kind: "task", id: taskId ?? comment.task_id }}>
+      <CommentCard
+        comment={comment}
+        replies={replies}
+        tPrefix="tasks.detail"
+        testIdPrefix="task-comment"
+        attachments={attachments}
+        upload={{
+          onFile: (file) =>
+            editorUpload.upload(file, {
+              taskId: taskId ?? comment.task_id,
+              purpose: TASK_COMMENT_ATTACHMENT_PURPOSE,
+            }),
+          uploading: editorUpload.uploading,
+        }}
+        editorTaskId={taskId ?? comment.task_id}
+        highlighted={highlighted}
+        highlightedId={highlightedId}
+        canModerate={canModerate}
+        getActorName={getActorName}
+        replyComposer={replyComposer}
+        onToggleReaction={onToggleReaction}
+        onEdit={onEdit}
+        onResolveToggle={onResolveToggle}
+        onDelete={onDelete}
+      />
+    </EditorLinkProvider>
   );
 }
