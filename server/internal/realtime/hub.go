@@ -291,6 +291,10 @@ const (
 	// scopes joined at connect time included. The web client asks for at most
 	// 25 chat rooms plus the open task or meeting.
 	maxScopesPerSocket = 50
+
+	// maxSocketsPerUser caps the workspace sockets one user holds on this
+	// node: a tab per workspace plus the desktop app stays far below it.
+	maxSocketsPerUser = 20
 )
 
 var upgrader = websocket.Upgrader{
@@ -371,6 +375,7 @@ type SubscriptionCallback func(scopeType, scopeID string)
 type Hub struct {
 	rooms      map[scopeKey]map[*Client]bool
 	clients    map[*Client]bool // every connected client (used by global Broadcast and snapshots)
+	perUser    map[string]int   // workspace sockets held per user, guarded by mu
 	broadcast  chan []byte
 	register   chan *Client
 	unregister chan *Client
@@ -389,6 +394,7 @@ func NewHub() *Hub {
 	return &Hub{
 		rooms:      make(map[scopeKey]map[*Client]bool),
 		clients:    make(map[*Client]bool),
+		perUser:    make(map[string]int),
 		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
@@ -482,6 +488,31 @@ func (h *Hub) Run() {
 	}
 }
 
+// reserveUserSocket takes one of userID's maxSocketsPerUser workspace
+// socket slots, or reports that none is left.
+func (h *Hub) reserveUserSocket(userID string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.perUser[userID] >= maxSocketsPerUser {
+		return false
+	}
+	h.perUser[userID]++
+	return true
+}
+
+func (h *Hub) releaseUserSocket(userID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.releaseUserSocketLocked(userID)
+}
+
+// releaseUserSocketLocked expects h.mu held.
+func (h *Hub) releaseUserSocketLocked(userID string) {
+	if h.perUser[userID]--; h.perUser[userID] <= 0 {
+		delete(h.perUser, userID)
+	}
+}
+
 // removeClient drops a client from all rooms and the global set.
 func (h *Hub) removeClient(client *Client) {
 	h.mu.Lock()
@@ -490,6 +521,10 @@ func (h *Hub) removeClient(client *Client) {
 		return
 	}
 	delete(h.clients, client)
+	// Lobby sockets carry no workspace and never reserved a slot.
+	if client.workspaceID != "" {
+		h.releaseUserSocketLocked(client.userID)
+	}
 	subs := client.subscriptions
 	client.subscriptions = nil
 	emptied := make([]scopeKey, 0, len(subs))
@@ -1080,6 +1115,15 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse SessionParser, resolv
 			)
 			return
 		}
+		if !hub.reserveUserSocket(uid) {
+			writeWSAuthErrorAndClose(
+				conn,
+				[]byte(`{"error":"too many connections"}`),
+				"workspace_id", workspaceID,
+				"user_id", uid,
+			)
+			return
+		}
 		userID = uid
 
 		if !writeWSAuthFrame(
@@ -1089,6 +1133,7 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse SessionParser, resolv
 			"workspace_id", workspaceID,
 			"user_id", userID,
 		) {
+			hub.releaseUserSocket(userID)
 			conn.Close()
 			return
 		}
