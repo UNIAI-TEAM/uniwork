@@ -455,6 +455,11 @@ jobs:
       PREVIEW_ASSET_MAX_BYTES: "10485760"
       APP_ENV: development
       DEV_VERIFICATION_CODE: "123456"
+      # e2e/document-edit-lock.spec.ts EL-A02 waits out a lock; it skips itself unless the TTL is
+      # 30s or less (UNI-1645, CFE-1-17). Heartbeat stays at most half the TTL (config check).
+      DOCUMENT_EDIT_LOCK_TTL: 20s
+      DOCUMENT_EDIT_LOCK_HEARTBEAT: 5s
+      DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL: 5s
       # The server writes every new file to MinIO; a missing or broken group
       # stops it at preflight, which the wait step below then reports.
       STORAGE_BACKEND: minio
