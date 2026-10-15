@@ -11,11 +11,12 @@ import { runEvidence } from "../evidence.mjs";
 import { DEFAULT_FORK_SHA, harnessPaths, isMainModule, readStartStatus, startGate } from "../harness/lib.mjs";
 import { EMPTY_SERVER_VERSIONS, collectServerVersions, writeServerVersions } from "./collect.mjs";
 import { startFaultProxy } from "./proxy.mjs";
+import { runServerCaseDriver } from "./server-case-drivers.mjs";
 import { CONVERSATION_HEADER, createWireContext } from "./server-cases-wire.mjs";
 import { readVerificationCode, seedFaultTenant } from "./server-cases-setup.mjs";
 import {
   BLOCKED_EXIT_CODE, DEFAULT_CASES_PATH, REPO_ROOT, aggregateExitCode, assertion, buildIntentLogEntry,
-  computeKeyTag, evaluateCaseResult, loadFaultCases, renderCaseRules, runServerCaseDriver, selectServerCases,
+  computeKeyTag, evaluateCaseResult, loadFaultCases, renderCaseRules, selectServerCases,
 } from "./server-cases-lib.mjs";
 
 export const DEFAULT_RUN_DIR = ".harness-run";

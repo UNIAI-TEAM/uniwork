@@ -10,7 +10,7 @@ import {
   SYNC_STORE_BUDGET_BYTES, assertEntersWithCode, assertNeverState, assertStatePath, assertion, commitLookups,
   commitPosts, logSince, reachedUpstream, syncStoreScopeDir, uploadPosts,
 } from "./app-cases-lib.mjs";
-import { deltaAssertion, editAndSave, oneIntent, openFresh, sameKey } from "./app-case-drivers.mjs";
+import { countAssertion, deltaAssertion, editAndSave, oneIntent, openFresh, pathAssertion, sameKey } from "./app-case-drivers.mjs";
 import { docStatus, edit, save, signIn, signOut } from "./app-session.mjs";
 import {
   archiveDocument, deactivateApp, readdAppToWorkspace, reactivateApp, removeAppFromWorkspace, restoreDocument,
@@ -86,10 +86,10 @@ async function fq43(ctx) {
     documentId: doc.id,
     assertions: [
       ...notes,
-      assertStatePath("client_path", lines, ["*", "reconciling", "blocked"]),
+      pathAssertion(ctx, lines),
       assertEntersWithCode("blocked_reason", lines, "blocked", reason),
-      assertion("no_commit_after_blocked", 0, postsAfter.length, postsAfter.length === 0),
-      await deltaAssertion(ctx, doc.id, 1),
+      countAssertion(ctx, "no_commit_after_blocked", "commitPostsAfterStop", postsAfter.length),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }
@@ -124,7 +124,7 @@ async function fq44(ctx) {
     const lines = ctx.trace(doc.id);
     const lookupsAfter = logSince(commitLookups(await ctx.proxyLog(), doc.id), stuckAt);
     out.push(assertion("still_stuck", "reconciling-stuck", lines.at(-1)?.to ?? "none", lines.at(-1)?.to === "reconciling-stuck"));
-    out.push(assertion("rechecked", ">= 2 lookups after stuck", lookupsAfter.length, lookupsAfter.length >= 2));
+    out.push(countAssertion(ctx, "rechecked", "commitLookupsAfterStuckMin", lookupsAfter.length));
   }
   const log = await ctx.proxyLog();
   const postsAfter = logSince(commitPosts(log, doc.id), stuckAt);
@@ -133,11 +133,11 @@ async function fq44(ctx) {
     documentId: doc.id,
     assertions: [
       ...out,
-      oneIntent(ctx.trace(doc.id)),
-      assertion("no_commit_after_stuck", 0, postsAfter.length, postsAfter.length === 0),
-      assertion("no_upload_after_stuck", 0, uploadsAfter.length, uploadsAfter.length === 0),
-      sameKey(log, doc.id),
-      await deltaAssertion(ctx, doc.id, 1),
+      oneIntent(ctx, ctx.trace(doc.id)),
+      countAssertion(ctx, "no_commit_after_stuck", "commitPostsAfterStop", postsAfter.length),
+      countAssertion(ctx, "no_upload_after_stuck", "uploadPostsAfterStop", uploadsAfter.length),
+      sameKey(ctx, log, doc.id),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }
@@ -170,12 +170,12 @@ async function fq50(ctx) {
     assertions: [
       ...notes,
       assertEntersWithCode("blocked_reason", lines, "blocked", reason),
-      assertStatePath("client_path", lines, ["*", "blocked", "queued", "*", "committed"]),
+      pathAssertion(ctx, lines),
       assertion("committed_after_lift", "committed", done?.to ?? "never", Boolean(done)),
-      assertion("no_commit_while_blocked", 0, whileBlocked.length, whileBlocked.length === 0),
-      oneIntent(lines),
-      sameKey(log, doc.id),
-      await deltaAssertion(ctx, doc.id, 1),
+      countAssertion(ctx, "no_commit_while_blocked", "commitPostsWhileBlocked", whileBlocked.length),
+      oneIntent(ctx, lines),
+      sameKey(ctx, log, doc.id),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }
@@ -196,10 +196,10 @@ async function fq51(ctx) {
       assertions: [
         assertion("blocked", "blocked", blocked?.to ?? "never", Boolean(blocked)),
         assertEntersWithCode("blocked_reason", lines, "blocked", "session_expired"),
-        assertStatePath("client_path", lines, ["*", "blocked", "queued", "*", "committed"]),
+        pathAssertion(ctx, lines),
         assertion("committed_after_sign_in", "committed", done?.to ?? "never", Boolean(done)),
-        sameKey(await ctx.proxyLog(), doc.id),
-        await deltaAssertion(ctx, doc.id, 1),
+        sameKey(ctx, await ctx.proxyLog(), doc.id),
+        await deltaAssertion(ctx, doc.id),
       ],
     };
   }
@@ -223,8 +223,8 @@ async function fq51(ctx) {
       assertions: [
         ...pre,
         assertion("committed_after_same_account", "committed", done?.to ?? "never", Boolean(done)),
-        sameKey(await ctx.proxyLog(), doc.id),
-        await deltaAssertion(ctx, doc.id, 1),
+        sameKey(ctx, await ctx.proxyLog(), doc.id),
+        await deltaAssertion(ctx, doc.id),
       ],
     };
   }
@@ -239,9 +239,9 @@ async function fq51(ctx) {
     assertions: [
       ...pre,
       assertion("signed_out_entered_blocked", "blocked", signedOut?.to ?? "never", Boolean(signedOut)),
-      assertion("foreign_account_sends_nothing", 0, writes.length, writes.length === 0),
+      countAssertion(ctx, "foreign_account_sends_nothing", "writesAfterForeignSignIn", writes.length),
       assertNeverState("foreign_account_never_dispatches", after, ["validating", "uploading", "committing", "committed"]),
-      await deltaAssertion(ctx, doc.id, 0),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }
@@ -275,11 +275,11 @@ async function fq53(ctx) {
     documentId: doc.id,
     assertions: [
       assertion("save_refused_store_full", "status error store_full", refused?.error ?? "no store_full status", Boolean(refused)),
-      assertion("no_intent_while_full", 0, whileFull.length, whileFull.length === 0),
-      assertion("no_request_while_full", 0, writesWhileFull.length, writesWhileFull.length === 0),
+      assertion("no_intent_while_full", ctx.expect.clientIntentsWhileFull(), whileFull.length, whileFull.length === ctx.expect.clientIntentsWhileFull()),
+      countAssertion(ctx, "no_request_while_full", "writesWhileFull", writesWhileFull.length),
       assertion("committed_after_room", "committed", done?.to ?? "never", Boolean(done)),
-      oneIntent(lines),
-      await deltaAssertion(ctx, doc.id, 1),
+      oneIntent(ctx, lines),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }

@@ -35,6 +35,7 @@ import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, wai
 import {
   clearSyncWrite, createFileDocument, enrollTotp, freshToken, grantPlatformAdmin, login, seedAppTenant, setSyncWrite,
 } from "./app-tenant.mjs";
+import { caseExpect } from "./case-expect.mjs";
 import { EMPTY_SERVER_VERSIONS, collectServerVersions } from "./collect.mjs";
 import { startFaultProxy } from "./proxy.mjs";
 import { validateRules } from "./rules.mjs";
@@ -158,7 +159,9 @@ async function runOne({ row, run, runs, caseDir, shared }) {
   const proxyLogRaw = async () => (await fetch(`${proxy.origin}/__fault/log`)).text();
   const ownerToken = () => freshToken(tenant.apiOrigin, tenant.owner);
   const ctx = {
-    row, run, tenant, fixture, kind: kindOf(fixture), marker: `G703A${row.id.replace("-", "")}X${run.index}`,
+    row, run, tenant, fixture, kind: kindOf(fixture),
+    // the run's expectation: the row's `expect` in cases.json with this exit's `expect` over it (review r1 R1-2)
+    expect: caseExpect(row, run.exit), marker: `G703A${row.id.replace("-", "")}X${run.index}`,
     databaseUrl, sleep, waitFor, sha256File,
     now: () => new Date().toISOString(),
     newDocument: async () => {

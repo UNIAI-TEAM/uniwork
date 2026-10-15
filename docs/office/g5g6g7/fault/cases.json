@@ -62,18 +62,36 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "lookup": "committed (version, revision = phiên bản vừa tạo)",
-          "retry": "POST cùng Idempotency-Key → 200 replay, cùng version_id",
-          "statuses": [
-            "client socket error",
-            "GET lookup 200 committed",
-            "POST replay 200"
-          ]
+          "lookup": {
+            "status": 200,
+            "outcome": "committed"
+          },
+          "statuses": {
+            "upload": 201,
+            "commit_1": "dropped",
+            "replay": 200
+          }
         },
-        "client": [
-          "driver: committing → reconciling (lỗi socket) → committed (lookup)"
-        ],
-        "proxyLog": "upstream thấy đúng 1 POST commit trước retry; mọi POST commit cùng keyTag"
+        "proxyLog": {
+          "commitPostStatuses": [
+            "dropped",
+            200
+          ],
+          "keyTags": 1
+        },
+        "notes": {
+          "server": [
+            "lookup: committed (version, revision = phiên bản vừa tạo)",
+            "retry: POST cùng Idempotency-Key → 200 replay, cùng version_id",
+            "statuses: client socket error; GET lookup 200 committed; POST replay 200"
+          ],
+          "client": [
+            "driver: committing → reconciling (lỗi socket) → committed (lookup)"
+          ],
+          "proxyLog": [
+            "upstream thấy đúng 1 POST commit trước retry; mọi POST commit cùng keyTag"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -112,18 +130,36 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "lookup": "410 commit_intent_unknown, body outcome=unknown (không bao giờ not_committed)",
-          "retry": "POST lại cùng key → 200, một version",
-          "statuses": [
-            "client socket error",
-            "GET lookup 410 commit_intent_unknown",
-            "POST 200"
-          ]
+          "lookup": {
+            "status": 410,
+            "outcome": "unknown",
+            "errorCode": "commit_intent_unknown"
+          },
+          "statuses": {
+            "commit_1": "dropped",
+            "retry": 200
+          }
         },
-        "client": [
-          "driver: committing → reconciling → (lookup unknown) ghi nhận \"stuck\" theo EXPERIENCE; bước gửi lại cùng key chỉ là bằng chứng server (OQ-F1)"
-        ],
-        "proxyLog": "POST thứ nhất ghi dropped, không có upstream status; tổng 1 POST tới upstream"
+        "proxyLog": {
+          "commitPostStatuses": [
+            "dropped",
+            200
+          ],
+          "keyTags": 1
+        },
+        "notes": {
+          "server": [
+            "lookup: 410 commit_intent_unknown, body outcome=unknown (không bao giờ not_committed)",
+            "retry: POST lại cùng key → 200, một version",
+            "statuses: client socket error; GET lookup 410 commit_intent_unknown; POST 200"
+          ],
+          "client": [
+            "driver: committing → reconciling → (lookup unknown) ghi nhận \"stuck\" theo EXPERIENCE; bước gửi lại cùng key chỉ là bằng chứng server (OQ-F1)"
+          ],
+          "proxyLog": [
+            "POST thứ nhất ghi dropped, không có upstream status; tổng 1 POST tới upstream"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -164,15 +200,42 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "lookup": "committed",
-          "statuses": [
-            "hai câu trả lời 200 cùng version_id, hoặc một 200 + một 409 idempotency_in_flight (chờ quá 5 s)"
-          ]
+          "lookup": {
+            "status": 200,
+            "outcome": "committed"
+          },
+          "statuses": {
+            "concurrent": [
+              [
+                200,
+                200
+              ],
+              [
+                200,
+                409
+              ]
+            ]
+          },
+          "errorCodes": {
+            "concurrent": "idempotency_in_flight"
+          }
         },
-        "client": [
-          "driver: hai attempt cùng keyTag; không attempt nào tạo key mới"
-        ],
-        "proxyLog": "2 POST commit, cùng keyTag"
+        "proxyLog": {
+          "commitPosts": 2,
+          "keyTags": 1
+        },
+        "notes": {
+          "server": [
+            "lookup: committed",
+            "statuses: hai câu trả lời 200 cùng version_id, hoặc một 200 + một 409 idempotency_in_flight (chờ quá 5 s)"
+          ],
+          "client": [
+            "driver: hai attempt cùng keyTag; không attempt nào tạo key mới"
+          ],
+          "proxyLog": [
+            "2 POST commit, cùng keyTag"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -218,16 +281,34 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "lookup": "committed",
-          "statuses": [
-            "503 synthetic (không forward)",
-            "POST 200"
-          ]
+          "lookup": {
+            "status": 200,
+            "outcome": "committed"
+          },
+          "statuses": {
+            "commit_1": 503,
+            "commit_2": 200
+          }
         },
-        "client": [
-          "driver: committing → queued (backoff) → committing → committed"
-        ],
-        "proxyLog": "POST đầu synthetic, POST thứ hai upstream 200, cùng keyTag"
+        "proxyLog": {
+          "commitPostStatuses": [
+            "synthetic",
+            200
+          ],
+          "keyTags": 1
+        },
+        "notes": {
+          "server": [
+            "lookup: committed",
+            "statuses: 503 synthetic (không forward); POST 200"
+          ],
+          "client": [
+            "driver: committing → queued (backoff) → committing → committed"
+          ],
+          "proxyLog": [
+            "POST đầu synthetic, POST thứ hai upstream 200, cùng keyTag"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -266,17 +347,32 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "uploads": "retry trả cùng upload_id; commit một lần",
-          "statuses": [
-            "client socket error",
-            "POST uploads 201 cùng upload_id",
-            "POST commit 200"
-          ]
+          "statuses": {
+            "upload_1": "dropped",
+            "upload_2": 201,
+            "commit": 200
+          }
         },
-        "client": [
-          "driver: uploading → (lỗi) → uploading → committing → committed"
-        ],
-        "proxyLog": "2 POST uploads cùng keyTag, upstream thấy cả hai; 1 POST commit"
+        "proxyLog": {
+          "uploadPostStatuses": [
+            "dropped",
+            201
+          ],
+          "uploadKeyTags": 1,
+          "commitPosts": 1
+        },
+        "notes": {
+          "server": [
+            "uploads: retry trả cùng upload_id; commit một lần",
+            "statuses: client socket error; POST uploads 201 cùng upload_id; POST commit 200"
+          ],
+          "client": [
+            "driver: uploading → (lỗi) → uploading → committing → committed"
+          ],
+          "proxyLog": [
+            "2 POST uploads cùng keyTag, upstream thấy cả hai; 1 POST commit"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -321,17 +417,28 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "lookup": "committed sau khi release (không được coi là cancelled)",
-          "statuses": [
-            "client abort",
-            "upstream 200 (không ai nhận)",
-            "GET lookup 200 committed"
-          ]
+          "lookup": {
+            "status": 200,
+            "outcome": "committed"
+          }
         },
-        "client": [
-          "driver: committing → (hủy) reconciling → committed; không tạo key mới trước khi lookup trả lời"
-        ],
-        "proxyLog": "1 POST commit tới upstream sau release; không POST commit nào với keyTag khác"
+        "proxyLog": {
+          "commitPosts": 1,
+          "commitLookupsMin": 1,
+          "keyTags": 1
+        },
+        "notes": {
+          "server": [
+            "lookup: committed sau khi release (không được coi là cancelled)",
+            "statuses: client abort; upstream 200 (không ai nhận); GET lookup 200 committed"
+          ],
+          "client": [
+            "driver: committing → (hủy) reconciling → committed; không tạo key mới trước khi lookup trả lời"
+          ],
+          "proxyLog": [
+            "1 POST commit tới upstream sau release; không POST commit nào với keyTag khác"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -382,16 +489,35 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "statuses": [
-            "B 200",
-            "A 409 document_version_conflict, fields.current_revision = revision của B"
-          ],
-          "lookup": "key của A → not_committed (claim đã nhả)"
+          "lookup": {
+            "status": 200,
+            "outcome": "not_committed"
+          },
+          "statuses": {
+            "device_b_commit": 200,
+            "device_a_commit": 409
+          },
+          "errorCodes": {
+            "device_a_commit": "document_version_conflict"
+          }
         },
-        "client": [
-          "driver A: committing → conflict"
-        ],
-        "proxyLog": "POST của A upstream 409"
+        "proxyLog": {
+          "commitPosts": 1,
+          "commitLookups": 1,
+          "keyTags": 1
+        },
+        "notes": {
+          "server": [
+            "statuses: B 200; A 409 document_version_conflict, fields.current_revision = revision của B",
+            "lookup: key của A → not_committed (claim đã nhả)"
+          ],
+          "client": [
+            "driver A: committing → conflict"
+          ],
+          "proxyLog": [
+            "POST của A upstream 409"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -428,17 +554,31 @@
       "expect": {
         "server": {
           "versionDelta": 2,
-          "statuses": [
-            "B 200",
-            "A 409 document_version_conflict",
-            "A (key mới, base mới) 200"
-          ],
-          "versions": "danh sách giữ cả version của B và của A; checksum version của A = checksum upload của A"
+          "statuses": {
+            "device_b_commit": 200,
+            "device_a_first_commit": 409,
+            "device_a_overwrite": 200
+          },
+          "errorCodes": {
+            "device_a_first_commit": "document_version_conflict"
+          }
         },
-        "client": [
-          "driver A: committing → conflict → (Ghi đè) intent cũ cancelled/superseded, intent mới committed"
-        ],
-        "proxyLog": "3 POST commit, 2 keyTag khác nhau của A"
+        "proxyLog": {
+          "commitPosts": 3,
+          "aKeyTags": 2
+        },
+        "notes": {
+          "server": [
+            "statuses: B 200; A 409 document_version_conflict; A (key mới, base mới) 200",
+            "versions: danh sách giữ cả version của B và của A; checksum version của A = checksum upload của A"
+          ],
+          "client": [
+            "driver A: committing → conflict → (Ghi đè) intent cũ cancelled/superseded, intent mới committed"
+          ],
+          "proxyLog": [
+            "3 POST commit, 2 keyTag khác nhau của A"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -474,16 +614,34 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "lookup": "200 not_committed (không unknown, không committed)",
-          "statuses": [
-            "A 409",
-            "GET 200 not_committed"
-          ]
+          "lookup": {
+            "status": 200,
+            "outcome": "not_committed"
+          },
+          "statuses": {
+            "commit": 409
+          },
+          "errorCodes": {
+            "commit": "document_version_conflict"
+          }
         },
-        "client": [
-          "driver: conflict; lookup not_committed"
-        ],
-        "proxyLog": "1 POST + 1 GET versions/commit cùng keyTag"
+        "proxyLog": {
+          "commitPosts": 1,
+          "commitLookups": 1,
+          "keyTags": 1
+        },
+        "notes": {
+          "server": [
+            "lookup: 200 not_committed (không unknown, không committed)",
+            "statuses: A 409; GET 200 not_committed"
+          ],
+          "client": [
+            "driver: conflict; lookup not_committed"
+          ],
+          "proxyLog": [
+            "1 POST + 1 GET versions/commit cùng keyTag"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -515,16 +673,30 @@
       "expect": {
         "server": {
           "versionDelta": 0,
-          "lookup": "cả hai 410 commit_intent_unknown, body không có version/revision",
-          "statuses": [
-            "410",
-            "410"
+          "lookup": {
+            "status": 410,
+            "errorCode": "commit_intent_unknown"
+          }
+        },
+        "proxyLog": {
+          "commitLookups": 2,
+          "commitLookupStatuses": [
+            410,
+            410
           ]
         },
-        "client": [
-          "driver: reconciling → reconciling-stuck (theo EXPERIENCE)"
-        ],
-        "proxyLog": "2 GET versions/commit"
+        "notes": {
+          "server": [
+            "lookup: cả hai 410 commit_intent_unknown, body không có version/revision",
+            "statuses: 410; 410"
+          ],
+          "client": [
+            "driver: reconciling → reconciling-stuck (theo EXPERIENCE)"
+          ],
+          "proxyLog": [
+            "2 GET versions/commit"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -559,16 +731,31 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "statuses": [
-            "AI 200",
-            "commit 200"
-          ],
-          "versions": "sau lượt AI: delta 0, không POST uploads nào; sau Lưu: delta 1"
+          "versionDeltaAfterAi": 0,
+          "statuses": {
+            "ai_turn_1": 200,
+            "ai_turn_2": 200,
+            "upload": 201,
+            "commit": 200
+          }
         },
-        "client": [
-          "driver: dirty → committing → committed"
-        ],
-        "proxyLog": "không POST uploads/commit nào giữa đầu và cuối lượt AI"
+        "proxyLog": {
+          "aiPosts": 2,
+          "uploadPosts": 1,
+          "commitPosts": 1
+        },
+        "notes": {
+          "server": [
+            "statuses: AI 200; commit 200",
+            "versions: sau lượt AI: delta 0, không POST uploads nào; sau Lưu: delta 1"
+          ],
+          "client": [
+            "driver: dirty → committing → committed"
+          ],
+          "proxyLog": [
+            "không POST uploads/commit nào giữa đầu và cuối lượt AI"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -604,16 +791,33 @@
       "expect": {
         "server": {
           "versionDelta": 0,
-          "statuses": [
-            "lượt 1 200",
-            "lượt 2 403 (hoặc 404 không lộ tồn tại)",
-            "commit của A 403/404"
-          ]
+          "statuses": {
+            "ai_turn_1": 200,
+            "revoke": 204,
+            "ai_turn_2": [
+              403,
+              404
+            ],
+            "commit": [
+              403,
+              404
+            ]
+          }
         },
-        "client": [
-          "driver: lượt 2 bị từ chối; commit bị từ chối"
-        ],
-        "proxyLog": "không POST commit nào tới upstream thành công"
+        "proxyLog": {
+          "commitPostsSucceeded": 0
+        },
+        "notes": {
+          "server": [
+            "statuses: lượt 1 200; lượt 2 403 (hoặc 404 không lộ tồn tại); commit của A 403/404"
+          ],
+          "client": [
+            "driver: lượt 2 bị từ chối; commit bị từ chối"
+          ],
+          "proxyLog": [
+            "không POST commit nào tới upstream thành công"
+          ]
+        }
       },
       "status": "ready",
       "serverOnly": true,
@@ -645,15 +849,29 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "statuses": [
-            "commit khi đang lưu trữ: 410 document_deleted (server hôm nay, xem OQ-F6)",
-            "commit sau bỏ lưu trữ + di chuyển: 200, không 409"
-          ]
+          "statuses": {
+            "commit_while_archived": 410,
+            "commit_after_restore_move": 200
+          },
+          "errorCodes": {
+            "commit_while_archived": "document_deleted"
+          }
         },
-        "client": [
-          "driver: blocked → queued → committed"
-        ],
-        "proxyLog": "2 POST commit cùng keyTag"
+        "proxyLog": {
+          "commitPosts": 2,
+          "keyTags": 1
+        },
+        "notes": {
+          "server": [
+            "statuses: commit khi đang lưu trữ: 410 document_deleted (server hôm nay, xem OQ-F6); commit sau bỏ lưu trữ + di chuyển: 200, không 409"
+          ],
+          "client": [
+            "driver: blocked → queued → committed"
+          ],
+          "proxyLog": [
+            "2 POST commit cùng keyTag"
+          ]
+        }
       },
       "notes": "mã khi đang lưu trữ lệch EXPERIENCE (OQ-F6)",
       "status": "ready",
@@ -699,17 +917,39 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": 1,
-          "versions": "checksum version mới = checksum snapshot N trong intent-log",
-          "statuses": [
-            "1 chuỗi uploads + commit 200"
-          ]
+          "versionDelta": 1
         },
-        "client": [
-          "paused_offline → (restart) paused_offline → queued → validating → uploading → committing → committed",
-          "editor vẫn dirty với N+1; không intent thứ hai"
+        "proxyLog": {
+          "upstreamCommits200": 1,
+          "writesBeforeRuleLifted": 0,
+          "keyTags": 1
+        },
+        "clientPath": [
+          "*",
+          "paused_offline",
+          "*",
+          "validating",
+          "*",
+          "uploading",
+          "*",
+          "committing",
+          "*",
+          "committed"
         ],
-        "proxyLog": "mọi POST commit cùng keyTag; không request ghi nào trước khi xóa rule"
+        "clientIntents": 1,
+        "notes": {
+          "server": [
+            "versions: checksum version mới = checksum snapshot N trong intent-log",
+            "statuses: 1 chuỗi uploads + commit 200"
+          ],
+          "client": [
+            "paused_offline → (restart) paused_offline → queued → validating → uploading → committing → committed",
+            "editor vẫn dirty với N+1; không intent thứ hai"
+          ],
+          "proxyLog": [
+            "mọi POST commit cùng keyTag; không request ghi nào trước khi xóa rule"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
@@ -750,16 +990,33 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "statuses": [
-            "upload đầu reset",
-            "upload lại 201",
-            "commit 200"
-          ]
+          "statuses": {
+            "first_upload": "reset",
+            "retry_upload": 201
+          }
         },
-        "client": [
-          "uploading → paused_offline hoặc queued (backoff) → uploading → committing → committed"
+        "proxyLog": {
+          "upstreamCommits200": 1,
+          "keyTags": 1
+        },
+        "clientPath": [
+          "*",
+          "paused_offline|queued",
+          "*",
+          "committed"
         ],
-        "proxyLog": "uploads và commit cùng keyTag của intent"
+        "clientIntents": 1,
+        "notes": {
+          "server": [
+            "statuses: upload đầu reset; upload lại 201; commit 200"
+          ],
+          "client": [
+            "uploading → paused_offline hoặc queued (backoff) → uploading → committing → committed"
+          ],
+          "proxyLog": [
+            "uploads và commit cùng keyTag của intent"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
@@ -800,16 +1057,33 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "lookup": "committed",
-          "statuses": [
-            "upstream 200, client socket error",
-            "GET lookup 200 committed"
-          ]
+          "lookup": {
+            "status": 200
+          }
         },
-        "client": [
-          "committing → reconciling → committed"
+        "proxyLog": {
+          "commitPosts": 1,
+          "commitLookupsMin": 1,
+          "keyTags": 1
+        },
+        "clientPath": [
+          "*",
+          "reconciling",
+          "committed"
         ],
-        "proxyLog": "đúng 1 POST commit; ≥1 GET versions/commit cùng keyTag; không POST commit với keyTag khác"
+        "clientIntents": 1,
+        "notes": {
+          "server": [
+            "lookup: committed",
+            "statuses: upstream 200, client socket error; GET lookup 200 committed"
+          ],
+          "client": [
+            "committing → reconciling → committed"
+          ],
+          "proxyLog": [
+            "đúng 1 POST commit; ≥1 GET versions/commit cùng keyTag; không POST commit với keyTag khác"
+          ]
+        }
       },
       "notes": "Save trực tiếp của fork không đối soát câu trả lời commit bị mất (OQ-F11); predicted FAIL OQ-F11",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
@@ -857,13 +1131,19 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": 1,
-          "lookup": "committed"
+          "versionDelta": 1
         },
-        "client": [
-          "committing (hủy bị từ chối hoặc chờ) → committed; không bao giờ cancelled; nháp không mất"
-        ],
-        "proxyLog": "1 POST commit"
+        "notes": {
+          "server": [
+            "lookup: committed"
+          ],
+          "client": [
+            "committing (hủy bị từ chối hoặc chờ) → committed; không bao giờ cancelled; nháp không mất"
+          ],
+          "proxyLog": [
+            "1 POST commit"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-10",
@@ -910,16 +1190,33 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "statuses": [
-            "commit đầu 409 document_upload_invalid (reason file_claim_expired)",
-            "upload lại 201",
-            "commit 200"
-          ]
+          "statuses": {
+            "first_commit": 409,
+            "final_commit": 200
+          }
         },
-        "client": [
-          "committing → reconciling → queued (attempt mới, cùng logical intent) → … → committed (dự báo hôm nay: reconciling-stuck, OQ-F4)"
+        "proxyLog": {
+          "uploadPostsReachedUpstreamMin": 2
+        },
+        "clientPath": [
+          "*",
+          "reconciling",
+          "queued",
+          "*",
+          "committed"
         ],
-        "proxyLog": "không POST commit nào với payload cũ sau khi upload lại"
+        "clientIntents": 1,
+        "notes": {
+          "server": [
+            "statuses: commit đầu 409 document_upload_invalid (reason file_claim_expired); upload lại 201; commit 200"
+          ],
+          "client": [
+            "committing → reconciling → queued (attempt mới, cùng logical intent) → … → committed (dự báo hôm nay: reconciling-stuck, OQ-F4)"
+          ],
+          "proxyLog": [
+            "không POST commit nào với payload cũ sau khi upload lại"
+          ]
+        }
       },
       "notes": "fault claim_expires_at là setup test trên DB riêng của run (lead đồng ý, OQ-F3); predicted FAIL F4",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
@@ -969,16 +1266,34 @@
       "expect": {
         "server": {
           "versionDelta": 1,
-          "statuses": [
-            "B 200",
-            "app 409 document_version_conflict"
-          ],
-          "versions": "chỉ version của B; không version nào từ app"
+          "statuses": {
+            "device_b_commit": 200,
+            "app_commit": 409
+          }
         },
-        "client": [
-          "paused_offline → queued → … → committing → conflict; không rời conflict khi không có hành động người dùng"
+        "proxyLog": {
+          "appCommitPosts": 1
+        },
+        "clientPath": [
+          "*",
+          "paused_offline",
+          "*",
+          "committing|queued",
+          "*",
+          "conflict"
         ],
-        "proxyLog": "đúng 1 POST commit từ app cho intent này (không retry tự động)"
+        "notes": {
+          "server": [
+            "statuses: B 200; app 409 document_version_conflict",
+            "versions: chỉ version của B; không version nào từ app"
+          ],
+          "client": [
+            "paused_offline → queued → … → committing → conflict; không rời conflict khi không có hành động người dùng"
+          ],
+          "proxyLog": [
+            "đúng 1 POST commit từ app cho intent này (không retry tự động)"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
@@ -1010,16 +1325,25 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": "Ghi đè +1 (key mới, base mới, version của B còn); Tải lại 0; Lưu thành bản sao: 0 trên tài liệu gốc, tài liệu mới giữ owner/ACL/provenance (G5-12)",
-          "statuses": [
-            "Ghi đè gặp 409 lần nữa → vẫn conflict với head mới"
-          ]
+          "versionDelta": {
+            "overwrite": 1,
+            "reload": 0,
+            "save_copy": 0
+          }
         },
-        "client": [
-          "conflict → cancelled(superseded) + intent mới committed (Ghi đè)",
-          "conflict → cancelled(superseded), editor nạp head (Tải lại)"
-        ],
-        "proxyLog": "Ghi đè: GET head trước POST commit; keyTag mới"
+        "notes": {
+          "server": [
+            "versionDelta: Ghi đè +1 (key mới, base mới, version của B còn); Tải lại 0; Lưu thành bản sao: 0 trên tài liệu gốc, tài liệu mới giữ owner/ACL/provenance (G5-12)",
+            "statuses: Ghi đè gặp 409 lần nữa → vẫn conflict với head mới"
+          ],
+          "client": [
+            "conflict → cancelled(superseded) + intent mới committed (Ghi đè)",
+            "conflict → cancelled(superseded), editor nạp head (Tải lại)"
+          ],
+          "proxyLog": [
+            "Ghi đè: GET head trước POST commit; keyTag mới"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-09",
@@ -1051,17 +1375,24 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": "lần 1: +1, không 409; lần 2: 0 từ app, 409",
-          "statuses": [
-            "lần 1 commit 200",
-            "lần 2 commit 409"
-          ]
+          "versionDelta": {
+            "first_save": 1,
+            "second_save": 0
+          }
         },
-        "client": [
-          "lần 1: dirty → … → committed",
-          "lần 2: committing → conflict; nội dung AI còn trong editor/nháp"
-        ],
-        "proxyLog": "không POST uploads/commit nào trong lượt AI"
+        "notes": {
+          "server": [
+            "versionDelta: lần 1: +1, không 409; lần 2: 0 từ app, 409",
+            "statuses: lần 1 commit 200; lần 2 commit 409"
+          ],
+          "client": [
+            "lần 1: dirty → … → committed",
+            "lần 2: committing → conflict; nội dung AI còn trong editor/nháp"
+          ],
+          "proxyLog": [
+            "không POST uploads/commit nào trong lượt AI"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
@@ -1112,18 +1443,21 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": 1,
-          "statuses": [
-            "B 200",
-            "app 409"
-          ],
-          "versions": "chỉ version của B"
+          "versionDelta": 1
         },
-        "client": [
-          "aiRun running + remote newer → không nạp (uwRemoteNewerAi)",
-          "Lưu → conflict, không tự rebase"
-        ],
-        "proxyLog": "không GET download version của B trong lượt AI"
+        "notes": {
+          "server": [
+            "statuses: B 200; app 409",
+            "versions: chỉ version của B"
+          ],
+          "client": [
+            "aiRun running + remote newer → không nạp (uwRemoteNewerAi)",
+            "Lưu → conflict, không tự rebase"
+          ],
+          "proxyLog": [
+            "không GET download version của B trong lượt AI"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
@@ -1170,16 +1504,20 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": 1,
-          "statuses": [
-            "B 200"
-          ]
+          "versionDelta": 1
         },
-        "client": [
-          "clean + aiRun running → thanh uwRemoteNewerAi, không nạp",
-          "aiRun idle, vẫn sạch → nạp (uwRemoteUpdated)"
-        ],
-        "proxyLog": "GET nội dung version của B chỉ xuất hiện sau khi request AI trả lời"
+        "notes": {
+          "server": [
+            "statuses: B 200"
+          ],
+          "client": [
+            "clean + aiRun running → thanh uwRemoteNewerAi, không nạp",
+            "aiRun idle, vẫn sạch → nạp (uwRemoteUpdated)"
+          ],
+          "proxyLog": [
+            "GET nội dung version của B chỉ xuất hiện sau khi request AI trả lời"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
@@ -1226,14 +1564,20 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": 1,
-          "versions": "checksum version mới = checksum snapshot N"
+          "versionDelta": 1
         },
-        "client": [
-          "Ctrl+S khi có intent → không intent mới (uwQueueBlockedSave)",
-          "committing → committed; editor còn dirty với N+1"
-        ],
-        "proxyLog": "đúng 1 POST commit trong cả ca"
+        "notes": {
+          "server": [
+            "versions: checksum version mới = checksum snapshot N"
+          ],
+          "client": [
+            "Ctrl+S khi có intent → không intent mới (uwQueueBlockedSave)",
+            "committing → committed; editor còn dirty với N+1"
+          ],
+          "proxyLog": [
+            "đúng 1 POST commit trong cả ca"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
@@ -1281,10 +1625,14 @@
         "server": {
           "versionDelta": 1
         },
-        "client": [
-          "pill uwChipSaving + uwTipWaitAi tới ranh giới bước; snapshot sau bước đã xong; không commit giữa bước"
-        ],
-        "proxyLog": "POST uploads chỉ sau khi request AI của bước hiện tại trả lời"
+        "notes": {
+          "client": [
+            "pill uwChipSaving + uwTipWaitAi tới ranh giới bước; snapshot sau bước đã xong; không commit giữa bước"
+          ],
+          "proxyLog": [
+            "POST uploads chỉ sau khi request AI của bước hiện tại trả lời"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
@@ -1317,15 +1665,19 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": 0,
-          "statuses": [
-            "lượt kế 403"
-          ]
+          "versionDelta": 0
         },
-        "client": [
-          "editor chỉ đọc (mất quyền sửa) hoặc S11 (mất quyền đọc); không intent mới"
-        ],
-        "proxyLog": "không POST commit"
+        "notes": {
+          "server": [
+            "statuses: lượt kế 403"
+          ],
+          "client": [
+            "editor chỉ đọc (mất quyền sửa) hoặc S11 (mất quyền đọc); không intent mới"
+          ],
+          "proxyLog": [
+            "không POST commit"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G6-05u",
@@ -1352,23 +1704,64 @@
         {
           "exit": "reconciling → committed",
           "assert": "lookup committed → receipt, versionDelta 1",
-          "predicted": "OQ-F11"
+          "predicted": "OQ-F11",
+          "expect": {
+            "clientPath": [
+              "*",
+              "reconciling",
+              "committed"
+            ]
+          }
         },
         {
           "exit": "reconciling → queued (attempt mới)",
-          "assert": "lookup not_committed (dựng bằng 409 sau claim như FQ-09) → attempt+1 cùng key"
+          "assert": "lookup not_committed (dựng bằng 409 sau claim như FQ-09) → attempt+1 cùng key",
+          "expect": {
+            "server": {
+              "lookup": {
+                "status": 200
+              },
+              "statuses": {
+                "device_b_commit": 200
+              }
+            },
+            "proxyLog": {
+              "commitPostsMin": 2
+            }
+          }
         },
         {
           "exit": "reconciling → paused_admin",
-          "assert": "như trên khi office_sync_write tắt cho tổ chức"
+          "assert": "như trên khi office_sync_write tắt cho tổ chức",
+          "expect": {
+            "proxyLog": {
+              "commitPostsWhilePaused": 0
+            }
+          }
         },
         {
           "exit": "reconciling → paused_offline",
-          "assert": "như trên khi rule unreachable bật"
+          "assert": "như trên khi rule unreachable bật",
+          "expect": {
+            "proxyLog": {
+              "commitPostsWhilePaused": 0
+            }
+          }
         },
         {
           "exit": "reconciling ở lại (in_flight)",
-          "assert": "lookup tổng hợp 200 {outcome:\"in_flight\"} → vẫn reconciling, tra lại theo backoff"
+          "assert": "lookup tổng hợp 200 {outcome:\"in_flight\"} → vẫn reconciling, tra lại theo backoff",
+          "expect": {
+            "clientPath": [
+              "*",
+              "reconciling",
+              "*",
+              "committed"
+            ],
+            "proxyLog": {
+              "commitLookupsMin": 2
+            }
+          }
         }
       ],
       "proxyRules": [
@@ -1409,12 +1802,22 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": "1 mỗi lần chạy kết thúc committed; 0 khi dừng ở paused_*"
+          "versionDelta": 1
         },
-        "client": [
-          "một chuyển trạng thái mỗi lối ra như cột exits"
-        ],
-        "proxyLog": "không POST commit với keyTag mới ở mọi lối ra"
+        "proxyLog": {
+          "keyTags": 1
+        },
+        "notes": {
+          "server": [
+            "versionDelta: 1 ở mọi lối ra: mỗi lối ra chạy tới committed sau khi điều kiện gỡ (paused_* chỉ là trạng thái trung gian)"
+          ],
+          "client": [
+            "một chuyển trạng thái mỗi lối ra như cột exits"
+          ],
+          "proxyLog": [
+            "không POST commit với keyTag mới ở mọi lối ra"
+          ]
+        }
       },
       "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9); lối ra reconciling → committed dự báo FAIL OQ-F11 (trường predicted của exit: cùng rule lose-commit-answer với FQ-22, Save trực tiếp không đối soát)",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
@@ -1462,14 +1865,30 @@
       "expect": {
         "server": {
           "versionDelta": 0,
-          "statuses": [
-            "GET lookup 410"
-          ]
+          "lookup": {
+            "status": 410,
+            "errorCode": "commit_intent_unknown"
+          }
         },
-        "client": [
-          "committing → reconciling → reconciling-stuck"
+        "proxyLog": {
+          "commitPostsAfterStop": 0
+        },
+        "clientPath": [
+          "*",
+          "reconciling",
+          "reconciling-stuck"
         ],
-        "proxyLog": "sau 410: 0 POST commit (xem OQ-F1)"
+        "notes": {
+          "server": [
+            "statuses: GET lookup 410"
+          ],
+          "client": [
+            "committing → reconciling → reconciling-stuck"
+          ],
+          "proxyLog": [
+            "sau 410: 0 POST commit (xem OQ-F1)"
+          ]
+        }
       },
       "notes": "giữ EXPERIENCE: không gửi lại khi unknown (OQ-F1, câu hỏi cho owner G5-06)",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
@@ -1537,10 +1956,23 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "reconciling → reconciling-stuck"
+        "proxyLog": {
+          "commitPosts": 1
+        },
+        "clientPath": [
+          "*",
+          "reconciling",
+          "*",
+          "reconciling-stuck"
         ],
-        "proxyLog": "0 POST commit sau lần đầu"
+        "notes": {
+          "client": [
+            "reconciling → reconciling-stuck"
+          ],
+          "proxyLog": [
+            "0 POST commit sau lần đầu"
+          ]
+        }
       },
       "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9)",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
@@ -1648,12 +2080,27 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": "1 (commit đã vào trước khi lookup bị chặn) — blocked không xóa nháp"
+          "versionDelta": 1
         },
-        "client": [
-          "reconciling → blocked {reason} đúng bảng Lý do bị chặn"
+        "proxyLog": {
+          "commitPostsAfterStop": 0
+        },
+        "clientPath": [
+          "*",
+          "reconciling",
+          "blocked"
         ],
-        "proxyLog": "0 POST commit sau lối ra blocked"
+        "notes": {
+          "server": [
+            "versionDelta: 1 (commit đã vào trước khi lookup bị chặn) — blocked không xóa nháp"
+          ],
+          "client": [
+            "reconciling → blocked {reason} đúng bảng Lý do bị chặn"
+          ],
+          "proxyLog": [
+            "0 POST commit sau lối ra blocked"
+          ]
+        }
       },
       "notes": "lối ra document_archived lệch ở fork (OQ-F6)",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
@@ -1688,7 +2135,12 @@
         },
         {
           "exit": "reconciling-stuck ở lại",
-          "assert": "trong suốt ca: 0 POST commit, 0 POST uploads cho intent"
+          "assert": "trong suốt ca: 0 POST commit, 0 POST uploads cho intent",
+          "expect": {
+            "proxyLog": {
+              "commitLookupsAfterStuckMin": 2
+            }
+          }
         }
       ],
       "proxyRules": [
@@ -1736,10 +2188,20 @@
         "server": {
           "versionDelta": 1
         },
-        "client": [
-          "reconciling-stuck → committed / blocked"
-        ],
-        "proxyLog": "0 POST commit sau khi vào stuck"
+        "proxyLog": {
+          "commitPostsAfterStop": 0,
+          "uploadPostsAfterStop": 0,
+          "keyTags": 1
+        },
+        "clientIntents": 1,
+        "notes": {
+          "client": [
+            "reconciling-stuck → committed / blocked"
+          ],
+          "proxyLog": [
+            "0 POST commit sau khi vào stuck"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
@@ -1809,10 +2271,14 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "reconciling-stuck → kept draft (hoặc giữ nguyên khi bị từ chối)"
-        ],
-        "proxyLog": "0 POST commit"
+        "notes": {
+          "client": [
+            "reconciling-stuck → kept draft (hoặc giữ nguyên khi bị từ chối)"
+          ],
+          "proxyLog": [
+            "0 POST commit"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-10",
@@ -1872,10 +2338,14 @@
         "server": {
           "versionDelta": 1
         },
-        "client": [
-          "intent không bị superseded khi đang reconciling/stuck"
-        ],
-        "proxyLog": "0 GET download version của B trước khi intent ra khỏi reconciling"
+        "notes": {
+          "client": [
+            "intent không bị superseded khi đang reconciling/stuck"
+          ],
+          "proxyLog": [
+            "0 GET download version của B trước khi intent ra khỏi reconciling"
+          ]
+        }
       },
       "notes": "in_flight là phản hồi tổng hợp của proxy (synthetic, OQ-F9)",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
@@ -1931,16 +2401,31 @@
       ],
       "expect": {
         "server": {
-          "versionDelta": 1,
-          "statuses": [
-            "dispatch đầu 403/410 theo lý do",
-            "sau khi gỡ: commit 200"
-          ]
+          "versionDelta": 1
         },
-        "client": [
-          "queued → … → blocked {reason} → queued → committed"
+        "proxyLog": {
+          "commitPostsWhileBlocked": 0,
+          "keyTags": 1
+        },
+        "clientPath": [
+          "*",
+          "blocked",
+          "queued",
+          "*",
+          "committed"
         ],
-        "proxyLog": "không POST commit nào khi đang blocked; cùng keyTag trước và sau"
+        "clientIntents": 1,
+        "notes": {
+          "server": [
+            "statuses: dispatch đầu 403/410 theo lý do; sau khi gỡ: commit 200"
+          ],
+          "client": [
+            "queued → … → blocked {reason} → queued → committed"
+          ],
+          "proxyLog": [
+            "không POST commit nào khi đang blocked; cùng keyTag trước và sau"
+          ]
+        }
       },
       "notes": "lối ra document_archived lệch ở server (OQ-F6)",
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
@@ -1967,7 +2452,16 @@
       "exits": [
         {
           "exit": "session_expired → queued",
-          "assert": "phiên hết hạn (401 thật hoặc tổng hợp) → đăng nhập cùng tài khoản → queued → committed"
+          "assert": "phiên hết hạn (401 thật hoặc tổng hợp) → đăng nhập cùng tài khoản → queued → committed",
+          "expect": {
+            "clientPath": [
+              "*",
+              "blocked",
+              "queued",
+              "*",
+              "committed"
+            ]
+          }
         },
         {
           "exit": "signed_out → mở khóa",
@@ -1975,7 +2469,15 @@
         },
         {
           "exit": "foreign_account ở lại",
-          "assert": "đăng nhập tài khoản khác → hàng khóa, không tên tài liệu, 0 request ghi"
+          "assert": "đăng nhập tài khoản khác → hàng khóa, không tên tài liệu, 0 request ghi",
+          "expect": {
+            "server": {
+              "versionDelta": 0
+            },
+            "proxyLog": {
+              "writesAfterForeignSignIn": 0
+            }
+          }
         }
       ],
       "proxyRules": [
@@ -2008,10 +2510,20 @@
         "server": {
           "versionDelta": 1
         },
-        "client": [
-          "blocked session_expired → queued → committed"
-        ],
-        "proxyLog": "cùng keyTag trước và sau đăng nhập lại"
+        "proxyLog": {
+          "keyTags": 1
+        },
+        "notes": {
+          "client": [
+            "blocked session_expired → queued → committed"
+          ],
+          "proxyLog": [
+            "cùng keyTag trước và sau đăng nhập lại"
+          ],
+          "server": [
+            "versionDelta: 1 cho session_expired và signed_out; foreign_account ở lại: 0 (expect của lối ra)"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
@@ -2051,10 +2563,14 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "blocked → cancelled (sau xác nhận)"
-        ],
-        "proxyLog": "0 POST commit"
+        "notes": {
+          "client": [
+            "blocked → cancelled (sau xác nhận)"
+          ],
+          "proxyLog": [
+            "0 POST commit"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-10",
@@ -2094,10 +2610,19 @@
         "server": {
           "versionDelta": 1
         },
-        "client": [
-          "dirty → (blocked store_full, không intent) → queued → committed"
-        ],
-        "proxyLog": "0 POST khi đầy"
+        "proxyLog": {
+          "writesWhileFull": 0
+        },
+        "clientIntents": 1,
+        "clientIntentsWhileFull": 0,
+        "notes": {
+          "client": [
+            "dirty → (blocked store_full, không intent) → queued → committed"
+          ],
+          "proxyLog": [
+            "0 POST khi đầy"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "ready",
@@ -2137,10 +2662,14 @@
         "server": {
           "versionDelta": 1
         },
-        "client": [
-          "blocked store_newer → (bản mới) queued → committed"
-        ],
-        "proxyLog": "0 POST từ bản cũ"
+        "notes": {
+          "client": [
+            "blocked store_newer → (bản mới) queued → committed"
+          ],
+          "proxyLog": [
+            "0 POST từ bản cũ"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G7-05",
@@ -2185,10 +2714,14 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "paused_offline → cancelled; nháp/checkpoint còn, editor vẫn dirty"
-        ],
-        "proxyLog": "0 POST commit"
+        "notes": {
+          "client": [
+            "paused_offline → cancelled; nháp/checkpoint còn, editor vẫn dirty"
+          ],
+          "proxyLog": [
+            "0 POST commit"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-10",
@@ -2236,11 +2769,17 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "downloading → interrupted; Thử lại → ready chỉ khi đủ file/asset/checksum"
-        ],
-        "store": "trạng thái store trước/sau + ảnh S3/S11",
-        "proxyLog": "không request ghi ngoài chính sách"
+        "notes": {
+          "client": [
+            "downloading → interrupted; Thử lại → ready chỉ khi đủ file/asset/checksum"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau + ảnh S3/S11"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-05",
@@ -2275,11 +2814,17 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "downloading → disk-full; không ready"
-        ],
-        "store": "trạng thái store trước/sau + ảnh S3/S11",
-        "proxyLog": "không request ghi ngoài chính sách"
+        "notes": {
+          "client": [
+            "downloading → disk-full; không ready"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau + ảnh S3/S11"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-05",
@@ -2314,11 +2859,17 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "verifying → corrupt; không ready"
-        ],
-        "store": "trạng thái store trước/sau + ảnh S3/S11",
-        "proxyLog": "không request ghi ngoài chính sách"
+        "notes": {
+          "client": [
+            "verifying → corrupt; không ready"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau + ảnh S3/S11"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-05",
@@ -2353,11 +2904,17 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "ready → blocked lease_expired → (online, ACL còn) gia hạn → mở; offline_library tắt → S11 uwLockLibraryOff"
-        ],
-        "store": "trạng thái store trước/sau + ảnh S3/S11",
-        "proxyLog": "không request ghi ngoài chính sách"
+        "notes": {
+          "client": [
+            "ready → blocked lease_expired → (online, ACL còn) gia hạn → mở; offline_library tắt → S11 uwLockLibraryOff"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau + ảnh S3/S11"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-08c",
@@ -2392,11 +2949,17 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "blocked clock_rollback → (online, kiểm giờ server) mở"
-        ],
-        "store": "trạng thái store trước/sau + ảnh S3/S11",
-        "proxyLog": "không request ghi ngoài chính sách"
+        "notes": {
+          "client": [
+            "blocked clock_rollback → (online, kiểm giờ server) mở"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau + ảnh S3/S11"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-08c",
@@ -2431,11 +2994,17 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "ready → revoked; 0 plaintext"
-        ],
-        "store": "trạng thái store trước/sau + ảnh S3/S11",
-        "proxyLog": "không request ghi ngoài chính sách"
+        "notes": {
+          "client": [
+            "ready → revoked; 0 plaintext"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau + ảnh S3/S11"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-08c",
@@ -2470,11 +3039,17 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "queue A khóa (signed_out), B không thấy tên tài liệu"
-        ],
-        "store": "trạng thái store trước/sau + ảnh S3/S11",
-        "proxyLog": "không request ghi ngoài chính sách"
+        "notes": {
+          "client": [
+            "queue A khóa (signed_out), B không thấy tên tài liệu"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau + ảnh S3/S11"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-11",
@@ -2509,11 +3084,17 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "store theo deployment tách biệt"
-        ],
-        "store": "trạng thái store trước/sau + ảnh S3/S11",
-        "proxyLog": "không request ghi ngoài chính sách"
+        "notes": {
+          "client": [
+            "store theo deployment tách biệt"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau + ảnh S3/S11"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-11",
@@ -2548,11 +3129,17 @@
         "server": {
           "versionDelta": 0
         },
-        "client": [
-          "overlay keystore_locked → trạng thái trước đó; không bao giờ queued chỉ vì mở khóa"
-        ],
-        "store": "trạng thái store trước/sau + ảnh S3/S11",
-        "proxyLog": "không request ghi ngoài chính sách"
+        "notes": {
+          "client": [
+            "overlay keystore_locked → trạng thái trước đó; không bao giờ queued chỉ vì mở khóa"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau + ảnh S3/S11"
+          ]
+        }
       },
       "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "status": "pending G5-08c",

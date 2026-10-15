@@ -482,6 +482,67 @@ test("runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a 
   assert.equal(brokenResult.result, "FAIL");
 });
 
+// R1-2: cases.json `expect` is the single source of truth. Each expected value is mutated in turn; the driver that
+// reads it must then FAIL, so a driver that hard-codes (or ignores) a number cannot pass this test.
+const mutate = (value) => (Array.isArray(value) ? value.map(mutate) : typeof value === "number" ? value + 1000 : `${value}~`);
+function expectLeaves(node, path = []) {
+  if (node === null || typeof node !== "object" || Array.isArray(node)) return [path];
+  return Object.entries(node).flatMap(([key, child]) => (path.length === 0 && key === "notes" ? [] : expectLeaves(child, [...path, key])));
+}
+const getAt = (root, path) => path.reduce((node, key) => node[key], root);
+function withLeaf(row, path, value) {
+  const copy = structuredClone(row);
+  getAt(copy.expect, path.slice(0, -1))[path.at(-1)] = value;
+  return copy;
+}
+// a 409 idempotency_in_flight answer is only read when a concurrent commit gets one: the fake server never answers it, so
+// FQ-03 also runs with its second commit answered 409 (the row's other allowed pair)
+const VARIANTS = {
+  "FQ-03": (ctx) => {
+    const original = ctx.commitViaProxy;
+    let answers = 0;
+    ctx.commitViaProxy = async (...args) => {
+      const res = await original(...args);
+      answers += 1;
+      return answers === 2 ? { ...res, ok: false, status: 409, body: { error: { code: "idempotency_in_flight" } } } : res;
+    };
+    return ctx;
+  },
+};
+const driverRun = async (row, source = row) => {
+  const ctx = createFakeCaseContext(source);
+  return runServerCaseDriver(row, VARIANTS[row.id] ? VARIANTS[row.id](ctx) : ctx);
+};
+
+test("every expectation of a server row in cases.json is asserted by its driver: the version delta of every row, every other value mutated", async () => {
+  let leaves = 0;
+  for (const row of selectServerCases(casesDoc)) {
+    const base = await driverRun(row);
+    const delta = base.assertions.find((a) => a.name === "version_delta");
+    assert.equal(delta.expected, row.expect.server.versionDelta, `${row.id}: the driver expects the row's versionDelta`);
+    assert.equal(evaluateCaseResult({ caseId: row.id, ac: row.ac, assertions: base.assertions }).result, "PASS", row.id);
+    for (const path of expectLeaves(row.expect)) {
+      const mutated = withLeaf(row, path, mutate(getAt(row.expect, path)));
+      const outcome = await driverRun(mutated, row);
+      const verdict = evaluateCaseResult({ caseId: row.id, ac: row.ac, assertions: outcome.assertions });
+      assert.equal(verdict.result, "FAIL", `${row.id}: expect.${path.join(".")} is not asserted by the driver (a mutated value still PASSes)`);
+      if (path.join(".") === "server.versionDelta") {
+        const flipped = outcome.assertions.find((a) => a.name === "version_delta");
+        assert.equal(flipped.ok, false, `${row.id}: a versionDelta that differs from the row must fail version_delta`);
+        assert.equal(flipped.expected, mutated.expect.server.versionDelta);
+      }
+      leaves += 1;
+    }
+  }
+  assert.ok(leaves > 60, `only ${leaves} expectation leaves were exercised`);
+});
+
+test("a driver reading an expectation its row lacks throws instead of falling back to a number of its own", async () => {
+  const row = structuredClone(selectServerCases(casesDoc)[0]);
+  delete row.expect.server.statuses.upload;
+  await assert.rejects(runServerCaseDriver(row, createFakeCaseContext(row)), /expect\.server\.statuses\.upload is missing/);
+});
+
 test("case-result.json carries {case, ac, result, assertions: [{name, expected, actual, ok}]} (matrix §4)", async () => {
   for (const row of selectServerCases(casesDoc)) {
     const outcome = await runServerCaseDriver(row, createFakeCaseContext(row));

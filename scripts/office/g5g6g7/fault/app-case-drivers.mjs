@@ -5,13 +5,17 @@
 // the app (app-session.mjs) and the D server (app-tenant.mjs), with the row's
 // proxy rules from cases.json, and returns `{documentId, assertions, blocker?}`.
 // Expectations are the matrix's (matrix.md §2), never the fork's behaviour of
-// the day: a known gap stays a FAIL, tagged `predicted` by the runner.
+// the day: a known gap stays a FAIL, tagged `predicted` by the runner. Every
+// number, status and state path a driver compares is read from the row's
+// `expect` in cases.json (`ctx.expect`, case-expect.mjs; review r1 R1-2): a
+// driver holds the scenario, never a number of its own.
 
 import {
   assertEntersWithCode, assertNeverState, assertStatePath, assertion, commitLookups, commitPosts,
   intentIdsOf, keyTagsOf, logSince, reachedUpstream, uploadPosts,
 } from "./app-cases-lib.mjs";
 import { crash, edit, openDocument, save } from "./app-session.mjs";
+import { compareMeasure } from "./case-expect.mjs";
 import { deviceBCommit, expireStagedClaims } from "./app-tenant.mjs";
 
 const NEVER = ["failed", "cancelled"];
@@ -33,21 +37,35 @@ export async function editAndSave(ctx, session, opened, label, n = 1) {
   return ctx.waitState(opened.documentId, null, { since, timeout: 30_000 });
 }
 
-export const deltaAssertion = async (ctx, docId, expected) => {
+/** The version count the run added to the document, against `expect.server.versionDelta` of the run. */
+export const deltaAssertion = async (ctx, docId) => {
+  const expected = ctx.expect.versionDelta();
   const delta = await ctx.versionDelta(docId);
   return assertion("version_delta", expected, delta, delta === expected);
 };
 
-export const oneIntent = (lines) => {
+/** `expect.clientIntents` distinct intents in the trace. */
+export const oneIntent = (ctx, lines) => {
+  const expected = ctx.expect.clientIntents();
   const ids = intentIdsOf(lines);
-  return assertion("one_intent", 1, ids.length, ids.length === 1);
+  return assertion("one_intent", expected, ids.length, ids.length === expected);
 };
 
-/** Every commit POST and commit lookup of the document carries one keyTag (no replacement key). */
-export const sameKey = (log, docId, { withUploads = false } = {}) => {
+/** The run's state path against `expect.clientPath`. */
+export const pathAssertion = (ctx, lines) => assertStatePath("client_path", lines, ctx.expect.clientPath());
+
+/** A proxy-log count against `expect.proxyLog[key]` (`<name>Min` = at least). */
+export const countAssertion = (ctx, name, key, actual) => {
+  const expected = ctx.expect.proxy(key);
+  return assertion(name, /Min$/.test(key) ? `>= ${expected}` : expected, actual, compareMeasure(key, expected, actual));
+};
+
+/** Every commit POST and commit lookup of the document carries `expect.proxyLog.keyTags` keyTag(s) (no replacement key). */
+export const sameKey = (ctx, log, docId, { withUploads = false } = {}) => {
+  const expected = ctx.expect.proxy("keyTags");
   const entries = [...commitPosts(log, docId), ...commitLookups(log, docId), ...(withUploads ? uploadPosts(log, docId) : [])];
   const tags = keyTagsOf(entries);
-  return assertion(withUploads ? "one_key_uploads_and_commits" : "one_key_for_commits", 1, `${tags.length} keyTag(s) over ${entries.length} request(s)`, tags.length === 1);
+  return assertion(withUploads ? "one_key_uploads_and_commits" : "one_key_for_commits", expected, `${tags.length} keyTag(s) over ${entries.length} request(s)`, tags.length === expected);
 };
 
 /** The commit POSTs that reached the server and got `status`. */
@@ -80,15 +98,15 @@ async function fq20(ctx) {
       assertion("intent_minted_offline", "a trace line after Save", first ? first.to : "none", Boolean(first)),
       assertion("paused_offline_before_crash", "paused_offline", parked?.to ?? "never", Boolean(parked)),
       assertion("app_process_tree_killed", ">= 1 pid", killed, killed >= 1),
-      oneIntent(lines),
-      assertStatePath("client_path", lines, ["*", "paused_offline", "*", "validating", "*", "uploading", "*", "committing", "*", "committed"]),
+      oneIntent(ctx, lines),
+      pathAssertion(ctx, lines),
       assertNeverState("no_terminal_failure", lines, [...NEVER, "conflict"]),
       assertion("committed_after_network_back", "committed", done?.to ?? "never", Boolean(done)),
-      await deltaAssertion(ctx, doc.id, 1),
+      await deltaAssertion(ctx, doc.id),
       assertion("version_is_snapshot_n", snapshotN, newest?.checksum_sha256 ?? null, Boolean(newest) && newest.checksum_sha256 === snapshotN),
-      assertion("no_write_reached_server_before_rule_lifted", 0, writesBeforeLift.length, writesBeforeLift.length === 0),
-      assertion("one_commit_200", 1, upstreamCommits(log, doc.id, 200).length, upstreamCommits(log, doc.id, 200).length === 1),
-      sameKey(log, doc.id, { withUploads: true }),
+      countAssertion(ctx, "no_write_reached_server_before_rule_lifted", "writesBeforeRuleLifted", writesBeforeLift.length),
+      countAssertion(ctx, "one_commit_200", "upstreamCommits200", upstreamCommits(log, doc.id, 200).length),
+      sameKey(ctx, log, doc.id, { withUploads: true }),
     ],
   };
 }
@@ -101,17 +119,19 @@ async function fq21(ctx) {
   const lines = ctx.trace(doc.id);
   const log = await ctx.proxyLog();
   const uploads = uploadPosts(log, doc.id);
+  const first = ctx.expect.status("first_upload");
+  const retried = ctx.expect.status("retry_upload");
   return {
     documentId: doc.id,
     assertions: [
-      oneIntent(lines),
-      assertStatePath("client_path", lines, ["*", "paused_offline|queued", "*", "committed"]),
+      oneIntent(ctx, lines),
+      pathAssertion(ctx, lines),
       assertNeverState("no_terminal_failure", lines, [...NEVER, "conflict", "reconciling"]),
       assertion("committed", "committed", done?.to ?? "never", Boolean(done)),
-      assertion("first_upload_reset_then_retried", "reset, then 201", uploads.map((e) => e.status).join(","), uploads[0]?.status === "reset" && uploads.some((e) => e.status === 201)),
-      assertion("one_commit_200", 1, upstreamCommits(log, doc.id, 200).length, upstreamCommits(log, doc.id, 200).length === 1),
-      sameKey(log, doc.id, { withUploads: true }),
-      await deltaAssertion(ctx, doc.id, 1),
+      assertion("first_upload_reset_then_retried", `${first}, then ${retried}`, uploads.map((e) => e.status).join(","), uploads[0]?.status === first && uploads.some((e) => e.status === retried)),
+      countAssertion(ctx, "one_commit_200", "upstreamCommits200", upstreamCommits(log, doc.id, 200).length),
+      sameKey(ctx, log, doc.id, { withUploads: true }),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }
@@ -124,16 +144,18 @@ async function fq22(ctx) {
   const lines = ctx.trace(doc.id);
   const log = await ctx.proxyLog();
   const posts = commitPosts(log, doc.id);
+  const lookup = commitLookups(log, doc.id).find(reachedUpstream);
   return {
     documentId: doc.id,
     assertions: [
-      oneIntent(lines),
-      assertStatePath("client_path", lines, ["*", "reconciling", "committed"]),
+      oneIntent(ctx, lines),
+      pathAssertion(ctx, lines),
       assertion("committed", "committed", done?.to ?? "never", Boolean(done)),
-      assertion("exactly_one_commit_post", 1, posts.length, posts.length === 1),
-      assertion("lookup_after_lost_answer", ">= 1 GET versions/commit", commitLookups(log, doc.id).length, commitLookups(log, doc.id).length >= 1),
-      sameKey(log, doc.id),
-      await deltaAssertion(ctx, doc.id, 1),
+      countAssertion(ctx, "exactly_one_commit_post", "commitPosts", posts.length),
+      countAssertion(ctx, "lookup_after_lost_answer", "commitLookupsMin", commitLookups(log, doc.id).length),
+      assertion("lookup_answered", ctx.expect.lookup().status, lookup?.status ?? "none", lookup?.status === ctx.expect.lookup().status),
+      sameKey(ctx, log, doc.id),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }
@@ -160,15 +182,15 @@ async function fq24(ctx) {
     documentId: doc.id,
     assertions: [
       assertion("claim_expired_in_run_db", ">= 1 row", expired.rows, expired.rows >= 1),
-      assertion("first_commit_409_upload_invalid", 409, posts[0]?.status ?? null, posts[0]?.status === 409),
-      oneIntent(lines),
-      assertStatePath("client_path", lines, ["*", "reconciling", "queued", "*", "committed"]),
+      assertion("first_commit_409_upload_invalid", ctx.expect.status("first_commit"), posts[0]?.status ?? null, posts[0]?.status === ctx.expect.status("first_commit")),
+      oneIntent(ctx, lines),
+      pathAssertion(ctx, lines),
       assertion("settled_committed", "committed", settled?.to ?? "never", settled?.to === "committed"),
-      assertion("reuploaded_after_fence", ">= 2 uploads reached the server", uploads.length, uploads.length >= 2),
-      assertion("commit_200_after_reupload", "a 200 commit after the last upload",
+      countAssertion(ctx, "reuploaded_after_fence", "uploadPostsReachedUpstreamMin", uploads.length),
+      assertion("commit_200_after_reupload", `a ${ctx.expect.status("final_commit")} commit after the last upload`,
         posts.map((e) => e.status).join(","),
-        posts.some((e) => e.status === 200 && uploads.length > 0 && String(e.ts) > String(uploads[uploads.length - 1].ts))),
-      await deltaAssertion(ctx, doc.id, 1),
+        posts.some((e) => e.status === ctx.expect.status("final_commit") && uploads.length > 0 && String(e.ts) > String(uploads[uploads.length - 1].ts))),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }
@@ -189,11 +211,12 @@ async function fq25(ctx) {
     documentId: doc.id,
     assertions: [
       assertion("paused_offline", "paused_offline", parked?.to ?? "never", Boolean(parked)),
-      assertion("device_b_commit_200", 200, b.status, b.status === 200),
-      assertStatePath("client_path", lines, ["*", "paused_offline", "*", "committing|queued", "*", "conflict"]),
+      assertion("device_b_commit_200", ctx.expect.status("device_b_commit"), b.status, b.status === ctx.expect.status("device_b_commit")),
+      pathAssertion(ctx, lines),
       assertion("stays_in_conflict", "conflict (last state)", lines.at(-1)?.to ?? "none", Boolean(conflict) && lines.at(-1)?.to === "conflict"),
-      assertion("one_app_commit_409_no_auto_retry", "1 commit, 409", appCommits.map((e) => e.status).join(",") || "none", appCommits.length === 1 && appCommits[0].status === 409),
-      await deltaAssertion(ctx, doc.id, 1),
+      assertion("one_app_commit_409_no_auto_retry", `${ctx.expect.proxy("appCommitPosts")} commit, ${ctx.expect.status("app_commit")}`, appCommits.map((e) => e.status).join(",") || "none",
+        appCommits.length === ctx.expect.proxy("appCommitPosts") && appCommits.every((e) => e.status === ctx.expect.status("app_commit"))),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }
@@ -210,10 +233,10 @@ async function fq40(ctx) {
     return {
       documentId: doc.id,
       assertions: [
-        assertStatePath("client_path", lines, ["*", "reconciling", "committed"]),
+        pathAssertion(ctx, lines),
         assertion("receipt", "committed", done?.to ?? "never", Boolean(done)),
-        sameKey(log, doc.id),
-        await deltaAssertion(ctx, doc.id, 1),
+        sameKey(ctx, log, doc.id),
+        await deltaAssertion(ctx, doc.id),
       ],
     };
   }
@@ -230,11 +253,11 @@ async function fq40(ctx) {
       assertions: [
         assertion("in_flight_kept_reconciling", "reconciling → reconciling on in_flight", inFlight.map((l) => `${l.from}→${l.to}`).join(",") || "no in_flight lookup traced",
           inFlight.length >= 1 && inFlight.every((l) => l.to === "reconciling")),
-        assertion("looked_up_again", ">= 2 lookups", lookups.length, lookups.length >= 2 && lookups[0].status === "synthetic"),
-        assertStatePath("client_path", lines, ["*", "reconciling", "*", "committed"]),
+        assertion("looked_up_again", `>= ${ctx.expect.proxy("commitLookupsMin")} lookups, the first synthetic`, lookups.length, compareMeasure("commitLookupsMin", ctx.expect.proxy("commitLookupsMin"), lookups.length) && lookups[0].status === "synthetic"),
+        pathAssertion(ctx, lines),
         assertion("receipt", "committed", done?.to ?? "never", Boolean(done)),
-        sameKey(log, doc.id),
-        await deltaAssertion(ctx, doc.id, 1),
+        sameKey(ctx, log, doc.id),
+        await deltaAssertion(ctx, doc.id),
       ],
     };
   }
@@ -254,10 +277,10 @@ async function fq40(ctx) {
       documentId: doc.id,
       assertions: [
         assertion("reconciling_to_paused_offline", "reconciling → paused_offline", reached ? `${reached.from}→${reached.to}` : "never", Boolean(reached)),
-        assertion("no_commit_while_paused", 0, postsWhilePaused.length, postsWhilePaused.length === 0),
+        countAssertion(ctx, "no_commit_while_paused", "commitPostsWhilePaused", postsWhilePaused.length),
         assertion("receipt_after_network_back", "committed", done?.to ?? "never", Boolean(done)),
-        sameKey(await ctx.proxyLog(), doc.id),
-        await deltaAssertion(ctx, doc.id, 1),
+        sameKey(ctx, await ctx.proxyLog(), doc.id),
+        await deltaAssertion(ctx, doc.id),
       ],
     };
   }
@@ -283,10 +306,10 @@ async function fq40(ctx) {
       assertions: [
         assertion("lookup_held", "held", held ? "held" : "never", Boolean(held)),
         assertion("reconciling_to_paused_admin", "reconciling → paused_admin", reached ? `${reached.from}→${reached.to}` : "never", reached?.from === "reconciling"),
-        assertion("no_commit_while_paused", 0, postsWhilePaused.length, postsWhilePaused.length === 0),
+        countAssertion(ctx, "no_commit_while_paused", "commitPostsWhilePaused", postsWhilePaused.length),
         assertion("receipt_after_capability_back", "committed", done?.to ?? "never", Boolean(done)),
-        sameKey(await ctx.proxyLog(), doc.id),
-        await deltaAssertion(ctx, doc.id, 1),
+        sameKey(ctx, await ctx.proxyLog(), doc.id),
+        await deltaAssertion(ctx, doc.id),
       ],
     };
   }
@@ -305,13 +328,13 @@ async function fq40(ctx) {
   return {
     documentId: doc.id,
     assertions: [
-      assertion("device_b_commit_200", 200, b.status, b.status === 200),
-      assertion("lookup_answered_by_server", 200, lookup?.status ?? "none", lookup?.status === 200),
+      assertion("device_b_commit_200", ctx.expect.status("device_b_commit"), b.status, b.status === ctx.expect.status("device_b_commit")),
+      assertion("lookup_answered_by_server", ctx.expect.lookup().status, lookup?.status ?? "none", lookup?.status === ctx.expect.lookup().status),
       assertion("reconciling_to_queued", "reconciling → queued", reached ? `${reached.from}→${reached.to}` : "never", Boolean(reached)),
-      assertion("new_attempt_same_key", ">= 2 commit POSTs", commitPosts(log, doc.id).length, commitPosts(log, doc.id).length >= 2),
-      sameKey(log, doc.id),
+      countAssertion(ctx, "new_attempt_same_key", "commitPostsMin", commitPosts(log, doc.id).length),
+      sameKey(ctx, log, doc.id),
       assertNeverState("no_terminal_failure", lines, NEVER),
-      await deltaAssertion(ctx, doc.id, 1),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }
@@ -325,18 +348,18 @@ async function fq41(ctx) {
   await ctx.sleep(20_000);
   const lines = ctx.trace(doc.id);
   const log = await ctx.proxyLog();
-  const lookup410 = commitLookups(log, doc.id).find((e) => e.status === 410);
+  const lookup410 = commitLookups(log, doc.id).find((e) => e.status === ctx.expect.lookup().status);
   const postsAfter = logSince(commitPosts(log, doc.id), stuckAt);
   return {
     documentId: doc.id,
     assertions: [
-      assertStatePath("client_path", lines, ["*", "reconciling", "reconciling-stuck"]),
+      pathAssertion(ctx, lines),
       assertion("stuck", "reconciling-stuck", stuck?.to ?? "never", Boolean(stuck)),
-      assertEntersWithCode("unknown_lookup", lines, "reconciling-stuck", "commit_intent_unknown"),
-      assertion("lookup_410_from_server", 410, lookup410?.status ?? "none", Boolean(lookup410)),
+      assertEntersWithCode("unknown_lookup", lines, "reconciling-stuck", ctx.expect.lookup().errorCode),
+      assertion("lookup_410_from_server", ctx.expect.lookup().status, lookup410?.status ?? "none", Boolean(lookup410)),
       assertNeverState("never_queued_again", lines.filter((l) => l.from === "reconciling" || l.from === "reconciling-stuck"), ["queued"]),
-      assertion("no_commit_after_stuck", 0, postsAfter.length, postsAfter.length === 0),
-      await deltaAssertion(ctx, doc.id, 0),
+      countAssertion(ctx, "no_commit_after_stuck", "commitPostsAfterStop", postsAfter.length),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }
@@ -357,11 +380,11 @@ async function fq42(ctx) {
   return {
     documentId: doc.id,
     assertions: [
-      assertStatePath("client_path", lines, ["*", "reconciling", "*", "reconciling-stuck"]),
+      pathAssertion(ctx, lines),
       assertion("stuck_after_the_knob", `>= ${FQ42_STUCK_AFTER_MS - 1_000} ms in reconciling`, waitedMs, waitedMs !== null && waitedMs >= FQ42_STUCK_AFTER_MS - 1_000),
-      assertion("only_the_first_commit_post", 1, commitPosts(log, doc.id).length, commitPosts(log, doc.id).length === 1),
+      countAssertion(ctx, "only_the_first_commit_post", "commitPosts", commitPosts(log, doc.id).length),
       assertion("last_state_stuck", "reconciling-stuck", lines.at(-1)?.to ?? "none", lines.at(-1)?.to === "reconciling-stuck"),
-      await deltaAssertion(ctx, doc.id, 0),
+      await deltaAssertion(ctx, doc.id),
     ],
   };
 }

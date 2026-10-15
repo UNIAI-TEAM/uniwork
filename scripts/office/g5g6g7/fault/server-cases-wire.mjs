@@ -3,7 +3,7 @@
 // Every body and header below is what the handlers read and write; the cite
 // beside each is the struct or handler in server/internal/handler (SDI = what
 // a request carries, SDO = what a response carries). The case drivers in
-// server-cases-lib.mjs run against the `ctx` this module builds, and
+// server-case-drivers.mjs run against the `ctx` this module builds, and
 // server-cases.test.mjs drives it through a fake transport that enforces the
 // same shapes, so a shape drift fails a unit test instead of a cloud round.
 

@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { validateExpect } from './case-expect.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const read = (rel) => JSON.parse(fs.readFileSync(path.join(repoRoot, rel), 'utf8'));
@@ -38,6 +39,24 @@ test('every AC a card lists appears in at least one of its rows', () => {
   }
 });
 
+// The matrix §2 prose and cases.json `expect` describe one number twice: the first `versionDelta: <n>` of the row
+// in the matrix must be the row's machine-readable `expect.server.versionDelta` (R1-2), so they cannot drift.
+test('the version delta in the matrix row is the version delta in cases.json expect', () => {
+  const matrixMd = fs.readFileSync(path.join(repoRoot, 'docs/office/g5g6g7/fault/matrix.md'), 'utf8');
+  let checked = 0;
+  for (const c of cases) {
+    const delta = c.expect.server.versionDelta;
+    if (!Number.isInteger(delta)) continue;
+    const row = matrixMd.split(/\r?\n/).find((l) => l.startsWith(`| ${c.id} |`) || l.startsWith(`| ${c.id} (S) |`));
+    assert.ok(row, `${c.id}: no row in matrix.md §2`);
+    const stated = /versionDelta: (\d+)/.exec(row);
+    assert.ok(stated, `${c.id}: the matrix row states no "versionDelta: <n>"`);
+    assert.equal(Number(stated[1]), delta, `${c.id}: matrix says versionDelta ${stated[1]}, cases.json expect.server.versionDelta is ${delta}`);
+    checked += 1;
+  }
+  assert.ok(checked >= 20, `only ${checked} rows compared`);
+});
+
 test('a row lists only AC rows of its own card', () => {
   for (const c of cases) {
     assert.ok(Array.isArray(c.ac) && c.ac.length > 0, `${c.id}: no ac`);
@@ -50,8 +69,8 @@ test('every row has a layer, an expectation, artifacts and a status', () => {
     assert.ok(['server', 'app'].includes(c.layer), `${c.id}: layer ${c.layer}`);
     assert.equal(c.serverOnly, c.layer === 'server', `${c.id}: serverOnly disagrees with layer`);
     assert.ok(c.expect && typeof c.expect === 'object' && Object.keys(c.expect).length > 0, `${c.id}: no expect`);
-    assert.ok(c.expect.server && 'versionDelta' in c.expect.server, `${c.id}: expect.server.versionDelta missing`);
-    assert.ok(Array.isArray(c.expect.client) && c.expect.client.length > 0, `${c.id}: expect.client missing`);
+    assert.deepEqual(validateExpect(c), [], `${c.id}: expect is not the documented machine-readable shape (matrix §6)`);
+    assert.ok(Array.isArray(c.expect.notes.client) && c.expect.notes.client.length > 0, `${c.id}: expect.notes.client missing`);
     assert.ok(Array.isArray(c.proxyRules), `${c.id}: proxyRules is not a list`);
     for (const name of ['intent-log.jsonl', 'server-versions.json', 'proxy-log.jsonl']) {
       assert.ok(c.artifacts.includes(name), `${c.id}: artifact ${name} missing`);
