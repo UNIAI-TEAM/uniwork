@@ -1,0 +1,79 @@
+$ node --test scripts/office/frame-protocol-vendor.test.mjs; echo "VENDOR_PIN_EXIT=$?"
+TAP version 13
+# Subtest: normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+ok 1 - normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+  ---
+  duration_ms: 0.968334
+  ...
+# Subtest: a CRLF copy of each vendored file normalises to the same hash as the LF file
+ok 2 - a CRLF copy of each vendored file normalises to the same hash as the LF file
+  ---
+  duration_ms: 4.140989
+  ...
+# Subtest: every frame pin records the same protocolSha256, equal to the vendored protocol
+not ok 3 - every frame pin records the same protocolSha256, equal to the vendored protocol
+  ---
+  duration_ms: 3.599059
+  location: '/workspace/scripts/office/frame-protocol-vendor.test.mjs:96:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    docs.pin.json was built against another frame protocol than packages/core/office vendors; re-vendor or re-pin
+    + actual - expected
+    
+      {
+        endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc',
+        host: '990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0',
+    +   protocol: 'f9ba8810eb443ce1876a1ed5ab44856977fc9fda67c999854cd8ca431c0411e9'
+    -   protocol: '254706afc55ebf4376b980ef943ce8c037b6ea741475bd4ea869036b32325108'
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    protocol: '254706afc55ebf4376b980ef943ce8c037b6ea741475bd4ea869036b32325108'
+    endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc'
+    host: '990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0'
+  actual:
+    protocol: 'f9ba8810eb443ce1876a1ed5ab44856977fc9fda67c999854cd8ca431c0411e9'
+    endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc'
+    host: '990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:112:12)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+ok 4 - the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+  ---
+  duration_ms: 1.092166
+  ...
+# Subtest: the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+ok 5 - the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+  ---
+  duration_ms: 0.95362
+  ...
+# Subtest: the three vendored files name one fork commit in their header
+ok 6 - the three vendored files name one fork commit in their header
+  ---
+  duration_ms: 1.001839
+  ...
+# Subtest: the vendored protocol carries the OQ-C2 comments.create anchor rule
+ok 7 - the vendored protocol carries the OQ-C2 comments.create anchor rule
+  ---
+  duration_ms: 0.811266
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 74.666661
+VENDOR_PIN_EXIT=1

@@ -1,0 +1,16 @@
+$ pnpm --filter @uniwork/views lint; echo "VIEWS_LINT_EXIT=$?"
+
+> @uniwork/views@0.0.0 lint /workspace/packages/views
+> eslint . --max-warnings 0
+
+
+/workspace/packages/views/documents/use-mention-picker.ts
+  130:6  warning  React Hook useMemo has a missing dependency: 'includeNoAccess'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+
+ESLint found too many warnings (maximum: 0).
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 lint: `eslint . --max-warnings 0`
+Exit status 1
+VIEWS_LINT_EXIT=1

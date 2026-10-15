@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+4219d81837a79883edc76b671f71aa33095bc39b
+4219d8183 Merge branch 'feature/UNI-1413-doc-05-fix' into feature/UNI-1413-g8-18-doc-05-web
+646fda581 fix(office): admin DOC-05 views read the summary, never a made-up Document
+04644f852 fix(office): move break-glass queries to core, one access-error field, strict access-answer degrade
