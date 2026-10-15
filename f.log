@@ -1,0 +1,23 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r13g" OFFICE_FORK_SHA=12ccb8f0 timeout -k 15 420 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-51 --exits 3 --run-dir .harness-run-r13g; rc=$?; echo; echo "APP_CASE_FQ_51_3_EXIT=$rc"; f=.harness-run-r13g/fault/FQ-51/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",JSON.stringify(r.exitRange||""),(r.assertions||[]).map(a=>(a.ok?"ok ":"FAIL ")+a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "),JSON.stringify(r.exits||r.run_execution||"").slice(0,3000))' "$PWD/$f"; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:43343 app_api=http://127.0.0.1:41839 proxy_upstream=http://127.0.0.1:43343
+FQ-51 [1/3] session_expired → queued: SKIPPED - outside --exits 3-3
+FQ-51 [2/3] signed_out → mở khóa: SKIPPED - outside --exits 3-3
+FQ-51 [3/3] foreign_account ở lại: running
+dbus-daemon[20979]: [session uid=1000 pid=20979] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=21028 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20979]: [session uid=1000 pid=20979] Successfully activated service 'org.a11y.Bus'
+
+APP_CASE_FQ_51_3_EXIT=124
+FQ-51 FAIL   {"from":2,"to":2,"of":3,"skipped":[1,3]} FAIL run_execution: expected "no unhandled error" actual "page.evaluate: Application exited" [{"n":0,"label":"signed_out → mở khóa","result":"FAIL","assertions":[{"name":"run_execution","expected":"no unhandled error","actual":"page.evaluate: Application exited","ok":false}],"infraFailure":"run_execution: page.evaluate: Application exited","evidence":{"documentId":"01M50FQDPHV33ESQ9SMZGRF7FA","trace":[{"ts":"2026-10-15T19:13:59.859Z","intentId":"office-intent-05eb525e-5358-407d-b756-85b367638eb8","from":null,"to":"queued"},{"ts":"2026-10-15T19:13:59.879Z","intentId":"office-intent-05eb525e-5358-407d-b756-85b367638eb8","from":"queued","to":"paused_offline","code":"network"},{"ts":"2026-10-15T19:14:52.222Z","intentId":"office-intent-05eb525e-5358-407d-b756-85b367638eb8","from":"queued","to":"validating"},{"ts":"2026-10-15T19:14:52.222Z","intentId":"office-intent-05eb525e-5358-407d-b756-85b367638eb8","from":"validating","to":"uploading"},{"ts":"2026-10-15T19:14:52.222Z","intentId":"office-intent-05eb525e-5358-407d-b756-85b367638eb8","from":"uploading","to":"committing"},{"ts":"2026-10-15T19:14:52.222Z","intentId":"office-intent-05eb525e-5358-407d-b756-85b367638eb8","from":"committing","to":"committed","httpStatus":200}],"requests":[{"kind":"upload","ts":"2026-10-15T19:13:59.874Z","method":"POST","status":"reset","keyTag":"fd55d04dc595","ruleId":"unreachable"},{"kind":"upload","ts":"2026-10-15T19:14:52.253Z","method":"POST","status":201,"keyTag":"fd55d04dc595","ruleId":null},{"kind":"commit","ts":"2026-10-15T19:14:52.271Z","method":"POST","status":200,"keyTag":"fd55d04dc595","ruleId":null}]}}]
+FQ-51: FAIL (infra: foreign_account ở lại: run_execution: page.evaluate: Application exited) partial 3-3 of 3
+  FQ-51 [foreign_account ở lại] trace 2026-10-15T19:21:00.305Z ∅ -> queued
+  FQ-51 [foreign_account ở lại] trace 2026-10-15T19:21:00.318Z queued -> paused_offline code=network
+  FQ-51 [foreign_account ở lại] trace 2026-10-15T19:21:52.588Z queued -> validating
+  FQ-51 [foreign_account ở lại] trace 2026-10-15T19:21:52.588Z validating -> uploading
+  FQ-51 [foreign_account ở lại] trace 2026-10-15T19:21:52.588Z uploading -> committing
+  FQ-51 [foreign_account ở lại] trace 2026-10-15T19:21:52.588Z committing -> committed http=200
+  FQ-51 [foreign_account ở lại] proxy 2026-10-15T19:21:00.315Z upload POST reset key=c3cb7e3287e2 rule=unreachable
+  FQ-51 [foreign_account ở lại] proxy 2026-10-15T19:21:52.608Z upload POST 201 key=c3cb7e3287e2 rule=-
+  FQ-51 [foreign_account ở lại] proxy 2026-10-15T19:21:52.623Z commit POST 200 key=c3cb7e3287e2 rule=-
+FQ-51 (G5-A08): FAIL
+/workspace/.harness-run-r13g/fault
