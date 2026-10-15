@@ -146,6 +146,56 @@ describe("useDocumentEditLock (UNI-1645)", () => {
     await waitFor(() => expect(result.current.editLockId).toBe("L5"));
   });
 
+  it("CFE-1-3: a bfcache restore (pageshow persisted) after pagehide acquires a fresh lock", async () => {
+    const calls = routes({
+      [`GET ${BASE}`]: [() => json(r1())],
+      [`POST ${BASE}`]: [() => json(lock("L1"), 201), () => json(lock("L2"), 201)],
+      [`DELETE ${BASE}/L1`]: [() => new Response(null, { status: 204 })],
+    });
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useDocumentEditLock("w1", "d1", { canEdit: true, client: "web_page" }), { wrapper });
+    await waitFor(() => expect(result.current.editLockId).toBe("L1"));
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("released"));
+    // A pageshow that is not a bfcache restore changes nothing.
+    act(() => {
+      window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: false }));
+    });
+    expect(calls.filter((c) => c.key === `POST ${BASE}`)).toHaveLength(1);
+    act(() => {
+      window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+    });
+    await waitFor(() => expect(result.current.editLockId).toBe("L2"));
+    expect(result.current.state).toMatchObject({ phase: "mine", editable: true });
+  });
+
+  it("CFE-1-11: a take-over granted after unmount is released, not leaked", async () => {
+    const calls = routes({
+      [`GET ${BASE}`]: [() => json(r1({ lock: summary({ lock_id: "L0" }), can_take_over: true }))],
+      [`POST ${BASE}`]: [locked],
+      [`POST ${BASE}/take-over`]: [() => json(lock("L5", { granted_via: "take_over" }), 201)],
+      [`DELETE ${BASE}/L5`]: [() => new Response(null, { status: 204 })],
+    });
+    const route = vi.mocked(fetch).getMockImplementation();
+    let open: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (open = resolve));
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/take-over")) await gate;
+      return route!(input, init);
+    });
+    const { wrapper } = setup();
+    const { result, unmount } = renderHook(() => useDocumentEditLock("w1", "d1", { canEdit: true, client: "web_office" }), { wrapper });
+    await waitFor(() => expect(result.current.state.phase).toBe("other"));
+    await waitFor(() => expect(result.current.lockState.data?.lock?.lock_id).toBe("L0"));
+    const pending = result.current.takeOver.mutateAsync(undefined).catch(() => undefined);
+    unmount();
+    open();
+    await pending;
+    await waitFor(() => expect(calls.some((c) => c.key === `DELETE ${BASE}/L5`)).toBe(true));
+  });
+
   it("claims a handover reserved for this user once R1 shows it", async () => {
     let reserved = false;
     routes({

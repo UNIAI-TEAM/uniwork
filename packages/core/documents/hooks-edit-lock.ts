@@ -89,6 +89,8 @@ export function useDocumentEditLock(wsId: string, documentId: string, opts: UseD
   }, [opts.canReclaim]);
 
   const [session, setSession] = useState<EditLockSession | null>(null);
+  // Bumped by a bfcache restore: the effect below runs again and starts a fresh session.
+  const [restore, setRestore] = useState(0);
   useEffect(() => {
     if (!canEdit || !documentId) return;
     // A fresh session per effect run: StrictMode's mount → cleanup → mount
@@ -107,14 +109,21 @@ export function useDocumentEditLock(wsId: string, documentId: string, opts: UseD
     next.start();
     // Closing the page releases with keepalive; the TTL covers a crash.
     const onPageHide = () => void next.release({ keepalive: true });
+    // pagehide released the lock; a page restored from the back/forward cache is
+    // the same document with a dead session, so it acquires again (CFE-1-3).
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setRestore((n) => n + 1);
+    };
     window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
       void next.release();
       next.dispose();
       setSession(null);
     };
-  }, [canEdit, client, documentId]);
+  }, [canEdit, client, documentId, restore]);
 
   const [subscribe, getSnapshot] = useMemo(
     () => (session ? [session.subscribe.bind(session), session.getState.bind(session)] : [noopSubscribe, idleSnapshot]),
@@ -170,7 +179,11 @@ export function useDocumentEditLock(wsId: string, documentId: string, opts: UseD
         expected_lock_id: expected,
       });
       if (!lock) throw new Error("edit_lock_not_verifiable");
-      session.adopt(lock);
+      if (!session.adopt(lock)) {
+        // The editor closed while the take-over flew: do not leave the lock held.
+        void releaseDocumentEditLock(documentId, lock.lock_id, { keepalive: true }).catch(() => undefined);
+        throw new Error("edit_lock_session_closed");
+      }
       return lock;
     },
     onSettled: invalidate,

@@ -26,6 +26,26 @@ export function heldEditLockId(documentId: string): string | undefined {
   return undefined;
 }
 
+/**
+ * R2 / R4 calls of this tab still in flight, per document. A remount (StrictMode,
+ * a route change) starts its R2 while the previous session's release or late R2
+ * answer is still settling; the new session waits for those instead of reading
+ * its own old tenure as "held in another tab" (CFE-1-5).
+ */
+const settling = new Map<Promise<unknown>, { documentId: string; owner: object }>();
+
+export function trackSettling(documentId: string, owner: object, call: Promise<unknown>): void {
+  settling.set(call, { documentId, owner });
+  const done = () => void settling.delete(call);
+  call.then(done, done);
+}
+
+/** Resolves when every call of the document not made by `owner` has settled; undefined when none. */
+export function othersSettling(documentId: string, owner: object): Promise<unknown> | undefined {
+  const calls = [...settling].filter(([, entry]) => entry.documentId === documentId && entry.owner !== owner).map(([call]) => call);
+  return calls.length ? Promise.allSettled(calls) : undefined;
+}
+
 /** The locks held now, as [documentId, lockId] pairs (tests and diagnostics). */
 export function heldEditLocks(): [string, string][] {
   return [...held].map(([lockId, documentId]) => [documentId, lockId]);

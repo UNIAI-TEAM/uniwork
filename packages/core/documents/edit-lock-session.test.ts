@@ -561,6 +561,72 @@ describe("EditLockSession review fixes (CFE-1-4)", () => {
   });
 });
 
+describe("EditLockSession review fixes (CFE-1-3, CFE-1-5, CFE-1-11)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-15T03:12:00Z"));
+  });
+  afterEach(async () => {
+    vi.useRealTimers();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+    await releaseHeldEditLocks(0);
+    vi.unstubAllGlobals();
+  });
+
+  it("CFE-1-3: a keepalive release during R2 sends the late grant's release with keepalive", async () => {
+    let grant: (value: DocumentEditLock) => void = () => undefined;
+    const transport = fakeTransport();
+    transport.acquire.mockImplementationOnce(() => new Promise((resolve) => (grant = resolve)));
+    const { session } = setup({ transport });
+    session.start();
+    await session.release({ keepalive: true });
+    grant(lock());
+    await flush();
+    expect(transport.release).toHaveBeenCalledWith("L1", { keepalive: true });
+  });
+
+  it("CFE-1-5: a remount whose R2 meets its own old tenure waits for that release and retries once", async () => {
+    let grantOld: (value: DocumentEditLock) => void = () => undefined;
+    const oldTransport = fakeTransport();
+    oldTransport.acquire.mockImplementationOnce(() => new Promise((resolve) => (grantOld = resolve)));
+    const old = setup({ transport: oldTransport }).session;
+    old.start();
+    await old.release();
+    old.dispose();
+
+    const transport = fakeTransport();
+    transport.acquire
+      .mockRejectedValueOnce(new ApiError("locked", "document_locked", 423, undefined, { held_by_me: true }))
+      .mockResolvedValueOnce(lock({ lock_id: "L2" }));
+    const fresh = setup({ transport }).session;
+    fresh.start();
+    await flush();
+    // The old R2 was granted server-side; its answer (and release) is still on the way.
+    expect(fresh.getState().phase).toBe("acquiring");
+    grantOld(lock());
+    await flush();
+    expect(oldTransport.release).toHaveBeenCalledWith("L1", {});
+    expect(transport.acquire).toHaveBeenCalledTimes(2);
+    expect(fresh.getState()).toMatchObject({ phase: "mine", lock: { lock_id: "L2" } });
+  });
+
+  it("CFE-1-5: held_by_me with nothing of this tab settling is still the other-tab state", async () => {
+    const transport = fakeTransport();
+    transport.acquire.mockRejectedValueOnce(new ApiError("locked", "document_locked", 423, undefined, { held_by_me: true }));
+    const { session } = setup({ transport });
+    session.start();
+    await flush();
+    expect(session.getState()).toMatchObject({ phase: "other", holder: { heldByMe: true } });
+    expect(transport.acquire).toHaveBeenCalledTimes(1);
+  });
+
+  it("CFE-1-11: adopt after dispose refuses", () => {
+    const { session } = setup();
+    session.dispose();
+    expect(session.adopt(lock({ lock_id: "L3", granted_via: "take_over" }))).toBe(false);
+  });
+});
+
 describe("newEditorId", () => {
   it("mints a 26-character Crockford ULID that sorts by time", () => {
     const a = newEditorId(1_000);

@@ -5,7 +5,7 @@ import type {
   DocumentEditLockClient,
 } from "../api/endpoints/documents-edit-lock";
 import { ApiError } from "../api/http";
-import { forgetHeldEditLock, registerHeldEditLock } from "./edit-lock-registry";
+import { forgetHeldEditLock, othersSettling, registerHeldEditLock, trackSettling } from "./edit-lock-registry";
 
 /**
  * One editor's hold on a document's edit lock (UNI-1645, addendum §9):
@@ -182,6 +182,8 @@ export class EditLockSession {
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private beating = false;
   private pendingBeat = false;
+  /** Ops whose R2 was released with keepalive while it flew. */
+  private readonly keepaliveOps = new Set<number>();
   private reclaiming = false;
   /** Bumped by every acquire and release: a late R2 answer of an older op is stale. */
   private op = 0;
@@ -223,6 +225,12 @@ export class EditLockSession {
     this.slowTimer = setTimeout(() => {
       if (op === this.op && this.state.phase === "acquiring") this.setState({ slow: true });
     }, SLOW_ACQUIRE_MS);
+    const run = this.runAcquire(op, moveFromSelf, false);
+    trackSettling(this.opts.documentId, this, run);
+    await run;
+  }
+
+  private async runAcquire(op: number, moveFromSelf: boolean, retried: boolean): Promise<void> {
     // The server's TTL starts when it handled the request, so count from the send.
     const sentAt = this.now();
     try {
@@ -232,8 +240,10 @@ export class EditLockSession {
         ...(moveFromSelf ? { move_from_self: true } : {}),
       });
       if (op !== this.op || this.disposed) {
-        // Released or torn down while R2 flew: give back what it granted.
-        if (lock) void this.opts.transport.release(lock.lock_id, {}).catch(() => undefined);
+        // Released or torn down while R2 flew: give back what it granted. A pagehide
+        // release means the page may be gone (or frozen) before this answer: keepalive.
+        const keepalive = this.keepaliveOps.delete(op);
+        if (lock) await this.opts.transport.release(lock.lock_id, keepalive ? { keepalive } : {}).catch(() => undefined);
         return;
       }
       if (!lock) {
@@ -244,8 +254,16 @@ export class EditLockSession {
     } catch (err) {
       if (op !== this.op || this.disposed) return;
       if (err instanceof ApiError && err.code === "document_locked") {
+        const holder = holderFrom(err.fields);
+        // Our own previous session (remount) may still be releasing: wait, ask once more.
+        const prior = holder.heldByMe && !moveFromSelf && !retried ? othersSettling(this.opts.documentId, this) : undefined;
+        if (prior) {
+          await prior;
+          if (op !== this.op || this.disposed) return;
+          return this.runAcquire(op, moveFromSelf, true);
+        }
         this.clearTimers();
-        this.setState({ phase: "other", holder: holderFrom(err.fields), slow: false });
+        this.setState({ phase: "other", holder, slow: false });
         return;
       }
       const retryable = !refused(err, 400, 401, 403, 404, 409, 410, 413, 422);
@@ -259,10 +277,11 @@ export class EditLockSession {
   }
 
   /** Hold a lock granted outside R2 (R5 take-over with this editor's id). */
-  adopt(lock: DocumentEditLock): void {
-    if (this.disposed) return;
+  adopt(lock: DocumentEditLock): boolean {
+    if (this.disposed) return false;
     this.op++;
     this.grant(lock, this.now());
+    return true;
   }
 
   /**
@@ -297,6 +316,8 @@ export class EditLockSession {
 
   /** R4 on close. With `keepalive` the request outlives the page (pagehide). */
   async release(opts: { keepalive?: boolean } = {}): Promise<void> {
+    // R2 still flying: if it is granted later, that release must outlive the page too.
+    if (this.state.phase === "acquiring" && opts.keepalive) this.keepaliveOps.add(this.op);
     this.op++;
     this.clearTimers();
     const lock = this.state.phase === "mine" ? this.state.lock : null;
@@ -305,11 +326,9 @@ export class EditLockSession {
     }
     if (!lock) return;
     forgetHeldEditLock(lock.lock_id);
-    try {
-      await this.opts.transport.release(lock.lock_id, opts);
-    } catch {
-      // Best effort: the lock expires after the TTL anyway.
-    }
+    const call = this.opts.transport.release(lock.lock_id, opts).catch(() => undefined); // best effort: the TTL covers a failure
+    trackSettling(this.opts.documentId, this, call);
+    await call;
   }
 
   /** Stop timers and listeners; the caller releases first if it still holds. */
