@@ -136,11 +136,14 @@ and the exact command in `start.sh`'s output.
   `HARNESS_APP_STEP_TIMEOUT_MS`) on the docs `WebContentsView` target until its
   close-check bridge (`window.desktop.onCloseCheck` / `reportCloseCheck`) and
   loaded document control (`window.__genofficeControl` / `window.__aidocs.editor`,
-  with `.start-booting` gone) are ready — preventing `docsQueryDirty`'s 2 s
-  no-reply timeout from opening a headless native `dialog.showMessageBox`
-  (`closeNoReplyMsg`); if the docs tab never becomes ready within the bound, the
-  step **FAIL**s with `docs tab not ready to close within <n> s` (recording
-  `targetUrl`, `elapsedMs`, `bindingState`, redacted `appLogTail`, and
+  with `.start-booting` gone) are ready, and then settles for
+  `HARNESS_DOCS_CLOSE_SETTLE_MS` (default `2500` ms, longer than the fork's 2 s
+  `docsQueryDirty` timer) with the renderer still ready without calling
+  `reportCloseCheck` itself — waiting out any pre-mount close-check query so
+  `docsQueryDirty`'s 2 s no-reply timeout does not open a headless native
+  `dialog.showMessageBox` (`closeNoReplyMsg`); if the docs tab never becomes ready
+  within the bound, the step **FAIL**s with `docs tab not ready to close within <n> s`
+  (recording `targetUrl`, `elapsedMs`, `bindingState`, redacted `appLogTail`, and
   `owner: "g5-client"`). An outer per-loop
   watchdog (`HARNESS_LOOP_TIMEOUT_MS`, default `600000` ms) bounds each tracer
   loop as a whole: if exceeded, it writes `tracer-loop-<N>.json` with status
@@ -176,6 +179,7 @@ ran, the claim was false).
 | `HARNESS_DOC_WAIT_MS` | `60000` | how long `document-step.mjs` waits for the app's working copy |
 | `HARNESS_HANDOFF_TIMEOUT_MS` | `30000` | how long the second Electron instance that carries the deep link may run before it is killed (as a process group) |
 | `HARNESS_APP_STEP_TIMEOUT_MS` | `90000` | per-call timeout (ms) for app-side CDP calls (`connect`, `page.evaluate` of `aiOffice.*` / `aiOfficeTabs.close`, and the docs tab close-readiness wait before `aiOfficeTabs.close`); timeout is a FAIL (`<call> did not settle within <n> s` or `docs tab not ready to close within <n> s`) |
+| `HARNESS_DOCS_CLOSE_SETTLE_MS` | `2500` | post-readiness settle window (ms) with the docs renderer still ready before `aiOfficeTabs.close` is called, waiting out any pre-mount 2 s `docsQueryDirty` query without calling `reportCloseCheck` from the harness |
 | `HARNESS_LOOP_TIMEOUT_MS` | `600000` | per-loop watchdog timeout (ms) for `g7-10/tracer.mjs`; timeout writes `tracer-loop-<N>.json` with `status: "FAIL"`, `reason: "loop watchdog"` and exits `1` |
 | `HARNESS_DOC_EMAIL` / `HARNESS_DOC_PASSWORD` | unset | document step, desktop mode: reuse this existing account instead of seeding one (both or neither) |
 

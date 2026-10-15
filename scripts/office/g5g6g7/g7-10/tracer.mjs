@@ -1620,6 +1620,7 @@ export function redactSignInError(raw) {
 
 export const DEFAULT_APP_STEP_TIMEOUT_MS = 90_000;
 export const DEFAULT_LOOP_TIMEOUT_MS = 600_000;
+export const DEFAULT_DOCS_CLOSE_SETTLE_MS = 2_500;
 const APP_LOG_TAIL_LINES = 40;
 
 export function resolveAppStepTimeoutMs(overrideMs, portsEnv = null) {
@@ -1642,6 +1643,21 @@ export function resolveLoopTimeoutMs(overrideMs, portsEnv = null) {
   const fromPorts = Number(portsEnv?.HARNESS_LOOP_TIMEOUT_MS);
   if (Number.isFinite(fromPorts) && fromPorts > 0) return fromPorts;
   return DEFAULT_LOOP_TIMEOUT_MS;
+}
+
+export function resolveDocsCloseSettleMs(overrideMs, portsEnv = null) {
+  if (overrideMs !== undefined && overrideMs !== null && Number.isFinite(Number(overrideMs)) && Number(overrideMs) >= 0) {
+    return Number(overrideMs);
+  }
+  if (process.env.HARNESS_DOCS_CLOSE_SETTLE_MS !== undefined && process.env.HARNESS_DOCS_CLOSE_SETTLE_MS !== "") {
+    const fromEnv = Number(process.env.HARNESS_DOCS_CLOSE_SETTLE_MS);
+    if (Number.isFinite(fromEnv) && fromEnv >= 0) return fromEnv;
+  }
+  if (portsEnv?.HARNESS_DOCS_CLOSE_SETTLE_MS !== undefined && portsEnv?.HARNESS_DOCS_CLOSE_SETTLE_MS !== "") {
+    const fromPorts = Number(portsEnv.HARNESS_DOCS_CLOSE_SETTLE_MS);
+    if (Number.isFinite(fromPorts) && fromPorts >= 0) return fromPorts;
+  }
+  return DEFAULT_DOCS_CLOSE_SETTLE_MS;
 }
 
 export function formatAppStepTimeoutReason(call, timeoutMs) {
@@ -1783,8 +1799,10 @@ export async function runBoundedAppStep(
 /**
  * Waits (bounded by `HARNESS_APP_STEP_TIMEOUT_MS`) until the open docs tab's
  * `WebContentsView` renderer is ready to answer `docsQueryDirty`'s
- * `'docs:close-check'` IPC (`apps/docs/src/main/docs-main.ts:6288-6308`) before
- * `aiOfficeTabs.close` is called (Finding H2).
+ * `'docs:close-check'` IPC (`apps/docs/src/main/docs-main.ts:6288-6308`), and then
+ * settles for `HARNESS_DOCS_CLOSE_SETTLE_MS` (default `2500` ms, longer than the
+ * fork's 2 s `docsQueryDirty` timer at `apps/docs/src/main/docs-main.ts:6293`) with
+ * the renderer still ready before `aiOfficeTabs.close` is called (Finding H2, ADDENDUM r7b H2-1).
  *
  * Fork root cause (`ab12238f`):
  *   - `TabManager.closeTab` -> `confirmTabClose` (`apps/shell/src/main/tab-manager.ts:893-929`)
@@ -1798,8 +1816,13 @@ export async function runBoundedAppStep(
  *     (`docs-main.ts:6295`) and `performDocsClose` (`docs-main.ts:6355-6376`) opens
  *     a native `dialog.showMessageBox` (`closeNoReplyMsg`: Close Anyway / Cancel) on
  *     the headless Xvfb display where nothing clicks it.
+ *   - In addition, the shell's 1 s `editor-state-poll.ts` (`apps/shell/src/main/uniwork-docs/editor-state-poll.ts:12,56-84`)
+ *     calls `docsQueryEditorDirty`, which shares `closeStateQueries` (`docs-main.ts:6248,6289-6291`)
+ *     with `docsQueryDirty`: any `'docs:close-check'` sent before `onCloseCheck` mounted is
+ *     never answered and takes 2 s (`docs-main.ts:6293`) to expire.
  *
- * Positive readiness signal on the docs `WebContentsView` target:
+ * Positive readiness signal on the docs `WebContentsView` target (never calling
+ * `window.desktop.reportCloseCheck`, so the harness never speaks for the product):
  *   1. `document.readyState === "complete"`
  *   2. `typeof window.desktop?.onCloseCheck === "function"` and
  *      `typeof window.desktop?.reportCloseCheck === "function"`
@@ -1812,15 +1835,16 @@ export async function runBoundedAppStep(
  *      `apps/docs/src/renderer/control.ts:16-21`, which commits after the `onCloseCheck`
  *      effect at `App.tsx:5334-5362` and returns `status: "ok"` only when `editor` and
  *      `doc !== null` are both ready).
- *   5. Calls `window.desktop.reportCloseCheck({ dirty: false, autoSave: false, filePath })`
- *      to flush any pre-mount waiter in `closeCheckWaiters` (`docs-main.ts:6259-6273`)
- *      from the shell's 1 s `editor-state-poll.ts` (`editor-state-poll.ts:56-84`).
+ *   5. After checks 1-4 pass, waits out any pre-mount query in `closeStateQueries` by
+ *      settling for `HARNESS_DOCS_CLOSE_SETTLE_MS` (default `2500` ms > `2000` ms at
+ *      `docs-main.ts:6293`) and re-verifying checks 1-4 still hold before returning.
  */
 export async function waitForDocsTabReadyToClose({
   browser,
   shellPage = null,
   filePath = null,
   timeoutMs,
+  settleMs,
   portsEnv = null,
   runDir = null,
   userDataDir = null,
@@ -1830,11 +1854,61 @@ export async function waitForDocsTabReadyToClose({
   pollIntervalMs = 50,
 } = {}) {
   const boundMs = resolveAppStepTimeoutMs(timeoutMs, portsEnv);
+  const requiredSettleMs = resolveDocsCloseSettleMs(settleMs, portsEnv);
   const startedAt = Date.now();
   const deadline = startedAt + boundMs;
   let lastTargetUrl = null;
+  let readySinceMs = null;
+
+  const probeCandidate = async (candidate, remainingMs) => {
+    let evalTimer = null;
+    return Promise.race([
+      Promise.resolve().then(() =>
+        candidate.evaluate((_expectedFilePath) => {
+          if (typeof window === "undefined") return { isDocsTarget: false, ready: false };
+          const href = String(window.location?.href ?? "");
+          const hasDesktopCloseBridge =
+            typeof window.desktop?.onCloseCheck === "function" &&
+            typeof window.desktop?.reportCloseCheck === "function";
+          const isDocsUrl = href.includes("genoffice-app://docs") || href.includes("/docs/");
+          if (!hasDesktopCloseBridge && !isDocsUrl) {
+            return { isDocsTarget: false, ready: false, url: href };
+          }
+          const docObj = window.document ?? globalThis.document ?? null;
+          const readyStateComplete =
+            !docObj || typeof docObj.readyState !== "string" || docObj.readyState === "complete";
+          const bootingEl =
+            docObj && typeof docObj.querySelector === "function"
+              ? docObj.querySelector(".start-booting")
+              : null;
+          const controlProbe =
+            typeof window.__genofficeControl === "function"
+              ? window.__genofficeControl({ cmd: "selection" })
+              : null;
+          const controlReady =
+            controlProbe?.status === "ok" && Boolean(window.__aidocs?.editor);
+          const ready = Boolean(
+            readyStateComplete && hasDesktopCloseBridge && !bootingEl && controlReady,
+          );
+          return {
+            isDocsTarget: true,
+            ready,
+            url: href,
+          };
+        }, filePath),
+      ),
+      new Promise((resolve) => {
+        evalTimer = setTimeout(() => resolve(null), Math.min(remainingMs, 1_500));
+      }),
+    ])
+      .catch(() => null)
+      .finally(() => {
+        if (evalTimer !== null) clearTimeout(evalTimer);
+      });
+  };
 
   while (Date.now() < deadline) {
+    let sawReadyThisPass = false;
     const contexts = typeof browser?.contexts === "function" ? browser.contexts() : [];
     for (const ctx of contexts) {
       const pages = typeof ctx?.pages === "function" ? ctx.pages() : [];
@@ -1851,77 +1925,36 @@ export async function waitForDocsTabReadyToClose({
         }
         const remainingMs = deadline - Date.now();
         if (remainingMs <= 0) break;
-        let evalTimer = null;
-        const probe = await Promise.race([
-          Promise.resolve().then(() =>
-            candidate.evaluate((expectedFilePath) => {
-              if (typeof window === "undefined") return { isDocsTarget: false, ready: false };
-              const href = String(window.location?.href ?? "");
-              const hasDesktopCloseBridge =
-                typeof window.desktop?.onCloseCheck === "function" &&
-                typeof window.desktop?.reportCloseCheck === "function";
-              const isDocsUrl = href.includes("genoffice-app://docs") || href.includes("/docs/");
-              if (!hasDesktopCloseBridge && !isDocsUrl) {
-                return { isDocsTarget: false, ready: false, url: href };
-              }
-              const docObj = window.document ?? globalThis.document ?? null;
-              const readyStateComplete =
-                !docObj || typeof docObj.readyState !== "string" || docObj.readyState === "complete";
-              const bootingEl =
-                docObj && typeof docObj.querySelector === "function"
-                  ? docObj.querySelector(".start-booting")
-                  : null;
-              const controlProbe =
-                typeof window.__genofficeControl === "function"
-                  ? window.__genofficeControl({ cmd: "selection" })
-                  : null;
-              const controlReady =
-                controlProbe?.status === "ok" && Boolean(window.__aidocs?.editor);
-              const ready = Boolean(
-                readyStateComplete && hasDesktopCloseBridge && !bootingEl && controlReady,
-              );
-              if (ready) {
-                try {
-                  window.desktop.reportCloseCheck({
-                    dirty: false,
-                    autoSave: false,
-                    filePath: expectedFilePath || null,
-                  });
-                } catch {
-                  // ignore
-                }
-              }
-              return {
-                isDocsTarget: true,
-                ready,
-                url: href,
-              };
-            }, filePath),
-          ),
-          new Promise((resolve) => {
-            evalTimer = setTimeout(() => resolve(null), Math.min(remainingMs, 1_500));
-          }),
-        ])
-          .catch(() => null)
-          .finally(() => {
-            if (evalTimer !== null) clearTimeout(evalTimer);
-          });
+        const probe = await probeCandidate(candidate, remainingMs);
 
         if (probe?.url && (probe.isDocsTarget || !lastTargetUrl)) {
           lastTargetUrl = sanitizeTargetUrl(probe.url);
         }
         if (probe?.ready) {
-          return {
-            ready: true,
-            targetUrl: sanitizeTargetUrl(probe.url || rawUrl || ""),
-            elapsedMs: Date.now() - startedAt,
-          };
+          sawReadyThisPass = true;
+          const now = Date.now();
+          if (readySinceMs === null) {
+            readySinceMs = now;
+          }
+          if (now - readySinceMs >= requiredSettleMs) {
+            return {
+              ready: true,
+              targetUrl: sanitizeTargetUrl(probe.url || rawUrl || ""),
+              elapsedMs: now - startedAt,
+              settledMs: now - readySinceMs,
+            };
+          }
         }
       }
     }
+    if (!sawReadyThisPass) {
+      readySinceMs = null;
+    }
     const leftMs = deadline - Date.now();
     if (leftMs <= 0) break;
-    await sleep(Math.min(pollIntervalMs, leftMs));
+    const settleLeftMs =
+      readySinceMs !== null ? Math.max(1, requiredSettleMs - (Date.now() - readySinceMs)) : pollIntervalMs;
+    await sleep(Math.min(pollIntervalMs, settleLeftMs, leftMs));
   }
 
   const elapsedMs = Math.max(boundMs, Date.now() - startedAt);
