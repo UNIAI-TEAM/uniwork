@@ -2541,6 +2541,23 @@
             }
           },
           "once": true
+        },
+        {
+          "id": "fake-refresh-401",
+          "match": {
+            "method": "POST",
+            "path": "^/api/v1/auth/desktop/refresh$"
+          },
+          "action": {
+            "type": "status",
+            "code": 401,
+            "body": {
+              "error": {
+                "code": "device_revoked"
+              }
+            }
+          },
+          "once": true
         }
       ],
       "faults": [

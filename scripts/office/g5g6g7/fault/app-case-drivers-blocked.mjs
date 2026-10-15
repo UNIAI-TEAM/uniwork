@@ -11,7 +11,7 @@ import {
   commitPosts, logSince, reachedUpstream, syncStoreScopeDir, uploadPosts,
 } from "./app-cases-lib.mjs";
 import { countAssertion, deltaAssertion, editAndSave, oneIntent, openFresh, pathAssertion, sameKey } from "./app-case-drivers.mjs";
-import { docStatus, edit, save, signIn, signOut } from "./app-session.mjs";
+import { accountStatus, docStatus, edit, save, signIn, signOut } from "./app-session.mjs";
 import {
   archiveDocument, deactivateApp, readdAppToWorkspace, reactivateApp, removeAppFromWorkspace, restoreDocument,
   suspendOrg, unsuspendOrg,
@@ -181,21 +181,39 @@ async function fq50(ctx) {
 }
 
 // ---- FQ-51: session_expired / signed_out / foreign_account --------------------------------
+/** The two rules that make the session really expire: a dead commit answer and a dead refresh (FIX-15). */
+export const FQ51_SESSION_RULES = ["fake-401", "fake-refresh-401"];
 async function fq51(ctx) {
   const reason = reasonOf(ctx.run.label);
   if (reason === "session_expired") {
-    const { doc, session, opened } = await openFresh(ctx, { rules: ctx.caseRules(["fake-401"]) });
+    // Both rules are needed for the session to really expire: the commit answers
+    // 401 (`fake-401`) and the refresh it triggers is the server's own dead-device
+    // verdict (`fake-refresh-401`). With the refresh still succeeding (cloud 12c)
+    // the app renewed its token silently and committed 30 ms later, so this exit
+    // never reached re-auth and died as an infra FAIL on the empty login URL.
+    const { doc, session, opened } = await openFresh(ctx, { rules: ctx.caseRules(FQ51_SESSION_RULES) });
     const since = ctx.now();
     await editAndSave(ctx, session, opened, "E");
     const blocked = await ctx.waitState(doc.id, "blocked", { since, timeout: 120_000 });
-    await signIn(session, ctx.tenant.apiOrigin, ctx.tenant.app);
-    const done = await ctx.waitState(doc.id, "committed", { since, timeout: 180_000 });
+    // the re-auth below only means something on a dead session: while the app is
+    // still signed in accountLogin() opens no browser leg, the login URL never
+    // comes, and the exit reports an infra FAIL instead of the product's own
+    // session_expired verdict (which is what `signed_out_before_sign_in` reads).
+    const account = await accountStatus(session);
+    const signedOut = account?.loggedIn === false;
+    const done = signedOut
+      ? await (async () => {
+        await signIn(session, ctx.tenant.apiOrigin, ctx.tenant.app);
+        return ctx.waitState(doc.id, "committed", { since, timeout: 180_000 });
+      })()
+      : null;
     const lines = ctx.trace(doc.id);
     return {
       documentId: doc.id,
       assertions: [
         assertion("blocked", "blocked", blocked?.to ?? "never", Boolean(blocked)),
         assertEntersWithCode("blocked_reason", lines, "blocked", "session_expired"),
+        assertion("signed_out_before_sign_in", "the app is not logged in", account?.state ?? "unknown", signedOut),
         pathAssertion(ctx, lines),
         assertion("committed_after_sign_in", "committed", done?.to ?? "never", Boolean(done)),
         sameKey(ctx, await ctx.proxyLog(), doc.id),
