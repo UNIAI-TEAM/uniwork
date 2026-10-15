@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+b45ecabe54b4959bd5c52e0b2ed9dafc1b869354
+b45ecabe5 test(office): deterministic clock in the G8-A02 closed-panel fake
+9187b2c4c fix(office): rename the world seed helper so knip stops reading register("A") as a module
+7b1e1ea10 chore: merge G8-19 cross-host acceptance harness (1692ea7b4) into the G5-G7 root
