@@ -267,6 +267,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		Title:          title,
 		Icon:           icon,
 		Visibility:     visibility,
+		WorkspaceLevel: "edit", // SH-S1 T3: create default
 		Content:        page.content,
 		ContentText:    page.text,
 		SearchText:     documentSearchText(title, page.text),
@@ -659,7 +660,10 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 
 		next := db.UpdateDocumentFieldsParams{
 			Title: doc.Title, Icon: doc.Icon, Visibility: doc.Visibility,
-			Content: doc.Content, ContentText: doc.ContentText, ContentBytes: doc.ContentBytes,
+			// PATCH never re-levels the home row: toggling visibility keeps
+			// the stored workspace_level (the row is whole-written).
+			WorkspaceLevel: doc.WorkspaceLevel,
+			Content:        doc.Content, ContentText: doc.ContentText, ContentBytes: doc.ContentBytes,
 		}
 		before, after := map[string]any{}, map[string]any{}
 		if in.Title != nil && title != doc.Title {

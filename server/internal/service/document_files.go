@@ -401,6 +401,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		Kind:           DocumentKindFile,
 		Title:          title,
 		Visibility:     visibility,
+		WorkspaceLevel: "edit", // SH-S1 T3: create default
 		SearchText:     documentSearchText(title, ""),
 		CurrentVersion: 1,
 		FileVersionID:  pgtype.Text{String: versionID, Valid: true},

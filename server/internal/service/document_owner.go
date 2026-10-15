@@ -124,6 +124,7 @@ func (s *DocumentService) CreateOwnedDocumentInTx(
 		Kind:           in.Kind,
 		Title:          in.Title,
 		Visibility:     "workspace",
+		WorkspaceLevel: "edit", // SH-S1 T3: create default
 		Content:        content,
 		ContentText:    contentText,
 		SearchText:     documentSearchText(in.Title, contentText),

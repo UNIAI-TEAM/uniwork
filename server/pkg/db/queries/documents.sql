@@ -5,6 +5,7 @@
 -- name: InsertDocument :one
 INSERT INTO documents (
   id, organization_id, workspace_id, parent_id, kind, title, icon, visibility,
+  workspace_level,
   content, content_text, search_text, content_bytes,
   current_version, file_version_id, revision, content_revision, position,
   owner_kind, owner_id, acl_owner_id,
@@ -17,6 +18,7 @@ INSERT INTO documents (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
   sqlc.arg(parent_id), sqlc.arg(kind), sqlc.arg(title), sqlc.arg(icon),
   sqlc.arg(visibility),
+  sqlc.arg(workspace_level),
   sqlc.arg(content), sqlc.arg(content_text), sqlc.arg(search_text),
   sqlc.arg(content_bytes),
   sqlc.arg(current_version), sqlc.arg(file_version_id), sqlc.arg(revision),
@@ -100,6 +102,7 @@ UPDATE documents
 SET title = sqlc.arg(title),
     icon = sqlc.arg(icon),
     visibility = sqlc.arg(visibility),
+    workspace_level = sqlc.arg(workspace_level),
     content = sqlc.arg(content),
     content_text = sqlc.arg(content_text),
     search_text = sqlc.arg(search_text),
