@@ -112,7 +112,7 @@ describe("AccessRequestsSection", () => {
     expect(screen.getByRole("heading", { name: t("documents.access_request.section_title", { count: 0 }) })).toBeInTheDocument();
   });
 
-  it("offers only the requested level and higher, and approves at the chosen one", async () => {
+  it("offers the asked level and the other levels up to edit, and approves at the chosen one", async () => {
     renderSection();
     await screen.findByText("Bình");
     const first = screen.getByRole("listitem", { name: /Bình/ });
@@ -125,6 +125,38 @@ describe("AccessRequestsSection", () => {
     fireEvent.click(within(first).getByRole("button", { name: new RegExp(t("documents.access_request.approve")) }));
     await waitFor(() => expect(calls(`${LIST}/r1/approve`)).toHaveLength(1));
     expect(calls(`${LIST}/r1/approve`)[0]![1]).toMatchObject({ method: "POST", body: { level: "edit" } });
+  });
+
+  it("offers a lower level than asked (spec 3.1), never manage, defaulting to the asked one", async () => {
+    renderSection();
+    await screen.findByText("Chi");
+    const row = screen.getByRole("listitem", { name: /Chi/ });
+    const levelLabel = `${t("documents.share.level_label")} Chi`;
+    const trigger = within(row).getByRole("combobox", { name: levelLabel });
+    expect(trigger).toHaveTextContent(t("documents.share.level_edit"));
+    fireEvent.click(trigger);
+    const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(options).toEqual([t("documents.share.level_view"), t("documents.share.level_edit")]);
+    expect(options).not.toContain(t("documents.share.level_manage"));
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
+    await pickOption(levelLabel, t("documents.share.level_view"));
+    fireEvent.click(within(row).getByRole("button", { name: new RegExp(t("documents.access_request.approve")) }));
+    await waitFor(() => expect(calls(`${LIST}/r2/approve`)).toHaveLength(1));
+    expect(calls(`${LIST}/r2/approve`)[0]![1]).toMatchObject({ body: { level: "view" } });
+  });
+
+  it("keeps comment only on a request that asked for it", async () => {
+    pending = { requests: [{ ...binh, id: "r3", requested_level: "comment" }] };
+    renderSection();
+    await screen.findByText("Bình");
+    fireEvent.click(screen.getByRole("combobox", { name: `${t("documents.share.level_label")} Bình` }));
+    const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(options).toEqual([
+      t("documents.share.level_view"),
+      // No comment label exists until DOC-05 lands; the section falls back to the raw level.
+      t("documents.share.level_comment", { defaultValue: "comment" }),
+      t("documents.share.level_edit"),
+    ]);
   });
 
   it("approves at the requested level by default, awaits the server, then drops the row and says so", async () => {

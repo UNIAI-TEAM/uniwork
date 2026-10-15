@@ -22,10 +22,10 @@ export interface AccessRequestsSectionProps {
   focusOnOpen?: boolean;
 }
 
-// Low to high: an approval may keep the level that was asked or go above it,
-// never below, and never to manage (that is the share list's job). "comment"
-// is offered only to a request that asked for it: the share dialog has no
-// comment level until DOC-05 lands, so it is never an upgrade target here.
+// Low to high: an approval may keep the level that was asked, go lower or go
+// higher (spec 3.1), up to edit and never to manage (that is the share list's
+// job). "comment" is offered only to a request that asked for it: the share
+// dialog has no comment level until DOC-05 lands, so it is never a target here.
 const LEVEL_ORDER: readonly DocumentAccessRequestLevel[] = ["view", "comment", "edit"];
 
 function askedLevel(value: string): DocumentAccessRequestLevel {
@@ -145,9 +145,7 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
           {rows.map((row) => {
             const asked = askedLevel(row.requested_level);
             const choice = choices[row.id] ?? asked;
-            const options = LEVEL_ORDER.filter(
-              (level) => LEVEL_ORDER.indexOf(level) >= LEVEL_ORDER.indexOf(asked) && (level !== "comment" || asked === "comment"),
-            );
+            const options = LEVEL_ORDER.filter((level) => level !== "comment" || asked === "comment");
             const name = nameOf(row);
             const rowBusy = busyId === row.id;
             return (
