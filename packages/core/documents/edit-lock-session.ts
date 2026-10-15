@@ -251,6 +251,17 @@ export class EditLockSession {
     this.grant(lock);
   }
 
+  /**
+   * A gated write answered 423 document_locked while this editor thought it
+   * held the lock (addendum §11.1): end the hold the same way a heartbeat's
+   * edit_lock_lost does, so every lost-lock surface follows. Ignored unless "mine".
+   */
+  markLost(reason: string, by: { id: string; name: string } | null = null): void {
+    if (this.disposed || this.state.phase !== "mine") return;
+    this.op++;
+    this.lose(reason, by);
+  }
+
   /** Heartbeat now (a realtime lock frame arrived, or the tab woke). */
   wake(): void {
     if (this.disposed) return;

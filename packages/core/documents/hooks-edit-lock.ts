@@ -162,6 +162,8 @@ export function useDocumentEditLock(wsId: string, documentId: string, opts: UseD
       /** "Edit here": move this user's lock from another tab or device. */
       moveHere: () => session?.moveHere() ?? Promise.resolve(),
       release: (releaseOpts?: { keepalive?: boolean }) => session?.release(releaseOpts) ?? Promise.resolve(),
+      /** A gated write answered 423 while "mine": end the hold (lost dialog, read-only). */
+      markLost: (reason: string, by?: { id: string; name: string } | null) => session?.markLost(reason, by ?? null),
       takeOver,
       requestEdit,
       cancelRequest,

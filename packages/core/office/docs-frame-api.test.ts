@@ -143,6 +143,17 @@ describe("createDocsFrameApi", () => {
     expect(result).toMatchObject({ ok: false, error: { code: "conflict", status: 409, details: { apiCode: "document_version_conflict" } } });
   });
 
+  it("commit 423 document_locked -> readOnly refusal, never {ok:false} (UNI-1645)", async () => {
+    const fields = { holder_id: "u2", holder_name: "An", since: "2026-10-15T03:12:00Z", expires_at: "2026-10-15T03:14:00Z", held_by_me: false, current_revision: "8" };
+    const { fetch } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json({ error: { code: "document_locked", message: "đang sửa", fields } }, 423),
+    });
+    const saving = createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, { ...call(), editLockId: "lock-1" });
+    await expect(saving).rejects.toMatchObject({ code: "forbidden", status: 423, message: "document_locked (HTTP 423)", details: { apiCode: "document_locked", fields } });
+  });
+
   it("hands the frame a stable code, never the server's account-language sentence", async () => {
     const { fetch } = fakeFetch({
       "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),

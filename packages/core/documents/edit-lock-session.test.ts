@@ -157,6 +157,20 @@ describe("EditLockSession", () => {
     expect(transport.heartbeat).toHaveBeenCalledTimes(1);
   });
 
+  it("markLost (a write answered 423) ends a held lock like edit_lock_lost; ignored otherwise", async () => {
+    const transport = fakeTransport();
+    const { session } = setup({ transport });
+    session.markLost("taken_over", { id: "u3", name: "Chi" });
+    expect(session.getState().phase).toBe("idle");
+    session.start();
+    await flush();
+    session.markLost("taken_over", { id: "u3", name: "Chi" });
+    expect(session.getState()).toMatchObject({ phase: "lost", lock: null, lostReason: "taken_over", lostBy: { id: "u3", name: "Chi" } });
+    expect(heldEditLocks()).toEqual([]);
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(transport.heartbeat).not.toHaveBeenCalled();
+  });
+
   it("a 403/404 heartbeat ends it as access_lost", async () => {
     const transport = fakeTransport();
     transport.heartbeat.mockRejectedValueOnce(new ApiError("gone", "not_found", 404));

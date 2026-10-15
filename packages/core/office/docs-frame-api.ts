@@ -247,6 +247,15 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       } catch (error) {
         // A stale base is an answer, not a failure: the frame offers to reload.
         if (error instanceof ApiError && error.status === 409) return { ok: false, error: docsFrameError(error).toShape() };
+        // 423 document_locked (UNI-1645, addendum §11.1) is never {ok:false}: the frame would read
+        // it as a stale base and offer "Overwrite". It is a read-only refusal the host turns into
+        // its lost-lock state; the holder the server named rides in details.fields.
+        if (error instanceof ApiError && error.status === 423) {
+          throw new DocsProtocolError({
+            code: "forbidden", message: `${error.code || "document_locked"} (HTTP 423)`, status: 423,
+            details: { apiCode: error.code, ...(error.fields ? { fields: error.fields } : {}) },
+          });
+        }
         throw error;
       }
     }),
