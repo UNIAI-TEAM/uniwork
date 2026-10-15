@@ -405,6 +405,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   failure={state.failure}
                   filtered={filtered}
                   accessFiltered={accessFiltered}
+                  typeFiltered={chip !== "all"}
                   cardsShown={canCreate && view.kind === "home"}
                   archived={view.kind === "archived"}
                   showType={view.kind === "home" && Boolean(folderId)}

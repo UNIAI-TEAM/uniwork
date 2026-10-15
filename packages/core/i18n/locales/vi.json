@@ -8825,6 +8825,7 @@
         "html": "HTML"
       },
       "access_filter_label": "Lọc theo quyền truy cập",
+      "access_group_caption": "Quyền",
       "access_filters": {
         "all": "Tất cả",
         "manage": "Tôi quản lý",
@@ -8913,6 +8914,8 @@
       "no_matches_more_description": "Chưa thấy file loại này trong phần đã tải. Tải thêm để tìm tiếp hoặc bỏ lọc.",
       "no_matches_access_description": "Không có tài liệu nào khớp quyền truy cập này. Bỏ lọc để xem tất cả.",
       "no_matches_access_more_description": "Chưa thấy tài liệu nào khớp quyền truy cập này trong phần đã tải. Tải thêm để tìm tiếp hoặc bỏ lọc.",
+      "no_matches_filters_description": "Không có tài liệu nào khớp bộ lọc. Bỏ lọc để xem tất cả.",
+      "no_matches_filters_more_description": "Chưa thấy tài liệu nào khớp bộ lọc trong phần đã tải. Tải thêm để tìm tiếp hoặc bỏ lọc.",
       "drop_hint": "Kéo thả file vào bảng để tải lên.",
       "drop_active": "Thả để tải lên thư mục đang mở",
       "drop_failed": "Không thể tải lên {{name}}.",

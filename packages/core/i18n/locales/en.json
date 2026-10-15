@@ -8830,6 +8830,7 @@
         "html": "HTML"
       },
       "access_filter_label": "Filter by access",
+      "access_group_caption": "Access",
       "access_filters": {
         "all": "All",
         "manage": "I manage",
@@ -8918,6 +8919,8 @@
       "no_matches_more_description": "No files of this type in what has loaded so far. Load more to keep looking, or clear the filter.",
       "no_matches_access_description": "No documents match this access. Clear the filter to see everything.",
       "no_matches_access_more_description": "No documents match this access in what has loaded so far. Load more to keep looking, or clear the filter.",
+      "no_matches_filters_description": "No documents match these filters. Clear the filters to see everything.",
+      "no_matches_filters_more_description": "No documents match these filters in what has loaded so far. Load more to keep looking, or clear the filters.",
       "drop_hint": "Drop files on the list to upload them.",
       "drop_active": "Drop to upload to the open folder",
       "drop_failed": "Could not upload {{name}}.",
