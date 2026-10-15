@@ -3769,6 +3769,7 @@
     "poll_option_aria": "{{label}} — {{count}} votes",
     "poll_closed_status": "Closed",
     "reminder_due_status": "Due",
+    "reminder_delete": "Delete reminder",
     "file_loading": "Loading file…",
     "reply_quote_jump": "Go to the original: {{preview}}",
     "reaction_toggle_aria": "{{emoji}} {{count}} — press to add or remove yours",

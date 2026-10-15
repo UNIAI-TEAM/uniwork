@@ -58,6 +58,7 @@ export function NativeChatMessagePanel({
   anchorMessageId = null,
   onClearAnchor,
   canPinMessages = true,
+  canModerate = false,
   canSendMessages = false,
   /** Thread API is channel/group/workspace only — never DM (work-hub decision 8). */
   threadsEnabled = false,
@@ -82,6 +83,8 @@ export function NativeChatMessagePanel({
   anchorMessageId?: string | null;
   onClearAnchor?: () => void;
   canPinMessages?: boolean;
+  /** Room moderator: may delete other members' reminders. */
+  canModerate?: boolean;
   /** May write in this room (send, unlink a task): mirrors the server's send gate. */
   canSendMessages?: boolean;
   threadsEnabled?: boolean;
@@ -339,9 +342,10 @@ export function NativeChatMessagePanel({
       nameContext,
       showSenderName,
       canPinMessages,
+      canModerate,
       actions,
     }),
-    [actions, canPinMessages, currentUserId, nameContext, roomId, showSenderName, workspaceId, youLabel],
+    [actions, canModerate, canPinMessages, currentUserId, nameContext, roomId, showSenderName, workspaceId, youLabel],
   );
 
   const renderMessage = useCallback(

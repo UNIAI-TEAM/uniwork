@@ -110,6 +110,7 @@ export function ChatPageContent({
   chatSendRestricted,
   chatSendMutedByModerator,
   canPinMessages,
+  canModerate,
   canCreatePolls,
   canCreateNotes,
   peerLastReadAt = null,
@@ -450,6 +451,7 @@ export function ChatPageContent({
                   anchorMessageId={jumpToMessageId}
                   onClearAnchor={() => onJumpToMessageIdChange(null)}
                   canPinMessages={canPinMessages}
+                  canModerate={canModerate}
                   canSendMessages={!dmBlocked && !chatSendRestricted}
                   onFocusComposer={focusComposer}
                   peerLastReadAt={peerLastReadAt}

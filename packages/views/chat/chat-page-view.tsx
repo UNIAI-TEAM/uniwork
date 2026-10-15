@@ -520,6 +520,7 @@ export function ChatPageView({
         chatSendRestricted={chatSendRestricted}
         chatSendMutedByModerator={chatSendMutedByModerator}
         canPinMessages={canPinMessages}
+        canModerate={roomPermissions.isModerator}
         canCreatePolls={canCreatePolls}
         canCreateNotes={canCreateNotes}
         peerLastReadAt={peerLastReadAt}

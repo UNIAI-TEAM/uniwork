@@ -3768,6 +3768,7 @@
     "poll_option_aria": "{{label}} — {{count}} phiếu",
     "poll_closed_status": "Đã đóng",
     "reminder_due_status": "Đã tới hạn",
+    "reminder_delete": "Xóa nhắc hẹn",
     "file_loading": "Đang tải tệp…",
     "reply_quote_jump": "Xem tin gốc: {{preview}}",
     "reaction_toggle_aria": "{{emoji}} {{count}} — bấm để thả hoặc bỏ",
