@@ -56,6 +56,8 @@ test('every row has a layer, an expectation, artifacts and a status', () => {
     for (const name of ['intent-log.jsonl', 'server-versions.json', 'proxy-log.jsonl']) {
       assert.ok(c.artifacts.includes(name), `${c.id}: artifact ${name} missing`);
     }
+    // an app row keeps the fork's trace beside its mapped intent log (matrix §4); a server row has no trace
+    assert.equal(c.artifacts.includes('app-trace.jsonl'), c.layer === 'app', `${c.id}: app-trace.jsonl belongs to app rows only`);
     assert.match(c.status, /^(ready|pending \S.*)$/, `${c.id}: status ${c.status}`);
   }
 });

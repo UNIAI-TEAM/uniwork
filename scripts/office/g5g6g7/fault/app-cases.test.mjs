@@ -15,7 +15,7 @@ import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
 import { BLOCKED_DRIVERS, EXTRA_EXITS, reasonOf } from "./app-case-drivers-blocked.mjs";
 import { parseAppCasesArgs } from "./app-cases.mjs";
 import {
-  BLOCKED_EXIT_CODE, assertEntersWithCode, assertNeverState, assertStatePath, attemptIdFromAuthorizationUrl,
+  BLOCKED_EXIT_CODE, INTENT_LOG_KEYS, appTraceArtifacts, assertEntersWithCode, buildAppIntentLog, commitKeyTag, assertNeverState, assertStatePath, attemptIdFromAuthorizationUrl,
   blockedCase, caseResult, commitLookups, commitPosts, descendantPids, documentWrites, envFileValue, expandExits,
   failEvidenceLines, faultAppExtraEnv, filterTrace, intentIdsOf, keyTagsOf, lastEntry, logSince, matchStatePath,
   parseProxyLog, parseTraceText, predictedFor, predictedTag, reachedUpstream, runEvidenceOf, runExitCode, runResult,
@@ -25,7 +25,7 @@ import {
   ACCESS_TOKEN_TTL_MS, TOKEN_RENEW_AFTER_MS, authedRequest, base32Decode, deviceBCommit, enrollTotp,
   expireStagedClaims, freshToken, login, psqlUrl, totpCode,
 } from "./app-tenant.mjs";
-import { loadFaultCases } from "./server-cases-lib.mjs";
+import { buildIntentLogEntry, loadFaultCases } from "./server-cases-lib.mjs";
 
 const DOC = "01JDOCAAAAAAAAAAAAAAAAAAAA";
 const OTHER = "01JDOCBBBBBBBBBBBBBBBBBBBB";
@@ -80,6 +80,62 @@ test("parseTraceText keeps allow-listed keys and counts torn or foreign lines", 
   assert.equal(lines[3].secret, undefined);
   assert.equal(lines[0].from, null);
   assert.deepEqual(parseTraceText("").lines, []);
+});
+
+// R1-3: an app row's intent-log.jsonl follows the matrix §4 schema, mapped from the fork trace
+test("an app row's intent-log.jsonl carries the documented keys on every line, mapped from the trace (matrix §4)", () => {
+  const trace = filterTrace(parseTraceText(TRACE).lines, DOC);
+  const log = parseProxyLog([
+    JSON.stringify({ ts: "t1", method: "POST", path: `/api/v1/documents/${DOC}/versions/commit`, status: "dropped", keyTag: "aaaaaaaaaaaa" }),
+    JSON.stringify({ ts: "t2", method: "GET", path: `/api/v1/documents/${DOC}/versions/commit`, status: 200, keyTag: "aaaaaaaaaaaa" }),
+  ].join("\n"));
+  const artifacts = appTraceArtifacts({ caseId: "FQ-22", traceLines: trace, log, documentId: DOC });
+  const lines = artifacts["intent-log.jsonl"].trim().split("\n").map((text) => JSON.parse(text));
+  assert.equal(lines.length, trace.length);
+  for (const entry of lines) {
+    assert.deepEqual(Object.keys(entry), [...INTENT_LOG_KEYS], "the documented keys, in the documented order");
+    assert.equal(entry.case, "FQ-22");
+    assert.equal(entry.source, "app-trace");
+    assert.equal(entry.intent, "i1");
+    assert.equal(entry.keyTag, "aaaaaaaaaaaa");
+    assert.equal(JSON.stringify(entry).includes(DOC), false, "no document id in the mapped log");
+  }
+  assert.deepEqual(lines.map((l) => l.event), ["start -> queued", "queued -> paused_offline", "paused_offline -> validating", "validating -> uploading", "uploading -> committing", "committing -> committed"]);
+  assert.deepEqual(lines.map((l) => l.attempt), [null, null, 1, 1, 1, 1]);
+  assert.equal(lines[0].from, null);
+  assert.deepEqual(lines[1].http, { status: null, code: "network" });
+  assert.deepEqual(lines[5].http, { status: 200, code: null });
+  assert.equal(lines[2].http, null);
+  // the unmapped trace stays as its own artifact, one parsed line per row
+  assert.deepEqual(artifacts["app-trace.jsonl"].trim().split("\n").map((text) => JSON.parse(text)), trace);
+});
+
+test("intent-log attempt counts dispatch runs per intent; keyTag is null without exactly one commit key; empty trace -> empty files", () => {
+  const two = [
+    { ts: "1", intentId: "a", from: null, to: "queued" }, { ts: "2", intentId: "a", from: "queued", to: "validating" },
+    { ts: "3", intentId: "b", from: null, to: "validating" }, { ts: "4", intentId: "a", from: "validating", to: "reconciling" },
+    { ts: "5", intentId: "a", from: "reconciling", to: "queued" }, { ts: "6", intentId: "a", from: "queued", to: "validating" },
+  ];
+  assert.deepEqual(buildAppIntentLog(two, { caseId: "FQ-40" }).map((l) => [l.intent, l.attempt]), [["a", null], ["a", 1], ["b", 1], ["a", 1], ["a", 1], ["a", 2]]);
+  const post = (keyTag) => ({ method: "POST", path: `/api/v1/documents/${DOC}/versions/commit`, status: 200, keyTag });
+  assert.equal(commitKeyTag([post("k1"), post("k1")], DOC), "k1");
+  assert.equal(commitKeyTag([post("k1"), post("k2")], DOC), null, "a replacement key is not one key");
+  assert.equal(commitKeyTag([], DOC), null);
+  const none = appTraceArtifacts({ caseId: "FQ-22", traceLines: [], log: [], documentId: null });
+  assert.deepEqual(none, { "intent-log.jsonl": "", "app-trace.jsonl": "" });
+});
+
+test("the server rows' intent-log entries carry the same documented keys as the app rows' (one schema)", () => {
+  const entry = buildIntentLogEntry({ caseId: "FQ-01", step: "commit_1", keyTag: "aaaaaaaaaaaa", attempt: 1, http: { method: "post", path: "/x", status: 200 } });
+  for (const key of INTENT_LOG_KEYS) assert.ok(key in entry, `server entry lacks ${key}`);
+});
+
+test("matrix §4 documents the intent-log keys the runners write, and the app-trace artifact", () => {
+  const matrix = readFileSync(join(FAULT_DIR, "..", "..", "..", "..", "docs", "office", "g5g6g7", "fault", "matrix.md"), "utf8");
+  const row = matrix.split("\n").find((text) => text.startsWith("| `intent-log.jsonl`"));
+  assert.ok(row, "matrix §4 has an intent-log.jsonl row");
+  for (const key of INTENT_LOG_KEYS) assert.ok(row.includes(`\`${key}\``), `matrix §4 intent-log row does not name ${key}`);
+  assert.match(matrix, /\| `app-trace\.jsonl`/);
 });
 
 test("filterTrace keeps one document, in order, optionally since a timestamp", () => {

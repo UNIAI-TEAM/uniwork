@@ -13,7 +13,8 @@
 // Per run (one per exit of a multi-exit row): a fresh document, a fresh userData
 // dir, a fresh app signed in as the app's account, the row's proxy rules, the
 // fork's intent trace (UNIWORK_SYNC_TRACE_FILE). Artifacts under
-// <run dir>/fault/<case>/[<n>/]: intent-log.jsonl, server-versions.before.json,
+// <run dir>/fault/<case>/[<n>/]: intent-log.jsonl (the trace mapped to the matrix §4
+// schema), app-trace.jsonl (the trace as the fork wrote it), server-versions.before.json,
 // server-versions.json, proxy-log.jsonl, result.json; one evidence line per AC.
 // Exit 0 every ready row PASS, 1 any FAIL, 77 nothing PASS-able ran (BLOCKED).
 
@@ -27,7 +28,7 @@ import { DEFAULT_FORK_SHA, harnessPaths, isMainModule, readStartStatus, startGat
 import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
 import { BLOCKED_DRIVERS, EXTRA_EXITS } from "./app-case-drivers-blocked.mjs";
 import {
-  BLOCKED_EXIT_CODE, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
+  BLOCKED_EXIT_CODE, appTraceArtifacts, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
   parseTraceText, predictedFor, runEvidenceOf, runExitCode, runResult, selectAppCases,
 } from "./app-cases-lib.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
@@ -229,9 +230,12 @@ async function runOne({ row, run, runs, caseDir, shared }) {
   const docId = outcome.documentId ?? [...docs.keys()][0] ?? null;
   const traceLines = docId ? readTrace(docId) : [];
   const proxyRaw = await proxyLogRaw().catch(() => "");
-  const evidence = runEvidenceOf(traceLines, parseProxyLog(proxyRaw), docId);
+  const proxyEntries = parseProxyLog(proxyRaw);
+  const evidence = runEvidenceOf(traceLines, proxyEntries, docId);
   const result = runResult({ label: run.label, assertions: outcome.assertions, blocker: outcome.blocker, predicted: predictedFor(row, run), evidence });
-  writeFileSync(join(runDirOut, "intent-log.jsonl"), traceLines.map((l) => JSON.stringify(l)).join("\n") + (traceLines.length ? "\n" : ""));
+  for (const [name, text] of Object.entries(appTraceArtifacts({ caseId: row.id, traceLines, log: proxyEntries, documentId: docId }))) {
+    writeFileSync(join(runDirOut, name), text);
+  }
   writeFileSync(join(runDirOut, "proxy-log.jsonl"), proxyRaw);
   if (docId) {
     writeJson(join(runDirOut, "server-versions.before.json"), docs.get(docId) ?? null);

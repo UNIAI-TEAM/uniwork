@@ -178,6 +178,57 @@ export function syncRequests(log, documentId = null) {
     .map((e) => ({ kind: kindOf(e), ts: e.ts ?? null, method: e.method, status: e.status ?? null, keyTag: e.keyTag ?? null, ruleId: e.ruleId ?? null }));
 }
 
+// ---- intent-log.jsonl of an app row (matrix §4) --------------------------------
+
+/** The keys of every `intent-log.jsonl` line, server and app rows alike (matrix §4). */
+export const INTENT_LOG_KEYS = Object.freeze(["ts", "case", "source", "intent", "keyTag", "attempt", "event", "from", "to", "http"]);
+
+/** The one keyTag every commit POST and lookup of the document carries, or null when there is none or several. */
+export function commitKeyTag(log, documentId) {
+  const tags = keyTagsOf([...commitPosts(log, documentId), ...commitLookups(log, documentId)]);
+  return tags.length === 1 ? tags[0] : null;
+}
+
+/**
+ * Maps the fork's trace lines to the documented intent-log schema, so an app
+ * row's `intent-log.jsonl` reads like a server row's: `source: "app-trace"`,
+ * `intent` = the trace's logical intent id, `keyTag` = the run's single commit
+ * key (null when none or several), `attempt` = dispatch runs of that intent so
+ * far (entries into `validating`; null before the first), `event` = the
+ * transition, `http` = `{status, code}` from the trace (`code` is the server's
+ * error code, or the reason on a `blocked` entry; null when the line carries
+ * neither). No document id and no body: the unmapped lines stay in `app-trace.jsonl`.
+ */
+export function buildAppIntentLog(traceLines, { caseId, keyTag = null }) {
+  const attempts = new Map();
+  return traceLines.map((line) => {
+    if (line.to === "validating") attempts.set(line.intentId, (attempts.get(line.intentId) ?? 0) + 1);
+    const hasHttp = line.httpStatus !== undefined || line.code !== undefined;
+    return {
+      ts: line.ts,
+      case: caseId,
+      source: "app-trace",
+      intent: line.intentId,
+      keyTag,
+      attempt: attempts.get(line.intentId) ?? null,
+      event: `${line.from ?? "start"} -> ${line.to}`,
+      from: line.from ?? null,
+      to: line.to,
+      http: hasHttp ? { status: line.httpStatus ?? null, code: line.code ?? null } : null,
+    };
+  });
+}
+
+const jsonl = (rows) => rows.map((row) => `${JSON.stringify(row)}\n`).join("");
+
+/** The trace-derived files of one app run: the mapped `intent-log.jsonl` and the unmapped `app-trace.jsonl`. */
+export function appTraceArtifacts({ caseId, traceLines, log, documentId }) {
+  return {
+    "intent-log.jsonl": jsonl(buildAppIntentLog(traceLines, { caseId, keyTag: documentId ? commitKeyTag(log, documentId) : null })),
+    "app-trace.jsonl": jsonl(traceLines),
+  };
+}
+
 /** The evidence a run's result carries: the full intent trace and the sync requests of its document. */
 export const runEvidenceOf = (traceLines, log, documentId) => ({
   documentId: documentId ?? null,
