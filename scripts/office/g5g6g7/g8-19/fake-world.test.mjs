@@ -133,6 +133,23 @@ test("web: webLogin -> {context, page, user, locale, setLocale, close}; openDocu
   await assert.rejects(web.openDocument(s.page, { org: "o", ws: "w", documentId: "d" }), /timed out/);
 });
 
+test("web: webSave (§13) defaults to a saved new version per call and is scriptable; webFrameEval is recorded", async () => {
+  const { world, web, browser, script, calls } = createFakeWorld();
+  const s = await web.webLogin(browser, world.user("A"));
+  const first = await web.webSave(s.page, { kind: "docs" });
+  const second = await web.webSave(s.page, { kind: "docs" });
+  assert.equal(first.status, "saved");
+  assert.ok(first.versionId && second.versionId && first.versionId !== second.versionId, "each default save is a new version");
+  script.queue("web.webSave", { status: "timeout", reason: "no frame commit within the bound" });
+  assert.equal((await web.webSave(s.page, { kind: "sheets" })).status, "timeout");
+  await assert.rejects(web.webSave(s.page, { kind: "html" }), /kind must be one of/);
+  assert.deepEqual(calls.web.filter((c) => c.key === "webSave").map((c) => c.args[1].kind), ["docs", "docs", "sheets"]);
+  script.queue("web.webFrameEval", { status: "ok" });
+  assert.deepEqual(await web.webFrameEval(s.page, "docs", () => 0, { type: "key" }), { status: "ok" });
+  assert.equal(await web.webFrameEval(s.page, "docs", () => 0, null), undefined);
+  assert.deepEqual(calls.web.filter((c) => c.key === "webFrameEval").map((c) => c.args[2]), [{ type: "key" }, null]);
+});
+
 test("app: ctrl has every §7 member; comments/discussion expose exactly the fork bridge names and return the envelope unchanged", async () => {
   const { app, script, calls, world } = createFakeWorld();
   const ctrl = await app.connectApp({ portsEnv: {}, runDir: "/tmp/x" });

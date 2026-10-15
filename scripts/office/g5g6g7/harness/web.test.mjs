@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { classifyDocumentPage, documentUrl, openDocument, webLogin } from "./web.mjs";
+import { classifyDocumentPage, classifyWebSave, documentUrl, openDocument, webFrameEval, webFrameSelectors, webLogin, webSave } from "./web.mjs";
 
 test("documentUrl mirrors resource-href.ts: comment rides as ?comment=, kind=discussion only with a comment", () => {
   const base = { webOrigin: "http://127.0.0.1:3000", org: "acme", ws: "w2", documentId: "D1" };
@@ -67,4 +67,88 @@ test("webLogin fills the /login form with the user's credentials and sets the lo
   assert.equal(web.locale, "en");
   assert.equal(cookies[1].value, "en");
   await assert.rejects(webLogin(browser, { key: "Z" }, { webOrigin: "http://x" }), /no credentials/);
+});
+
+// ---- webSave (contract §13, additive) ----------------------------------------------------
+
+function fakeFramePage({ ready = true, dirty = true, commit = { status: 200, body: { revision: "2", file: { version_id: "V2", version: 2 } } }, saveState = "saved" } = {}) {
+  const log = [];
+  return {
+    log,
+    async waitForSelector(sel, opts) {
+      log.push(["waitForSelector", sel, opts?.timeout]);
+      if (!ready) throw new Error("Timeout exceeded");
+      return {};
+    },
+    async evaluate(fn, arg) {
+      log.push(["evaluate", arg]);
+      if (arg?.read) return { dirty, saveState };
+      return true;
+    },
+    async waitForResponse(pred, opts) {
+      log.push(["waitForResponse", opts?.timeout]);
+      if (!commit) throw new Error("Timeout exceeded");
+      const res = {
+        url: () => "http://w/api/v1/office-frame/documents/D1/versions/commit",
+        request: () => ({ method: () => "POST" }),
+        status: () => commit.status,
+        json: async () => commit.body,
+      };
+      assert.equal(pred(res), true, "the predicate accepts the frame commit");
+      assert.equal(pred({ ...res, url: () => "http://w/api/v1/office-frame/documents/D1/uploads" }), false);
+      assert.equal(pred({ ...res, request: () => ({ method: () => "GET" }) }), false);
+      return res;
+    },
+    keyboard: { press: async (key) => log.push(["press", key]) },
+  };
+}
+
+test("webFrameSelectors names the module frame host, its ready state and its iframe (office-module-frame.tsx:309-333)", () => {
+  assert.deepEqual(webFrameSelectors("sheets"), {
+    host: '[data-office-docs-frame][data-office-module="sheets"]',
+    ready: '[data-office-docs-frame][data-office-module="sheets"][data-state="ready"]',
+    iframe: '[data-office-docs-frame][data-office-module="sheets"] iframe[data-testid="office-docs-frame-iframe"]',
+  });
+  assert.throws(() => webFrameSelectors("markdown"), /kind must be one of docs, sheets, slides, pdf/);
+});
+
+test("classifyWebSave: a 2xx commit is saved with the new version id; anything else names why", () => {
+  assert.deepEqual(classifyWebSave({ httpStatus: 200, body: { revision: "3", file: { version_id: "V3", version: 3 } } }), { status: "saved", versionId: "V3", revision: "3", version: 3 });
+  assert.deepEqual(classifyWebSave({ httpStatus: 409, body: { error: { code: "document_version_conflict" } } }), { status: "error", httpStatus: 409, reason: "the frame commit answered 409 document_version_conflict" });
+  assert.deepEqual(classifyWebSave({ httpStatus: 200, body: null }), { status: "error", httpStatus: 200, reason: "the frame commit answered 200 with no version id" });
+  assert.deepEqual(classifyWebSave({ httpStatus: null, dirty: false, saveState: "ready" }), { status: "timeout", reason: "no frame commit within the bound (the frame was not dirty; save state ready)" });
+  assert.deepEqual(classifyWebSave({ httpStatus: null, dirty: true, saveState: "error" }), { status: "timeout", reason: "no frame commit within the bound (save state error)" });
+});
+
+test("webSave waits for the ready frame, focuses its iframe, presses Control+s and reads the commit answer", async () => {
+  const page = fakeFramePage();
+  assert.deepEqual(await webSave(page, { kind: "docs", timeoutMs: 5_000 }), { status: "saved", versionId: "V2", revision: "2", version: 2 });
+  assert.deepEqual(page.log[0], ["waitForSelector", webFrameSelectors("docs").ready, 5_000]);
+  const pressed = page.log.findIndex((e) => e[0] === "press");
+  assert.equal(page.log[pressed][1], "Control+s");
+  assert.ok(page.log.findIndex((e) => e[0] === "waitForResponse") < pressed, "the response wait starts before the key press");
+  assert.ok(page.log.some((e) => e[0] === "evaluate" && e[1]?.focus === webFrameSelectors("docs").iframe), "the iframe is focused first");
+});
+
+test("webSave: a frame that never gets ready, a commit that never comes and a refused commit are not saved", async () => {
+  const notReady = await webSave(fakeFramePage({ ready: false }), { kind: "pdf", timeoutMs: 10 });
+  assert.equal(notReady.status, "error");
+  assert.match(notReady.reason, /pdf frame did not become ready/);
+  const silent = await webSave(fakeFramePage({ commit: null, dirty: false, saveState: "ready" }), { kind: "slides", timeoutMs: 10 });
+  assert.deepEqual(silent, { status: "timeout", reason: "no frame commit within the bound (the frame was not dirty; save state ready)" });
+  const refused = await webSave(fakeFramePage({ commit: { status: 409, body: { error: { code: "document_version_conflict" } } } }), { kind: "sheets" });
+  assert.equal(refused.status, "error");
+  assert.equal(refused.httpStatus, 409);
+  await assert.rejects(webSave(fakeFramePage(), { kind: "html" }), /kind must be one of/);
+});
+
+test("webFrameEval runs a function inside the module frame's document, bounded", async () => {
+  const calls = [];
+  const frame = { evaluate: async (fn, arg) => (calls.push(arg), fn(arg)) };
+  const page = { $: async (sel) => (calls.push(sel), { contentFrame: async () => frame }) };
+  assert.equal(await webFrameEval(page, "docs", (x) => x + 1, 41, { timeoutMs: 100 }), 42);
+  assert.deepEqual(calls, [webFrameSelectors("docs").iframe, 41]);
+  const stuck = { $: async () => ({ contentFrame: async () => ({ evaluate: () => new Promise(() => {}) }) }) };
+  await assert.rejects(webFrameEval(stuck, "docs", () => 0, null, { timeoutMs: 20 }), /did not settle within 20 ms/);
+  await assert.rejects(webFrameEval({ $: async () => null }, "sheets", () => 0), /no sheets frame on the page/);
 });
