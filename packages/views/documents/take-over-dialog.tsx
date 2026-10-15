@@ -39,6 +39,8 @@ export function TakeOverDialog({ open, onOpenChange, lock, onConfirm, onReread }
   const [expected, setExpected] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<"changed" | "failed" | null>(null);
+  // The tenure the server refused: R1 still names it until the reread lands.
+  const [refused, setRefused] = useState<string | null>(null);
   const lockId = lock?.lock_id ?? null;
 
   // The tenure is read when the dialog opens, and again only after a change was reported.
@@ -46,11 +48,13 @@ export function TakeOverDialog({ open, onOpenChange, lock, onConfirm, onReread }
     if (!open) return;
     setExpected(lockId);
     setError(null);
+    setRefused(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on open; a reread updates it below
   }, [open]);
+  // Nothing to take over until the reread names a tenure other than the refused one.
   useEffect(() => {
-    if (open && error === "changed") setExpected(lockId);
-  }, [open, error, lockId]);
+    if (open && error === "changed" && lockId !== refused) setExpected(lockId);
+  }, [open, error, lockId, refused]);
 
   const confirm = () => {
     if (!expected) return;
@@ -65,6 +69,7 @@ export function TakeOverDialog({ open, onOpenChange, lock, onConfirm, onReread }
         setPending(false);
         const code = err instanceof ApiError ? err.code : "";
         if (code === "edit_lock_changed" || code === "edit_lock_free") {
+          setRefused(expected);
           setExpected(null);
           setError("changed");
           onReread();
