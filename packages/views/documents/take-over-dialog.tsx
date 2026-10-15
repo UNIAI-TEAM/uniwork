@@ -80,6 +80,8 @@ export function TakeOverDialog({ open, onOpenChange, lock, onConfirm, onReread }
     );
   };
 
+  // After a 409 the confirm stays off until the reread names the new holder; say so instead of looking broken.
+  const rereading = error === "changed" && !expected;
   const name = lock?.holder_name || t("documents.editLock.lostSomeone");
   return (
     <AlertDialog open={open} onOpenChange={(next) => (pending ? undefined : onOpenChange(next))}>
@@ -93,9 +95,15 @@ export function TakeOverDialog({ open, onOpenChange, lock, onConfirm, onReread }
             {t(error === "changed" ? "documents.editLock.takeOverChanged" : "documents.editLock.takeOverFailed")}
           </p>
         ) : null}
+        {rereading ? (
+          <p role="status" className="flex items-center gap-2 text-caption text-muted-foreground">
+            <Spinner data-icon="inline-start" />
+            {t("documents.editLock.takeOverRereading")}
+          </p>
+        ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel ref={cancelRef} disabled={pending}>{t("documents.editLock.cancel")}</AlertDialogCancel>
-          <AlertDialogAction disabled={pending || !expected || !lock} aria-busy={pending || undefined} onClick={confirm}>
+          <AlertDialogAction disabled={pending || !expected || !lock} aria-busy={pending || rereading || undefined} onClick={confirm}>
             {pending ? <Spinner data-icon="inline-start" /> : null}
             {t("documents.editLock.takeOverConfirm")}
           </AlertDialogAction>

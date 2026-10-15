@@ -52,7 +52,11 @@ describe("TakeOverDialog", () => {
     expect(props.onOpenChange).not.toHaveBeenCalled();
     // Nothing to take over until the reread lands.
     expect(screen.getByRole("button", { name: "Vẫn lấy quyền sửa" })).toBeDisabled();
+    // V-2: the disabled confirm says why: the reread is pending.
+    expect(screen.getByRole("status")).toHaveTextContent("Đang kiểm tra ai đang sửa…");
+    expect(screen.getByRole("button", { name: "Vẫn lấy quyền sửa" })).toHaveAttribute("aria-busy", "true");
     await act(async () => rerender({ onConfirm, lock: summary({ lock_id: "L2", holder_name: "Chi" }) }));
+    expect(screen.queryByRole("status")).toBeNull();
     expect(screen.getByRole("alertdialog", { name: "Lấy quyền sửa từ Chi?" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Vẫn lấy quyền sửa" }));
     await waitFor(() => expect(onConfirm).toHaveBeenLastCalledWith("L2"));

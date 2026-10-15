@@ -8370,6 +8370,7 @@
       "takeOverConfirm": "Vẫn lấy quyền sửa",
       "cancel": "Hủy",
       "takeOverChanged": "Người đang sửa vừa thay đổi. Xem lại rồi thử lại.",
+      "takeOverRereading": "Đang kiểm tra ai đang sửa…",
       "takeOverFailed": "Chưa lấy được quyền sửa. Thử lại.",
       "request": "Yêu cầu quyền sửa",
       "requestSent": "Đã gửi yêu cầu tới {{name}}. Yêu cầu hết hạn lúc {{time}}.",

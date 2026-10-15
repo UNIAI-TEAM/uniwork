@@ -8375,6 +8375,7 @@
       "takeOverConfirm": "Take over",
       "cancel": "Cancel",
       "takeOverChanged": "Someone else is editing now. Check and try again.",
+      "takeOverRereading": "Checking who is editing…",
       "takeOverFailed": "Couldn’t take over editing. Try again.",
       "request": "Request to edit",
       "requestSent": "Request sent to {{name}}. It expires at {{time}}.",
