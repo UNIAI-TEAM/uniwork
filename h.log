@@ -1,0 +1,74 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r8c" OFFICE_FORK_SHA=ca8bd040 timeout -k 15 780 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --run-dir .harness-run-r8c; echo "APP_CASES_EXIT $?"; for f in .harness-run-r8c/fault/FQ-[2-5]*/result.json .harness-run-r8c/fault/FL-*/result.json; do [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:37533 app_api=http://127.0.0.1:44715 proxy_upstream=http://127.0.0.1:37533
+FQ-20: running
+dbus-daemon[86657]: [session uid=1000 pid=86657] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=86993 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[86657]: [session uid=1000 pid=86657] Successfully activated service 'org.a11y.Bus'
+FQ-20: PASS
+FQ-21: running
+FQ-21: PASS
+FQ-22: running
+FQ-22: FAIL (predicted OQ-F11)
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-15T11:21:18.949Z ∅ -> queued
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-15T11:21:18.988Z queued -> paused_offline code=network
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-15T11:22:11.424Z queued -> validating
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-15T11:22:11.424Z validating -> uploading
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-15T11:22:11.424Z uploading -> committing
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-15T11:22:11.424Z committing -> committed http=200
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] proxy 2026-10-15T11:21:18.971Z upload POST 201 key=c376aaae5a79 rule=-
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] proxy 2026-10-15T11:21:18.985Z commit POST dropped key=c376aaae5a79 rule=lose-commit-answer
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] proxy 2026-10-15T11:22:11.437Z upload POST 201 key=c376aaae5a79 rule=-
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] proxy 2026-10-15T11:22:11.444Z commit POST 200 key=c376aaae5a79 rule=-
+FQ-24: running
+FQ-24: FAIL (predicted F4)
+  FQ-24 [claim upload hết hạn trước khi thiết bị online: resume theo logical intent, chỉ re-upload sau khi attempt cũ bị fence, một version] trace 2026-10-15T11:22:50.635Z ∅ -> queued
+  FQ-24 [claim upload hết hạn trước khi thiết bị online: resume theo logical intent, chỉ re-upload sau khi attempt cũ bị fence, một version] proxy 2026-10-15T11:22:50.657Z upload POST 201 key=dd4358debb72 rule=-
+  FQ-24 [claim upload hết hạn trước khi thiết bị online: resume theo logical intent, chỉ re-upload sau khi attempt cũ bị fence, một version] proxy 2026-10-15T11:22:51.122Z commit POST 409 key=dd4358debb72 rule=hold-before-commit
+FQ-25: running
+FQ-25: PASS
+FQ-40 [1/5] reconciling → committed: running
+FQ-40 [2/5] reconciling → queued (attempt mới): BLOCKED — earlier exit reconciling → committed failed
+FQ-40 [3/5] reconciling → paused_admin: BLOCKED — earlier exit reconciling → committed failed
+FQ-40 [4/5] reconciling → paused_offline: BLOCKED — earlier exit reconciling → committed failed
+FQ-40 [5/5] reconciling ở lại (in_flight): BLOCKED — earlier exit reconciling → committed failed
+FQ-40: FAIL (predicted OQ-F11)
+  FQ-40 [reconciling → committed] trace 2026-10-15T11:28:22.107Z ∅ -> queued
+  FQ-40 [reconciling → committed] trace 2026-10-15T11:28:22.137Z queued -> paused_offline code=network
+  FQ-40 [reconciling → committed] trace 2026-10-15T11:29:14.672Z queued -> validating
+  FQ-40 [reconciling → committed] trace 2026-10-15T11:29:14.672Z validating -> uploading
+  FQ-40 [reconciling → committed] trace 2026-10-15T11:29:14.672Z uploading -> committing
+  FQ-40 [reconciling → committed] trace 2026-10-15T11:29:14.672Z committing -> committed http=200
+  FQ-40 [reconciling → committed] proxy 2026-10-15T11:28:22.122Z upload POST 201 key=b218f480a122 rule=-
+  FQ-40 [reconciling → committed] proxy 2026-10-15T11:28:22.134Z commit POST dropped key=b218f480a122 rule=lose-commit-answer
+  FQ-40 [reconciling → committed] proxy 2026-10-15T11:29:14.686Z upload POST 201 key=b218f480a122 rule=-
+  FQ-40 [reconciling → committed] proxy 2026-10-15T11:29:14.693Z commit POST 200 key=b218f480a122 rule=-
+FQ-41: running
+APP_CASES_EXIT 124
+FQ-20 PASS   
+FQ-21 PASS   
+FQ-22 FAIL OQ-F11  client_path: expected "* → reconciling → committed" actual "queued → paused_offline → validating → uploading → committing → committed" | exactly_one_commit_post: expected 1 actual 2 | lookup_after_lost_answer: expected ">= 1" actual 0 | lookup_answered: expected 200 actual "none"
+FQ-23 BLOCKED  cancel race trên app: người dùng bấm "Hủy lần lưu…" khi intent đang committing; request tới server sau đó: pending G5-10 
+FQ-24 FAIL F4  client_path: expected "* → reconciling → queued → * → committed" actual "queued" | settled_committed: expected "committed" actual "never" | reuploaded_after_fence: expected ">= 2" actual 1 | commit_200_after_reupload: expected "a 200 commit after the last upload" actual "409" | version_delta: expected 1 actual 0
+FQ-25 PASS   
+FQ-26 BLOCKED  giải quyết conflict trên desktop (S5): Ghi đè / Tải lại / Lưu thành bản sao: pending G5-09 
+FQ-27 BLOCKED  Lưu sau AI đúng base_revision trên app; 409 giữ bản cục bộ: pending G6-05u 
+FQ-28 BLOCKED  remote update giữa lượt AI: kết quả AI chỉ thuộc bản đang mở, Lưu sau đó gặp 409: pending G6-05u 
+FQ-29 BLOCKED  bản mới đến khi editor sạch nhưng AI đang chạy → không nạp; AI idle và vẫn sạch → nạp: pending G6-05u 
+FQ-30 BLOCKED  AI sửa trong editor rồi Lưu khi đang có intent G5: không intent mới, intent N chỉ commit snapshot N: pending G6-05u 
+FQ-31 BLOCKED  Lưu khi AI đang ghi (chưa có intent): chờ ranh giới bước công cụ rồi mới chụp snapshot: pending G6-05u 
+FQ-32 BLOCKED  revoke trong lượt AI: lượt kế tiếp bị 403, không version; kết quả muộn không áp lên bản mới: pending G6-05u 
+FQ-40 FAIL OQ-F11 reconciling → queued (attempt mới): earlier exit reconciling → committed failed; reconciling → paused_admin: earlier exit reconciling → committed failed; reconciling → paused_offline: earlier exit reconciling → committed failed; reconciling ở lại (in_flight): earlier exit reconciling → committed failed client_path: expected "* → reconciling → committed" actual "queued → paused_offline → validating → uploading → committing → committed"
+FQ-45 BLOCKED  reconciling-stuck: hành động ở S2 — Kiểm tra lại, Tải bản của tôi về máy, Bỏ lần lưu… (kể cả bị từ chối khi đủ 3 nháp / store đầy): pending G5-10 
+FQ-46 BLOCKED  reconciling / reconciling-stuck chặn Tải lại và Ghi đè (S6, S5): aria-disabled với lý do chờ: pending G5-09 
+FQ-52 BLOCKED  blocked: "Bỏ nháp…" có xác nhận là đường kết thúc duy nhất khi lý do không được gỡ; blocked không tự xóa nháp: pending G5-10 
+FQ-54 BLOCKED  blocked store_newer: store cần bản app mới hơn → không tạo intent; cập nhật app mở lại: pending G7-05 
+FQ-55 BLOCKED  hủy intent đang queued không mất nháp: pending G5-10 
+FL-01 BLOCKED  tải thư viện offline bị gián đoạn: không báo "sẵn sàng": pending G5-05 
+FL-02 BLOCKED  disk full khi tải lần đầu: giữ bản cũ, hiện lỗi: pending G5-05 
+FL-03 BLOCKED  cache hỏng / checksum lệch: pin thất bại, không phục vụ từ cache dở: pending G5-05 
+FL-04 BLOCKED  lease hết hạn (kể cả khi đang mở dirty): khóa cloud payload, giữ ciphertext + checkpoint; gia hạn khi online: pending G5-08c 
+FL-05 BLOCKED  lùi đồng hồ: không kéo dài quyền offline: pending G5-08c 
+FL-06 BLOCKED  revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa: pending G5-08c 
+FL-07 BLOCKED  logout A → B: không còn khóa/plaintext/ciphertext đọc được của A: pending G5-11 
+FL-08 BLOCKED  deployment switch: phạm vi A không cập nhật cursor/cache B: pending G5-11 
+FL-09 BLOCKED  keystore khóa: chặn đường Lưu, không hạ xuống store không bảo vệ; mở khóa → về đúng trạng thái trước (reconciling vẫn reconciling): pending G5-08c 
