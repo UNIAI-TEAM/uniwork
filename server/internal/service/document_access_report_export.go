@@ -129,8 +129,11 @@ func (s *DocumentService) ExportDocumentAccessReport(ctx context.Context, actor 
 	if err != nil {
 		return out, err
 	}
+	// The name is read only when the person's own gates admitted them here,
+	// the same gate the rows use: an id from another organization, or of a
+	// deactivated member, stays an id in the file.
 	personName := ""
-	if in.PersonID != "" {
+	if in.PersonID != "" && run.person != nil {
 		infos, err := NewActorService(q).Resolve(ctx, []ActorRef{{Kind: audit.KindHuman, ID: in.PersonID}})
 		if err != nil {
 			return out, err
