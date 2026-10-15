@@ -1,0 +1,15 @@
+$ bash scripts/office/g5g6g7/harness/stop.sh || true; for d in .harness-run .harness-run-r*; do [ -d "$d" ] && HARNESS_RUN_DIR="$PWD/$d" bash scripts/office/g5g6g7/harness/stop.sh; done; me=$(ps -o pgid= -p $$ | tr -d " "); for p in $(pgrep -f "[.]harness-run" || true); do g=$(ps -o pgid= -p "$p" 2>/dev/null | tr -d " "); [ -n "$g" ] && [ "$g" != "$me" ] && { echo "stopping leftover group $g of pid $p: $(ps -o args= -p "$p" 2>/dev/null | cut -c1-120)"; kill -TERM -- "-$g" 2>/dev/null; }; done; sleep 3; left=$(pgrep -f "[.]harness-run" | while read p; do g=$(ps -o pgid= -p "$p" 2>/dev/null | tr -d " "); [ "$g" != "$me" ] && echo "$p"; done); [ -z "$left" ] && echo "no leftover harness process" || echo "LEFTOVER $left"; rm -rf .harness-run-r15f1; for p in $(pgrep -f "next dev" || true); do c=$(readlink -f /proc/$p/cwd 2>/dev/null); case "$c" in "$PWD"/apps/web*) echo "stopping stale next dev pid $p cwd $c"; kill "$p";; esac; done; true
+harness: no pid file at /workspace/.harness-run/pids; nothing to stop
+harness: no pid file at /workspace/.harness-run-r15f1/pids; nothing to stop
+stopping leftover group 22487 of pid 22487: node /workspace/scripts/office/g5g6g7/harness/lib.mjs --app-proxy /workspace/.harness-run-r15f1 45063 45739
+stopping leftover group 22505 of pid 22505: /bin/sh /usr/bin/xvfb-run --auto-servernum -f /workspace/.harness-run-r15f1/xauthority --server-args=-screen 0 1280x800x
+stopping leftover group 22505 of pid 22515: [Xvfb] <defunct>
+stopping leftover group 22505 of pid 22556: [electron] <defunct>
+stopping leftover group 22505 of pid 22579: [electron] <defunct>
+stopping leftover group 22875 of pid 22875: timeout -k 15 420 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/a
+stopping leftover group 22875 of pid 22902: node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-50 --exits 2 --run-dir .harness-run-r15f1
+stopping leftover group 22913 of pid 22950: [electron] <defunct>
+no leftover harness process
+stopping stale next dev pid 22313 cwd /workspace/apps/web
+stopping stale next dev pid 22332 cwd /workspace/apps/web
+stopping stale next dev pid 22333 cwd /workspace/apps/web
