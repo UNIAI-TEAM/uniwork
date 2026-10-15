@@ -1,0 +1,770 @@
+$ RID=$(cat /tmp/g710-r7-rid); M=/tmp/$RID-markers.txt; R=/tmp/$RID-run; ls -R $R 2>/dev/null | head -120; for f in $R/tracer-loop-*.json; do echo "=== $f"; cat "$f"; echo; done; find $R test-results -name 'evidence.jsonl' 2>/dev/null -exec sh -c 'echo "=== $1"; cat "$1"' _ {} \; ; for f in $R/artifacts/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 60 "$f"; }; done; true
+/tmp/g710-r7-1792029084213621185-run:
+app-proxy.state
+artifacts
+display
+evidence.jsonl
+logs
+ports.env
+server.env
+start-status.json
+tracer-loop-1.json
+tracer-loop-2.json
+tracer-loop-3.json
+userdata
+
+/tmp/g710-r7-1792029084213621185-run/artifacts:
+ev-g5-a03-0001.log
+ev-g5-a05-0001.log
+ev-g6-a03-0001.log
+
+/tmp/g710-r7-1792029084213621185-run/logs:
+app.log
+app-proxy.log
+lib.log
+migrate.log
+readyz.json
+server-build.log
+server.log
+web.log
+
+/tmp/g710-r7-1792029084213621185-run/userdata:
+app-settings.json
+blob_storage
+Cache
+Code Cache
+control.json
+control.sock
+Crashpad
+DawnGraphiteCache
+DawnWebGPUCache
+deployment-profile.json
+dev-instance.pid
+DevToolsActivePort
+Dictionaries
+DIPS
+DIPS-wal
+file-index.db
+file-index.db-shm
+file-index.db-wal
+GPUCache
+IndexedDB
+Local State
+Local Storage
+mcp-log.txt
+Network Persistent State
+open-documents.json
+originals
+Preferences
+projects
+recent.json
+Shared Dictionary
+sheets-autosave
+spell-diag.log
+Trust Tokens
+Trust Tokens-journal
+uniwork-auth
+uniwork-documents
+uniwork-sync
+WebStorage
+workbench
+
+/tmp/g710-r7-1792029084213621185-run/userdata/blob_storage:
+fe68b23b-0812-4df9-8216-e2ebacfbb80d
+
+/tmp/g710-r7-1792029084213621185-run/userdata/blob_storage/fe68b23b-0812-4df9-8216-e2ebacfbb80d:
+
+/tmp/g710-r7-1792029084213621185-run/userdata/Cache:
+Cache_Data
+No_Vary_Search
+
+/tmp/g710-r7-1792029084213621185-run/userdata/Cache/Cache_Data:
+23a0a6772baefb3f_0
+5283edf90cf4ab50_0
+index
+index-dir
+
+/tmp/g710-r7-1792029084213621185-run/userdata/Cache/Cache_Data/index-dir:
+the-real-index
+
+/tmp/g710-r7-1792029084213621185-run/userdata/Cache/No_Vary_Search:
+journal.baj
+snapshot.baf
+
+/tmp/g710-r7-1792029084213621185-run/userdata/Code Cache:
+electron-preload
+js
+wasm
+
+/tmp/g710-r7-1792029084213621185-run/userdata/Code Cache/electron-preload:
+11ABA5E5346C720A21F83EC10A5AC8848745B06EAF2D83583ED14BA901649E23-046EE14B76106E2E39DCF4D74A8AEE393DEDA01000D21673491EB8D652BB29D2.cache
+154C1CDE823087EBB8781D2CB126C56CDA933B6292ED1376841EEFFE8BFAD888-348C6C2F7CBCB488DE2C012192E26BECDA850C249180049503ED086B08C5BF00.cache
+6C217412DA779E716D34B79789EDDEB1030E228BF0B8E98D6C295F6DA3792030-445F9D0E7CB48AFFBD78C0BD672C3439B4F4FC428C7436A1490F2A19108976E6.cache
+
+/tmp/g710-r7-1792029084213621185-run/userdata/Code Cache/js:
+0e71d5088a554533_0
+1385a4ed072abff0_0
+179a82d18b307c4c_0
+7bc95a05a5e4dab0_0
+8bb90339be15f35e_0
+9db60f6a65a4b206_0
+a43238aca8aed4e8_0
+f5651416eb6cab7f_0
+index
+index-dir
+
+/tmp/g710-r7-1792029084213621185-run/userdata/Code Cache/js/index-dir:
+the-real-index
+
+/tmp/g710-r7-1792029084213621185-run/userdata/Code Cache/wasm:
+index
+index-dir
+=== /tmp/g710-r7-1792029084213621185-run/tracer-loop-1.json
+{
+  "exitCode": 77,
+  "status": "BLOCKED",
+  "owner": "g7-qa",
+  "reason": "no real upstream on this runner; contract-p0 §8; 0-version AI turn invariant (1->1) and v2 change-feed delivery verified",
+  "appSignIn": {
+    "accountStatusState": "signed-in",
+    "sessionBinExists": true,
+    "decisionInput": {
+      "appStarted": true,
+      "appPid": 70857,
+      "appProcessAlive": true,
+      "cdpAttempted": true,
+      "cdpConnected": true,
+      "shellWindowFound": true,
+      "keyringAvailable": true,
+      "accountState": "signed-in",
+      "sessionBinExists": true,
+      "signedInUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+      "expectedUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+      "signInError": "",
+      "blockerReason": ""
+    },
+    "decisionResult": {
+      "exitCode": 0,
+      "status": "PASS",
+      "signedIn": true,
+      "reason": "desktop app is signed in with uniwork-auth/session.bin on disk"
+    }
+  },
+  "steps": {
+    "appOpenV1": {
+      "source": "app",
+      "status": "PASS"
+    },
+    "webFrameOpen": {
+      "source": "protocol",
+      "status": "PASS"
+    },
+    "aiTurn": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "httpStatus": 503,
+      "reason": "no real upstream on this runner; contract-p0 §8"
+    },
+    "webSave": {
+      "source": "web",
+      "status": "PASS",
+      "detail": "Playwright typed X/Y/Z cells (E1:G4) through the sheets frame name box and saved v2 via page-level Control+s with focus in the frame; committed v2 bytes and sha256 verified"
+    },
+    "changeFeed": {
+      "source": "protocol",
+      "status": "PASS"
+    },
+    "appReloadV2": {
+      "source": "app",
+      "status": "PASS"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2
+  },
+  "details": {
+    "loop": "1",
+    "fixtureId": "fx-xlsx-revenue-xyz",
+    "documentId": "01M4YM8B883S258Y2953YJYEBS",
+    "workspaceId": "01M4YM8B7BFSPXSJCFWKXA266B",
+    "v1Sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+    "appSignIn": {
+      "accountStatusState": "signed-in",
+      "sessionBinExists": true,
+      "decisionInput": {
+        "appStarted": true,
+        "appPid": 70857,
+        "appProcessAlive": true,
+        "cdpAttempted": true,
+        "cdpConnected": true,
+        "shellWindowFound": true,
+        "keyringAvailable": true,
+        "accountState": "signed-in",
+        "sessionBinExists": true,
+        "signedInUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+        "expectedUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+        "signInError": "",
+        "blockerReason": ""
+      },
+      "decisionResult": {
+        "exitCode": 0,
+        "status": "PASS",
+        "signedIn": true,
+        "reason": "desktop app is signed in with uniwork-auth/session.bin on disk"
+      }
+    },
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "appV1Binding": {
+      "schema": 2,
+      "documentId": "01M4YM8B883S258Y2953YJYEBS",
+      "workspaceId": "01M4YM8B7BFSPXSJCFWKXA266B",
+      "orgId": "01M4YM8B6QGF9FTETS1P1YDPYS",
+      "title": "fx-xlsx-revenue-xyz.xlsx",
+      "filename": "fx-xlsx-revenue-xyz.xlsx",
+      "format": "xlsx",
+      "access": "edit",
+      "baseRevision": "1",
+      "baseVersion": 1,
+      "baseChecksum": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "state": "ready",
+      "level": "manage",
+      "baseVersionId": "01M4YM8B883S258Y29574G8X3T",
+      "min_store_level": 2,
+      "min_app_version": "0.11.0"
+    },
+    "aiSegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "v2BytesSha256Verified": true,
+    "editorCellsVerifiedInV2": true,
+    "v2ContainsExpectedXyz": true,
+    "v2Sha256": "13c41409bfac3af90dd15bc0f5fb9e545febb15ea2c4d6ff012ee68b30096bcc",
+    "webUiDriven": true,
+    "webSaveSource": "web",
+    "changeFeedDeliveredV2": true,
+    "changeFeedMatchedItem": {
+      "document_id": "01M4YM8B883S258Y2953YJYEBS",
+      "change_kind": "upsert",
+      "kind": "file",
+      "revision": "2",
+      "current_version": 2,
+      "version_id": "01M4YM9H5K9041N9N8RVPX94YH",
+      "archived": false,
+      "removal": ""
+    },
+    "protocolDiagnosticSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "summary": "Protocol-level 0-version AI turn + v2 commit + workspace change feed check"
+    },
+    "appObservedV2ViaFeed": true,
+    "appObservedV2Source": "app",
+    "appV2Binding": {
+      "schema": 2,
+      "documentId": "01M4YM8B883S258Y2953YJYEBS",
+      "workspaceId": "01M4YM8B7BFSPXSJCFWKXA266B",
+      "orgId": "01M4YM8B6QGF9FTETS1P1YDPYS",
+      "title": "fx-xlsx-revenue-xyz.xlsx",
+      "filename": "fx-xlsx-revenue-xyz.xlsx",
+      "format": "xlsx",
+      "access": "edit",
+      "baseRevision": "2",
+      "baseVersion": 2,
+      "baseChecksum": "13c41409bfac3af90dd15bc0f5fb9e545febb15ea2c4d6ff012ee68b30096bcc",
+      "state": "saved",
+      "level": "manage",
+      "baseVersionId": "01M4YM9H5K9041N9N8RVPX94YH",
+      "min_store_level": 2,
+      "min_app_version": "0.11.0"
+    },
+    "owner": "g7-qa",
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "webFrameOpen": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "webSave": {
+        "source": "web",
+        "status": "PASS",
+        "detail": "Playwright typed X/Y/Z cells (E1:G4) through the sheets frame name box and saved v2 via page-level Control+s with focus in the frame; committed v2 bytes and sha256 verified"
+      },
+      "changeFeed": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "appReloadV2": {
+        "source": "app",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+
+=== /tmp/g710-r7-1792029084213621185-run/tracer-loop-2.json
+{
+  "exitCode": 77,
+  "status": "BLOCKED",
+  "owner": "g7-qa",
+  "reason": "no real upstream on this runner; contract-p0 §8; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) verified",
+  "appSignIn": {
+    "accountStatusState": "signed-in",
+    "sessionBinExists": true,
+    "decisionInput": {
+      "appStarted": true,
+      "appPid": 70857,
+      "appProcessAlive": true,
+      "cdpAttempted": true,
+      "cdpConnected": true,
+      "shellWindowFound": true,
+      "keyringAvailable": true,
+      "accountState": "signed-in",
+      "sessionBinExists": true,
+      "signedInUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+      "expectedUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+      "signInError": "",
+      "blockerReason": ""
+    },
+    "decisionResult": {
+      "exitCode": 0,
+      "status": "PASS",
+      "signedIn": true,
+      "reason": "desktop app is signed in with uniwork-auth/session.bin on disk"
+    }
+  },
+  "steps": {
+    "appOpenV1": {
+      "source": "app",
+      "status": "PASS"
+    },
+    "aiTurn": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "httpStatus": 503,
+      "reason": "no real upstream on this runner; contract-p0 §8"
+    },
+    "saveV2": {
+      "source": "app",
+      "status": "PASS"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2
+  },
+  "details": {
+    "loop": "2",
+    "fixtureId": "fx-docx-report-vi",
+    "documentId": "01M4YM9JYFANRTG86QFYM8JDH2",
+    "workspaceId": "01M4YM8B7BFSPXSJCFWKXA266B",
+    "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "v2Sha256": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+    "appSignIn": {
+      "accountStatusState": "signed-in",
+      "sessionBinExists": true,
+      "decisionInput": {
+        "appStarted": true,
+        "appPid": 70857,
+        "appProcessAlive": true,
+        "cdpAttempted": true,
+        "cdpConnected": true,
+        "shellWindowFound": true,
+        "keyringAvailable": true,
+        "accountState": "signed-in",
+        "sessionBinExists": true,
+        "signedInUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+        "expectedUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+        "signInError": "",
+        "blockerReason": ""
+      },
+      "decisionResult": {
+        "exitCode": 0,
+        "status": "PASS",
+        "signedIn": true,
+        "reason": "desktop app is signed in with uniwork-auth/session.bin on disk"
+      }
+    },
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "aiEditQualitySegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "commitIntentBeforeSave": {
+      "httpStatus": 410,
+      "code": "commit_intent_unknown",
+      "outcome": "unknown",
+      "hasCommitted": false,
+      "hasClaim": false
+    },
+    "appIntentsAfterTurn": 0,
+    "noAutoSaveSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "summary": "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save creates version 2"
+    },
+    "commitIntentReceiptSource": "binding_and_version_read",
+    "commitIntentOutcome": "committed",
+    "saveSource": "app",
+    "appSavedV2": true,
+    "owner": "g7-qa",
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "saveV2": {
+        "source": "app",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+
+=== /tmp/g710-r7-1792029084213621185-run/tracer-loop-3.json
+{
+  "exitCode": 0,
+  "status": "PASS",
+  "owner": "g7-qa",
+  "reason": "Loop 3 passed: app opened v1, held offline save intent while cut (server at v1), and settled binding.json to v2 saved receipt on reconnect",
+  "appSignIn": {
+    "accountStatusState": "signed-in",
+    "sessionBinExists": true,
+    "decisionInput": {
+      "appStarted": true,
+      "appPid": 70857,
+      "appProcessAlive": true,
+      "cdpAttempted": true,
+      "cdpConnected": true,
+      "shellWindowFound": true,
+      "keyringAvailable": true,
+      "accountState": "signed-in",
+      "sessionBinExists": true,
+      "signedInUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+      "expectedUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+      "signInError": "",
+      "blockerReason": ""
+    },
+    "decisionResult": {
+      "exitCode": 0,
+      "status": "PASS",
+      "signedIn": true,
+      "reason": "desktop app is signed in with uniwork-auth/session.bin on disk"
+    }
+  },
+  "steps": {
+    "appOfflineSave": {
+      "source": "app",
+      "status": "PASS"
+    },
+    "protocolReconnectDiagnostic": {
+      "source": "protocol",
+      "status": "SKIPPED",
+      "reason": "app offline save was driven directly"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeCut": 1,
+    "serverVersionsWhileCut": 1,
+    "serverVersionsAfterReconnect": 2,
+    "versionsAfterIdempotentRetry": null
+  },
+  "details": {
+    "loop": "3",
+    "fixtureId": "fx-docx-report-vi",
+    "documentId": "01M4YM9VABJ2Q1Z11HWZR3PWDJ",
+    "workspaceId": "01M4YM8B7BFSPXSJCFWKXA266B",
+    "appSignIn": {
+      "accountStatusState": "signed-in",
+      "sessionBinExists": true,
+      "decisionInput": {
+        "appStarted": true,
+        "appPid": 70857,
+        "appProcessAlive": true,
+        "cdpAttempted": true,
+        "cdpConnected": true,
+        "shellWindowFound": true,
+        "keyringAvailable": true,
+        "accountState": "signed-in",
+        "sessionBinExists": true,
+        "signedInUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+        "expectedUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+        "signInError": "",
+        "blockerReason": ""
+      },
+      "decisionResult": {
+        "exitCode": 0,
+        "status": "PASS",
+        "signedIn": true,
+        "reason": "desktop app is signed in with uniwork-auth/session.bin on disk"
+      }
+    },
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "serverVersionsWhileCut": 1,
+    "appHeldOfflineIntentWhileCut": true,
+    "intentFilesWhileCut": [
+      "64e9ceb90e20eff7f9ade7e5c8fe9fe69c7e63dbad04370f6557bad34ee75227.rec"
+    ],
+    "serverVersionsAfterReconnect": 2,
+    "appReceiptSegment": {
+      "status": "PASS",
+      "source": "app",
+      "baseVersion": 2,
+      "baseRevision": "2",
+      "baseVersionId": "01M4YMA3HRQSKT3EWRQGC8F9F6",
+      "baseChecksum": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "state": "saved"
+    },
+    "owner": "g7-qa",
+    "versionsBeforeCut": 1,
+    "versionsAfterIdempotentRetry": null,
+    "steps": {
+      "appOfflineSave": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "protocolReconnectDiagnostic": {
+        "source": "protocol",
+        "status": "SKIPPED",
+        "reason": "app offline save was driven directly"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeCut": 1,
+      "serverVersionsWhileCut": 1,
+      "serverVersionsAfterReconnect": 2,
+      "versionsAfterIdempotentRetry": null
+    }
+  }
+}
+
+=== /tmp/g710-r7-1792029084213621185-run/evidence.jsonl
+{"evidenceId":"ev-g5-a03-0001","requirementId":"G5-A03","dSha":"98c9a926d010cfba3796c5ce1abc4943786c6761","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir /tmp/g710-r7-1792029084213621185-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","1","--run-dir","/tmp/g710-r7-1792029084213621185-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g710-r7-1792029084213621185-run/artifacts/ev-g5-a03-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-15T01:54:00.399Z","finishedAt":"2026-10-15T01:54:41.007Z"}
+{"evidenceId":"ev-g6-a03-0001","requirementId":"G6-A03","dSha":"98c9a926d010cfba3796c5ce1abc4943786c6761","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 2 --run-dir /tmp/g710-r7-1792029084213621185-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","2","--run-dir","/tmp/g710-r7-1792029084213621185-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g710-r7-1792029084213621185-run/artifacts/ev-g6-a03-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-15T01:54:41.075Z","finishedAt":"2026-10-15T01:54:49.684Z"}
+{"evidenceId":"ev-g5-a05-0001","requirementId":"G5-A05","dSha":"98c9a926d010cfba3796c5ce1abc4943786c6761","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 3 --run-dir /tmp/g710-r7-1792029084213621185-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","3","--run-dir","/tmp/g710-r7-1792029084213621185-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g710-r7-1792029084213621185-run/artifacts/ev-g5-a05-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-15T01:54:49.719Z","finishedAt":"2026-10-15T01:54:58.272Z"}
+=== /tmp/g710-r7-1792029084213621185-run/artifacts/ev-g5-a03-0001.log
+    "appObservedV2Source": "app",
+    "appV2Binding": {
+      "schema": 2,
+      "documentId": "01M4YM8B883S258Y2953YJYEBS",
+      "workspaceId": "01M4YM8B7BFSPXSJCFWKXA266B",
+      "orgId": "01M4YM8B6QGF9FTETS1P1YDPYS",
+      "title": "fx-xlsx-revenue-xyz.xlsx",
+      "filename": "fx-xlsx-revenue-xyz.xlsx",
+      "format": "xlsx",
+      "access": "edit",
+      "baseRevision": "2",
+      "baseVersion": 2,
+      "baseChecksum": "13c41409bfac3af90dd15bc0f5fb9e545febb15ea2c4d6ff012ee68b30096bcc",
+      "state": "saved",
+      "level": "manage",
+      "baseVersionId": "01M4YM9H5K9041N9N8RVPX94YH",
+      "min_store_level": 2,
+      "min_app_version": "0.11.0"
+    },
+    "owner": "g7-qa",
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "webFrameOpen": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "webSave": {
+        "source": "web",
+        "status": "PASS",
+        "detail": "Playwright typed X/Y/Z cells (E1:G4) through the sheets frame name box and saved v2 via page-level Control+s with focus in the frame; committed v2 bytes and sha256 verified"
+      },
+      "changeFeed": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "appReloadV2": {
+        "source": "app",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+BLOCKED: no real upstream on this runner; contract-p0 §8; 0-version AI turn invariant (1->1) and v2 change-feed delivery verified
+=== /tmp/g710-r7-1792029084213621185-run/artifacts/ev-g5-a05-0001.log
+        "appStarted": true,
+        "appPid": 70857,
+        "appProcessAlive": true,
+        "cdpAttempted": true,
+        "cdpConnected": true,
+        "shellWindowFound": true,
+        "keyringAvailable": true,
+        "accountState": "signed-in",
+        "sessionBinExists": true,
+        "signedInUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+        "expectedUserId": "01M4YM8B65P0ZXH2762JJWW7B7",
+        "signInError": "",
+        "blockerReason": ""
+      },
+      "decisionResult": {
+        "exitCode": 0,
+        "status": "PASS",
+        "signedIn": true,
+        "reason": "desktop app is signed in with uniwork-auth/session.bin on disk"
+      }
+    },
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "serverVersionsWhileCut": 1,
+    "appHeldOfflineIntentWhileCut": true,
+    "intentFilesWhileCut": [
+      "64e9ceb90e20eff7f9ade7e5c8fe9fe69c7e63dbad04370f6557bad34ee75227.rec"
+    ],
+    "serverVersionsAfterReconnect": 2,
+    "appReceiptSegment": {
+      "status": "PASS",
+      "source": "app",
+      "baseVersion": 2,
+      "baseRevision": "2",
+      "baseVersionId": "01M4YMA3HRQSKT3EWRQGC8F9F6",
+      "baseChecksum": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "state": "saved"
+    },
+    "owner": "g7-qa",
+    "versionsBeforeCut": 1,
+    "versionsAfterIdempotentRetry": null,
+    "steps": {
+      "appOfflineSave": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "protocolReconnectDiagnostic": {
+        "source": "protocol",
+        "status": "SKIPPED",
+        "reason": "app offline save was driven directly"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeCut": 1,
+      "serverVersionsWhileCut": 1,
+      "serverVersionsAfterReconnect": 2,
+      "versionsAfterIdempotentRetry": null
+    }
+  }
+}
+=== /tmp/g710-r7-1792029084213621185-run/artifacts/ev-g6-a03-0001.log
+        "exitCode": 0,
+        "status": "PASS",
+        "signedIn": true,
+        "reason": "desktop app is signed in with uniwork-auth/session.bin on disk"
+      }
+    },
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "aiEditQualitySegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "commitIntentBeforeSave": {
+      "httpStatus": 410,
+      "code": "commit_intent_unknown",
+      "outcome": "unknown",
+      "hasCommitted": false,
+      "hasClaim": false
+    },
+    "appIntentsAfterTurn": 0,
+    "noAutoSaveSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "summary": "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save creates version 2"
+    },
+    "commitIntentReceiptSource": "binding_and_version_read",
+    "commitIntentOutcome": "committed",
+    "saveSource": "app",
+    "appSavedV2": true,
+    "owner": "g7-qa",
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "saveV2": {
+        "source": "app",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+BLOCKED: no real upstream on this runner; contract-p0 §8; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) verified
