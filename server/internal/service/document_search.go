@@ -392,6 +392,12 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 // seeAll is false. Each item's walk up parent_id stops at the first missing or
 // unreadable ancestor, matching documentBreadcrumbs.
 func (s *DocumentService) attachListPaths(ctx context.Context, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
+	return s.attachListPathsQ(ctx, s.q, scope, workspaceID, agent, items)
+}
+
+// attachListPathsQ is attachListPaths read through q, for a caller that holds
+// a snapshot transaction (the access report export).
+func (s *DocumentService) attachListPathsQ(ctx context.Context, q *db.Queries, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -410,7 +416,7 @@ func (s *DocumentService) attachListPaths(ctx context.Context, scope documentLis
 	if len(parentIDs) == 0 {
 		return nil
 	}
-	ancRows, err := s.q.ListDocumentAncestors(ctx, db.ListDocumentAncestorsParams{
+	ancRows, err := q.ListDocumentAncestors(ctx, db.ListDocumentAncestorsParams{
 		OrganizationID: scope.organizationID,
 		WorkspaceID:    workspaceID,
 		Ids:            parentIDs,
@@ -434,7 +440,7 @@ func (s *DocumentService) attachListPaths(ctx context.Context, scope documentLis
 	}
 	var shares map[string][]db.ListLiveSharesForDocumentsRow
 	if len(shareCheckIDs) > 0 {
-		shRows, err := s.q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
+		shRows, err := q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
 			OrganizationID: scope.organizationID,
 			WorkspaceID:    workspaceID,
 			DocumentIds:    shareCheckIDs,

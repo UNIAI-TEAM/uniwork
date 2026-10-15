@@ -17,6 +17,7 @@
       ],
       "ignoreBinaries": [
         "rustc",
+        "awk",
         "go"
       ],
       "ignoreDependencies": [

@@ -463,6 +463,22 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		sdo:         sdo.DocumentListSDO{},
 		auth:        true,
 	})
+	d.Get("/workspaces/{workspaceID}/documents/access-report", h.DocumentAccessReport, apiOp{
+		summary:     "Read the document access report",
+		description: "Báo cáo quyền truy cập (UNI-1643) trên cả workspace hoặc một thư mục (folder_id, gồm thư mục con). Mỗi dòng là một đường cấp quyền: chủ sở hữu ACL, thành viên workspace, chia sẻ sống; kèm effective_level, người cấp, ngày cấp, số liên kết công khai sống. Chỉ liệt kê tài liệu người gọi quản lý; tài liệu đọc được nhưng không quản lý đếm vào summary.skipped. Không phải thành viên workspace hoặc agent -> 403; folder_id không dùng được -> 404. Chỉ tên, không email. Cursor keyset theo id.",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentAccessReportSDI{},
+		sdo:         sdo.DocumentAccessReportSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/access-report/export", h.ExportDocumentAccessReport, apiOp{
+		summary:     "Export the document access report",
+		description: "Cùng báo cáo quyền truy cập, toàn bộ trong một snapshot, thành tệp CSV (UTF-8 BOM) hoặc XLSX; tệp ghi bộ lọc đang áp dụng và thời điểm tạo. Quá 10.000 dòng -> 422 access_report_too_large trước khi ghi byte nào. Ghi một dòng audit documents.access_report_exported (chỉ id, bộ lọc, số đếm).",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentAccessReportExportSDI{},
+		produces:    "text/csv; charset=utf-8",
+		auth:        true,
+	})
 	d.Get("/workspaces/{workspaceID}/documents/tree", h.DocumentTree, apiOp{
 		summary:     "Read the document tree",
 		description: "Cây sidebar tối đa 20 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh, folders_only=1 chỉ trả thư mục. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được (hoặc không phải thư mục khi folders_only) -> 404.",
