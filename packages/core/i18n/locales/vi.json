@@ -8450,6 +8450,18 @@
       "access_title": "Người và nhóm có quyền",
       "my_level": "Mức của bạn: {{level}}",
       "acl_owner": "Chủ sở hữu quyền",
+      "owner": {
+        "transfer_button": "Chuyển quyền sở hữu",
+        "transfer_title": "Chuyển quyền sở hữu “{{document}}”",
+        "new_owner_label": "Chủ sở hữu mới",
+        "previous_level_label": "Quyền của {{name}} sau khi chuyển",
+        "previous_level_none": "Không giữ quyền",
+        "transfer_note": "Chủ sở hữu mới quản lý được tài liệu: chia sẻ, đổi chế độ hiển thị và chuyển vào thùng rác.",
+        "transfer_confirm": "Chuyển",
+        "transferred": "Đã chuyển quyền sở hữu cho {{name}}",
+        "target_not_member": "{{name}} chưa là thành viên của workspace này nên không thể làm chủ sở hữu.",
+        "self_transfer_error": "Quản trị viên không thể tự nhận quyền sở hữu tài liệu hạn chế. Hãy nhờ một quản trị viên khác chuyển, hoặc mở truy cập khẩn cấp để kiểm tra."
+      },
       "via_member": "thành viên workspace",
       "via_share": "chia sẻ trực tiếp",
       "via_link": "liên kết công khai",
@@ -8521,7 +8533,15 @@
       "link_create_failed": "Không tạo được liên kết.",
       "link_limit": "Đã đủ 5 liên kết đang sống. Thu hồi bớt rồi tạo liên kết mới.",
       "link_entitlement": "Gói của tổ chức chưa có tính năng liên kết công khai.",
-      "link_lost_hint": "Mất URL? Tạo liên kết mới; token cũ không hiện lại được."
+      "link_lost_hint": "Mất URL? Tạo liên kết mới; token cũ không hiện lại được.",
+      "admin_manage_button": "Quản lý truy cập",
+      "admin_scope_note": "Bạn quản lý tài liệu này với vai trò quản trị viên. Nội dung tài liệu vẫn được ẩn."
+    },
+    "owner_transfer": {
+      "title_untitled": "Chuyển quyền sở hữu tài liệu",
+      "search_placeholder": "Tìm thành viên của workspace",
+      "no_candidates": "Không có thành viên nào khác nhận được tài liệu này.",
+      "failed": "Chưa chuyển được quyền sở hữu. Hãy thử lại."
     },
     "accessLog": {
       "title": "Nhật ký truy cập",

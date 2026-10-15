@@ -8455,6 +8455,18 @@
       "access_title": "People and groups with access",
       "my_level": "Your level: {{level}}",
       "acl_owner": "ACL owner",
+      "owner": {
+        "transfer_button": "Transfer ownership",
+        "transfer_title": "Transfer ownership of “{{document}}”",
+        "new_owner_label": "New owner",
+        "previous_level_label": "{{name}}'s access after the transfer",
+        "previous_level_none": "No access",
+        "transfer_note": "The new owner can manage the document: share it, change who can see it and move it to trash.",
+        "transfer_confirm": "Transfer",
+        "transferred": "Ownership transferred to {{name}}",
+        "target_not_member": "{{name}} isn't a member of this workspace, so they can't own this document.",
+        "self_transfer_error": "Admins can't take ownership of a restricted document themselves. Ask another admin to transfer it, or open emergency access to inspect it."
+      },
       "via_member": "workspace member",
       "via_share": "direct share",
       "via_link": "public link",
@@ -8526,7 +8538,15 @@
       "link_create_failed": "Could not create the link.",
       "link_limit": "Five live links already. Revoke one before creating another.",
       "link_entitlement": "Your organization's plan does not include public links.",
-      "link_lost_hint": "Lost the URL? Create a new link; the old token cannot be shown again."
+      "link_lost_hint": "Lost the URL? Create a new link; the old token cannot be shown again.",
+      "admin_manage_button": "Manage access",
+      "admin_scope_note": "You manage this document as an admin. Its content stays hidden."
+    },
+    "owner_transfer": {
+      "title_untitled": "Transfer document ownership",
+      "search_placeholder": "Search workspace members",
+      "no_candidates": "No other member can take this document.",
+      "failed": "Couldn't transfer ownership. Try again."
     },
     "accessLog": {
       "title": "Access log",

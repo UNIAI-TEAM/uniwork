@@ -163,6 +163,30 @@ describe("DocumentActionsMenu", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
   });
 
+  // DOC6-W01 (access addendum §2.5, N-01): only Share moves to the
+  // canAdminister() gate; logs, archive and copy keep theirs.
+  it("opens Share to a break-glass admin (view + admin_scope) and keeps logs and archive at manage", async () => {
+    renderMenu({ ...documentFixture({ my_level: "view" }), admin_scope: true });
+    await openMenu();
+
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.share") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.access_log") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
+
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.share") }));
+    expect(await screen.findByRole("dialog", { name: t("documents.share.title") })).toBeInTheDocument();
+    expect(screen.getByText(t("documents.share.admin_scope_note"))).toBeInTheDocument();
+  });
+
+  it("never mounts the share dialog for an editor without admin_scope", async () => {
+    renderMenu(documentFixture({ my_level: "edit" }));
+    await openMenu();
+
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.share") })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: t("documents.share.title") })).toBeNull();
+    expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/shares"))).toBe(false);
+  });
+
   it("offers restore instead of archive in the trash", async () => {
     renderMenu(documentFixture({ archived_at: "2026-09-27T03:00:00Z" }));
     await openMenu();
