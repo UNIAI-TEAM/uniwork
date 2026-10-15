@@ -18,8 +18,6 @@ $ for f in .harness-run/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 6
 08:07:58.175 INF migrate done component=server dir=up
 === .harness-run/logs/server-build.log
 === .harness-run/logs/server.log
-08:08:12.000 INF http request method=GET path=/api/v1/documents/01M4Z9NGDGBX3NEF00124SHKJP/versions status=200 duration=769µs request_id=cursor/eNlnGrGD0I-000167 correlation_id=d482a7e495d38525fc07a63cc23cb5d7 trace_id=d482a7e495d38525fc07a63cc23cb5d7 span_id=8cf3a7eda65ea711 organization_id=01M4Z9NE6X571QCXD20VV930RV workspace_id=01M4Z9NE7HYHSBK97N2633K9YH actor_id=01M4Z9NE310XEQG42WE8NTH4ND actor_kind=human
-08:08:12.002 INF http request method=GET path=/api/v1/documents/01M4Z9NGDGBX3NEF00124SHKJP status=200 duration=908µs request_id=cursor/eNlnGrGD0I-000168 correlation_id=2b45860ff17a7b8cafde2d6035954636 trace_id=2b45860ff17a7b8cafde2d6035954636 span_id=c58a83fdf9725c12 organization_id=01M4Z9NE6X571QCXD20VV930RV workspace_id=01M4Z9NE7HYHSBK97N2633K9YH actor_id=01M4Z9NE310XEQG42WE8NTH4ND actor_kind=human
 08:08:14.382 INF mail not configured, printing message component=server kind=verification_code to=g7-03a-owner-mv99b4z5-9cd1fa@example.com subject="323459 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    323459\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
 08:08:14.383 INF http request method=POST path=/api/v1/auth/register status=200 duration=58.195ms request_id=cursor/eNlnGrGD0I-000170 correlation_id=c1c4d318b66dfea9fc646924d77d99c3 trace_id=c1c4d318b66dfea9fc646924d77d99c3 span_id=49f56a1ec6ef7785
 08:08:14.387 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=1.845ms request_id=cursor/eNlnGrGD0I-000171 correlation_id=5dc75e65c4cf5df0eacd24856eb76947 trace_id=5dc75e65c4cf5df0eacd24856eb76947 span_id=dd9d7798dee7468a actor_id=01M4Z9NJSAHNHZHR764Y46YN38 actor_kind=human
@@ -78,6 +76,8 @@ $ for f in .harness-run/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 6
 08:09:07.946 INF http request method=POST path=/api/v1/workspaces/01M4Z9NJXN80F7TVY4PTYRX24H/documents/files status=201 duration=8.16ms request_id=cursor/eNlnGrGD0I-000221 correlation_id=b0c922eba7e3c368f183a5ac5f16e11b trace_id=b0c922eba7e3c368f183a5ac5f16e11b span_id=e9f350dec04a7b86 organization_id=01M4Z9NJXFA2J544W46CX3ZRM6 workspace_id=01M4Z9NJXN80F7TVY4PTYRX24H actor_id=01M4Z9NJSAHNHZHR764Y46YN38 actor_kind=human
 08:09:07.947 INF http request method=GET path=/api/v1/documents/01M4Z9Q738SFS8J0EDWCZ0D8RT/versions status=200 duration=576µs request_id=cursor/eNlnGrGD0I-000222 correlation_id=a866f3e673f7721493034b6ae43ebafc trace_id=a866f3e673f7721493034b6ae43ebafc span_id=6209934ba9ff0785 organization_id=01M4Z9NJXFA2J544W46CX3ZRM6 workspace_id=01M4Z9NJXN80F7TVY4PTYRX24H actor_id=01M4Z9NJSAHNHZHR764Y46YN38 actor_kind=human
 08:09:07.949 INF http request method=GET path=/api/v1/documents/01M4Z9Q738SFS8J0EDWCZ0D8RT status=200 duration=1.174ms request_id=cursor/eNlnGrGD0I-000223 correlation_id=592af66a447059919f1d3aa906e1f8d6 trace_id=592af66a447059919f1d3aa906e1f8d6 span_id=c94bc260522c5460 organization_id=01M4Z9NJXFA2J544W46CX3ZRM6 workspace_id=01M4Z9NJXN80F7TVY4PTYRX24H actor_id=01M4Z9NJSAHNHZHR764Y46YN38 actor_kind=human
+08:09:32.263 INF shutting down component=server signal=terminated
+08:09:32.263 INF stopped component=server
 === .harness-run/logs/web.log
 
 > @uniwork/web@0.0.0 dev /workspace/apps/web
@@ -125,9 +125,16 @@ Import trace:
 
 
  GET /login 200 in 4.4s (next.js: 3.9s, application-code: 537ms)
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 dev: `node scripts/office-frame-sync.mjs --ensure && sh -c 'next dev --port "${FRONTEND_PORT:-3000}"'`
+Command failed with signal "SIGTERM"
+[?25h
 === .harness-run/fault/.app/FQ-20-0/app.log
 Debugger ending on ws://127.0.0.1:44063/140296c7-3d7d-43f2-8961-ce2bda0233f5
 For help, see: https://nodejs.org/learn/getting-started/debugging
+=== .harness-run/fault/.app/FQ-21-0/app.log
+[70284:1015/080932.274991:ERROR:ui/gfx/x/connection.cc:66] X connection error received.
+[70284:1015/080932.274904:ERROR:ui/gfx/x/connection.cc:66] X connection error received.
 === .harness-run/fault/.app/FQ-43-2/app.log
 Debugger ending on ws://127.0.0.1:39165/3bd19c3b-38fe-4157-9fd5-3835d2aafc9b
 For help, see: https://nodejs.org/learn/getting-started/debugging

@@ -525,12 +525,88 @@ server-versions.json
       "created_by_kind": "human",
       "creat
 === .harness-run/fault/FQ-21/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.before.json
+server-versions.json
+{
+  "document_id": "01M4Z9Q738SFS8J0EDWCZ0D8RT",
+  "documentId": "01M4Z9Q738SFS8J0EDWCZ0D8RT",
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null,
+  "error": "fetch failed"
+}
+
+=== .harness-run/fault/FQ-22/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
 
 === .harness-run/fault/FQ-23/
 case-result.json
 evidence-g5-a06.log
 evidence-g5-a08.log
 result.json
+
+=== .harness-run/fault/FQ-24/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
+
+=== .harness-run/fault/FQ-25/
+app-trace.jsonl
+case-result.json
+evidence-g5-a08.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
 
 === .harness-run/fault/FQ-26/
 case-result.json
@@ -568,6 +644,76 @@ case-result.json
 evidence-g7-a02.log
 result.json
 
+=== .harness-run/fault/FQ-40/
+1
+2
+3
+4
+5
+case-result.json
+evidence-g5-a06.log
+result.json
+
+=== .harness-run/fault/FQ-41/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
+
+=== .harness-run/fault/FQ-42/
+app-trace.jsonl
+case-result.json
+evidence-g5-a06.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
+
+=== .harness-run/fault/FQ-43/
+1
+2
+3
+4
+5
+6
+7
+8
+9
+case-result.json
+evidence-g5-a06.log
+result.json
+
+=== .harness-run/fault/FQ-44/
+1
+2
+3
+case-result.json
+evidence-g5-a06.log
+result.json
+
 === .harness-run/fault/FQ-45/
 case-result.json
 evidence-g5-a06.log
@@ -579,10 +725,47 @@ case-result.json
 evidence-g5-a06.log
 result.json
 
+=== .harness-run/fault/FQ-50/
+1
+2
+3
+4
+5
+case-result.json
+evidence-g5-a08.log
+result.json
+
+=== .harness-run/fault/FQ-51/
+1
+2
+3
+case-result.json
+evidence-g5-a08.log
+result.json
+
 === .harness-run/fault/FQ-52/
 case-result.json
 evidence-g5-a08.log
 result.json
+
+=== .harness-run/fault/FQ-53/
+app-trace.jsonl
+case-result.json
+evidence-g5-a05.log
+intent-log.jsonl
+proxy-log.jsonl
+result.json
+server-versions.json
+{
+  "document_id": null,
+  "documentId": null,
+  "readAt": null,
+  "head": {
+    "revision": null
+  },
+  "versions": [],
+  "next_cursor": null
+}
 
 === .harness-run/fault/FQ-54/
 case-result.json
