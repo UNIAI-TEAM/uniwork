@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/billing"
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -73,6 +74,86 @@ func TestApplyProviderEventPaid(t *testing.T) {
 	}
 	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM invoices WHERE organization_id = $1`, f.orgID).Scan(&invCount); err != nil || invCount != 1 {
 		t.Fatalf("duplicate apply added invoices: %d", invCount)
+	}
+}
+
+func TestApplyProviderEventConcurrentAppliesWriteOnce(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
+	intentID := "01TESTVNAPYINTENT00021"
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO billing_payment_intents (
+		id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
+		amount, currency, status, expires_at
+	) SELECT $1, s.organization_id, s.id, $2, 'vnpay', $1, 500000, 'VND', 'pending', now() + interval '15 minutes'
+	  FROM subscriptions s WHERE s.organization_id = $3`,
+		intentID, "01TESTPLANpaid_team", f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	prov := billing.FromConfig(config.Config{BillingProvider: "vnpay", VNPayTMNCode: "TMN", VNPayHashSecret: "secret"})
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, prov)
+
+	hold, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := hold.Exec(f.ctx, `SELECT id FROM subscriptions WHERE organization_id = $1 AND status <> 'canceled' FOR UPDATE`, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	defer hold.Rollback(f.ctx)
+
+	type result struct{ err error }
+	results := make(chan result, 2)
+	for _, eventID := range []string{"111", "222"} {
+		ev := billing.Event{
+			ProviderEventID: eventID,
+			ProviderTxnRef:  intentID,
+			Type:            "invoice.paid",
+			Paid:            true,
+			Amount:          500000,
+			Currency:        "VND",
+		}
+		go func() {
+			results <- result{err: f.billing.ApplyProviderEvent(f.ctx, ev)}
+		}()
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var waiting int
+		qerr := f.pool.QueryRow(f.ctx, `
+			SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database()
+			  AND wait_event_type = 'Lock'
+			  AND query LIKE '%status <> ''canceled''%'`).Scan(&waiting)
+		if qerr != nil {
+			t.Fatal(qerr)
+		}
+		if waiting >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for both applies to block on the subscription lock, saw %d", waiting)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err := hold.Rollback(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if res := <-results; res.err != nil {
+			t.Fatal(res.err)
+		}
+	}
+
+	var invoices, audits int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM invoices WHERE payment_intent_id = $1`, intentID).Scan(&invoices); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND metadata::jsonb->>'kind' = 'provider_paid'`, f.orgID).Scan(&audits); err != nil {
+		t.Fatal(err)
+	}
+	if invoices != 1 || audits != 1 {
+		t.Fatalf("invoices=%d provider_paid audits=%d, want 1 and 1", invoices, audits)
 	}
 }
 
