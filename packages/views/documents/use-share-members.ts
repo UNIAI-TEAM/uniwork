@@ -43,7 +43,10 @@ export function useShareMembers(orgSlug: string, open: boolean) {
   const rows = useMemo<OrgMember[]>(() => data?.pages.flatMap((page) => page.members) ?? [], [data]);
   const byId = useMemo(() => new Map(rows.map((m) => [m.user_id, m])), [rows]);
 
-  const error: ShareMembersError | null = !data && members.isError
+  // A refetch of a failed first page flips the query back to pending; the
+  // earlier failure (errorUpdatedAt) keeps the line up until the page lands.
+  const firstPageFailed = !data && (members.isError || (members.isFetching && members.errorUpdatedAt > 0));
+  const error: ShareMembersError | null = firstPageFailed
     ? "first"
     : isFetchNextPageError
       ? "partial"
@@ -58,7 +61,7 @@ export function useShareMembers(orgSlug: string, open: boolean) {
     namesPending: members.isPending || more || error === "first" || error === "partial",
     error,
     /** A retry is under way; the error line stays so the button can show it. */
-    retrying: isFetchingNextPage && isFetchNextPageError,
+    retrying: error === "first" ? members.isFetching : isFetchingNextPage && isFetchNextPageError,
     retry: () => {
       void (error === "first" ? refetch() : fetchNextPage());
     },

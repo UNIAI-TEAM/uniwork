@@ -152,6 +152,40 @@ describe("ShareDialog member loading errors", () => {
     expect(screen.queryByText(t("documents.share.person_unknown"))).toBeNull();
   });
 
+  it("first page fails: Retry is disabled with a spinner while page 1 reloads, the line stays", async () => {
+    serve({ page1: 1 });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+    const alert = await screen.findByRole("alert");
+
+    // The retry's page-1 answer is held until the test releases it.
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const answer = requestMock.getMockImplementation();
+    requestMock.mockImplementation(async (path: string, ...rest: unknown[]) => {
+      if (String(path).startsWith("/api/v1/orgs/acme/members") && !String(path).includes("cursor=")) await held;
+      return answer?.(path, ...rest);
+    });
+
+    const retry = within(alert).getByRole("button", { name: t("documents.share.retry") });
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(retry).toHaveAttribute("aria-busy", "true"));
+    expect(retry).toBeDisabled();
+    expect(retry.querySelector("svg.animate-spin")).not.toBeNull();
+    // The line does not flash away while the retry is in flight.
+    expect(screen.getByRole("alert")).toBe(alert);
+    const callsBefore = requestMock.mock.calls.length;
+    fireEvent.click(retry);
+    expect(requestMock.mock.calls).toHaveLength(callsBefore);
+
+    release();
+    expect(await screen.findByText("Bình")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
   it("later page fails: page-1 people stay pickable, error line shown, Retry resumes the walk", async () => {
     serve({ page2: 1 });
     renderDialog();
@@ -172,6 +206,11 @@ describe("ShareDialog member loading errors", () => {
     // Page 2 was requested twice: the failure and the retry from that page.
     const page2Calls = requestMock.mock.calls.filter(([p]) => String(p).includes("cursor=c2"));
     expect(page2Calls).toHaveLength(2);
+    // Resuming does not restart from page 1.
+    const page1Calls = requestMock.mock.calls.filter(
+      ([p]) => String(p).startsWith("/api/v1/orgs/acme/members") && !String(p).includes("cursor="),
+    );
+    expect(page1Calls).toHaveLength(1);
   });
 
   it("page bound hit with a cursor left: says so and offers no Retry", async () => {
