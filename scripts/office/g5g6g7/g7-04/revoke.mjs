@@ -428,13 +428,13 @@ export async function runRevokeCase({
       allowRealUpstream: Boolean(fetchImpl?.allowRealAiUpstream || process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM === "1"),
     });
     const aiDisabled = aiTurn1.session.status === 503 && aiTurn1.session.code === "ai_disabled";
-    steps.aiTurn1 = { status: aiDisabled ? "BLOCKED" : aiSegment.status, session: { status: aiTurn1.session.status, code: aiTurn1.session.code }, frame: aiTurn1.frame, reason: aiDisabled ? AI_DISABLED_BLOCKER : aiSegment.reason ?? "" };
+    steps.aiTurn1 = { status: aiDisabled ? "BLOCKED" : aiSegment.status, session: { status: aiTurn1.session.status, code: aiTurn1.session.code }, frame: { status: aiTurn1.frame.status, code: aiTurn1.frame.code }, reason: aiDisabled ? AI_DISABLED_BLOCKER : aiSegment.reason ?? "" };
 
     const revoke = await applyRevoke({ apiOrigin, fetchImpl, world, caseName });
     steps.revoke = { status: revoke.status === expectations.revoke ? "PASS" : "FAIL", route: revoke.via, httpStatus: revoke.status, code: revoke.code, shareLevel: revoke.shareLevel ?? "" };
 
     const aiTurn2 = await aiTurnOnBothRoutes({ apiOrigin, fetchImpl, world, frameToken, prompt: AI_TURN_2_PROMPT });
-    steps.aiTurn2 = { status: aiTurn2.session.status === expectations.aiTurn2 && aiTurn2.frame.status === expectations.aiTurn2 ? "PASS" : "FAIL", session: aiTurn2.session, frame: aiTurn2.frame };
+    steps.aiTurn2 = { status: aiTurn2.session.status === expectations.aiTurn2 && aiTurn2.frame.status === expectations.aiTurn2 ? "PASS" : "FAIL", session: { status: aiTurn2.session.status, code: aiTurn2.session.code }, frame: { status: aiTurn2.frame.status, code: aiTurn2.frame.code } };
 
     const save = await saveAttempt({ apiOrigin, fetchImpl, world, key });
     steps.saveRefused = { status: save.upload.status === expectations.saveUpload && save.commit.status === expectations.saveCommit ? "PASS" : "FAIL", upload: save.upload, commit: save.commit };
