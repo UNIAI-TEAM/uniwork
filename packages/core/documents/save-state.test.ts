@@ -415,6 +415,31 @@ describe("DocumentSaveMachine", () => {
     await vi.advanceTimersByTimeAsync(2_000);
     expect(t.calls[1]?.editLockId).toBeUndefined();
   });
+  // CFE-1-12: a retry under a different lock id is a different payload.
+  it("mints a new idempotency key when the lock id differs from the keyed attempt", async () => {
+    const t = fakeTransport();
+    let lockId: string | undefined = "lock-1";
+    let n = 0;
+    const m = machine(t.impl, { getEditLockId: () => lockId, newIdempotencyKey: () => `k${++n}` });
+    m.edit({ content: { type: "doc" } });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(t.calls[0]?.idempotencyKey).toBe("k1");
+    t.pending[0]?.reject(new ApiError("locked", "document_locked", 423, undefined, { held_by_me: true }));
+    await settle();
+    // The lock id the refused write carried is on the state: the page compares it to the current one.
+    expect(m.getState().sentEditLockId).toBe("lock-1");
+    lockId = "lock-2";
+    m.lockRestored();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(t.calls[1]?.editLockId).toBe("lock-2");
+    expect(t.calls[1]?.idempotencyKey).toBe("k2");
+    // The same lock id on a retry keeps the key.
+    t.pending[1]?.reject(new ApiError("x", "boom", 500));
+    await settle();
+    m.retry();
+    await settle();
+    expect(t.calls[2]?.idempotencyKey).toBe("k2");
+  });
 });
 
 describe("createDocumentPatchTransport", () => {

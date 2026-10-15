@@ -53,6 +53,9 @@ export interface DocumentSaveState {
   errorClass: DocumentErrorClass | "unknown" | null;
   errorCode: string | null;
   errorFields: Record<string, unknown> | undefined;
+  /** The edit lock id the last send carried (UNI-1645): a 423 ends the hold only
+   *  when this is still the editor's current id. */
+  sentEditLockId: string | undefined;
   /** The document of the last acknowledged save. */
   acked: Document | null;
 }
@@ -107,6 +110,8 @@ export class DocumentSaveMachine {
   private inFlight = false;
   private disposed = false;
   private key: string | null = null;
+  /** The lock id the current key was minted under. */
+  private keyLockId: string | undefined;
   private readonly listeners = new Set<() => void>();
   private state: DocumentSaveState;
   private readonly mintKey: () => string;
@@ -121,6 +126,7 @@ export class DocumentSaveMachine {
       errorClass: null,
       errorCode: null,
       errorFields: undefined,
+      sentEditLockId: undefined,
       acked: null,
     };
   }
@@ -292,6 +298,10 @@ export class DocumentSaveMachine {
     const sending = this.draft;
     this.draft = undefined;
     this.inFlight = true;
+    const lockId = this.opts.getEditLockId?.();
+    // The key belongs to one payload, and edit_lock_id is part of it.
+    if (this.key && this.keyLockId !== lockId) this.key = null;
+    if (!this.key) this.keyLockId = lockId;
     this.key ??= this.mintKey();
     const controller = new AbortController();
     this.abort = controller;
@@ -303,6 +313,7 @@ export class DocumentSaveMachine {
       errorClass: null,
       errorCode: null,
       errorFields: undefined,
+      sentEditLockId: lockId,
     });
     try {
       const doc = await this.opts.transport({
@@ -311,7 +322,7 @@ export class DocumentSaveMachine {
         patch: sending,
         idempotencyKey: this.key,
         signal: controller.signal,
-        editLockId: this.opts.getEditLockId?.(),
+        editLockId: lockId,
       });
       // Disposed mid-flight: drop the answer — nothing may schedule or
       // announce from a machine the editor already tore down.
