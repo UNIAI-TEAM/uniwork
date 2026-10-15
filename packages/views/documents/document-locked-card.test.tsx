@@ -156,6 +156,17 @@ describe("DocumentLockedCard variant=member", () => {
     expect(localStorage.getItem(FLAG)).toBeNull();
   });
 
+  it("announces the cooldown politely (role=status), keeping role=alert for failures", async () => {
+    requestMock.mockRejectedValue(
+      new ApiError("cooldown", "access_request_cooldown", 429, undefined, { retry_after_seconds: 61 }),
+    );
+    renderMember();
+    fireEvent.click(sendButton());
+    const text = await screen.findByText(K("cooldown", { minutes: 2 }));
+    expect(text.closest("[role]")).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("reads a 429 without the cooldown code as the rate limiter", async () => {
     requestMock.mockRejectedValue(new ApiError("slow down", "rate_limited", 429));
     renderMember();

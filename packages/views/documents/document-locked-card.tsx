@@ -237,7 +237,10 @@ function MemberLockedCard({
             </div>
           </div>
           {feedback ? (
-            <p role="alert" className={cn("text-body", state === "cooldown" ? "text-muted-foreground" : "text-destructive")}>
+            <p
+              role={state === "cooldown" ? "status" : "alert"}
+              className={cn("text-body", state === "cooldown" ? "text-muted-foreground" : "text-destructive")}
+            >
               {feedback}
             </p>
           ) : null}
