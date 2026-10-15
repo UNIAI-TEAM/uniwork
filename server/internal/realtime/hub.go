@@ -513,6 +513,16 @@ func (h *Hub) releaseUserSocketLocked(userID string) {
 	}
 }
 
+// forgetClientLocked takes c out of the global set and gives back its
+// socket slot; every path that drops a client goes through it. Expects h.mu held.
+func (h *Hub) forgetClientLocked(c *Client) {
+	delete(h.clients, c)
+	// Lobby sockets carry no workspace and never reserved a slot.
+	if c.workspaceID != "" {
+		h.releaseUserSocketLocked(c.userID)
+	}
+}
+
 // removeClient drops a client from all rooms and the global set.
 func (h *Hub) removeClient(client *Client) {
 	h.mu.Lock()
@@ -520,11 +530,7 @@ func (h *Hub) removeClient(client *Client) {
 		h.mu.Unlock()
 		return
 	}
-	delete(h.clients, client)
-	// Lobby sockets carry no workspace and never reserved a slot.
-	if client.workspaceID != "" {
-		h.releaseUserSocketLocked(client.userID)
-	}
+	h.forgetClientLocked(client)
 	subs := client.subscriptions
 	client.subscriptions = nil
 	emptied := make([]scopeKey, 0, len(subs))
@@ -812,7 +818,7 @@ func (h *Hub) evictSlow(slow []*Client) {
 		if !h.clients[c] {
 			continue
 		}
-		delete(h.clients, c)
+		h.forgetClientLocked(c)
 		held := heldScopes{client: c, keys: make([]scopeKey, 0, len(c.subscriptions))}
 		for key := range c.subscriptions {
 			held.keys = append(held.keys, key)

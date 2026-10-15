@@ -174,3 +174,28 @@ func TestSocketsPastThePerUserCapAreRefused(t *testing.T) {
 		t.Fatalf("socket after one closed answered %s, want auth_ack", answer)
 	}
 }
+
+func TestEvictingSlowSocketsGivesTheirSlotsBack(t *testing.T) {
+	hub, server := newTestHub(t)
+	defer server.Close()
+
+	for range maxSocketsPerUser {
+		c := connectWS(t, server)
+		defer c.Close()
+	}
+	waitFor(t, "every socket registered", func() bool { return totalClients(hub) == maxSocketsPerUser })
+
+	hub.mu.Lock()
+	slow := make([]*Client, 0, len(hub.clients))
+	for c := range hub.clients {
+		slow = append(slow, c)
+	}
+	hub.mu.Unlock()
+	hub.evictSlow(slow)
+
+	again, answer := dialAndAuth(t, server, testBearerToken)
+	defer again.Close()
+	if !strings.Contains(answer, "auth_ack") {
+		t.Fatalf("socket after every slot was evicted answered %s, want auth_ack", answer)
+	}
+}
