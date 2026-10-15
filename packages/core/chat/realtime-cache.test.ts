@@ -308,6 +308,51 @@ describe("fetchAndPatchChatMessage unread", () => {
   });
 });
 
+// UNI-1692: an edit, reaction or vote on an older message became the room's preview and sank it.
+describe("fetchAndPatchChatMessage sidebar", () => {
+  const sidebar = (): ChatRoomRecord[] => [
+    {
+      id: "room1", kind: "channel", is_default: false, name: "Dev", workspace_id: "ws1",
+      member_user_ids: [], unread_count: 0, mention_unread_count: 0,
+      last_message_body: "mới", last_message_at: "2026-01-01T12:00:00Z",
+    },
+    {
+      id: "room2", kind: "channel", is_default: false, name: "Ops", workspace_id: "ws1",
+      member_user_ids: [], unread_count: 0, mention_unread_count: 0,
+      last_message_at: "2026-01-01T11:30:00Z",
+    },
+  ];
+
+  it("keeps the sidebar preview and order when an older message is edited or reacted to", async () => {
+    const old = sampleMessage("m-old", "2026-01-01T09:00:00Z");
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(old);
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), sidebar());
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([old]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m-old", false);
+
+    const rooms = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"));
+    expect(rooms?.map((r) => r.id)).toEqual(["room1", "room2"]);
+    expect(rooms?.[0]?.last_message_body).toBe("mới");
+    expect(rooms?.[0]?.last_message_at).toBe("2026-01-01T12:00:00Z");
+  });
+
+  it("updates the preview when the latest message itself is edited", async () => {
+    const latest = { ...sampleMessage("m-new", "2026-01-01T12:00:00Z"), body: "mới (đã sửa)" };
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(latest);
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), sidebar());
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([latest]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m-new", false);
+
+    const rooms = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"));
+    expect(rooms?.map((r) => r.id)).toEqual(["room1", "room2"]);
+    expect(rooms?.[0]?.last_message_body).toBe("mới (đã sửa)");
+  });
+});
+
 describe("fetchAndPatchChatMessage timeline", () => {
   const twoPages = (): RoomTimeline => ({
     pages: [[sampleMessage("m3", "2026-01-01T10:03:00Z")], [sampleMessage("m1", "2026-01-01T10:01:00Z")]],

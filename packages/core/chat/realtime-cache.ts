@@ -326,6 +326,11 @@ export async function fetchAndPatchChatMessage(
   const isOwn = viewerId != null && message.sender_id === viewerId;
   qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) => {
     const room = old?.find((entry) => entry.id === roomId);
+    // An edit, reaction or vote on an older message is not the room's latest.
+    const isLatest =
+      room?.last_message_at != null &&
+      Date.parse(message.created_at) >= Date.parse(room.last_message_at);
+    if (!created && !isLatest) return old;
     return patchRoomSidebarFromMessage(old, roomId, message, {
       incrementUnread: created && !isOwn && !viewing && shouldIncrementUnreadLocally(room),
     });
