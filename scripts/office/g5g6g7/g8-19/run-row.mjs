@@ -54,7 +54,12 @@ export function decideFromSteps(steps = {}) {
   const cascaded = (s) => s?.status === "NOT_JUDGED" && Boolean(s.cascadeFrom && steps[s.cascadeFrom]) && failing(steps[s.cascadeFrom]);
   const failed = entries.filter(([, s]) => failing(s) || (s?.status === "NOT_JUDGED" && !cascaded(s)));
   if (failed.length > 0) {
-    return { status: "FAIL", reason: failed.map(([name, s]) => `${name}: ${s?.reason || s?.status || "no status"}`).join("; ") };
+    const owners = [...new Set(failed.map(([, s]) => s?.owner || ""))].filter(Boolean);
+    return {
+      status: "FAIL",
+      reason: failed.map(([name, s]) => `${name}: ${s?.reason || s?.status || "no status"}`).join("; "),
+      ...(owners.length > 0 ? { owner: owners.join(", ") } : {}),
+    };
   }
   const blocked = entries.filter(([, s]) => s.status === "BLOCKED");
   if (blocked.length > 0) {
@@ -91,7 +96,9 @@ export function parseRowArgs(argv, env = process.env) {
   return out;
 }
 
-const safe = (text) => redactSignInError(redact(String(text ?? "")));
+// a row or step reason is a product finding with its cites and owner: redacted, but kept whole up to this cap (G819-BE-8a)
+const REASON_MAX_CHARS = 4000;
+const safe = (text) => redactSignInError(redact(String(text ?? "")), { maxChars: REASON_MAX_CHARS });
 
 function writeArtifact(path, record) {
   mkdirSync(dirname(path), { recursive: true });

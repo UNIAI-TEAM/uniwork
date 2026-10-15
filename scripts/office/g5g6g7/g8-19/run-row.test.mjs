@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 
 import { createFakeWorld } from "./fake-world.mjs";
+import { redactSignInError } from "../harness/app-steps.mjs";
 import { decideFromSteps, runRowModule, rowArtifactPath } from "./run-row.mjs";
 
 let runDir;
@@ -190,4 +191,37 @@ test("decideFromSteps: a NOT_JUDGED check that cascades from a failing check add
   assert.equal(decideFromSteps({ "check:b": { ...cascade, cascadeFrom: "check:zz" } }).status, "FAIL");
   // a NOT_JUDGED beside a BLOCKED (no FAIL) is still a FAIL, never BLOCKED or PASS
   assert.equal(decideFromSteps({ "check:a": { status: "BLOCKED", blocker: "x" }, "check:b": { ...cascade, cascadeFrom: "check:a" } }).status, "FAIL");
+});
+
+test("G819-BE-8a: a FAIL row keeps the whole product reason (redacted, not clipped at 240) and carries the failing step's owner", async () => {
+  const long = `desktop did not re-anchor this comment on Save: ${"the editor lists once and never reloads with the panel closed; ".repeat(12)}Bearer abc.def.ghi`;
+  assert.ok(long.length > 700);
+  const exit = await runRowModule(opts({ row: "G8-A02" }), async (ctx) => {
+    await ctx.step("check:closed-panel-save", async () => ({ status: "FAIL", reason: long, owner: "g8-fork_editors / Lead F" }));
+    await ctx.step("check:other", async () => ({ status: "FAIL", reason: "second", owner: "g8-fork_editors / Lead F" }));
+    return {};
+  });
+  assert.equal(exit, 1);
+  const a = artifact("G8-A02");
+  assert.ok(a.reason.length > 700, `row reason is ${a.reason.length} chars`);
+  assert.ok(a.reason.includes("never reloads with the panel closed; Bearer <redacted>"), "tail of the long reason survives, credential redacted");
+  assert.ok(!/abc\.def\.ghi/.test(a.reason));
+  assert.ok(a.steps["check:closed-panel-save"].reason.length > 700, "the step keeps it too");
+  assert.equal(a.owner, "g8-fork_editors / Lead F", "one owner, once");
+});
+
+test("G819-BE-8a: decideFromSteps names the owners of the failing steps and leaves the key out when none names one", () => {
+  const failed = decideFromSteps({ a: { status: "FAIL", reason: "x", owner: "lead-f" }, b: { status: "FAIL", reason: "y", owner: "lead-d" }, c: { status: "FAIL", reason: "z" } });
+  assert.equal(failed.status, "FAIL");
+  assert.equal(failed.owner, "lead-f, lead-d");
+  assert.equal(Object.hasOwn(decideFromSteps({ a: { status: "FAIL", reason: "x" } }), "owner"), false);
+});
+
+test("G819-BE-8a: redactSignInError keeps its 240 default and takes a larger cap, redacting either way", () => {
+  const text = `${"w ".repeat(200)}${"A".repeat(40)}`;
+  assert.ok(redactSignInError(text).endsWith("..."));
+  assert.equal(redactSignInError(text).length, 243);
+  const wide = redactSignInError(text, { maxChars: 4000 });
+  assert.ok(!wide.endsWith("..."));
+  assert.ok(wide.endsWith("<redacted>"));
 });

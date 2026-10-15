@@ -318,21 +318,21 @@ export function readAppProcessRecord(runDir) {
  *     keeps the key and loses the value;
  *   * a bare `Bearer`/`Basic` credential is replaced;
  *   * a long opaque run (32+ characters of token alphabet) is replaced;
- *   * the whole message is truncated.
+ *   * the whole message is truncated to `maxChars` (default 240; a row reason passes a larger cap).
  */
 export const SIGN_IN_ERROR_MAX_CHARS = 240;
 const SIGN_IN_ERROR_KEY_VALUE =
   /(?<=\b(?:access_token|refresh_token|id_token|token|secret|password|passwd|credential|credentials|authorization|api_?key|csrf_?token|csrf|ticket|attempt_id|code|state)\s*[:=]\s*)[^\s,;&"']+/gi;
 const SIGN_IN_ERROR_OPAQUE = /[A-Za-z0-9_-]{32,}/g;
 
-export function redactSignInError(raw) {
+export function redactSignInError(raw, { maxChars = SIGN_IN_ERROR_MAX_CHARS } = {}) {
   let text = String(raw ?? "").replace(/\s+/g, " ").trim();
   if (!text) return "";
   text = text.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, "<url>");
   text = text.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, (match, scheme) => `${scheme} <redacted>`);
   text = text.replace(SIGN_IN_ERROR_KEY_VALUE, "<redacted>");
   text = text.replace(SIGN_IN_ERROR_OPAQUE, "<redacted>");
-  return text.length > SIGN_IN_ERROR_MAX_CHARS ? `${text.slice(0, SIGN_IN_ERROR_MAX_CHARS)}...` : text;
+  return text.length > maxChars ? `${text.slice(0, maxChars)}...` : text;
 }
 
 export const DEFAULT_APP_STEP_TIMEOUT_MS = 90_000;

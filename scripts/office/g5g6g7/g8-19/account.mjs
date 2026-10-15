@@ -23,7 +23,7 @@ import { rowMain } from "./run-row.mjs";
 
 const DEACTIVATED = "member_deactivated";
 const BLOCK_OWNER = "g7-qa";
-// run-row.mjs clips an artifact reason at 240 characters (redactSignInError); a reason is built to fit, never to be cut
+// A09 keeps its compact reason (whole items inside this budget) so the console line stays one screen; run-row.mjs no longer clips a row reason at 240 (G819-BE-8a)
 const REASON_BUDGET = 236;
 const PRODUCT_OWNER = "lead-f (fork uniwork-auth, G8-16); D only if the contract is to change";
 
