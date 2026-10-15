@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+78f30dde5ef9cbb99f6a17b2736d100d95ccf766
+78f30dde5 chore: merge the G5-G7 root (e6cd81726) into UNI-1642
+8e27b4076 test(documents): drive the access filter through DocumentsPageView and cover the xl layout
+a81a84169 fix(documents): show library access columns from xl, caption the access chips, generic empty line
+e6cd81726 chore: merge G6-05m model chip D part (UNI-1632) into the G5-G7 root
