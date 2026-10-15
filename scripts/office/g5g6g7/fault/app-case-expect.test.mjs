@@ -14,7 +14,10 @@ import { loadFaultCases } from "./server-cases-lib.mjs";
 
 const here = (name) => fileURLToPath(new URL(name, import.meta.url));
 const DRIVER_SOURCE = ["app-case-drivers.mjs", "app-case-drivers-blocked.mjs"].map((f) => readFileSync(here(f), "utf8")).join("\n");
-const rows = selectAppCases(loadFaultCases()).runnable;
+const selected = selectAppCases(loadFaultCases());
+const rows = selected.runnable;
+// every app row, ready or pending: a pending row's expectation must be readable the day it becomes runnable (review r2 R2-2)
+const everyAppRow = [...selected.runnable, ...selected.blocked.map((b) => b.row)];
 // the runs app-cases.mjs makes: one per exit, plus FQ-43's real-condition extras
 const runsOf = (row) => [...expandExits(row), ...(EXTRA_EXITS[row.id] ?? []).map((exit, i) => ({ index: (row.exits?.length ?? 0) + i + 1, label: exit.exit, exit }))];
 
@@ -27,6 +30,33 @@ test("every ready app row's expect is sound and resolves a version delta for eve
       assert.ok(Number.isInteger(delta) && delta >= 0, `${row.id} / ${run.label}: versionDelta ${delta}`);
     }
   }
+});
+
+test("every app row, ready and pending, resolves an integer versionDelta for every run and exit", () => {
+  assert.ok(everyAppRow.length > rows.length, "the pending rows are included");
+  const ids = new Set(everyAppRow.map((r) => r.id));
+  for (const id of ["FQ-26", "FQ-27"]) assert.ok(ids.has(id), `${id} is an app row`);
+  for (const row of everyAppRow) {
+    assert.deepEqual(validateExpect(row), [], row.id);
+    for (const run of runsOf(row)) {
+      const delta = caseExpect(row, run.exit).versionDelta();
+      assert.ok(Number.isInteger(delta) && delta >= 0, `${row.id} / ${run.label}: versionDelta ${JSON.stringify(delta)}`);
+    }
+  }
+  // the numbers FQ-26 / FQ-27 published per run are the ones their exits resolve
+  const delta = (id, label) => {
+    const row = everyAppRow.find((r) => r.id === id);
+    return caseExpect(row, row.exits.find((e) => e.exit === label)).versionDelta();
+  };
+  assert.deepEqual(["Ghi đè", "Tải lại", "Lưu thành bản sao"].map((l) => delta("FQ-26", l)), [1, 0, 0]);
+  assert.deepEqual(["lần 1: Lưu sau AI", "lần 2: thiết bị B commit trước khi Lưu"].map((l) => delta("FQ-27", l)), [1, 0]);
+});
+
+test("a {run: count} map is not a versionDelta", () => {
+  const row = structuredClone(everyAppRow.find((r) => r.id === "FQ-26"));
+  row.expect.server.versionDelta = { overwrite: 1, reload: 0 };
+  assert.match(validateExpect(row).join(" "), /versionDelta is not a count/);
+  assert.throws(() => caseExpect(row, null).versionDelta(), /not a count/);
 });
 
 test("deltaAssertion expects the run's expect.server.versionDelta and fails when the measured delta differs", async () => {

@@ -1323,17 +1323,32 @@
           "step": "S5 từng lựa chọn, mỗi lựa chọn một lần chạy"
         }
       ],
+      "exits": [
+        {
+          "exit": "Ghi đè",
+          "assert": "conflict → cancelled(superseded) + intent mới committed; version của B còn, thêm +1",
+          "expect": {
+            "server": {
+              "versionDelta": 1
+            }
+          }
+        },
+        {
+          "exit": "Tải lại",
+          "assert": "conflict → cancelled(superseded), editor nạp head; version không đổi"
+        },
+        {
+          "exit": "Lưu thành bản sao",
+          "assert": "0 version mới trên tài liệu gốc; tài liệu mới giữ owner/ACL/provenance (G5-12)"
+        }
+      ],
       "expect": {
         "server": {
-          "versionDelta": {
-            "overwrite": 1,
-            "reload": 0,
-            "save_copy": 0
-          }
+          "versionDelta": 0
         },
         "notes": {
           "server": [
-            "versionDelta: Ghi đè +1 (key mới, base mới, version của B còn); Tải lại 0; Lưu thành bản sao: 0 trên tài liệu gốc, tài liệu mới giữ owner/ACL/provenance (G5-12)",
+            "versionDelta: 0 (Tải lại; Lưu thành bản sao: 0 trên tài liệu gốc, tài liệu mới giữ owner/ACL/provenance (G5-12)); lối ra Ghi đè: +1 (key mới, base mới, version của B còn)",
             "statuses: Ghi đè gặp 409 lần nữa → vẫn conflict với head mới"
           ],
           "client": [
@@ -1373,16 +1388,28 @@
           "step": "lượt UniWork AI (provider fake) sửa tài liệu → Lưu; chạy lần hai với thiết bị B commit trước khi Lưu"
         }
       ],
+      "exits": [
+        {
+          "exit": "lần 1: Lưu sau AI",
+          "assert": "commit 200 với đúng base_revision, không 409",
+          "expect": {
+            "server": {
+              "versionDelta": 1
+            }
+          }
+        },
+        {
+          "exit": "lần 2: thiết bị B commit trước khi Lưu",
+          "assert": "commit 409; nội dung AI còn trong editor/nháp; 0 version từ app"
+        }
+      ],
       "expect": {
         "server": {
-          "versionDelta": {
-            "first_save": 1,
-            "second_save": 0
-          }
+          "versionDelta": 0
         },
         "notes": {
           "server": [
-            "versionDelta: lần 1: +1, không 409; lần 2: 0 từ app, 409",
+            "versionDelta: 0 (lần 2: 0 từ app, 409); lối ra lần 1: +1, không 409",
             "statuses: lần 1 commit 200; lần 2 commit 409"
           ],
           "client": [

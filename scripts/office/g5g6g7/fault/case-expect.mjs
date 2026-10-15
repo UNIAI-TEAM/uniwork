@@ -5,7 +5,7 @@
 // A key a driver does not read is a `cases.test.mjs` / `server-cases.test.mjs`
 // failure; a key a driver needs and the row lacks throws when the driver asks.
 //
-//   expect.server      versionDelta (int; pending rows may name one int per run),
+//   expect.server      versionDelta (int; a run with another number carries it in its exit's own expect),
 //                      versionDeltaAfterAi, lookup {status, outcome?, errorCode?},
 //                      statuses {step: int | "dropped" | "reset" | int[]},
 //                      errorCodes {step: code}
@@ -47,9 +47,7 @@ function checkShape(expect, where, problems, { partial }) {
   if (server !== undefined) {
     for (const key of Object.keys(server)) if (!SERVER_KEYS.has(key)) problems.push(`${where}: unknown expect.server key "${key}"`);
     if ("versionDelta" in server) {
-      const delta = server.versionDelta;
-      const perRun = delta && typeof delta === "object" && !Array.isArray(delta) && Object.keys(delta).length > 0 && Object.values(delta).every(isCount);
-      if (!isCount(delta) && !perRun) problems.push(`${where}: expect.server.versionDelta is neither a count nor a {run: count} map`);
+      if (!isCount(server.versionDelta)) problems.push(`${where}: expect.server.versionDelta is not a count`);
     } else if (!partial) problems.push(`${where}: expect.server.versionDelta missing`);
     if ("versionDeltaAfterAi" in server && !isCount(server.versionDeltaAfterAi)) problems.push(`${where}: expect.server.versionDeltaAfterAi is not a count`);
     if (server.lookup !== undefined) {
