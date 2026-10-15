@@ -617,8 +617,10 @@ func mergeText(nodes []pmNode) []pmNode {
 }
 
 // canonicalPage is a page in one spelling: sanitized, marks sorted, text
-// runs merged, attrs holding their default dropped. Two pages that read the
-// same canonicalize to the same bytes.
+// runs merged, attrs holding their default dropped, a doc of no blocks one
+// empty paragraph (what MarkdownToPage gives for no text, and what the editor
+// shows for either). Two pages that read the same canonicalize to the same
+// bytes.
 func canonicalPage(content json.RawMessage) ([]byte, error) {
 	clean, _, err := Sanitize(content)
 	if err != nil {
@@ -627,6 +629,9 @@ func canonicalPage(content json.RawMessage) ([]byte, error) {
 	var doc pmNode
 	if err := json.Unmarshal(clean, &doc); err != nil {
 		return nil, err
+	}
+	if len(doc.Content) == 0 {
+		doc.Content = []pmNode{{Type: "paragraph"}}
 	}
 	canonicalNode(&doc)
 	return json.Marshal(doc)
