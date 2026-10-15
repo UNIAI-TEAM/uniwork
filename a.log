@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18400 13320; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18400/tcp 13320/tcp 2>/dev/null; sleep 1; for p in 18400 13320; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+37f92e986fa24e77889dedb124f2d1b2e354de1a
+37f92e986 test(e2e): FD-A12 refused delete dialog has no Delete button
+1b2c23394 docs: glossary says Tài liệu (gốc) for the documents library root
+59cbc2eb9 fix(documents): hide the delete button when the folder impact read is refused
+8dd72ec0d fix(i18n): translate Documents in the vi folders library copy
