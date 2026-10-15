@@ -198,6 +198,13 @@ describe("documents endpoints", () => {
     expect(out?.version.version).toBe(2);
   });
 
+  it("commitDocumentVersion sends edit_lock_id in the body when the holder names one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ revision: "42" }), version: versionBody() }));
+    await commitDocumentVersion("d1", { upload_id: "f1", base_revision: "41", edit_lock_id: "lock-1" }, { idempotencyKey: "key-9" });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({ upload_id: "f1", base_revision: "41", edit_lock_id: "lock-1" });
+  });
+
   it("listDocumentVersions maps next_cursor and joins pages by key prefix", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ versions: [versionBody()], next_cursor: "abc" }),
