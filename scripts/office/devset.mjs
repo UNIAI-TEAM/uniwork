@@ -654,15 +654,22 @@ function textHasNumber(text, target, tolerance = 0) {
 const SCOPE_MARKER_RE =
   /(?:^|\n|(?<=[.!?])\s+)(?:[*#_>-]+\s*)*(?:phạm\s+vi(?:\s+dữ\s+liệu)?|scope|ghi\s+chú|notes?)(?![\p{L}\p{N}])\s*[*_]*\s*:/iu;
 
+const NEGATED_OR_DISQUALIFIED_RE =
+  /(?:không\s+(?:được\s+)?(?:dùng|sử\s+dụng|thay(?:\s+thế|\s+ô\s+lỗi)?|coi|tính\s+lại|hỗ\s+trợ|phải(?:\s+là)?\s+kết\s+quả)|chưa\s+(?:được\s+)?tính\s+lại|chỉ\s+là\s+(?:giá\s+trị\s+)?cache|(?:cache(?:\s+cũ)?|giá\s+trị\s+cache(?:\s+cũ)?)\s+[^\n.;]*?(?:đã\s+lỗi\s+thời|lỗi\s+thời)|nhưng\s+(?:hàm\s+\S+\s+không\s+được|sau\s+khi\s+tính\s+lại)|trả\s+về\s+#name\?|bỏ\s+qua|loại\s+trừ|must\s+not\s+be\s+used|(?:do|should)\s+not\s+use|not\s+(?:a\s+)?verified|are\s+not\s+verified|is\s+not\s+verified|not\s+recalculated|is\s+stale|are\s+stale|stale\s+cached|is\s+unsupported|returns\s+#name\?|not\s+replaced\s+by\s+0|never\s+replace)/iu;
+
+const CACHE_SUBJECT_RE =
+  /^(?:[-*•]\s*)?(?:[^:]{1,40}:\s*)?(?:(?:the|its)\s+)?(?:(?:giá\s+trị\s+)?cache(?:\s+cũ)?(?:\s+trong\s+tệp)?|(?:stale\s+)?cached\s+values?)(?:\s+(?:của|ở|tại|in|of|for)\s+[a-z]+\d+(?:\s+(?:và|and)\s+\S+\s+(?:của|ở|tại|in|of|for)\s+[a-z]+\d+)?)?\s+(?:là|is|are|=)(?![\p{L}\p{N}])/iu;
+
+const POSITIVE_RESULT_CLAIM_RE =
+  /(?:(?<![\p{L}\p{N}])(?:kết\s+quả|đáp\s+án|đáp\s+số|giá\s+trị|trung\s+bình(?:\s+cộng)?|tích(?:\s+thực\s+tế)?|tổng|result|answer|the\s+answer|average|product|value)(?![\p{L}\p{N}])[^\n:;]*?(?::|là|is|=)|(?<![\p{L}\p{N}])(?:[a-z]+\d+)\s*(?:=|:|\s+là|\s+is|\s+holds|\s+has|\s+equals|\s+bằng)(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])(?:giving|cho\s+kết\s+quả|được\s+thay\s+bằng|set\s+to|coi\s+[^\n)]*?\s+là\s+0)(?![\p{L}\p{N}])|(?:^|[=:])\s*(?:99[.,]?999|88[.,]?888|845|0)(?![\p{L}\p{N}]))/iu;
+
 /**
  * Extracts the result region of an assistant reply for negative-oracle checks
  * (G6-A02 / BE68-6 / BE68-G2-1). Consistent with the instruction pack ("Result
  * first, then its scope" in common rule 5 and sheets "Answer shape"), the result
  * region is selected positively as the text before the first scope/note marker
  * ("Phạm vi:", "Scope:", "Ghi chú:", "Note:"), or the whole text when no scope
- * marker is present. No caveat-word filter is applied inside this region, and
- * matching uses Unicode-aware (`u`) boundaries so Vietnamese labels are never
- * skipped.
+ * marker is present, using Unicode-aware (`u`) boundaries.
  */
 export function extractConclusionPart(answer) {
   const text = String(answer ?? '').trim();
@@ -670,6 +677,29 @@ export function extractConclusionPart(answer) {
   const match = SCOPE_MARKER_RE.exec(text);
   const region = match ? text.slice(0, match.index) : text;
   return region.trim();
+}
+
+/**
+ * Claim-based check for whether a forbidden token (stale cached value or 0
+ * substituted for an error cell) is asserted as a result or cell value inside
+ * the result region, rather than rejected/disqualified as stale cache or named
+ * with the cache itself as the subject (AC G6-A02 / BE68-G2-1).
+ */
+export function isForbiddenTokenClaimed(conclusionText, badToken) {
+  const text = String(conclusionText ?? '').trim();
+  const needle = String(badToken ?? '').trim().toLowerCase();
+  if (!text || !needle) return false;
+  const clauses = text
+    .split(/(?:[\r\n;]+|(?<!\d)[.!?]+(?!\d)\s+)/u)
+    .map((c) => c.replace(/[*_`~]/g, '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  for (const clause of clauses) {
+    if (!clause.toLowerCase().includes(needle)) continue;
+    if (NEGATED_OR_DISQUALIFIED_RE.test(clause)) continue;
+    if (CACHE_SUBJECT_RE.test(clause)) continue;
+    if (POSITIVE_RESULT_CLAIM_RE.test(clause)) return true;
+  }
+  return false;
 }
 
 /**
@@ -761,13 +791,13 @@ export function scoreDevCase(caseDoc, runResult) {
 
   const conclusionText = extractConclusionPart(answer);
   for (const badToken of caseDoc.oracle.mustNotContainTokens ?? []) {
-    const present = conclusionText.toLowerCase().includes(String(badToken).toLowerCase());
+    const present = isForbiddenTokenClaimed(conclusionText, badToken);
     checks.push({
       id: `forbid_token:${badToken}`,
       passed: !present,
       detail: !present
-        ? `conclusion cleanly omitted "${badToken}"`
-        : `forbidden token "${badToken}" present in conclusion ("${conclusionText.slice(0, 120)}")`,
+        ? `conclusion did not claim "${badToken}" as the result`
+        : `forbidden token "${badToken}" claimed as result in conclusion ("${conclusionText.slice(0, 120)}")`,
     });
   }
 

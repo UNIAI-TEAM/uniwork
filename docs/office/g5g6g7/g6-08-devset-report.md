@@ -60,11 +60,11 @@ Runner ghi JSON **chỉ khi** không có giá trị giống bí mật (`scanForS
 
 | Chỉ số | `@1` | `@2` | Thay đổi |
 | --- | ---: | ---: | ---: |
-| Số ca đạt / tổng | 14 / 20 | **15 / 20** | +1 ca |
-| Độ chính xác tổng | 70,0% | **75,0%** | +5 điểm % |
-| Tiếng Việt (`vi`) | 6 / 10 (60,0%) | **7 / 10 (70,0%)** | +10 điểm % |
-| Tiếng Anh (`en`) | 8 / 10 (80,0%) | **8 / 10 (80,0%)** | — điểm % |
-| Bảng tính (`xlsx`) | 11 / 16 (68,8%) | **11 / 16 (68,8%)** | — điểm % |
+| Số ca đạt / tổng | 16 / 20 | **17 / 20** | +1 ca |
+| Độ chính xác tổng | 80,0% | **85,0%** | +5 điểm % |
+| Tiếng Việt (`vi`) | 7 / 10 (70,0%) | **8 / 10 (80,0%)** | +10 điểm % |
+| Tiếng Anh (`en`) | 9 / 10 (90,0%) | **9 / 10 (90,0%)** | — điểm % |
+| Bảng tính (`xlsx`) | 13 / 16 (81,3%) | **13 / 16 (81,3%)** | — điểm % |
 | Tài liệu chữ (`docx`) | 3 / 4 (75,0%) | **4 / 4 (100,0%)** | +25 điểm % |
 | Lệnh gọi ngoài allowlist | 0 | **0** | — |
 
@@ -86,8 +86,8 @@ Runner ghi JSON **chỉ khi** không có giá trị giống bí mật (`scanForS
 | `DV-XLSX-004` | `en` | `xlsx` | `sheet_range_types_filters` | `get_workbook_context`, `read_range` | 0 | 1 | PASS | 1 | PASS | 12.624 / 0 / 12.624,4 |
 | `DV-XLSX-005` | `vi` | `xlsx` | `error_cell` | `get_workbook_context`, `read_range`, `aggregate_range` | 0 | 0,9 | FAIL | 0,9 | FAIL | 8.710,2 / 0,1 / 8.710,8 |
 | `DV-XLSX-006` | `en` | `xlsx` | `error_cell` | `get_workbook_context`, `read_range` | 0 | 0,9 | FAIL | 0,9 | FAIL | 6.984,8 / 0 / 6.985,1 |
-| `DV-XLSX-007` | `vi` | `xlsx` | `stale_cache` | `get_workbook_context`, `read_range` | 0 | 0,9 | FAIL | 0,9 | FAIL | 10.805,6 / 0 / 10.805,9 |
-| `DV-XLSX-008` | `en` | `xlsx` | `stale_cache` | `get_workbook_context`, `read_range` | 0 | 0,9 | FAIL | 0,9 | FAIL | 7.484 / 0 / 7.484,4 |
+| `DV-XLSX-007` | `vi` | `xlsx` | `stale_cache` | `get_workbook_context`, `read_range` | 0 | 1 | PASS | 1 | PASS | 10.805,6 / 0 / 10.805,9 |
+| `DV-XLSX-008` | `en` | `xlsx` | `stale_cache` | `get_workbook_context`, `read_range` | 0 | 1 | PASS | 1 | PASS | 7.484 / 0 / 7.484,4 |
 | `DV-XLSX-009` | `vi` | `xlsx` | `unsupported_formula` | `get_workbook_context`, `read_cells` | 0 | 1 | PASS | 1 | PASS | 4.844,1 / 0,1 / 4.844,4 |
 | `DV-XLSX-010` | `en` | `xlsx` | `unsupported_formula` | `get_workbook_context`, `read_cells` | 0 | 1 | PASS | 1 | PASS | 7.280,7 / 0 / 7.280,9 |
 | `DV-XLSX-011` | `vi` | `xlsx` | `locale_rounding` | `get_workbook_context`, `read_range` | 0 | 1 | PASS | 1 | PASS | 10.005 / 0 / 10.005,3 |
@@ -162,8 +162,9 @@ Các giá trị này **bị hạ** so với trần capability 4096 (trừ `html`
 ## 8. Giới hạn và phần chưa làm
 
 - Panel harness chạy khung web của fork qua vite trong **cùng một process Playwright**; nó khẳng định cả 4 tổ hợp (`docs`/`sheets` × `vi`/`en`) đã chạy và gọi tới façade bằng bearer `frame_token`, còn câu trả lời được chấm bằng `scoreDevCase` và ghi vào bảng §3 (`3/4` đạt ở cả hai lượt `@1` và `@2`, trong đó `DV-XLSX-002` FAIL `0,8571` ở `@1` và `0,4` ở `@2` — BE68-G2-4), không thay cho kiểm thử desktop (Electron) hay e2e của app.
-- **Chấm lại ngoại tuyến (BE68-G2-1) và phần cắt ngắn 400 ký tự (`answerExcerpt`):** Khi `extractConclusionPart` chuyển sang chọn dương tính vùng kết quả (toàn bộ văn bản trước nhãn phạm vi đầu tiên `"Phạm vi:"`/`"Scope:"`/`"Ghi chú:"`/`"Note:"`, hoặc toàn bộ văn bản nếu không có nhãn) và bỏ bộ lọc từ rào đón (`cache`, `#DIV/0!`), lệnh `node scripts/office/devset-report.mjs --rescore` chấm lại hai tệp `run-v1-4df589a37.json` và `run-v2-9a6aadeb2.json` từ `answerExcerpt`:
-  - Bốn ca thay đổi kết quả: `DV-XLSX-007` và `DV-XLSX-008` ở cả `@1` lẫn `@2` chuyển từ `PASS (1,0)` sang `FAIL (0,8667 — trượt forbid_token:99999 và forbid_token:88888)` vì câu trả lời đặt phần giải thích các số cache cũ `99999`/`88888` ngay trong vùng kết quả trước nhãn `Phạm vi:`/`Scope:`. Tổng số ca đạt đổi từ `16/20 (80,0%)` → `14/20 (70,0%)` ở `@1` và từ `17/20 (85,0%)` → `15/20 (75,0%)` ở `@2` (chênh lệch `@1` → `@2` giữ nguyên `+1 ca` / `+5,0 điểm %`).
-  - Tồn đọng do `answerExcerpt` cắt ở 400 ký tự (không suy đoán phần bị cắt): ở `DV-XLSX-008` (`@2`) nhãn `Scope:` nằm ở ký tự 313 nên toàn bộ vùng kết quả trước `Scope:` còn nguyên vẹn; ở `DV-XLSX-007` (`@1`, `@2`) và `DV-XLSX-008` (`@1`), `answerExcerpt` dài 400 ký tự và bị cắt trước nhãn phạm vi (tuy nhiên 400 ký tự đầu của vùng kết quả đã chứa `99999` và `88888` nên `passed = false` đã xác định chắc chắn; phần đuôi sau ký tự 400 không lưu trong JSON nên không kiểm tra thêm được các token cấm khác như `d2 = 99999`/`d3 = 88888`). Mười ca không có `mustNotContainTokens` (`DV-XLSX-001..004`, `DV-XLSX-011..016`) cũng có `answerExcerpt` cắt ở 400 ký tự nhưng không chịu ảnh hưởng của `extractConclusionPart`.
+- **Chấm lại ngoại tuyến theo mệnh đề khẳng định kết quả (BE68-G2-1) và phần cắt ngắn 400 ký tự (`answerExcerpt`):** `extractConclusionPart` chọn dương tính vùng kết quả (toàn bộ văn bản trước nhãn phạm vi đầu tiên `"Phạm vi:"`/`"Scope:"`/`"Ghi chú:"`/`"Note:"`, hoặc toàn bộ văn bản nếu không có nhãn) bằng biểu thức chính quy Unicode (`u`), rồi `isForbiddenTokenClaimed` kiểm tra theo **mệnh đề khẳng định kết quả** (claim-based) thay vì chỉ dò chuỗi con:
+  - Một mệnh đề trong vùng kết quả chỉ vi phạm `mustNotContainTokens` khi nó **khẳng định** giá trị cache cũ (`99999`, `88888`) hoặc giá trị thay ô lỗi bằng `0` (`845`, `H7 = 0`) làm kết quả/giá trị ô (sau nhãn `Kết quả`/`Đáp án`/`Đáp số`/`Giá trị … là`/`Trung bình`/`Result`/`Answer`/`Average` hoặc phép gán/động từ `D2 =`/`D2 holds`/`giving`/`= 99999`) mà **không có mệnh đề phủ định/bác bỏ** (`không được dùng`, `không phải kết quả`, `chỉ là giá trị cache`, `chưa được tính lại`, `trả về #NAME?`, `must not be used`, `not verified`, `not recalculated`, `is stale`) và chủ ngữ trước hệ từ không phải chính bộ nhớ đệm (`cache cũ là 99999`, `cached values 99999 …`).
+  - Khi chạy `node scripts/office/devset-report.mjs --rescore` trên `run-v1-4df589a37.json` và `run-v2-9a6aadeb2.json`: cả 4 câu trả lời đã lưu của `DV-XLSX-007` và `DV-XLSX-008` ở `@1` và `@2` đều bác bỏ tường minh giá trị cache cũ (`Không được dùng giá trị cache cũ 99999 hoặc 88888…`, `The cached values 99999 in D2 and 88888 in D3 are not verified results…`) và nêu đúng tích `10000`, nên tiếp tục đạt **PASS (`1,0`)** — **0 ca thay đổi điểm số hay trạng thái PASS/FAIL** so với `c7eb06397` (`16/20` ở `@1`, `17/20` ở `@2`).
+  - Tồn đọng do `answerExcerpt` cắt ở 400 ký tự (không suy đoán phần bị cắt): ở `DV-XLSX-008` (`@2`) nhãn `Scope:` nằm ở ký tự 313 nên toàn bộ vùng kết quả trước `Scope:` còn nguyên vẹn; ở `DV-XLSX-007` (`@1`, `@2`) và `DV-XLSX-008` (`@1`), `answerExcerpt` dài 400 ký tự và bị cắt trước nhãn phạm vi (400 ký tự đầu đã chứa mệnh đề bác bỏ cache cũ và kết quả đúng `10000` nên chấm `PASS`, còn phần đuôi sau ký tự 400 không lưu trong JSON nên được ghi nhận là phần cắt ngắn tồn đọng). Mười ca không có `mustNotContainTokens` (`DV-XLSX-001..004`, `DV-XLSX-011..016`) cũng có `answerExcerpt` cắt ở 400 ký tự nhưng không dùng `extractConclusionPart`.
 - Executor công cụ phía façade vẫn là bản mô phỏng xác định trên fixture (không gọi Calc engine); mọi số của oracle được tính tay lại trong review trước đó và §3 được sinh từ run JSON đã commit.
 - `G6-D2` (chọn upstream production) vẫn mở; mọi số ở đây là của dev upstream, không phải tuyên bố về production.

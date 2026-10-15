@@ -283,7 +283,7 @@ export function rescoreRuns(rootDir = repoRoot, { write = false } = {}) {
           note: hasNegativeOracle
             ? hasScopeMarkerInExcerpt
               ? 'scope marker present inside 400-char excerpt; result region before Scope is complete and not truncated'
-              : 'answerExcerpt truncated at 400 chars before scope marker; 400-char result-region prefix already triggers forbid_token failure (passed=false), tail after char 400 not stored'
+              : 'answerExcerpt truncated at 400 chars before scope marker; 400-char result-region prefix rejects stale cache and gives 10000 (passed=true), tail after char 400 not stored'
             : 'answerExcerpt truncated at 400 chars (case has no mustNotContainTokens checks)',
         });
       }

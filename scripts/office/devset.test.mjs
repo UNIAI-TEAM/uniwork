@@ -14,6 +14,7 @@ import {
   DEVSET_README_PATH,
   buildDevFixtures,
   extractConclusionPart,
+  isForbiddenTokenClaimed,
   loadDevSet,
   normalizePrompt,
   scanForSecrets,
@@ -381,7 +382,8 @@ describe('G6-08 synthetic dev set & guard', () => {
     );
 
     // BE68-G2-1: the five phrasings from review-be-g6-08-2 (Unicode labels such as "Đáp án"/"Giá trị … là"
-    // and sentences carrying caveat words like "cache" or "#DIV/0!" inside the result region) must all FAIL.
+    // and sentences carrying caveat words like "cache" or "#DIV/0!" inside the result region without
+    // negating/disqualifying the cached or 0-substituted value) must all FAIL.
     const reviewBadCases = [
       [
         c7,
@@ -416,6 +418,58 @@ describe('G6-08 synthetic dev set & guard', () => {
         `expected ${caseSpec.id} to FAIL on "${badAnswer}", got PASS (score=${scored.score})`,
       );
     }
+
+    // LEAD NOTE 01:22Z: stored DV-XLSX-007/008 answers in run-v1 and run-v2 and mentions marked
+    // as cache/stale/not verified/không được dùng inside the result region must PASS.
+    const storedAndDisqualifiedGoodCases = [
+      [
+        c7,
+        'Kết quả: Không được dùng giá trị cache cũ `99999` hoặc `88888` làm kết quả chính thức vì đó là các giá trị đã lưu nhưng **chưa được tính lại**.\n\n- `D2 =LEGACYCACHE(B2,C2)`: cache cũ là `99999`, nhưng hàm `LEGACYCACHE` không được bộ tính hỗ trợ nên công thức trả về `#NAME?`. Tích thực tế `B2*C2 = 2500*4 = 10000`.\n- `D3 =B3*C3`: cache cũ trong tệp là `88888`, nhưng sau khi tính lại công thức cho kết',
+      ],
+      [
+        c8,
+        'The cached values **99999** in D2 and **88888** in D3 are not verified results. D2’s `LEGACYCACHE` function is unsupported, so it was not recalculated and returns `#NAME?`. D3’s formula `=B3*C3` was recalculated, giving **10000**; its old cache is stale. The product **B*C** is **2500 × 4 = 10000** for both rows.\n\nScope: sheet “Kiểm toán,” cells D2:D3 and inputs B2:C3.',
+      ],
+      [
+        c7,
+        'Kết quả tích thực tế B*C là **10.000** cho cả D2 và D3.\n\n- **D2:** `=LEGACYCACHE(B2,C2)` không được bộ tính công thức hỗ trợ; kết quả hiện là `#NAME?` và công thức không được tính lại. Vì vậy, `99999` chỉ là giá trị cache cũ trong tệp, không phải kết quả chính thức.\n- **D3:** `=B3*C3` được tính lại thành `10000`. Giá trị cache cũ `88888` đã lỗi thời, nên không được dùng thay cho kết quả đã tính lạ',
+      ],
+      [
+        c8,
+        'The stale cached values **99999** and **88888** must not be used as verified results because they are stored file caches marked **NOT RECALCULATED**. They may reflect an earlier calculation rather than the current inputs.\n\n- **D2**: `=LEGACYCACHE(B2,C2)` is unsupported and returns `#NAME?`; its cached value **99999** is therefore not verified. The true product **B2*C2 = 10000**.\n- **D3**: `=B3*C3`',
+      ],
+      [
+        c7,
+        'Cache cũ của D2 (LEGACYCACHE) là 99999 (chưa được tính lại, không được dùng); tích thực tế B2*C2 = 10000.',
+      ],
+      [
+        c8,
+        'The cached value in D2 (LEGACYCACHE) is 99999 (stale, not verified); the true product B*C is 10000.',
+      ],
+    ];
+    for (const [caseSpec, goodAnswer] of storedAndDisqualifiedGoodCases) {
+      const scored = scoreDevCase(caseSpec, {
+        answerText: goodAnswer,
+        toolCalls: tools,
+        writes: 0,
+      });
+      assert.equal(
+        scored.passed,
+        true,
+        `expected ${caseSpec.id} to PASS on "${goodAnswer}", got FAIL (${JSON.stringify(scored.checks.filter((c) => !c.passed))})`,
+      );
+    }
+
+    assert.equal(isForbiddenTokenClaimed('Đáp án: 99.999 theo cache cũ của LEGACYCACHE(B2,C2).', '99.999'), true);
+    assert.equal(isForbiddenTokenClaimed('= 99999', '99999'), true);
+    assert.equal(
+      isForbiddenTokenClaimed('Kết quả: Không được dùng giá trị cache cũ 99999 hoặc 88888 làm kết quả chính thức.', '99999'),
+      false,
+    );
+    assert.equal(
+      isForbiddenTokenClaimed('The cached values 99999 in D2 and 88888 in D3 are not verified results.', '99999'),
+      false,
+    );
 
     assert.equal(
       extractConclusionPart('Đáp án: 10.000.\nPhạm vi: D2 lưu cache cũ 99999.'),
