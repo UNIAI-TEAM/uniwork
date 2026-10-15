@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -94,11 +93,6 @@ func (c *ChatTaskSyncConsumer) syncChatToTask(ctx context.Context, payload map[s
 	}
 	if chatRoomIsPrivate(room) {
 		return nil
-	}
-	if _, err := c.q.GetTask(ctx, taskID); errors.Is(err, pgx.ErrNoRows) {
-		return c.dropLinkAndNotify(ctx, link, "Task đã bị xóa — đã ngắt đồng bộ thread.")
-	} else if err != nil {
-		return err
 	}
 	msgID := msg.ID
 	_, err = c.tasks.AddCommentSuite(ctx, Human(msg.SenderID), taskID, AddCommentInput{
@@ -321,38 +315,4 @@ func deleteCommentCopiedFromMessage(ctx context.Context, q *db.Queries, userID, 
 	}
 	v := taskCommentAdapter{}.verbs()
 	return recordCommentAudit(ctx, q, Human(userID), ref, v, v.deleted, c.ID, map[string]any{"via": "chat"})
-}
-
-func (c *ChatTaskSyncConsumer) dropLinkAndNotify(ctx context.Context, link db.ChatThreadTaskLink, body string) error {
-	tx, err := c.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	q := c.q.WithTx(tx)
-	if _, err := q.DeleteChatThreadTaskLinkByThread(ctx, db.DeleteChatThreadTaskLinkByThreadParams{
-		ThreadRootID: link.ThreadRootID, WorkspaceID: link.WorkspaceID,
-	}); err != nil {
-		return err
-	}
-	msg, err := q.CreateMirroredChatThreadReply(ctx, db.CreateMirroredChatThreadReplyParams{
-		ID: util.NewID(), RoomID: link.RoomID, OrganizationID: link.OrganizationID, WorkspaceID: link.WorkspaceID,
-		SenderID: link.CreatedBy, SenderKind: string(audit.KindSystem), Body: body,
-		ReplyToMessageID:      pgtype.Text{String: link.ThreadRootID, Valid: true},
-		ThreadRootID:          pgtype.Text{String: link.ThreadRootID, Valid: true},
-		MirroredFromCommentID: pgtype.Text{},
-	})
-	if err != nil {
-		return err
-	}
-	if _, err := q.BumpChatThreadReplyStats(ctx, db.BumpChatThreadReplyStatsParams{
-		RepliedAt: msg.CreatedAt, ThreadRootID: link.ThreadRootID,
-		RoomID: link.RoomID, WorkspaceID: link.WorkspaceID,
-	}); err != nil {
-		return err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-	return nil
 }

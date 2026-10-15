@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -303,4 +304,67 @@ func TestLinkCommandsNeedSendStandingInRoom(t *testing.T) {
 		var invalid ValidationError
 		return errors.As(err, &invalid)
 	})
+}
+
+// TestDeleteTaskDropsItsChatLinks: deleting a task takes its card off the
+// message and frees the thread it synced with, in the same transaction, so a
+// new task can sync the thread again (UNI-1686).
+func TestDeleteTaskDropsItsChatLinks(t *testing.T) {
+	s, tasks, q, ua, w, pool := chatWithTasks(t)
+	ctx := context.Background()
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{Name: "drop-links", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "other"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	synced, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, root.ID, CreateTaskFromMessageInput{SyncThread: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	carded, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, other.ID, CreateTaskFromMessageInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlinkedBefore := len(topicsLike(t, pool, w.OrganizationID, "chat.thread.unlinked"))
+	linkedBefore := len(topicsLike(t, pool, w.OrganizationID, "chat.message.linked"))
+
+	if err := tasks.Delete(ctx, ua.ID, synced.ID); err != nil {
+		t.Fatal(err)
+	}
+	if links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, ch.ID, []string{root.ID}); err != nil || len(links) != 0 {
+		t.Fatalf("root links after delete: err=%v %+v; want none", err, links)
+	}
+	if _, err := q.GetChatThreadTaskLinkByThread(ctx, root.ID); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("thread link after delete: %v; want ErrNoRows", err)
+	}
+	if got := len(topicsLike(t, pool, w.OrganizationID, "chat.thread.unlinked")) - unlinkedBefore; got != 1 {
+		t.Fatalf("chat.thread.unlinked rows: %d; want 1", got)
+	}
+	if got := len(topicsLike(t, pool, w.OrganizationID, "chat.message.linked")) - linkedBefore; got != 1 {
+		t.Fatalf("chat.message.linked rows: %d; want 1", got)
+	}
+
+	// The batch delete goes through the same path.
+	if _, err := tasks.BatchDeleteTasks(ctx, Human(ua.ID), w.ID, []string{carded.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, ch.ID, []string{other.ID}); err != nil || len(links) != 0 {
+		t.Fatalf("other links after batch delete: err=%v %+v; want none", err, links)
+	}
+
+	next, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "next"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SyncThreadTask(ctx, ua.ID, w.ID, root.ID, SyncThreadTaskInput{TaskID: next.ID}); err != nil {
+		t.Fatalf("sync freed thread to a new task: %v", err)
+	}
 }
