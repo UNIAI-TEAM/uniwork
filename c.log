@@ -1,0 +1,3 @@
+$ cd server && go test -count=1 ./internal/handler/router/ 2>&1 | tail -3; echo "ROUTER_EXIT=${PIPESTATUS[0]}"; cd ..
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	2.041s
+ROUTER_EXIT=0

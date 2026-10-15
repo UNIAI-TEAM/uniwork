@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+72b53366daef28e9778650c8c816f52f1ec9e5c4
+72b53366d chore(office): let knip accept the go toolchain binary used by devset-run
+24af6910d docs(office): correct the commit route description to 409 document_version_conflict
+b96f39ff1 chore: merge G8-18 + DOC-05 permission levels addendum (UNI-1413) into the G5-G7 root
