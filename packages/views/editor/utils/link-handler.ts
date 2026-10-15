@@ -8,6 +8,7 @@
 import { isGlobalPath, isReservedSlug } from "../workspace-slug";
 import { isTaskIdentifier } from "@uniwork/ui/markdown";
 import { navigateWithFallback, type LinkClickIntent } from "@uniwork/views/navigation";
+import type { EditorLinkContext } from "../editor-link-context";
 
 /**
  * Top-level workspace-scoped routes. Used to detect "/{route}/..." paths that
@@ -256,6 +257,30 @@ export type OpenLinkNavigate = (
 ) => void;
 
 /**
+ * Append `from=<kind>:<id>` to an internal document path (`/{org}/{ws}/documents/{id}`
+ * or the slug-less `/documents/{id}`); any other path is returned as is. A `from`
+ * the link already carries wins, and the hash stays last.
+ */
+function withDocumentSource(path: string, source: EditorLinkContext): string {
+  const hashAt = path.indexOf("#");
+  const beforeHash = hashAt === -1 ? path : path.slice(0, hashAt);
+  const hash = hashAt === -1 ? "" : path.slice(hashAt);
+  const queryAt = beforeHash.indexOf("?");
+  const pathname = queryAt === -1 ? beforeHash : beforeHash.slice(0, queryAt);
+  const query = queryAt === -1 ? "" : beforeHash.slice(queryAt + 1);
+
+  const segments = pathname.split("/").filter(Boolean);
+  const isDocument =
+    (segments.length === 2 && segments[0] === "documents") ||
+    (segments.length === 4 && segments[2] === "documents");
+  if (!isDocument) return path;
+  if (new URLSearchParams(query).has("from")) return path;
+
+  const tag = `from=${source.kind}:${encodeURIComponent(source.id)}`;
+  return `${pathname}?${query ? `${query}&` : ""}${tag}${hash}`;
+}
+
+/**
  * Open a link — internal paths call `navigate` when provided; external open a
  * new tab.
  *
@@ -270,6 +295,9 @@ export type OpenLinkNavigate = (
  * `intent` is how the user clicked (see `resolveClickIntent`). External links
  * ignore it: they always hand off to the browser / system browser.
  *
+ * `source` is the host's `EditorLinkContext`: when set, an internal document
+ * link is tagged with it. External links and a missing `source` never are.
+ *
  * Without `navigate`, internal push is a no-op (isolated mounts); tab intents
  * still `window.open` so middle-click / modifier clicks are not silent.
  */
@@ -279,6 +307,7 @@ export function openLink(
   appOrigin?: string | null,
   intent: LinkClickIntent = "push",
   navigate?: OpenLinkNavigate,
+  source?: EditorLinkContext | null,
 ): void {
   const internalPath = href.startsWith("/")
     ? href
@@ -295,6 +324,7 @@ export function openLink(
       // in "/acme/eng/tasks") or something unknown (e.g. "/foo"). Leave it —
       // the user wrote what they meant.
     }
+    if (source) path = withDocumentSource(path, source);
     if (navigate) {
       navigate(path, intent);
       return;
