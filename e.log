@@ -1,0 +1,24 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r14g" OFFICE_FORK_SHA=c321a746 timeout -k 15 420 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FQ-51 --exits 2 --run-dir .harness-run-r14g; rc=$?; echo; echo "APP_CASE_FQ_51_2_EXIT=$rc"; f=.harness-run-r14g/fault/FQ-51/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",JSON.stringify(r.exitRange||""),(r.assertions||[]).map(a=>(a.ok?"ok ":"FAIL ")+a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "),JSON.stringify(r.exits||r.run_execution||"").slice(0,3000))' "$PWD/$f"; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:40331 app_api=http://127.0.0.1:45955 proxy_upstream=http://127.0.0.1:40331
+FQ-51 [1/3] session_expired → queued: SKIPPED - outside --exits 2-2
+FQ-51 [2/3] signed_out → mở khóa: running
+dbus-daemon[20649]: [session uid=1000 pid=20649] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20685 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20649]: [session uid=1000 pid=20649] Successfully activated service 'org.a11y.Bus'
+FQ-51 [3/3] foreign_account ở lại: SKIPPED - outside --exits 2-2
+FQ-51: FAIL partial 2-2 of 3
+  FQ-51 [signed_out → mở khóa] trace 2026-10-15T21:04:43.963Z ∅ -> queued
+  FQ-51 [signed_out → mở khóa] trace 2026-10-15T21:04:43.975Z queued -> paused_offline code=network
+  FQ-51 [signed_out → mở khóa] trace 2026-10-15T21:05:25.149Z queued -> validating
+  FQ-51 [signed_out → mở khóa] trace 2026-10-15T21:05:25.149Z validating -> uploading
+  FQ-51 [signed_out → mở khóa] trace 2026-10-15T21:05:25.149Z uploading -> committing
+  FQ-51 [signed_out → mở khóa] trace 2026-10-15T21:05:25.149Z committing -> committed http=200
+  FQ-51 [signed_out → mở khóa] proxy 2026-10-15T21:04:43.971Z upload POST reset key=63ccd6ed5deb rule=unreachable
+  FQ-51 [signed_out → mở khóa] proxy 2026-10-15T21:05:25.164Z upload POST 201 key=63ccd6ed5deb rule=-
+  FQ-51 [signed_out → mở khóa] proxy 2026-10-15T21:05:25.175Z commit POST 200 key=63ccd6ed5deb rule=-
+FQ-51 (G5-A08): FAIL
+/workspace/.harness-run-r14g/fault
+APP_CASES_EXIT=1
+
+APP_CASE_FQ_51_2_EXIT=1
+FQ-51 FAIL   {"from":2,"to":2,"of":3,"skipped":[1,3]} ok parked_offline: expected "paused_offline" actual "paused_offline" | ok signed_out_before_sign_in: expected "the app is not logged in" actual "signed-out" | FAIL signed_out_row_locked: expected "status signed_out with >= 1 locked item" actual "signed_out/locked=0" | ok no_dispatch_while_signed_out: expected 0 actual 0 | ok committed_after_same_account: expected "committed" actual "committed" | ok one_key_for_commits: expected 1 actual "1 keyTag(s) over 1 request(s)" | ok version_delta: expected 1 actual 1 [{"n":2,"label":"signed_out → mở khóa","result":"FAIL","assertions":[{"name":"parked_offline","expected":"paused_offline","actual":"paused_offline","ok":true},{"name":"signed_out_before_sign_in","expected":"the app is not logged in","actual":"signed-out","ok":true},{"name":"signed_out_row_locked","expected":"status signed_out with >= 1 locked item","actual":"signed_out/locked=0","ok":false},{"name":"no_dispatch_while_signed_out","expected":0,"actual":0,"ok":true},{"name":"committed_after_same_account","expected":"committed","actual":"committed","ok":true},{"name":"one_key_for_commits","expected":1,"actual":"1 keyTag(s) over 1 request(s)","ok":true},{"name":"version_delta","expected":1,"actual":1,"ok":true}],"evidence":{"documentId":"01M50P26DPK3KY88JEZTN5VA3N","trace":[{"ts":"2026-10-15T21:04:43.963Z","intentId":"office-intent-4e6843e6-56c4-4946-869d-89f0176fdb45","from":null,"to":"queued"},{"ts":"2026-10-15T21:04:43.975Z","intentId":"office-intent-4e6843e6-56c4-4946-869d-89f0176fdb45","from":"queued","to":"paused_offline","code":"network"},{"ts":"2026-10-15T21:05:25.149Z","intentId":"office-intent-4e6843e6-56c4-4946-869d-89f0176fdb45","from":"queued","to":"validating"},{"ts":"2026-10-15T21:05:25.149Z","intentId":"office-intent-4e6843e6-56c4-4946-869d-89f0176fdb45","from":"validating","to":"uploading"},{"ts":"2026-10-15T21:05:25.149Z","intentId":"office-intent-4e6843e6-56c4-4946-869d-89f0176fdb45","from":"uploading","to":"committing"},{"ts":"2026-10-15T21:05:25.149Z","intentId":"office-intent-4e6843e6-56c4-4946-869d-89f0176fdb45","from":"committing","to":"committed","httpStatus":200}],"requests":[{"kind":"upload","ts":"2026-10-15T21:04:43.971Z","method":"POST","status":"reset","keyTag":"63ccd6ed5deb","ruleId":"unreachable"},{"kind":"upload","ts":"2026-10-15T21:05:25.164Z","method":"POST","status":201,"keyTag":"63ccd6ed5deb","ruleId":null},{"kind":"commit","ts":"2026-10-15T21:05:25.175Z","method":"POST","status":200,"keyTag":"63ccd6ed5deb","ruleId":null}]}}]

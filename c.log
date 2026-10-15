@@ -1,0 +1,34 @@
+$ mkdir -p .harness-run-r14g && cp .env /tmp/qaf-r14g.env && printf '\nAI_PROVIDER=fake\nAI_CONVERSATION_KEY=YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=\nFF_OFFICE_AI_UNIWORK=true\nFF_OFFICE_AI_UNIWORK_DOCX=true\n' >> /tmp/qaf-r14g.env && HARNESS_RUN_DIR="$PWD/.harness-run-r14g" ENV_FILE=/tmp/qaf-r14g.env OFFICE_FORK_SHA=c321a746 timeout -k 15 1200 bash scripts/office/g5g6g7/harness/start.sh; rc=$?; echo; echo "HARNESS_START_EXIT=$rc"; grep -c . .harness-run-r14g/logs/server.log; grep -E "^(API_ORIGIN|API_PORT|WEB_ORIGIN)=" .harness-run-r14g/ports.env; P=$(grep -E "^API_PORT=" .harness-run-r14g/ports.env | cut -d= -f2); curl -s -o /dev/null -w "curl 127.0.0.1 %{http_code}\n" "http://127.0.0.1:$P/healthz"; true
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /workspace/.harness-run-r14g
+harness: D server  http://localhost:40331 (metrics 127.0.0.1:32879)
+harness: D web     http://localhost:34999
+harness: fork      c321a746
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:40331 ...
+harness: cloning the fork at c321a746...
+harness: npm ci in the fork (--ignore-scripts; no Electron binary yet)...
+harness: fetching the Electron binary (node /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-c321a746/node_modules/electron/install.js)...
+harness: building the fork apps (this is the slow step)...
+harness: starting the fork Electron app under xvfb...
+harness: app on :99 (pid 20251)
+harness: up
+  D server  http://localhost:40331
+  D web     http://localhost:34999
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-c321a746 @ c321a746
+  pids      /workspace/.harness-run-r14g/pids
+  next      OFFICE_FORK_SHA=c321a746 HARNESS_RUN_DIR=/workspace/.harness-run-r14g node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /workspace/.harness-run-r14g
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=c321a746 HARNESS_RUN_DIR=/workspace/.harness-run-r14g \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /workspace/.harness-run-r14g
+
+HARNESS_START_EXIT=0
+10
+API_PORT=40331
+API_ORIGIN=http://localhost:40331
+WEB_ORIGIN=http://localhost:34999
+curl 127.0.0.1 200
