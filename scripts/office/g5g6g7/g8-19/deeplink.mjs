@@ -31,10 +31,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { apiErrorText } from "../harness/api.mjs";
 import { isMainModule } from "../harness/lib.mjs";
 import {
   closeAll,
   combineChecks,
+  commentAnchor,
   connectOrFail,
   createCommentRest,
   formatOf,
@@ -298,13 +300,15 @@ export async function runDeeplink(ctx, deps = {}) {
       await world.share("A", main.documentId, users.B.id, "edit");
       const shared = await world.upload("A", "W1", ctx.fixture, { title: `G8-19 A07 shared ${tag}` });
       const { shareId } = await world.share("A", shared.documentId, users.B.id, "edit");
-      const anchor = format === "xlsx" ? { anchor: B7_ANCHOR, base_version_id: main.versionId } : {};
+      // every root kind=comment is anchored (D service/document_comment_anchors.go:262-263):
+      // xlsx at sheet 2 B7, docx on the first body paragraph (anchors.mjs anchorForFixture)
+      const anchor = commentAnchor(d.repoRoot, ctx.fixture, main.versionId);
       const c1 = await createCommentRest(world, "A", main.documentId, mentionBody(users, tag), anchor);
-      const c2 = await createCommentRest(world, "A", shared.documentId, mentionBody(users, `${tag}-shared`));
+      const c2 = await createCommentRest(world, "A", shared.documentId, mentionBody(users, `${tag}-shared`), commentAnchor(d.repoRoot, ctx.fixture, shared.versionId));
       Object.assign(s, { main, shared, shareId, c1, c2 });
       rec.documentId = main.documentId;
       rec.commentId = c1;
-      return { details: { main: main.documentId, shared: shared.documentId, mainWorkspace: "W2", sharedWorkspace: "W1", anchored: Boolean(anchor.anchor), framePin } };
+      return { details: { main: main.documentId, shared: shared.documentId, mainWorkspace: "W2", sharedWorkspace: "W1", anchored: anchor.anchor.format, framePin } };
     }))) return {};
 
     if (!ok(await ctx.step("observe-notifications", async () => {
@@ -364,9 +368,9 @@ export async function runDeeplink(ctx, deps = {}) {
         rec.exceptions.anchor_lost = { notApplicable: `${format} carries no B7 anchor; the lost-anchor reveal is checked on xlsx` };
         return { details: rec.exceptions.anchor_lost };
       }
-      const c3 = await createCommentRest(world, "A", s.main.documentId, `Neo sẽ mất (G8-19 ${tag})`, { anchor: B7_ANCHOR, base_version_id: s.main.versionId });
+      const c3 = await createCommentRest(world, "A", s.main.documentId, `Neo sẽ mất (G8-19 ${tag})`, commentAnchor(d.repoRoot, ctx.fixture, s.main.versionId));
       const put = await world.session("A").call("putDocumentCommentAnchors", { documentID: s.main.documentId }, { version_id: s.main.versionId, anchors: [{ comment_id: c3, anchor: B7_ANCHOR, state: "lost" }] });
-      if (put.status < 200 || put.status >= 300) throw new Error(`PUT anchors answered ${put.status}`);
+      if (put.status < 200 || put.status >= 300) throw new Error(`PUT anchors answered ${apiErrorText(put)}`);
       const opened = await openOnDesktop(ctrl, world, "B", s.main.documentId, format, c3);
       const thread = await readThread(ctrl, opened.page, c3, d);
       rec.exceptions.anchor_lost = { commentId: c3, desktop: { focusedThreadId: thread?.focusedThreadId ?? null, anchorState: thread?.anchorState ?? null }, put: { status: put.status, skipped: put.body?.skipped ?? null } };
@@ -374,10 +378,10 @@ export async function runDeeplink(ctx, deps = {}) {
     });
 
     await ctx.step("observe-comment-deleted", async () => {
-      const c4 = await createCommentRest(world, "A", s.main.documentId, mentionBody(users, `${tag}-deleted`));
+      const c4 = await createCommentRest(world, "A", s.main.documentId, mentionBody(users, `${tag}-deleted`), commentAnchor(d.repoRoot, ctx.fixture, s.main.versionId));
       await waitForRows(world, "B", s.main.documentId, c4, d);
       const del = await world.session("A").call("deleteDocumentComment", { documentID: s.main.documentId, commentID: c4 });
-      if (del.status < 200 || del.status >= 300) throw new Error(`DELETE comment answered ${del.status}`);
+      if (del.status < 200 || del.status >= 300) throw new Error(`DELETE comment answered ${apiErrorText(del)}`);
       const flagged = await pollUntil(async () => {
         const n = rowsForComment(await notificationsOf(world, "B"), s.main.documentId, c4)[0] ?? null;
         return { done: n?.comment_deleted === true, n };
