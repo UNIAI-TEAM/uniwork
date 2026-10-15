@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { resetRuntimeConfig } from "@uniwork/core/runtime-config";
@@ -152,7 +153,7 @@ describe("ShareDialog member loading errors", () => {
     expect(screen.queryByText(t("documents.share.person_unknown"))).toBeNull();
   });
 
-  it("first page fails: Retry is disabled with a spinner while page 1 reloads, the line stays", async () => {
+  it("first page fails: Retry is aria-disabled (keeps focus) with a spinner while page 1 reloads, the line stays", async () => {
     serve({ page1: 1 });
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
@@ -169,17 +170,26 @@ describe("ShareDialog member loading errors", () => {
       return answer?.(path, ...rest);
     });
 
+    const user = userEvent.setup();
     const retry = within(alert).getByRole("button", { name: t("documents.share.retry") });
-    fireEvent.click(retry);
+    retry.focus();
+    await user.keyboard("{Enter}");
 
     await waitFor(() => expect(retry).toHaveAttribute("aria-busy", "true"));
-    expect(retry).toBeDisabled();
+    // aria-disabled, not native disabled: the button stays in the tab order
+    // and keeps keyboard focus while the retry is in flight.
+    expect(retry).toHaveAttribute("aria-disabled", "true");
+    expect(retry).not.toBeDisabled();
+    expect(document.activeElement).toBe(retry);
     expect(retry.querySelector("svg.animate-spin")).not.toBeNull();
     // The line does not flash away while the retry is in flight.
     expect(screen.getByRole("alert")).toBe(alert);
     const callsBefore = requestMock.mock.calls.length;
-    fireEvent.click(retry);
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+    await user.click(retry);
     expect(requestMock.mock.calls).toHaveLength(callsBefore);
+    expect(document.activeElement).toBe(retry);
 
     release();
     expect(await screen.findByText("Bình")).toBeInTheDocument();

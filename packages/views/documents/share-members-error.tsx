@@ -34,7 +34,7 @@ export function ShareMembersErrorLine({
           type="button"
           variant="outline"
           size="sm"
-          disabled={retrying}
+          aria-disabled={retrying || undefined}
           aria-busy={retrying || undefined}
           onClick={onRetry}
         >
