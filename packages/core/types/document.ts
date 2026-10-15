@@ -349,11 +349,11 @@ const count = z.number().int().nonnegative();
 
 export const DocumentArchiveImpactSchema = z
   .object({
-      folders: count.optional(),
-      documents: count.optional(),
-      total: count.optional(),
-      max_nodes: count,
-      too_large: z.boolean().optional().default(false),
+    folders: count.optional(),
+    documents: count.optional(),
+    total: count.optional(),
+    max_nodes: count,
+    too_large: z.boolean().optional().default(false),
   })
   .transform((raw, ctx): DocumentArchiveImpact => {
     if (raw.too_large) return { too_large: true, max_nodes: raw.max_nodes };
@@ -430,25 +430,25 @@ export type DocumentLink = z.infer<typeof DocumentLinkSchema>;
 /** The access overview: my level always; grants/links/acl-owner/break-glass at manage or admin scope. */
 export const DocumentAccessSchema = z
   .object({
-  my_level: z.string().optional(),
-  admin_scope: z.boolean().optional().catch(undefined),
-  via: z.string().optional().default(""),
-  acl_owner: DocumentPersonAccessSchema.nullable().optional(),
-  shares: z.array(DocumentShareSchema).optional(),
-  links: z.array(DocumentLinkSchema).optional(),
-  break_glass: z
-    .unknown()
-    .optional()
-    .transform((raw): DocumentBreakGlassGrant[] | undefined => {
-      if (raw === undefined || raw === null) return undefined;
-      if (!Array.isArray(raw)) return [];
-      const grants: DocumentBreakGlassGrant[] = [];
-      for (const item of raw) {
-        const parsed = DocumentBreakGlassGrantSchema.safeParse(item);
-        if (parsed.success) grants.push(parsed.data as DocumentBreakGlassGrant);
-      }
-      return grants;
-    }),
+    my_level: z.string().optional(),
+    admin_scope: z.boolean().optional().catch(undefined),
+    via: z.string().optional().default(""),
+    acl_owner: DocumentPersonAccessSchema.nullable().optional(),
+    shares: z.array(DocumentShareSchema).optional(),
+    links: z.array(DocumentLinkSchema).optional(),
+    break_glass: z
+      .unknown()
+      .optional()
+      .transform((raw): DocumentBreakGlassGrant[] | undefined => {
+        if (raw === undefined || raw === null) return undefined;
+        if (!Array.isArray(raw)) return [];
+        const grants: DocumentBreakGlassGrant[] = [];
+        for (const item of raw) {
+          const parsed = DocumentBreakGlassGrantSchema.safeParse(item);
+          if (parsed.success) grants.push(parsed.data as DocumentBreakGlassGrant);
+        }
+        return grants;
+      }),
   })
   // The level is how a real answer is told from a malformed one. It may be
   // empty (an admin-only caller holds no level), but the key must be there
