@@ -82,3 +82,10 @@ test("the README documents the warm-run-dir rule: a previous start's recorded gr
   assert.match(README, /single-instance lock/, "the README explains why a second app on one userData is wrong");
   assert.match(README, /HARNESS_APP_SETTLE_SECONDS/, "the settle knob is in the environment table");
 });
+
+test("the README documents HARNESS_APP_STEP_TIMEOUT_MS (90000) and HARNESS_LOOP_TIMEOUT_MS (600000) for bounded app CDP steps and the per-loop watchdog (r6 H1)", () => {
+  assert.match(README, /HARNESS_APP_STEP_TIMEOUT_MS/, "the per-step CDP timeout knob is in the README");
+  assert.match(README, /90000/, "the default 90000 ms is documented");
+  assert.match(README, /HARNESS_LOOP_TIMEOUT_MS/, "the per-loop watchdog knob is in the README");
+  assert.match(README, /600000/, "the default 600000 ms is documented");
+});

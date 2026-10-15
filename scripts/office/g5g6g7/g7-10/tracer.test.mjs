@@ -68,6 +68,7 @@ import {
   runTracerLoop,
   verifyXlsxContainsExpectedXyz,
 } from "./tracer.mjs";
+import * as tracerMod from "./tracer.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../../../..");
@@ -83,7 +84,12 @@ const REPO_ROOT = resolve(HERE, "../../../..");
  * `HARNESS_ALLOW_REAL_AI_UPSTREAM` is the other half of the same expression.
  */
 const PINNED_AI_PROVIDER = "openai";
-const AI_ENV_KEYS = ["AI_PROVIDER", "HARNESS_ALLOW_REAL_AI_UPSTREAM"];
+const AI_ENV_KEYS = [
+  "AI_PROVIDER",
+  "HARNESS_ALLOW_REAL_AI_UPSTREAM",
+  "HARNESS_APP_STEP_TIMEOUT_MS",
+  "HARNESS_LOOP_TIMEOUT_MS",
+];
 const savedAiEnv = {};
 before(() => {
   for (const key of AI_ENV_KEYS) {
@@ -2630,6 +2636,344 @@ describe("G7-10 ADDENDUM r5 (G710-BE-10..13, G1-G3)", () => {
     }
   });
 });
+
+describe("G7-10 H1 bounded app CDP calls and loop watchdog (r6)", () => {
+  const withCdpPort = (scratch, port = "19222") =>
+    writeFileSync(
+      join(scratch.dir, "ports.env"),
+      `${readFileSync(join(scratch.dir, "ports.env"), "utf8")}APP_CDP_PORT=${port}\n`,
+    );
+  const withAppPid = (scratch, pid) =>
+    writeFileSync(
+      join(scratch.dir, "pids"),
+      `server ${process.pid} 1\nweb ${process.pid} 2\napp ${pid} 0\n`,
+    );
+
+  it("H1(3): exports default timeout constants (90000 / 600000) and formats timeout reason as '<call> did not settle within <n> s'", async () => {
+    assert.equal(tracerMod.DEFAULT_APP_STEP_TIMEOUT_MS, 90_000);
+    assert.equal(tracerMod.DEFAULT_LOOP_TIMEOUT_MS, 600_000);
+    assert.equal(typeof tracerMod.formatAppStepTimeoutReason, "function");
+    assert.equal(
+      tracerMod.formatAppStepTimeoutReason("aiOffice.uniworkSave", 90_000),
+      "aiOffice.uniworkSave did not settle within 90 s",
+    );
+    assert.equal(
+      tracerMod.formatAppStepTimeoutReason("connect", 60),
+      "connect did not settle within 0.06 s",
+    );
+    assert.equal(typeof tracerMod.runBoundedAppStep, "function");
+    await assert.rejects(
+      () =>
+        tracerMod.runBoundedAppStep("aiOffice.accountStatus", () => new Promise(() => {}), {
+          timeoutMs: 40,
+        }),
+      /aiOffice\.accountStatus did not settle within 0\.04 s/,
+    );
+  });
+
+  it(
+    "H1(1): a fake page whose evaluate never resolves FAILs the step within HARNESS_APP_STEP_TIMEOUT_MS, exits 1 (not 77, not hang), and records call name, elapsed ms, binding.json state, and redacted last 40 lines of logs/app.log",
+    { timeout: 1500 },
+    async () => {
+      const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+      withCdpPort(scratch);
+      withAppPid(scratch, process.pid);
+      const mock = createMockDServer({ aiMode: "503-disabled" });
+
+      // Write 50 lines into logs/app.log including a secret token and callback URL on the tail lines
+      const logsDir = join(scratch.dir, "logs");
+      mkdirSync(logsDir, { recursive: true });
+      const logLines = [];
+      for (let i = 1; i <= 50; i += 1) {
+        if (i === 48) {
+          logLines.push(
+            `line-${i} callback uniwork-office-dev://auth/callback?code=01JSECRETAPPLOGCODE&state=st-01JSECRETSTATE`,
+          );
+        } else if (i === 49) {
+          logLines.push(`line-${i} refresh_token=uwm_rt_01JSECRETTOKEN999999999999`);
+        } else {
+          logLines.push(`line-${i} shell save in progress`);
+        }
+      }
+      writeFileSync(join(logsDir, "app.log"), `${logLines.join("\n")}\n`);
+
+      const prevTimeout = process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+      process.env.HARNESS_APP_STEP_TIMEOUT_MS = "60";
+      try {
+        const fakePage = {
+          evaluate: async (fn) => {
+            const src = fn.toString();
+            if (src.includes("typeof window.aiOffice")) return true;
+            if (src.includes("accountStatus")) {
+              return { state: "signed-in", profile: { accountId: scratch.userId } };
+            }
+            if (src.includes("aiOfficeTabs")) return undefined;
+            if (src.includes("uniworkSave")) {
+              // Hang forever like cloud r4 attempt 1 Loop 2
+              return new Promise(() => {});
+            }
+            return null;
+          },
+        };
+
+        const started = Date.now();
+        const res = await runTracerLoop({
+          loop: "2",
+          runDir: scratch.dir,
+          repoRoot: REPO_ROOT,
+          fetchImpl: mock.fetchImpl,
+          cdpConnector: async () => ({
+            contexts: () => [{ pages: () => [fakePage] }],
+            close: async () => {},
+          }),
+          deepLinkDeliverer: (_portsEnv, url) => {
+            if (!String(url).includes("/auth/callback")) {
+              const docId = mock.state.docId;
+              const docDir = join(scratch.userData, "uniwork-documents", "default", scratch.userId, docId);
+              mkdirSync(docDir, { recursive: true });
+              writeFileSync(join(docDir, "report.docx"), Buffer.from("v1-docx-bytes"));
+              writeFileSync(
+                join(docDir, "binding.json"),
+                JSON.stringify({
+                  schema: 2,
+                  documentId: docId,
+                  accountId: scratch.userId,
+                  deploymentId: "default",
+                  filename: "report.docx",
+                  baseVersion: 1,
+                  baseRevision: "1",
+                  state: "ready",
+                }),
+              );
+            }
+            return { status: 0, error: null };
+          },
+        });
+        const wallMs = Date.now() - started;
+
+        assert.ok(wallMs < 5_000, `bounded step must not hang (took ${wallMs} ms)`);
+        assert.equal(res.exitCode, 1, "a hung app evaluate must exit 1 (FAIL), never 77 (BLOCKED)");
+        assert.notEqual(res.exitCode, BLOCKED_EXIT);
+        assert.equal(res.status, "FAIL");
+        assert.equal(res.reason, "aiOffice.uniworkSave did not settle within 0.06 s");
+        assert.equal(res.steps.saveV2.status, "FAIL");
+        assert.equal(res.steps.saveV2.reason, "aiOffice.uniworkSave did not settle within 0.06 s");
+
+        // Loop JSON records call name, elapsed ms, binding.json state, and redacted last 40 lines of logs/app.log
+        const stepTimeout = res.details?.appStepTimeout ?? res.steps?.saveV2;
+        assert.ok(stepTimeout, "loop JSON must record timeout diagnostics");
+        assert.equal(stepTimeout.call, "aiOffice.uniworkSave");
+        assert.equal(typeof stepTimeout.elapsedMs, "number");
+        assert.ok(stepTimeout.elapsedMs >= 50, `expected elapsedMs >= 50, got ${stepTimeout.elapsedMs}`);
+        assert.equal(stepTimeout.bindingState, "ready");
+        assert.equal(stepTimeout.binding?.baseVersion, 1);
+        assert.ok(Array.isArray(stepTimeout.appLogTail), "appLogTail must be an array of lines");
+        assert.equal(stepTimeout.appLogTail.length, 40, "appLogTail must contain the last 40 lines of logs/app.log");
+        assert.match(stepTimeout.appLogTail[0], /^line-11 /);
+        assert.match(stepTimeout.appLogTail[39], /^line-50 /);
+
+        const serialized = JSON.stringify(res);
+        assert.ok(!serialized.includes("01JSECRETAPPLOGCODE"), "authorization code in app.log must be redacted");
+        assert.ok(!serialized.includes("01JSECRETSTATE"), "state param in app.log must be redacted");
+        assert.ok(!serialized.includes("uwm_rt_01JSECRETTOKEN"), "refresh token in app.log must be redacted");
+        assert.match(stepTimeout.appLogTail[37], /<url>/);
+        assert.match(stepTimeout.appLogTail[38], /refresh_token=<redacted>/);
+      } finally {
+        if (prevTimeout === undefined) delete process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+        else process.env.HARNESS_APP_STEP_TIMEOUT_MS = prevTimeout;
+        scratch.cleanup();
+      }
+    },
+  );
+
+  it(
+    "H1(1b): a hung evaluate during connectAppController shell probe or accountStatus also FAILs within HARNESS_APP_STEP_TIMEOUT_MS (never swallowed as 'no shell renderer window' or BLOCKED)",
+    { timeout: 1500 },
+    async () => {
+      const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+      withCdpPort(scratch);
+      withAppPid(scratch, process.pid);
+      const mock = createMockDServer({ aiMode: "503-disabled" });
+      const prevTimeout = process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+      process.env.HARNESS_APP_STEP_TIMEOUT_MS = "50";
+      try {
+        const res = await runTracerLoop({
+          loop: "2",
+          runDir: scratch.dir,
+          repoRoot: REPO_ROOT,
+          fetchImpl: mock.fetchImpl,
+          cdpConnector: async () => ({
+            contexts: () => [
+              {
+                pages: () => [
+                  {
+                    evaluate: () => new Promise(() => {}),
+                  },
+                ],
+              },
+            ],
+            close: async () => {},
+          }),
+        });
+        assert.equal(res.exitCode, 1);
+        assert.equal(res.status, "FAIL");
+        assert.equal(res.reason, "window.aiOffice did not settle within 0.05 s");
+        assert.equal(res.steps.appOpenV1.status, "FAIL");
+        assert.equal(res.steps.appOpenV1.reason, "window.aiOffice did not settle within 0.05 s");
+      } finally {
+        if (prevTimeout === undefined) delete process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+        else process.env.HARNESS_APP_STEP_TIMEOUT_MS = prevTimeout;
+        scratch.cleanup();
+      }
+    },
+  );
+
+  it(
+    "H1(2): per-loop watchdog (HARNESS_LOOP_TIMEOUT_MS) writes loop JSON with status FAIL and reason 'loop watchdog', exits 1, and never exits 77",
+    { timeout: 1500 },
+    async () => {
+      const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+      const mock = createMockDServer({ aiMode: "503-disabled" });
+      const prevLoopTimeout = process.env.HARNESS_LOOP_TIMEOUT_MS;
+      process.env.HARNESS_LOOP_TIMEOUT_MS = "70";
+      try {
+        const res = await runTracerLoop({
+          loop: "2",
+          runDir: scratch.dir,
+          repoRoot: REPO_ROOT,
+          fetchImpl: mock.fetchImpl,
+          appDriver: {
+            signedIn: true,
+            driven: true,
+            openDocumentV1: () => new Promise(() => {}),
+          },
+        });
+        assert.equal(res.exitCode, 1, "watchdog must exit 1, never 77");
+        assert.notEqual(res.exitCode, BLOCKED_EXIT);
+        assert.equal(res.status, "FAIL");
+        assert.equal(res.reason, "loop watchdog");
+
+        const artifactPath = join(scratch.dir, "tracer-loop-2.json");
+        const written = JSON.parse(readFileSync(artifactPath, "utf8"));
+        assert.equal(written.status, "FAIL");
+        assert.equal(written.reason, "loop watchdog");
+        assert.equal(written.exitCode, 1);
+      } finally {
+        if (prevLoopTimeout === undefined) delete process.env.HARNESS_LOOP_TIMEOUT_MS;
+        else process.env.HARNESS_LOOP_TIMEOUT_MS = prevLoopTimeout;
+        scratch.cleanup();
+      }
+    },
+  );
+
+  it("H1(4): a normal fast evaluate on fakePage still PASSes", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+    withCdpPort(scratch);
+    withAppPid(scratch, process.pid);
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.fetchImpl.allowRealAiUpstream = true;
+    const prevTimeout = process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+    process.env.HARNESS_APP_STEP_TIMEOUT_MS = "2000";
+    try {
+      let wcFilePath = "";
+      let docDir = "";
+      const fakePage = {
+        evaluate: async (fn) => {
+          const src = fn.toString();
+          if (src.includes("typeof window.aiOffice")) return true;
+          if (src.includes("accountStatus")) {
+            return { state: "signed-in", profile: { accountId: scratch.userId } };
+          }
+          if (src.includes("aiOfficeTabs")) return undefined;
+          if (src.includes("uniworkSave")) {
+            const docId = mock.state.docId;
+            const v1Revision = mock.state.versions[0].revision;
+            const v2Bytes = readFileSync(wcFilePath);
+            const uploadForm = new FormData();
+            uploadForm.append("file", new Blob([v2Bytes]), "report.docx");
+            const upRes = await mock.fetchImpl(
+              `http://127.0.0.1:18080/api/v1/documents/${docId}/uploads`,
+              { method: "POST", headers: { Authorization: "Bearer tok-session-01" }, body: uploadForm },
+            );
+            const upData = await upRes.json();
+            await mock.fetchImpl(
+              `http://127.0.0.1:18080/api/v1/documents/${docId}/versions/commit`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer tok-session-01",
+                  "Content-Type": "application/json",
+                  "Idempotency-Key": `fast-eval-${docId}`,
+                },
+                body: JSON.stringify({ upload_id: upData.upload_id, base_revision: v1Revision }),
+              },
+            );
+            writeFileSync(
+              join(docDir, "binding.json"),
+              JSON.stringify({
+                schema: 2,
+                documentId: docId,
+                accountId: scratch.userId,
+                deploymentId: "default",
+                filename: "report.docx",
+                baseVersion: 2,
+                baseRevision: "2",
+                baseChecksum: sha256Hex(v2Bytes),
+                state: "saved",
+              }),
+            );
+            return { ok: true };
+          }
+          return null;
+        },
+      };
+
+      const res = await runTracerLoop({
+        loop: "2",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        cdpConnector: async () => ({
+          contexts: () => [{ pages: () => [fakePage] }],
+          close: async () => {},
+        }),
+        deepLinkDeliverer: (_portsEnv, url) => {
+          if (!String(url).includes("/auth/callback")) {
+            const docId = mock.state.docId;
+            docDir = join(scratch.userData, "uniwork-documents", "default", scratch.userId, docId);
+            mkdirSync(docDir, { recursive: true });
+            wcFilePath = join(docDir, "report.docx");
+            writeFileSync(wcFilePath, Buffer.from("v1-docx-bytes"));
+            writeFileSync(
+              join(docDir, "binding.json"),
+              JSON.stringify({
+                schema: 2,
+                documentId: docId,
+                accountId: scratch.userId,
+                deploymentId: "default",
+                filename: "report.docx",
+                baseVersion: 1,
+                baseRevision: "1",
+                state: "ready",
+              }),
+            );
+          }
+          return { status: 0, error: null };
+        },
+      });
+
+      assert.equal(res.exitCode, 0, `fast evaluate must PASS: ${res.reason}`);
+      assert.equal(res.status, "PASS");
+      assert.equal(res.steps.appOpenV1.status, "PASS");
+      assert.equal(res.steps.saveV2.status, "PASS");
+    } finally {
+      if (prevTimeout === undefined) delete process.env.HARNESS_APP_STEP_TIMEOUT_MS;
+      else process.env.HARNESS_APP_STEP_TIMEOUT_MS = prevTimeout;
+      scratch.cleanup();
+    }
+  });
+});
+
 
 
 
