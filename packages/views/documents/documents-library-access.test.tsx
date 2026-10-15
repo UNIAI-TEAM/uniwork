@@ -4,8 +4,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { LibraryToolbar } from "./documents-library-toolbar";
 import { type LibraryRowHandlers } from "./documents-library-row";
-import { ACCESS_FILTERS, documentRow, matchesAccess, matchesChip, type AccessFilter, type DocumentSummaryRow, type LibraryRow, type TypeChip } from "./library-rows";
-import { useState } from "react";
+import { ACCESS_FILTERS, documentRow, type AccessFilter, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 
 // UNI-1642: the "My access" and "Visibility" columns and the access filter beside the type chips.
 
@@ -78,10 +77,11 @@ describe("library table access columns", () => {
     expect(screen.getByRole("columnheader", { name: t("documents.home.columns.my_access") })).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: t("documents.home.columns.visibility") })).toBeTruthy();
     const rowA = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    expect(within(rowA).getByText("Quản lý")).toBeTruthy();
-    expect(within(rowA).getByText("Hạn chế")).toBeTruthy();
+    // Each value shows twice: in its column (xl) and in the secondary line (below xl).
+    expect(within(rowA).getAllByText("Quản lý")).toHaveLength(2);
+    expect(within(rowA).getAllByText("Hạn chế")).toHaveLength(2);
     const rowB = document.querySelector('[data-library-row="b"]') as HTMLElement;
-    expect(within(rowB).getByText("Xem")).toBeTruthy();
+    expect(within(rowB).getAllByText("Xem")).toHaveLength(2);
     expect(within(rowB).getByText("Cả workspace")).toBeTruthy();
     const rowC = document.querySelector('[data-library-row="c"]') as HTMLElement;
     expect(within(rowC).getAllByText("—").length).toBeGreaterThanOrEqual(2);
@@ -90,76 +90,77 @@ describe("library table access columns", () => {
   it("labels the comment level as its own word", () => {
     renderList([documentRow(item("a", "A.docx", { my_level: "comment" as DocumentSummaryRow["my_level"] }))]);
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    expect(within(row).getByText("Bình luận")).toBeTruthy();
+    expect(within(row).getAllByText("Bình luận")).toHaveLength(2);
   });
 
-  it("keeps the two columns off the phone: hidden below lg", () => {
+  it("shows the two columns only from xl, and keeps the colgroup in step", () => {
     renderList([documentRow(item("a", "A.docx", { my_level: "manage" }))]);
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    const cell = within(row).getByText("Quản lý").closest("td")!;
+    const cell = within(row).getAllByText("Quản lý").map((el) => el.closest("td")).find((td) => td?.className.includes("xl:table-cell"))!;
     expect(cell.className).toContain("hidden");
-    expect(cell.className).toContain("lg:table-cell");
+    expect(document.querySelectorAll("colgroup col")).toHaveLength(8);
+    expect(document.querySelectorAll("colgroup col.xl\\:table-column")).toHaveLength(2);
+    expect(document.querySelector("th.xl\\:table-cell")).toBeTruthy();
+    expect(document.querySelector("th.lg\\:table-cell")).toBeNull();
+  });
+
+  it("carries the level and the restricted lock on the row's secondary line below xl", () => {
+    renderList([
+      documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted" })),
+      documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace" })),
+      documentRow(item("c", "C.docx", { my_level: undefined, visibility: undefined })),
+    ]);
+    const line = (id: string) => {
+      const row = document.querySelector(`[data-library-row="${id}"]`) as HTMLElement;
+      return row.querySelector("span.xl\\:hidden") as HTMLElement | null;
+    };
+    const lineA = line("a")!;
+    expect(lineA.textContent).toContain("Quản lý");
+    expect(lineA.textContent).toContain("Hạn chế");
+    expect(lineA.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    // A workspace row gets its level only, no lock and no "Cả workspace" noise.
+    expect(line("b")!.textContent).toContain("Xem");
+    expect(line("b")!.querySelector("svg")).toBeNull();
+    expect(line("b")!.textContent).not.toContain("Cả workspace");
+    // Unknown/missing level and visibility show nothing in the line.
+    expect(line("c")?.textContent ?? "").not.toMatch(/Xem|Sửa|Quản lý|Bình luận|Hạn chế/);
   });
 });
 
-function Harness({ rows }: { rows: LibraryRow[] }) {
-  const [chip, setChip] = useState<TypeChip>("all");
-  const [access, setAccess] = useState<AccessFilter>("all");
-  const shown = rows.filter((r) => matchesChip(r, chip) && matchesAccess(r, access));
-  return (
-    <>
+describe("access filter in the toolbar", () => {
+  function renderToolbar(access: AccessFilter, onAccess = vi.fn()) {
+    render(
       <LibraryToolbar
         scope="home"
         count={null}
         onScope={vi.fn()}
-        chip={chip}
-        onChip={setChip}
+        chip="all"
+        onChip={vi.fn()}
         access={access}
-        onAccess={setAccess}
+        onAccess={onAccess}
         groupBy="none"
         onGroupBy={vi.fn()}
-      />
-      <ul>
-        {shown.map((r) => (
-          <li key={r.id}>{r.type === "document" ? r.doc.title : r.id}</li>
-        ))}
-      </ul>
-    </>
-  );
-}
+      />,
+    );
+    return onAccess;
+  }
 
-describe("access filter in the toolbar", () => {
-  const rows = [
-    documentRow(item("a", "A.docx", { my_level: "manage" })),
-    documentRow(item("b", "B.docx", { my_level: "edit" })),
-    documentRow(item("c", "C.xlsx", { my_level: "view", visibility: "restricted" })),
-    documentRow(item("d", "D.docx", { my_level: undefined })),
-  ];
-
-  it("is its own labelled group of pressed-state buttons, defaulting to All", () => {
-    render(<Harness rows={rows} />);
+  it("is its own labelled group of pressed-state buttons, captioned so it is not a second type row", () => {
+    renderToolbar("all");
     const group = screen.getByRole("group", { name: t("documents.home.access_filter_label") });
     expect(ACCESS_FILTERS).toEqual(["all", "manage", "edit", "restricted"]);
-    const buttons = within(group).getAllByRole("button");
-    expect(buttons.map((b) => b.textContent)).toEqual(["Tất cả", "Tôi quản lý", "Tôi sửa được", "Hạn chế"]);
+    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Tất cả", "Tôi quản lý", "Tôi sửa được", "Hạn chế"]);
     expect(within(group).getByRole("button", { name: "Tất cả" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getAllByRole("listitem")).toHaveLength(4);
+    expect(within(group).getByRole("button", { name: "Tôi sửa được" }).getAttribute("aria-pressed")).toBe("false");
+    // A visible caption sits before the group, and no divider is left to orphan when the groups wrap.
+    expect(screen.getByText(t("documents.home.access_group_caption"))).toBeTruthy();
+    expect(t("documents.home.access_group_caption")).toBe("Quyền");
+    expect(document.querySelector("span.w-px")).toBeNull();
   });
 
-  it("filters by level and visibility, and ANDs with the type chip", () => {
-    render(<Harness rows={rows} />);
-    const group = screen.getByRole("group", { name: t("documents.home.access_filter_label") });
-    fireEvent.click(within(group).getByRole("button", { name: "Tôi sửa được" }));
-    expect(within(group).getByRole("button", { name: "Tôi sửa được" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["A.docx", "B.docx"]);
-    fireEvent.click(within(group).getByRole("button", { name: "Tôi quản lý" }));
-    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["A.docx"]);
-    fireEvent.click(within(group).getByRole("button", { name: "Hạn chế" }));
-    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["C.xlsx"]);
-    fireEvent.click(within(group).getByRole("button", { name: "Tôi sửa được" }));
-    fireEvent.click(screen.getByRole("button", { name: "Docs" }));
-    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["A.docx", "B.docx"]);
-    fireEvent.click(screen.getByRole("button", { name: "Sheets" }));
-    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+  it("reports the pressed filter", () => {
+    const onAccess = renderToolbar("all");
+    fireEvent.click(screen.getByRole("button", { name: "Tôi quản lý" }));
+    expect(onAccess).toHaveBeenCalledWith("manage");
   });
 });

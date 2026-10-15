@@ -96,8 +96,8 @@ describe("phone row layout (finding 1)", () => {
     const group = document.querySelector("[data-library-group]");
     expect(group).toHaveAttribute("colspan", "2");
     expect(group?.nextElementSibling).toHaveAttribute("colspan", "4");
-    // My access + Visibility only exist from lg, so they get their own spanner.
-    expect(group?.nextElementSibling?.nextElementSibling).toHaveClass("hidden", "lg:table-cell");
+    // My access + Visibility only exist from xl, so they get their own spanner.
+    expect(group?.nextElementSibling?.nextElementSibling).toHaveClass("hidden", "xl:table-cell");
     expect(group?.nextElementSibling).toHaveClass("hidden", "md:table-cell");
     // One header and the rows share one column template.
     expect(document.querySelectorAll("colgroup col")).toHaveLength(8);
