@@ -1,0 +1,32 @@
+$ npm exec -w @genoffice/agent-core -- vitest run tests/image-url-registry.test.ts --reporter=verbose; rc=$?; echo; echo "AGENTCORE_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/agent-core
+
+ ✓ tests/image-url-registry.test.ts > image URL registry > refuses a URL nothing registered 1ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > accepts a URL registered from image_search, generate_image or an attachment 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > matches exactly: no prefix, substring, host or case folding 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > refuses a URL differing only by case change in the path unless registered exactly 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > refuses a URL differing only by case change in the scheme unless registered exactly 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > refuses a URL differing only by trailing slash unless registered exactly 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > refuses a URL differing only by fragment unless registered exactly 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > refuses a URL differing only by extra query unless registered exactly 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > refuses a URL differing only by whitespace inside unless registered exactly 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > refuses a URL differing only by newline inside unless registered exactly 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > refuses a URL differing only by percent-encoded variant unless registered exactly 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > refuses a data: URL with a different payload, mime type, case or inner whitespace 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > trims whitespace around the candidate and around the registered URL 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > ignores an empty registration and never allows the empty string 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > keeps a generated data: URL by identity, not by prefix 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > forgets everything at the next run, and re-reads the attachments then 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > also accepts an attachment through its file:// URL 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > does not enforce unless the predicate says so, but still records 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > defaults to not enforcing 0ms
+ ✓ tests/image-url-registry.test.ts > image URL registry > words the refusal for the model without internal codes 0ms
+
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+   Start at  20:20:27
+   Duration  139ms (transform 38ms, setup 0ms, import 47ms, tests 5ms, environment 0ms)
+
+
+AGENTCORE_TARGETED_EXIT=0

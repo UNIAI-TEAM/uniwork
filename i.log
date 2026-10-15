@@ -1,0 +1,96 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/markdown -- vitest run tests/g6-09b-image-url-rule.test.ts tests/g6-09b-image-url-rule-text.test.ts tests/g6-12-url-fetch-guard.test.ts tests/g6-12-md-web-stub-tools.test.ts tests/ai-doc-writer.test.ts --reporter=verbose; rc=$?; echo; echo "MD_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ✓ tests/g6-09b-image-url-rule.test.ts > markdown image URL rule under UniWork AI > insert_image refuses an unregistered URL and fetches nothing 81ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline ![alt](url), under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing 90ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > markdown image URL rule under UniWork AI > insert_image accepts a URL image_search returned this run 20ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > markdown image URL rule under UniWork AI > insert_image accepts the URL generate_image returned this run 11ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > markdown image URL rule under UniWork AI > insert_image refuses a URL from a PREVIOUS run 14ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > markdown image URL rule under UniWork AI > keeps the shape error first for a non-URL 14ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > markdown image URL rule under UniWork AI > begins a new run from the skill context (one buildContext per loop.run) 12ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > markdown image URL rule for BYOK > insert_image keeps today's rules: an unregistered URL is fetched 10ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > markdown image URL rule for BYOK > still records what image_search returned 12ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline ![alt](url), under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing 16ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline ![alt](url), under UniWork AI > write_document refuses an unregistered URL and changes nothing 26ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline ![alt](url), under UniWork AI > accepts the URL image_search returned this run 25ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline ![alt](url), under UniWork AI > keeps today’s rules for BYOK 13ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline with title, under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing 13ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline with title, under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing 9ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline with title, under UniWork AI > write_document refuses an unregistered URL and changes nothing 12ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline with title, under UniWork AI > accepts the URL image_search returned this run 16ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, inline with title, under UniWork AI > keeps today’s rules for BYOK 9ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, reference ![alt][id], under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing 13ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, reference ![alt][id], under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing 8ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, reference ![alt][id], under UniWork AI > write_document refuses an unregistered URL and changes nothing 11ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, reference ![alt][id], under UniWork AI > accepts the URL image_search returned this run 11ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, reference ![alt][id], under UniWork AI > keeps today’s rules for BYOK 8ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img src>, under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing 19ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img src>, under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing 11ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img src>, under UniWork AI > write_document refuses an unregistered URL and changes nothing 22ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img src>, under UniWork AI > accepts the URL image_search returned this run 38ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img src>, under UniWork AI > keeps today’s rules for BYOK 17ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img> in a paragraph, under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing 13ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img> in a paragraph, under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing 16ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img> in a paragraph, under UniWork AI > write_document refuses an unregistered URL and changes nothing 20ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img> in a paragraph, under UniWork AI > accepts the URL image_search returned this run 24ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, raw <img> in a paragraph, under UniWork AI > keeps today’s rules for BYOK 15ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, angle-bracket ![alt](<url>), under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing 7ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, angle-bracket ![alt](<url>), under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing 9ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, angle-bracket ![alt](<url>), under UniWork AI > write_document refuses an unregistered URL and changes nothing 8ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, angle-bracket ![alt](<url>), under UniWork AI > accepts the URL image_search returned this run 9ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, angle-bracket ![alt](<url>), under UniWork AI > keeps today’s rules for BYOK 7ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, newline inside the link, under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing 8ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, newline inside the link, under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing 7ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, newline inside the link, under UniWork AI > write_document refuses an unregistered URL and changes nothing 7ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, newline inside the link, under UniWork AI > accepts the URL image_search returned this run 11ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, newline inside the link, under UniWork AI > keeps today’s rules for BYOK 7ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, HTML-entity scheme (<img>), under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing 10ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, HTML-entity scheme (<img>), under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing 12ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, HTML-entity scheme (<img>), under UniWork AI > write_document refuses an unregistered URL and changes nothing 14ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, HTML-entity scheme (<img>), under UniWork AI > accepts the URL image_search returned this run 23ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, HTML-entity scheme (<img>), under UniWork AI > keeps today’s rules for BYOK 15ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, uppercase <IMG SRC>, under UniWork AI > apply_ops insertContent refuses an unregistered URL and changes nothing 10ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, uppercase <IMG SRC>, under UniWork AI > apply_ops replaceBlocks refuses an unregistered URL and changes nothing 10ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, uppercase <IMG SRC>, under UniWork AI > write_document refuses an unregistered URL and changes nothing 16ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, uppercase <IMG SRC>, under UniWork AI > accepts the URL image_search returned this run 24ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools, uppercase <IMG SRC>, under UniWork AI > keeps today’s rules for BYOK 11ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: other cases > refuses a data: image that was not generated this run, accepts one that was 7ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: other cases > refuses the whole batch when only one op carries an unregistered image 16ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: other cases > refuses an insertImage op with an unregistered remote src, accepts a registered one 9ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: other cases > does not touch local or relative image paths 8ms
+ ✓ tests/ai-doc-writer.test.ts > extractMarkdown > unwraps a whole-reply markdown fence but keeps a leading code block 2ms
+ ✓ tests/ai-doc-writer.test.ts > extractMarkdown > counts blank-line separated blocks 0ms
+ ✓ tests/ai-doc-writer.test.ts > buildDocWriterRequest > carries plan, title and context; the system prompt has the markdown rules and language 0ms
+ ✓ tests/ai-doc-writer.test.ts > DraftLanding > renders the growing markdown in place, keeps unchanged blocks, leaves no trace on finish 780ms
+ ✓ tests/g6-12-url-fetch-guard.test.ts > markdown insert_image hands only http(s) URLs to the guarded bridge > refuses other schemes before any download 75ms
+ ✓ tests/g6-12-url-fetch-guard.test.ts > markdown insert_image hands only http(s) URLs to the guarded bridge > uses the shell-wide ai:fetch-image channel; markdown main registers no unguarded twin 3ms
+ ✓ tests/g6-12-url-fetch-guard.test.ts > markdown main remote images keep the electron-utils guard and cap > refuses private and non-http targets without a request 4ms
+ ✓ tests/g6-12-url-fetch-guard.test.ts > markdown main remote images keep the electron-utils guard and cap > caps the body at 50 MB 2ms
+ ✓ tests/g6-12-url-fetch-guard.test.ts > markdown main remote images keep the electron-utils guard and cap > the markdown main process reads remote images through fetchRemoteImage + readBodyCapped 0ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: other cases > leaves an image already in the document alone on an unrelated edit 12ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: other cases > does not refuse a text edit that only mentions a URL in prose 9ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: other cases > model-facing refusal carries no internal codes 7ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: spellings that are not image references > accepts a fenced block, inline code and an escaped bang that only mention an image 14ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: spellings that are not image references > an entity-spelled scheme in markdown link syntax stays literal text, so no remote image lands 8ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > markdown text tools under UniWork AI: spellings that are not image references > an <img srcset> never lands a remote image: refused or not kept, the document holds no such image 14ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > write_document truncated fallback under UniWork AI > refuses when the prefix that lands carries an unregistered remote image 411ms
+ ✓ tests/ai-doc-writer.test.ts > DraftLanding > follows the user's edits above the draft and reports the block it sits after 727ms
+ ✓ tests/g6-09b-image-url-rule-text.test.ts > write_document truncated fallback under UniWork AI > lands the prefix when its image is registered 411ms
+ ✓ tests/g6-12-md-web-stub-tools.test.ts > markdown insert_image per host > the web frame defaults turn the AI image download off 1ms
+ ✓ tests/g6-12-md-web-stub-tools.test.ts > markdown insert_image per host > desktop: insert_image is offered 1ms
+ ✓ tests/g6-12-md-web-stub-tools.test.ts > markdown insert_image per host > web: insert_image is not offered and a stray call is refused without a download 76ms
+ ✓ tests/ai-doc-writer.test.ts > DraftLanding under user edits > re-anchors on the live document when the user edits inside the draft 714ms
+ ✓ tests/ai-doc-writer.test.ts > write_document tool > lands the streamed markdown as one regular insert on a blank document 17ms
+ ✓ tests/ai-doc-writer.test.ts > write_document tool > refuses a whole-document write on a non-blank document without replaceDocument 14ms
+ ✓ tests/ai-doc-writer.test.ts > write_document tool > replaces everything with replaceDocument and inserts after a block with afterIndex 14ms
+ ✓ tests/ai-doc-writer.test.ts > write_document tool > keeps text the user typed into a blank document while the draft streamed 360ms
+ ✓ tests/ai-doc-writer.test.ts > write_document tool > a discarded write leaves the document unchanged 361ms
+
+ Test Files  5 passed (5)
+      Tests  84 passed (84)
+   Start at  20:20:31
+   Duration  4.48s (transform 2.48s, setup 0ms, import 3.84s, tests 4.96s, environment 1.81s)
+
+
+MD_TARGETED_EXIT=0

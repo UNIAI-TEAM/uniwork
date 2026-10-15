@@ -1,0 +1,12 @@
+$ npm exec -w @genoffice/agent-core -- vitest run; rc=$?; echo; echo "AGENTCORE_SUITE_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/agent-core
+
+
+ Test Files  17 passed (17)
+      Tests  276 passed (276)
+   Start at  20:20:43
+   Duration  991ms (transform 478ms, setup 0ms, import 798ms, tests 598ms, environment 1ms)
+
+
+AGENTCORE_SUITE_EXIT=0

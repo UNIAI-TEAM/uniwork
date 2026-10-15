@@ -1,0 +1,95 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/sheets -- vitest run; rc=$?; echo; echo "SHEETS_SUITE_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+ ❯ tests/xlsx-sidecar.test.ts (9 tests | 7 failed) 5088ms
+     × opens a workbook and reads a sparse cell range 30ms
+     × skips a queued request whose out-of-band cancel arrived first 5001ms
+     × normalizes CRLF line breaks in shared and inline strings to LF 7ms
+     × opens a blankXlsxBuffer workbook and saves a first edit into it 20ms
+     × reports pivot-table output ranges in the sheet metadata 3ms
+     × extracts styles, chart caches, anchors, and embedded image bytes 7ms
+     × extracts theme colors, borders, freeze panes, hidden rows, and merges 12ms
+ ❯ tests/xlsx-recalc.test.ts (6 tests | 5 failed) 79ms
+     × applies edits and returns recalculated formula values 28ms
+     × types error results, not text that spells an error 12ms
+     × serves repeat requests from the resident model and rebuilds after a revert 12ms
+     × pins external-workbook references to their cached values (issue 235) 13ms
+     × omits erroring CELL("filename") cells so the cached value survives 6ms
+ ❯ tests/ole-roundtrip.test.ts (3 tests | 3 failed) 67ms
+     × surfaces the object as a read-only ole visual with its frame and preview 26ms
+     × keeps oleObjects, the embedding, the VML and the preview byte-identical on save 30ms
+     × moves the saved oleObjects and VML anchors with inserted rows and columns 8ms
+ ❯ tests/xlsx-streaming-save.test.ts (8 tests | 4 failed) 64ms
+     × saves a cell edit while raw-copying every untouched entry byte-for-byte 28ms
+     × reopens its own output: a second edit chains on the saved file 18ms
+     × saves a large constant fill without a per-cell edit payload 7ms
+     × combines a column insertion, explicit header, and constant fill in final coordinates 5ms
+ ❯ tests/xlsx-borders.test.ts (6 tests | 1 failed) 26ms
+     × returns value-less bordered/filled cells with their style index 19ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 20 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ole-roundtrip.test.ts > embedded OLE objects > surfaces the object as a read-only ole visual with its frame and preview
+ FAIL  tests/ole-roundtrip.test.ts > embedded OLE objects > keeps oleObjects, the embedding, the VML and the preview byte-identical on save
+ FAIL  tests/ole-roundtrip.test.ts > embedded OLE objects > moves the saved oleObjects and VML anchors with inserted rows and columns
+ FAIL  tests/xlsx-borders.test.ts > sidecar read side keeps styled blanks > returns value-less bordered/filled cells with their style index
+ FAIL  tests/xlsx-recalc.test.ts > sidecar IronCalc recalculation channel > applies edits and returns recalculated formula values
+ FAIL  tests/xlsx-recalc.test.ts > sidecar IronCalc recalculation channel > types error results, not text that spells an error
+ FAIL  tests/xlsx-recalc.test.ts > sidecar IronCalc recalculation channel > serves repeat requests from the resident model and rebuilds after a revert
+ FAIL  tests/xlsx-recalc.test.ts > sidecar IronCalc recalculation channel > pins external-workbook references to their cached values (issue 235)
+ FAIL  tests/xlsx-recalc.test.ts > sidecar IronCalc recalculation channel > omits erroring CELL("filename") cells so the cached value survives
+ FAIL  tests/xlsx-sidecar.test.ts > XLSX Rust sidecar > opens a workbook and reads a sparse cell range
+ FAIL  tests/xlsx-sidecar.test.ts > XLSX Rust sidecar > normalizes CRLF line breaks in shared and inline strings to LF
+ FAIL  tests/xlsx-sidecar.test.ts > XLSX Rust sidecar > opens a blankXlsxBuffer workbook and saves a first edit into it
+ FAIL  tests/xlsx-sidecar.test.ts > XLSX Rust sidecar > reports pivot-table output ranges in the sheet metadata
+ FAIL  tests/xlsx-sidecar.test.ts > XLSX Rust sidecar > extracts styles, chart caches, anchors, and embedded image bytes
+ FAIL  tests/xlsx-sidecar.test.ts > XLSX Rust sidecar > extracts theme colors, borders, freeze panes, hidden rows, and merges
+ FAIL  tests/xlsx-streaming-save.test.ts > saveWorkbookViaSidecar > saves a cell edit while raw-copying every untouched entry byte-for-byte
+ FAIL  tests/xlsx-streaming-save.test.ts > saveWorkbookViaSidecar > reopens its own output: a second edit chains on the saved file
+ FAIL  tests/xlsx-streaming-save.test.ts > saveWorkbookViaSidecar > saves a large constant fill without a per-cell edit payload
+ FAIL  tests/xlsx-streaming-save.test.ts > saveWorkbookViaSidecar > combines a column insertion, explicit header, and constant fill in final coordinates
+Error: spawn /home/ubuntu/work/uniwork-office/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar ENOENT
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/20]⎯
+
+ FAIL  tests/xlsx-sidecar.test.ts > XLSX Rust sidecar > skips a queued request whose out-of-band cancel arrived first
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/xlsx-sidecar.test.ts:74:3
+     72|   })
+     73|
+     74|   it('skips a queued request whose out-of-band cancel arrived first', …
+       |   ^
+     75|     const directory = await mkdtemp(join(tmpdir(), 'xlsx-cancel-test-'…
+     76|     const path = join(directory, 'fixture.xlsx')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/20]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯ Uncaught Exception ⎯⎯⎯⎯⎯
+Error: spawn /home/ubuntu/work/uniwork-office/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar ENOENT
+ ❯ Process.ChildProcess._handle.onexit node:internal/child_process:285:19
+ ❯ onErrorNT node:internal/child_process:483:16
+ ❯ processTicksAndRejections node:internal/process/task_queues:89:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'spawn /home/ubuntu/work/uniwork-office/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar', path: '/home/ubuntu/work/uniwork-office/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar', spawnargs: [] }
+This error originated in "tests/xlsx-sidecar.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "skips a queued request whose out-of-band cancel arrived first". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  5 failed | 367 passed | 2 skipped (374)
+      Tests  20 failed | 3736 passed | 2 skipped (3758)
+     Errors  1 error
+   Start at  20:24:30
+   Duration  107.36s (transform 20.61s, setup 0ms, import 235.21s, tests 42.87s, environment 6.66s)
+
+
+SHEETS_SUITE_EXIT=1

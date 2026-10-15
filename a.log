@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor origin/main HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+0e3472f3be081957ea058a2243760f5655406b7d
+ea981e10af88a619fc62f1cc036f4f2d21d38c39
+0e3472f3 fix(ai): write_document checks the markdown that lands, including the truncated rendered prefix (UNI-1374)
+483fd30c test(ai): pin markdown image rule spellings and the truncated write_document landing prefix (UNI-1374)
+e816a91e fix(ai): markdown write_document and apply_ops refuse unregistered remote image references under UniWork AI
+e97a56d9 test(ai): pin image URL near-misses and markdown text tools landing unregistered image references
+4e75d6fb feat(ai): slides record the image URLs image_search and generate_image return (N3, UNI-1374)
+04795079 fix(ai): pdf insert_image and replace_image take only run-registered image URLs under UniWork AI (N3, UNI-1374)
+143dc71a fix(ai): sheets add_image URL sources must come from this run's image_search / generate_image under UniWork AI (N3, UNI-1374)
+c8b35ee4 fix(ai): markdown insert_image takes only run-registered image URLs under UniWork AI (N3, UNI-1374)
+
+SYNCED_EXIT=0

@@ -1,0 +1,82 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/pdf -- vitest run tests/g6-09b-image-url-rule.test.ts tests/g6-12-pdf-fetch-guard.test.ts tests/ai-context.test.ts tests/g6-09a-uniwork-tool-gating.test.ts tests/g6-09a-aipanel-gating.test.ts --reporter=verbose; rc=$?; echo; echo "PDF_TARGETED_EXIT=$rc"; [ $rc -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/pdf
+
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf text / image edit tools by capability under UniWork AI > hides the text-edit tools when pdfTextEdit is off 2ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf text / image edit tools by capability under UniWork AI > hides the image-edit tools when pdfImageEdit is off 1ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf text / image edit tools by capability under UniWork AI > keeps them when the capability is on 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf text / image edit tools by capability under UniWork AI > a BYOK turn keeps them even with the capability off (unchanged behaviour) 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf text / image edit tools by capability under UniWork AI > reads the provider and the capability live 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf file-level tools on a UniWork-bound document > hides the eight file-level tools next to create_document 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf file-level tools on a UniWork-bound document > keeps them on a plain local file 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf file-level tools on a UniWork-bound document > reads bound live 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf file-level tools on a UniWork-bound document > the system prompt says the file-level tools are unavailable, live with bound 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > refuses the eight file-level tools and create_document on a bound document 1ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > refuses text edits under UniWork AI with pdfTextEdit off 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > refuses image edits under UniWork AI with pdfImageEdit off 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > refuses generate_image when the image model is off 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > does not refuse for BYOK on a plain file (capability off, not bound) 1ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf executeTool refuses what `tools` hides > follows bound live 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf system prompt notes capability-hidden edit tools > names the text-edit tools when pdfTextEdit is off under UniWork AI 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf system prompt notes capability-hidden edit tools > names the image-edit tools when pdfImageEdit is off under UniWork AI 0ms
+ ✓ tests/g6-09a-uniwork-tool-gating.test.ts > pdf system prompt notes capability-hidden edit tools > stays silent for BYOK or when the capabilities are on, live 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > insert_image refuses an unregistered URL and fetches nothing 3ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > replace_image refuses an unregistered URL and fetches nothing 1ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > insert_image accepts a URL image_search returned this run 1ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > replace_image accepts a URL image_search returned this run 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > insert_image accepts the URL generate_image returned this run 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > refuses a URL image_search returned in a PREVIOUS run 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > does not let a registered URL vouch for a different one 1ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > keeps the shape errors first (a non-URL is still "invalid url") 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule under UniWork AI > begins a new run from the skill context (one buildContext per loop.run) 1ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule for BYOK > insert_image keeps today's rules: an unregistered URL is fetched 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule for BYOK > replace_image keeps today's rules: an unregistered URL is fetched 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule for BYOK > still records what image_search returned 0ms
+ ✓ tests/g6-09b-image-url-rule.test.ts > pdf image URL rule for BYOK > runs without any registry (hosts that pass none) 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > insert_image refuses ftp://img.example/a.png before any fetch 2ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > insert_image refuses data:image/png;base64,AAAA before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > insert_image refuses javascript:alert(1) before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > insert_image refuses /etc/passwd before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > insert_image refuses C:\Users\me\secret.png before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > insert_image refuses //169.254.169.254/latest before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > replace_image refuses ftp://img.example/a.png before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > replace_image refuses data:image/png;base64,AAAA before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > replace_image refuses javascript:alert(1) before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > replace_image refuses /etc/passwd before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > replace_image refuses C:\Users\me\secret.png before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > replace_image refuses //169.254.169.254/latest before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > replace_image refuses file:///etc/passwd before any fetch 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > renderer tools only hand fetchable URLs to the guarded fetch > hands an http(s) URL to fetchImage verbatim, and a failed download inserts nothing 1ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the ai:fetch-image channel stays guarded and capped > is wired from the pdf preload to the shared channel, which pdf-main does not shadow 2ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the ai:fetch-image channel stays guarded and capped > handler fetches through fetchRemoteImage (SSRF guard) and caps the body 1ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > refuses http://127.0.0.1/a.png without making a request 1ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > refuses http://localhost/a.png without making a request 2ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > refuses http://10.0.0.5/a.png without making a request 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > refuses http://192.168.1.1/a.png without making a request 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > refuses http://169.254.169.254/latest/meta-data without making a request 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > refuses http://[::1]/a.png without making a request 1ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > refuses http://[::ffff:127.0.0.1]/a.png without making a request 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > refuses http://metadata.internal/a.png without making a request 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > refuses ftp://example.com/a.png without making a request 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > refuses a public URL that redirects to a private address 1ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > serves no local file outside the generated-image store 0ms
+ ✓ tests/g6-12-pdf-fetch-guard.test.ts > the guard behind it > stops reading a body that exceeds the cap 2ms
+ ✓ tests/ai-context.test.ts > buildContext > has only the document line by default 1ms
+ ✓ tests/ai-context.test.ts > buildContext > lists only the document properties that are set 0ms
+ ✓ tests/ai-context.test.ts > buildContext > injects the cached selection with its page number 0ms
+ ✓ tests/ai-context.test.ts > buildContext > labels a cross-page selection with its page span 0ms
+ ✓ tests/ai-context.test.ts > buildContext > truncates an over-long selection 0ms
+ ✓ tests/ai-context.test.ts > buildContext > skips whitespace-only selections 0ms
+ ✓ tests/ai-context.test.ts > buildContext > injects the pending-edits summary when present 0ms
+ ✓ tests/ai-context.test.ts > buildContext > injects the annotation summary when present 0ms
+ ✓ tests/ai-context.test.ts > parsePdfNavHref > parses page links 0ms
+ ✓ tests/ai-context.test.ts > parsePdfNavHref > rejects everything else 0ms
+ ✓ tests/g6-09a-aipanel-gating.test.ts > AiPanel feeds the skill gates (pdf) > text edit tools follow the panel provider and the capability reader 56ms
+
+ Test Files  5 passed (5)
+      Tests  70 passed (70)
+   Start at  20:20:40
+   Duration  2.47s (transform 2.76s, setup 295ms, import 3.67s, tests 103ms, environment 1.82s)
+
+
+PDF_TARGETED_EXIT=0
