@@ -48,7 +48,7 @@ func (*stubOfficeIntentMetrics) AddOfficeCommitIntentsSwept(int) {}
 func TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters(t *testing.T) {
 	flags := &stubDocumentFlags{}
 	intentMetrics := &stubOfficeIntentMetrics{}
-	policy := service.CommitIntentPolicy{ClaimTTL: 13 * time.Minute, Retention: 72 * time.Hour}
+	policy := service.CommitIntentPolicy{ClaimTTL: 13 * time.Minute, Retention: 72 * time.Hour, SweepTick: 45 * time.Second}
 
 	svc := newDocumentService(documentServiceOptions{
 		Flags: flags, IntentMetrics: intentMetrics, Policy: policy,
@@ -57,6 +57,9 @@ func TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters(t *testing.T) {
 	wiring := svc.IntentWiringForTest()
 	if wiring.Policy != policy {
 		t.Errorf("commit intent policy = %+v, want %+v; without it the route commits claim with the default TTL and resume window", wiring.Policy, policy)
+	}
+	if w := svc.NewDocumentWorkers(); w.IntentTick != policy.SweepTick {
+		t.Errorf("NewDocumentWorkers().IntentTick = %v, want %v", w.IntentTick, policy.SweepTick)
 	}
 	if wiring.Flags != flags {
 		t.Errorf("flag evaluator = %#v, want the evaluator main.go passes in; without it office_sync_write never reaches the routes", wiring.Flags)
@@ -187,6 +190,7 @@ func TestMainPassesTheFullDocumentServiceOptions(t *testing.T) {
 	wantFromCfg := map[string]string{
 		"ClaimTTL":  "DocumentCommitIntentClaimTTL",
 		"Retention": "DocumentCommitIntentRetention",
+		"SweepTick": "DocumentCommitIntentSweepTick",
 	}
 	for _, elt := range policy.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)

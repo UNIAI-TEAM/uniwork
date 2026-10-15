@@ -388,7 +388,9 @@ func main() {
 		// office_sync_write, read through the same evaluator as
 		// /api/v1/config. A zero field keeps the contract-p0 §7 default.
 		Policy: service.CommitIntentPolicy{
-			ClaimTTL: cfg.DocumentCommitIntentClaimTTL, Retention: cfg.DocumentCommitIntentRetention,
+			ClaimTTL:  cfg.DocumentCommitIntentClaimTTL,
+			Retention: cfg.DocumentCommitIntentRetention,
+			SweepTick: cfg.DocumentCommitIntentSweepTick,
 		},
 		// The edit lock timing (UNI-1645 §7), validated by config.Load.
 		EditLock: service.DocumentEditLockConfig{

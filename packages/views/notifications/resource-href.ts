@@ -40,6 +40,8 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
       if (n.kind === "document_edit_requested" && n.params.request_id) {
         return `${href}?${new URLSearchParams({ edit_request: n.params.request_id }).toString()}`;
       }
+      // A manager's request row lands on the share dialog's requests section (DOC-07).
+      if (n.kind === "document_access_requested") return `${href}?access=requests`;
       const commentId = n.params.comment_id;
       if (!commentId) return href;
       const query = new URLSearchParams({ comment: commentId });

@@ -26,6 +26,7 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   chat_mentioned: "mentions",
   chat_dm: "mentions",
   chat_thread_replied: "mentions",
+  document_access_requested: "mentions",
   task_assigned: "assigned",
   meeting_invited: "meetings",
   meeting_starting: "meetings",
@@ -37,6 +38,8 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   role_changed: "workspace",
   audit_export_ready: "workspace",
   email_hub_new_mail: "updates",
+  document_access_approved: "updates",
+  document_access_declined: "updates",
 };
 
 export function inboxCategory(kind: string): InboxCategory {

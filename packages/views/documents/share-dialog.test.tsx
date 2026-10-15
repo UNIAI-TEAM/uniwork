@@ -668,3 +668,73 @@ describe("ShareDialog", () => {
     expect(input.closest(".sm\\:col-span-2")).not.toBeNull();
   });
 });
+
+// DOC7-W02: the "Yêu cầu truy cập" section is the manager side of access
+// requests; it mounts for whoever canAdminister() the document and for nobody
+// else, and never for an archived one (its decisions would be 409).
+describe("ShareDialog requests section (DOC7-W02)", () => {
+  const LIST = "/api/v1/documents/d1/access-requests";
+  const request = {
+    id: "r1",
+    requester_id: "u3",
+    requester_name: "Chi",
+    requested_level: "view",
+    message: "Cần xem",
+    source: null,
+    created_at: "2026-10-15T01:00:00Z",
+    expires_at: "2026-11-14T01:00:00Z",
+  };
+
+  function serveRequests() {
+    serve();
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) =>
+      path === LIST ? Promise.resolve({ requests: [request] }) : base(path, opts),
+    );
+  }
+  const listed = () => requestMock.mock.calls.some(([path]) => path === LIST);
+
+  it("lists the pending requests above the access list for a manager", async () => {
+    serveRequests();
+    renderDialog();
+    const heading = await screen.findByRole("heading", { name: t("documents.access_request.section_title", { count: 1 }) });
+    expect(await screen.findByText("Chi")).toBeInTheDocument();
+    const access = screen.getByRole("region", { name: t("documents.share.access_title") });
+    expect(heading.compareDocumentPosition(access) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("is there for a pure admin (admin_scope without a level)", async () => {
+    serveRequests();
+    renderDialog({ ...documentFixture({ my_level: "view" }), my_level: "", admin_scope: true } as never);
+    expect(await screen.findByRole("heading", { name: t("documents.access_request.section_title", { count: 1 }) })).toBeInTheDocument();
+  });
+
+  it("is absent, and never read, for someone who cannot administer", async () => {
+    serveRequests();
+    renderDialog(documentFixture({ my_level: "edit" }));
+    expect(await screen.findByText(t("documents.share.manage_only"))).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Yêu cầu truy cập/ })).toBeNull();
+    expect(listed()).toBe(false);
+  });
+
+  it("is absent, and never read, on an archived document", async () => {
+    serveRequests();
+    renderDialog(documentFixture({ archived_at: "2026-10-14T00:00:00Z" }));
+    await screen.findByText(t("documents.share.access_title"));
+    expect(screen.queryByRole("heading", { name: /Yêu cầu truy cập/ })).toBeNull();
+    expect(listed()).toBe(false);
+  });
+
+  it("takes focus back from the dialog for the requests section when opened from the link", async () => {
+    serveRequests();
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <ShareDialog open onOpenChange={() => undefined} wsId={WS} doc={documentFixture()} focusRequests />
+        </WorkspaceProvider>,
+      ),
+    );
+    const heading = await screen.findByRole("heading", { name: t("documents.access_request.section_title", { count: 1 }) });
+    await waitFor(() => expect(heading).toHaveFocus());
+  });
+});

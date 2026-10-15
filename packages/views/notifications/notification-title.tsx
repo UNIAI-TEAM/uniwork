@@ -41,6 +41,9 @@ export function notificationTitleKey(n: Notification): string {
   if (n.kind === "document_edit_request_answered" && n.params.decision === "decline") {
     return "notifications.kind.document_edit_request_answered_declined";
   }
+  // The requester was never allowed to read the title, so a declined request's
+  // sentence has no document to drop (access addendum §3.4).
+  if (n.kind === "document_access_declined") return n.title_key;
   const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_") && !n.kind.startsWith("document_edit_");
   return untitled && !n.params.document?.trim() ? `${n.title_key}_untitled` : n.title_key;
 }
