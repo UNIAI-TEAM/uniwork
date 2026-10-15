@@ -499,3 +499,186 @@ describe("AccessReportView - export", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.accessReport.export_failed")));
   });
 });
+
+// Visual round 1 (UNI-1643): layout fixes that jsdom cannot paint are pinned by
+// the classes and attributes that carry them.
+describe("AccessReportView - layout", () => {
+  const longName = "Nguyễn Thị Phương Thảo Trần Lê Hoàng Anh Minh Quân Đặng";
+  const longTitle = "Phụ lục hợp đồng cung cấp dịch vụ tư vấn chuyển đổi số giai đoạn 2026–2028.docx";
+  const wide = () =>
+    page({
+      documents: [
+        docEntry("d1", "Hợp đồng ABC", [ownerRow, { ...userShareRow, active: false }]),
+        docEntry("d2", longTitle, [{ ...userShareRow, principal_name: longName, granted_by_name: longName }]),
+      ],
+    });
+
+  it("every document table uses the same column template, so the columns line up across cards", async () => {
+    serve(wide);
+    renderView();
+    const first = await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    const second = screen.getByRole("table", { name: longTitle });
+    const template = (table: HTMLElement) =>
+      within(table)
+        .getAllByRole("row")
+        .map((row) => row.className.split(/\s+/).filter((c) => c.startsWith("md:grid-cols-")));
+    const all = [...template(first), ...template(second)];
+    expect(all[0]).toHaveLength(1);
+    expect(new Set(all.map((classes) => classes.join(" "))).size).toBe(1);
+  });
+
+  it("a long name or title is truncated and carries a tooltip instead of widening the table", async () => {
+    serve(wide);
+    renderView();
+    const table = await screen.findByRole("table", { name: longTitle });
+    const link = screen.getByRole("group", { name: longTitle }).querySelector("h3 a");
+    expect(link).toHaveAttribute("title", longTitle);
+    const row = within(table).getAllByRole("row")[1]!;
+    const cells = within(row).getAllByRole("cell");
+    expect(within(cells[0]!).getByTitle(longName)).toBeInTheDocument();
+    expect(cells[4]).toHaveAttribute("title", longName);
+  });
+
+  it("each cell names its column for the stacked phone layout, and the inactive chip stays in the row", async () => {
+    serve(wide);
+    renderView();
+    const table = await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    const row = within(table).getByRole("row", { name: /Trần Bình/ });
+    const cells = within(row).getAllByRole("cell");
+    expect(cells.map((c) => c.getAttribute("data-label"))).toEqual([
+      t("documents.accessReport.col_principal"),
+      t("documents.accessReport.col_level"),
+      t("documents.accessReport.col_effective"),
+      t("documents.accessReport.col_source"),
+      t("documents.accessReport.col_granted_by"),
+      t("documents.accessReport.col_granted_at"),
+      t("documents.accessReport.col_status"),
+    ]);
+    expect(within(row).getByText(t("documents.accessReport.inactive"))).toBeInTheDocument();
+    // Column headers stay in the accessibility tree on a phone (visually hidden).
+    expect(within(table).getAllByRole("columnheader")[0]!.parentElement!.className).toMatch(/max-md:sr-only/);
+  });
+
+  it("row separators use the card's border token", async () => {
+    serve(wide);
+    renderView();
+    const table = await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    for (const row of within(table).getAllByRole("row")) expect(row.className).toContain("border-border");
+  });
+
+  it("person-name buttons and document title links have a 24px desktop and 44px coarse-pointer hit area", async () => {
+    serve(wide);
+    renderView();
+    const table = await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    const person = within(table).getByRole("button", { name: "Trần Bình" });
+    const title = screen.getByRole("group", { name: "Hợp đồng ABC" }).querySelector("h3 a")!;
+    for (const target of [person, title]) {
+      expect(target.className).toContain("min-h-6");
+      expect(target.className).toContain("pointer-coarse:min-h-11");
+    }
+  });
+});
+
+describe("AccessReportView - export labels and the empty note", () => {
+  const SHORT = { csv: "CSV", xlsx: "Excel" };
+
+  it("the export buttons carry a short visible label beside the icon at every width", async () => {
+    serve(() => page());
+    renderView();
+    await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    for (const [format, label] of [
+      ["csv", SHORT.csv],
+      ["xlsx", SHORT.xlsx],
+    ] as const) {
+      const button = screen.getByRole("button", { name: t(`documents.accessReport.export_${format}`) });
+      const short = within(button).getByText(label);
+      expect(short.className).toContain("md:hidden");
+      expect(short.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+    }
+  });
+
+  it("the empty-file note shows with zero rows and nothing skipped, and not otherwise", async () => {
+    serve(() => page({ documents: [], summary: { candidates: 0, documents: 0, rows: 0, skipped: 0 } }));
+    const { unmount } = render(
+      wrapWithNav(
+        <AccessReportView wsId={WS} workspaceName="Đội" workspaceSlug="doi" libraryHref="/acme/doi/documents" />,
+        fakeNav(`${BASE_URL}?folder=f1`),
+      ),
+    );
+    const note = await screen.findByText(t("documents.accessReport.empty_export_note"));
+    // Both export buttons point at it.
+    for (const format of ["csv", "xlsx"]) {
+      expect(screen.getByRole("button", { name: t(`documents.accessReport.export_${format}`) })).toHaveAttribute(
+        "aria-describedby",
+        note.id,
+      );
+    }
+    unmount();
+
+    serve(() => page({ documents: [], summary: { candidates: 4, documents: 0, rows: 0, skipped: 4 } }));
+    renderView();
+    await screen.findByRole("heading", { name: t("documents.accessReport.skipped_only") });
+    expect(screen.queryByText(t("documents.accessReport.empty_export_note"))).toBeNull();
+  });
+
+  it("the empty-file note says what the file keeps", () => {
+    expect(t("documents.accessReport.empty_export_note")).toBe(
+      "A file with no rows records the filter and time only in its name.",
+    );
+  });
+});
+
+describe("AccessReportView - Load more failure", () => {
+  it("keeps the documents shown, says so under the list and retries only the failed page", async () => {
+    let fail = true;
+    serve((url) => {
+      if (url.searchParams.get("cursor") !== "cur1") return page({ next_cursor: "cur1" });
+      if (fail) throw new ApiError("boom", "internal", 500);
+      return page({ documents: [docEntry("d2", "Phụ lục B", [ownerRow])], next_cursor: null });
+    });
+    renderView();
+    await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.accessReport.load_more") }));
+
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText(t("documents.accessReport.load_more_error"))).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Hợp đồng ABC" })).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.accessReport.error"))).toBeNull();
+
+    const before = reportCalls().length;
+    fail = false;
+    fireEvent.click(within(alert).getByRole("button", { name: t("documents.accessReport.retry") }));
+    expect(await screen.findByRole("table", { name: "Phụ lục B" })).toBeInTheDocument();
+    const retried = reportCalls().slice(before);
+    expect(retried).toHaveLength(1);
+    expect(retried[0]!.searchParams.get("cursor")).toBe("cur1");
+    expect(screen.getByRole("table", { name: "Hợp đồng ABC" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("AccessReportView - visibility filter", () => {
+  it("is a labelled toolbar control that names the current value and writes the choice to the URL", async () => {
+    serve(() => page());
+    const nav = renderView();
+    await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    const label = t("documents.accessReport.filter_visibility");
+    const trigger = screen.getByRole("button", { name: `${label}: ${t("documents.accessReport.filter_all")}` });
+    await userEvent.click(trigger);
+    // Not the report scope's wording: the option names who can see the document.
+    expect(screen.queryByRole("menuitemradio", { name: t("documents.share.visibility_workspace") })).toBeNull();
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: t("documents.accessReport.visibility_workspace") }));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(expect.stringContaining("visibility=workspace")));
+  });
+
+  it("shows the chosen value on the button", async () => {
+    serve(() => page());
+    renderView(`${BASE_URL}?folder=f1&visibility=restricted`);
+    await screen.findByRole("table", { name: "Hợp đồng ABC" });
+    expect(
+      screen.getByRole("button", {
+        name: `${t("documents.accessReport.filter_visibility")}: ${t("documents.share.visibility_restricted")}`,
+      }),
+    ).toBeInTheDocument();
+  });
+});
