@@ -11,6 +11,9 @@
 // g712-runs/); an --out inside the repo (symlinks resolved) is refused unless --allow-in-repo is given (tests use a temp
 // dir). One invocation writes ONE session folder <out>/<sessionId>/ holding run-NN.json and manifest.json (session id,
 // case-set hash, the sha256 of every run file): the report counts exactly the runs the manifest lists.
+// Both credentials expire mid-run (access token 15 min, frame token 10 min, against a run of ~100 min at one thread):
+// the runner renews each one before use and once after a 401, and counts the renewals per ask, per run and in the report.
+// The test user's credentials (password, refresh cookie, access token) live in the session closure only - never a run file.
 
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
@@ -20,7 +23,7 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { execPsql, parseUniworkFacadeResponse, uploadFixtureAndMintFrameToken } from '../devset-run.mjs';
+import { execPsql, parseUniworkFacadeResponse } from '../devset-run.mjs';
 import { deriveAnswer, reportingFooter } from './holdout-answer.mjs';
 import { createBackend, modulesOfCase, offeredTools, toolCatalogue, toolSurface, unobtainableOps } from './holdout-backend.mjs';
 import { readPin, resolveDSha } from './evidence.mjs';
@@ -36,6 +39,12 @@ export const DEFAULT_OUT_DIR = path.join(os.homedir(), 'office-g5g6g7/reports/g6
 export const MAX_STEPS = 10;
 export const LANGS = ['vi', 'en'];
 const FIXTURES_REL = 'docs/office/g5g6g7/fixtures';
+// The windows of the D server (server/internal/config/config.go: AccessTokenTTL 15 min; server/internal/service/office_frame.go:
+// OfficeFrameTokenTTL 10 min). Renewing at 12 and 8 minutes leaves room for a call that is already in flight when the
+// credential passes its half-life.
+export const SESSION_RENEW_AFTER_MS = 12 * 60 * 1000;
+export const FRAME_RENEW_AFTER_MS = 8 * 60 * 1000;
+export const REFRESH_COOKIE = 'uniwork_refresh';
 const MIME = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -188,12 +197,27 @@ export function redactDeep(value) {
 }
 
 
-/** One façade request with the retry policy: 429 waits Retry-After, 5xx and network errors back off; 4xx stops. */
+/**
+ * One façade request with the retry policy: 429 waits Retry-After, 5xx and network errors back off; 4xx stops.
+ * A frame token that is older than FRAME_RENEW_AFTER_MS is renewed before the call goes out, and a 401 renews it
+ * (a new token for the SAME mounted document) and retries the call ONCE; a second consecutive 401 stops the ask, as
+ * before. A renewal never enters a call's latency: `clientMs` is always that attempt's own time, and the renewal that
+ * led to a retried call is named on it (`renewed`).
+ */
 async function callFacade({ transport, mount, remount, headers, body, step, record, opts }) {
   const sleep = opts.sleep ?? defaultSleep;
+  const nowMs = opts.nowMs ?? Date.now;
+  const frameRenewAfterMs = opts.frameRenewAfterMs ?? FRAME_RENEW_AFTER_MS;
+  const stale = (m) => typeof m?.mintedAt === 'number' && nowMs() - m.mintedAt >= frameRenewAfterMs;
   let current = mount;
-  let remounted = false;
+  let proactive = false;
+  let renewed = false;
+  let pendingRenewal = null;
   for (let attempt = 0; ; attempt += 1) {
+    if (remount && !proactive && stale(current)) {
+      proactive = true;
+      current = await remount();
+    }
     const t0 = performance.now();
     let res;
     try {
@@ -203,11 +227,12 @@ async function callFacade({ transport, mount, remount, headers, body, step, reco
     }
     const clientMs = Number((performance.now() - t0).toFixed(1));
     const call = { step, attempt, status: res.status, clientMs, traceId: res.headers?.get?.('x-trace-id') ?? null };
+    if (pendingRenewal !== null) { call.renewed = pendingRenewal; pendingRenewal = null; }
     record.calls.push(call);
     if (res.status === 200) return { res, call, mount: current };
-    if (res.status === 401 && !remounted && remount) {
-      remounted = true;
-      record.counts.remounts += 1;
+    if (res.status === 401 && !renewed && remount) {
+      renewed = true;
+      pendingRenewal = 'frame';
       current = await remount();
       continue;
     }
@@ -239,8 +264,10 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
     id: caseDoc.id, lang, format: caseDoc.format, group: groupOf(caseDoc), modules: modulesOfCase(caseDoc), category: caseDoc.category,
     oracleType: caseDoc.oracle.type, calls: [], toolCalls: [], dropped: [],
     expects: { numeric: caseDoc.expected.numeric.length, writes: caseDoc.expected.writes, mustNotContain: caseDoc.expected.mustNotContain.length },
-    counts: { rateLimited: 0, serverErrors: 0, retries: 0, remounts: 0 }, modelTurns: 0, error: null,
+    counts: { rateLimited: 0, serverErrors: 0, retries: 0 }, renewals: [], modelTurns: 0, error: null,
   };
+  const renewals = record.renewals;
+  const note = (kind, t0) => renewals.push({ kind, ms: Number((performance.now() - t0).toFixed(1)) });
   const backend = (opts.backendFactory ?? createBackend)(caseDoc, { fixturesDir: opts.fixturesDir });
   const tools = offeredTools(caseDoc, catalogue);
   const offeredNames = new Set(tools.map((t) => t.function.name));
@@ -252,7 +279,16 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   } catch (err) {
     throw new HarnessAbort(`cannot mount fixture ${fixtureId}: ${String(err?.message ?? err).slice(0, 160)}`);
   }
-  const remount = () => session.mount(fixtureId, { fresh: true });
+  renewals.push(...(mount.renewals ?? []));
+  // A fresh frame token for the SAME mounted document (the fixture is uploaded again only when the document is gone);
+  // the renewal is noted on the ask and its own time never lands in a call's latency.
+  const remount = async () => {
+    const t0 = performance.now();
+    const next = await session.mount(fixtureId, { fresh: true });
+    note('frame', t0);
+    renewals.push(...(next.renewals ?? []));
+    return next;
+  };
   let conversation = '';
   let run = '';
   let messages = firstMessages(caseDoc, lang);
@@ -378,7 +414,7 @@ async function askSafely({ caseDoc, lang, ...rest }) {
       id: caseDoc.id, lang, format: caseDoc.format, group: groupOf(caseDoc), modules: modulesOfCase(caseDoc), category: caseDoc.category, oracleType: caseDoc.oracle.type,
       calls: [], toolCalls: [], dropped: [], writeLog: [], invalidArguments: [], denied: [], writes: 0, models: [], modelTurns: 0,
       expects: { numeric: caseDoc.expected.numeric.length, writes: caseDoc.expected.writes, mustNotContain: caseDoc.expected.mustNotContain.length },
-      counts: { rateLimited: 0, serverErrors: 0, retries: 0, remounts: 0 }, tokens: { input: 0, output: 0, source: 'none' },
+      counts: { rateLimited: 0, serverErrors: 0, retries: 0 }, renewals: [], tokens: { input: 0, output: 0, source: 'none' },
       adapter: { reportStatus: 'missing', anchorLenient: 0, extraFigures: 0 }, answer: null, unobtainableOps: [],
       error: message, errored: true, status: scored.status, checks: scored.checks, outsideAllowlist: [], wallMs: 0, redactions: [],
     };
@@ -412,6 +448,13 @@ async function attachUsage(asks, usageReader) {
 }
 
 const uniq = (list) => [...new Set(list.filter((v) => v !== null && v !== undefined && v !== ''))].sort();
+
+/** The token renewals of a list of asks, per kind: the run summary number the report reads. A renewal voids no run. */
+export function countRenewals(asks) {
+  const counts = { session: 0, frame: 0 };
+  for (const ask of asks) for (const r of ask.renewals ?? []) if (r.kind in counts) counts[r.kind] += 1;
+  return counts;
+}
 
 /** The release tuple of one run: what was under test, as observed (an unobserved part says "unknown", never a guess). */
 export function buildTuple({ dSha, dirty, shaSource, pin, redis, asks, rows }) {
@@ -500,6 +543,7 @@ export async function runHoldout({
     asks = asks.filter(Boolean);
     const { rows, error: usageReaderError } = await attachUsage(asks, usageReader);
     const tally = asks.reduce((t, a) => ({ ...t, [a.status]: (t[a.status] ?? 0) + 1 }), {});
+    const renewals = countRenewals(asks);
     const redactions = asks.filter((a) => a.redactions?.length > 0).map((a) => ({ ask: `${a.id}/${a.lang}`, kinds: a.redactions }));
     const doc = {
       schemaVersion: 1, kind: RUN_KIND, sessionId, runIndex: n, runsPlanned: runs, status, reason, partial, startedAt, finishedAt: now().toISOString(),
@@ -516,6 +560,7 @@ export async function runHoldout({
         },
       },
       redactions,
+      renewals,
       asks,
     };
     const file = path.join(outDir, `run-${String(n).padStart(2, '0')}.json`);
@@ -527,7 +572,8 @@ export async function runHoldout({
     manifest.finishedAt = manifest.status === 'in_progress' ? null : now().toISOString();
     writeManifest(outDir, manifest);
     const flagged = redactions.length > 0 ? `, ${redactions.length} ask(s) had values redacted` : '';
-    log(`run ${n}/${runs} ${status}: ${asks.length} asks, ${JSON.stringify(tally)}${flagged} -> ${file}`);
+    const renewed = renewals.session + renewals.frame > 0 ? `, ${renewals.session} session + ${renewals.frame} frame renewal(s)` : '';
+    log(`run ${n}/${runs} ${status}: ${asks.length} asks, ${JSON.stringify(tally)}${renewed}${flagged} -> ${file}`);
     if (status !== 'completed') break;
   }
   return written;
@@ -567,34 +613,174 @@ async function postJson(serverUrl, route, body, token) {
   return res.json();
 }
 
-/** One test user, one organization, one workspace; every fixture is uploaded once and its frame token minted on demand. */
-export async function createServerSession({ serverUrl, dbUrl, sql = execPsql, fixturesRel = FIXTURES_REL }) {
+/** A raw POST (status, body and the refresh cookie the server set) for the routes whose 401 the caller recovers from. */
+async function postJsonRaw(serverUrl, route, body, { cookie = null } = {}) {
+  const res = await fetch(`${serverUrl}${route}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
+    body: JSON.stringify(body),
+  });
+  return { ok: res.ok, status: res.status, text: await res.text(), cookie: refreshCookieOf(res.headers.get('set-cookie')) };
+}
+
+/** The error_class of a server error body ({ error: { code, error_class } }), null when the body is not one. */
+export function errorClassOf(text) {
+  try {
+    const body = JSON.parse(String(text));
+    return typeof body?.error?.error_class === 'string' ? body.error.error_class : null;
+  } catch { return null; }
+}
+
+/** The refresh cookie of a Set-Cookie header, as the "name=value" pair, null when the header is not one. */
+export function refreshCookieOf(header) {
+  if (!header) return null;
+  const pair = String(header).split(';')[0].trim();
+  return pair.startsWith(`${REFRESH_COOKIE}=`) && pair.length > REFRESH_COOKIE.length + 1 ? pair : null;
+}
+
+/**
+ * One test user, one organization, one workspace; every fixture is uploaded once and its frame token minted on demand.
+ * The credentials (password, refresh cookie, access token) live in this closure only: they are never written to an ask
+ * record, a log line or a run file. A session-token request renews the session the way the web app does - POST
+ * /api/v1/auth/refresh when the sign-in's refresh cookie is held, else POST /api/v1/auth/login - before use when the
+ * access token is older than SESSION_RENEW_AFTER_MS and once more when the answer is a 401 of class session; a second
+ * 401 stays the caller's failure, as before. A fresh mount mints a new frame token for the SAME document and re-uploads
+ * the fixture only when the document is gone (404). Every mount reports the renewals it caused as [{ kind, ms }].
+ */
+export async function createServerSession({
+  serverUrl, dbUrl, sql = execPsql, fixturesRel = FIXTURES_REL, password = `Holdout-${Date.now()}-Pw!`,
+  nowMs = Date.now, sessionRenewAfterMs = SESSION_RENEW_AFTER_MS,
+}) {
   const stamp = Date.now();
-  const password = `Holdout-${stamp}-Pw!`;
-  const reg = await postJson(serverUrl, '/api/v1/auth/register', { email: `g712-holdout-${stamp}@example.com`, password, display_name: 'G7-12 Holdout Runner' });
-  const token = reg.access_token || reg.token;
-  const userId = reg.user?.id;
+  const credentials = { email: `g712-holdout-${stamp}@example.com`, password, cookie: null };
+  const session = { token: '', userId: '', orgId: '', wsId: '' };
+  let issuedAtMs = nowMs();
+  let renewal = null;
+
+  const adopt = (body) => {
+    session.token = body.access_token || body.token || '';
+    issuedAtMs = nowMs();
+  };
+  // Single-flight: two threads that cross the window together must not race the rotating refresh cookie (the second
+  // refresh would present a consumed token and be refused, as in the web app's own refreshInFlight).
+  const renewSession = () => {
+    renewal ??= (async () => {
+      let viaRefresh = credentials.cookie !== null;
+      let out = viaRefresh
+        ? await postJsonRaw(serverUrl, '/api/v1/auth/refresh', {}, { cookie: credentials.cookie })
+        : await postJsonRaw(serverUrl, '/api/v1/auth/login', { email: credentials.email, password: credentials.password });
+      if (!out.ok && viaRefresh) {
+        // The refresh token is gone or was already rotated away; the credentials are still the way back.
+        viaRefresh = false;
+        out = await postJsonRaw(serverUrl, '/api/v1/auth/login', { email: credentials.email, password: credentials.password });
+      }
+      if (!out.ok) throw new Error(`session renewal via ${viaRefresh ? 'refresh' : 'login'} failed: ${out.status} ${out.text.slice(0, 160)}`);
+      if (out.cookie) credentials.cookie = out.cookie;
+      adopt(JSON.parse(out.text));
+      return out;
+    })().finally(() => { renewal = null; });
+    return renewal;
+  };
+  const noteSessionRenewal = async (renewals) => {
+    const t0 = performance.now();
+    await renewSession();
+    renewals.push({ kind: 'session', ms: Number((performance.now() - t0).toFixed(1)) });
+  };
+  /** One request on the session token: renewed before use when the token is old, and once after a 401 of class session. */
+  const withSession = async (send, renewals) => {
+    if (nowMs() - issuedAtMs >= sessionRenewAfterMs) await noteSessionRenewal(renewals);
+    let out = await send();
+    if (out.status === 401 && errorClassOf(out.text) === 'session') {
+      await noteSessionRenewal(renewals);
+      out = await send();
+    }
+    return out;
+  };
+
+  const reg = await postJsonRaw(serverUrl, '/api/v1/auth/register', { email: credentials.email, password: credentials.password, display_name: 'G7-12 Holdout Runner' });
+  if (!reg.ok) throw new Error(`/api/v1/auth/register failed: ${reg.status} ${reg.text.slice(0, 200)}`);
+  if (reg.cookie) credentials.cookie = reg.cookie;
+  adopt(JSON.parse(reg.text));
+  session.userId = JSON.parse(reg.text).user?.id ?? '';
   if (dbUrl) {
-    const values = FLAGS.map((key) => `('${newId()}', '${key}', 'global', '', true, 'G7-12 holdout eval', '${userId}', 'human')`).join(',');
-    sql(dbUrl, ['-v', 'ON_ERROR_STOP=1', '-c', `UPDATE users SET email_verified_at = now() WHERE id = '${userId}';
+    const values = FLAGS.map((key) => `('${newId()}', '${key}', 'global', '', true, 'G7-12 holdout eval', '${session.userId}', 'human')`).join(',');
+    sql(dbUrl, ['-v', 'ON_ERROR_STOP=1', '-c', `UPDATE users SET email_verified_at = now() WHERE id = '${session.userId}';
       INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind) VALUES ${values}
       ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = EXCLUDED.enabled;`]);
   }
-  const org = await postJson(serverUrl, '/api/v1/orgs', { name: 'G7-12 Org', slug: `g712-org-${stamp}` }, token);
-  const orgId = org.organization?.id || org.id;
-  const ws = await postJson(serverUrl, `/api/v1/orgs/${orgId}/workspaces`, { name: 'G7-12 Workspace', slug: `g712-ws-${stamp}` }, token);
-  const wsId = ws.workspace?.id || ws.id;
-  if (dbUrl) sql(dbUrl, ['-v', 'ON_ERROR_STOP=1', '-c', `UPDATE subscriptions SET overrides = '{"office.ai_cloud": true, "ai.tokens": 100000000}'::jsonb WHERE organization_id = '${orgId}';`]);
-  const session = { token, userId, orgId, wsId };
+  const org = await postJson(serverUrl, '/api/v1/orgs', { name: 'G7-12 Org', slug: `g712-org-${stamp}` }, session.token);
+  session.orgId = org.organization?.id || org.id;
+  const ws = await postJson(serverUrl, `/api/v1/orgs/${session.orgId}/workspaces`, { name: 'G7-12 Workspace', slug: `g712-ws-${stamp}` }, session.token);
+  session.wsId = ws.workspace?.id || ws.id;
+  if (dbUrl) sql(dbUrl, ['-v', 'ON_ERROR_STOP=1', '-c', `UPDATE subscriptions SET overrides = '{"office.ai_cloud": true, "ai.tokens": 100000000}'::jsonb WHERE organization_id = '${session.orgId}';`]);
+
+  const fileNameOf = (fixtureId) => fs.readdirSync(path.join(repoRoot, fixturesRel))
+    .find((f) => f.startsWith(`${fixtureId}.`) && !f.endsWith('.oracle.json'));
+
+  /** Uploads the fixture with the session token; the failure text is the one a harness abort has always carried. */
+  const upload = async (fixtureId, name, renewals) => {
+    const ext = name.split('.').pop();
+    const bytes = fs.readFileSync(path.join(repoRoot, fixturesRel, name));
+    const out = await withSession(async () => {
+      const form = new FormData();
+      form.append('file', new Blob([bytes], { type: MIME[ext] ?? 'application/octet-stream' }), name);
+      form.append('title', name);
+      const res = await fetch(`${serverUrl}/api/v1/workspaces/${session.wsId}/documents/files`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.token}` },
+        body: form,
+      });
+      return { ok: res.ok, status: res.status, text: await res.text() };
+    }, renewals);
+    if (!out.ok) throw new Error(`upload file ${name} failed: ${out.status} ${out.text.slice(0, 200)}`);
+    const body = JSON.parse(out.text);
+    return body.document?.id || body.file?.document_id || body.file?.id || body.id;
+  };
+
+  /** A new frame token for an existing document; null (404) means the document is gone and the fixture must be uploaded. */
+  const mint = async (docId, name, renewals) => {
+    const out = await withSession(async () => {
+      const res = await fetch(`${serverUrl}/api/v1/documents/${docId}/office/frame-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+        body: JSON.stringify({}),
+      });
+      return { ok: res.ok, status: res.status, text: await res.text() };
+    }, renewals);
+    if (out.status === 404) return null;
+    if (!out.ok) throw new Error(`mint frame token for ${name} failed: ${out.status} ${out.text.slice(0, 200)}`);
+    const body = JSON.parse(out.text);
+    return { docId, frameToken: body.token, aiGrant: body.ai, mintedAt: nowMs() };
+  };
+
   const mounts = new Map();
+  const inflight = new Map();
+  /** The mount of one fixture: a new frame token for a document that still exists, an upload only when it is gone. */
+  const mountFixture = async (fixtureId, renewals) => {
+    const name = fileNameOf(fixtureId);
+    const cached = mounts.get(fixtureId);
+    let mount = cached ? await mint(cached.docId, name, renewals) : null;
+    if (mount === null) {
+      const docId = await upload(fixtureId, name, renewals);
+      mount = await mint(docId, name, renewals);
+      if (mount === null) throw new Error(`mint frame token for ${name} failed: 404 the document just uploaded is not readable`);
+    }
+    mounts.set(fixtureId, mount);
+    return mount;
+  };
   return {
-    orgId,
+    orgId: session.orgId,
     async mount(fixtureId, { fresh = false } = {}) {
-      if (!fresh && mounts.has(fixtureId)) return mounts.get(fixtureId);
-      const ext = fs.readdirSync(path.join(repoRoot, fixturesRel)).find((f) => f.startsWith(`${fixtureId}.`) && !f.endsWith('.oracle.json')).split('.').pop();
-      const minted = await uploadFixtureAndMintFrameToken(serverUrl, session, `${fixturesRel}/${fixtureId}.${ext}`, `${fixtureId}.${ext}`, MIME[ext] ?? 'application/octet-stream');
-      mounts.set(fixtureId, minted);
-      return minted;
+      const cached = mounts.get(fixtureId);
+      if (!fresh && cached) return { ...cached, renewals: [] };
+      // One mount per fixture at a time: two lanes that start together must not upload the same fixture twice. The ask
+      // that started the mount reports the renewals it caused; an ask that joined a shared mount reports none.
+      const pending = inflight.get(fixtureId);
+      if (pending) return { ...(await pending.mount), renewals: [] };
+      const renewals = [];
+      const started = { mount: mountFixture(fixtureId, renewals).finally(() => inflight.delete(fixtureId)) };
+      inflight.set(fixtureId, started);
+      return { ...(await started.mount), renewals };
     },
   };
 }

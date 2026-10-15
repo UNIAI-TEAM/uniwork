@@ -675,7 +675,8 @@ describe('runner against a stub façade', () => {
     assert.ok(ask.modelTurns >= 2);
     assert.ok(ask.toolCalls.length >= 1);
     assert.ok(ask.calls.every((c) => c.status === 200 && c.traceId && c.clientMs >= 0 && c.usage.latencyMs >= 100));
-    assert.deepEqual(ask.counts, { rateLimited: 0, serverErrors: 0, retries: 0, remounts: 0 });
+    assert.deepEqual(ask.counts, { rateLimited: 0, serverErrors: 0, retries: 0 });
+    assert.deepEqual(ask.renewals, [], 'a reference run renews nothing');
     assert.equal(ask.tokens.source, 'ai_usage_events');
     assert.equal(ask.tokens.input, 5 * ask.calls.length);
     assert.equal(ask.answer.tools.used.includes('compute'), true);
@@ -740,7 +741,7 @@ describe('runner faults and failures', () => {
     }, 'retry');
     const ask = docs[0].asks[0];
     assert.equal(ask.status, 'pass');
-    assert.deepEqual(ask.counts, { rateLimited: 2, serverErrors: 1, retries: 3, remounts: 0 });
+    assert.deepEqual(ask.counts, { rateLimited: 2, serverErrors: 1, retries: 3 });
     assert.deepEqual(ask.calls.slice(0, 3).map((c) => c.status), [429, 429, 503]);
     assert.deepEqual(waits.slice(0, 2), [2000, 2000]);
     assert.equal(ask.modelTurns, ask.calls.filter((c) => c.status === 200).length);
@@ -756,11 +757,19 @@ describe('runner faults and failures', () => {
     assert.equal(ask.modelTurns, 0);
   });
 
-  it('mints a fresh frame token once after a 401 and carries on', async () => {
-    const { docs, mounts } = await runWith({ ...only(readOnlyNumeric), hooks: { before: (i) => (i === 0 ? { status: 401 } : null) } }, 'remount');
-    assert.equal(docs[0].asks[0].counts.remounts, 1);
-    assert.equal(docs[0].asks[0].status, 'pass');
+  it('mints a fresh frame token for the same document once after a 401 and carries on', async () => {
+    // One thread: two lanes fire their first call together, so which ask takes the forced 401 is a race; the retry policy
+    // is not about concurrency, and the ask order of one lane is the list order.
+    const { docs, mounts, facade } = await runWith({ ...only(readOnlyNumeric), threads: 1, hooks: { before: (i) => (i === 0 ? { status: 401 } : null) } }, 'remount');
+    const ask = docs[0].asks[0];
+    assert.equal(ask.status, 'pass');
+    assert.equal(ask.renewals.length, 1);
+    assert.equal(ask.renewals[0].kind, 'frame');
+    assert.ok(Number.isFinite(ask.renewals[0].ms) && ask.renewals[0].ms >= 0);
+    assert.equal(ask.calls[1].renewed, 'frame', 'the retried call names the renewal it followed');
     assert.ok(mounts.some((m) => m.fresh === true));
+    assert.equal(facade.stats.uploads, 1, 'the document still exists: the fixture is not uploaded twice');
+    assert.equal(facade.stats.mints, 2, 'the mount mint, then the renewal');
   });
 
   it('stops a run that never answers at the façade limit of model calls', async () => {
@@ -775,7 +784,8 @@ describe('runner faults and failures', () => {
   it('replays setup.history before the question and runs the case through the same path', async () => {
     const withHistory = pick((c) => c.setup?.history);
     const { docs, facade } = await runWith({ ...only(withHistory) }, 'history');
-    const first = facade.requests[0].body.messages;
+    // The vi ask's own request: with two lanes the two asks' first calls arrive in whichever order, so requests[0] is not it.
+    const first = facade.requests.find((r) => r.body.messages.at(-1).content.includes(withHistory.query.vi)).body.messages;
     assert.equal(first.length, withHistory.setup.history.length + 1);
     withHistory.setup.history.forEach((turn, i) => assert.ok(first[i].content.includes(turn.text)));
     assert.ok(first.at(-1).content.includes(withHistory.query.vi));
@@ -988,6 +998,108 @@ describe('runner faults and failures', () => {
     const { docs: ok } = await runWith({ ...only(oneWrite) }, 'edit-ok');
     assert.notEqual(ok[0].asks[0].status, 'fail');
     assert.ok(ok[0].asks[0].adapter.writeBacked > 0);
+  });
+});
+
+describe('token renewal mid-run (G7-12 pilot blocker)', () => {
+  // Two cases over two different fixtures: the mount cache then holds two documents, so a renewal can be told from an upload.
+  const firstOfEachFixture = [...new Map(cases.map((c) => [c.fixtures[0].id, c])).values()].slice(0, 2);
+  const one = firstOfEachFixture[0];
+  const only = (c) => ({ onlyIds: [c.id], subset: cases });
+
+  it('renews an expired session and an expired frame token: the run completes, both are counted and no fixture is re-uploaded', async () => {
+    const dir = path.join(tmpRoot, 'renew');
+    const password = 'Holdout-Test-Pw!';
+    const facade = await startStubFacade({ model: scriptedModel(cases), sessionExpiresAfterCalls: 2, frameExpiresAfterCalls: 2 });
+    const session = await createServerSession({ serverUrl: facade.url, password });
+    const lines = [];
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 2, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: firstOfEachFixture.map((c) => c.id), sessionId: 's-renew', opts: { sleep: noSleep }, log: (line) => lines.push(line),
+      });
+      const text = fs.readFileSync(files[0], 'utf8');
+      const doc = JSON.parse(text);
+      assert.equal(doc.status, 'completed');
+      assert.equal(doc.asks.length, 4);
+      assert.deepEqual(doc.asks.filter((a) => a.errored).map((a) => `${a.id}/${a.lang}: ${a.error}`), []);
+      assert.ok(doc.renewals.session >= 1, `a session renewal was counted: ${JSON.stringify(doc.renewals)}`);
+      assert.ok(doc.renewals.frame >= 1, `a frame renewal was counted: ${JSON.stringify(doc.renewals)}`);
+      assert.equal(facade.stats.uploads, 2, 'each fixture is uploaded once; a renewal mints for the document that still exists');
+      assert.ok(facade.stats.mints > facade.stats.uploads, 'the renewals minted again');
+      const notes = doc.asks.flatMap((a) => a.renewals);
+      assert.equal(notes.length, doc.renewals.session + doc.renewals.frame, 'the run summary counts every ask note');
+      assert.ok(notes.every((r) => ['session', 'frame'].includes(r.kind) && Number.isFinite(r.ms) && r.ms >= 0), JSON.stringify(notes));
+      // The renewal time is not a call's latency: the retried call keeps its own clientMs, and the renewal is named on it.
+      const retried = doc.asks.flatMap((a) => a.calls).filter((c) => c.renewed);
+      assert.ok(retried.length >= 1);
+      assert.ok(retried.every((c) => c.status === 200 && Number.isFinite(c.clientMs)));
+      // The test user's credentials never reach the run file or a log line.
+      for (const secret of [password, 'stub-access-', 'stub-refresh-', 'uniwork_refresh']) {
+        assert.equal(text.includes(secret), false, `the run file carries ${secret}`);
+        assert.ok(lines.every((line) => !line.includes(secret)), `a log line carries ${secret}`);
+      }
+      assert.match(lines.join('\n'), /renewal\(s\)/, 'the log line reports the renewals');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('gives up after a second consecutive 401, with the one renewal it made counted', async () => {
+    const { docs, facade } = await runWith({ ...only(one), threads: 1, hooks: { before: () => ({ status: 401 }) } }, 'renew-twice');
+    const ask = docs[0].asks[0];
+    assert.equal(ask.errored, true);
+    assert.equal(ask.status, 'fail');
+    assert.match(ask.error, /HTTP 401/);
+    assert.deepEqual(ask.renewals.map((r) => r.kind), ['frame'], 'one renewal, then the ask stops');
+    assert.deepEqual(ask.calls.map((c) => c.status), [401, 401]);
+    assert.equal(facade.stats.uploads, 1, 'the fixture is uploaded once');
+    assert.equal(facade.stats.mints, 3, 'the mount mint, then one renewal per ask');
+  });
+
+  it('renews through POST /api/v1/auth/login when the sign-in left no refresh cookie', async () => {
+    const dir = path.join(tmpRoot, 'renew-login');
+    const facade = await startStubFacade({ model: scriptedModel(cases), sessionExpiresAfterCalls: 1, setRefreshCookie: false });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 2, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-login', opts: { sleep: noSleep },
+      });
+      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
+      assert.equal(doc.status, 'completed');
+      assert.deepEqual(doc.asks.filter((a) => a.errored).map((a) => a.error), []);
+      assert.ok(doc.renewals.session >= 1, JSON.stringify(doc.renewals));
+      assert.ok(facade.stats.logins >= 1, 'the credentials were the way back');
+      assert.equal(facade.stats.refreshes, 0, 'there was no refresh cookie to use');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('renews both tokens before use when they are older than their windows, and prefers the refresh cookie', async () => {
+    let clock = 0;
+    const nowMs = () => clock;
+    const dir = path.join(tmpRoot, 'renew-proactive');
+    const facade = await startStubFacade({ model: scriptedModel(cases) });
+    const session = await createServerSession({ serverUrl: facade.url, nowMs });
+    clock = 13 * 60 * 1000; // the access token minted at sign-in is now past SESSION_RENEW_AFTER_MS (12 min)
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-proactive', opts: { sleep: noSleep, nowMs, frameRenewAfterMs: 0 },
+      });
+      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
+      assert.equal(doc.status, 'completed');
+      assert.deepEqual(doc.asks.filter((a) => a.errored).map((a) => a.error), []);
+      assert.ok(doc.asks.flatMap((a) => a.calls).every((c) => c.status === 200), 'nothing had to answer 401');
+      assert.ok(doc.renewals.session >= 1, 'the session was renewed before its first use');
+      assert.ok(doc.renewals.frame >= 1, 'the frame token was renewed before its first call');
+      assert.equal(facade.stats.refreshes, doc.renewals.session, 'every session renewal used the refresh cookie');
+      assert.equal(facade.stats.logins, 0);
+    } finally {
+      await facade.close();
+    }
   });
 });
 
