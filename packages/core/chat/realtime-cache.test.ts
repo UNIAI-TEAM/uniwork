@@ -321,12 +321,12 @@ describe("fetchAndPatchChatMessage sidebar", () => {
   const sidebar = (): ChatRoomRecord[] => [
     {
       id: "room1", kind: "channel", is_default: false, name: "Dev", workspace_id: "ws1",
-      member_user_ids: [], unread_count: 0, mention_unread_count: 0,
+      member_user_ids: [], member_count: 0, unread_count: 0, mention_unread_count: 0,
       last_message_body: "mới", last_message_at: "2026-01-01T12:00:00Z",
     },
     {
       id: "room2", kind: "channel", is_default: false, name: "Ops", workspace_id: "ws1",
-      member_user_ids: [], unread_count: 0, mention_unread_count: 0,
+      member_user_ids: [], member_count: 0, unread_count: 0, mention_unread_count: 0,
       last_message_at: "2026-01-01T11:30:00Z",
     },
   ];

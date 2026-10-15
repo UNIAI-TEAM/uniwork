@@ -92,7 +92,7 @@ describe("useChatRoomMessages", () => {
 });
 
 const serverRoom = (id: string, unread: number, mentions: number, muted = false): ChatRoomRecord => ({
-  id, kind: "group", name: id, workspace_id: "ws1", member_user_ids: [],
+  id, kind: "group", name: id, workspace_id: "ws1", member_user_ids: [], member_count: 0,
   unread_count: unread, mention_unread_count: mentions, notifications_muted: muted,
 });
 

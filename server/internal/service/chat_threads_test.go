@@ -345,7 +345,7 @@ func TestOpeningAThreadDoesNotFollowIt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.MarkThreadRead(ctx, uc.ID, w.ID, root.ID); err != nil {
+	if _, err := s.MarkThreadRead(ctx, uc.ID, w.ID, root.ID); err != nil {
 		t.Fatalf("mark read: %v", err)
 	}
 	if _, err := q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{
@@ -436,8 +436,9 @@ func TestBusyThreadStillReportsFollowing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(older) != 2 || older[0].ID != root.ID {
-		t.Fatalf("older page: %d rows, want root and the oldest reply", len(older))
+	// Only the first page carries the root (UNI-1679).
+	if len(older) != 1 || older[0].ID == root.ID {
+		t.Fatalf("older page: %d rows, want only the oldest reply", len(older))
 	}
 }
 

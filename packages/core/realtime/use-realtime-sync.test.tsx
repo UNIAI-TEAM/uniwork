@@ -674,7 +674,7 @@ describe("useRealtimeSync", () => {
     qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
       {
         id: "ws-room", kind: "channel", is_default: true, name: "General", workspace_id: "ws1",
-        member_user_ids: [], unread_count: 0, mention_unread_count: 0,
+        member_user_ids: [], member_count: 0, unread_count: 0, mention_unread_count: 0,
       },
     ]);
     const counts = () => {

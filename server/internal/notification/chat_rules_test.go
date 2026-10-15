@@ -287,7 +287,7 @@ func TestReadingAChatClosesItsNotification(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.handleLast(t, "chat.thread.reply_received")
-	if err := chat.MarkThreadRead(f.ctx, f.owner.ID, f.wsID, root.ID); err != nil {
+	if _, err := chat.MarkThreadRead(f.ctx, f.owner.ID, f.wsID, root.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got := byKind(f.owner.ID, KindChatThreadReplied); len(got) != 1 || !got[0].ReadAt.Valid {

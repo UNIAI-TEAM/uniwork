@@ -78,7 +78,7 @@ func (s *ChatService) sendKindMessage(
 			return ChatMessageRow{}, err
 		}
 	}
-	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", chatMentions{}); err != nil {
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", "", chatMentions{}); err != nil {
 		return ChatMessageRow{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
