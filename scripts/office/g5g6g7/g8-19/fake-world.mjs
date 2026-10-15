@@ -5,7 +5,7 @@
 // Contract §10 describes the scripting keys and the unscripted defaults.
 import { G8_API_CALLS, apiPath, assertBodyKeys } from "../harness/api-contract.mjs";
 import { COMMENTS_API_NAMES, DISCUSSION_API_NAMES, SHELL_API_NAMES } from "../harness/app.mjs";
-import { documentUrl } from "../harness/web.mjs";
+import { documentUrl, webFrameSelectors } from "../harness/web.mjs";
 import { SQL_MEMBERSHIP_BLOCKER, SQL_MEMBERSHIP_REASON } from "../harness/world.mjs";
 
 /** As an answer: the call times out (api resolves status 0, app/web reject). */
@@ -191,6 +191,7 @@ export function createFakeWorld({ sqlMembership = true, users = DEFAULT_USERS, o
 
   // ---- web -------------------------------------------------------------------
   const browser = { fake: "browser" };
+  let webSaveSeq = 0;
   async function webAnswer(key, args, fallback) {
     const entry = record("web", key, args);
     const { scripted, answer } = script.take(`web.${key}`, entry);
@@ -227,6 +228,19 @@ export function createFakeWorld({ sqlMembership = true, users = DEFAULT_USERS, o
         panelCount: 1,
         focusedCommentId: opts?.comment ?? null,
       }));
+    },
+    // §13: unscripted, every Save is a new version (ver-web-1, ver-web-2, ...)
+    async webSave(page, opts = {}) {
+      webFrameSelectors(opts.kind);
+      return webAnswer("webSave", [page?.user ?? null, opts], () => {
+        webSaveSeq += 1;
+        return { status: "saved", versionId: `ver-web-${webSaveSeq}`, revision: String(webSaveSeq + 1), version: webSaveSeq + 1 };
+      });
+    },
+    async webFrameEval(page, kind, fn, arg, opts = {}) {
+      webFrameSelectors(kind);
+      void fn;
+      return webAnswer("webFrameEval", [page?.user ?? null, kind, arg, opts], () => undefined);
     },
   };
 

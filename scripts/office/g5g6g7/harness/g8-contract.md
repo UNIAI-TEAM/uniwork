@@ -342,3 +342,28 @@ All additive or tightening; the STEP 1 signatures still hold except item 1.
 7. `session().call` `opts.form`; `G8_API_CALLS` also holds `TRACER_CALLS`; `redact` is exported.
 8. `openDocument` takes `timeoutMs`/`pollMs` and returns `reason` on `error`; `classifyDocumentPage` exported.
 9. `rowMain(module, fn)` added; `runRowModule` takes `worldFactory` for tests.
+
+## 13. Web frame Save (additive, UNI-1414 r1b, T2)
+
+Nothing in §1-§12 changes. `harness/web.mjs` adds:
+
+```js
+const sel = webFrameSelectors(kind);           // kind: "docs" | "sheets" | "slides" | "pdf"
+// sel = { host, ready, iframe } for the module frame (packages/views/office/frame/office-module-frame.tsx:309-333)
+const saved = await webSave(page, { kind, timeoutMs = 30_000 });
+// saved = { status: "saved", versionId, revision, version } | { status: "error" | "timeout", reason, httpStatus? }
+const value = await webFrameEval(page, kind, fn, arg, { timeoutMs = 30_000 });
+const r = classifyWebSave({ httpStatus, body, dirty, saveState }); // pure
+```
+
+- `webSave` is the G7-10 web save (`g7-10/tracer.mjs` `driveWebXlsxSave`) for any module frame: it waits for
+  `[data-state="ready"]`, focuses the iframe as the host does (`office-module-frame.tsx:240-243`), presses
+  `Control+s` and reads the answer of `POST /api/v1/office-frame/documents/{id}/versions/commit`
+  (`server/internal/handler/router/office_frame.go:79`; `OfficeFrameDocumentSDO.file.version_id`).
+  A non-2xx answer is `error` with `httpStatus`; no commit within `timeoutMs` is `timeout` (the reason says
+  when the frame was not dirty). It never throws for a Save that does not happen; a bad `kind` throws.
+- `webFrameEval` runs `fn(arg)` in the frame's document (same origin), bounded; it throws when the page has
+  no frame of that kind. Row modules use it to run their desktop edit plans in the web frame.
+- Fake (§10): `fake.web.webSave` / `fake.web.webFrameEval`, script keys `web.webSave` / `web.webFrameEval`.
+  Unscripted, each `webSave` is `{ status: "saved", versionId: "ver-web-<n>", ... }` with a new `n`, and
+  `webFrameEval` resolves `undefined`. Both validate `kind` like the real ones.
