@@ -21,6 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+import { API_PREFIX } from "../harness/api-contract.mjs";
 import { connectApp as realConnectApp, editorKindOfFormat, editorKindOfUrl } from "../harness/app.mjs";
 import { loadPlaywrightChromium, sleep as realSleep } from "../harness/app-steps.mjs";
 import { loadVerifiedFixture } from "../harness/fixture-files.mjs";
@@ -416,6 +417,14 @@ export async function openTicketOnDesktop({ ctx, world, ctrl, userKey = "A", doc
   return { ctrl, path: opened.path, kind, page, comments: ctrl.comments(page) };
 }
 
+/** GET the bytes of version `version` of a file document as the bearer of `token` (router/documents.go:198, ?version=N). */
+export async function downloadVersion({ apiOrigin, token, documentId, version, fetchImpl = fetch, timeoutMs = 60_000 }) {
+  const url = `${apiOrigin}${API_PREFIX}/documents/${encodeURIComponent(documentId)}/download?version=${encodeURIComponent(String(version))}`;
+  const res = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`download of version ${version} answered ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
 /** GET the comment list (as `session`) and the document head version; throws on a non-2xx. */
 export async function readServer(session, documentId) {
   const list = await session.call("listDocumentComments", { documentID: documentId });
@@ -773,7 +782,8 @@ function countEditorPages(ctrl, kind) {
  * fixture anchor over the editor bridge exactly as r1 did, the shift plan edits before it, Save,
  * and the server is polled (bounded) for the row to reach the new head. Fills `part`.
  */
-async function runClosedPanelSave({ ctx, A, desk, driver, documentId, poll, part }) {
+async function runClosedPanelSave({ ctx, A, desk, driver, documentId, poll, part, trace }) {
+  part.createdAfterSave = Boolean(driver.prepare);
   if (driver.prepare) {
     const prepared = await runEditPlan(desk.ctrl, desk.page, driver.prepare);
     if (prepared.status !== "ok") throw new Error(`prepare edit: ${prepared.reason}`);
@@ -787,18 +797,52 @@ async function runClosedPanelSave({ ctx, A, desk, driver, documentId, poll, part
   ).comment;
   const versionBefore = (await readServer(A, documentId)).head;
   Object.assign(part, { commentId: root.id, anchor, versionBefore, expected: expectedAfterShift(anchor) });
+  await trace.mark(part, "beforeEdit", desk, root.id);
   part.edited = await runEditPlan(desk.ctrl, desk.page, driver.shift);
   if (part.edited.status !== "ok") return { status: "FAIL", reason: `edit driver: ${part.edited.reason}` };
+  await trace.mark(part, "afterEdit", desk, root.id);
   part.saved = false;
   await saveOnDesktop(desk.ctrl, desk.path);
   part.saved = true;
   const rowOf = (srv) => srv.comments.find((r) => r.id === root.id) ?? null;
+  // the row was exact before this Save: lost now is the Save round's own answer (it keeps the version, R1-7)
   const settled = await poll(
     () => readServer(A, documentId),
-    (srv) => Boolean(srv.head && srv.head !== versionBefore && rowOf(srv)?.anchor_version_id === srv.head),
+    (srv) => Boolean(srv.head && srv.head !== versionBefore && (rowOf(srv)?.anchor_version_id === srv.head || rowOf(srv)?.anchor_state === "lost")),
   );
   Object.assign(part, { headVersionId: settled.value.head, row: rowState(rowOf(settled.value)), elapsedMs: settled.elapsedMs });
+  await trace.mark(part, "afterSave", desk, root.id);
+  await trace.headQuote(part, documentId, settled.value);
   return settled.ok ? {} : { status: "FAIL", reason: `the anchor did not reach the new version within ${settled.elapsedMs} ms` };
+}
+
+/**
+ * Bounded docx diagnostics (cloud r2 could not tell a product loss from a driver that moved the
+ * text): the editor's highlight of the comment before the edit, after it and after the Save, and
+ * the block of the saved head that holds the quote. Other formats record nothing; a probe that
+ * fails records its error, never the row's verdict.
+ */
+function docxTrace({ format, ctx, world, download }) {
+  if (format !== "docx") return { mark: async () => {}, headQuote: async () => {} };
+  return {
+    async mark(part, when, desk, commentId) {
+      try {
+        const m = await desk.ctrl.evalBounded(desk.page, serverCommentMark, { commentId }, "probe:mark");
+        part.marks = { ...part.marks, [when]: typeof m?.marks === "number" ? m.marks : null };
+      } catch (err) {
+        part.marks = { ...part.marks, [when]: null, [`${when}Error`]: String(err?.message ?? err).slice(0, 160) };
+      }
+    },
+    async headQuote(part, documentId, srv) {
+      if (!srv?.headVersion || !part.expected?.quote) return;
+      try {
+        const get = download ?? ((id, version) => downloadVersion({ apiOrigin: ctx.apiOrigin, token: world.user("A").token, documentId: id, version }));
+        part.headQuote = { block: docxQuoteBlock(await get(documentId, srv.headVersion), part.expected.quote), version: srv.headVersion };
+      } catch (err) {
+        part.headQuote = { error: String(err?.message ?? err).slice(0, 160), version: srv.headVersion };
+      }
+    },
+  };
 }
 
 /** Saves `path` through the app; a reply that says it did not save throws. */
@@ -811,7 +855,7 @@ export async function saveOnDesktop(ctrl, path) {
 /**
  * Runs G8-A02 on one fixture (ctx from runRowModule). `deps`: `connectApp`,
  * `sleep`, `now`, `framePin` (else read now), `isAncestor` (else the fork clone),
- * `web` (harness/web.mjs), `launchBrowser`.
+ * `web` (harness/web.mjs), `launchBrowser`, `download` (`(documentId, version)` -> bytes, docx head check).
  */
 export async function runG8A02(ctx, deps = {}) {
   const { connectApp = realConnectApp, sleep = realSleep, now = Date.now, web = realWeb } = deps;
@@ -828,6 +872,7 @@ export async function runG8A02(ctx, deps = {}) {
     const world = await ctx.getWorld();
     const A = world.session("A");
     const B = world.session("B");
+    const trace = docxTrace({ format, ctx, world, download: deps.download });
     let doc;
     let other;
     let closedDoc;
@@ -843,7 +888,7 @@ export async function runG8A02(ctx, deps = {}) {
     rec.closedPanel = { ran: true, documentId: closedDoc.documentId };
     s = await ctx.step("closed-panel-save", async () => {
       desk = await openOnDesktop({ ctx, world, connectApp, documentId: closedDoc.documentId, format });
-      return runClosedPanelSave({ ctx, A, desk, driver, documentId: closedDoc.documentId, poll, part: rec.closedPanel });
+      return runClosedPanelSave({ ctx, A, desk, driver, documentId: closedDoc.documentId, poll, part: rec.closedPanel, trace });
     });
     if (s.status === "FAIL" && !rec.closedPanel.saved && rec.closedPanel.edited?.status === undefined) rec.closedPanel = { ran: false, reason: s.reason };
 
@@ -894,19 +939,25 @@ export async function runG8A02(ctx, deps = {}) {
     await ctx.step("shift", async () => {
       const versionBefore = (await readServer(A, doc.documentId)).head;
       const expected = expectedAfterShift(rec.created.anchor);
+      rec.shift = { saved: false, versionBefore, expected };
+      await trace.mark(rec.shift, "beforeEdit", desk, commentId);
       const edited = await runEditPlan(desk.ctrl, desk.page, driver.shift);
-      rec.shift = { edited, saved: false, versionBefore, expected };
+      rec.shift.edited = edited;
       if (edited.status !== "ok") return { status: "FAIL", reason: `edit driver: ${edited.reason}` };
+      await trace.mark(rec.shift, "afterEdit", desk, commentId);
       await saveOnDesktop(desk.ctrl, desk.path);
       rec.shift.saved = true;
+      // exact on the new head, or lost (the round's answer for a row that was exact; it keeps the version)
       const settled = await poll(
         () => readServer(A, doc.documentId),
         (srv) => {
           const row = rowOf(srv);
-          return Boolean(row && srv.head && srv.head !== versionBefore && row.anchor_version_id === srv.head && row.anchor_state === "exact");
+          return Boolean(row && srv.head && srv.head !== versionBefore && ((row.anchor_version_id === srv.head && row.anchor_state === "exact") || row.anchor_state === "lost"));
         },
       );
       Object.assign(rec.shift, { headVersionId: settled.value.head, row: rowState(rowOf(settled.value)), elapsedMs: settled.elapsedMs });
+      await trace.mark(rec.shift, "afterSave", desk, commentId);
+      await trace.headQuote(rec.shift, doc.documentId, settled.value);
       return settled.ok ? {} : { status: "FAIL", reason: `the server row did not reach the new version within ${settled.elapsedMs} ms` };
     });
 

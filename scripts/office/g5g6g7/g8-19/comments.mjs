@@ -14,7 +14,6 @@
 // The G8-A03 rename/copy add-on runs inside A04 and is reported in its artifact.
 import { readFile as fsReadFile } from "node:fs/promises";
 
-import { API_PREFIX } from "../harness/api-contract.mjs";
 import { connectApp as realConnectApp } from "../harness/app.mjs";
 import { loadPlaywrightChromium, sleep as realSleep } from "../harness/app-steps.mjs";
 import { isMainModule, setAppApiProxyOnline } from "../harness/lib.mjs";
@@ -23,6 +22,7 @@ import {
   EDIT_DRIVERS,
   FIXTURE_FORMAT,
   anchorForFixture,
+  downloadVersion,
   forkAncestorChecker,
   framePinBlock,
   openCommentsPanel,
@@ -35,6 +35,9 @@ import {
   unwrap,
 } from "./anchors.mjs";
 import { machineNames, scanForNames, scanText } from "./file-scan.mjs";
+
+// the version download moved next to the G8-A02 head check; A01 and its test keep importing it here
+export { downloadVersion };
 import { decideFromSteps, rowMain } from "./run-row.mjs";
 
 /** Lead decision Q2: the A01 "AI only proposes, the human who presses Send is the author" evidence. */
@@ -70,14 +73,6 @@ export const DIRTY_EDITS = Object.freeze({
       "Insert blank page is the product command the A02 plan already drives",
   },
 });
-
-/** GET the bytes of version `version` of a file document as the bearer of `token` (router/documents.go:198, ?version=N). */
-export async function downloadVersion({ apiOrigin, token, documentId, version, fetchImpl = fetch, timeoutMs = 60_000 }) {
-  const url = `${apiOrigin}${API_PREFIX}/documents/${encodeURIComponent(documentId)}/download?version=${encodeURIComponent(String(version))}`;
-  const res = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(timeoutMs) });
-  if (!res.ok) throw new Error(`download of version ${version} answered ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
-}
 
 /** The document head: `{ versionId, version }` from getDocument; throws on a non-2xx. */
 async function readHead(session, documentId) {

@@ -708,3 +708,95 @@ test("runG8A02 asks for the editor page that shows each document by path (two do
     ["sheets", { path: "/wc/doc.xlsx", documentId: "doc-1" }],
   ]);
 });
+
+/**
+ * The r2 docx behaviour: every Save round answers lost (the row keeps its version), the editor's
+ * highlight is there until the Save and gone after it, and the saved head holds the quote at block 3.
+ */
+function scriptDocxServer(fake) {
+  const docs = {
+    "doc-1": { head: 1, row: null },
+    "doc-3": { head: 1, row: null },
+  };
+  const state = { marks: 0, panel: false };
+  const idOfPath = (path) => (path === "/wc/doc-3.docx" ? "doc-3" : "doc-1");
+  fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
+  fake.script.respond("app.openByTicket", (call) => {
+    const id = call.args[1]?.documentId ?? "doc-1";
+    return { path: `/wc/${id}.docx`, documentId: id, kind: "docs" };
+  });
+  fake.script.respond("app.comments.context", (call) => ({ ok: true, value: { documentId: idOfPath(call.args[0].path), versionId: `${idOfPath(call.args[0].path)}-v${docs[idOfPath(call.args[0].path)].head}` } }));
+  fake.script.respond("app.comments.create", (call) => {
+    const input = call.args[0];
+    const d = docs[idOfPath(input.path)];
+    if (input.parentId) return { ok: true, value: { comment: { id: "r1", parent_id: input.parentId } } };
+    d.row = { id: idOfPath(input.path) === "doc-3" ? "cc" : "c1", anchor: input.anchor, anchor_state: "exact", anchor_version_id: input.baseVersionId, deleted_at: null, parent_id: null };
+    state.marks = 1;
+    return { ok: true, value: { comment: d.row } };
+  });
+  fake.script.respond("app.evalBounded", (call) => {
+    const [, arg, label] = call.args;
+    if (label === "probe:listed") return { panels: state.panel ? 1 : 0, commentIds: state.panel ? ["c1"] : [] };
+    if (label === "probe:mark") return { marks: state.marks, text: state.marks ? "Tổng doanh thu quý 1" : "" };
+    if (arg?.selector === "button.rb-big") state.panel = true;
+    return { status: "ok" };
+  });
+  fake.script.respond("app.save", (call) => {
+    const d = docs[idOfPath(call.args[0])];
+    d.head += 1;
+    if (d.row) d.row = { ...d.row, anchor_state: "lost" };
+    state.marks = 0;
+    return { state: "saved" };
+  });
+  const docOf = (call) => call.args.pathParams?.documentID;
+  fake.script.respond("api.getDocument", (call) => {
+    const id = docOf(call);
+    const d = docs[id] ?? docs["doc-1"];
+    return { status: 200, body: { document: { id, file: { version_id: `${id}-v${d.head}`, version: d.head } } } };
+  });
+  fake.script.respond("api.listDocumentComments", (call) => {
+    const d = docs[docOf(call)] ?? { row: null };
+    return { status: 200, body: { comments: d.row ? [d.row, { id: "r1", parent_id: d.row.id, deleted_at: null }] : [], list_token: "t" } };
+  });
+  fake.script.respond("api.putDocumentCommentAnchors", { status: 400, body: bodyInvalid });
+  return { docs, state };
+}
+
+test("runG8A02 (docx, fake): records the highlight around each Save and the saved head's quote block, and a lost row ends the wait at once", async () => {
+  const fake = createFakeWorld();
+  scriptDocxServer(fake);
+  const p = (t) => `<w:p><w:r><w:t>${t}</w:t></w:r></w:p>`;
+  const head = zipStore([{ name: "word/document.xml", data: `<w:document><w:body>${p("")}${p("")}${p("1. Tóm tắt")}${p("Tổng doanh thu quý 1 đạt")}</w:body></w:document>` }]);
+  const downloads = [];
+  let t = 0;
+  const record = await runG8A02(fakeCtx(fake, "fx-docx-report-vi"), {
+    connectApp: fake.app.connectApp,
+    sleep: async () => {},
+    now: () => (t += 1_000),
+    framePin: { gitSha: "05fd209" },
+    download: async (documentId, version) => {
+      downloads.push([documentId, version]);
+      return head;
+    },
+  });
+  const closed = record.details.closedPanel;
+  assert.deepEqual(closed.marks, { beforeEdit: 1, afterEdit: 1, afterSave: 0 });
+  assert.deepEqual(closed.headQuote, { block: 3, version: 2 });
+  assert.ok(closed.elapsedMs < 5_000, `a lost row is the round's answer: no 60 s wait (${closed.elapsedMs})`);
+  assert.match(record.steps["check:closed-panel-save"].reason, /^desktop reported the anchor lost on Save: the saved head holds the quote at block 3/);
+  assert.match(record.steps["check:closed-panel-save"].reason, /highlight before edit 1, after edit 1, after Save 0/);
+  assert.deepEqual(record.details.shift.marks, { beforeEdit: 1, afterEdit: 1, afterSave: 0 });
+  assert.match(record.steps["check:shift"].reason, /^desktop reported the anchor lost on Save, want exact at path \[3\]/);
+  assert.equal(record.steps["check:remove-lost"].status, "FAIL");
+  assert.deepEqual(downloads, [["doc-3", 2], ["doc-1", 2]]);
+  assert.equal(record.status, "FAIL");
+});
+
+test("runG8A02 closed panel records whether the comment was made after a prepare Save (xlsx: no prepare plan, no docx highlight probe)", async () => {
+  const fake = createFakeWorld();
+  const state = scriptXlsxServer(fake);
+  state.closedStays = true;
+  const record = await runG8A02(fakeCtx(fake, "fx-xlsx-revenue-xyz"), { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  assert.equal(record.details.closedPanel.createdAfterSave, false, "xlsx has no prepare plan");
+  assert.equal(record.details.closedPanel.marks, undefined, "highlights are a docx probe only");
+});
