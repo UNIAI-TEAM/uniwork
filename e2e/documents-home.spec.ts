@@ -87,13 +87,14 @@ test("create card, folder, move and the other-modules section on the owner's hom
   // 3. Move the docx into the folder from its row menu, then find it inside.
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Thao tác cho ${DOCX_TITLE}` }).click();
-  await page.getByRole("menuitem", { name: "Di chuyển" }).click();
-  const dialog = page.getByRole("dialog");
-  const folderOption = dialog.getByRole("button", { name: FOLDER_TITLE });
-  await folderOption.click();
-  await expect(folderOption).toHaveAttribute("aria-pressed", "true");
-  await dialog.getByRole("button", { name: "Di chuyển" }).click();
-  await expect(page.getByText("Đã di chuyển.")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
+  // FD-09: the Move-to picker is a tree (as documents-folders.spec.ts drives it); the pick is confirmed with "Di chuyển".
+  const moveDialog = page.getByRole("dialog", { name: "Di chuyển tới" });
+  await expect(moveDialog).toBeVisible();
+  await moveDialog.getByRole("treeitem", { name: FOLDER_TITLE, exact: true }).click();
+  await moveDialog.getByRole("button", { name: "Di chuyển", exact: true }).click();
+  await expect(moveDialog).toBeHidden();
+  await expect(page.getByText(`Đã chuyển tới ${FOLDER_TITLE}`)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("treeitem", { name: new RegExp(FOLDER_TITLE) }).click();
   await expect(page.getByRole("navigation", { name: "Đường dẫn thư mục" }).getByText(FOLDER_TITLE, { exact: true })).toBeVisible();
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
