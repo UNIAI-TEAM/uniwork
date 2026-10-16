@@ -1,0 +1,26 @@
+$ P=$(ps -eo pid=,cmd= | awk '/next-server|sh -c next start/ && !/awk/ {print $1}'); echo "STALE_PIDS=$P"; for p in $P; do kill $p 2>/dev/null; done; sleep 3; for p in $P; do kill -0 $p 2>/dev/null && kill -9 $p; done; sleep 1; curl -s -o /dev/null --max-time 3 http://localhost:3000 && echo "PORT3000_STILL_SERVED" || echo "PORT3000_FREE"; true
+STALE_PIDS=56225
+56226
+60224
+60225
+64134
+64135
+75146
+75147
+88418
+88419
+101607
+101608
+125020
+125021
+140203
+140204
+155399
+155400
+169508
+169509
+206699
+206700
+262284
+262285
+PORT3000_FREE

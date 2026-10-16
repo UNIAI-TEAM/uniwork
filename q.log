@@ -1,0 +1,16 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test onboarding-mobile.spec.ts --reporter=list > /tmp/doc05d3-ONBOARDING_MOBILE.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/doc05d3-ONBOARDING_MOBILE.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/doc05d3-ONBOARDING_MOBILE.log && echo "skipped: ONBOARDING_MOBILE has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/doc05d3-ONBOARDING_MOBILE.log || { echo "no passing test matched ONBOARDING_MOBILE"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_ONBOARDING_MOBILE_EXIT=$rc"
+
+Running 4 tests using 1 worker
+
+(node:313230) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:313230) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 onboarding-mobile.spec.ts:11:1 › không có thanh cuộn ngang ở bất kỳ bước nào (1.2s)
+  ✓  2 onboarding-mobile.spec.ts:23:1 › rail ẩn, thanh tiến độ nói được vị trí bước (804ms)
+  ✓  3 onboarding-mobile.spec.ts:31:1 › mọi vùng chạm đạt 44px ở mọi bước (1.1s)
+  ✓  4 onboarding-mobile.spec.ts:82:1 › CTA chính không bị vệt mờ của vùng cuộn ăn vào (824ms)
+
+  4 passed (4.9s)
+
+E2E_ONBOARDING_MOBILE_EXIT=0
