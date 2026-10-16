@@ -202,8 +202,8 @@ Dùng chung component với S12 (G8-20), khác ở:
 
 ### S14 — picker mention
 
-Combobox APG trong composer của S12/S13 (ARIA ở Accessibility Floor G8). Nguồn: `mentions.search` → `mention-candidates` (G8-06):
-chỉ người có ít nhất `view` trên tài liệu, tối đa 20 dòng, `q` rỗng = theo tên.
+Combobox APG trong composer của S12/S13 (ARIA ở Accessibility Floor G8). Nguồn: `mentions.search` → `mention-candidates` (G8-06, G8-18):
+mặc định chỉ trả người có ít nhất `view` trên tài liệu; khi người gọi xem được danh sách thành viên (`include=no_access`), trả tập ứng viên kèm `can_view: boolean` (tối đa 20 dòng, `q` rỗng = theo tên). Chi tiết đầy đủ tại [phụ lục mức quyền & G8-18 §3](../../../superpowers/specs/2026-10-14-documents-permission-levels-addendum.md).
 
 | Trạng thái | Hành vi | Khóa |
 | --- | --- | --- |
@@ -216,7 +216,9 @@ chỉ người có ít nhất `view` trên tài liệu, tối đa 20 dòng, `q` 
 | Chọn | Chèn token `[@Tên](mention://member/<id>)`, hiện như chip tên hiện tại; đóng picker; con trỏ sau chip + một dấu cách | — |
 | Esc / bấm ra ngoài | Đóng picker, giữ chữ đã gõ (thành văn bản thường, không phải mention) | — |
 | Chỉ xem / mất mạng / server lỗi | Không có composer hoặc Gửi bị chặn; picker vẫn mở được khi composer còn (mất mạng → hàng Lỗi) | — |
-| Người chưa có quyền (phác, **pending G8-18**) | v1 (giá trị tạm G8-D3): picker không bao giờ liệt kê họ; token dán vào được lưu `no_access`, không thông báo, **không chữ nào** trong UI. Phác cho G8-18: chip có dấu chữ cạnh tên + câu dưới composer kiểu "{name} chưa xem được tài liệu này nên sẽ không nhận thông báo"; khóa, câu và nơi hiện chốt ở G8-18 khi G8-D3 ký, chưa vào String catalogue | — |
+| Huy hiệu người chưa có quyền (`can_view=false`, G8-18) | Hàng trong listbox S14 và chip đã chèn hiện biểu tượng ổ khóa + chữ cạnh tên (không bao giờ chỉ dùng màu sắc) | `collabMentionNoAccessBadge` |
+| Cảnh báo trước khi gửi (G8-18) | Khi có chip `can_view=false` từ picker (tên liệt kê đầy đủ qua `Intl.ListFormat`, không cắt gọn): nếu `can_share=true` mở hộp xác nhận (cấp tuần tự mức `view` rồi gửi 1 lần / gửi không thông báo / hủy); nếu `can_share=false` ẩn nút chia sẻ và hiện câu nhờ người quản lý; nếu hỗn hợp thì tách dòng phụ trung tính cho nhóm `can_share=false`; đủ các trạng thái đang chia sẻ, chia sẻ thất bại toàn bộ, chia sẻ thành công một phần và gửi lỗi sau khi đã chia sẻ | `collabMentionWarnTitle`, `collabMentionWarnBody`, `collabShareViewThenSend`, `collabSendWithoutNotify`, `collabMentionAskManager`, `collabMentionMixedUnshareable`, `collabSharingView`, `collabShareViewFailed`, `collabShareViewPartial`, `collabSendComment`, `collabRetryShareFor`, `collabSendFailedAfterShare`, `collabRetry`, `collabCancel` |
+| Thông báo sau khi gửi (`post-send notice`, G8-18) | Khi phản hồi `201/200` trả `mentions_without_access` (token gõ tay/dán hoặc mất quyền giữa chừng): bình luận đã lưu, hiện dải thông báo nội tuyến dưới bình luận kèm nút chia sẻ quyền Xem (nếu `can_share=true`) và lưu ý không thông báo hồi tố; mention không bao giờ tự cấp quyền | `collabPostSendNoAccess`, `collabPostSendShareAction`, `collabPostSendNoRetroNote` |
 
 ### S15 — mở từ Inbox (ngoại lệ UNI-1389)
 
@@ -457,6 +459,22 @@ Tác giả của bình luận trong tệp dùng nhãn trung tính sẵn có củ
 | `collabMentionNoMatch` | Không có ai khớp “{query}” trong số người xem được tài liệu này. | No one with access to this document matches “{query}”. | F+D | — |
 | `collabMentionNoCandidates` | Chưa có ai khác xem được tài liệu này. | No one else has access to this document yet. | F+D | — |
 | `collabMentionError` | Không tải được danh sách người. | Couldn’t load people. | F+D | — |
+| `collabMentionNoAccessBadge` | Chưa xem được | Can't view | F+D | — |
+| `collabMentionWarnTitle` | Người được nhắc chưa có quyền xem | Mentioned people can't view this document | F+D | — |
+| `collabMentionWarnBody` | {names} chưa xem được tài liệu này nên sẽ không nhận thông báo. | {names} can't view this document, so they won't be notified. | F+D | — |
+| `collabShareViewThenSend` | Chia sẻ quyền Xem rồi gửi | Share view access, then send | F+D | — |
+| `collabSendWithoutNotify` | Gửi, không thông báo | Send without notifying | F+D | — |
+| `collabMentionAskManager` | Hãy nhờ người quản lý tài liệu chia sẻ quyền Xem cho {names}. | Ask someone who manages this document to share view access with {names}. | F+D | — |
+| `collabMentionMixedUnshareable` | Không thể chia sẻ cho {unshareable}; những người này sẽ không nhận thông báo. | Can't share with {unshareable}; they won't be notified. | F+D | — |
+| `collabSharingView` | Đang chia sẻ quyền Xem… | Sharing view access… | F+D | — |
+| `collabShareViewFailed` | Chưa chia sẻ được quyền Xem cho {failedNames}. Bạn có thể thử lại hoặc gửi mà không thông báo. | Couldn't share view access with {failedNames}. You can try again or send without notifying. | F+D | — |
+| `collabShareViewPartial` | Đã chia sẻ quyền Xem cho {sharedNames}. Chưa chia sẻ được cho {failedNames} (sẽ không nhận thông báo). | Shared view access with {sharedNames}. Couldn't share with {failedNames} (they won't be notified). | F+D | — |
+| `collabSendComment` | Gửi bình luận | Send comment | F+D | — |
+| `collabRetryShareFor` | Thử lại cho {failedNames} | Try again for {failedNames} | F+D | — |
+| `collabSendFailedAfterShare` | Đã chia sẻ quyền Xem cho {sharedNames} nhưng chưa gửi được bình luận. Nội dung vẫn còn trong ô soạn — hãy thử gửi lại. | Shared view access with {sharedNames}, but couldn't send the comment. Your text is still in the box — try sending again. | F+D | — |
+| `collabPostSendNoAccess` | {names} chưa xem được tài liệu này nên đã không nhận thông báo. | {names} can't view this document, so they weren't notified. | F+D | — |
+| `collabPostSendShareAction` | Chia sẻ quyền Xem | Share view access | F+D | — |
+| `collabPostSendNoRetroNote` | Chia sẻ lúc này không gửi lại thông báo cho bình luận trên; hãy nhắc lại họ ở bình luận mới nếu cần. | Sharing now won't notify them about this comment; mention them in a new comment to notify. | F+D | — |
 
 ### Mở từ Inbox, mức trang (S15, chỉ web D)
 
@@ -588,5 +606,5 @@ Không còn câu nào mở. Các câu của bản r2 và của hợp đồng thu
 | Chữ nhãn neo `lost` (hợp đồng OQ-C11, phần UX) | Ký chữ riêng: "Không còn tìm thấy vị trí được bình luận" / "The commented location can no longer be found", khác khung `collabDeleted` | String catalogue G8 › Neo |
 | Tên chip sau khi đổi tên hiển thị (hợp đồng OQ-C10, phần UX) | Chấp nhận: chip làm mới ở mỗi lần list đầy đủ (web mỗi lần invalidate; desktop khi token đổi); không chuỗi nào | hợp đồng mục 2.1, mục 6 |
 | Bỏ cứng dây chuyền cha tombstone (hợp đồng OQ-C4, phần UX) | Chấp nhận: khung rỗng không còn con thì biến mất cùng lần tải; S12 hàng "Xóa comment không có trả lời" | S12 |
-| Thông điệp mention người chưa có quyền | **pending G8-18** (khi G8-D3 ký): chỉ phác ở S14, chưa có khóa; v1 không chữ nào | S14 |
+| Thông điệp mention người chưa có quyền | Đã chốt ở G8-18 (G8-D3 ký 2026-10-14): huy hiệu ổ khóa + chữ `collabMentionNoAccessBadge`, hộp cảnh báo trước gửi (chia sẻ quyền Xem rồi gửi / gửi không thông báo / hủy, đủ trạng thái lỗi & một phần) và thông báo nội tuyến sau gửi (`mentions_without_access`, không thông báo hồi tố) | S14, [phụ lục mức quyền §3](../../../superpowers/specs/2026-10-14-documents-permission-levels-addendum.md) |
 | "Người liên quan" khi giải quyết (hợp đồng OQ-C7) | Không thuộc UX (Product, UNI-1337); không đổi bề mặt S12–S15 | hợp đồng mục 13 |

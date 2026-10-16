@@ -147,6 +147,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.version_created` | 1 | `document_id`, `version_id`, `workspace_id` | — | workspace | outbox |
 | `document.shared` | 1 | `document_id`, `workspace_id`, `share_id` | — | workspace | outbox |
 | `document.share_revoked` | 1 | `document_id`, `workspace_id`, `share_id` | — | workspace | outbox |
+| `document.break_glass_granted` | 1 | `document_id`, `workspace_id`, `grant_id` | — | workspace | outbox |
+| `document.break_glass_revoked` | 1 | `document_id`, `workspace_id`, `grant_id` | — | workspace | outbox |
 | `document.link_created` | 1 | `document_id`, `workspace_id`, `link_id` | — | workspace | outbox |
 | `document.link_revoked` | 1 | `document_id`, `workspace_id`, `link_id` | — | workspace | outbox |
 | `document.comment_added` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |

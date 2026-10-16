@@ -35,6 +35,9 @@ import (
 //	POST   /api/v1/documents/{documentID}/shares                  (G1-05b)
 //	POST   /api/v1/documents/{documentID}/shares/batch            (UNI-1641)
 //	DELETE /api/v1/documents/{documentID}/shares/{shareID}        (G1-05b)
+//	POST   /api/v1/documents/{documentID}/break-glass             (DOC-05)
+//	DELETE /api/v1/documents/{documentID}/break-glass/{grantID}   (DOC-05)
+//	GET    /api/v1/documents/{documentID}/admin-summary           (DOC-05)
 //	POST   /api/v1/documents/{documentID}/links                   (G1-05b)
 //	DELETE /api/v1/documents/{documentID}/links/{linkID}          (G1-05b)
 //	GET    /api/v1/documents/{documentID}/access-logs             (G1-05b)
@@ -522,14 +525,14 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Get("/documents/{documentID}/shares", h.ListDocumentShares, apiOp{
 		summary:     "List document access",
-		description: "Người gọi luôn thấy my_level/via của mình; chỉ manage thấy acl_owner, danh sách grant sống (kèm effective_level) và liên kết công khai sống. Grant đã thu hồi không xuất hiện.",
+		description: "Người gọi luôn thấy my_level/via của mình (rỗng khi admin_scope và chưa có quyền đọc); chỉ người quản trị (manage hoặc admin_scope) thấy acl_owner, danh sách grant sống (kèm effective_level), liên kết công khai sống và break_glass[] (truy cập khẩn cấp còn hiệu lực, mới nhất trước). Grant đã thu hồi không xuất hiện.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentAccessSDO{},
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/shares", h.CreateDocumentShare, apiOp{
 		summary:     "Share a document",
-		description: "Cấp view/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409.",
+		description: "Cấp view/comment/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ShareDocumentSDI{},
 		sdo:         sdo.DocumentShareSDO{},
@@ -552,6 +555,29 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		description: "Thu hồi một grant đang sống (ghi revoked_at, giữ lịch sử). Chỉ manage; share không thuộc tài liệu -> 404.",
 		tags:        []string{"documents"},
 		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/break-glass", h.CreateDocumentBreakGlass, apiOp{
+		summary:     "Open emergency access to a restricted document",
+		description: "Chủ/quản trị workspace (không phải ACL owner) mở quyền xem khẩn cấp 24 giờ trên tài liệu restricted: chỉ xem, cần lý do 10–500 ký tự sau khi cắt khoảng trắng (sai -> 422 break_glass_reason_invalid kèm fields min/max/length), ghi nhật ký và báo cho chủ tài liệu. 201 khi tạo grant mới; 200 cùng nội dung khi người gọi đã có grant còn hiệu lực (không ghi thêm nhật ký/thông báo). Người đọc không phải quản trị -> 403 forbidden; tài liệu thuộc Work Product -> 409.",
+		tags:        []string{"documents"},
+		sdi:         sdi.BreakGlassSDI{},
+		sdo:         sdo.DocumentBreakGlassSDO{},
+		status:      http.StatusCreated,
+		auth:        true,
+	})
+	d.Delete("/documents/{documentID}/break-glass/{grantID}", h.RevokeDocumentBreakGlass, apiOp{
+		summary:     "End emergency access",
+		description: "Người giữ grant (Kết thúc truy cập) hoặc người quản trị tài liệu (ACL owner, manage, quản trị workspace) thu hồi grant ngay. Grant đã thu hồi hoặc hết hạn -> 200 (idempotent, không ghi thêm); grant không thuộc tài liệu -> 404.",
+		tags:        []string{"documents"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	d.Get("/documents/{documentID}/admin-summary", h.GetDocumentAdminSummary, apiOp{
+		summary:     "Read the admin summary of a document",
+		description: "Metadata của tài liệu, ACL owner, quyền của người gọi và grant khẩn cấp còn hiệu lực của chính họ; không bao giờ có nội dung. Chỉ người quản trị tài liệu (ACL owner, manage, quản trị workspace); người đọc thấp hơn -> 403 forbidden.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentAdminSummarySDO{},
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/links", h.CreateDocumentLink, apiOp{

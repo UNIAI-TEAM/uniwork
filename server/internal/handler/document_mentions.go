@@ -28,7 +28,13 @@ func (h *handlers) listDocumentMentionCandidates(w http.ResponseWriter, r *http.
 		return
 	}
 	q := r.URL.Query()
-	in := service.MentionCandidateQuery{Query: strings.TrimSpace(q.Get("q"))}
+	// include=no_access adds the people who cannot read the document; any
+	// other value is ignored, and the service ignores it too for a caller who
+	// may not list the workspace's members.
+	in := service.MentionCandidateQuery{
+		Query:           strings.TrimSpace(q.Get("q")),
+		IncludeNoAccess: strings.TrimSpace(q.Get("include")) == "no_access",
+	}
 	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil {
@@ -47,7 +53,7 @@ func (h *handlers) listDocumentMentionCandidates(w http.ResponseWriter, r *http.
 	}
 	out := sdo.MentionCandidateListSDO{Candidates: make([]sdo.MentionCandidateDTO, 0, len(candidates))}
 	for _, c := range candidates {
-		row := sdo.MentionCandidateDTO{UserID: c.UserID, DisplayName: c.DisplayName}
+		row := sdo.MentionCandidateDTO{UserID: c.UserID, DisplayName: c.DisplayName, CanView: c.CanView}
 		if c.AvatarURL != "" {
 			avatar := c.AvatarURL
 			row.AvatarURL = &avatar

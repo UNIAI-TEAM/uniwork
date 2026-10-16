@@ -4,7 +4,6 @@ import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode } from "@uniwork/core/api";
-import { readAdminScopeFake } from "@uniwork/core/documents/doc05-fake";
 import { useTransferDocumentOwner } from "@uniwork/core/documents/hooks-owner";
 import type { OrgMember } from "@uniwork/core/types/people";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -99,7 +98,7 @@ function OwnerTransferForm({
 
   // An admin reaching a restricted document only through admin_scope may not
   // take it for themselves (DOC-05; the server answers break_glass_required).
-  const selfExcluded = readAdminScopeFake(doc) && doc.my_level !== "manage" && doc.visibility === "restricted";
+  const selfExcluded = doc.admin_scope === true && doc.my_level !== "manage" && doc.visibility === "restricted";
 
   // Workspace members who are still active in the organization: agents are
   // never workspace members, a deactivated person is absent from the active

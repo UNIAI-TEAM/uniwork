@@ -16,6 +16,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { committedBlockLines, parseExtractBlock } from './g7-06/extractor-check.mjs';
+import { isUnresolvedSchemaCell } from '../instruction-pack-tools.mjs';
 import { frameToolCounts, offeredTools, TOOL_OPS, toolCatalogue, toolSurface } from './holdout-backend.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -35,6 +36,13 @@ const PARTIAL_DESCRIPTION_TOOLS = [
   'slides/apply_ops',
   'slides/load_guide',
 ];
+
+// Tools whose block cell is the documented `unresolved:<reason>` form: the extractor cannot resolve the schema
+// statically (the fork spreads the parameterised helper `nodeSchema(maxDepth)` into `inputSchema`), so the block
+// carries no hash and the file lists the tool in the catalogue without a schema instead of offering it to a model.
+// The list is a decision, not an absorb: a third unresolved row in the block, or any other entry that is not
+// offered, fails below.
+const UNRESOLVED_SCHEMA_TOOLS = ['docs/generate_mindmap', 'markdown/generate_mindmap'];
 
 const schemaBytes = fs.readFileSync(SCHEMAS_FILE);
 const file = JSON.parse(schemaBytes.toString('utf8'));
@@ -59,6 +67,47 @@ const namesByModule = (rows) => {
   return out;
 };
 
+/** The block rows whose cell is the documented unresolved form, as `module/tool`, sorted. */
+const unresolvedKeys = (rows) => rows.filter((row) => isUnresolvedSchemaCell(row.hash)).map((row) => `${row.module}/${row.tool}`).sort();
+
+/** The names a module array may offer: every block row of the module whose cell is a resolved hash. */
+const offeredNamesByModule = (rows) => {
+  const out = {};
+  for (const module of MODULES) out[module] = rows.filter((row) => row.module === module && !isUnresolvedSchemaCell(row.hash)).map((row) => row.tool).sort();
+  return out;
+};
+
+/** The module arrays of a schema file, keyed by module. */
+const moduleArraysOf = (schemaFile) => Object.fromEntries(MODULES.map((module) => [module, schemaFile[module]]));
+
+/**
+ * The unresolved cell is allowed only as the `tableHash` of a withheld entry: one finding (a string) per violation —
+ * a tool a model is offered carrying the literal, a catalogue entry outside `withheld` carrying it anywhere, a
+ * withheld entry whose cell is not the documented `unresolved:<reason>` form, or a raw file holding the literal a
+ * number of times other than one per withheld entry (the two cases below drive this rule).
+ */
+function unresolvedCellFindings({ text, catalogue, moduleArrays, withheld }) {
+  const findings = [];
+  for (const [module, tools] of Object.entries(moduleArrays)) {
+    for (const tool of tools) {
+      if (JSON.stringify(tool).includes('unresolved:')) findings.push(`${module}/${tool.function.name}: a tool offered to a model holds an unresolved cell`);
+    }
+  }
+  for (const entry of catalogue) {
+    const key = `${entry.module}/${entry.name}`;
+    if (withheld.has(key)) {
+      if (!isUnresolvedSchemaCell(entry.tableHash)) findings.push(`${key}: a withheld entry's tableHash must be the documented unresolved:<reason> form`);
+      continue;
+    }
+    if (JSON.stringify(entry).includes('unresolved:')) findings.push(`${key}: only a withheld entry may carry the unresolved cell`);
+  }
+  const occurrences = text.split('unresolved:').length - 1;
+  if (occurrences !== withheld.size) {
+    findings.push(`the file holds the literal unresolved: ${occurrences} time(s); expected one per withheld entry (${withheld.size})`);
+  }
+  return findings;
+}
+
 test('the file header pins the same fork rev and the same mechanical block as genoffice-tools.md', () => {
   assert.ok(block, 'the extract block markers are present in genoffice-tools.md');
   assert.equal(file.header.kind, 'genoffice-tool-schemas');
@@ -77,22 +126,35 @@ test('the file lists exactly the tool names of the committed extract block, modu
   }
   // one catalogue entry per table row (agent-core rows included), and each row's own hash cell is carried
   assert.equal(file.catalogue.length, committed.rows.length);
+  // the rows the file is allowed to withhold are the block's documented unresolved ones, and no others
+  assert.deepEqual(unresolvedKeys(committed.rows), [...UNRESOLVED_SCHEMA_TOOLS].sort(), 'the block carries exactly the reviewed unresolved rows');
   const hashes = new Map(committed.rows.map((r) => [`${r.module}|${r.tool}|${r.source}`, r.hash]));
   for (const entry of file.catalogue) {
     assert.equal(entry.tableHash, hashes.get(`${entry.module}|${entry.name}|${entry.source}`), `${entry.module}/${entry.name}`);
   }
 });
 
-test('every tool is offered with its real schema; the partial descriptions are exactly the reviewed ones', () => {
+test('every tool with a schema is offered whole; the withheld and partial ones are exactly the reviewed ones', () => {
+  const withheld = new Set(UNRESOLVED_SCHEMA_TOOLS);
   for (const entry of file.catalogue) {
-    assert.equal(entry.offered, true, `${entry.module}/${entry.name} is not offered: ${entry.reason}`);
-    assert.equal(entry.schemaComplete, true, `${entry.module}/${entry.name}: ${entry.reason}`);
+    const key = `${entry.module}/${entry.name}`;
+    if (withheld.has(key)) {
+      // The block cell is `unresolved:<reason>`: there is no schema to offer, so the file records the tool and why.
+      assert.equal(entry.offered, false, `${key} must not be offered without a schema`);
+      assert.equal(entry.schemaComplete, false, `${key}: ${entry.reason}`);
+      assert.equal(entry.inputSchemaSha256, null, `${key}: a withheld tool embeds no schema`);
+      assert.ok(typeof entry.reason === 'string' && entry.reason.length > 0, `${key}: a withheld tool says why`);
+      assert.ok(isUnresolvedSchemaCell(entry.tableHash), `${key}: the block cell is the documented unresolved form`);
+      continue;
+    }
+    assert.equal(entry.offered, true, `${key} is not offered: ${entry.reason}`);
+    assert.equal(entry.schemaComplete, true, `${key}: ${entry.reason}`);
   }
   for (const module of MODULES) {
     assert.deepEqual(
       file[module].map((t) => t.function.name).sort(),
-      namesByModule(committed.rows)[module],
-      `${module}: the module array offers every table row`,
+      offeredNamesByModule(committed.rows)[module],
+      `${module}: the module array offers every table row whose schema resolved`,
     );
     for (const tool of file[module]) {
       const { name, description, parameters } = tool.function;
@@ -107,10 +169,11 @@ test('every tool is offered with its real schema; the partial descriptions are e
   // RBD-7 / RBD-8: the block's own hash cell is the witness of the schema the file ships, so a schema body
   // edited by hand — with its stored hash updated to match — fails here. The single documented divergence is
   // docs/set_page_setup: its block cell pins the default evaluator's `+`-misread schema while the emit pass
-  // reads it whole (report-w10 residual 1). Any second divergent row fails.
+  // reads it whole (report-w10 residual 1). A withheld row has no schema to witness. Any second divergent row fails.
   for (const entry of file.catalogue) {
-    if (`${entry.module}/${entry.name}` === 'docs/set_page_setup') continue;
-    assert.equal(entry.inputSchemaSha256, entry.tableHash, `${entry.module}/${entry.name}: the block cell must witness the embedded schema`);
+    const key = `${entry.module}/${entry.name}`;
+    if (key === 'docs/set_page_setup' || withheld.has(key)) continue;
+    assert.equal(entry.inputSchemaSha256, entry.tableHash, `${key}: the block cell must witness the embedded schema`);
   }
   const partial = file.catalogue.filter((e) => !e.descriptionComplete).map((e) => `${e.module}/${e.name}`);
   assert.deepEqual(partial.sort(), PARTIAL_DESCRIPTION_TOOLS);
@@ -119,14 +182,41 @@ test('every tool is offered with its real schema; the partial descriptions are e
     const tool = file[module].find((t) => t.function.name === name);
     assert.ok(tool.function.description.includes(RUNTIME_MARK), `${key}: the runtime marker stands where the code ran`);
   }
-  // no other description carries the marker, and nothing unresolved leaked into the file as text
+  // no other description carries the marker
   for (const module of MODULES) {
     for (const tool of file[module]) {
       if (PARTIAL_DESCRIPTION_TOOLS.includes(`${module}/${tool.function.name}`)) continue;
       assert.ok(!tool.function.description.includes(RUNTIME_MARK), `${module}/${tool.function.name}`);
     }
   }
-  assert.ok(!schemaBytes.toString('utf8').includes('unresolved:'), 'no unresolved cell inside the schemas');
+  // The withheld rows are the only place the unresolved cell may appear, in the JSON and in the raw file alike; the
+  // negative cases below drive that rule.
+  assert.deepEqual(
+    unresolvedCellFindings({ text: schemaBytes.toString('utf8'), catalogue: file.catalogue, moduleArrays: moduleArraysOf(file), withheld }),
+    [],
+    'the unresolved cell lives only in the withheld entries\' tableHash',
+  );
+});
+
+test("the unresolved cell anywhere but a withheld entry's tableHash fails: a third entry, or the literal in a module array", () => {
+  const withheld = new Set(UNRESOLVED_SCHEMA_TOOLS);
+  const cell = 'unresolved:identifier:depth';
+  const entry = (key, tableHash) => ({ module: key.split('/')[0], name: key.split('/')[1], tableHash });
+  const withheldEntries = UNRESOLVED_SCHEMA_TOOLS.map((key) => entry(key, cell));
+  const text = (entries) => JSON.stringify({ header: {}, catalogue: entries, docs: [], markdown: [] });
+  const clean = { text: text(withheldEntries), catalogue: withheldEntries, moduleArrays: { docs: [], markdown: [] }, withheld };
+  assert.deepEqual(unresolvedCellFindings(clean), [], 'the withheld rows alone are clean');
+  // a third row the block does not carry: it is not withheld, and the file now holds the literal three times
+  const third = entry('docs/third_tool', cell);
+  assert.deepEqual(unresolvedCellFindings({ ...clean, text: text([...withheldEntries, third]), catalogue: [...withheldEntries, third] }), [
+    'docs/third_tool: only a withheld entry may carry the unresolved cell',
+    'the file holds the literal unresolved: 3 time(s); expected one per withheld entry (2)',
+  ]);
+  // the literal inside a tool a model is offered
+  const offered = { type: 'function', function: { name: 'read_blocks', description: cell, parameters: { type: 'object' } } };
+  assert.deepEqual(unresolvedCellFindings({ ...clean, moduleArrays: { docs: [offered], markdown: [] } }), [
+    'docs/read_blocks: a tool offered to a model holds an unresolved cell',
+  ]);
 });
 
 test('holdout-backend loads the file with --tool-schemas semantics and offers every mapped tool a real schema', () => {

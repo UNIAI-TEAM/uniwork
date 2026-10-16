@@ -57,6 +57,55 @@ func (q *Queries) GetDocumentShare(ctx context.Context, arg GetDocumentSharePara
 	return i, err
 }
 
+const getLiveDocumentBreakGlassGrantForActor = `-- name: GetLiveDocumentBreakGlassGrantForActor :one
+SELECT id, organization_id, workspace_id, document_id, actor_id, actor_kind, level, reason, granted_at, expires_at, revoked_at, revoked_by
+FROM document_break_glass_grants
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+  AND actor_id = $4
+  AND actor_kind = $5
+  AND revoked_at IS NULL
+  AND expires_at > now()
+ORDER BY granted_at DESC, id DESC
+LIMIT 1
+`
+
+type GetLiveDocumentBreakGlassGrantForActorParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+	ActorID        string `json:"actor_id"`
+	ActorKind      string `json:"actor_kind"`
+}
+
+// The caller's live emergency view grant on a document (DOC-05; UNI-1628).
+func (q *Queries) GetLiveDocumentBreakGlassGrantForActor(ctx context.Context, arg GetLiveDocumentBreakGlassGrantForActorParams) (DocumentBreakGlassGrant, error) {
+	row := q.db.QueryRow(ctx, getLiveDocumentBreakGlassGrantForActor,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.ActorID,
+		arg.ActorKind,
+	)
+	var i DocumentBreakGlassGrant
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.ActorID,
+		&i.ActorKind,
+		&i.Level,
+		&i.Reason,
+		&i.GrantedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.RevokedBy,
+	)
+	return i, err
+}
+
 const insertDocumentShare = `-- name: InsertDocumentShare :one
 
 INSERT INTO document_shares (
@@ -155,6 +204,60 @@ func (q *Queries) ListDocumentShares(ctx context.Context, arg ListDocumentShares
 			&i.RevokedBy,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLiveBreakGlassGrantsForDocuments = `-- name: ListLiveBreakGlassGrantsForDocuments :many
+SELECT document_id, level
+FROM document_break_glass_grants
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = ANY($3::text[])
+  AND actor_id = $4
+  AND actor_kind = $5
+  AND revoked_at IS NULL
+  AND expires_at > now()
+`
+
+type ListLiveBreakGlassGrantsForDocumentsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	DocumentIds    []string `json:"document_ids"`
+	ActorID        string   `json:"actor_id"`
+	ActorKind      string   `json:"actor_kind"`
+}
+
+type ListLiveBreakGlassGrantsForDocumentsRow struct {
+	DocumentID string `json:"document_id"`
+	Level      string `json:"level"`
+}
+
+// The caller's live emergency view grants on a page of documents of one
+// workspace, read once so a list can resolve every restricted row's level
+// without a query per row (DOC-05; UNI-1628).
+func (q *Queries) ListLiveBreakGlassGrantsForDocuments(ctx context.Context, arg ListLiveBreakGlassGrantsForDocumentsParams) ([]ListLiveBreakGlassGrantsForDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, listLiveBreakGlassGrantsForDocuments,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentIds,
+		arg.ActorID,
+		arg.ActorKind,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLiveBreakGlassGrantsForDocumentsRow{}
+	for rows.Next() {
+		var i ListLiveBreakGlassGrantsForDocumentsRow
+		if err := rows.Scan(&i.DocumentID, &i.Level); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
