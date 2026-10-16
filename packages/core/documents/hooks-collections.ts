@@ -13,8 +13,11 @@ import {
   type MoveDocumentBody,
 } from "../api/endpoints/documents-collections";
 import { DocumentNotVerifiableError } from "../types/document";
+import { useEnsureMyFolder } from "./hooks";
 import { documentKeys } from "./keys";
 import { requireVerifiableArchive, requireVerifiableDocument } from "./verify";
+
+export { useEnsureMyFolder };
 
 // Documents collection hooks (C-01 §5.1; UNI-679, G1-05b). Keys come from the
 // documentKeys factory and every key hangs off the workspace root, so one

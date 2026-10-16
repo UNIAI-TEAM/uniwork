@@ -110,6 +110,27 @@ export async function createDocument(
   })?.document ?? null;
 }
 
+/**
+ * POST /api/v1/workspaces/{workspaceID}/documents/my-folder — lazily ensure
+ * the caller's personal root folder ("My Folder") and return its DocumentSDO.
+ * Naturally idempotent per (workspace, caller) on the server.
+ */
+export async function ensureMyFolder(
+  wsId: string,
+  opts?: DocumentRequestOpts | AbortSignal,
+): Promise<Document | null> {
+  const signal = opts instanceof AbortSignal ? opts : opts?.signal;
+  const headers = opts && !(opts instanceof AbortSignal) ? idempotencyHeaders(opts) : undefined;
+  const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/my-folder`, {
+    method: "POST",
+    headers,
+    signal,
+  });
+  return parseWithFallback<{ document: Document } | null>(raw, DocumentEnvelopeSchema, null, {
+    endpoint: "POST /api/v1/workspaces/{ws}/documents/my-folder",
+  })?.document ?? null;
+}
+
 /** GET /api/v1/documents/{documentID} — the working copy. */
 export async function getDocument(documentId: string, signal?: AbortSignal): Promise<Document | null> {
   const raw = await request(`/api/v1/documents/${enc(documentId)}`, { signal });

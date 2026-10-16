@@ -13,7 +13,9 @@ import {
 } from "../../types/document";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
-import type { DocumentRequestOpts } from "./documents";
+import { ensureMyFolder, type DocumentRequestOpts } from "./documents";
+
+export { ensureMyFolder };
 
 // Document collection endpoints (C-01 §5.1; UNI-679, G1-05b): the flat list
 // with filters/search/cursor, recent, shared-with-me and the sidebar tree,

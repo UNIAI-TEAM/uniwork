@@ -5,6 +5,7 @@ import {
   createDocument,
   createDocumentFile,
   downloadDocumentFile,
+  ensureMyFolder,
   getDocument,
   getDocumentAsset,
   getDocumentDownloadMeta,
@@ -61,6 +62,22 @@ export function useCreateDocument(wsId: string) {
       qc.setQueryData(documentKeys.detail(wsId, doc.id), doc);
       // 05b lands list/tree hooks under this root; prefix-invalidate so they
       // pick the new document up without a reload.
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
+  });
+}
+
+/**
+ * Ensure the caller's personal root folder ("My Folder") exists in this
+ * workspace (MYFOLDER-01). Writes the verified folder into its detail cache
+ * entry and invalidates the workspace root so tree/list pick it up.
+ */
+export function useEnsureMyFolder(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => requireVerifiableDocument(await ensureMyFolder(wsId)),
+    onSuccess: (doc) => {
+      qc.setQueryData(documentKeys.detail(wsId, doc.id), doc);
       return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
     },
   });

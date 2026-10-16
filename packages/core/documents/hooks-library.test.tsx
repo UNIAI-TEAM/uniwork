@@ -4,12 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { ApiError } from "../api/http";
 import { setAccessToken } from "../api/session";
+import { useEnsureMyFolder as useEnsureMyFolderFromHooks } from "./hooks";
 import {
   isEndpointMissing,
   useCreateBlankFile,
   useCreateFolder,
   useDocumentSources,
   useDownloadDocumentSource,
+  useEnsureMyFolder,
   useSaveSourceToFolder,
 } from "./hooks-library";
 import { documentKeys } from "./keys";
@@ -173,5 +175,7 @@ describe("documents library hooks", () => {
       blob = await result.current.mutateAsync({ sourceId: "s1" });
     });
     expect(blob?.size).toBe(2);
+    expect(useEnsureMyFolder).toBe(useEnsureMyFolderFromHooks);
   });
 });
+

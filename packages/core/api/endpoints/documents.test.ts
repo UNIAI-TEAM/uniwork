@@ -16,6 +16,7 @@ import {
   documentAssetPath,
   documentDownloadPath,
   downloadDocumentFile,
+  ensureMyFolder,
   getDocument,
   getDocumentAdminSummary,
   getDocumentAsset,
@@ -687,5 +688,36 @@ describe("documents endpoints", () => {
     expect(isMyFolder(undefined)).toBe(false);
     expect(isMyFolder({ system_kind: null })).toBe(false);
   });
+
+  it("ensureMyFolder posts to /workspaces/{ws}/documents/my-folder and parses the document envelope", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: docBody({
+          id: "mf1",
+          kind: "folder",
+          system_kind: "my_folder",
+          title: "My Folder",
+          visibility: "restricted",
+        }),
+      }),
+    );
+    const out = await ensureMyFolder("w 1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/w%201/documents/my-folder");
+    expect(init?.method).toBe("POST");
+    expect(out?.id).toBe("mf1");
+    expect(out?.kind).toBe("folder");
+    expect(out?.system_kind).toBe("my_folder");
+    expect(isMyFolder(out)).toBe(true);
+  });
+
+  it.each([...malformedBodies, { document: { id: "mf1" } }])(
+    "ensureMyFolder degrades malformed response %#",
+    async (body) => {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(ensureMyFolder("w1")).resolves.toBeNull();
+    },
+  );
 });
+
 

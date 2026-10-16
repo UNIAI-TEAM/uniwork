@@ -10,6 +10,7 @@ import {
   useDocumentArchiveImpact,
   useDocumentList,
   useDocumentTree,
+  useEnsureMyFolder,
   useMoveDocument,
   useSharedWithMe,
 } from "./hooks-collections";
@@ -286,4 +287,48 @@ describe("documents collection hooks", () => {
     renderHook(() => useDocumentArchiveImpact("w1", "", { enabled: true }), { wrapper });
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  // ---- MYFOLDER-01 (UNI-1850): useEnsureMyFolder ---------------------------
+
+  it("useEnsureMyFolder caches the detail entry and invalidates the workspace root only", async () => {
+    const myFolder = summary("mf1", {
+      kind: "folder",
+      system_kind: "my_folder",
+      title: "My Folder",
+      visibility: "restricted",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: myFolder }));
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.list("w1", ""), listBody([]));
+    qc.setQueryData(documentKeys.tree("w1", ""), { documents: [] });
+    qc.setQueryData(documentKeys.list("w2", ""), listBody([]));
+
+    const { result } = renderHook(() => useEnsureMyFolder("w1"), { wrapper });
+    let ensured: unknown;
+    await act(async () => {
+      ensured = await result.current.mutateAsync();
+    });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/w1/documents/my-folder");
+    expect(init?.method).toBe("POST");
+    expect(ensured).toMatchObject({ id: "mf1", kind: "folder", system_kind: "my_folder" });
+    expect(qc.getQueryData(documentKeys.detail("w1", "mf1"))).toMatchObject({
+      id: "mf1",
+      system_kind: "my_folder",
+    });
+    expect(qc.getQueryState(documentKeys.list("w1", ""))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.tree("w1", ""))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.list("w2", ""))?.isInvalidated).toBe(false);
+  });
+
+  it("useEnsureMyFolder rejects a malformed response as not verifiable", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: { id: "mf1" } }));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useEnsureMyFolder("w1"), { wrapper });
+    await act(async () => {
+      await expectNotVerifiable(() => result.current.mutateAsync());
+    });
+  });
 });
+

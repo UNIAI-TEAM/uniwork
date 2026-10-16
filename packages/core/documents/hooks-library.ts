@@ -10,8 +10,11 @@ import {
   type ListDocumentSourcesOpts,
 } from "../api/endpoints/documents-sources";
 import type { Document } from "../types/document";
+import { useEnsureMyFolder } from "./hooks";
 import { documentKeys } from "./keys";
 import { requireVerifiableDocument } from "./verify";
+
+export { useEnsureMyFolder };
 
 // Documents home hooks: the "other sources" list and the create-blank /
 // create-folder / save-from-source mutations. Mutations await the server and

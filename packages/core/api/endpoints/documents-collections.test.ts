@@ -4,6 +4,7 @@ import { isMyFolder, type DocumentSystemKind } from "../../types/document";
 import { setAccessToken } from "../session";
 import {
   archiveDocument,
+  ensureMyFolder,
   getDocumentArchiveImpact,
   getDocumentTree,
   listDocuments,
@@ -463,6 +464,12 @@ describe("documents-collections endpoints", () => {
     expect(isMyFolder(rootNode.children[0])).toBe(false);
     expect(rootNode.children[1]?.system_kind).toBeUndefined();
     expect(isMyFolder(rootNode.children[1])).toBe(false);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: summary({ id: "mf1", kind: "folder", system_kind: "my_folder" }) }),
+    );
+    expect(isMyFolder(await ensureMyFolder("w1"))).toBe(true);
   });
 });
+
 
