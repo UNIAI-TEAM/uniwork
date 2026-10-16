@@ -71,7 +71,7 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
-	if fake.Calls != 1 || !strings.Contains(prompt, "Meeting title: AI") || !strings.Contains(prompt, "A: Chốt ship vào thứ Sáu") || !strings.Contains(prompt, "Output language: Vietnamese") {
+	if fake.Calls != 1 || !strings.Contains(prompt, `Meeting title: <untrusted source="title">AI</untrusted>`) || !strings.Contains(prompt, "A: Chốt ship vào thứ Sáu") || !strings.Contains(prompt, "Output language: Vietnamese") {
 		t.Fatalf("gateway prompt: %s", prompt)
 	}
 	if sum.Summary != "Đã chốt." || !strings.Contains(sum.ActionItems, "Gửi báo cáo") || sum.Model != "fake" || !sum.UsageEventID.Valid {
@@ -263,7 +263,7 @@ func TestSummarizeWithClosedMotionOnly(t *testing.T) {
 	if fake.Calls != 1 || sum.Summary != "Đã biểu quyết." {
 		t.Fatalf("calls=%d summary=%+v", fake.Calls, sum)
 	}
-	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@2" {
+	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@3" {
 		t.Fatalf("usage row: %+v %v", ev, err)
 	}
 	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
