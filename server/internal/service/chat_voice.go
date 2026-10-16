@@ -477,26 +477,19 @@ func (s *ChatService) publishVoiceRoomSignal(ctx context.Context, room db.ChatRo
 		if err != nil {
 			return err
 		}
-		ev.Payload["call_kind"] = chatRoomKindDM
 		ev.Payload["target_user_id"] = targetUserID
-	case chatRoomKindGroup:
-		ev.Payload["call_kind"] = chatRoomKindGroup
-		ev.Payload["room_name"] = strings.TrimSpace(room.Name)
-	case chatRoomKindChannel:
-		ev.Payload["call_kind"] = chatRoomKindChannel
-		ev.Payload["room_name"] = strings.TrimSpace(room.Name)
-	default:
-		return Invalid("cuộc gọi thoại không khả dụng trong phòng này")
-	}
-	s.publishChatRoomEvent(ctx, room.ID, ev)
-	if room.Kind == chatRoomKindDM {
 		if targetUserID := strings.TrimSpace(ev.Payload["target_user_id"]); targetUserID != "" {
 			s.pub.SendToUser(ctx, targetUserID, ev)
 		}
 		// The actor's other tabs ring too; an answer or a decline here stops them.
 		s.pub.SendToUser(ctx, actorID, ev)
-	} else if voiceCallMultiPartyKind(room.Kind) {
+	case chatRoomKindGroup, chatRoomKindChannel:
+		if !voiceCallMultiPartyKind(room.Kind) {
+			return Invalid("cuộc gọi thoại không khả dụng trong phòng này")
+		}
 		s.publishChatRoomMembersEvent(ctx, room.ID, ev)
+	default:
+		return Invalid("cuộc gọi thoại không khả dụng trong phòng này")
 	}
 	return nil
 }
