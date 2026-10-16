@@ -9,6 +9,7 @@ package notification
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -25,6 +26,10 @@ func (f *documentFixture) editEvent(t *testing.T, topic, actorID, correlationID 
 	if err != nil {
 		t.Fatal(err)
 	}
+	var now time.Time
+	if err := f.pool.QueryRow(f.ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
+		t.Fatal(err)
+	}
 	return db.OutboxEvent{
 		ID: util.NewID(), Topic: topic, Payload: string(raw),
 		WorkspaceID:    pgtype.Text{String: f.wsID, Valid: true},
@@ -32,6 +37,7 @@ func (f *documentFixture) editEvent(t *testing.T, topic, actorID, correlationID 
 		CorrelationID:  pgtype.Text{String: correlationID, Valid: correlationID != ""},
 		ActorKind:      pgtype.Text{String: "human", Valid: true},
 		ActorID:        pgtype.Text{String: actorID, Valid: true},
+		CreatedAt:      pgtype.Timestamptz{Time: now, Valid: true},
 	}
 }
 
@@ -176,6 +182,36 @@ func TestDocumentEditRequestAnsweredCarriesTheDecision(t *testing.T) {
 	}
 	if n := f.inbox(t, f.member.ID); len(n) != 0 {
 		t.Fatalf("the holder who answered was notified: %+v", n)
+	}
+}
+
+// Two answer audit rows on one document under one correlation id (accepted
+// first, declined later): the earlier outbox event (created_at between the
+// two rows) reads its own row's decision, not the later step's.
+func TestEditRequestAnsweredReadsItsOwnAnswerRow(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "workspace", "Hai lần trả lời")
+	const corr = "corr-two-answers"
+	firstReq := util.NewID()
+
+	f.answerAudit(t, docID, corr, "accept")
+	time.Sleep(5 * time.Millisecond)
+	firstEv := f.editEvent(t, "document.edit_request_answered", f.member.ID, corr, editPayload(docID, f.wsID, f.owner.ID, firstReq))
+	time.Sleep(5 * time.Millisecond)
+	f.answerAudit(t, docID, corr, "decline")
+
+	f.handleEdit(t, firstEv)
+
+	got := f.inbox(t, f.owner.ID)
+	if len(got) != 1 || got[0].Kind != KindDocumentEditRequestAnswered {
+		t.Fatalf("requester inbox = %+v, want 1 answer notification", got)
+	}
+	var params map[string]string
+	if err := json.Unmarshal([]byte(got[0].Params), &params); err != nil {
+		t.Fatal(err)
+	}
+	if params["request_id"] != firstReq || params["decision"] != "accept" {
+		t.Fatalf("params = %v, want request_id=%s decision=accept", params, firstReq)
 	}
 }
 

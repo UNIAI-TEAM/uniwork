@@ -124,7 +124,7 @@ func editRequestDecision(ctx context.Context, q *db.Queries, ev outbox.Row, requ
 	}
 	for _, resourceID := range []string{requestID, documentID} {
 		row, err := q.GetAuditEventByCorrelation(ctx, db.GetAuditEventByCorrelationParams{
-			CorrelationID: ev.CorrelationID.String, Action: editRequestAnsweredAudit, ResourceID: resourceID,
+			CorrelationID: ev.CorrelationID.String, Action: editRequestAnsweredAudit, ResourceID: resourceID, Before: ev.CreatedAt,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			continue
