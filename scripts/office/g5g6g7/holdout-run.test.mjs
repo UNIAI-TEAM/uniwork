@@ -1573,7 +1573,8 @@ describe('usage rows and arguments', () => {
     assert.equal(args.runs, 3);
     assert.equal(args.threads, 2);
     assert.equal(args.out, DEFAULT_OUT_DIR);
-    assert.ok(path.relative(repoRoot, DEFAULT_OUT_DIR).startsWith('..'));
+    const rel = path.relative(repoRoot, DEFAULT_OUT_DIR);
+    assert.ok(rel.startsWith('..') || path.isAbsolute(rel));
     assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--threads', '3']), /--threads must be 1 or 2/);
     assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--runs', '0']), /--runs/);
     assert.throws(() => parseArgs(['--runs', '3']), /--server-url is required/);
