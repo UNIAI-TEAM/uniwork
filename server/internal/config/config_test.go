@@ -361,33 +361,6 @@ func TestLoadEmailHubOAuthClients(t *testing.T) {
 	}
 }
 
-func TestLoadDocumentCommitIntentSweepTick(t *testing.T) {
-	cases := []struct {
-		name string
-		raw  string
-		want time.Duration
-	}{
-		{"unset keeps the 10m default", "", 10 * time.Minute},
-		{"valid duration override", "250ms", 250 * time.Millisecond},
-		{"invalid falls back to default", "nonsense", 10 * time.Minute},
-		{"zero falls back to default", "0s", 10 * time.Minute},
-		{"negative falls back to default", "-5s", 10 * time.Minute},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			setRequired(t)
-			t.Setenv("DOCUMENT_COMMIT_INTENT_SWEEP_TICK", tc.raw)
-			c, err := Load()
-			if err != nil {
-				t.Fatalf("Load() error = %v", err)
-			}
-			if c.DocumentCommitIntentSweepTick != tc.want {
-				t.Fatalf("DocumentCommitIntentSweepTick = %v, want %v", c.DocumentCommitIntentSweepTick, tc.want)
-			}
-		})
-	}
-}
-
 // UNI-1645 addendum §7: the edit-lock settings are read strictly. A mistyped
 // value must stop the server instead of silently behaving like the default,
 // and the two cross checks keep a client from losing the lock on one missed
@@ -447,6 +420,33 @@ func TestLoadRejectsBadEditLockConfig(t *testing.T) {
 			}
 			if c.DocumentEditLockTTL != 4*time.Minute || c.DocumentEditLockHeartbeat != time.Minute || c.DocumentEditRequestMaxPerHour != 9 {
 				t.Fatalf("overrides not applied: ttl=%v hb=%v max=%d", c.DocumentEditLockTTL, c.DocumentEditLockHeartbeat, c.DocumentEditRequestMaxPerHour)
+			}
+		})
+	}
+}
+
+func TestLoadDocumentCommitIntentSweepTick(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{"unset keeps the 10m default", "", 10 * time.Minute},
+		{"valid duration override", "250ms", 250 * time.Millisecond},
+		{"invalid falls back to default", "nonsense", 10 * time.Minute},
+		{"zero falls back to default", "0s", 10 * time.Minute},
+		{"negative falls back to default", "-5s", 10 * time.Minute},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("DOCUMENT_COMMIT_INTENT_SWEEP_TICK", tc.raw)
+			c, err := Load()
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if c.DocumentCommitIntentSweepTick != tc.want {
+				t.Fatalf("DocumentCommitIntentSweepTick = %v, want %v", c.DocumentCommitIntentSweepTick, tc.want)
 			}
 		})
 	}
