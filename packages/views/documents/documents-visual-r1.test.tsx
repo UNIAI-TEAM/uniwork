@@ -88,7 +88,7 @@ describe("phone row layout (finding 1)", () => {
     expect(button?.querySelector("span.min-w-0")).toHaveClass("flex-1");
     // The icon-only app button does not take width from the name until the actions column widens (container, not viewport).
     const quick = document.querySelector("[data-office-desktop-action]");
-    expect(quick?.parentElement).toHaveClass("hidden", "@min-[54rem]/library:block");
+    expect(quick?.parentElement).toHaveClass("hidden", "@min-[29rem]/library:block");
   });
 
   it("spans the group header over the two phone columns, then one spanner per ladder rung", () => {
@@ -99,10 +99,10 @@ describe("phone row layout (finding 1)", () => {
     const spanners = Array.from(group!.parentElement!.children).slice(1);
     expect(spanners.map((el) => el.getAttribute("colspan"))).toEqual(["1", "1", "1", "1"]);
     expect(spanners.map((el) => Array.from(el.classList).find((c) => c.startsWith("@min-"))?.split(":")[0])).toEqual([
-      "@min-[53rem]/library",
-      "@min-[40rem]/library",
-      "@min-[28rem]/library",
-      "@min-[28rem]/library",
+      "@min-[59rem]/library",
+      "@min-[42rem]/library",
+      "@min-[29rem]/library",
+      "@min-[47rem]/library",
     ]);
     // One header and the rows share one column template.
     expect(document.querySelectorAll("colgroup col")).toHaveLength(6);

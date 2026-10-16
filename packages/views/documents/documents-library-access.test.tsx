@@ -98,10 +98,10 @@ describe("library table access column", () => {
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
     const cell = within(row).getByText("Bạn: Quản lý").closest("td")!;
     expect(cell.className).toContain("hidden");
-    expect(cell.className).toContain("@min-[53rem]/library:table-cell");
+    expect(cell.className).toContain("@min-[59rem]/library:table-cell");
     expect(document.querySelectorAll("colgroup col")).toHaveLength(6);
-    expect(document.querySelectorAll("colgroup col.\\@min-\\[53rem\\]\\/library\\:table-column")).toHaveLength(1);
-    expect(document.querySelectorAll("thead th.\\@min-\\[53rem\\]\\/library\\:table-cell")).toHaveLength(1);
+    expect(document.querySelectorAll("colgroup col.\\@min-\\[59rem\\]\\/library\\:table-column")).toHaveLength(1);
+    expect(document.querySelectorAll("thead th.\\@min-\\[59rem\\]\\/library\\:table-cell")).toHaveLength(1);
     // The ladder (documents-library-ladder.test.tsx) holds the rest: no viewport breakpoint decides a column.
     expect(document.querySelector("th.lg\\:table-cell, .xl\\:table-cell, .xl\\:table-column, .xl\\:hidden, .md\\:table-cell")).toBeNull();
   });

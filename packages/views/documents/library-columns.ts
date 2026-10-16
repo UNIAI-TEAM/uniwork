@@ -7,27 +7,35 @@
  * viewport and ~872px at 1440. Every optional column therefore joins by the
  * width of the list's own container (`@container/library`), in a ladder that
  * keeps Name readable: a rung opens at `the fixed columns up to and including
- * it + 2px border + a 160px name floor`, rounded up to the next rem — except
- * Truy cập, which sits exactly at the widest width a 1440 shell reaches.
- * Header, colgroup, cells and the group spanner all read the one class below,
- * so none can drift out of step.
+ * it + 2px border + a 220px name floor`, rounded up to the next rem. Name
+ * never drops under ~220px: a lower-priority column drops before that can
+ * happen, Truy cập first (no longer reachable at the 1440 shell — it needs a
+ * ~968px container, i.e. a ~1536px viewport) and Dung lượng next. Header,
+ * colgroup, cells and the group spanner all read the one class below, so none
+ * can drift out of step.
  *
  * Below the first rung only Name and the actions column exist (Name = the
- * container - 50px). Tailwind finds the classes as literals, so each rung is
- * written out in full; `documents-library-ladder.test.tsx` re-derives every
- * threshold from the column widths.
+ * container - 82px, and -110px on a coarse pointer). Tailwind finds the
+ * classes as literals, so each rung is written out in full;
+ * `documents-library-ladder.test.tsx` re-derives every threshold from the
+ * column widths.
  *
  * The six board columns (Main.dc.html / Folder.dc.html — the same at Home and
  * inside a folder) and their fixed widths: Truy cập 190px, Người sửa gần nhất
- * 200px, Cập nhật 140px, Dung lượng 90px (right-aligned), Thao tác 48px.
- * Thao tác widens to 96px once the app command can join it.
+ * 200px, Cập nhật 140px, Dung lượng 90px (right-aligned), Thao tác 80px.
+ * Thao tác is 80 and not 48 so a source row's icon button (28) can sit next
+ * to the ⋯ menu (28) with the gap and cell padding; on a coarse pointer both
+ * grow to the 44px touch target and the column grows to 108 with them. On a
+ * fine pointer it widens to 96px from the first rung, where the app quick
+ * command joins it.
  *
  * | container | columns on screen                    |
  * | --------- | ------------------------------------ |
- * | < 25rem   | Name, actions                        |
- * | 25rem     | + Cập nhật, Dung lượng               |
- * | 41rem     | + Người sửa gần nhất                 |
- * | 54rem     | + Truy cập                           |
+ * | < 29rem   | Name, actions                        |
+ * | 29rem     | + Cập nhật, Thao tác 96px, quick     |
+ * | 42rem     | + Người sửa gần nhất                 |
+ * | 47rem     | + Dung lượng                         |
+ * | 59rem     | + Truy cập                           |
  */
 
 export type LibraryColumnId = "name" | "access" | "editor" | "updated" | "size" | "actions";
@@ -56,28 +64,28 @@ export interface LibraryLadder {
 }
 
 const NAME: LibraryColumn = { id: "name", col: "", cell: "" };
-const ACTIONS: LibraryColumn = { id: "actions", col: "w-12 @min-[54rem]/library:w-24", cell: "" };
+const ACTIONS: LibraryColumn = { id: "actions", col: "w-20 pointer-coarse:w-27 pointer-fine:@min-[29rem]/library:w-24", cell: "" };
 
 // The board's fixed widths written as px so the mock columns land where the
-// design put them; the rungs derive from those widths plus a 160px Name floor
-// (28rem = updated 140 + size 90 + actions 48 + border 2 + floor 160 rounded
-// up, 40rem = + editor 200, 53rem = + access 190 capped just under what the
-// 1440 shell's ~872px container reaches).
-const ACCESS: LibraryColumn = { id: "access", col: "hidden w-[190px] @min-[53rem]/library:table-column", cell: "hidden @min-[53rem]/library:table-cell" };
-const EDITOR: LibraryColumn = { id: "editor", col: "hidden w-[200px] @min-[40rem]/library:table-column", cell: "hidden @min-[40rem]/library:table-cell" };
-const UPDATED: LibraryColumn = { id: "updated", col: "hidden w-[140px] @min-[28rem]/library:table-column", cell: "hidden @min-[28rem]/library:table-cell" };
-const SIZE: LibraryColumn = { id: "size", col: "hidden w-[90px] @min-[28rem]/library:table-column", cell: "hidden text-right @min-[28rem]/library:table-cell" };
+// design put them; the rungs derive from those widths plus a 220px Name floor
+// (29rem = updated 140 + actions 96 + border 2 + floor 220 rounded up, 42rem =
+// + editor 200, 47rem = + size 90, 59rem = + access 190 — Truy cập needs a
+// ~968px container, so it drops out at the 1440 shell first, Dung lượng next).
+const ACCESS: LibraryColumn = { id: "access", col: "hidden w-[190px] @min-[59rem]/library:table-column", cell: "hidden @min-[59rem]/library:table-cell" };
+const EDITOR: LibraryColumn = { id: "editor", col: "hidden w-[200px] @min-[42rem]/library:table-column", cell: "hidden @min-[42rem]/library:table-cell" };
+const UPDATED: LibraryColumn = { id: "updated", col: "hidden w-[140px] @min-[29rem]/library:table-column", cell: "hidden @min-[29rem]/library:table-cell" };
+const SIZE: LibraryColumn = { id: "size", col: "hidden w-[90px] @min-[47rem]/library:table-column", cell: "hidden text-right @min-[47rem]/library:table-cell" };
 
-const HEAD = "hidden bg-muted/50 @min-[28rem]/library:table-header-group";
-const QUICK = "hidden @min-[54rem]/library:block";
+const HEAD = "hidden bg-muted/50 @min-[29rem]/library:table-header-group";
+const QUICK = "hidden @min-[29rem]/library:block";
 
 const LADDER: LibraryLadder = {
   columns: [NAME, ACCESS, EDITOR, UPDATED, SIZE, ACTIONS],
   head: HEAD,
   quick: QUICK,
-  metaHides: "@min-[40rem]/library:hidden",
-  metaTailHides: "@min-[28rem]/library:hidden",
-  accessLineHides: "@min-[53rem]/library:hidden",
+  metaHides: "@min-[42rem]/library:hidden",
+  metaTailHides: "@min-[29rem]/library:hidden",
+  accessLineHides: "@min-[59rem]/library:hidden",
 };
 
 export function libraryLadder(): LibraryLadder {

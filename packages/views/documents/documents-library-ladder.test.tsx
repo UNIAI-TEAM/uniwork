@@ -11,7 +11,7 @@ import { documentRow, type DocumentSummaryRow } from "./library-rows";
 
 initI18n();
 
-const NAME_MIN = 130;
+const NAME_MIN = 220;
 /** Below this container width nothing optional is left to drop: Name = width - border - actions. */
 const FLOOR = 320;
 /** The list's own max width (max-w-6xl = 72rem minus the px-6 gutters). */
@@ -68,7 +68,7 @@ function renderList() {
   );
 }
 
-const RUNG = /^@min-\[(\d+(?:\.\d+)?)rem\]\/library:(.+)$/;
+const RUNG = /^(?:pointer-fine:)?@min-\[(\d+(?:\.\d+)?)rem\]\/library:(.+)$/;
 
 /** The container width at which `el` gets `utility` (e.g. table-cell), or null when it never does. */
 function rungOf(el: Element, utility: RegExp): number | null {
@@ -170,9 +170,9 @@ describe("column ladder", () => {
     renderList();
     for (let c = FLOOR; c <= LIST_MAX; c += 1) {
       const { name } = layoutAt(c);
-      // The rungs hold Name above the 130px floor except in the narrowest
-      // containers, where only Name and the 48px actions column exist.
-      const min = c - BORDER - 48 < NAME_MIN ? c - BORDER - 48 : NAME_MIN;
+      // The rungs hold Name above the 220px floor except in the narrowest
+      // containers, where only Name and the 80px actions column exist.
+      const min = c - BORDER - 80 < NAME_MIN ? c - BORDER - 80 : NAME_MIN;
       expect(name, `Name at ${c}`).toBeGreaterThanOrEqual(min);
     }
   });
@@ -189,7 +189,7 @@ describe("column ladder", () => {
       if (added.length > 0) steps.push(`${c}:${added.join("+")}`);
       previous = now;
     }
-    expect(steps.slice(1)).toEqual(["448:updated+size", "640:editor", "848:access"]);
+    expect(steps.slice(1)).toEqual(["464:updated", "672:editor", "752:size", "944:access"]);
   });
 
   it("swaps the secondary line for the access column once it fits", () => {
@@ -200,8 +200,8 @@ describe("column ladder", () => {
     expect(accessLine.textContent).toContain("Hạn chế");
     const hidesAt = rungOf(accessLine, /^hidden$/);
     // It hides at the very width the column appears, so the info is never shown twice or lost.
-    expect(hidesAt).toBe(848);
-    const access = Array.from(row.querySelectorAll("td")).filter((td) => rungOf(td, /^table-cell$/) === 848);
+    expect(hidesAt).toBe(944);
+    const access = Array.from(row.querySelectorAll("td")).filter((td) => rungOf(td, /^table-cell$/) === 944);
     expect(access).toHaveLength(1);
     expect(row.querySelectorAll("td").length).toBe(6);
     expect(document.querySelectorAll("colgroup col").length).toBe(6);

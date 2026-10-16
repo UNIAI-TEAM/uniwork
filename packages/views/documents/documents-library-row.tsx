@@ -18,13 +18,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { libraryCell, type LibraryLadder } from "./library-columns";
 import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
-import { sourceLinkLabelKey } from "./source-links";
+import { sourceLinkIcon, sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked } from "./source-links";
 import {
   formatBytes,
   isFolderRow,
@@ -48,6 +49,8 @@ export interface LibraryRowHandlers {
   onOpen: (documentId: string) => void;
   onFolder: (folderId: string) => void;
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
+  /** Image sources only: fetches the bytes and opens them view-only. */
+  onPreviewSource?: (sourceId: string, name: string) => void;
   onDownloadSource: (sourceId: string) => void;
   onSaveSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Absent outside an organization (no favorites there). */
@@ -105,6 +108,7 @@ export function LibraryRowView({
   const folder = isFolderRow(row);
   const doc = row.type === "document" ? row.doc : null;
   const source = row.type === "source" ? row.source : null;
+  const sourceLinked = source ? sourceParentLinked(source.parent) : false;
 
   const editor = doc
     ? doc.updated_by
@@ -145,7 +149,13 @@ export function LibraryRowView({
       if (canRestore) handlers.onRestore?.(doc);
     } else if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id);
-    else if (row.type === "source") handlers.onGoToSource(row);
+    else if (row.type === "source") {
+      // U-SRC1: the primary click opens the file view-only where the row can
+      // (images today), else downloads it; "Xem nơi đính kèm" is a secondary.
+      const open = sourceOpenAction(row.source);
+      if (open === "image" && handlers.onPreviewSource) handlers.onPreviewSource(row.source.id, row.source.name);
+      else handlers.onDownloadSource(row.source.id);
+    }
   };
 
   const actions: RowAction[] = [];
@@ -194,16 +204,19 @@ export function LibraryRowView({
     }
   }
   if (row.type === "source") {
-    actions.push(
-      { id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: ExternalLink, run: primary },
-      { id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) },
-    );
+    // A parent kind with no route offers neither the menu item nor the button.
+    if (sourceLinked) {
+      actions.push({ id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: sourceLinkIcon(row.source.parent), run: () => handlers.onGoToSource(row) });
+    }
+    actions.push({ id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) });
     // Only a file the server marks as copyable offers the save.
     if (row.source.can_save) {
       actions.push({ id: "save", label: t("documents.home.row.save_to_folder"), icon: FolderInput, run: () => handlers.onSaveSource(row) });
     }
   }
-
+  // The app command joins the actions cell only when its column is wide
+  // enough (the ladder's quick rung); the source's own link button below
+  // is icon-sized and rendered at every width.
   const quick = desktop ? (
     <DesktopOpenAction
       {...desktop}
@@ -212,11 +225,29 @@ export function LibraryRowView({
       operation={rowAppOperation(level)}
       requestRef={appRequest}
     />
-  ) : source ? (
-    <Button type="button" variant="outline" size="xs" onClick={() => handlers.onDownloadSource(source.id)}>
-      <Download aria-hidden />
-      {t("documents.home.row.download")}
-    </Button>
+  ) : null;
+
+  // S2V-2/3: "Xem nơi đính kèm" / "Mở Email" as an icon button, so it fits the
+  // actions column at every width instead of covering Size. The words live on
+  // the tooltip and inside the accessible name.
+  const SourceLinkGlyph = source ? sourceLinkIcon(source.parent) : null;
+  const sourceLink = source && sourceLinked && SourceLinkGlyph ? (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label={t(sourceLinkNamedLabelKey(source.parent), { title })}
+            onClick={() => row.type === "source" && handlers.onGoToSource(row)}
+          />
+        }
+      >
+        <SourceLinkGlyph aria-hidden />
+      </TooltipTrigger>
+      <TooltipContent>{t(sourceLinkLabelKey(source.parent))}</TooltipContent>
+    </Tooltip>
   ) : null;
 
   const nameCell = (
@@ -308,6 +339,13 @@ export function LibraryRowView({
               // Until the actions column widens (first ladder rung) the app command lives in the ⋯ menu so the name keeps the row.
               <div className={cn("opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100", ladder.quick)}>
                 {quick}
+              </div>
+            ) : null}
+            {sourceLink ? (
+              // Every width, not the quick rung: hover/focus reveals it on a
+              // fine pointer, a coarse pointer shows it always (no hover there).
+              <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+                {sourceLink}
               </div>
             ) : null}
             {actions.length > 0 ? (

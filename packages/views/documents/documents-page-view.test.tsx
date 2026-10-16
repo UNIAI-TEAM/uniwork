@@ -609,7 +609,7 @@ describe("DocumentsPageView", () => {
     // The board has no Source column; the owner name rides the secondary line until its column joins.
     expect(within(row).getAllByText("Dũng").length).toBeGreaterThan(0);
     expect(within(row).queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
-    expect(within(row).getByRole("button", { name: t("documents.home.row.download") })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) })).toBeInTheDocument();
     // The sidebar names the modules once the sources API answered.
     expect(screen.getByRole("button", { name: t("documents.home.origin.chat") })).toBeInTheDocument();
 
