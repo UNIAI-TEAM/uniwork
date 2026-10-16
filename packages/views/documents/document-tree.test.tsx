@@ -551,7 +551,7 @@ describe("DocumentTree", () => {
 
     const rootStar = await within(rootRow).findByRole("img", { name: t("documents.home.row.starred") });
     expect(within(rootRow).getByText("Nhóm").nextElementSibling).toBe(rootStar);
-    expect(rootStar).toHaveClass("size-3.5", "shrink-0", "fill-current", "text-brand");
+    expect(rootStar).toHaveClass("ml-1", "size-3.5", "shrink-0", "fill-current", "text-brand");
     expect(within(otherRow).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
 
     // Expand root1: child1 belongs to another workspace's favorites, so it shows no star here.

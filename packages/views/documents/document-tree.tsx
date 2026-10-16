@@ -156,7 +156,7 @@ function TreeRowItem({
       </span>
       <span title={label} className="min-w-0 truncate">{label}</span>
       {starred ? (
-        <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
+        <Star role="img" aria-label={t("documents.home.row.starred")} className="ml-1 size-3.5 shrink-0 fill-current text-brand" />
       ) : null}
       <DocumentTreeRowMenu
         wsId={wsId}
