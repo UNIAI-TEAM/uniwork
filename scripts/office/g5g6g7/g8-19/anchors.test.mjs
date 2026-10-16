@@ -1,7 +1,7 @@
 // G8-19 (UNI-1414) G8-A02 "anchors survive Save": the decision table, the
 // web frame pin rule (R1) and the xlsx flow against the fake world.
 import assert from "node:assert/strict";
-import { appendFileSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -177,7 +177,9 @@ test("framePinBlock: 05fd209 is BLOCKED(R1); a pin that contains G8-12..15 or an
 });
 
 test("readFramePin reads apps/web/platform/office-frame/<editor>.pin.json at run time, so a re-pin flips R1", () => {
-  assert.equal(readFramePin(REPO_ROOT, "xlsx").gitSha, "05fd209");
+  const sheetsPin = JSON.parse(readFileSync(join(REPO_ROOT, "apps/web/platform/office-frame/sheets.pin.json"), "utf8"));
+  assert.equal(readFramePin(REPO_ROOT, "xlsx").gitSha, sheetsPin.gitSha, "the real pin file is read as written, whatever the current pin is");
+  assert.match(readFramePin(REPO_ROOT, "xlsx").gitSha, /^[0-9a-f]{7}$/);
   const root = mkdtempSync(join(tmpdir(), "g819-pin-"));
   mkdirSync(join(root, "apps/web/platform/office-frame"), { recursive: true });
   writeFileSync(join(root, "apps/web/platform/office-frame/docs.pin.json"), JSON.stringify({ version: "0.1.0-7d665a5", gitSha: "7d665a5" }));
