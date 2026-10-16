@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setAccessToken } from "../api/session";
 import { getCurrentSlug, getCurrentWsId, setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
 
@@ -7,6 +6,7 @@ import type { User } from "../types/user";
 vi.mock("../api/endpoints/auth", () => ({
   refreshSession: vi.fn(),
   logout: vi.fn(),
+  me: vi.fn(),
 }));
 
 // Spy on the draft-session end while keeping the real key holder behind it.
@@ -17,6 +17,8 @@ vi.mock("../office/draft-session-key", async (importOriginal) => {
 
 import * as auth from "../api/endpoints/auth";
 import { endOfficeDraftSession, getOfficeDraftKey } from "../office/draft-session-key";
+import { getAccessToken, setAccessToken } from "../api/session";
+import { registerSessionProvider } from "./session-provider";
 import { resetAuthStoreForTests, useAuthStore } from "./store";
 
 const user: User = {
@@ -164,5 +166,60 @@ describe("auth store", () => {
     const a = useAuthStore.getState().user;
     const b = useAuthStore.getState().user;
     expect(a).toBe(b);
+  });
+});
+
+describe("auth store with a session provider", () => {
+  const provider = (token: string | null) => ({
+    getAccessToken: vi.fn(async () => token),
+    refresh: vi.fn(async () => token),
+    logout: vi.fn(async () => undefined),
+    onChange: vi.fn(() => () => undefined),
+  });
+
+  beforeEach(() => {
+    resetAuthStoreForTests();
+    setAccessToken(null);
+    vi.mocked(auth.refreshSession).mockReset();
+    vi.mocked(auth.logout).mockReset();
+    vi.mocked(auth.me).mockReset();
+    vi.stubGlobal("indexedDB", { deleteDatabase: vi.fn(() => ({})) });
+  });
+  afterEach(() => {
+    registerSessionProvider(null);
+    setAccessToken(null);
+    setCurrentWorkspace(null, null);
+    vi.unstubAllGlobals();
+  });
+
+  it("initialize takes the host's token and loads the user from /me, not the refresh cookie", async () => {
+    const p = provider("t");
+    registerSessionProvider(p);
+    vi.mocked(auth.me).mockResolvedValueOnce(user);
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState()).toMatchObject({ user, status: "authed" });
+    expect(getAccessToken()).toBe("t");
+    expect(auth.me).toHaveBeenCalledTimes(1);
+    expect(auth.refreshSession).not.toHaveBeenCalled();
+  });
+
+  it("initialize is anon when the host has no token, without calling /me", async () => {
+    registerSessionProvider(provider(null));
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
+    expect(auth.me).not.toHaveBeenCalled();
+    expect(auth.refreshSession).not.toHaveBeenCalled();
+  });
+
+  it("logout hands the session back to the host and drops the token", async () => {
+    const p = provider("t");
+    registerSessionProvider(p);
+    setAccessToken("t");
+    useAuthStore.getState().setUser(user);
+    await useAuthStore.getState().logout();
+    expect(p.logout).toHaveBeenCalledTimes(1);
+    expect(auth.logout).not.toHaveBeenCalled();
+    expect(getAccessToken()).toBeNull();
+    expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
   });
 });
