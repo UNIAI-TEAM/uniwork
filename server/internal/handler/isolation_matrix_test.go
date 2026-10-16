@@ -695,8 +695,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "file")
 	case "{sourceFileID}":
 		// The documents home's other sources (UNI-1305): the task
-		// attachment is a file-backed source every tenant has.
-		return "task:" + tn.get(t, "attachment")
+		// attachment is a file-backed source every tenant has. Clients
+		// send the id percent-escaped (its colon travels as %3A, UNI-1815;
+		// url.PathEscape would keep a raw colon), so the matrix names it
+		// the way the wire does.
+		return "task%3A" + tn.get(t, "attachment")
 	case "{provider}":
 		return "google"
 	case "{resourceType}":
