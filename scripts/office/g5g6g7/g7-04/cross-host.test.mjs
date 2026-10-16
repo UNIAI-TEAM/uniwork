@@ -41,12 +41,16 @@ import {
   decideCrossHostOutcome,
   dependentSteps,
   exitCodeFor,
+  installFrameRecorder,
   makeAppDirty,
+  newerBarReport,
   parseCrossHostArgs,
+  readFrameMessages,
   readRemoteNewerSurface,
   remoteNewerMissReason,
   runCrossHostRow,
   signOutPreviousSession,
+  summarizeFrameRecordings,
 } from "./cross-host.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -1200,13 +1204,45 @@ describe("G7-04 cross-host D2-04: the S6 new-version bar is read from the fork's
     assert.equal(probe.visible, false);
   });
 
-  it("names a page whose probe threw instead of reporting a plain miss (the D2-04 masking)", () => {
+  it("says the probe could not run when it threw, never 'no new-version bar' (D3-02)", () => {
     assert.equal(remoteNewerMissReason(3, []), "no new-version bar naming version 3 on any app page");
-    assert.equal(
-      remoteNewerMissReason(3, ["REMOTE_NEWER_TEXT is not defined"]),
-      "no new-version bar naming version 3 on any app page (a page probe failed: REMOTE_NEWER_TEXT is not defined)",
-    );
-    assert.equal(remoteNewerMissReason(null, [null, "page crashed"]), "no new-version bar on any app page (a page probe failed: page crashed)");
+    const threw = remoteNewerMissReason(3, ["REMOTE_NEWER_TEXT is not defined"]);
+    assert.equal(threw, "the new-version probe could not run: REMOTE_NEWER_TEXT is not defined");
+    assert.ok(!threw.includes("no new-version bar"), `a harness failure must not read as a product miss: ${threw}`);
+    assert.equal(remoteNewerMissReason(null, [null, "page crashed"]), "the new-version probe could not run: page crashed");
+    // the bar the step records: a probe that threw never reaches the step as "no bar" (D3-02)
+    assert.deepEqual(newerBarReport({ page: null, probe: null, probeErrors: ["REMOTE_NEWER_TEXT is not defined"] }, 3), {
+      visible: false,
+      reason: "the new-version probe could not run: REMOTE_NEWER_TEXT is not defined",
+    });
+  });
+
+  it("is self-contained: the page-style evaluation of the probe finds the bar (D3-02, the cloud D3 crash)", () => {
+    // Playwright serializes only the function's own source (new Function("return (" + fn + ")")),
+    // so a module-scope wording never reaches the page; this is that evaluation, exactly.
+    const asPageSeesIt = new Function("return (" + String(readRemoteNewerSurface) + ")")();
+    const vi = "Có phiên bản mới hơn trên UniWork (phiên bản 5). Thay đổi của bạn chưa lưu nên tài liệu không tự tải lại.";
+    const en = "A newer version is on UniWork (version 6). You have unsaved changes, so the document didn’t reload.";
+    const viProbe = withPage([textEl(vi)], [reloadEl("Tải lại bản mới nhất…")], () => asPageSeesIt({ version: 5 }));
+    const enProbe = withPage([textEl(en)], [reloadEl("Reload latest…")], () => asPageSeesIt({ version: 6 }));
+    assert.equal(viProbe.visible, true);
+    assert.equal(viProbe.version, 5);
+    assert.equal(enProbe.visible, true);
+    assert.equal(enProbe.version, 6);
+  });
+
+  it("the bar's verdict keeps the page when the probe answered (D3-02)", () => {
+    const page = { url: () => "genoffice-app://docs/index.html?mode=tab" };
+    assert.deepEqual(newerBarReport({ page, probe: { version: 3, text: "phiên bản 3" }, probeErrors: [] }, 3), {
+      visible: true,
+      version: 3,
+      text: "phiên bản 3",
+      where: "docs",
+    });
+    assert.deepEqual(newerBarReport({ page: null, probe: null, probeErrors: [] }, 3), {
+      visible: false,
+      reason: "no new-version bar naming version 3 on any app page",
+    });
   });
 
   it("re-runs the feed nudge while the bar is missing: a bar that only lands on the 2nd nudge still PASSes dirty-kept", async () => {
@@ -1230,6 +1266,67 @@ describe("G7-04 cross-host D2-04: the S6 new-version bar is read from the fork's
     } finally {
       scratch.cleanup();
     }
+  });
+});
+
+describe("G7-04 cross-host D3-01: the web announce is read from every document's recorder", () => {
+  /** The protocol envelope the vendored host posts (packages/core/office/docs-frame-protocol.ts). */
+  const envelope = (kind, type, payload) => ({ ns: "uniwork.office.docs", v: 1, kind, type, payload });
+  const remote = (versionId, revision) => envelope("event", "doc.remoteVersion", { document_id: DOC_ID, revision, version_id: versionId, saved_at: "2026-10-16T00:00:00Z" });
+  // The recorder and the reader both travel into the page, so both are built here the way
+  // Playwright builds them: from their own source, with no module scope in reach.
+  const asPageSeesIt = (fn) => new Function("return (" + String(fn) + ")")();
+  /** A document that ran the recorder (addInitScript) and then received `messages`. */
+  const received = (messages) => {
+    const handlers = [];
+    const win = { addEventListener: (name, fn) => handlers.push([name, fn]) };
+    asPageSeesIt(installFrameRecorder)(win);
+    for (const data of messages) for (const [name, fn] of handlers) if (name === "message") fn({ data });
+    return win;
+  };
+  const read = (win) => asPageSeesIt(readFrameMessages)(win);
+
+  it("records the announce a document receives and answers the page-style reader", () => {
+    const win = received([remote("v3", "10"), envelope("event", "theme", { theme: "light" }), "not an envelope", { kind: "event" }, null]);
+    const list = read(win);
+    assert.equal(list.length, 2, "only protocol envelopes are recorded");
+    assert.deepEqual(
+      { ...list[0], at: undefined },
+      { kind: "event", type: "doc.remoteVersion", versionId: "v3", version: null, revision: "10", reason: null, at: undefined },
+    );
+    assert.ok(Number.isInteger(list[0].at));
+  });
+
+  it("finds the announce in the FRAME that received it, not in the top page (the D3-01 miss)", () => {
+    const top = read(received([envelope("event", "theme", { theme: "light" })]));
+    const frame = read(received([remote("v3", "10")]));
+    const reports = [
+      { url: "http://localhost:36009/acme/ws/documents/" + DOC_ID, messages: top },
+      { url: "http://localhost:36009/office-frame/docs/index.html", messages: frame },
+    ];
+    // Reading the top page alone (the round-2 driver) can never see the host's announce, which
+    // the D host posts to the FRAME's window (docs-frame-endpoint.ts:238, peer = iframe.contentWindow)...
+    assert.deepEqual(summarizeFrameRecordings([reports[0]], 0).announcements, []);
+    // ... and the merge over every document of the page finds it, once.
+    const summary = summarizeFrameRecordings(reports, 0);
+    assert.deepEqual(summary.announcements.map((a) => a.versionId), ["v3"]);
+    assert.equal(summary.recorders, 2);
+    // a `sinceMs` after the announce keeps a poll looking instead of matching an old one
+    assert.deepEqual(summarizeFrameRecordings(reports, Date.now() + 1).announcements, []);
+  });
+
+  it("a miss reports what was measured: the documents read, the recorders found, the protocol types", () => {
+    const summary = summarizeFrameRecordings(
+      [
+        { url: "http://localhost:36009/acme/ws/documents/" + DOC_ID, messages: read(received([envelope("request", "api.open", {}), envelope("response", "api.open", {})])) },
+        { url: "about:blank", messages: null },
+      ],
+      0,
+    );
+    assert.equal(summary.frames, 2);
+    assert.equal(summary.recorders, 1, "a document without the recorder is counted, not hidden");
+    assert.equal(summary.events, 0);
+    assert.deepEqual(summary.types, ["request:api.open x1", "response:api.open x1"]);
   });
 });
 

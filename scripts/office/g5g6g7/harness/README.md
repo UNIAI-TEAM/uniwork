@@ -472,11 +472,21 @@ done
 Rows and what each step proves: `G5-A03.1` web Save → app binding version id +
 working-copy sha256 = the server checksum; `G5-A03.3` a dirty app keeps its local
 bytes and shows the S6 new-version bar while a web Save lands (a reload there is
-a FAIL), then the bar's reload action discards the edit (the step reads the
-fork's own bar wording — `uwRemoteNewerDirty` plus the `uwRemoteReload` action —
-and re-runs the app's feed nudge, spaced and capped, while the bar is missing); `G5-A03.2`/`G7-A01.4`
+a FAIL), then the bar's reload action discards the edit. The step reads the
+fork's own bar wording (`uwRemoteNewerDirty` plus the `uwRemoteReload` action)
+through a probe that is SERIALIZED into the app's page — `readRemoteNewerSurface`
+carries its own matchers, so it cannot depend on the driver's module scope
+(BE-704-201/D3-02) — and re-runs the app's feed nudge, spaced and capped, while
+the bar is missing. A probe that cannot run is reported as `the new-version probe
+could not run: <error>`, never as "no new-version bar": a harness crash must not
+read as a product gap; `G5-A03.2`/`G7-A01.4`
 the desktop's reconnect commit is announced to the web frame and reloaded (the
-announced version id must be the desktop's); `G7-A01.3` the offline Save holds an
+announced version id must be the desktop's). That announce is read from the
+recorder `addInitScript` installs in EVERY document of the web page — the D host
+posts `doc.remoteVersion` to the frame's window, not to the top page, so a read of
+the top page alone can never see it (D3-01) — and a miss reports what was read:
+how many documents the page had, how many carried the recorder, and which
+protocol envelopes the run saw at all; `G7-A01.3` the offline Save holds an
 intent with zero server versions (the step polls for the app's own receipt — a
 `.rec` intent file or an `offline`/`paused_offline` binding — within the step
 bound, because the fork writes it only after the module's own Save lands, so a
@@ -485,11 +495,16 @@ turn creates zero versions and the Save after it exactly one (polled the same wa
 until the server head and the app binding agree); `G7-A01.6` the three checksums
 agree and the tally is one version per user Save.
 
-The rows share ONE app process, and the driver signs the previous row's session
-out itself before the harness's sign-in — `accountLogout({ confirmed: true })`,
-the call the product's own account UI sends — because the fork's sign-out gate
-otherwise waits for a renderer prompt answer that no headless run can give, which
-is how the 4th row of a round can hang in `app-open` (D2-05).
+The rows share ONE app process, and both sides sign a previous session out with
+`accountLogout({ confirmed: true })` — the call the product's own account UI
+sends: the driver before the harness's sign-in (D2-05), and the harness's own
+`signIn`/`signOut` (D3-03). The fork's sign-out gate otherwise waits for a
+renderer prompt answer that no headless run can give, which is how the 4th row of
+a round can hang in `app-open` with `aiOffice.accountLogout did not settle within
+90 s`. A timeout inside the driver's own pre-sign-in sign-out is recorded as `the
+previous row's session could not be signed out: …`, with
+`details.appStepTimeout.call` naming `signOutPreviousSession.…`, so a record says
+which of the two calls hung.
 
 Which edits a run really drove through the editor UI is on the row: `uiEdits`
 (record and artifact) carries `dirty`, `offlineSave` and `aiSave`, each `real`

@@ -466,32 +466,31 @@ export async function makeAppDirty({ ctrl, kind, path = null, documentId = null 
  * message key `uwRemoteNewerDirty`; strings `i18n/sync/vi.ts:311-312` /
  * `en.ts:315-316`: "Có phiên bản mới hơn trên UniWork (phiên bản N). …" / "A
  * newer version is on UniWork (version N). …"), the version it names, and its
- * reload action (`uwRemoteReload`, model l.487; vi.ts:319 / en.ts:324). These
- * three lived at module scope until the round-1 handover (d9b150f8f) dropped
- * them while their uses in `readRemoteNewerSurface` stayed, so every page probe
- * threw `REMOTE_NEWER_TEXT is not defined`, `findRemoteNewerPage` swallowed it
- * into "no new-version bar", and `dirty-kept` FAILed with the bar on screen
- * (D2-04, the G5-A03 xlsx row).
- */
-const REMOTE_NEWER_TEXT = /(phiên bản mới hơn trên UniWork|newer version (?:is )?on UniWork)/i;
-const REMOTE_NEWER_VERSION = /(?:phiên bản|version)\s*\(?\s*(\d+)/i;
-const REMOTE_NEWER_RELOAD = /(Tải lại bản mới nhất|Reload latest)/i;
-
-/**
- * The S6 surface on one app page: any element whose text carries the
- * new-version bar message, the version number it names, and its reload action.
- * Read-only; the click is a second pass over the same matcher.
+ * reload action (`uwRemoteReload`, model l.487; vi.ts:319 / en.ts:324).
+ *
+ * The three wordings live INSIDE the function body (D3-02). This function is
+ * serialized into an app page (`page.evaluate(readRemoteNewerSurface, …)`) and
+ * Playwright builds the page-side copy from the function's own source alone
+ * (`new Function("return (" + fn + ")")`), so a module-scope constant is simply
+ * not there. Cloud D2/D3 measured it: the round-2 fix only restored the
+ * constants at module scope, so the Node path worked while every page probe threw
+ * `ReferenceError: REMOTE_NEWER_TEXT is not defined` (the G5-A03 xlsx
+ * `dirty-kept` row, whose FAIL then read as a product miss). Keep this function
+ * self-contained: no free variables, module scope included.
  */
 export function readRemoteNewerSurface({ version = null } = {}) {
+  const newerText = /(phiên bản mới hơn trên UniWork|newer version (?:is )?on UniWork)/i;
+  const newerVersion = /(?:phiên bản|version)\s*\(?\s*(\d+)/i;
+  const newerReload = /(Tải lại bản mới nhất|Reload latest)/i;
   const seen = [];
   for (const el of document.querySelectorAll("div,section,aside,header,p,span,li")) {
     const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-    if (!text || text.length > 400 || !REMOTE_NEWER_TEXT.test(text)) continue;
-    const named = REMOTE_NEWER_VERSION.exec(text);
+    if (!text || text.length > 400 || !newerText.test(text)) continue;
+    const named = newerVersion.exec(text);
     seen.push({ text, version: named ? Number(named[1]) : null });
   }
   const actions = [...document.querySelectorAll("button,a,[role='button']")].filter((el) =>
-    REMOTE_NEWER_RELOAD.test((el.textContent ?? "").trim()),
+    newerReload.test((el.textContent ?? "").trim()),
   );
   const best = seen.find((s) => (version === null ? true : s.version === version)) ?? seen[0] ?? null;
   return {
@@ -503,18 +502,25 @@ export function readRemoteNewerSurface({ version = null } = {}) {
 }
 
 /**
- * The "no bar" reason for `remoteNewerBar`/`clickReload`, naming the first page
- * whose probe threw (D2-04): a crash inside the page-side probe used to be
- * swallowed into a plain miss, which reads as a product gap (or a slow feed)
- * instead of the harness bug it was.
+ * The reason `remoteNewerBar`/`clickReload` report when no page carries the bar.
+ * A probe that THREW is never reported as "no new-version bar" (D2-04, D3-02): a
+ * crash inside the page-side probe used to be swallowed into a plain miss, which
+ * reads as a product gap (or a slow feed) instead of the harness bug it was.
  */
 export function remoteNewerMissReason(version, probeErrors = []) {
   const first = (probeErrors ?? []).find(Boolean);
-  const what =
-    version === null
-      ? "no new-version bar on any app page"
-      : `no new-version bar naming version ${version} on any app page`;
-  return first ? `${what} (a page probe failed: ${first})` : what;
+  if (first) return `the new-version probe could not run: ${first}`;
+  return version === null ? "no new-version bar on any app page" : `no new-version bar naming version ${version} on any app page`;
+}
+
+/**
+ * `remoteNewerBar`'s answer for one `findRemoteNewerPage` search: the page that
+ * carries the bar, or the miss reason — which says whether the probe even ran.
+ */
+export function newerBarReport(found, version) {
+  const { page, probe, probeErrors } = found ?? {};
+  if (!page) return { visible: false, reason: remoteNewerMissReason(version, probeErrors) };
+  return { visible: true, version: probe.version, text: probe.text, where: editorKindOfUrl(page.url()) ?? "shell" };
 }
 
 // ---- small polling helper ------------------------------------------------------------------
@@ -576,20 +582,116 @@ export function readAppSaveReceipt(app) {
 const FRAME_OPEN_PATH = /^\/api\/v1\/office-frame\/documents\/[^/]+$/;
 
 /**
+ * The frame-message recorder, installed by `addInitScript` in EVERY document of
+ * the web page's context (the page, and the Office frame inside it) before any
+ * page script runs: it records the protocol envelopes that document RECEIVES.
+ *
+ * Receiving is the side to watch (D3-01). The D host posts `doc.remoteVersion`
+ * to the FRAME's window — `packages/core/office/docs-frame-endpoint.ts:238`
+ * (`peer.postMessage`), whose peer is `iframe.contentWindow`
+ * (`use-docs-frame-session.ts:216`) — so the round-2 capture, which patched
+ * `postMessage` and then read `window.__crossHostFrameMessages` in the TOP page,
+ * could never see it: the announce is recorded where it is delivered. Reading
+ * `readFrameMessages` in every document and merging with
+ * `summarizeFrameRecordings` sees it whichever realm the call resolved in.
+ *
+ * This function is serialized into the page: keep it self-contained (no
+ * module-scope constants), the way `readRemoteNewerSurface` now is.
+ */
+export function installFrameRecorder(target = window) {
+  const list = [];
+  // the newest 1000 envelopes: a run's frame traffic is far below it, and the document is
+  // replaced when the frame reloads
+  const limit = 1000;
+  Object.defineProperty(target, "__crossHostFrameMessages", { value: list, configurable: true });
+  target.addEventListener("message", (event) => {
+    try {
+      const data = event?.data;
+      if (!data || typeof data !== "object" || typeof data.type !== "string") return;
+      const payload = data.payload ?? {};
+      list.push({
+        kind: typeof data.kind === "string" ? data.kind : null,
+        type: data.type,
+        versionId: payload.version_id ?? null,
+        version: payload.version ?? null,
+        revision: payload.revision ?? null,
+        reason: payload.reason ?? null,
+        at: Date.now(),
+      });
+      if (list.length > limit) list.shift();
+    } catch {
+      // observing must never break the frame protocol
+    }
+  });
+}
+
+/** One document's recorded envelopes, or null when the recorder never ran there (a measured fact). */
+export function readFrameMessages(target = window) {
+  const list = target?.__crossHostFrameMessages;
+  return Array.isArray(list) ? list : null;
+}
+
+/**
+ * The web host's own announcements, merged from every document's recorder, plus
+ * the shape of what was read: how many documents the page had, how many carried
+ * the recorder, and which protocol envelopes appeared at all (D3-01). Reading
+ * the top page alone reported "nothing was captured" whether or not the host
+ * announced; these numbers say which of the two it was.
+ */
+export function summarizeFrameRecordings(reports = [], sinceMs = 0) {
+  const announcements = [];
+  const types = new Map();
+  let recorders = 0;
+  let events = 0;
+  for (const report of reports ?? []) {
+    const messages = Array.isArray(report?.messages) ? report.messages : null;
+    if (messages) recorders += 1;
+    for (const message of messages ?? []) {
+      if (!message || typeof message !== "object") continue;
+      const key = `${message.kind ?? "?"}:${message.type ?? "?"}`;
+      types.set(key, (types.get(key) ?? 0) + 1);
+      if (message.kind !== "event") continue;
+      events += 1;
+      if (message.type === "doc.remoteVersion" && Number(message.at ?? 0) >= sinceMs) announcements.push(message);
+    }
+  }
+  announcements.sort((a, b) => Number(a.at ?? 0) - Number(b.at ?? 0));
+  // one logical announce can be recorded twice (the sender's document and the receiver's)
+  const seen = new Set();
+  const unique = announcements.filter((message) => {
+    const key = `${message.versionId ?? ""}@${message.at ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return {
+    announcements: unique,
+    frames: (reports ?? []).length,
+    recorders,
+    events,
+    types: [...types.entries()].map(([key, count]) => `${key} x${count}`),
+  };
+}
+
+/**
  * The web half on Playwright: signs the seeded account in at `/login`, opens
  * the document URL the D Inbox builds, waits for the Office frame host
  * (`data-state="ready"`), edits the frame the way the D e2e does
  * (`e2e/office-modules-web.spec.ts` sheets/html cases) and saves with
  * `harness/web.mjs` `webSave` (the frame's own Ctrl+S commit answer).
  *
- * What the host told the frame is captured by wrapping
- * `Window.prototype.postMessage` before any page script runs: the D vendored
- * host posts `{kind:"event", type:"doc.remoteVersion", payload:{version_id,…}}`
- * to the frame's window once the handshake is done
- * (`packages/core/office/docs-frame-host.ts:370-390`), so a captured event is
- * the web's own S6 notice, and its `version_id` is the version the frame was
- * told about. The frame's reload is read from its own `api.open` answer (the
- * `GET /office-frame/documents/{id}` response: `file.version_id`).
+ * What the host told the frame is captured by `installFrameRecorder`, installed
+ * with `addInitScript` in every document before any page script runs: the D
+ * vendored host posts `{kind:"event", type:"doc.remoteVersion", payload:{version_id,…}}`
+ * to the FRAME's window once the handshake is done
+ * (`packages/core/office/docs-frame-host.ts:370-390` via
+ * `docs-frame-endpoint.ts:238`, whose peer is `iframe.contentWindow`), so a
+ * captured event is the web's own S6 notice and its `version_id` is the version
+ * the frame was told about. The capture is read from EVERY document of the page
+ * (`readFrameMessages`), because the announce is delivered to the frame and never
+ * reaches the top page's own array (D3-01). The frame's reload is read from its
+ * own `api.open` answer (the `GET /office-frame/documents/{id}` response:
+ * `file.version_id`).
  */
 async function createPlaywrightWebCtrl({
   webOrigin,
@@ -638,31 +740,7 @@ async function createPlaywrightWebCtrl({
   };
   try {
     web = await webLogin(browser, user, { webOrigin, locale: "en", timeoutMs: stepTimeoutMs });
-    await web.context.addInitScript(() => {
-      const original = Window.prototype.postMessage;
-      const list = [];
-      Object.defineProperty(window, "__crossHostFrameMessages", { value: list, configurable: true });
-      Window.prototype.postMessage = function patched(message, targetOrigin, transfer) {
-        try {
-          if (message && typeof message === "object" && message.kind === "event" && typeof message.type === "string") {
-            const payload = message.payload ?? {};
-            list.push({
-              type: message.type,
-              versionId: payload.version_id ?? null,
-              version: payload.version ?? null,
-              revision: payload.revision ?? null,
-              reason: payload.reason ?? null,
-              at: Date.now(),
-            });
-          }
-        } catch {
-          // observing must never break the frame protocol
-        }
-        return transfer !== undefined
-          ? original.call(this, message, targetOrigin, transfer)
-          : original.call(this, message, targetOrigin);
-      };
-    });
+    await web.context.addInitScript(installFrameRecorder);
     web.page.on("response", (response) => {
       try {
         const url = new URL(response.url());
@@ -712,6 +790,22 @@ async function createPlaywrightWebCtrl({
     }
 
     const hostReady = () => web.page.waitForSelector(sel.ready, { state: "visible", timeout: stepTimeoutMs }).then(() => true).catch(() => false);
+
+    /**
+     * What every document of this page received (D3-01). A document whose recorder
+     * never ran, or a frame that went away mid-read, reports `messages: null` — a
+     * measured fact the miss reason counts rather than hides.
+     */
+    const frameReports = async () => {
+      const reports = [];
+      for (const frame of web.page.frames()) {
+        reports.push({
+          url: frame.url(),
+          messages: await frame.evaluate(readFrameMessages).catch(() => null),
+        });
+      }
+      return reports;
+    };
 
     const editFrame = async (marker) => {
       const frame = web.page.frameLocator(sel.iframe);
@@ -772,19 +866,12 @@ async function createPlaywrightWebCtrl({
         };
       },
       async announcements({ sinceMs = 0 } = {}) {
-        const messages = await web.page
-          .evaluate(() =>
-            (window.__crossHostFrameMessages ?? []).map((m) => ({
-              type: m.type,
-              versionId: m.versionId,
-              version: m.version,
-              revision: m.revision,
-              reason: m.reason,
-              at: m.at,
-            })),
-          )
-          .catch(() => []);
-        return messages.filter((m) => m.type === "doc.remoteVersion" && m.at >= sinceMs);
+        // every document's recorder is read: the host posts to the frame's window (D3-01)
+        return summarizeFrameRecordings(await frameReports(), sinceMs).announcements;
+      },
+      /** The same merge with the shape of what was read, for a miss's reason (D3-01). */
+      async frameAudit() {
+        return summarizeFrameRecordings(await frameReports(), 0);
       },
       async waitForReload({ versionId, timeoutMs = stepTimeoutMs }) {
         const startedAt = Date.now();
@@ -893,7 +980,17 @@ async function createCdpAppCtrl({
     // A timeout here is the row's own FAIL; any other answer is best-effort and
     // the harness's logout below reports what it sees.
     await signOutPreviousSession(ctrl.aiOffice).catch((err) => {
-      if (err?.isAppStepTimeout) throw err;
+      if (err?.isAppStepTimeout) {
+        // Name this call in the record (D3-03): the harness's own sign-in sends the same
+        // `aiOffice.accountLogout` through the same bridge, so a bare "did not settle within
+        // 90 s" could not be attributed to either side in cloud D3.
+        err.message = `the previous row's session could not be signed out: ${err.message}`;
+        err.appStepTimeout = {
+          ...err.appStepTimeout,
+          call: `signOutPreviousSession.${err.appStepTimeout?.call ?? "aiOffice.accountLogout"}`,
+        };
+        throw err;
+      }
     });
     const signed = await ctrl.signIn(user);
     const state = signed?.status?.state;
@@ -1026,9 +1123,7 @@ async function createCdpAppCtrl({
       return makeAppDirty({ ctrl, kind, path, documentId });
     },
     async remoteNewerBar({ version }) {
-      const { page, probe, probeErrors } = await findRemoteNewerPage(version);
-      if (!page) return { visible: false, reason: remoteNewerMissReason(version, probeErrors) };
-      return { visible: true, version: probe.version, text: probe.text, where: editorKindOfUrl(page.url()) ?? "shell" };
+      return newerBarReport(await findRemoteNewerPage(version), version);
     },
     async clickReload() {
       const { page, probe, probeErrors } = await findRemoteNewerPage(null);
@@ -1649,9 +1744,16 @@ export async function runCrossHostRow({
       );
       const match = (announced.value ?? []).find((m) => m.versionId === reconnectVersionId) ?? null;
       if (!match) {
+        // What was read, measured (D3-01): the round-3 wording guessed at office_sync_feed,
+        // whose server default is true and which was never read, where the artifact could
+        // have carried these numbers instead.
+        const audit = typeof web.frameAudit === "function" ? await web.frameAudit().catch(() => null) : null;
+        const measured = audit
+          ? ` (${audit.frames} document(s) read, ${audit.recorders} carried the message recorder, ${audit.events} protocol event(s) received: ${audit.types.slice(0, 4).join(", ") || "none"})`
+          : "";
         return {
           status: "FAIL",
-          reason: `the web host announced no doc.remoteVersion for ${reconnectVersionId} within ${stepTimeout} ms (the web S6 path is off without office_sync_feed; nothing was captured)`,
+          reason: `the web host announced no doc.remoteVersion for ${reconnectVersionId} within ${stepTimeout} ms${measured}`,
         };
       }
       const reload = await web.waitForReload({ versionId: reconnectVersionId, timeoutMs: stepTimeout });
