@@ -1,12 +1,12 @@
 "use client";
 import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
-import Link from "next/link";
+import { MarketingLink as Link } from "../../platform/marketing-link";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useKnownSession } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { useHomeDestination } from "@uniwork/core/workspaces";
-import { LocaleMenu, ThemeMenu } from "@uniwork/views/layout/preference-menus";
+import { MarketingPreferences } from "../../platform/marketing-preferences";
 import { Logo } from "@uniwork/ui/brand";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -24,6 +24,7 @@ const GROUPS = [
 ] as const;
 const LINKS = [
   { label: "landing.footer.pricing", to: paths.pricing() },
+  { label: "changelog.title", to: paths.changelog() },
 ] as const;
 
 export function SiteHeader() {
@@ -52,7 +53,7 @@ export function SiteHeader() {
     return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("pointerdown", outside); };
   }, [mobileOpen, directory]);
   useEffect(() => {
-    const desktop = matchMedia("(min-width: 1100px)");
+    const desktop = matchMedia("(min-width: 1240px)");
     const dismiss = () => { setMobileOpen(false); setDirectory(null); };
     desktop.addEventListener("change", dismiss);
     return () => desktop.removeEventListener("change", dismiss);
@@ -73,7 +74,7 @@ export function SiteHeader() {
         {LINKS.map(item => <Link key={item.to} className="header-nav-link" href={item.to} onClick={close}>{t(item.label)}</Link>)}
       </nav>
       <div className="header-actions">
-        <div className="header-preferences"><ThemeMenu size="icon-lg" /><LocaleMenu size="icon-lg" /></div>
+        <div className="header-preferences"><MarketingPreferences /></div>
         {authed ? (
           <Link href={home} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "header-start")}>{t("landing.nav.home")}<ArrowRight aria-hidden /></Link>
         ) : (

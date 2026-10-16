@@ -92,6 +92,7 @@ var tenantExportIncludedTables = []string{
 	"email_hub_threads",
 	"files",
 	"home_preferences",
+	"invitation_workspaces",
 	"invitations",
 	"mcp_grants",
 	"meeting_access_grants",
@@ -133,6 +134,7 @@ var tenantExportIncludedTables = []string{
 	"task_views",
 	"tasks",
 	"workspace_agent_members",
+	"workspace_aliases",
 	"workspace_members",
 	"workspaces",
 }

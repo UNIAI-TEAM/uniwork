@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -26,11 +27,14 @@ const (
 
 // ChatRoomSummary is a dm, group, or channel room visible to the caller.
 type ChatRoomSummary struct {
-	ID                 string
-	Kind               string
-	Name               string
-	WorkspaceID        string
-	MemberUserIDs      []string
+	ID            string
+	Kind          string
+	Name          string
+	WorkspaceID   string
+	MemberUserIDs []string
+	// MemberCount is a channel's size, the caller included; a channel sends
+	// this instead of MemberUserIDs (0 for the default channel in the sidebar).
+	MemberCount        int
 	UnreadCount        int
 	MentionUnreadCount int
 	PeerUserID         string
@@ -51,6 +55,8 @@ type ChatRoomSummary struct {
 	ProjectID             string
 	Topic                 string
 	IsDefault             bool
+	// NotificationsMuted is the caller's own mute of this room (UNI-1697).
+	NotificationsMuted bool
 }
 
 type CreateGroupInput struct {
@@ -120,7 +126,7 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 			MentionUnreadCount: int(row.MentionUnreadCount),
 			MemberPermissions:  memberPermissionsFromRaw(row.MemberPermissions),
 			PeerUserID:         row.PeerUserID, PeerEmail: row.PeerEmail, PeerDisplayName: row.PeerDisplayName,
-			LastReadAt: timePtr(row.MyLastReadAt),
+			LastReadAt: timePtr(row.MyLastReadAt), NotificationsMuted: row.NotificationsMuted,
 		}
 		if row.Kind == chatRoomKindDM && strings.TrimSpace(summary.Name) == "" {
 			summary.Name = row.PeerDisplayName
@@ -144,6 +150,25 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 		out = append(out, channelSummaryFromMineRow(row))
 	}
 	return out, nil
+}
+
+// SetRoomNotificationsMuted mutes or unmutes chat notifications of one room
+// for the caller only. Like FollowThread it is a personal preference, so it
+// writes no audit row; the notification rules read it at delivery.
+func (s *ChatService) SetRoomNotificationsMuted(ctx context.Context, userID, workspaceID, roomID string, muted bool) error {
+	if _, err := s.authorizeRoomMember(ctx, userID, workspaceID, roomID); err != nil {
+		return err
+	}
+	n, err := s.q.SetChatRoomMemberNotificationsMuted(ctx, db.SetChatRoomMemberNotificationsMutedParams{
+		RoomID: roomID, UserID: userID, NotificationsMuted: muted,
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // defaultRoomForNonMember is the default channel's row for a caller who is not
@@ -206,7 +231,16 @@ func (s *ChatService) ResolveDM(ctx context.Context, userID, workspaceID, target
 	} else if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	if err := s.ensureExistingRoomAccess(ctx, room, userID, targetUserID); err != nil {
+	rejoin := []string{userID, targetUserID}
+	blocked, err := s.dmMessagingBlocked(ctx, w.OrganizationID, userID, targetUserID)
+	if err != nil {
+		return ChatRoomSummary{}, err
+	}
+	if blocked {
+		// A peer who blocked (or was blocked by) the caller and left stays out.
+		rejoin = rejoin[:1]
+	}
+	if err := s.ensureExistingRoomAccess(ctx, room, rejoin...); err != nil {
 		return ChatRoomSummary{}, err
 	}
 	return s.roomSummaryWithPreview(ctx, userID, roomAnchorWorkspaceID(room), room.ID, room.Kind, room.Name, 0, memberSetKeyFromRoom(room), room.MemberPermissions)
@@ -219,6 +253,9 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 		return ChatRoomSummary{}, err
 	}
 	name := strings.TrimSpace(in.Name)
+	if utf8.RuneCountInString(name) > chatRoomNameMaxRunes {
+		return ChatRoomSummary{}, Invalid("tên phòng tối đa 80 ký tự")
+	}
 	memberIDs := normalizeUserIDs(in.MemberUserIDs)
 	if len(memberIDs) < 2 {
 		return ChatRoomSummary{}, Invalid("nhóm cần ít nhất 2 thành viên")
@@ -241,6 +278,19 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 		Kind:           chatRoomKindGroup,
 		MemberSetKey:   pgtype.Text{String: key, Valid: true},
 	})
+	if err == nil {
+		// The key is minted at creation and never follows invites, leaves or
+		// kicks: reuse the room only while its members are still exactly this
+		// set, otherwise a kicked member walks back in, or a message meant for
+		// three reaches a fourth. A mismatch starts a new keyless group.
+		current, lerr := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
+		if lerr != nil {
+			return ChatRoomSummary{}, lerr
+		}
+		if memberSetKey(current) != memberSetKey(allIDs) {
+			err, key = pgx.ErrNoRows, ""
+		}
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		if name == "" {
 			name = defaultGroupNameFromUsers(ctx, s.q, memberIDs)
@@ -252,16 +302,7 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 	} else if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	if err := s.ensureExistingRoomAccess(ctx, room, userID); err != nil {
-		return ChatRoomSummary{}, err
-	}
-	anchorWS := roomAnchorWorkspaceID(room)
-	if room.CreatedBy == userID {
-		if err := s.syncRoomMember(ctx, room, anchorWS, userID, "admin"); err != nil {
-			return ChatRoomSummary{}, err
-		}
-	}
-	return s.roomSummaryWithPreview(ctx, userID, anchorWS, room.ID, room.Kind, room.Name, 0, memberSetKeyFromRoom(room), room.MemberPermissions)
+	return s.roomSummaryWithPreview(ctx, userID, roomAnchorWorkspaceID(room), room.ID, room.Kind, room.Name, 0, memberSetKeyFromRoom(room), room.MemberPermissions)
 }
 
 // chatInviteMaxIDs caps the people one invite request names.
@@ -404,6 +445,11 @@ func (s *ChatService) LeaveChatRoom(ctx context.Context, userID, workspaceID, ro
 	if room.Kind == chatRoomKindWorkspace || room.IsDefault {
 		return Invalid("không thể rời kênh mặc định của workspace")
 	}
+	if room.Kind == chatRoomKindGroup || room.Kind == chatRoomKindChannel {
+		if err := s.refuseLastAdminLeaving(ctx, roomID, userID); err != nil {
+			return err
+		}
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -454,7 +500,7 @@ func (s *ChatService) createChatRoom(
 		WorkspaceID:     pgtype.Text{String: anchorWorkspaceID, Valid: true},
 		OrganizationID:  orgID,
 		Name:            name,
-		MemberSetKey:    pgtype.Text{String: memberSetKey, Valid: true},
+		MemberSetKey:    pgtype.Text{String: memberSetKey, Valid: memberSetKey != ""},
 		LivekitRoomName: liveKitRoomFromChatID(roomID),
 		CreatedBy:       creatorID,
 		CreatedByKind:   string(audit.KindHuman),
@@ -602,6 +648,10 @@ func (s *ChatService) roomSummary(
 		ID: roomID, Kind: kind, Name: name, WorkspaceID: anchorWorkspaceID,
 		MemberUserIDs: memberIDs, UnreadCount: unread, MentionUnreadCount: mentionUnread,
 		MemberPermissions: memberPermissionsFromRaw(memberPermissions),
+	}
+	if kind == chatRoomKindChannel {
+		// Same shape as the sidebar row: a channel's size, not its roster.
+		out.MemberCount, out.MemberUserIDs = len(others), nil
 	}
 	if kind == chatRoomKindDM {
 		peerID := ""
@@ -752,8 +802,13 @@ func defaultGroupNameFromUsers(ctx context.Context, q *db.Queries, memberIDs []s
 	if len(names) == 0 {
 		return "Group"
 	}
+	name := strings.Join(names, ", ")
 	if len(names) > 3 {
-		return strings.Join(names[:3], ", ") + "…"
+		name = strings.Join(names[:3], ", ") + "…"
 	}
-	return strings.Join(names, ", ")
+	// Three long display names still overrun the limit a typed name obeys.
+	if r := []rune(name); len(r) > chatRoomNameMaxRunes {
+		name = string(r[:chatRoomNameMaxRunes-1]) + "…"
+	}
+	return name
 }

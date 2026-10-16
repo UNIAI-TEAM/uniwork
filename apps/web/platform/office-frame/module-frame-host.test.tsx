@@ -297,7 +297,7 @@ describe("OfficeModuleHost", () => {
       await click(buttonByText("Open in UniWork Office"));
       await until(() => mocks.launch.mock.calls.length > 0);
       expect(mocks.createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "edit", deployment_id: "dep-7" }));
-      expect(mocks.launch).toHaveBeenCalledWith(`uniwork-office://open?ticket=${ticket}`);
+      expect(mocks.launch).toHaveBeenCalledWith(`uniwork-office://open?ticket=${ticket}`, expect.anything());
       await until(() => mocks.downloadProfile.mock.calls.length > 0);
       expect(mocks.downloadProfile).toHaveBeenCalledWith("org-1", "stable");
     });

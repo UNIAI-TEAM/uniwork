@@ -30,6 +30,7 @@
   "forgot-password",
   "reset-password",
   "get-started",
+  "no-workspace",
   "uploads",
   "favicon.ico",
   "share",
@@ -44,5 +45,8 @@
   "office-frame",
   "mcp",
   "oauth",
-  "request-demo"
+  "request-demo",
+  "vi",
+  "about",
+  "security"
 ]

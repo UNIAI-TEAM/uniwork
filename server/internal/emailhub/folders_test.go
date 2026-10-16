@@ -24,7 +24,7 @@ func TestDefaultMailboxMap(t *testing.T) {
 	if m[FolderInbox] != FolderInbox || m[FolderSent] != "[Gmail]/Sent Mail" {
 		t.Fatalf("unexpected gmail map: %v", m)
 	}
-	if len(SyncableFolders()) != 4 || SyncableFolders()[0] != FolderInbox {
+	if len(SyncableFolders()) != 5 || SyncableFolders()[0] != FolderInbox || SyncableFolders()[4] != FolderSpam {
 		t.Fatalf("unexpected syncable folders: %v", SyncableFolders())
 	}
 	if !IsMoveableTarget(FolderInbox) || !IsMoveableTarget(FolderArchive) || !IsMoveableTarget(FolderTrash) || !IsMoveableTarget(FolderSpam) {

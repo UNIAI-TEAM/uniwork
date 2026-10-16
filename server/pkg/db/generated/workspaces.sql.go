@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addInvitationWorkspace = `-- name: AddInvitationWorkspace :exec
+INSERT INTO invitation_workspaces (invitation_id, workspace_id, organization_id)
+VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING
+`
+
+type AddInvitationWorkspaceParams struct {
+	InvitationID   string `json:"invitation_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) AddInvitationWorkspace(ctx context.Context, arg AddInvitationWorkspaceParams) error {
+	_, err := q.db.Exec(ctx, addInvitationWorkspace, arg.InvitationID, arg.WorkspaceID, arg.OrganizationID)
+	return err
+}
+
 const addWorkspaceMember = `-- name: AddWorkspaceMember :exec
 INSERT INTO workspace_members (workspace_id, user_id, role, organization_id)
 VALUES ($1, $2, $3, $4)
@@ -87,7 +104,7 @@ func (q *Queries) CreateInvitation(ctx context.Context, arg CreateInvitationPara
 const createWorkspace = `-- name: CreateWorkspace :one
 INSERT INTO workspaces (id, organization_id, slug, name, created_by)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
 `
 
 type CreateWorkspaceParams struct {
@@ -118,8 +135,26 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 	)
 	return i, err
+}
+
+const deleteInvitationWorkspaces = `-- name: DeleteInvitationWorkspaces :exec
+DELETE FROM invitation_workspaces
+WHERE invitation_id = $1 AND organization_id = $2
+`
+
+type DeleteInvitationWorkspacesParams struct {
+	InvitationID   string `json:"invitation_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) DeleteInvitationWorkspaces(ctx context.Context, arg DeleteInvitationWorkspacesParams) error {
+	_, err := q.db.Exec(ctx, deleteInvitationWorkspaces, arg.InvitationID, arg.OrganizationID)
+	return err
 }
 
 const deleteWorkspaceMember = `-- name: DeleteWorkspaceMember :exec
@@ -274,7 +309,7 @@ func (q *Queries) GetWorkspaceAccess(ctx context.Context, arg GetWorkspaceAccess
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter FROM workspaces WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id FROM workspaces WHERE id = $1
 `
 
 // tenant: by-id
@@ -292,12 +327,15 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id string) (Workspace, e
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 	)
 	return i, err
 }
 
 const getWorkspaceBySlugs = `-- name: GetWorkspaceBySlugs :one
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, o.slug AS organization_slug, o.name AS organization_name
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE o.slug = $1 AND w.slug = $2
 `
@@ -318,6 +356,9 @@ type GetWorkspaceBySlugsRow struct {
 	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix       string             `json:"task_prefix"`
 	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -337,10 +378,64 @@ func (q *Queries) GetWorkspaceBySlugs(ctx context.Context, arg GetWorkspaceBySlu
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 		&i.OrganizationSlug,
 		&i.OrganizationName,
 	)
 	return i, err
+}
+
+const getWorkspaceForUpdate = `-- name: GetWorkspaceForUpdate :one
+SELECT id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id FROM workspaces
+WHERE id = $1 AND organization_id = $2
+FOR UPDATE
+`
+
+type GetWorkspaceForUpdateParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// The locked row a settings change is computed from (spec 2026-10-14 §4.4).
+func (q *Queries) GetWorkspaceForUpdate(ctx context.Context, arg GetWorkspaceForUpdateParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceForUpdate, arg.ID, arg.OrganizationID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.MatrixRoomID,
+		&i.TaskPrefix,
+		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
+	)
+	return i, err
+}
+
+const getWorkspaceIconFileIDForUpdate = `-- name: GetWorkspaceIconFileIDForUpdate :one
+SELECT icon_file_id FROM workspaces
+WHERE id = $1 AND organization_id = $2
+FOR UPDATE
+`
+
+type GetWorkspaceIconFileIDForUpdateParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GetWorkspaceIconFileIDForUpdate(ctx context.Context, arg GetWorkspaceIconFileIDForUpdateParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceIconFileIDForUpdate, arg.ID, arg.OrganizationID)
+	var icon_file_id pgtype.Text
+	err := row.Scan(&icon_file_id)
+	return icon_file_id, err
 }
 
 const getWorkspaceMember = `-- name: GetWorkspaceMember :one
@@ -366,7 +461,7 @@ func (q *Queries) GetWorkspaceMember(ctx context.Context, arg GetWorkspaceMember
 }
 
 const getWorkspaceWithOrg = `-- name: GetWorkspaceWithOrg :one
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, o.slug AS organization_slug, o.name AS organization_name
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE w.id = $1
 `
@@ -382,6 +477,9 @@ type GetWorkspaceWithOrgRow struct {
 	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix       string             `json:"task_prefix"`
 	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -401,10 +499,107 @@ func (q *Queries) GetWorkspaceWithOrg(ctx context.Context, id string) (GetWorksp
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 		&i.OrganizationSlug,
 		&i.OrganizationName,
 	)
 	return i, err
+}
+
+const listAssignableMembers = `-- name: ListAssignableMembers :many
+SELECT u.id::text AS user_id, u.display_name::text AS display_name,
+       COALESCE(wm.role, 'org_' || om.role)::text AS role
+FROM organization_members om
+JOIN users u ON u.id = om.user_id
+LEFT JOIN workspace_members wm ON wm.workspace_id = $1::text AND wm.user_id = om.user_id
+WHERE om.organization_id = $2::text
+  AND om.deactivated_at IS NULL
+  AND (wm.user_id IS NOT NULL OR om.role IN ('owner', 'admin'))
+ORDER BY lower(u.display_name), u.id
+`
+
+type ListAssignableMembersParams struct {
+	WorkspaceID    string `json:"workspace_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+type ListAssignableMembersRow struct {
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	Role        string `json:"role"`
+}
+
+// Who can be given a task in the workspace: its members and the
+// organization's owners and admins (implicit workspace admins), active only.
+// Email is left out on purpose: the MCP connector hands this to an AI app.
+func (q *Queries) ListAssignableMembers(ctx context.Context, arg ListAssignableMembersParams) ([]ListAssignableMembersRow, error) {
+	rows, err := q.db.Query(ctx, listAssignableMembers, arg.WorkspaceID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAssignableMembersRow{}
+	for rows.Next() {
+		var i ListAssignableMembersRow
+		if err := rows.Scan(&i.UserID, &i.DisplayName, &i.Role); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInvitationWorkspaces = `-- name: ListInvitationWorkspaces :many
+SELECT iw.invitation_id, w.id, w.name, w.slug
+FROM invitation_workspaces iw
+JOIN workspaces w ON w.id = iw.workspace_id AND w.organization_id = iw.organization_id
+WHERE iw.invitation_id = ANY($1::text[]) AND iw.organization_id = ANY($2::text[])
+ORDER BY w.created_at, w.id
+`
+
+type ListInvitationWorkspacesParams struct {
+	InvitationIds   []string `json:"invitation_ids"`
+	OrganizationIds []string `json:"organization_ids"`
+}
+
+type ListInvitationWorkspacesRow struct {
+	InvitationID string `json:"invitation_id"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Slug         string `json:"slug"`
+}
+
+// What an invitation grants, oldest workspace first (the order the post-login
+// resolver lands in). The join drops a workspace that no longer exists and
+// keeps the grant inside the invitation's organization.
+func (q *Queries) ListInvitationWorkspaces(ctx context.Context, arg ListInvitationWorkspacesParams) ([]ListInvitationWorkspacesRow, error) {
+	rows, err := q.db.Query(ctx, listInvitationWorkspaces, arg.InvitationIds, arg.OrganizationIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListInvitationWorkspacesRow{}
+	for rows.Next() {
+		var i ListInvitationWorkspacesRow
+		if err := rows.Scan(
+			&i.InvitationID,
+			&i.ID,
+			&i.Name,
+			&i.Slug,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listInvitationsForEmail = `-- name: ListInvitationsForEmail :many
@@ -473,9 +668,11 @@ func (q *Queries) ListInvitationsForEmail(ctx context.Context, email string) ([]
 }
 
 const listPendingOrganizationInvitations = `-- name: ListPendingOrganizationInvitations :many
-SELECT i.id, i.workspace_id, i.email, i.role, i.token, i.expires_at, i.accepted_at, i.created_at, i.organization_id, i.org_role, i.invited_by, i.revoked_at, u.display_name AS invited_by_name
+SELECT i.id, i.workspace_id, i.email, i.role, i.token, i.expires_at, i.accepted_at, i.created_at, i.organization_id, i.org_role, i.invited_by, i.revoked_at, u.display_name AS invited_by_name,
+       w.name AS workspace_name, w.slug AS workspace_slug
 FROM invitations i
 LEFT JOIN users u ON u.id = i.invited_by
+LEFT JOIN workspaces w ON w.id = i.workspace_id AND w.organization_id = i.organization_id
 WHERE i.organization_id = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now()
 ORDER BY i.created_at DESC
 `
@@ -494,8 +691,12 @@ type ListPendingOrganizationInvitationsRow struct {
 	InvitedBy      pgtype.Text        `json:"invited_by"`
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 	InvitedByName  pgtype.Text        `json:"invited_by_name"`
+	WorkspaceName  pgtype.Text        `json:"workspace_name"`
+	WorkspaceSlug  pgtype.Text        `json:"workspace_slug"`
 }
 
+// An invitation sent from a workspace names it; the outer join keeps the
+// organization-level ones, which have none.
 func (q *Queries) ListPendingOrganizationInvitations(ctx context.Context, organizationID string) ([]ListPendingOrganizationInvitationsRow, error) {
 	rows, err := q.db.Query(ctx, listPendingOrganizationInvitations, organizationID)
 	if err != nil {
@@ -519,10 +720,39 @@ func (q *Queries) ListPendingOrganizationInvitations(ctx context.Context, organi
 			&i.InvitedBy,
 			&i.RevokedAt,
 			&i.InvitedByName,
+			&i.WorkspaceName,
+			&i.WorkspaceSlug,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceIconFileIDs = `-- name: ListWorkspaceIconFileIDs :many
+SELECT icon_file_id FROM workspaces
+WHERE icon_file_id = ANY($1::text[])
+`
+
+// tenant: system
+// FileService asks which of these files a workspace still shows.
+func (q *Queries) ListWorkspaceIconFileIDs(ctx context.Context, fileIds []string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceIconFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var icon_file_id pgtype.Text
+		if err := rows.Scan(&icon_file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, icon_file_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -580,7 +810,7 @@ func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID string) 
 }
 
 const listWorkspacesForUser = `-- name: ListWorkspacesForUser :many
-SELECT DISTINCT ON (w.created_at, w.id) w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, o.slug AS organization_slug, o.name AS organization_name
+SELECT DISTINCT ON (w.created_at, w.id) w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
 LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $1
@@ -600,6 +830,9 @@ type ListWorkspacesForUserRow struct {
 	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix       string             `json:"task_prefix"`
 	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -628,9 +861,51 @@ func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]L
 			&i.MatrixRoomID,
 			&i.TaskPrefix,
 			&i.TaskCounter,
+			&i.Description,
+			&i.IconEmoji,
+			&i.IconFileID,
 			&i.OrganizationSlug,
 			&i.OrganizationName,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspacesInOrgByIDs = `-- name: ListWorkspacesInOrgByIDs :many
+SELECT id, name, slug FROM workspaces
+WHERE organization_id = $1 AND id = ANY($2::text[])
+ORDER BY created_at, id
+`
+
+type ListWorkspacesInOrgByIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	Ids            []string `json:"ids"`
+}
+
+type ListWorkspacesInOrgByIDsRow struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+// The workspaces an organization invitation may grant: only the
+// organization's own, so an id from another tenant simply is not found.
+func (q *Queries) ListWorkspacesInOrgByIDs(ctx context.Context, arg ListWorkspacesInOrgByIDsParams) ([]ListWorkspacesInOrgByIDsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspacesInOrgByIDs, arg.OrganizationID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspacesInOrgByIDsRow{}
+	for rows.Next() {
+		var i ListWorkspacesInOrgByIDsRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Slug); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -666,6 +941,18 @@ func (q *Queries) LockInvitationByToken(ctx context.Context, token string) (Invi
 		&i.RevokedAt,
 	)
 	return i, err
+}
+
+const lockWorkspaceSlugs = `-- name: LockWorkspaceSlugs :exec
+SELECT pg_advisory_xact_lock(hashtextextended('workspace-slug:' || $1::text, 0))
+`
+
+// Serializes slug changes and workspace creation in one organization, so the
+// check that a slug is nobody else's alias and the write that follows see
+// the same rows (spec 2026-10-14 §4.4).
+func (q *Queries) LockWorkspaceSlugs(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, lockWorkspaceSlugs, organizationID)
+	return err
 }
 
 const markInvitationAccepted = `-- name: MarkInvitationAccepted :execrows
@@ -729,10 +1016,52 @@ func (q *Queries) RevokePendingInvitationsForOrg(ctx context.Context, organizati
 	return result.RowsAffected(), nil
 }
 
+const setWorkspaceIcon = `-- name: SetWorkspaceIcon :one
+UPDATE workspaces
+SET icon_emoji = $1, icon_file_id = $2, updated_at = now()
+WHERE id = $3 AND organization_id = $4
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
+`
+
+type SetWorkspaceIconParams struct {
+	IconEmoji      pgtype.Text `json:"icon_emoji"`
+	IconFileID     pgtype.Text `json:"icon_file_id"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// Writes both icon columns at once: a workspace shows an emoji or a file,
+// never both (workspaces_one_icon).
+func (q *Queries) SetWorkspaceIcon(ctx context.Context, arg SetWorkspaceIconParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, setWorkspaceIcon,
+		arg.IconEmoji,
+		arg.IconFileID,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.MatrixRoomID,
+		&i.TaskPrefix,
+		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
+	)
+	return i, err
+}
+
 const setWorkspaceMatrixRoomID = `-- name: SetWorkspaceMatrixRoomID :one
 UPDATE workspaces SET matrix_room_id = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
 `
 
 type SetWorkspaceMatrixRoomIDParams struct {
@@ -755,6 +1084,9 @@ func (q *Queries) SetWorkspaceMatrixRoomID(ctx context.Context, arg SetWorkspace
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 	)
 	return i, err
 }
@@ -785,20 +1117,36 @@ func (q *Queries) UpdateWorkspaceMemberRole(ctx context.Context, arg UpdateWorks
 	return i, err
 }
 
-const updateWorkspaceName = `-- name: UpdateWorkspaceName :one
-UPDATE workspaces SET name = $2, updated_at = now()
-WHERE id = $1
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter
+const updateWorkspaceProfile = `-- name: UpdateWorkspaceProfile :one
+UPDATE workspaces SET
+  name        = COALESCE($1, name),
+  description = COALESCE($2, description),
+  slug        = COALESCE($3, slug),
+  task_prefix = COALESCE($4, task_prefix),
+  updated_at  = now()
+WHERE id = $5 AND organization_id = $6
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
 `
 
-type UpdateWorkspaceNameParams struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+type UpdateWorkspaceProfileParams struct {
+	Name           pgtype.Text `json:"name"`
+	Description    pgtype.Text `json:"description"`
+	Slug           pgtype.Text `json:"slug"`
+	TaskPrefix     pgtype.Text `json:"task_prefix"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
 }
 
-// tenant: by-id
-func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNameParams) (Workspace, error) {
-	row := q.db.QueryRow(ctx, updateWorkspaceName, arg.ID, arg.Name)
+// A NULL argument keeps the column as it is.
+func (q *Queries) UpdateWorkspaceProfile(ctx context.Context, arg UpdateWorkspaceProfileParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, updateWorkspaceProfile,
+		arg.Name,
+		arg.Description,
+		arg.Slug,
+		arg.TaskPrefix,
+		arg.ID,
+		arg.OrganizationID,
+	)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,
@@ -811,6 +1159,9 @@ func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNa
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 	)
 	return i, err
 }
@@ -819,7 +1170,7 @@ const updateWorkspaceTaskPrefix = `-- name: UpdateWorkspaceTaskPrefix :one
 UPDATE workspaces
 SET task_prefix = $2, updated_at = now()
 WHERE id = $1 AND organization_id = $3
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id, task_prefix, task_counter, description, icon_emoji, icon_file_id
 `
 
 type UpdateWorkspaceTaskPrefixParams struct {
@@ -842,6 +1193,9 @@ func (q *Queries) UpdateWorkspaceTaskPrefix(ctx context.Context, arg UpdateWorks
 		&i.MatrixRoomID,
 		&i.TaskPrefix,
 		&i.TaskCounter,
+		&i.Description,
+		&i.IconEmoji,
+		&i.IconFileID,
 	)
 	return i, err
 }

@@ -32,6 +32,11 @@ func (s *BillingService) revertSubscriptionAfterFullInvoiceRefund(ctx context.Co
 	if locked.ID != inv.SubscriptionID {
 		return nil
 	}
+	// A later payment rewrites current_period_end. Refunding an older invoice
+	// must not drop the organization off the period that invoice did not buy.
+	if !inv.PeriodEnd.Valid || !locked.CurrentPeriodEnd.Valid || !inv.PeriodEnd.Time.Equal(locked.CurrentPeriodEnd.Time) {
+		return nil
+	}
 	if locked.PlanID == defaultPlan.ID {
 		return nil
 	}

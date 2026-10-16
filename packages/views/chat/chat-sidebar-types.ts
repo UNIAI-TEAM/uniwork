@@ -41,4 +41,6 @@ export interface ChatSidebarProps {
   onCollapse?: () => void;
   /** Workspace member avatars keyed by normalized user id. */
   memberAvatarByUserId?: MemberAvatarUrlMap;
+  /** People the page can already name, so a typing row does not print an id. */
+  knownPeople?: ReadonlyArray<{ user_id: string; display_name: string }>;
 }

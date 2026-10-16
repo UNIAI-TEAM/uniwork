@@ -163,6 +163,25 @@ func TestRealtimeConsumerSendsARoomRowAsOneBatch(t *testing.T) {
 	}
 }
 
+// A removed member has left the room by delivery time, yet the row is about
+// them: every tab and device of theirs must hear it to drop the room. A row
+// naming someone who is still a member does not reach them twice.
+func TestRealtimeConsumerTellsTheRemovedMemberToo(t *testing.T) {
+	pub := &spyPublisher{}
+	c := NewRealtimeConsumer(pub).WithMembers(fixedMembers{"u2", "u3"})
+	ctx := context.Background()
+	if err := c.Handle(ctx, row("chat.room.member_removed", `{"room_id":"r1","user_id":"u1"}`, "ws1")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Handle(ctx, row("chat.room.member_added", `{"room_id":"r1","user_id":"u3"}`, "ws1")); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"u2,u3,u1/chat.room.member_removed", "u2,u3/chat.room.member_added"}
+	if len(pub.user) != 0 || len(pub.batches) != 2 || pub.batches[0] != want[0] || pub.batches[1] != want[1] {
+		t.Fatalf("user publishes = %v, batches = %v, want %v", pub.user, pub.batches, want)
+	}
+}
+
 // The meeting list, the calendar and the home summary listen outside any
 // meeting, so the lifecycle and roster rows they follow stay on the workspace.
 func TestMeetingLifecycleTopicsStayOnTheWorkspace(t *testing.T) {

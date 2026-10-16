@@ -111,21 +111,23 @@ const (
 	// row is anonymised and this is the last event that names it (F-01).
 	ActionUserDeleted = "user.deleted"
 
-	ActionChatRoomCreated        = "chat.room.created"
-	ActionChatRoomMemberAdded    = "chat.room.member_added"
-	ActionChatRoomMemberRemoved  = "chat.room.member_removed"
-	ActionChatChannelUpdated     = "chat.channel.updated"
-	ActionChatChannelArchived    = "chat.channel.archived"
-	ActionChatMessageLinked      = "chat.message.linked"
-	ActionChatMessageUnlinked    = "chat.message.unlinked"
-	ActionChatThreadTaskLinked   = "chat.thread.task_linked"
-	ActionChatThreadTaskUnlinked = "chat.thread.task_unlinked"
-	ActionChatFollowUpCreated    = "chat.follow_up.created"
-	ActionChatFollowUpUpdated    = "chat.follow_up.updated"
-	ActionChatFollowUpCompleted  = "chat.follow_up.completed"
-	ActionChatFollowUpDeleted    = "chat.follow_up.deleted"
-	ActionChatMessageDeleted     = "chat.message.deleted"
-	ActionChatRoomMemberUpdated  = "chat.room.member_updated"
+	ActionChatRoomCreated         = "chat.room.created"
+	ActionChatRoomMemberAdded     = "chat.room.member_added"
+	ActionChatRoomMemberRemoved   = "chat.room.member_removed"
+	ActionChatChannelUpdated      = "chat.channel.updated"
+	ActionChatChannelArchived     = "chat.channel.archived"
+	ActionChatMessageLinked       = "chat.message.linked"
+	ActionChatMessageUnlinked     = "chat.message.unlinked"
+	ActionChatThreadTaskLinked    = "chat.thread.task_linked"
+	ActionChatThreadTaskUnlinked  = "chat.thread.task_unlinked"
+	ActionChatFollowUpCreated     = "chat.follow_up.created"
+	ActionChatFollowUpUpdated     = "chat.follow_up.updated"
+	ActionChatFollowUpCompleted   = "chat.follow_up.completed"
+	ActionChatFollowUpDeleted     = "chat.follow_up.deleted"
+	ActionChatMessageDeleted      = "chat.message.deleted"
+	ActionChatRoomMemberUpdated   = "chat.room.member_updated"
+	ActionChatRoomSettingsUpdated = "chat.room.settings_updated"
+	ActionChatVoiceCallLogged     = "chat.voice_call.logged"
 
 	ActionSubscriptionChanged    = "subscription.changed"
 	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
@@ -259,10 +261,15 @@ const (
 
 	// MCP connector (UNI-1308): consent creates a grant; a person or an org
 	// admin revokes it; a replayed code or refresh token closes its family.
-	ActionMcpGrantCreated              = "mcp_grant.created"
-	ActionMcpGrantRevoked              = "mcp_grant.revoked"
-	ActionMcpTokenFamilyRevoked        = "mcp_token.family_revoked"
-	ActionOrganizationMcpPolicyChanged = "organization.mcp_policy_changed"
+	ActionMcpGrantCreated                   = "mcp_grant.created"
+	ActionMcpGrantRevoked                   = "mcp_grant.revoked"
+	ActionMcpGrantScopeChanged              = "mcp_grant.scope_changed"
+	ActionMcpTokenFamilyRevoked             = "mcp_token.family_revoked"
+	ActionOrganizationMcpPolicyChanged      = "organization.mcp_policy_changed"
+	ActionOrganizationMcpWritePolicyChanged = "organization.mcp_write_policy_changed"
+
+	// A cancelled meeting brought back (MeetingService.Restore).
+	ActionMeetingRestored = "meeting.restored"
 
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"

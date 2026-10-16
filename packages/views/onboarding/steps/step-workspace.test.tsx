@@ -132,6 +132,14 @@ describe("StepWorkspace", () => {
     expect(screen.getByRole("heading", { name: "Chọn workspace của bạn, hoặc tạo cái mới." })).toBeInTheDocument();
   });
 
+  it("never unchecks a workspace card by pressing it again", () => {
+    renderStep({ existing: [ws()] });
+    const card = screen.getByRole("radio", { name: /Đội Alpha/ });
+    fireEvent.click(card);
+    fireEvent.click(card);
+    expect(card).toHaveAttribute("aria-checked", "true");
+  });
+
   it("keeps an emoji whole in the avatar tile", () => {
     renderStep({ existing: [ws({ name: "🚀 Đội Alpha" })] });
     const card = screen.getByRole("radio", { name: /Đội Alpha/ });

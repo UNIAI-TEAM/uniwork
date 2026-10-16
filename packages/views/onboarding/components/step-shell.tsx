@@ -23,6 +23,10 @@ export const STEP_HINT_ID = "onboarding-step-hint";
  * KHÔNG dùng aria-live: vùng live phải có mặt trong DOM trước khi nội dung đổi
  * mới đọc đáng tin, mà tiêu đề thì mount mới theo từng bước. Chuyển tiêu điểm
  * vào đây vừa announce đúng, vừa đặt lại thứ tự Tab về đầu nội dung.
+ *
+ * Không `outline-none`: khi tiêu điểm tới đây sau một thao tác bàn phím, viền
+ * :focus-visible chung cho người dùng bàn phím thấy nó đã tới đâu (sau một cú
+ * bấm chuột trình duyệt không vẽ viền, nên người dùng chuột không thấy gì mới).
  */
 export function StepHeading({ title, description }: { title: ReactNode; description?: ReactNode }) {
   return (
@@ -30,7 +34,7 @@ export function StepHeading({ title, description }: { title: ReactNode; descript
       <h1
         data-step-heading
         tabIndex={-1}
-        className="text-balance text-title-lg font-semibold text-foreground outline-none"
+        className="rounded-sm text-balance text-title-lg font-semibold text-foreground"
       >
         {title}
       </h1>

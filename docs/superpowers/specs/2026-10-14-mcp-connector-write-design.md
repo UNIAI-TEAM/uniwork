@@ -1,6 +1,6 @@
 # UniWork — Connector MCP v2: bộ tool đọc và ghi (Task, Dự án, Cuộc họp, Tài liệu)
 
-> **Trạng thái:** in-progress — spec đã duyệt; plan chờ duyệt (UNI-1567); triển khai theo năm phase ở §12.
+> **Trạng thái:** shipped — năm phase đã merge (UNI-1567 và các sub-issue Phase 0–4: UNI-1587, UNI-1626, UNI-1639, UNI-1640, UNI-1651); nộp Directory là UNI-1428.
 
 **Ngày:** 2026-10-14
 **Issue:** UNI-1567 (parent UNI-1308)
@@ -141,6 +141,11 @@ Mọi tool ghi trả một mục `McpItem` (cùng kiểu tool đọc) của bả
 - `revision` mới.
 - `changes`: danh sách `{field, from, to}` cho `update_*` (văn bản dài cắt 1.200 rune,
   ghi rõ đã cắt). Model dùng nó để báo lại và hoàn tác.
+- Ngoại lệ cho trường mô tả dài (mô tả task; Phase 2–4 áp cùng mẫu cho mô tả dự án, cuộc
+  họp): `from`/`to` không cắt tới `mcpMaxItemRunes` (16.000 rune), để hoàn tác luôn đúng.
+  Tool đọc trả nguyên văn mô tả (trường `description`, có cờ khi bị cắt). Tool sửa từ chối
+  thay mô tả hiện tại dài hơn giới hạn đó, và từ chối mô tả mới dài hơn giới hạn
+  (`McpInvalidArgs`, sửa trong UniWork).
 
 ### 4.7 Revision
 
@@ -217,14 +222,17 @@ tổ chức của grant) và `hidden()` như v1. Tham số id task nhận cả U
 | `add_comment` | `task_id`, `body` (Markdown), `reply_to?` | `AddCommentSuite` |
 
 `get_task` (v1) trả thêm `revision`, nhãn, project, task cha. Mô tả task lưu Markdown như
-editor web; server không chuyển đổi.
+editor web; server không chuyển đổi. Từ UNI-1801 nó trả `comments`: 50 bình luận mới nhất,
+cũ trước, mỗi cái có `id` (cái `reply_to` của `add_comment` nhận), tên người viết (không
+email), `created_at`, nội dung cắt 1200 ký tự và `reply_to`; `comments_truncated` báo còn
+bình luận cũ hơn. Excerpt không lặp lại bình luận.
 
 ### 5.2 Dự án (Phase 2)
 
 | Tool | Tham số | Service |
 | --- | --- | --- |
 | `list_projects` | `workspace_id`, `query?`, `status?`, `include_closed?` | `ListProjects`; có `query` thì `SearchProjects` |
-| `get_project` | `project_id` | `GetProject`, `ProjectStats`, 20 task cập nhật gần nhất qua `QueryTasks` |
+| `get_project` | `project_id` | `GetProject`, `ProjectStats`, 20 task đầu theo thứ tự của `QueryTasks` (khóa trạng thái theo chữ cái, rồi vị trí) |
 | `create_project` | `workspace_id`, `title`, `description?`, `status?`, `priority?`, `lead_id?`, `start_date?`, `due_date?` | `CreateProject` với `CreateChannel=false` |
 | `update_project` | `project_id`, `revision`, cùng các trường | `UpdateProject` (gate `authorizeProjectEdit`) |
 
@@ -253,8 +261,12 @@ Gắn task vào dự án qua `project_id` của `create_task` / `update_task`.
   id, đã có trong catalogue). Hủy hiện không có rule thông báo, nên khôi phục cũng không.
 - UI web có nút "Khôi phục" ở cuộc họp đã hủy cho host/admin (cùng lệnh, cùng gate).
 
-Description của `schedule_meeting` và `invite_to_meeting` nói rõ người được mời nhận thông
-báo trong app. Tạo lịch không mở phòng LiveKit, không gửi email, không ghi lịch Google.
+`invite_to_meeting` báo cho từng người được mời trong app (rule `participant.invited`), và
+description của nó nói rõ điều đó. `schedule_meeting` thêm người trong `attendee_ids` vào cuộc
+họp nhưng không báo ai, vì `MeetingService.Create` không phát `participant.invited` (đường tạo
+họp trên web cũng vậy). Description của nó nói rõ điều này và chỉ sang `invite_to_meeting`.
+Đổi giờ, hủy và khôi phục cũng không báo ai: không có rule cho `meeting.updated` hay
+`meeting.canceled`. Tạo lịch không mở phòng LiveKit và không ghi lịch Google.
 
 ### 5.4 Tài liệu (Phase 4)
 
@@ -264,7 +276,7 @@ báo trong app. Tạo lịch không mở phòng LiveKit, không gửi email, kh�
 | `list_documents` | `workspace_id`, `parent_id?`, `cursor?` | `ListDocuments` theo thư mục |
 | `get_document` | `document_id` | `GetDocument`. Trang → Markdown + `revision` + `lossy`. File md/html → nội dung text (cắt `mcpMaxItemRunes`). File khác → metadata và link |
 | `create_document` | `workspace_id`, `title`, `content` (Markdown), `parent_id?` | `CreatePage` với `Kind=page`; quyền hiển thị kế thừa thư mục cha |
-| `update_document` | `document_id`, `revision`, `title?`, `content?` (Markdown), `mode` (`append` mặc định, hoặc `replace`) | `CreateDocumentVersion` (lý do `mcp`, bỏ qua khi `document_version_unchanged`) rồi `UpdateDocument`. `append` nối nội dung mới vào cuối nội dung hiện có |
+| `update_document` | `document_id`, `revision`, `title?`, `content?` (Markdown), `mode` (`append` mặc định, hoặc `replace`) | `CreateDocumentVersion` (một version thủ công có nhãn "Trước khi sửa qua <tên ứng dụng>"; bỏ qua khi `document_version_unchanged`) rồi `UpdateDocument`. Nội dung tối đa 50.000 ký tự mỗi lần gọi (`document.MaxMarkdownRunes`, chặn chi phí parse); trang dài hơn thì `append` nhiều lần. `append` nối nội dung mới vào cuối nội dung hiện có |
 | `add_document_comment` | `document_id`, `body` | `AddDocumentComment` |
 
 Tài liệu do Work Product sở hữu không xuất hiện trong `search`/`list_documents` (ADR 0016,
@@ -301,11 +313,11 @@ Tài liệu do Work Product sở hữu không xuất hiện trong `search`/`list
 | `update_project` | `update_project` với giá trị cũ |
 | `schedule_meeting` | `cancel_meeting` |
 | `update_meeting` | `update_meeting` với giá trị cũ |
-| `invite_to_meeting` | Host gỡ người dự trên UI |
+| `invite_to_meeting` | Host gỡ người dự trên UI, chỉ với người có kết quả `invited` (người `already_attending` đã dự từ trước, vẫn được báo lại) |
 | `cancel_meeting` | `restore_meeting` |
 | `restore_meeting` | `cancel_meeting` |
 | `create_document` | Người dùng đưa vào thùng rác trên UI (khôi phục được) |
-| `update_document` | Khôi phục version `mcp` trong lịch sử phiên bản |
+| `update_document` | Khôi phục version "Trước khi sửa qua <tên ứng dụng>" trong lịch sử phiên bản; đổi tên thì gọi lại `update_document` với tiêu đề cũ (khôi phục version không đổi tiêu đề) |
 
 Chuỗi trong `ai.Tool.Undo` là cột phải của bảng; test bắt buộc mọi tool ghi có nó.
 
@@ -331,7 +343,7 @@ Chuỗi trong `ai.Tool.Undo` là cột phải của bảng; test bắt buộc m�
 | Ghi vào tổ chức khác | `inGrant` và `RequireMember` như v1; `TestIsolationMCP` thêm ca ghi |
 | Tự nâng scope | Scope đọc từ grant tại lúc gọi; lên `write` chỉ qua màn đồng ý; admin và flag là hai lớp độc lập |
 | Ghi đè thay đổi của người khác | `revision` bắt buộc với mọi `update_*` |
-| Mất nội dung tài liệu khi chuyển Markdown | `lossy` chặn `replace`; version `mcp` trước mỗi lần sửa |
+| Mất nội dung tài liệu khi chuyển Markdown | `lossy` chặn `replace`; một version thủ công trước mỗi lần sửa nội dung |
 | Lộ email qua tra cứu người | `list_members` không trả email |
 | Tạo hàng loạt | Không có tool batch; ngân sách ghi; duplicate guard của task và dự án luôn bật |
 | Chèn HTML/script qua Markdown | `MarkdownToPage` chỉ sinh node của schema đóng và đi qua sanitize; mô tả/comment task là Markdown hiển thị qua renderer hiện có |
@@ -407,7 +419,7 @@ Spec này và ADR 0033 merge trước Phase 0, dưới UNI-1567.
 | --- | --- |
 | Client không hỏi người dùng trước lệnh ghi (cấu hình "luôn cho phép") | Ngân sách ghi, không có xóa, hoàn tác, `via`; admin tắt được tức thì |
 | Model chọn nhầm người (trùng tên) | `list_members` trả vai trò; kết quả ghi nêu tên người được giao để người dùng thấy ngay |
-| Bộ chuyển Markdown thiếu trường hợp | `lossy` mặc định an toàn (chặn `replace`); version `mcp` |
+| Bộ chuyển Markdown thiếu trường hợp | `lossy` mặc định an toàn (chặn `replace`); version thủ công trước mỗi lần sửa |
 | 26 tool làm model chọn sai tool | Description ngắn, động từ rõ; `title` cho mọi tool (UNI-1460) |
 | Directory soi kỹ tool ghi | `destructiveHint` đúng, description nói rõ hoàn tác, không có xóa |
 

@@ -260,6 +260,9 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/orgs/{org}/departments", what: "parent", body: map[string]any{"name": isoUnique("ref"), "parent_id": isoRef("department")}, covers: []string{"DepartmentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/orgs/{org}/departments", what: "head", body: map[string]any{"name": isoUnique("ref head"), "head_user_id": isoRef("peer")}, covers: []string{"DepartmentSDI.head_user_id"}},
 	{method: "PUT", pattern: "/api/v1/orgs/{org}/departments/order", what: "ids", allow2xx: true, body: map[string]any{"ids": []any{isoRef("department")}}},
+	{method: "POST", pattern: "/api/v1/orgs/{org}/invitations", what: "granted workspace", body: map[string]any{
+		"emails": []any{"iso-ref-invitee@example.com"}, "org_role": "member", "workspace_ids": []any{isoRef("ws")}},
+		covers: []string{"OrgInviteSDI.workspace_ids"}},
 	{method: "POST", pattern: "/api/v1/orgs/{org}/transfer-ownership", what: "new owner", body: map[string]any{
 		"to_user_id": isoRef("peer"), "password": "password123"}, noControl: "transferring B's ownership would end the run", covers: []string{"TransferOwnershipSDI.to_user_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/agents", what: "agent", body: map[string]any{"agent_id": isoRef("agent")},

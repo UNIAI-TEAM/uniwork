@@ -7,8 +7,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -54,10 +52,10 @@ type ChatPollInfo struct {
 }
 
 type SendPollMessageInput struct {
-	Question         string
-	Options          []string
-	Settings         ChatPollSettings
-	ReplyToMessageID *string
+	Question    string
+	Options     []string
+	Settings    ChatPollSettings
+	ClientMsgID string
 }
 
 func pollFromMetadata(kind string, meta chatMessageMetadata, viewerID string) *ChatPollInfo {
@@ -69,16 +67,22 @@ func pollFromMetadata(kind string, meta chatMessageMetadata, viewerID string) *C
 	if viewerKey != "" && meta.Poll.VotesByUser != nil {
 		viewerOptionIDs = meta.Poll.VotesByUser[viewerKey]
 	}
-	var votesByUser map[string][]string
-	if !meta.Poll.Settings.HideVoters {
-		viewerHasVoted := len(viewerOptionIDs) > 0
-		if !meta.Poll.Settings.HideResultsUntilVote || viewerHasVoted {
-			votesByUser = meta.Poll.VotesByUser
+	resultsHidden := meta.Poll.Settings.HideResultsUntilVote && len(viewerOptionIDs) == 0
+	options := meta.Poll.Options
+	if resultsHidden {
+		// A fresh slice: the counts must not reach the wire, and the stored metadata stays intact.
+		options = make([]ChatPollOption, len(meta.Poll.Options))
+		for i, o := range meta.Poll.Options {
+			options[i] = ChatPollOption{ID: o.ID, Label: o.Label}
 		}
+	}
+	var votesByUser map[string][]string
+	if !meta.Poll.Settings.HideVoters && !resultsHidden {
+		votesByUser = meta.Poll.VotesByUser
 	}
 	return &ChatPollInfo{
 		Question:        meta.Poll.Question,
-		Options:         meta.Poll.Options,
+		Options:         options,
 		Settings:        meta.Poll.Settings,
 		ViewerOptionIDs: viewerOptionIDs,
 		VotesByUser:     votesByUser,
@@ -191,31 +195,7 @@ func (s *ChatService) SendPollMessage(
 		return ChatMessageRow{}, err
 	}
 
-	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.CreateChatPollMessage(ctx, db.CreateChatPollMessageParams{
-		ID:             util.NewID(),
-		RoomID:         room.ID,
-		OrganizationID: room.OrganizationID,
-		WorkspaceID:    anchorWS,
-		SenderID:       userID,
-		Body:           question,
-		Metadata:       meta,
-	})
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-
-	u, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	createdAt := msg.CreatedAt.Time
-	_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
-		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
-	})
-	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
-	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
+	return s.sendKindMessage(ctx, userID, room, chatMessageKindPoll, question, meta, in.ClientMsgID, nil)
 }
 
 func (s *ChatService) VoteChatPollMessage(
@@ -229,6 +209,9 @@ func (s *ChatService) VoteChatPollMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return ChatMessageRow{}, err
+	}
 	updated, err := s.mutateChatMessageMetadata(ctx, messageID, room.ID, roomAnchorWorkspaceID(room),
 		func(msg db.ChatMessage) ([]byte, error) { return applyPollVote(msg, userID, optionID) })
 	if err != nil {
@@ -238,13 +221,7 @@ func (s *ChatService) VoteChatPollMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	s.publishChatRoomEvent(ctx, room.ID, Event{
-		Type: "chat.message.updated",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": updated.ID,
-		},
-	})
+	s.publishChatMessageUpdated(ctx, room, updated.ID)
 	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
 }
 

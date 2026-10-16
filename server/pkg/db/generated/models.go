@@ -370,20 +370,21 @@ type ChatRoom struct {
 }
 
 type ChatRoomMember struct {
-	ID             string             `json:"id"`
-	RoomID         string             `json:"room_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	UserID         string             `json:"user_id"`
-	Role           string             `json:"role"`
-	Status         string             `json:"status"`
-	InvitedBy      pgtype.Text        `json:"invited_by"`
-	JoinedAt       pgtype.Timestamptz `json:"joined_at"`
-	LeftAt         pgtype.Timestamptz `json:"left_at"`
-	LastReadAt     pgtype.Timestamptz `json:"last_read_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	SendRestricted bool               `json:"send_restricted"`
-	OrganizationID string             `json:"organization_id"`
+	ID                 string             `json:"id"`
+	RoomID             string             `json:"room_id"`
+	WorkspaceID        string             `json:"workspace_id"`
+	UserID             string             `json:"user_id"`
+	Role               string             `json:"role"`
+	Status             string             `json:"status"`
+	InvitedBy          pgtype.Text        `json:"invited_by"`
+	JoinedAt           pgtype.Timestamptz `json:"joined_at"`
+	LeftAt             pgtype.Timestamptz `json:"left_at"`
+	LastReadAt         pgtype.Timestamptz `json:"last_read_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	SendRestricted     bool               `json:"send_restricted"`
+	OrganizationID     string             `json:"organization_id"`
+	NotificationsMuted bool               `json:"notifications_muted"`
 }
 
 type ChatThreadFollower struct {
@@ -1267,6 +1268,13 @@ type Invitation struct {
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 }
 
+type InvitationWorkspace struct {
+	InvitationID   string             `json:"invitation_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	OrganizationID string             `json:"organization_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Invoice struct {
 	ID                  string             `json:"id"`
 	OrganizationID      string             `json:"organization_id"`
@@ -1795,6 +1803,8 @@ type Organization struct {
 	McpEnabledAt        pgtype.Timestamptz `json:"mcp_enabled_at"`
 	McpEnabledBy        pgtype.Text        `json:"mcp_enabled_by"`
 	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	McpWriteEnabledAt   pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy   pgtype.Text        `json:"mcp_write_enabled_by"`
 }
 
 type OrganizationMember struct {
@@ -2257,6 +2267,9 @@ type Workspace struct {
 	MatrixRoomID   pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix     string             `json:"task_prefix"`
 	TaskCounter    int64              `json:"task_counter"`
+	Description    string             `json:"description"`
+	IconEmoji      pgtype.Text        `json:"icon_emoji"`
+	IconFileID     pgtype.Text        `json:"icon_file_id"`
 }
 
 type WorkspaceAgentMember struct {
@@ -2266,6 +2279,15 @@ type WorkspaceAgentMember struct {
 	Role           string             `json:"role"`
 	CreatedBy      string             `json:"created_by"`
 	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type WorkspaceAlias struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Kind           string             `json:"kind"`
+	Value          string             `json:"value"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 

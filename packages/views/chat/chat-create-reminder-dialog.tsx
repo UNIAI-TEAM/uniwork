@@ -5,6 +5,7 @@ import { Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSendChatRoomMessage } from "@uniwork/core/chat";
+import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import {
   canSubmitReminder,
   isSameCalendarDay,
@@ -164,6 +165,7 @@ export function ChatCreateReminderDialog({
     void sendMessage
       .mutateAsync({
         roomId,
+        client_msg_id: newChatClientMsgId(),
         reminder: {
           body: body.trim(),
           remind_at: remindAt.toISOString(),

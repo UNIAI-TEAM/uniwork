@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Clock } from "lucide-react";
+import { Clock, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
 import {
   isSameCalendarDay,
   isTomorrow,
@@ -29,6 +30,7 @@ export function ChatReminderMessageRow({
   ts,
   showSenderName,
   compactTop,
+  onDelete,
 }: {
   reminder: ReminderPayload;
   senderLabel: string;
@@ -37,6 +39,8 @@ export function ChatReminderMessageRow({
   ts?: number;
   showSenderName?: boolean;
   compactTop?: boolean;
+  /** Set for the author and the room's moderators: the only way to stop a repeating reminder. */
+  onDelete?: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const remindAtMs = Date.parse(reminder.remindAt);
@@ -96,6 +100,18 @@ export function ChatReminderMessageRow({
         {scheduleLabel}
         {reminder.repeat !== "none" ? <span>· {t(repeatLabelKey(reminder.repeat))}</span> : null}
       </p>
+      {onDelete ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="mt-2 h-8 gap-1 px-2 text-destructive hover:text-destructive"
+          onClick={onDelete}
+        >
+          <Trash2 className="size-3.5" aria-hidden />
+          {t("chat.reminder_delete")}
+        </Button>
+      ) : null}
     </ChatCard>
   );
 }

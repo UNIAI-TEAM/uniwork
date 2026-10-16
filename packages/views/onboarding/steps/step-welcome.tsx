@@ -32,7 +32,10 @@ function SetupPlan() {
   const { t } = useTranslation();
   return (
     <Bezel>
-      <div className="flex flex-col p-6 sm:p-8 lg:pb-14">
+      {/* A query container: where the card is narrow (a phone at large
+          text) each step stacks its tile over its words instead of
+          squeezing the words into a sliver beside it. */}
+      <div className="@container/plan flex flex-col p-6 sm:p-8 lg:pb-14">
         <div className="flex items-center justify-between gap-4 pb-5">
           <p className="text-overline uppercase text-muted-foreground">{t("onboarding.welcome.plan_title")}</p>
           <span className="rounded-full bg-brand-subtle px-2.5 py-0.5 text-caption font-medium text-brand-subtle-foreground">
@@ -43,14 +46,17 @@ function SetupPlan() {
           {ONBOARDING_STEP_ORDER.map((step, i) => {
             const first = i === 0;
             return (
-              <li key={step} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
+              <li
+                key={step}
+                className="flex items-center gap-4 py-4 first:pt-0 last:pb-0 @max-[10rem]/plan:flex-col @max-[10rem]/plan:items-start @max-[10rem]/plan:gap-3"
+              >
                 <IconTile
                   icon={STEP_ICON[step]}
                   tone={first ? "brand" : "muted"}
                   size="md"
                   className="[&_svg]:stroke-[1.5]"
                 />
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5 @max-[10rem]/plan:self-stretch">
                   <span className="flex flex-wrap items-center gap-x-2 text-body font-semibold text-foreground">
                     {t(`onboarding.step_nav.${step}.label`)}
                     {first ? (
@@ -59,7 +65,7 @@ function SetupPlan() {
                   </span>
                   <span className="text-pretty text-body text-muted-foreground">{t(`onboarding.step_nav.${step}.description`)}</span>
                 </div>
-                <span aria-hidden className="self-start pt-0.5 font-mono text-caption tabular-nums text-muted-foreground">
+                <span aria-hidden className="self-start pt-0.5 font-mono text-caption tabular-nums text-muted-foreground @max-[10rem]/plan:hidden">
                   {String(i + 1).padStart(2, "0")}
                 </span>
               </li>
@@ -144,7 +150,10 @@ export function StepWelcome({
       {/* `<main>`: steps 1–4 get theirs from StepShell; the first screen
           needs a skip-to-content target too. */}
       <main className="flex flex-1 items-center px-6 py-12 sm:px-10 lg:px-14 lg:py-16">
-        <div className="mx-auto grid w-full max-w-[76rem] items-center gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16 xl:gap-24">
+        {/* One column below lg that never grows past the screen: an `auto`
+            track takes the widest child's min-content, so at 200% text the
+            plan card pushed the headline and the lede off the right edge. */}
+        <div className="mx-auto grid w-full max-w-[76rem] grid-cols-[minmax(0,1fr)] items-center gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16 xl:gap-24">
           <div className="flex max-w-[38rem] flex-col gap-8">
             <Rise index={0}>
               <span className="inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1 text-overline uppercase text-muted-foreground ring-1 ring-border/60">
@@ -157,7 +166,7 @@ export function StepWelcome({
               {/* 36px up to lg, 48px from xl, 60px from 2xl: the sign-in
                   statement's scale. 60px at 1280px broke the headline into
                   four narrow lines beside the plan card. */}
-              <h1 className="text-balance font-display text-hero-sm font-bold text-foreground xl:text-hero 2xl:text-hero-lg">
+              <h1 className="text-balance wrap-break-word font-display text-hero-sm font-bold text-foreground xl:text-hero 2xl:text-hero-lg">
                 {t("onboarding.welcome.headline_line1")} {t("onboarding.welcome.headline_line2")}{" "}
                 <span className="text-brand">{t("onboarding.welcome.headline_emphasis")}</span>
               </h1>

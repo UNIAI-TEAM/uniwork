@@ -35,8 +35,26 @@ describe("ChatMessageRow", () => {
     );
 
     expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Xem thông tin của Alice" })).toBeInTheDocument();
     expect(screen.getByText("Hello team")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("shows the sender email when the avatar is focused", async () => {
+    render(
+      wrap(
+        <ChatMessageRow
+          message={message()}
+          senderLabel="Alice"
+          isOwn={false}
+          showReadReceipt={false}
+          nameContext={[{ user_id: "@peer:localhost", display_name: "Alice", email: "alice@example.com" }]}
+        />,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Xem thông tin của Alice" }));
+    expect(await screen.findByRole("dialog", { name: "Alice" })).toBeInTheDocument();
+    expect(screen.getByText("alice@example.com")).toBeInTheDocument();
   });
 
   it("renders own message with read receipt and reply preview", () => {

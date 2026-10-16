@@ -5,51 +5,199 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/document"
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-func TestMCPToolsAreReadOnly(t *testing.T) {
+// mcpCatalogueEntry is one row of the connector's public surface. Every phase
+// of the write spec adds its rows here; a tool not in this table fails.
+type mcpCatalogueEntry struct {
+	name, title string
+	kind        ai.ToolKind
+	destructive bool
+}
+
+var mcpToolCatalogue = []mcpCatalogueEntry{
+	{"list_workspaces", "List workspaces", ai.ToolRead, false},
+	{"my_work", "My work", ai.ToolRead, false},
+	{"search", "Search UniWork", ai.ToolRead, false},
+	{"get_task", "Get task", ai.ToolRead, false},
+	{"get_meeting", "Get meeting", ai.ToolRead, false},
+	{"list_members", "List members", ai.ToolRead, false},
+	{"task_options", "Task options", ai.ToolRead, false},
+	{"list_tasks", "List tasks", ai.ToolRead, false},
+	{"create_task", "Create task", ai.ToolWrite, false},
+	{"update_task", "Update task", ai.ToolWrite, true},
+	{"add_comment", "Add comment", ai.ToolWrite, false},
+	{"list_projects", "List projects", ai.ToolRead, false},
+	{"get_project", "Get project", ai.ToolRead, false},
+	{"create_project", "Create project", ai.ToolWrite, false},
+	{"update_project", "Update project", ai.ToolWrite, true},
+	{"list_meetings", "List meetings", ai.ToolRead, false},
+	{"schedule_meeting", "Schedule meeting", ai.ToolWrite, false},
+	{"update_meeting", "Update meeting", ai.ToolWrite, true},
+	{"invite_to_meeting", "Invite to meeting", ai.ToolWrite, false},
+	{"cancel_meeting", "Cancel meeting", ai.ToolWrite, true},
+	{"restore_meeting", "Restore meeting", ai.ToolWrite, false},
+	{"list_documents", "List documents", ai.ToolRead, false},
+	{"get_document", "Get document", ai.ToolRead, false},
+	{"create_document", "Create document", ai.ToolWrite, false},
+	{"update_document", "Update document", ai.ToolWrite, true},
+	{"add_document_comment", "Add document comment", ai.ToolWrite, false},
+}
+
+func TestMCPToolCatalogue(t *testing.T) {
 	r := McpTools(&McpToolService{})
-	if r.MutationCount() != 0 {
-		t.Fatalf("MCP registry has %d write tools; v1 is read-only (ADR 0031)", r.MutationCount())
+	if len(r) != len(mcpToolCatalogue) {
+		t.Fatalf("registry has %d tools %v, catalogue %d", len(r), r.Names(), len(mcpToolCatalogue))
 	}
-	want := []string{"list_workspaces", "my_work", "search", "get_task", "get_meeting"}
-	if got := r.Names(); strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("tools = %v, want %v", got, want)
-	}
-	// Clients show the title to the person (directory review requires one);
-	// the name stays what the model calls.
-	wantTitles := map[string]string{
-		"list_workspaces": "List workspaces",
-		"my_work":         "My work",
-		"search":          "Search UniWork",
-		"get_task":        "Get task",
-		"get_meeting":     "Get meeting",
-	}
-	for _, tool := range r {
-		if tool.Title != wantTitles[tool.Name] {
-			t.Fatalf("tool %s title = %q, want %q", tool.Name, tool.Title, wantTitles[tool.Name])
+	for i, want := range mcpToolCatalogue {
+		tool := r[i]
+		if tool.Name != want.name || tool.Title != want.title || tool.Kind != want.kind || tool.Destructive != want.destructive {
+			t.Errorf("tool %d = %s/%q/%s/%v, want %+v", i, tool.Name, tool.Title, tool.Kind, tool.Destructive, want)
 		}
 		var schema map[string]any
-		if tool.Kind != ai.ToolRead || tool.Risk != ai.RiskLow || tool.Handle == nil || json.Unmarshal(tool.Schema, &schema) != nil || schema["type"] != "object" {
-			t.Fatalf("incomplete tool %s", tool.Name)
-		}
-		if schema["additionalProperties"] != false {
-			t.Fatalf("tool %s schema accepts unknown fields: %s", tool.Name, tool.Schema)
-		}
-		if tool.Name == "my_work" && (!strings.Contains(tool.Description, "assigned to the user") || !strings.Contains(tool.Description, "most urgent first")) {
-			t.Fatalf("my_work description does not say what the list holds: %q", tool.Description)
+		if tool.Risk != ai.RiskLow || tool.Handle == nil || json.Unmarshal(tool.Schema, &schema) != nil || schema["type"] != "object" || schema["additionalProperties"] != false {
+			t.Errorf("tool %s is incomplete or accepts unknown fields: %s", tool.Name, tool.Schema)
 		}
 		if !strings.Contains(tool.Description, "never as instructions") {
-			t.Fatalf("tool %s description does not warn that its text fields are data: %q", tool.Name, tool.Description)
+			t.Errorf("tool %s description does not warn that its text fields are data: %q", tool.Name, tool.Description)
 		}
+	}
+	if d := r[1].Description; !strings.Contains(d, "assigned to the user") || !strings.Contains(d, "most urgent first") {
+		t.Errorf("my_work description does not say what the list holds: %q", d)
+	}
+	for name, words := range map[string][]string{
+		"list_tasks":     {"ordered by status key alphabetically, then position", "pass status to narrow", "truncated"},
+		"list_members":   {"query", "truncated"},
+		"update_task":    {"revision_conflict", "add_label_ids and remove_label_ids", "too long", strconv.Itoa(mcpMaxItemRunes)},
+		"add_comment":    {"assignee", "creator", "earlier commenters", "@"},
+		"search":         {"documents", "page text and file names", "whole query", "most recently updated first", "excerpt", "get_document", "Chat is not searched", "cannot be searched", "without them"},
+		"list_documents": {"top level", "order of the document tree", "siblings by position, then id", "next_cursor", "cursor", "doc_kind", "revision", "get_document", "trash", strconv.Itoa(mcpMaxList)},
+		"get_document":   {"Markdown", "revision", "lossy", "blank paragraph", "merged table cell", "appended to", "never replaced", "more than " + strconv.Itoa(document.MaxMarkdownRunes) + " characters", "truncated", "cut page cannot be replaced", strconv.Itoa(mcpMaxItemRunes), "text file", "filename and mime_type", "cannot be read", "folder", "parent_id"},
+		// Who sees a page and who is told about it is DocumentService's and the
+		// notification rules' (rules.go): a page created or changed has no rule,
+		// a comment notifies the people its body names as mention://member/<id>.
+		"create_document":      {"Markdown", strconv.Itoa(document.MaxMarkdownRunes), "in parts", "Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link", "an image becomes a link", "parent_id", "reads as not found", "restricted", "parent's own shares are not copied", "No one is notified", "doc_kind", "revision", "uniwork://user/", "no duplicate guard", "second page", "list_documents or search"},
+		"update_document":      {"revision_conflict", "lossy_document", "lossy", "blank paragraph", "merged table cell", "append still works", "mode append", strconv.Itoa(mcpMaxItemRunes), strconv.Itoa(document.MaxMarkdownRunes), "in parts", "version of the page as it was", "unless the latest version already is that page", "A rename saves none", "Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link", "no one is notified", "reads as not found", "not files or folders", "cannot be renamed here", "changes shows", "for append", "from is empty", "Markdown that was added"},
+		"add_document_comment": {"cannot reply", "right to edit", "reads as not found", "Everyone who can read the document sees the comment", "No one is notified unless", "mention://member/", "list_members", "can read the document", "never notified of their own mention", "plain text notifies no one", strconv.Itoa(mcpMaxBodyRunes)},
+		"get_task":             {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "comments", "comments_truncated", "reply_to", "no emails", "latest " + strconv.Itoa(mcpMaxList), strconv.Itoa(mcpMaxHitRunes), "not the comments"},
+		"get_project":          {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count", "and status to narrow"},
+		"list_projects":        {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
+		"create_project":       {"without a chat channel", "Everyone in the workspace", "No one is notified", "duplicate_project_title", strconv.Itoa(mcpMaxItemRunes), "its title stays taken"},
+		"list_meetings":        {"soonest first", "most recent day first", "CANCELED", "MISSED", "hosted_by_me", "truncated", "At most 50", "92 days", "narrowing from and to", "today in the user's timezone", "excerpt", "start of the description"},
+		"get_meeting":          {"attendees", "revision", "attendees_truncated", "no emails", "description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "Transcripts are not included", "in excerpt", "MISSED"},
+		"update_project":       {"revision_conflict", "creator", "lead", "workspace owner or admin", "not_project_editor", "No one is notified", "too long", strconv.Itoa(mcpMaxItemRunes), "led by an agent", "cannot be undone here"},
+		// Who is told about a meeting is the notification rules' (rules.go): an
+		// invitation notifies the person invited, a schedule or an update nobody.
+		"schedule_meeting":  {"host", "Everyone in the workspace", "not notified", "invite_to_meeting", "list_members", "offset", "Asia/Ho_Chi_Minh", strconv.Itoa(mcpMaxItemRunes), "comes back with its attendees"},
+		"update_meeting":    {"revision_conflict", "not_meeting_host", "workspace owner or admin", "invalid_meeting_state", "times cannot change once it has started", "Attendees are not notified", "project_id", "null", "does not move starts_at", "too long", strconv.Itoa(mcpMaxItemRunes), "A title longer than", strconv.Itoa(mcpMaxMeetingTitleRunes), "timezone that is not an IANA zone"},
+		"invite_to_meeting": {"in-app notification", "notified again", "workspace owner or admin", "not_meeting_host", "invalid_meeting_state", "fails as a whole", "participant_removed", "cannot be invited again", "list_members", "invites", "1-20", "already_attending", "undo applies only to results that read invited"},
+		// A cancellation or a restore has no notification rule either
+		// (meeting.canceled, meeting.deleted, meeting.updated): only the status
+		// is seen, and restore_meeting needs the end ahead (Restore).
+		"cancel_meeting":  {"revision_conflict", "not_meeting_host", "workspace owner or admin", "while it is scheduled", "in progress", "invalid_meeting_state", "Everyone in the workspace", "cancelled", "Attendees are not notified", "reason", strconv.Itoa(mcpMaxCancelReasonRunes), "not sent to anyone", "MISSED", "restore_meeting cannot bring it back", "note"},
+		"restore_meeting": {"cancelled meeting back to scheduled", "end time is still ahead", "invalid_meeting_state", "not_meeting_host", "workspace owner or admin", "revision_conflict", "cancel_meeting returned", "Everyone in the workspace", "Attendees are not notified", "reason", "cleared", "join requests", "stay expired"},
+	} {
+		tool, _ := r.Get(name)
+		for _, w := range words {
+			if !strings.Contains(tool.Description, w) {
+				t.Errorf("%s description does not say %q: %q", name, w, tool.Description)
+			}
+		}
+	}
+}
+
+// TestMCPHasNoDeleteTool holds ADR 0033: nothing reachable over MCP removes
+// anything. The arch test TestMcpToolsCallNoDelete holds the code side.
+func TestMCPHasNoDeleteTool(t *testing.T) {
+	for _, name := range McpTools(&McpToolService{}).Names() {
+		for _, verb := range []string{"delete", "remove", "archive", "purge", "trash"} {
+			if strings.Contains(name, verb) {
+				t.Errorf("tool %s looks like a delete", name)
+			}
+		}
+	}
+}
+
+// TestMCPWriteToolsDeclareUndo holds ADR 0033: every write tool says how a
+// person reverses it, and its description repeats it to the model.
+func TestMCPWriteToolsDeclareUndo(t *testing.T) {
+	for _, tool := range McpTools(&McpToolService{}) {
+		if tool.Kind != ai.ToolWrite {
+			if tool.Undo != "" || tool.Destructive {
+				t.Errorf("read tool %s declares write metadata", tool.Name)
+			}
+			continue
+		}
+		if strings.TrimSpace(tool.Undo) == "" || !strings.Contains(tool.Description, "To undo: "+tool.Undo) {
+			t.Errorf("write tool %s has no undo in its definition and description", tool.Name)
+		}
+	}
+}
+
+// mcpReadInputs is one valid call of every read tool on newMcpToolWorld;
+// TestMCPReadToolsDoNotMutate fails for a read tool missing here.
+func mcpReadInputs(x *mcpToolWorld) map[string]string {
+	ws := x.w.ID
+	wsArg := `{"workspace_id":"` + ws + `"}`
+	return map[string]string{
+		"list_workspaces": `{}`,
+		"my_work":         `{}`,
+		"search":          `{"workspace_id":"` + ws + `","query":"báo cáo"}`,
+		"get_task":        `{"workspace_id":"` + ws + `","task_id":"` + x.taskID + `"}`,
+		"get_meeting":     `{"workspace_id":"` + ws + `","meeting_id":"` + x.meetingID + `"}`,
+		"list_members":    wsArg,
+		"task_options":    wsArg,
+		"list_tasks":      wsArg,
+		"list_projects":   wsArg,
+		"get_project":     `{"workspace_id":"` + ws + `","project_id":"` + x.projectID + `"}`,
+		"list_meetings":   `{"workspace_id":"` + ws + `","from":"` + time.Now().UTC().Format(time.RFC3339) + `","to":"` + time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339) + `"}`,
+		"list_documents":  wsArg,
+		"get_document":    `{"workspace_id":"` + ws + `","document_id":"` + x.docID + `"}`,
+	}
+}
+
+// TestMCPReadToolsDoNotMutate holds the read half of ADR 0033: running every
+// read tool leaves no audit row and no outbox row behind.
+func TestMCPReadToolsDoNotMutate(t *testing.T) {
+	x := newMcpToolWorld(t)
+	x.meetingID = x.meeting(t, x.ua.ID, x.w.ID, "Họp giao ban", "").ID
+	x.projectID = x.project(t, "Dự án đọc")
+	_, page := x.withDocs(t, "Trang đọc", mcpTestPage)
+	x.docID = page.Document.ID
+	inputs := mcpReadInputs(x)
+	count := func() (n int) {
+		if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT (SELECT count(*) FROM audit_events WHERE organization_id = $1) + (SELECT count(*) FROM outbox_events WHERE organization_id = $1)`, x.w.OrganizationID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := count()
+	for _, tool := range McpTools(x.tools) {
+		if tool.Kind != ai.ToolRead {
+			continue
+		}
+		input, ok := inputs[tool.Name]
+		if !ok {
+			t.Errorf("read tool %s has no input in mcpReadInputs", tool.Name)
+			continue
+		}
+		if _, err := callMcpTool(t, x.tools, x.p, tool.Name, input); err != nil {
+			t.Errorf("%s: %v", tool.Name, err)
+		}
+	}
+	if after := count(); after != before {
+		t.Fatalf("read tools wrote %d audit/outbox rows", after-before)
 	}
 }
 
@@ -57,11 +205,16 @@ func TestMCPToolsAreReadOnly(t *testing.T) {
 // organization A (alpha, workspace w) and holds one open task assigned to
 // themself, due today. ub is a person with an account and nothing else.
 type mcpToolWorld struct {
-	tools  *McpToolService
-	p      McpPrincipal
-	ua, ub db.User
-	w      db.Workspace
-	taskID string
+	tools     *McpToolService
+	p         McpPrincipal
+	ua, ub    db.User
+	w         db.Workspace
+	taskID    string
+	meetingID string
+	projectID string
+	docID     string
+	flags     *mcpFlagFake
+	files     *filesfake.Fake // the file store behind the documents, once docs() wires it
 }
 
 func newMcpToolWorld(t *testing.T) *mcpToolWorld {
@@ -199,13 +352,14 @@ func TestMcpToolsShapeEveryItem(t *testing.T) {
 		}
 	}
 
-	// A comment reaches get_task; a summary reaches get_meeting; both arrive in
-	// the excerpt of the one item.
-	if _, err := x.tools.ask.tasks.AddComment(ctx, Human(x.ua.ID), x.taskID, "Đã gửi bản nháp cho sếp"); err != nil {
+	// A comment reaches get_task in its comments, with its id; a summary
+	// reaches get_meeting in the excerpt of the item.
+	comment, err := x.tools.ask.tasks.AddComment(ctx, Human(x.ua.ID), x.taskID, "Đã gửi bản nháp cho sếp")
+	if err != nil {
 		t.Fatal(err)
 	}
 	task, err := x.tools.GetTask(ctx, x.p, x.w.ID, x.taskID)
-	if err != nil || task.Kind != "task" || task.ID != x.taskID || task.URL != taskURL || !strings.Contains(task.Excerpt, "Đã gửi bản nháp cho sếp") {
+	if err != nil || task.Kind != "task" || task.ID != x.taskID || task.URL != taskURL || len(task.Comments) != 1 || task.Comments[0].ID != comment.ID || task.Comments[0].Body != "Đã gửi bản nháp cho sếp" {
 		t.Fatalf("get task = %+v, %v", task, err)
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
@@ -633,10 +787,11 @@ func TestMcpMyWorkCombinesAtMostTenWorkspaces(t *testing.T) {
 	}
 }
 
-// Ask UNI adds chat and members to its search; the connector stops at tasks
-// and meetings because chat is other people's words (spec §2).
-func TestMcpSearchReadsTasksAndMeetingsOnly(t *testing.T) {
+// Ask UNI adds chat and members to its search; the connector stops at tasks,
+// meetings and documents because chat is other people's words (spec §2).
+func TestMcpSearchReadsTasksMeetingsAndDocuments(t *testing.T) {
 	x := newMcpToolWorld(t)
+	x.withDocs(t, "Danh sách thành viên", mcpTestPage) // matches the members query, never "sprint bí mật"
 	ctx := context.Background()
 	room, err := x.tools.ask.chat.CreateChannel(ctx, x.ua.ID, x.w.ID, CreateChannelInput{Name: "ke-hoach", Visibility: "public"})
 	if err != nil {
@@ -685,7 +840,7 @@ func TestMcpSearchReadsTasksAndMeetingsOnly(t *testing.T) {
 		t.Fatalf("members query: %+v, %v; want the matching task", found, err)
 	}
 	for _, it := range found {
-		if it.Kind != "task" && it.Kind != "meeting" {
+		if it.Kind != "task" && it.Kind != "meeting" && it.Kind != "document" {
 			t.Fatalf("search returned a %q item: %+v", it.Kind, it)
 		}
 	}
@@ -701,6 +856,16 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	itemKeys := map[string]bool{"kind": true, "id": true, "workspace_id": true, "title": true, "excerpt": true, "url": true, "status": true, "due_date": true, "starts_at": true}
+	with := func(extra ...string) map[string]bool {
+		out := map[string]bool{}
+		for k := range itemKeys {
+			out[k] = true
+		}
+		for _, k := range extra {
+			out[k] = true
+		}
+		return out
+	}
 	check := func(name string, raw json.RawMessage, err error, allowed map[string]bool) {
 		t.Helper()
 		if err != nil {
@@ -732,10 +897,105 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 	check("list_workspaces", raw, err, map[string]bool{"id": true, "name": true, "url": true})
 	raw, err = callMcpTool(t, x.tools, x.p, "search", `{"workspace_id":"`+x.w.ID+`","query":"báo cáo kế hoạch"}`)
 	check("search", raw, err, itemKeys)
+	taskKeys := with("revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels")
 	raw, err = callMcpTool(t, x.tools, x.p, "get_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`"}`)
-	check("get_task", raw, err, itemKeys)
+	check("get_task", raw, err, with("revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels", "description", "description_truncated", "comments", "comments_truncated"))
+	// The comments of a task carry an id, an author name and nothing more.
+	var task struct{ Comments []map[string]json.RawMessage }
+	if err := json.Unmarshal(raw, &task); err != nil || len(task.Comments) == 0 {
+		t.Fatalf("get_task = %s (%v)", raw, err)
+	}
+	for _, c := range task.Comments {
+		for k := range c {
+			if !map[string]bool{"id": true, "author": true, "created_at": true, "body": true, "reply_to": true}[k] {
+				t.Errorf("get_task comment has undocumented field %q: %s", k, raw)
+			}
+		}
+	}
+	// The list tools wrap their rows: the wrapper and each row are checked.
+	checkWrapped := func(name, rowsKey string, input string, rowKeys map[string]bool) {
+		t.Helper()
+		raw, err := callMcpTool(t, x.tools, x.p, name, input)
+		check(name, raw, err, map[string]bool{rowsKey: true, "truncated": true})
+		var wrapper map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &wrapper); err != nil {
+			t.Fatal(err)
+		}
+		var rows []map[string]json.RawMessage
+		if err := json.Unmarshal(wrapper[rowsKey], &rows); err != nil || len(rows) == 0 {
+			t.Fatalf("%s %s = %s (%v)", name, rowsKey, wrapper[rowsKey], err)
+		}
+		for _, row := range rows {
+			for k := range row {
+				if !rowKeys[k] {
+					t.Errorf("%s row has undocumented field %q: %s", name, k, wrapper[rowsKey])
+				}
+			}
+		}
+	}
+	checkWrapped("list_tasks", "tasks", `{"workspace_id":"`+x.w.ID+`"}`, taskKeys)
+	checkWrapped("list_members", "members", `{"workspace_id":"`+x.w.ID+`"}`, map[string]bool{"user_id": true, "name": true, "role": true})
+	// A project with everything set, and a task in it, so each key can show.
+	leadType, start, due, desc := "member", "2026-10-01", "2026-12-31", "Mục tiêu quý"
+	project, err := x.tools.ask.tasks.CreateProject(ctx, Human(x.ua.ID), x.w.ID, CreateProjectInput{Title: "Dự án báo cáo", Description: &desc, Priority: "high", LeadType: &leadType, LeadID: &x.ua.ID, StartDate: &start, DueDate: &due})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := x.tools.ask.tasks.Create(ctx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Việc của dự án", ProjectID: &project.ID}); err != nil {
+		t.Fatal(err)
+	}
+	projectKeys := with("revision", "priority", "lead_id", "lead_type", "start_date", "task_count", "done_count")
+	checkWrapped("list_projects", "projects", `{"workspace_id":"`+x.w.ID+`"}`, projectKeys)
+	raw, err = callMcpTool(t, x.tools, x.p, "get_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+project.ID+`"}`)
+	check("get_project", raw, err, with("revision", "priority", "lead_id", "lead_type", "start_date", "task_count", "done_count", "tasks", "description", "description_truncated"))
+	var got struct{ Tasks []map[string]json.RawMessage }
+	if err := json.Unmarshal(raw, &got); err != nil || len(got.Tasks) != 1 {
+		t.Fatalf("get_project = %s (%v)", raw, err)
+	}
+	for k := range got.Tasks[0] {
+		if !taskKeys[k] {
+			t.Errorf("get_project task has undocumented field %q: %s", k, raw)
+		}
+	}
 	raw, err = callMcpTool(t, x.tools, x.p, "get_meeting", `{"workspace_id":"`+x.w.ID+`","meeting_id":"`+m.ID+`"}`)
-	check("get_meeting", raw, err, itemKeys)
+	check("get_meeting", raw, err, with("revision", "ends_at", "timezone", "host_user_id", "project_id", "attendees", "attendees_truncated", "description", "description_truncated"))
+	// The attendees of a meeting carry names, roles and statuses, nothing more.
+	var one struct{ Attendees []map[string]json.RawMessage }
+	if err := json.Unmarshal(raw, &one); err != nil || len(one.Attendees) == 0 {
+		t.Fatalf("get_meeting = %s (%v)", raw, err)
+	}
+	for _, a := range one.Attendees {
+		for k := range a {
+			if !map[string]bool{"user_id": true, "name": true, "role": true, "status": true}[k] {
+				t.Errorf("get_meeting attendee has undocumented field %q: %s", k, raw)
+			}
+		}
+	}
+	checkWrapped("list_meetings", "meetings", `{"workspace_id":"`+x.w.ID+`","from":"`+time.Now().UTC().Format(time.RFC3339)+`","to":"`+time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339)+`"}`, with("revision", "ends_at", "timezone", "host_user_id", "project_id"))
+	// Documents: a page with a revision and its Markdown, and the list of them.
+	// A search that finds one carries the same item keys as every hit.
+	x.withDocs(t, "Kế hoạch", mcpTestPage)
+	_, doc := x.withDocs(t, "Báo cáo", mcpTestPage)
+	raw, err = callMcpTool(t, x.tools, x.p, "get_document", `{"workspace_id":"`+x.w.ID+`","document_id":"`+doc.Document.ID+`"}`)
+	check("get_document", raw, err, with("doc_kind", "revision", "parent_id", "content", "format", "lossy", "truncated", "filename", "mime_type", "note"))
+	raw, err = callMcpTool(t, x.tools, x.p, "list_documents", `{"workspace_id":"`+x.w.ID+`"}`)
+	check("list_documents", raw, err, map[string]bool{"documents": true, "next_cursor": true})
+	var docs struct{ Documents []map[string]json.RawMessage }
+	if err := json.Unmarshal(raw, &docs); err != nil || len(docs.Documents) != 2 {
+		t.Fatalf("list_documents = %s (%v)", raw, err)
+	}
+	for _, row := range docs.Documents {
+		for k := range row {
+			if !with("doc_kind", "revision", "parent_id")[k] {
+				t.Errorf("list_documents row has undocumented field %q: %s", k, raw)
+			}
+		}
+	}
+	raw, err = callMcpTool(t, x.tools, x.p, "search", `{"workspace_id":"`+x.w.ID+`","query":"báo cáo"}`)
+	check("search", raw, err, itemKeys)
+	if !strings.Contains(string(raw), doc.Document.ID) {
+		t.Errorf("search did not find the document: %s", raw)
+	}
 	raw, err = callMcpTool(t, x.tools, x.p, "my_work", `{}`)
 	check("my_work", raw, err, map[string]bool{"tasks": true, "meetings": true, "truncated": true, "partial": true})
 	var work struct {
@@ -881,9 +1141,14 @@ func TestMcpExcerptsAreCapped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// One comment past the list cap; the newest is longer than a search hit.
 	chatty := x.task(t, x.ua.ID, x.w.ID, "Nhiều bình luận")
-	for i := 0; i < 40; i++ {
-		if _, err := x.tools.ask.tasks.AddComment(ctx, Human(x.ua.ID), chatty.ID, strings.Repeat("ệ", 500)); err != nil {
+	for i := 0; i <= mcpMaxList; i++ {
+		body := "Bình luận " + strconv.Itoa(i)
+		if i == mcpMaxList {
+			body = strings.Repeat("ệ", 2000)
+		}
+		if _, err := x.tools.ask.tasks.AddComment(ctx, Human(x.ua.ID), chatty.ID, body); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -923,23 +1188,44 @@ func TestMcpExcerptsAreCapped(t *testing.T) {
 	if !strings.Contains(item.Excerpt, "UniWork") {
 		t.Errorf("get_task cut does not say the full item is in UniWork: %.80q", tail(item.Excerpt, 80))
 	}
+	// The exact description is cut at the same limit, with no marker inside
+	// the text and a flag saying so.
+	if item.Description == nil || *item.Description != strings.Repeat("ạ", 16000) || !item.DescriptionTruncated {
+		t.Errorf("get_task description of a long task: %d characters, truncated %v; want the first 16000 and the flag", utf8.RuneCountInString(deref(item.Description)), item.DescriptionTruncated)
+	}
 	item, err = x.tools.GetTask(ctx, x.p, x.w.ID, chatty.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkCut("get_task comments", item.Excerpt, 16000, "Trạng thái:")
-	if !strings.Contains(item.Excerpt, "Bình luận:") || strings.Count(item.Excerpt, "ệ") >= 40*500 {
-		t.Errorf("get_task comments: head kept, tail cut expected")
+	// The comments are their own field: the latest mcpMaxList, oldest first,
+	// each body cut like a search hit, and none of them in the excerpt.
+	if len(item.Comments) != mcpMaxList || !item.CommentsTruncated {
+		t.Fatalf("get_task comments: %d, truncated %v; want the latest %d and the flag", len(item.Comments), item.CommentsTruncated, mcpMaxList)
 	}
-	item, err = x.tools.GetMeeting(ctx, x.p, x.w.ID, m.ID)
+	if item.Comments[0].Body != "Bình luận 1" {
+		t.Errorf("get_task oldest comment listed = %q, want the second one written", item.Comments[0].Body)
+	}
+	if last := item.Comments[len(item.Comments)-1].Body; utf8.RuneCountInString(last) != mcpMaxHitRunes || !strings.HasSuffix(last, mcpHitCut) {
+		t.Errorf("get_task newest comment: %d characters; want %d ending %q", utf8.RuneCountInString(last), mcpMaxHitRunes, mcpHitCut)
+	}
+	if strings.Contains(item.Excerpt, "Bình luận") {
+		t.Errorf("get_task excerpt repeats the comments: %.80q", item.Excerpt)
+	}
+	meetingItem, err := x.tools.GetMeeting(ctx, x.p, x.w.ID, m.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkCut("get_meeting", item.Excerpt, 16000, "Trạng thái:")
+	// A meeting's excerpt is its summary alone and the description is its own
+	// field, cut at the same limit with the flag; a long summary is cut like
+	// any item (TestMcpGetMeetingExcerptIsTheSummaryAlone).
+	if meetingItem.Excerpt != "" || deref(meetingItem.Description) != strings.Repeat("ố", 16000) || !meetingItem.DescriptionTruncated {
+		t.Errorf("get_meeting of a long meeting: excerpt %d characters, description %d characters, truncated %v; want no excerpt, the first 16000 and the flag",
+			utf8.RuneCountInString(meetingItem.Excerpt), utf8.RuneCountInString(deref(meetingItem.Description)), meetingItem.DescriptionTruncated)
+	}
 
 	// Short items are returned whole, with no marker.
 	whole, err := x.tools.GetTask(ctx, x.p, x.w.ID, x.taskID)
-	if err != nil || strings.Contains(whole.Excerpt, "…") || strings.Contains(whole.Excerpt, "UniWork") {
+	if err != nil || strings.Contains(whole.Excerpt, "…") || strings.Contains(whole.Excerpt, "UniWork") || whole.Description == nil || whole.DescriptionTruncated {
 		t.Fatalf("short task = %+v, %v", whole, err)
 	}
 	foundShort, err := x.tools.Search(ctx, x.p, x.w.ID, "báo cáo")
@@ -1005,4 +1291,11 @@ func TestMcpSearchRefusesAQueryWithNoWord(t *testing.T) {
 	if err != nil || len(srcs) == 0 {
 		t.Fatalf("control: Ask UNI search for %q = %+v, %v; want the latest items", "a", srcs, err)
 	}
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

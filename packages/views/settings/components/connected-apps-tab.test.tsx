@@ -107,6 +107,31 @@ describe("ConnectedAppsTab", () => {
     expect(within(plainRow!).getByText(/Acme · kết nối .* · dùng lần cuối /)).toBeInTheDocument();
   });
 
+  it("gives a brand's mark only to a verified client, never to a name an unverified one chose", async () => {
+    serve([
+      grant,
+      { ...grant, id: "g2", client_id: "c2", client_name: "ChatGPT", verified: false },
+      { ...grant, id: "g3", client_id: "c3", client_name: "ChatGPT", verified: true },
+    ]);
+    render(wrapWithNav(<ConnectedAppsTab />));
+    const list = await screen.findByRole("list", { name: t("settings.connectedApps.section") });
+    const marks = [...list.querySelectorAll("[data-assistant-mark]")].map((el) => el.getAttribute("data-assistant-mark"));
+    expect(marks).toEqual(["claude", "generic", "openai"]);
+  });
+
+  it("labels each app with what it may do", async () => {
+    serve([
+      { ...grant, scope: "read write" },
+      { ...grant, id: "g2", client_id: "c2", client_name: "ChatGPT", scope: "read" },
+    ]);
+    render(wrapWithNav(<ConnectedAppsTab />));
+    const list = await screen.findByRole("list", { name: t("settings.connectedApps.section") });
+    const [writeRow, readRow] = within(list).getAllByRole("listitem");
+    expect(within(writeRow!).getByText("Đọc và ghi")).toBeInTheDocument();
+    expect(within(writeRow!).queryByText("Chỉ đọc")).not.toBeInTheDocument();
+    expect(within(readRow!).getByText("Chỉ đọc")).toBeInTheDocument();
+  });
+
   it("copies the address and confirms it for a screen reader", async () => {
     serve([]);
     render(wrapWithNav(<ConnectedAppsTab />));

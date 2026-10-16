@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ChatRoomRecord } from "../api/endpoints/chat";
+import { notificationKeys } from "../notifications/hooks";
 import { useOptionalWS } from "../realtime";
 import { chatKeys } from "./chat-keys";
 
@@ -43,6 +44,9 @@ export function useChatRoomReadSync(workspaceId: string, currentUserId: string):
               : room,
           );
         });
+        // The read also closed the room's inbox row server-side (UNI-1665).
+        void qc.invalidateQueries({ queryKey: notificationKeys.unreadCount() });
+        void qc.invalidateQueries({ queryKey: notificationKeys.lists() });
         return;
       }
       qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId), (old) =>

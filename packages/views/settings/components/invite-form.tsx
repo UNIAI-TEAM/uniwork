@@ -32,6 +32,7 @@ export function InviteForm({
   roleLabel,
   pending,
   onSend,
+  fields,
   children,
 }: {
   id: string;
@@ -39,6 +40,8 @@ export function InviteForm({
   roleLabel: string;
   pending: boolean;
   onSend: (emails: string[], role: InviteRole) => Promise<InviteSendResult>;
+  /** More fields of the same invitation, under the addresses (the organization's workspace choice). */
+  fields?: ReactNode;
   /** Rows under the form inside the same card: what was just sent, what was skipped. */
   children?: ReactNode;
 }) {
@@ -99,6 +102,7 @@ export function InviteForm({
             </Button>
           </div>
           <FieldDescription>{t("settings.members.invite_separator_hint")}</FieldDescription>
+          {fields ? <div className="pt-3">{fields}</div> : null}
         </form>
         {/* Mounted while empty: a live region inserted together with its
             first message is not reliably announced. */}

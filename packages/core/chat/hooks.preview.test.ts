@@ -11,6 +11,7 @@ describe("roomPreviewMapFromRooms", () => {
           name: "Peer",
           workspace_id: "ws1",
           member_user_ids: [],
+          member_count: 0,
           unread_count: 0,
           mention_unread_count: 0,
           last_message_body: "hello",

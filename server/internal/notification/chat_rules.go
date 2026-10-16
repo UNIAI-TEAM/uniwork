@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -43,10 +44,16 @@ func chatMessageRule(kind string) rule {
 		if ev.OrganizationID.Valid && room.OrganizationID != ev.OrganizationID.String {
 			return nil, nil
 		}
-		if _, err := e.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: room.ID, UserID: userID}); errors.Is(err, pgx.ErrNoRows) {
+		mem, err := e.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: room.ID, UserID: userID})
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
-		} else if err != nil {
+		}
+		if err != nil {
 			return nil, err
+		}
+		// Read at delivery, so a mute set after the send still holds (UNI-1697).
+		if mem.NotificationsMuted {
+			return nil, nil
 		}
 		wsID, err := chatRecipientWorkspace(ctx, e, room, userID)
 		if err != nil || wsID == "" {
@@ -55,11 +62,11 @@ func chatMessageRule(kind string) rule {
 		var groupKey string
 		switch kind {
 		case KindChatDM:
-			groupKey = "chat_room:" + room.ID + ":dm"
+			groupKey = service.ChatDMNotifyGroup(room.ID)
 		case KindChatThreadReplied:
-			groupKey = "chat_thread:" + p["thread_root_id"] + ":reply"
+			groupKey = service.ChatThreadNotifyGroup(p["thread_root_id"])
 		default:
-			groupKey = "chat_room:" + room.ID + ":mention"
+			groupKey = service.ChatMentionNotifyGroup(room.ID)
 		}
 		r := newRecipients(ctx, e, ev, wsID)
 		r.add(userID)

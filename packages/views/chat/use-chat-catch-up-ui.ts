@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAiCapabilities, useChatCatchUp } from "@uniwork/core/ai";
-import { chatKeys, useMarkChatRoomRead } from "@uniwork/core/chat";
+import { chatKeys, useMarkChatRoomRead, useMarkChatThreadRead } from "@uniwork/core/chat";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ChatCatchUpResponse } from "@uniwork/core/types";
 
@@ -71,6 +71,7 @@ function unreadSinceOf(
  * Messages load with mark_read=0 so CatchUp can still use the pre-open cursor;
  * opening a room still calls MarkRoomRead so sidebar badges and peer receipts
  * match “đã xem”. CatchUp close also flushes read after a brief was shown.
+ * Opening a thread marks it read here too, keeping the pointer it replaced.
  */
 export function useChatCatchUpUi(workspaceId: string, roomId: string | null, threadRootId?: string | null) {
   const { t, i18n } = useTranslation();
@@ -80,6 +81,11 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
   const markRead = useMarkChatRoomRead(workspaceId);
   const markReadRef = useRef(markRead);
   markReadRef.current = markRead;
+  const markThreadRead = useMarkChatThreadRead(workspaceId);
+  const markThreadReadRef = useRef(markThreadRead);
+  markThreadReadRef.current = markThreadRead;
+  const threadRootRef = useRef(threadRootId);
+  threadRootRef.current = threadRootId;
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<ChatCatchUpResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,9 +93,12 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
   // read): where "Tin mới" goes, and where the brief starts.
   const [unread, setUnread] = useState<{ roomId: string; since: string } | null>(null);
   const prevRoomRef = useRef<string | null>(null);
+  // The same for the open thread; the server hands it back when marking read.
+  const [threadUnread, setThreadUnread] = useState<{ rootId: string; since: string } | null>(null);
 
   const enabled = Boolean(caps.data?.enabled && caps.data.ask_uni && roomId);
   const unreadSince = unread?.roomId === roomId ? unread.since : null;
+  const threadSince = threadRootId && threadUnread?.rootId === threadRootId ? threadUnread.since : null;
 
   const flushRead = useCallback((id: string | null) => {
     if (!id) return;
@@ -109,6 +118,24 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
     }
   }, [flushRead, qc, roomId, workspaceId]);
 
+  useEffect(() => {
+    setThreadUnread(null);
+    if (!threadRootId) return;
+    markThreadReadRef.current
+      .mutateAsync(threadRootId)
+      .then((since) => {
+        if (!since || threadRootRef.current !== threadRootId) return;
+        // A double mark (StrictMode, a quick reopen) answers with the first
+        // call's write; the earlier pointer is the one from before opening.
+        setThreadUnread((prev) =>
+          prev?.rootId === threadRootId && Date.parse(prev.since) <= Date.parse(since)
+            ? prev
+            : { rootId: threadRootId, since },
+        );
+      })
+      .catch(() => undefined);
+  }, [threadRootId]);
+
   const run = useCallback(async () => {
     if (!roomId) return;
     setOpen(true);
@@ -119,14 +146,14 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
         room_id: roomId,
         thread_root_id: threadRootId || undefined,
         locale: i18n.language?.startsWith("en") ? "en" : "vi",
-        since: !threadRootId && unreadSince ? unreadSince : undefined,
+        since: (threadRootId ? threadSince : unreadSince) ?? undefined,
       });
       generatedAtByResult.set(res, Date.now());
       setResult(res);
     } catch (err) {
       setError(errorMessage(err, t));
     }
-  }, [catchUp, i18n.language, roomId, t, threadRootId, unreadSince]);
+  }, [catchUp, i18n.language, roomId, t, threadRootId, threadSince, unreadSince]);
 
   // Closing counts as "caught up" only when a brief was actually shown; a
   // failed or still-loading summary leaves the unread window for next time.
