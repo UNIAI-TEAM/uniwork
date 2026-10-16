@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -14,9 +15,44 @@ import (
 
 // DocumentAccess is the answer of effectiveLevel: the level an actor holds on
 // one document and the path it came through (C-01 §3.6 `via`).
+//
+// AdminScope (DOC-05, UNI-1628) marks a workspace owner/admin (organization
+// owner/admin implicit) on a restricted document they are not the ACL owner
+// of: they administer it (canAdminister) but read it only through a live
+// share or a live break-glass grant, so Level holds just what those give.
 type DocumentAccess struct {
-	Level DocumentLevel
-	Via   DocumentVia
+	Level      DocumentLevel
+	Via        DocumentVia
+	AdminScope bool
+}
+
+// canAdminister is the one predicate of the administrative commands (share,
+// links, access list and logs, visibility, archive): manage, or AdminScope
+// without any read level at all.
+func (a DocumentAccess) canAdminister() bool {
+	return a.Level.AtLeast(DocumentLevelManage) || a.AdminScope
+}
+
+// ErrDocumentRestricted is the content gate's answer to an AdminScope caller
+// that holds no read level: the document is not hidden from them (they see
+// its metadata), its content is.
+var ErrDocumentRestricted = errors.New("document_restricted")
+
+func errDocumentRestricted() error {
+	return CodedError{
+		Code: "document_restricted", Status: http.StatusForbidden,
+		Msg:    "tài liệu ở chế độ hạn chế; quản trị viên chỉ đọc được nội dung khi mở truy cập khẩn cấp",
+		Err:    ErrDocumentRestricted,
+		Fields: map[string]any{"can_break_glass": true},
+	}
+}
+
+// errBreakGlassRequired refuses an AdminScope caller (below manage) a command
+// that would hand themselves read access - a share reaching them, or opening
+// a restricted document to the workspace - outside the audited break-glass
+// path.
+func errBreakGlassRequired() error {
+	return coded(http.StatusForbidden, "break_glass_required", "quản trị viên không thể tự cấp quyền đọc; hãy dùng truy cập khẩn cấp")
 }
 
 // Document share principals (C-01 §3.4).
@@ -50,9 +86,13 @@ const documentVisibilityRestricted = "restricted"
 //  4. human member path via WorkspaceService.RequireMember on the document's
 //     workspace: ws owner/admin (org owner/admin implicit) and the ACL owner
 //     -> manage; effective member on a workspace-visible document -> edit.
+//     A ws owner/admin on a restricted document they are not the ACL owner
+//     of gets no level here, only AdminScope (DOC-05).
 //  5. live shares: user, workspace (a workspace of the document's
 //     organization whose effective member the person is at read time) and
 //     organization principals; the highest level wins.
+//  6. AdminScope with no level yet: a live break-glass grant of the actor
+//     gives view via break_glass.
 //
 // Archived documents keep their level here; decideDocumentAccess hides them
 // from everyone below manage.
@@ -127,13 +167,19 @@ func (s *DocumentService) resolveLevelInTenant(ctx context.Context, q *db.Querie
 	}
 
 	best := none
+	adminScope := false
+	isACLOwner := doc.AclOwnerID.Valid && doc.AclOwnerID.String == actor.ID
 	m, err := s.ws.RequireMemberQ(ctx, q, doc.WorkspaceID, actor.ID)
 	switch {
 	case err == nil:
 		switch {
+		case (m.Role == "owner" || m.Role == "admin") && doc.Visibility == documentVisibilityRestricted && !isACLOwner:
+			// DOC-05: administer, never read by role; the level comes only
+			// from the shares and the break-glass grant below.
+			adminScope = true
 		case m.Role == "owner" || m.Role == "admin":
 			best = DocumentAccess{Level: DocumentLevelManage, Via: DocumentViaMember}
-		case doc.AclOwnerID.Valid && doc.AclOwnerID.String == actor.ID:
+		case isACLOwner:
 			// §14.3: the ACL owner, not created_by, holds manage - a copy
 			// keeps the source's ACL owner, so copying never escalates.
 			// via stays member: C-01 §3.6 has no ACL-owner path, and
@@ -173,6 +219,25 @@ func (s *DocumentService) resolveLevelInTenant(ctx context.Context, q *db.Querie
 			best = DocumentAccess{Level: lvl, Via: DocumentViaShare}
 		}
 	}
+	if adminScope && best.Level == DocumentLevelNone {
+		// A grant is read only while the caller still holds AdminScope: an
+		// admin demoted since the grant reads nothing through it.
+		g, err := q.GetLiveDocumentBreakGlassGrantForActor(ctx, db.GetLiveDocumentBreakGlassGrantForActorParams{
+			OrganizationID: doc.OrganizationID,
+			WorkspaceID:    doc.WorkspaceID,
+			DocumentID:     doc.ID,
+			ActorID:        actor.ID,
+			ActorKind:      string(actor.Kind),
+		})
+		switch {
+		case err == nil:
+			best = DocumentAccess{Level: capDocumentLevel(DocumentLevel(g.Level), DocumentLevelView), Via: DocumentViaBreakGlass}
+		case errors.Is(err, pgx.ErrNoRows):
+		default:
+			return none, err
+		}
+	}
+	best.AdminScope = adminScope
 	return best, nil
 }
 
@@ -256,23 +321,25 @@ func (s *DocumentService) agentInWorkspace(ctx context.Context, q *db.Queries, a
 }
 
 // closedTenantOrNil keeps the two "closed tenant" answers of the membership
-// gates and folds a plain refusal into "no level".
+// gates and folds a plain refusal - document_restricted included - into
+// "no level".
 func closedTenantOrNil(err error) error {
 	if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationDeletionScheduled) {
 		return err
 	}
-	if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
+	if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) || errors.Is(err, ErrDocumentRestricted) {
 		return nil
 	}
 	return err
 }
 
 // isGateRefusal is any "no" a membership gate or the document gate gives,
-// as opposed to an infrastructure error.
+// as opposed to an infrastructure error. document_restricted is one: an
+// admin-only reader reads nothing, so delivery-time checks answer false.
 func isGateRefusal(err error) bool {
 	return errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) ||
 		errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated) ||
-		errors.Is(err, ErrOrganizationDeletionScheduled)
+		errors.Is(err, ErrOrganizationDeletionScheduled) || errors.Is(err, ErrDocumentRestricted)
 }
 
 func capDocumentLevel(l, max DocumentLevel) DocumentLevel {
@@ -285,13 +352,15 @@ func capDocumentLevel(l, max DocumentLevel) DocumentLevel {
 // decideDocumentAccess turns a computed access into the service answer:
 // nothing readable is ErrNotFound (no title, parent or breadcrumb leaks), a
 // reader asking for more than they hold is ErrForbidden. An archived
-// document is in the trash: only manage (who may restore it) still finds it,
-// everyone else gets not found (C-01 §5.1 `archived=1` is manage-only).
+// document is in the trash: only manage (who may restore it) or AdminScope
+// still finds it, everyone else gets not found (C-01 §5.1 `archived=1` is
+// manage-only). AdminScope alone (Level none) never passes: this is the
+// content gate, and DOC-05 keeps content closed to it.
 func decideDocumentAccess(doc db.Document, access DocumentAccess, required DocumentLevel) error {
 	if access.Level == DocumentLevelNone {
 		return ErrNotFound
 	}
-	if doc.ArchivedAt.Valid && !access.Level.AtLeast(DocumentLevelManage) {
+	if doc.ArchivedAt.Valid && !access.canAdminister() {
 		return ErrNotFound
 	}
 	if !access.Level.AtLeast(required) {
@@ -300,20 +369,82 @@ func decideDocumentAccess(doc db.Document, access DocumentAccess, required Docum
 	return nil
 }
 
+// decideDocumentContent is decideDocumentAccess for a route caller: an
+// AdminScope caller with no read level already sees the document's metadata,
+// so the content refusal is document_restricted (with can_break_glass)
+// instead of a not found. Everyone else keeps the 404. Internal read checks
+// (canReadDocumentQ, FilterDocumentReadersQ) stay on decideDocumentAccess.
+func decideDocumentContent(doc db.Document, access DocumentAccess, required DocumentLevel) error {
+	err := decideDocumentAccess(doc, access, required)
+	if errors.Is(err, ErrNotFound) && access.Level == DocumentLevelNone && access.AdminScope {
+		return errDocumentRestricted()
+	}
+	return err
+}
+
+// decideDocumentViewOrAdminister is the outer gate of an administrative
+// command: a reader or an AdminScope caller passes, anyone else is not found
+// (existence never leaks), and an archived document is found only by those
+// who may administer it.
+func decideDocumentViewOrAdminister(doc db.Document, access DocumentAccess) error {
+	if access.Level == DocumentLevelNone && !access.AdminScope {
+		return ErrNotFound
+	}
+	if doc.ArchivedAt.Valid && !access.canAdminister() {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// decideDocumentAdminister is decideDocumentViewOrAdminister plus
+// canAdminister: a reader below manage without AdminScope is forbidden.
+func decideDocumentAdminister(doc db.Document, access DocumentAccess) error {
+	if err := decideDocumentViewOrAdminister(doc, access); err != nil {
+		return err
+	}
+	if !access.canAdminister() {
+		return ErrForbidden
+	}
+	return nil
+}
+
 // authorizeDocument is the read gate every document path by id goes
 // through: the row by id, then the organization gate and effectiveLevel
 // from the row's own tenant pair. An id from another tenant is not found,
-// never forbidden.
+// never forbidden. It is the content gate of the routes (decideDocumentContent):
+// an AdminScope caller with no read level is document_restricted.
 func (s *DocumentService) authorizeDocument(ctx context.Context, actor Actor, documentID string, required DocumentLevel) (db.Document, DocumentAccess, error) {
-	return s.authorizeDocumentQ(ctx, s.q, actor, documentID, required)
+	return s.authorizeDocumentGate(ctx, s.q, actor, documentID, func(doc db.Document, access DocumentAccess) error {
+		return decideDocumentContent(doc, access, required)
+	})
 }
 
-// authorizeDocumentQ is authorizeDocument read through q. A caller that
+// authorizeDocumentQ is the internal read gate read through q. A caller that
 // already holds a transaction - the document mutation gate, and through it
 // the mention write - passes its q, so the row read, the organization gate
 // and effectiveLevel all run on that one connection: a mutation holding the
 // document row lock never borrows a second pool connection for a read gate.
+// Its refusals are decideDocumentAccess's (not found / forbidden), never
+// document_restricted.
 func (s *DocumentService) authorizeDocumentQ(ctx context.Context, q *db.Queries, actor Actor, documentID string, required DocumentLevel) (db.Document, DocumentAccess, error) {
+	return s.authorizeDocumentGate(ctx, q, actor, documentID, func(doc db.Document, access DocumentAccess) error {
+		return decideDocumentAccess(doc, access, required)
+	})
+}
+
+// authorizeDocumentViewOrAdminister is the outer gate of a command a reader
+// or an AdminScope caller may run (the access list).
+func (s *DocumentService) authorizeDocumentViewOrAdminister(ctx context.Context, actor Actor, documentID string) (db.Document, DocumentAccess, error) {
+	return s.authorizeDocumentGate(ctx, s.q, actor, documentID, decideDocumentViewOrAdminister)
+}
+
+// authorizeDocumentAdminister is the gate of a read only those who may
+// administer the document make (access logs).
+func (s *DocumentService) authorizeDocumentAdminister(ctx context.Context, actor Actor, documentID string) (db.Document, DocumentAccess, error) {
+	return s.authorizeDocumentGate(ctx, s.q, actor, documentID, decideDocumentAdminister)
+}
+
+func (s *DocumentService) authorizeDocumentGate(ctx context.Context, q *db.Queries, actor Actor, documentID string, decide func(db.Document, DocumentAccess) error) (db.Document, DocumentAccess, error) {
 	if !validActor(actor) || documentID == "" {
 		return db.Document{}, DocumentAccess{}, ErrNotFound
 	}
@@ -328,7 +459,7 @@ func (s *DocumentService) authorizeDocumentQ(ctx context.Context, q *db.Queries,
 	if err != nil {
 		return db.Document{}, DocumentAccess{}, err
 	}
-	if err := decideDocumentAccess(doc, access, required); err != nil {
+	if err := decide(doc, access); err != nil {
 		return db.Document{}, DocumentAccess{}, err
 	}
 	return doc, access, nil
@@ -436,14 +567,30 @@ func (s *DocumentService) withDocumentMutation(
 // withFileSaveMutation is withDocumentMutation at edit for the version-save
 // commands (commit, restore). The only difference is the answer for a row
 // that was archived after the preflight: the gate gives it the preflight's
-// answer (archivedSaveRefusal: document_archived from edit up, not_found
-// below) instead of decideDocumentAccess's manage-only not_found, so a race
+// answer (decideFileSave: document_archived from edit up, not_found below)
+// instead of decideDocumentContent's manage-only not_found, so a race
 // never flips the refusal inside one retry. Other commands keep the plain gate.
 func (s *DocumentService) withFileSaveMutation(
 	ctx context.Context, actor Actor, documentID string,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
 ) error {
-	return s.runDocumentMutation(ctx, actor, documentID, "", DocumentLevelEdit, true, fn)
+	return s.withDocumentGateLocked(ctx, actor, documentID, "", decideFileSave, fn)
+}
+
+// decideFileSave is the locked gate of a version save. The archived answer
+// comes first: archivedSaveRefusal is what the preflight gave (readableDocument
+// refuses Level none with not_found before it), so a row archived after the
+// preflight keeps that answer, and an AdminScope caller with no read level on
+// an archived restricted document gets not_found - never more than the
+// preflight told them, and never document_restricted's can_break_glass offer
+// for a row in the trash. A live row takes the content gate at edit
+// (decideDocumentContent), so a level lost after the preflight answers as on
+// every other content command.
+func decideFileSave(doc db.Document, access DocumentAccess) error {
+	if doc.ArchivedAt.Valid {
+		return archivedSaveRefusal(access)
+	}
+	return decideDocumentContent(doc, access, DocumentLevelEdit)
 }
 
 // withDocumentMutationLocked is withDocumentMutation for a command that may
@@ -460,13 +607,24 @@ func (s *DocumentService) withDocumentMutationLocked(
 	ctx context.Context, actor Actor, documentID, treeWorkspaceID string, required DocumentLevel,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
 ) error {
-	return s.runDocumentMutation(ctx, actor, documentID, treeWorkspaceID, required, false, fn)
+	return s.withDocumentGateLocked(ctx, actor, documentID, treeWorkspaceID, func(doc db.Document, access DocumentAccess) error {
+		return decideDocumentContent(doc, access, required)
+	}, fn)
 }
 
-// runDocumentMutation is the body of withDocumentMutationLocked; saveRoute
-// selects the archived answer of withFileSaveMutation.
-func (s *DocumentService) runDocumentMutation(
-	ctx context.Context, actor Actor, documentID, treeWorkspaceID string, required DocumentLevel, saveRoute bool,
+// withDocumentViewOrAdministerMutationLocked is withDocumentMutationLocked
+// whose outer gate admits a reader or an AdminScope caller; fn decides what
+// each of them may change (visibility, shares).
+func (s *DocumentService) withDocumentViewOrAdministerMutationLocked(
+	ctx context.Context, actor Actor, documentID, treeWorkspaceID string,
+	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
+) error {
+	return s.withDocumentGateLocked(ctx, actor, documentID, treeWorkspaceID, decideDocumentViewOrAdminister, fn)
+}
+
+func (s *DocumentService) withDocumentGateLocked(
+	ctx context.Context, actor Actor, documentID, treeWorkspaceID string,
+	decide func(db.Document, DocumentAccess) error,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
 ) error {
 	if !validActor(actor) || documentID == "" {
@@ -497,10 +655,7 @@ func (s *DocumentService) runDocumentMutation(
 	if err != nil {
 		return err
 	}
-	if saveRoute && doc.ArchivedAt.Valid {
-		return archivedSaveRefusal(access)
-	}
-	if err := decideDocumentAccess(doc, access, required); err != nil {
+	if err := decide(doc, access); err != nil {
 		return err
 	}
 	if err := fn(q, doc, access); err != nil {

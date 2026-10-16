@@ -829,6 +829,7 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		Position:       doc.Position,
 		MyLevel:        string(view.Access.Level),
 		Via:            string(view.Access.Via),
+		AdminScope:     view.Access.AdminScope,
 		CreatedBy:      doc.CreatedBy,
 		CreatedByKind:  doc.CreatedByKind,
 		UpdatedBy:      doc.UpdatedBy,
@@ -840,11 +841,14 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 	if doc.Icon.Valid && doc.Icon.String != "" {
 		out.Icon = &doc.Icon.String
 	}
-	if doc.Kind == service.DocumentKindPage && len(doc.Content) > 0 {
+	// DOC-05: an AdminScope caller with no read level (visibility, archive,
+	// restore results) never gets the body.
+	readable := view.Access.Level.AtLeast(service.DocumentLevelView)
+	if readable && doc.Kind == service.DocumentKindPage && len(doc.Content) > 0 {
 		raw := json.RawMessage(doc.Content)
 		out.Content = &raw
 	}
-	if doc.ContentText != "" {
+	if readable && doc.ContentText != "" {
 		out.ContentText = doc.ContentText
 	}
 	if len(view.Breadcrumbs) > 0 {
@@ -857,6 +861,10 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 			}
 			out.Breadcrumbs = append(out.Breadcrumbs, cr)
 		}
+	}
+	if !view.BreakGlassExpiresAt.IsZero() {
+		at := view.BreakGlassExpiresAt.UTC().Format(time.RFC3339)
+		out.BreakGlassExpiresAt = &at
 	}
 	if view.File != nil {
 		f := documentFileDTO(*view.File)

@@ -82,17 +82,22 @@ export function scriptedModel(cases) {
 
 /**
  * Starts the stub. `model` decides each chat reply; `hooks.before(requestIndex)` may return { status, headers } to force
- * an error for that request (429 / 5xx tests). `sessionExpiresAfterCalls` / `frameExpiresAfterCalls` make the stub
+ * an error for that request (429 / 5xx tests) and, with `body`, the exact error body of a 409 refusal. `sessionExpiresAfterCalls` / `frameExpiresAfterCalls` make the stub
  * behave like the D server past a credential's window: an access token that has served that many calls, or a frame token
  * that has served that many chat calls, answers 401 with error_class session until it is renewed. `setRefreshCookie:
  * false` models a sign-in that left no refresh cookie, so the runner has to renew through POST /api/v1/auth/login.
  * `hooks.mint(docId, mintIndex)` may answer a frame-token request with a status instead (404 says the document is gone,
- * G712-63). `mintDelayMs` holds a frame-token answer back, so a test can widen the window in which a second ask's
- * renewal joins the first one's mint (G712-60). Returns { url, requests, stats, close }.
+ * G712-63). `hooks.register(payload)` may refuse the sign-in with `{ status, body }`, the way a server answers a bad
+ * sign-up and echoes the address it was given (G712-72). `mintDelayMs` holds a frame-token answer back, so a test can
+ * widen the window in which a second ask's renewal joins the first one's mint (G712-60). `toolRoundLimit` is the run's
+ * tool-round cap the answer announces in `x_uniwork.limit` (the real server's is 8, design G6-03b §4.4) beside
+ * `x_uniwork.step` (the rounds spent after the turn); `announceSteps: false` answers without the pair, the way a server
+ * that did not carry A13 would. Returns { url, requests, stats, close }.
  */
 export async function startStubFacade({
   model, hooks = {}, model_name = 'stub-model', delayMs = 0, mintDelayMs = 0,
   sessionExpiresAfterCalls = Infinity, frameExpiresAfterCalls = Infinity, setRefreshCookie = true,
+  toolRoundLimit = 8, announceSteps = true,
 }) {
   const requests = [];
   const stats = { inflight: 0, maxInflight: 0, registers: 0, logins: 0, refreshes: 0, uploads: 0, mints: 0, mintRequests: 0 };
@@ -126,7 +131,12 @@ export async function startStubFacade({
     req.on('end', () => {
       const raw = Buffer.concat(chunks).toString('utf8');
       const url = req.url ?? '';
-      if (url === '/api/v1/auth/register') { stats.registers += 1; return issueSession(res); }
+      if (url === '/api/v1/auth/register') {
+        stats.registers += 1;
+        const forced = hooks.register?.(raw ? JSON.parse(raw) : {});
+        if (forced) return json(res, forced.status, forced.body ?? { error: `forced ${forced.status}` });
+        return issueSession(res);
+      }
       if (url === '/api/v1/auth/login') { stats.logins += 1; return issueSession(res); }
       if (url === '/api/v1/auth/refresh') {
         stats.refreshes += 1;
@@ -165,7 +175,7 @@ export async function startStubFacade({
       requests.push({ index, doc: chat[1], authorization: req.headers.authorization, headers: req.headers, body });
       const trace = `trace-${(traceCount += 1)}`;
       const forced = hooks.before?.(index, body);
-      if (forced) return json(res, forced.status, { error: forced.code ?? 'forced' }, { 'X-Trace-Id': trace, ...(forced.headers ?? {}) });
+      if (forced) return json(res, forced.status, forced.body ?? { error: forced.code ?? 'forced' }, { 'X-Trace-Id': trace, ...(forced.headers ?? {}) });
       const frame = frames.get(bearer(req));
       if (!frame || frame.doc !== chat[1] || frame.uses >= frameExpiresAfterCalls) return unauthorized(res);
       frame.uses += 1;
@@ -182,7 +192,7 @@ export async function startStubFacade({
       const headers = { 'X-Trace-Id': trace, 'X-UniWork-AI-Conversation': convId, 'X-UniWork-AI-Run': `run-${convId}` };
       const message = { role: 'assistant', content: reply.content ?? '', ...(reply.toolCalls ? { tool_calls: reply.toolCalls } : {}) };
       sse(res, [
-        { model: model_name, choices: [{ delta: message, finish_reason: reply.toolCalls ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 10 }, x_uniwork: { step: state.step - 1, limit: 10, dropped_tool_calls: reply.dropped ?? [] } },
+        { model: model_name, choices: [{ delta: message, finish_reason: reply.toolCalls ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 10 }, x_uniwork: { ...(announceSteps ? { step: state.step - 1, limit: toolRoundLimit } : {}), dropped_tool_calls: reply.dropped ?? [] } },
       ], headers);
   }
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

@@ -93,3 +93,17 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND revoked_at IS NULL
   AND expires_at > now()
 GROUP BY document_id;
+
+-- The live break-glass grants of a page of documents (UNI-1413 DOC-05):
+-- every admin's, not only the caller's, as the report shows who holds
+-- access. Live = not revoked and not expired, as resolveLevelInTenant reads
+-- them. Never the reason: that stays on the share panel and the audit row.
+-- name: ListLiveBreakGlassGrantsForReport :many
+SELECT id, document_id, actor_id, actor_kind, level, granted_at
+FROM document_break_glass_grants
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = ANY(sqlc.arg(document_ids)::text[])
+  AND revoked_at IS NULL
+  AND expires_at > now()
+ORDER BY document_id, granted_at, id;

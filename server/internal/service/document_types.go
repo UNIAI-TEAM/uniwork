@@ -49,25 +49,28 @@ func errDocumentParentKind() error {
 	return coded(http.StatusUnprocessableEntity, "document_parent_kind", "thư mục chỉ nằm ở gốc hoặc trong thư mục khác; trang và tệp nằm trong trang hoặc thư mục")
 }
 
-// DocumentLevel is the permission ladder on a document (C-01 §4). Order is
-// encoded by position: none < view < edit < manage.
+// DocumentLevel is the permission ladder on a document (C-01 §4, G8-18). Order
+// is encoded by position: none < view < comment < edit < manage.
 type DocumentLevel string
 
 const (
-	DocumentLevelNone   DocumentLevel = ""
-	DocumentLevelView   DocumentLevel = "view"
-	DocumentLevelEdit   DocumentLevel = "edit"
-	DocumentLevelManage DocumentLevel = "manage"
+	DocumentLevelNone    DocumentLevel = ""
+	DocumentLevelView    DocumentLevel = "view"
+	DocumentLevelComment DocumentLevel = "comment"
+	DocumentLevelEdit    DocumentLevel = "edit"
+	DocumentLevelManage  DocumentLevel = "manage"
 )
 
 func (l DocumentLevel) rank() int {
 	switch l {
 	case DocumentLevelView:
 		return 1
-	case DocumentLevelEdit:
+	case DocumentLevelComment:
 		return 2
-	case DocumentLevelManage:
+	case DocumentLevelEdit:
 		return 3
+	case DocumentLevelManage:
+		return 4
 	default:
 		return 0
 	}
@@ -79,15 +82,17 @@ func (l DocumentLevel) AtLeast(required DocumentLevel) bool {
 }
 
 // DocumentVia names the access path the effective level came from (C-01
-// §3.6): member, share, link, owner (§13 owner delegation) or ai_context.
+// §3.6, DOC-05): member, share, link, owner (§13 owner delegation),
+// ai_context or break_glass.
 type DocumentVia string
 
 const (
-	DocumentViaMember    DocumentVia = "member"
-	DocumentViaShare     DocumentVia = "share"
-	DocumentViaLink      DocumentVia = "link"
-	DocumentViaOwner     DocumentVia = "owner"
-	DocumentViaAIContext DocumentVia = "ai_context"
+	DocumentViaMember     DocumentVia = "member"
+	DocumentViaShare      DocumentVia = "share"
+	DocumentViaLink       DocumentVia = "link"
+	DocumentViaOwner      DocumentVia = "owner"
+	DocumentViaAIContext  DocumentVia = "ai_context"
+	DocumentViaBreakGlass DocumentVia = "break_glass"
 )
 
 // DocumentService is the home of document commands. G1-01 brought the

@@ -283,7 +283,8 @@ func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(page.Items))}
 	for _, item := range page.Items {
 		var access *service.DocumentAccess
-		if item.Access.Level != service.DocumentLevelNone {
+		// A locked row (AdminScope, no read level) still carries admin_scope.
+		if item.Access.Level != service.DocumentLevelNone || item.Access.AdminScope {
 			access = &item.Access
 		}
 		dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
@@ -325,9 +326,13 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 		out.Snippet = &snippet
 	}
 	if access != nil {
-		level, via := string(access.Level), string(access.Via)
-		out.MyLevel = &level
-		out.Via = &via
+		out.AdminScope = access.AdminScope
+		// No level (a locked AdminScope row) leaves my_level and via out.
+		if access.Level != service.DocumentLevelNone {
+			level, via := string(access.Level), string(access.Via)
+			out.MyLevel = &level
+			out.Via = &via
+		}
 	}
 	if doc.OwnerKind.Valid && doc.OwnerKind.String != "" {
 		out.OwnerKind = &doc.OwnerKind.String

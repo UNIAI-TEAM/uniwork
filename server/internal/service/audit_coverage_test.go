@@ -1074,6 +1074,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDocumentBreakGlassGranted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.breakGlassDocument(t)
+			if _, _, err := svc.GrantDocumentBreakGlass(f.ctx, Human(f.owner.ID), docID, "kiểm tra theo yêu cầu kiểm toán"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentBreakGlassRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.breakGlassDocument(t)
+			grant, _, err := svc.GrantDocumentBreakGlass(f.ctx, Human(f.owner.ID), docID, "kiểm tra theo yêu cầu kiểm toán")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RevokeDocumentBreakGlass(f.ctx, Human(f.owner.ID), docID, grant.Grant.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentSettingsChanged: func(t *testing.T, f *auditFixture) {
 			svc, _ := f.document(t)
 			if _, err := svc.SetDocumentPublicLinks(f.ctx, Human(f.owner.ID), f.orgID, true); err != nil {
@@ -1637,6 +1653,8 @@ func auditActions() []string {
 		audit.ActionOfficeOfflinePolicyBumped,
 		audit.ActionDocumentShared,
 		audit.ActionDocumentShareRevoked,
+		audit.ActionDocumentBreakGlassGranted,
+		audit.ActionDocumentBreakGlassRevoked,
 		audit.ActionDocumentLinkCreated,
 		audit.ActionDocumentLinkRevoked,
 		audit.ActionDocumentSettingsChanged,
@@ -1953,6 +1971,20 @@ func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
 		"id": id, "organization_id": f.orgID, "workspace_id": w.ID,
 		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
 	}))
+	return svc, id
+}
+
+// breakGlassDocument is document() made restricted with another member as its
+// ACL owner, so the organization owner (an implicit workspace admin) holds
+// AdminScope on it and may open break-glass access (DOC-05).
+func (f *auditFixture) breakGlassDocument(t *testing.T) (*DocumentService, string) {
+	t.Helper()
+	svc, id := f.document(t)
+	f.addMember(t)
+	if _, err := f.pool.Exec(f.ctx,
+		"UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1", id, f.member.ID); err != nil {
+		t.Fatalf("make audit document restricted: %v", err)
+	}
 	return svc, id
 }
 

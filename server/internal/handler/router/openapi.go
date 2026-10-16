@@ -484,6 +484,11 @@ func pathParamSDI(path string) any {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 			ShareID    string `path:"shareID" description:"ULID grant chia sẻ" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
 		}{}
+	case "documentID,grantID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			GrantID    string `path:"grantID" description:"ULID grant truy cập khẩn cấp" example:"01J8X4BGLASS0N1P2Q3R4S5T6U"`
+		}{}
 	case "documentID,linkID":
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`

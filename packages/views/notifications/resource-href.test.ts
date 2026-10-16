@@ -81,6 +81,16 @@ describe("resourceHref", () => {
       const n = { ...doc, params: { comment_id: "c 1&x" } };
       expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/documents/d1?comment=c+1%26x");
     });
+
+    it("opens the document access panel on break-glass for document_break_glass notifications", () => {
+      const n = notification({
+        kind: "document_break_glass",
+        resource_type: "document",
+        resource_id: "d1",
+        workspace_id: "ws1",
+      });
+      expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/documents/d1?access=break_glass");
+    });
   });
 
   // Web link == push link. Every input and expected path below is a vector of

@@ -86,6 +86,48 @@ test("a wrapped row inside the mechanical block fails the parse loudly", () => {
   assert.ok(error.message.includes("apps/docs/x.ts |"), error.message);
 });
 
+test("a mechanical row whose schema cell is the documented unresolved:<reason> form parses; any other non-hash cell throws", () => {
+  const header = "| module | tool | input_schema_sha256 | editor_write | source |";
+  const separator = "| --- | --- | --- | --- | --- |";
+  const row = (tool, cell) => `| docs | ${tool} | ${cell} | yes | apps/docs/x.ts |`;
+  const block = (lastCell) =>
+    [
+      "<!-- extract:begin -->",
+      "<!-- genoffice-tools-extract v1 rev=deadbeef -->",
+      header,
+      separator,
+      row("accept_changes", "a".repeat(64)),
+      row("add_comment", "b".repeat(64)),
+      row("apply_ops", "c".repeat(64)),
+      row("edit_chart", "d".repeat(64)),
+      row("insert_image", "e".repeat(64)),
+      row("generate_mindmap", lastCell),
+      "",
+      "<!-- extract:end -->",
+    ].join("\n");
+  // The block header's own contract: the extractor writes `unresolved:<reason>`
+  // for a schema it cannot resolve statically, and the row keeps its tool name.
+  const parsed = parseMechanicalTable(block("unresolved:identifier:depth"));
+  assert.equal(parsed.rowCount, 6);
+  assert.ok(parsed.byModule.get("docs").has("generate_mindmap"), "an unresolved row still names its tool");
+  // Every other shape of a non-hex cell still fails loudly, so the accepted
+  // form stays exactly `unresolved:` plus a lowercase reason.
+  for (const cell of [
+    "unresolved",
+    "unresolved:",
+    "unresolved:Identifier",
+    "unresolved:depth!",
+    "Unresolved:depth",
+    "unresolved :depth",
+    "deadbeef",
+    "a".repeat(63),
+    "a".repeat(65),
+    `${"a".repeat(63)}g`,
+  ]) {
+    assert.throws(() => parseMechanicalTable(block(cell)), new RegExp(`${TOOLS_DOC}.*input schema`), `cell ${JSON.stringify(cell)} must not parse`);
+  }
+});
+
 test("every tool name in a module section is in that module's column", () => {
   const { byModule } = parseMechanicalTable(toolsDoc);
   const goldens = readGoldens(PACK_MODULES);

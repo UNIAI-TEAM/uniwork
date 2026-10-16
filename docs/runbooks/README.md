@@ -40,6 +40,12 @@ Kiểm tra → Khắc phục → Leo thang**.
 
 Hướng dẫn chung (chạy stack, env, sampling, `/readyz`): [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md).
 
+Runbook vận hành (không gắn alert, mở theo bước deploy):
+
+| Runbook | Dùng khi |
+| --- | --- |
+| [documents-folder-name-index.md](documents-folder-name-index.md) | Index unique tên thư mục (`idx_documents_folder_name_uidx`, FD-02/UNI-1462) INVALID hoặc không dựng được sau deploy |
+
 Alert `Office*` và `UniworkAi*` (G7-07) chỉ đọc metric mà code server D đăng ký (`scripts/office/alert-metrics.test.mjs`).
 Ngưỡng của chúng là đề xuất theo load profile, **pending G7-D1** (người dùng chốt). Các mục vận hành không có alert
 (cursor hết hạn, reconciling kẹt, upload hết hạn, trần đồng thời UniWork AI, ...):

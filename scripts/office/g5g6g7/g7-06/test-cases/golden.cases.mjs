@@ -463,3 +463,59 @@ test("--update-goldens takes a host's viewport from its meta only when that host
   assert.deepEqual(updated.reasons, [`captures_from_another_pin:web/${ONE}`]);
   assert.deepEqual(readJson(join(world.goldens, "manifest.json")).viewport, { desktop: { w: 64, h: 48 }, web: { w: 128, h: 96 } });
 });
+
+// RFE5-202: a web capture whose frame token carried no AI grant froze an AI-less frame as the
+// golden at the DOC-05 re-pin. The web meta records the grant; the job FAILS such a capture
+// (compare) and refuses to bless it (update), whatever the pixels say.
+
+/** Set the recorded frame AI grant of the web host's fixture (`undefined` removes the fields). */
+function setWebGrant(captures, fixture, grant) {
+  const file = join(captures, "web", "meta.json");
+  const meta = readJson(file);
+  delete meta.fixtures[fixture].ai;
+  delete meta.fixtures[fixture].uniworkAi;
+  Object.assign(meta.fixtures[fixture], grant);
+  writeFileSync(file, `${JSON.stringify(meta, null, 2)}\n`);
+}
+
+test("golden: the checked-in fake web captures record an AI grant, and a web capture with AI on passes", () => {
+  const meta = readJson(join(fx.mkCaptures(tmpDir("g7-06-captures-")), "web", "meta.json"));
+  for (const entry of Object.values(meta.fixtures)) assert.equal(entry.ai || entry.uniworkAi, true);
+  const { check } = goldenRun(goldenWorld({ fixtures: FIXTURES }), { name: "golden-ai-on", fixtures: FIXTURES });
+  assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
+});
+
+for (const [label, grant] of [
+  ["both grants off", { ai: false, uniworkAi: false }],
+  ["no grant recorded at all (a meta from before the field)", {}],
+  ["a drifted value", { ai: "true", uniworkAi: null }],
+]) {
+  test(`golden: a web capture with AI off is a FAIL capture_ai_off, even with identical pixels (${label})`, () => {
+    const world = goldenWorld();
+    setWebGrant(world.captures, ONE, grant);
+    const { check, summary } = goldenRun(world, { name: "golden-ai-off" });
+    assert.equal(check.status, "FAIL");
+    assert.deepEqual(check.reasons, ["capture_ai_off"]);
+    assert.deepEqual(summary.pairs.find((pair) => pair.host === "web").reasons, ["capture_ai_off"]);
+    assert.equal(summary.pairs.find((pair) => pair.host === "desktop").status, "PASS", "the desktop leaves AI to the app: no grant is asked of it");
+  });
+}
+
+test("golden: UniWork AI alone is enough, as the host reads ai || uniworkAi", () => {
+  const world = goldenWorld();
+  setWebGrant(world.captures, ONE, { ai: false, uniworkAi: true });
+  const { check } = goldenRun(world, { name: "golden-ai-uniwork" });
+  assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
+});
+
+test("--update-goldens FAILS a web capture with AI off and blesses nothing for it (RFE5-202)", () => {
+  const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
+  setWebGrant(captures, ONE, { ai: false, uniworkAi: false });
+  const goldens = tmpDir("g7-06-goldens-");
+  const updated = updateGoldens({ capturesDir: captures, goldensDir: goldens, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-ai-off") });
+  assert.equal(updated.status, "FAIL");
+  assert.deepEqual(updated.reasons, [`capture_ai_off:web/${ONE}`]);
+  assert.equal(existsSync(join(goldens, "web", `${ONE}.png`)), false, "nothing was blessed");
+  assert.equal(existsSync(join(goldens, "desktop", `${ONE}.png`)), true, "the desktop pair has no AI rule and is still blessed");
+  assert.equal(readJson(join(goldens, "manifest.json")).entries[`web/${ONE}`], undefined);
+});

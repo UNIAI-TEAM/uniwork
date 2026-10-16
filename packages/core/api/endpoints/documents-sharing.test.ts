@@ -183,6 +183,15 @@ describe("documents-sharing endpoints", () => {
     await expect(getDocumentShares("d1")).resolves.toBeNull();
   });
 
+  it("getDocumentShares keeps an admin-only answer whose level is empty or omitted, and still degrades a body with no level", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ my_level: "", admin_scope: true, break_glass: [] }));
+    await expect(getDocumentShares("d1")).resolves.toMatchObject({ my_level: "", admin_scope: true });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ admin_scope: true }));
+    await expect(getDocumentShares("d1")).resolves.toMatchObject({ my_level: "" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ via: "member" }));
+    await expect(getDocumentShares("d1")).resolves.toBeNull();
+  });
+
   it.each(malformedBodies)("shareDocument degrades %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(

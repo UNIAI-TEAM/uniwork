@@ -8,9 +8,15 @@ export const blocked = (reason) => ({ status: "blocked", reason });
 /** `extra` carries what the retry logic and meta.json need: `retryable`, `diagnostics`, `retries`. */
 export const failed = (reason, extra = {}) => ({ status: "failed", reason, ...extra });
 
+/** The frame AI grant a web shot was taken under (RFE5-202); written only when the capture saw one. */
+const grantFields = (entry) => ({
+  ...(entry.ai !== undefined ? { ai: entry.ai } : {}),
+  ...(entry.uniworkAi !== undefined ? { uniworkAi: entry.uniworkAi } : {}),
+});
+
 /** The meta.json entry of one fixture result (what the contract fixes, plus the retry record and diagnostics a reviewer reads). */
 export function metaEntry(result) {
-  if (result.status === "ok") return { status: "ok", reason: result.reason ?? "", size: pngSize(result.png) ?? undefined, canvasOnly: result.canvasOnly ?? false, ...(result.retries ? { retries: result.retries } : {}) };
+  if (result.status === "ok") return { status: "ok", reason: result.reason ?? "", size: pngSize(result.png) ?? undefined, canvasOnly: result.canvasOnly ?? false, ...grantFields(result), ...(result.retries ? { retries: result.retries } : {}) };
   return { status: result.status, reason: result.reason, ...(result.retries ? { retries: result.retries } : {}), ...(result.diagnostics ? { diagnostics: result.diagnostics } : {}) };
 }
 
@@ -46,6 +52,8 @@ export function buildMeta({ host, forkSha, pinVersion, fixtures, settings = {}, 
           // what the shot really is: its size, and whether the frame paints mainly into a canvas (its text is not in the DOM)
           ...(entry.size ? { size: entry.size } : {}),
           ...(entry.canvasOnly !== undefined ? { canvasOnly: entry.canvasOnly } : {}),
+          // web: the AI the frame token granted this document, so a golden is never blessed from an AI-less frame (RFE5-202)
+          ...grantFields(entry),
           // a desktop fixture that was captured again on a fresh instance says so, with what the app showed (item 6)
           ...(entry.retries ? { retries: entry.retries } : {}),
           ...(entry.diagnostics ? { diagnostics: entry.diagnostics } : {}),

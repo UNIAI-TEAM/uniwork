@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
-import type { DocumentAdminScopeFake } from "@uniwork/core/documents/doc05-fake";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -72,7 +71,7 @@ function documentFixture(over: Record<string, unknown> = {}): Document {
 }
 
 function renderMenu(
-  doc: Document & DocumentAdminScopeFake = documentFixture(),
+  doc: Document = documentFixture(),
   over: { onArchived?: () => void; nav?: ReturnType<typeof fakeNav> } = {},
 ) {
   return render(
@@ -179,7 +178,7 @@ describe("DocumentActionsMenu", () => {
   // DOC6-W01 (access addendum §2.5, N-01): only Share moves to the
   // canAdminister() gate; logs, archive and copy keep theirs.
   it("opens Share to a break-glass admin (view + admin_scope) and keeps logs and archive at manage", async () => {
-    renderMenu({ ...documentFixture({ my_level: "view" }), admin_scope: true });
+    renderMenu(documentFixture({ my_level: "view", admin_scope: true }));
     await openMenu();
 
     expect(screen.getByRole("menuitem", { name: t("documents.actions.share") })).toBeInTheDocument();
@@ -288,7 +287,7 @@ describe("DocumentActionsMenu ?access=requests (DOC7-W02)", () => {
   });
 
   it("opens for a break-glass admin (view + admin_scope)", async () => {
-    renderMenu({ ...documentFixture({ my_level: "view" }), admin_scope: true }, { nav: fakeNav(URL) });
+    renderMenu(documentFixture({ my_level: "view", admin_scope: true }), { nav: fakeNav(URL) });
     const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
     expect(await within(dialog).findByText("Chi")).toBeInTheDocument();
   });
