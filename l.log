@@ -1,0 +1,8 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=1 -v ./internal/handler/ -run 'DocumentSource|TestSwaggerSpecFollowsChiRoutesAndSDI' 2>&1 | tail -n 80; rc=${PIPESTATUS[0]}; echo; echo "GO_HANDLER_EXIT=$rc"
+=== RUN   TestSwaggerSpecFollowsChiRoutesAndSDI
+2026/10/16 04:52:19 INFO http request method=GET path=/swagger/doc.json status=200 duration=910µs request_id=cursor/8EOZeBDrK1-000001 correlation_id=01M51GVHZARMPE2D1PX7NHBKQE
+--- PASS: TestSwaggerSpecFollowsChiRoutesAndSDI (3.95s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	5.026s
+
+GO_HANDLER_EXIT=0

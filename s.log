@@ -1,0 +1,167 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18541 FRONTEND_ORIGIN=http://localhost:13441 API_PUBLIC_URL=http://localhost:18541 PREVIEW_ORIGIN=http://localhost:13442 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads FF_DOCUMENTS=true NEXT_PUBLIC_API_URL=http://localhost:18541 NEXT_PUBLIC_WS_URL=ws://localhost:18541 NEXT_PUBLIC_APP_URL=http://localhost:13441 E2E_BASE_URL=http://localhost:13441 E2E_API_URL=http://localhost:18541 OFFICE_FORK_SHA=$(node -p "require(\"./apps/web/platform/office-frame/docs.pin.json\").gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-source-chat.spec.ts documents-home.spec.ts --reporter=list > /tmp/src1-e2e.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/src1-e2e.log | tail -n 80; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -E "[0-9]+ (skipped|did not run)" /tmp/src1-e2e.log; grep -qE "[0-9]+ passed" /tmp/src1-e2e.log || { echo "no passing test"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+
+Running 5 tests using 1 worker
+
+(node:61462) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:61462) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-home.spec.ts:48:1 › create card, folder, move and the other-modules section on the owner's home (7.2s)
+  ✓  2 documents-home.spec.ts:118:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (4.0s)
+  ✓  3 documents-home.spec.ts:223:3 › a view-only member › sees create cards at the root, none inside a folder shared at view level (2.4s)
+  ✓  4 documents-home.spec.ts:244:3 › a view-only member › gets no Move or Archive on a row shared at view level (1.9s)
+  ✘  5 documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message (33.1s)
+
+
+  1) documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message ───
+
+    Error: expect(locator).toHaveClass(expected) failed
+
+    Locator: locator('article#chat-msg-01M51H91VHTGC8JMVK652JB6TR')
+    Expected pattern: /ring-brand/
+    Received string:  "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2 justify-start mt-4"
+    Timeout: 30000ms
+
+    Call log:
+      - Expect "toHaveClass" with timeout 30000ms
+      - waiting for locator('article#chat-msg-01M51H91VHTGC8JMVK652JB6TR')
+        63 × locator resolved to <article tabindex="-1" id="chat-msg-01M51H91VHTGC8JMVK652JB6TR" aria-labelledby="chat-msg-label-01M51H91VHTGC8JMVK652JB6TR" class="flex w-full max-w-full rounded-lg focus-visible:outline-offset-2 justify-start mt-4">…</article>
+           - unexpected value "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2 justify-start mt-4"
+
+
+      63 |   const message = page.locator(`article#chat-msg-${messageId}`);
+      64 |   await expect(message).toContainText(FILE_NAME, { timeout: 30_000 });
+    > 65 |   await expect(message).toHaveClass(/ring-brand/, { timeout: 30_000 });
+         |                         ^
+      66 | });
+      67 |
+
+    Error Context: test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message ────
+  4 passed (50.8s)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-source-chat.spec.ts documents-home.spec.ts --reporter=list
+===== e2e/test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-source-chat.spec.ts >> go to source on a DM file opens that DM at the message
+- Location: documents-source-chat.spec.ts:24:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveClass(expected) failed
+
+Locator: locator('article#chat-msg-01M51H91VHTGC8JMVK652JB6TR')
+Expected pattern: /ring-brand/
+Received string:  "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2 justify-start mt-4"
+Timeout: 30000ms
+
+Call log:
+  - Expect "toHaveClass" with timeout 30000ms
+  - waiting for locator('article#chat-msg-01M51H91VHTGC8JMVK652JB6TR')
+    63 × locator resolved to <article tabindex="-1" id="chat-msg-01M51H91VHTGC8JMVK652JB6TR" aria-labelledby="chat-msg-label-01M51H91VHTGC8JMVK652JB6TR" class="flex w-full max-w-full rounded-lg focus-visible:outline-offset-2 justify-start mt-4">…</article>
+       - unexpected value "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2 justify-start mt-4"
+
+```
+
+```yaml
+- article "srcchat1792126781057-a, lúc 04:59 Thứ Sáu, 16 tháng 10, 2026":
+  - text: srcchat1792126781057-a, lúc 04:59 Thứ Sáu, 16 tháng 10, 2026
+  - paragraph: de-xuat-dm-1792126781057.txt
+  - paragraph: 27 B
+  - button "Tải de-xuat-dm-1792126781057.txt xuống"
+  - paragraph
+  - toolbar "Thao tác với tin nhắn"
+```
+
+# Test source
+
+```ts
+  1  | import { expect, test } from "@playwright/test";
+  2  | import { e2eApiUrl } from "./api-url";
+  3  | import { loginFolderUser, seedFolderWorkspace } from "./documents-folders-fixtures";
+  4  | import { libraryRowButton } from "./documents-onboard";
+  5  | 
+  6  | /**
+  7  |  * UNI-1814: "Xem nơi đính kèm" on a chat file in Documents → "Từ nơi khác" lands
+  8  |  * in the room the file was sent in, not the workspace chat. User A sends a file
+  9  |  * in a DM with user B through the API; B opens Documents, picks the file from
+  10 |  * its chat origin and follows the row's go-to-source action. The jump is the
+  11 |  * one a chat search result makes: the room opens (`/chat?room=<dm room id>`,
+  12 |  * the message param is dropped once used) and the message article carries the
+  13 |  * highlight ring for 2.5 s.
+  14 |  *
+  15 |  * Needs the app on E2E_BASE_URL with the `documents` flag ON (FF_DOCUMENTS),
+  16 |  * Postgres + Redis + storage up and this worktree's migrations applied - the
+  17 |  * same environment as documents-home.spec.ts. Run by the cloud runner, not locally.
+  18 |  */
+  19 | test.describe.configure({ timeout: 360_000 });
+  20 | 
+  21 | const stamp = Date.now();
+  22 | const FILE_NAME = `de-xuat-dm-${stamp}.txt`;
+  23 | 
+  24 | test("go to source on a DM file opens that DM at the message", async ({ page }) => {
+  25 |   await page.setViewportSize({ width: 1440, height: 900 });
+  26 |   const ws = await seedFolderWorkspace(page, `srcchat${stamp}`, { withMemberB: true });
+  27 |   const sender = ws.owner;
+  28 |   const reader = ws.member;
+  29 |   expect(reader, "seedFolderWorkspace with member B").toBeTruthy();
+  30 | 
+  31 |   const authA = { authorization: `Bearer ${sender.token}` };
+  32 |   const dm = await page.request.post(`${e2eApiUrl}/api/v1/workspaces/${ws.wsId}/chat/dm`, {
+  33 |     headers: { ...authA, "content-type": "application/json" },
+  34 |     data: { user_id: reader!.id },
+  35 |   });
+  36 |   expect(dm.ok(), `resolve dm: ${dm.status()} ${await dm.text()}`).toBeTruthy();
+  37 |   const roomId = ((await dm.json()) as { room: { id: string } }).room.id;
+  38 | 
+  39 |   const sent = await page.request.post(`${e2eApiUrl}/api/v1/workspaces/${ws.wsId}/chat/rooms/${roomId}/messages/file`, {
+  40 |     headers: authA,
+  41 |     multipart: {
+  42 |       file: { name: FILE_NAME, mimeType: "text/plain", buffer: Buffer.from(`đề xuất ${stamp}\n`) },
+  43 |       client_msg_id: `msg-src-chat-${stamp}`,
+  44 |     },
+  45 |   });
+  46 |   expect(sent.ok(), `send file: ${sent.status()} ${await sent.text()}`).toBeTruthy();
+  47 |   const messageId = ((await sent.json()) as { message: { id: string } }).message.id;
+  48 |   expect(messageId).toBeTruthy();
+  49 | 
+  50 |   await loginFolderUser(page, reader!.email);
+  51 |   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
+  52 |   const sidebar = page.getByRole("navigation", { name: "Điều hướng tài liệu" });
+  53 |   await expect(sidebar.getByText("Từ nơi khác")).toBeVisible({ timeout: 60_000 });
+  54 |   await sidebar.getByRole("button", { name: "Trò chuyện" }).click();
+  55 | 
+  56 |   const table = page.getByRole("table", { name: "Tài liệu" });
+  57 |   await expect(libraryRowButton(table, FILE_NAME)).toBeVisible({ timeout: 30_000 });
+  58 |   await page.getByRole("button", { name: `Thao tác cho ${FILE_NAME}` }).click();
+  59 |   await page.getByRole("menuitem", { name: "Xem nơi đính kèm" }).click();
+  60 | 
+  61 |   // The DM opens, not the workspace chat, and the message param is consumed.
+  62 |   await expect(page).toHaveURL(new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/chat\\?room=${roomId}$`), { timeout: 60_000 });
+  63 |   const message = page.locator(`article#chat-msg-${messageId}`);
+  64 |   await expect(message).toContainText(FILE_NAME, { timeout: 30_000 });
+> 65 |   await expect(message).toHaveClass(/ring-brand/, { timeout: 30_000 });
+     |                         ^ Error: expect(locator).toHaveClass(expected) failed
+  66 | });
+  67 | 
+```
+E2E_EXIT=1
