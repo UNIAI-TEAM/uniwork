@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+414339e2e3bc77936573df3664ec76fe088b8c8a
+414339e2e test(documents): pin message_id per source kind and on the wire
+c1c1b8358 refactor(documents): name the source link by its label
+f70db3d8f fix(chat): highlight a file or voice message a deep link jumps to
+ed2a3ffa4 chore: merge W-BE1 (f58bd5e6e) into the SRC-01 lane
+f58bd5e6e feat(documents): name the chat message a source file sits in
+ba839bb56 feat(documents): one "View where attached" label for a source file's origin
+c19fdd0e0 test(e2e): go to source on a DM file opens that DM at the message
+55423d100 fix(documents): go to source opens the chat room and message the file is in

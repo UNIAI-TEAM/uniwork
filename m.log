@@ -1,0 +1,4 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -timeout 40m ./internal/handler/ -run 'TestIsolationMatrix|TestEveryBodyIDFieldHasAReferenceCase' 2>&1 | tail -n 60; rc=${PIPESTATUS[0]}; echo; echo "GO_ISOLATION_EXIT=$rc"
+ok  	github.com/unicomhub/uniwork/server/internal/handler	307.471s
+
+GO_ISOLATION_EXIT=0
