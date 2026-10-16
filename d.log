@@ -1,0 +1,253 @@
+$ RID=$(cat /tmp/g704-rid); M=/tmp/$RID-markers.txt; R=/tmp/$RID-run; E=/tmp/$RID.env; cp .env $E && printf '\nAI_PROVIDER=fake\nAI_CONVERSATION_KEY=%s\nFF_OFFICE_AI_UNIWORK=true\nFF_OFFICE_AI_UNIWORK_DOCX=true\nFF_OFFICE_AI_UNIWORK_XLSX=true\n' "$(head -c 32 /dev/urandom | base64)" >> $E; export M ENV_FILE=$E OFFICE_FORK_SHA=e99471fe2 HARNESS_RUN_DIR=$R; bash scripts/office/g5g6g7/harness/keyring-session.sh --exec bash -c 'trap "HARNESS_RUN_DIR=$HARNESS_RUN_DIR bash scripts/office/g5g6g7/harness/stop.sh; rc=\$?; echo G704_STOP_EXIT=\$rc | tee -a $M" EXIT; bash scripts/office/g5g6g7/harness/start.sh; rc=$?; echo; echo "G704_START_EXIT=$rc" | tee -a $M; grep -v -i -E "key|secret|password|token" "$HARNESS_RUN_DIR/ports.env"; for row in G7-A01 G5-A03; do for fx in fx-xlsx-revenue-xyz fx-docx-report-vi; do node scripts/office/g5g6g7/evidence.mjs run --req $row --fixture $fx --out "$HARNESS_RUN_DIR" --checker harness:g7-04/cross-host.mjs -- node scripts/office/g5g6g7/g7-04/cross-host.mjs --row $row --fixture $fx --run-dir "$HARNESS_RUN_DIR"; rc=$?; echo; echo "G704_XH_${row//-/_}_$(echo ${fx//-/_} | tr a-z A-Z)_EXIT=$rc" | tee -a $M; done; done; for cs in deactivate downgrade remove; do for fx in fx-docx-report-vi fx-xlsx-revenue-xyz; do node scripts/office/g5g6g7/evidence.mjs run --req G7-A02 --fixture $fx --out "$HARNESS_RUN_DIR" --checker harness:g7-04/revoke.mjs -- node scripts/office/g5g6g7/g7-04/revoke.mjs --case $cs --fixture $fx --run-dir "$HARNESS_RUN_DIR"; rc=$?; echo; echo "G704_REVOKE_${cs^^}_$(echo ${fx//-/_} | tr a-z A-Z)_EXIT=$rc" | tee -a $M; done; done; node scripts/office/g5g6g7/evidence.mjs verify --out "$HARNESS_RUN_DIR"; rc=$?; echo; echo "G704_VERIFY_EXIT=$rc" | tee -a $M'; rc=$?; echo; echo "G704_KEYRING_EXEC_EXIT=$rc" | tee -a $M; true
+KEYRING_DAEMON secrets=yes unlocked=yes
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /tmp/g704-r3-1792123783366713190-run
+harness: D server  http://localhost:45031 (metrics 127.0.0.1:40021)
+harness: D web     http://localhost:36009
+harness: fork      e99471fe2
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:45031 ...
+harness: cloning the fork at e99471fe2...
+harness: npm ci in the fork (--ignore-scripts; no Electron binary yet)...
+harness: fetching the Electron binary (node /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-e99471fe2/node_modules/electron/install.js)...
+harness: building the fork apps (this is the slow step)...
+harness: starting the fork Electron app under xvfb...
+dbus-daemon[21115]: [session uid=1000 pid=21115] Activating service name='org.a11y.Bus' requested by ':1.5' (uid=1000 pid=24382 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[21115]: [session uid=1000 pid=21115] Successfully activated service 'org.a11y.Bus'
+harness: app on :99 (pid 24369)
+harness: up
+  D server  http://localhost:45031
+  D web     http://localhost:36009
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-e99471fe2 @ e99471fe2
+  pids      /tmp/g704-r3-1792123783366713190-run/pids
+  next      OFFICE_FORK_SHA=e99471fe2 HARNESS_RUN_DIR=/tmp/g704-r3-1792123783366713190-run node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /tmp/g704-r3-1792123783366713190-run
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=e99471fe2 HARNESS_RUN_DIR=/tmp/g704-r3-1792123783366713190-run \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /tmp/g704-r3-1792123783366713190-run
+
+G704_START_EXIT=0
+# Written by scripts/office/g5g6g7/harness/lib.mjs (start.sh) - one run's ports and origins.
+HARNESS_RUN_DIR=/tmp/g704-r3-1792123783366713190-run
+API_PORT=45031
+WEB_PORT=36009
+METRICS_PORT=40021
+PREVIEW_PORT=36173
+APP_PROXY_PORT=41391
+APP_CDP_PORT=45863
+API_ORIGIN=http://localhost:45031
+APP_API_ORIGIN=http://127.0.0.1:41391
+WEB_ORIGIN=http://localhost:36009
+OFFICE_FORK_SHA=e99471fe2
+D_SHA=e3baf0c84f5a634e52a309ba471c190e0b98c1c6
+DISPLAY=:99
+XAUTHORITY=/tmp/g704-r3-1792123783366713190-run/xauthority
+UNIWORK_USER_DATA=/tmp/g704-r3-1792123783366713190-run/userdata
+ELECTRON_BIN=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-e99471fe2/node_modules/electron/dist/electron
+SHELL_APP_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-e99471fe2/apps/shell
+OFFICE_FORK_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-e99471fe2
+HARNESS_DEPLOYMENT_ID=default
+{"evidenceId":"ev-g7-a01-0001","requirementId":"G7-A01","dSha":"e3baf0c84f5a634e52a309ba471c190e0b98c1c6","fSha":"e99471fe2","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G7-A01 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r3-1792123783366713190-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G7-A01","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r3-1792123783366713190-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g7-a01-0001.log","checker":"harness:g7-04/cross-host.mjs","blocker":null,"startedAt":"2026-10-16T04:14:53.503Z","finishedAt":"2026-10-16T04:16:57.567Z"}
+evidence: ev-g7-a01-0001 FAIL; last 40 line(s) of ../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g7-a01-0001.log:
+  |   },
+  |   "checksums": {
+  |     "webAfterWebSave1": "d33be7214b119461401b9057a28bac54d97f3c55da1489bcd95ee6819ca4f704",
+  |     "desktopAfterReconnect": "27d3ab6122737a5c5cdd674ad4ae6cff52058ffddfb4101fb3b59f02a1b2cfc7"
+  |   },
+  |   "userSaves": [
+  |     {
+  |       "version": 2,
+  |       "versionId": "01M51EQMSJS9BK48FBTGQKJV60",
+  |       "checksum": "d33be7214b119461401b9057a28bac54d97f3c55da1489bcd95ee6819ca4f704",
+  |       "source": "web"
+  |     },
+  |     {
+  |       "version": 3,
+  |       "versionId": "01M51ER09Z5R3MV1S6C1P7F1WN",
+  |       "checksum": "27d3ab6122737a5c5cdd674ad4ae6cff52058ffddfb4101fb3b59f02a1b2cfc7",
+  |       "source": "app"
+  |     }
+  |   ],
+  |   "aiTurns": [],
+  |   "notes": [],
+  |   "details": {
+  |     "documentId": "01M51EQ1824CG18DSGRN6H8Z10",
+  |     "workspaceId": "01M51EQ175ZSWKQ4JKMHV31NDK",
+  |     "filename": "fx-xlsx-revenue-xyz.xlsx",
+  |     "v1Sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+  |     "webSaveAt": 1792124114025,
+  |     "appPath": "/tmp/g704-r3-1792123783366713190-run/userdata/uniwork-documents/default/01M51EQ1694JN30XA85F06SM3B/01M51EQ1824CG18DSGRN6H8Z10/fx-xlsx-revenue-xyz.xlsx",
+  |     "offlineEdit": {
+  |       "source": "app-ui",
+  |       "plan": "insert-row"
+  |     }
+  |   },
+  |   "log": [],
+  |   "forkSha": "e99471fe2",
+  |   "startedAt": "2026-10-16T04:14:53.559Z",
+  |   "finishedAt": "2026-10-16T04:16:56.559Z"
+  | }
+  | G7-A01 fx-xlsx-revenue-xyz FAIL: web-sees: the web host announced no doc.remoteVersion for 01M51ER09Z5R3MV1S6C1P7F1WN within 90000 ms (the web S6 path is off without office_sync_feed; nothing was captured) (/tmp/g704-r3-1792123783366713190-run/reports/g7-qa/g7-a01/fx-xlsx-revenue-xyz.json)
+  | FAILED: web-sees: the web host announced no doc.remoteVersion for 01M51ER09Z5R3MV1S6C1P7F1WN within 90000 ms (the web S6 path is off without office_sync_feed; nothing was captured)
+
+G704_XH_G7_A01_FX_XLSX_REVENUE_XYZ_EXIT=1
+{"evidenceId":"ev-g7-a01-0002","requirementId":"G7-A01","dSha":"e3baf0c84f5a634e52a309ba471c190e0b98c1c6","fSha":"e99471fe2","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G7-A01 --fixture fx-docx-report-vi --run-dir /tmp/g704-r3-1792123783366713190-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G7-A01","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r3-1792123783366713190-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g7-a01-0002.log","checker":"harness:g7-04/cross-host.mjs","blocker":null,"startedAt":"2026-10-16T04:16:57.600Z","finishedAt":"2026-10-16T04:18:43.784Z"}
+evidence: ev-g7-a01-0002 FAIL; last 40 line(s) of ../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g7-a01-0002.log:
+  |   },
+  |   "checksums": {
+  |     "webAfterWebSave1": "a72565ef68288c516cedc9a46eb5fb5f2d8689ff57bc8e76377c9e825217f6af",
+  |     "desktopAfterReconnect": "ee900ae79cf11a1c8b6d075e881a975f8fda9a4626b82d541cdfc4e24399232b"
+  |   },
+  |   "userSaves": [
+  |     {
+  |       "version": 2,
+  |       "versionId": "01M51ETYBYNYPYRWK1TV12GS11",
+  |       "checksum": "a72565ef68288c516cedc9a46eb5fb5f2d8689ff57bc8e76377c9e825217f6af",
+  |       "source": "web"
+  |     },
+  |     {
+  |       "version": 3,
+  |       "versionId": "01M51EV918F3VCHG5BMY0N8BE0",
+  |       "checksum": "ee900ae79cf11a1c8b6d075e881a975f8fda9a4626b82d541cdfc4e24399232b",
+  |       "source": "app"
+  |     }
+  |   ],
+  |   "aiTurns": [],
+  |   "notes": [],
+  |   "details": {
+  |     "documentId": "01M51ETTCY3V7W24WH2DSHS68Q",
+  |     "workspaceId": "01M51ETTCCE8RYQC71PKWCNQEE",
+  |     "filename": "fx-docx-report-vi.docx",
+  |     "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+  |     "webSaveAt": 1792124221925,
+  |     "appPath": "/tmp/g704-r3-1792123783366713190-run/userdata/uniwork-documents/default/01M51ETTBN0A5BK01JNMT9NGRX/01M51ETTCY3V7W24WH2DSHS68Q/fx-docx-report-vi.docx",
+  |     "offlineEdit": {
+  |       "source": "app-ui",
+  |       "plan": "split-block"
+  |     }
+  |   },
+  |   "log": [],
+  |   "forkSha": "e99471fe2",
+  |   "startedAt": "2026-10-16T04:16:57.639Z",
+  |   "finishedAt": "2026-10-16T04:18:42.807Z"
+  | }
+  | G7-A01 fx-docx-report-vi FAIL: web-sees: the web host announced no doc.remoteVersion for 01M51EV918F3VCHG5BMY0N8BE0 within 90000 ms (the web S6 path is off without office_sync_feed; nothing was captured) (/tmp/g704-r3-1792123783366713190-run/reports/g7-qa/g7-a01/fx-docx-report-vi.json)
+  | FAILED: web-sees: the web host announced no doc.remoteVersion for 01M51EV918F3VCHG5BMY0N8BE0 within 90000 ms (the web S6 path is off without office_sync_feed; nothing was captured)
+
+G704_XH_G7_A01_FX_DOCX_REPORT_VI_EXIT=1
+{"evidenceId":"ev-g5-a03-0001","requirementId":"G5-A03","dSha":"e3baf0c84f5a634e52a309ba471c190e0b98c1c6","fSha":"e99471fe2","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G5-A03 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r3-1792123783366713190-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G5-A03","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r3-1792123783366713190-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g5-a03-0001.log","checker":"harness:g7-04/cross-host.mjs","blocker":null,"startedAt":"2026-10-16T04:18:43.820Z","finishedAt":"2026-10-16T04:20:32.654Z"}
+evidence: ev-g5-a03-0001 FAIL; last 40 line(s) of ../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g5-a03-0001.log:
+  |   "checksums": {
+  |     "webAfterWebSave1": "1b8867f680e481ddc3bed7e7d6c79a68347b17dc38859e434f8acf193051c5e5",
+  |     "webAfterWebSave2": "9593c278ba1344c70b4f8670da6a20268ef09dba487a4040a4e2834e3da208d5"
+  |   },
+  |   "userSaves": [
+  |     {
+  |       "version": 2,
+  |       "versionId": "01M51EY7BWH0CGEHNMHXTKJRT1",
+  |       "checksum": "1b8867f680e481ddc3bed7e7d6c79a68347b17dc38859e434f8acf193051c5e5",
+  |       "source": "web"
+  |     },
+  |     {
+  |       "version": 3,
+  |       "versionId": "01M51EYK7K9DWW6KS2DACCACSD",
+  |       "checksum": "9593c278ba1344c70b4f8670da6a20268ef09dba487a4040a4e2834e3da208d5",
+  |       "source": "web"
+  |     }
+  |   ],
+  |   "aiTurns": [],
+  |   "notes": [],
+  |   "details": {
+  |     "documentId": "01M51EY24FA2HJR7437EACEP5Z",
+  |     "workspaceId": "01M51EY240CSBK689CXMT9KG0W",
+  |     "filename": "fx-xlsx-revenue-xyz.xlsx",
+  |     "v1Sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+  |     "webSaveAt": 1792124341632,
+  |     "appPath": "/tmp/g704-r3-1792123783366713190-run/userdata/uniwork-documents/default/01M51EY23BM74K3HV4HP4B5FVN/01M51EY24FA2HJR7437EACEP5Z/fx-xlsx-revenue-xyz.xlsx",
+  |     "dirtyEdit": {
+  |       "source": "app-ui",
+  |       "plan": "insert-row"
+  |     },
+  |     "dirtyEditSha": "1b8867f680e481ddc3bed7e7d6c79a68347b17dc38859e434f8acf193051c5e5"
+  |   },
+  |   "log": [],
+  |   "forkSha": "e99471fe2",
+  |   "startedAt": "2026-10-16T04:18:43.865Z",
+  |   "finishedAt": "2026-10-16T04:20:31.691Z"
+  | }
+  | G5-A03 fx-xlsx-revenue-xyz FAIL: dirty-kept: the S6 new-version bar was not visible: no new-version bar naming version 3 on any app page (a page probe failed: page.evaluate: ReferenceError: REMOTE_NEWER_TEXT is not defined at readRemoteNewerSurface (eval at evaluate (:311:30), <anonymous>:5:40) at UtilityScript.evaluate (<anonymous>:313:16) at UtilityScript.<anonymous> (<anonymous>:1:44)) (feed nudges: 4) (/tmp/g704-r3-1792123783366713190-run/reports/g7-qa/g5-a03/fx-xlsx-revenue-xyz.json)
+  | FAILED: dirty-kept: the S6 new-version bar was not visible: no new-version bar naming version 3 on any app page (a page probe failed: page.evaluate: ReferenceError: REMOTE_NEWER_TEXT is not defined at readRemoteNewerSurface (eval at evaluate (:311:30), <anonymous>:5:40) at UtilityScript.evaluate (<anonymous>:313:16) at UtilityScript.<anonymous> (<anonymous>:1:44)) (feed nudges: 4)
+
+G704_XH_G5_A03_FX_XLSX_REVENUE_XYZ_EXIT=1
+{"evidenceId":"ev-g5-a03-0002","requirementId":"G5-A03","dSha":"e3baf0c84f5a634e52a309ba471c190e0b98c1c6","fSha":"e99471fe2","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G5-A03 --fixture fx-docx-report-vi --run-dir /tmp/g704-r3-1792123783366713190-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G5-A03","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r3-1792123783366713190-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g5-a03-0002.log","checker":"harness:g7-04/cross-host.mjs","blocker":null,"startedAt":"2026-10-16T04:20:32.689Z","finishedAt":"2026-10-16T04:22:08.362Z"}
+evidence: ev-g5-a03-0002 FAIL; last 40 line(s) of ../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g5-a03-0002.log:
+  |         }
+  |       },
+  |       "elapsedMs": 90042
+  |     }
+  |   },
+  |   "versionCounts": {
+  |     "v1": 1,
+  |     "afterWebSave1": 2
+  |   },
+  |   "versionIds": {
+  |     "v1": "fixture-5e93b1dd7aef",
+  |     "v2": "01M51F1GN0STB2MYMA9DW84NWV"
+  |   },
+  |   "checksums": {
+  |     "webAfterWebSave1": "1bcc0b29fde4b8f0b6b4e26caf199bd0f526b08a694d89405a3bc8ccee553dea"
+  |   },
+  |   "userSaves": [
+  |     {
+  |       "version": 2,
+  |       "versionId": "01M51F1GN0STB2MYMA9DW84NWV",
+  |       "checksum": "1bcc0b29fde4b8f0b6b4e26caf199bd0f526b08a694d89405a3bc8ccee553dea",
+  |       "source": "web"
+  |     }
+  |   ],
+  |   "aiTurns": [],
+  |   "notes": [],
+  |   "details": {
+  |     "documentId": "01M51F1CF273N7QAE05Z1QADGQ",
+  |     "workspaceId": "01M51F1CEG77SAPA2QXCHX82EF",
+  |     "filename": "fx-docx-report-vi.docx",
+  |     "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+  |     "webSaveAt": 1792124437271
+  |   },
+  |   "log": [],
+  |   "forkSha": "e99471fe2",
+  |   "startedAt": "2026-10-16T04:20:32.737Z",
+  |   "finishedAt": "2026-10-16T04:22:07.352Z"
+  | }
+  | G5-A03 fx-docx-report-vi FAIL: app-open: aiOffice.accountLogout did not settle within 90 s (/tmp/g704-r3-1792123783366713190-run/reports/g7-qa/g5-a03/fx-docx-report-vi.json)
+  | FAILED: app-open: aiOffice.accountLogout did not settle within 90 s
+
+G704_XH_G5_A03_FX_DOCX_REPORT_VI_EXIT=1
+{"evidenceId":"ev-g7-a02-0001","requirementId":"G7-A02","dSha":"e3baf0c84f5a634e52a309ba471c190e0b98c1c6","fSha":"e99471fe2","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case deactivate --fixture fx-docx-report-vi --run-dir /tmp/g704-r3-1792123783366713190-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","deactivate","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r3-1792123783366713190-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g7-a02-0001.log","checker":"harness:g7-04/revoke.mjs","blocker":null,"startedAt":"2026-10-16T04:22:08.398Z","finishedAt":"2026-10-16T04:22:08.694Z"}
+
+G704_REVOKE_DEACTIVATE_FX_DOCX_REPORT_VI_EXIT=0
+{"evidenceId":"ev-g7-a02-0002","requirementId":"G7-A02","dSha":"e3baf0c84f5a634e52a309ba471c190e0b98c1c6","fSha":"e99471fe2","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case deactivate --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r3-1792123783366713190-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","deactivate","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r3-1792123783366713190-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g7-a02-0002.log","checker":"harness:g7-04/revoke.mjs","blocker":null,"startedAt":"2026-10-16T04:22:08.725Z","finishedAt":"2026-10-16T04:22:09.003Z"}
+
+G704_REVOKE_DEACTIVATE_FX_XLSX_REVENUE_XYZ_EXIT=0
+{"evidenceId":"ev-g7-a02-0003","requirementId":"G7-A02","dSha":"e3baf0c84f5a634e52a309ba471c190e0b98c1c6","fSha":"e99471fe2","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case downgrade --fixture fx-docx-report-vi --run-dir /tmp/g704-r3-1792123783366713190-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","downgrade","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r3-1792123783366713190-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g7-a02-0003.log","checker":"harness:g7-04/revoke.mjs","blocker":null,"startedAt":"2026-10-16T04:22:09.034Z","finishedAt":"2026-10-16T04:22:09.320Z"}
+
+G704_REVOKE_DOWNGRADE_FX_DOCX_REPORT_VI_EXIT=0
+{"evidenceId":"ev-g7-a02-0004","requirementId":"G7-A02","dSha":"e3baf0c84f5a634e52a309ba471c190e0b98c1c6","fSha":"e99471fe2","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case downgrade --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r3-1792123783366713190-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","downgrade","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r3-1792123783366713190-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g7-a02-0004.log","checker":"harness:g7-04/revoke.mjs","blocker":null,"startedAt":"2026-10-16T04:22:09.351Z","finishedAt":"2026-10-16T04:22:09.623Z"}
+
+G704_REVOKE_DOWNGRADE_FX_XLSX_REVENUE_XYZ_EXIT=0
+{"evidenceId":"ev-g7-a02-0005","requirementId":"G7-A02","dSha":"e3baf0c84f5a634e52a309ba471c190e0b98c1c6","fSha":"e99471fe2","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case remove --fixture fx-docx-report-vi --run-dir /tmp/g704-r3-1792123783366713190-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","remove","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r3-1792123783366713190-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g7-a02-0005.log","checker":"harness:g7-04/revoke.mjs","blocker":null,"startedAt":"2026-10-16T04:22:09.654Z","finishedAt":"2026-10-16T04:22:09.908Z"}
+
+G704_REVOKE_REMOVE_FX_DOCX_REPORT_VI_EXIT=0
+{"evidenceId":"ev-g7-a02-0006","requirementId":"G7-A02","dSha":"e3baf0c84f5a634e52a309ba471c190e0b98c1c6","fSha":"e99471fe2","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case remove --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r3-1792123783366713190-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","remove","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r3-1792123783366713190-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g704-r3-1792123783366713190-run/artifacts/ev-g7-a02-0006.log","checker":"harness:g7-04/revoke.mjs","blocker":null,"startedAt":"2026-10-16T04:22:09.938Z","finishedAt":"2026-10-16T04:22:10.213Z"}
+
+G704_REVOKE_REMOVE_FX_XLSX_REVENUE_XYZ_EXIT=0
+evidence verify: OK (10 records)
+
+G704_VERIFY_EXIT=0
+harness: stopped 4 process group(s) from /tmp/g704-r3-1792123783366713190-run
+G704_STOP_EXIT=0
+
+G704_KEYRING_EXEC_EXIT=0
