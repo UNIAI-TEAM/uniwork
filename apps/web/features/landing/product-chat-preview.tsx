@@ -1,5 +1,7 @@
 "use client";
 
+import { DEMO_MEMBERS, DEMO_WORKSPACE } from "./product-demo-data";
+
 import { useState, type ReactNode, type RefCallback } from "react";
 import { Ellipsis, ListChecks, PanelLeftClose, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -34,9 +36,9 @@ export function ProductChatPreview({ messages = [], onSend, onTask, created = fa
   const [pinned, setPinned] = useState(false);
   const movie = step !== undefined;
   const taskCreated = movie ? step === 4 : created;
-  const rooms = ["UNICOM", "Product launch", "Minh Linh", "Hoàng Anh"];
+  const rooms = [DEMO_WORKSPACE.name, t("landing.studio.launchProject"), DEMO_MEMBERS[1]!.name, DEMO_MEMBERS[2]!.name];
   const bodies = [t("landing.studio.message1"), t("landing.actionDemo.chatTaskTitle"), t("landing.studio.message2"), ...messages];
-  const people = ["Minh Linh", "Hoàng Anh", "Đạt Đặng"];
+  const people = [DEMO_MEMBERS[1]!.name, DEMO_MEMBERS[2]!.name, DEMO_MEMBERS[0]!.name];
   const sampleNotice = () => setNotice(t("landing.lovable.sample"));
   const createDialog = movie ? step === 2 || step === 3 : creating;
   const sidebarContent = <aside className="product-chat-sidebar"><header><h2>{t("chat.title")}</h2><Button variant="ghost" size="icon" aria-label={t("chat.follow_up.list_title")} onClick={sampleNotice}><ListChecks aria-hidden /></Button><Button variant="ghost" size="icon" aria-label={t("chat.new_conversation_aria")} onClick={sampleNotice}><Plus aria-hidden /></Button><Button variant="ghost" size="icon" aria-label={t("chat.hide_conversations")} onClick={() => setSidebar(false)}><PanelLeftClose aria-hidden /></Button></header><div className="px-3 pb-3"><Input type="search" placeholder={t("chat.search_conversations")} aria-label={t("chat.search_conversations_label")} value={query} onChange={event => setQuery(event.target.value)} /></div><div className="flex gap-2 px-3 pb-2"><Button size="sm" variant="secondary">{t("chat.filter_all")}</Button><Button size="sm" variant="ghost" onClick={sampleNotice}>{t("chat.filter_activity_all")}</Button></div><nav aria-label={t("chat.sidebar_nav")}>{rooms.map((title, index) => title.toLowerCase().includes(query.toLowerCase()) && <SidebarNavItem key={title} active={room === index} onClick={() => { setRoom(index); if (compact) setSidebar(false); }} avatar={<ChatPresenceAvatar name={title} initials={index < 2 ? "U" : index === 2 ? "ML" : "HA"} size="lg" online={index > 1} />} title={title} fallbackSubtitle={index === 0 ? t("chat.workspace_room") : bodies[index % 3]} previewOptions={{ currentUserId: "demo", isGroup: index < 2, youLabel: t("chat.you"), voiceCallLabel: t("chat.sidebar_voice_call_preview"), voiceMessageLabel: t("chat.sidebar_voice_message_preview"), yesterdayLabel: t("chat.sidebar_yesterday") }} unread={index === 1 ? 2 : 0} unreadBadgesReady />)}</nav></aside>;
@@ -48,7 +50,7 @@ export function ProductChatPreview({ messages = [], onSend, onTask, created = fa
         <section className="product-chat-conversation" aria-label={rooms[room]}>
           <ChatConversationHeader avatar={<ChatPresenceAvatar name={rooms[room]!} initials={room < 2 ? "U" : room === 2 ? "ML" : "HA"} size="lg" online={room > 1} />} title={rooms[room]!} subtitle={room < 2 ? t("workspace.members", { count: 4 }) : t("chat.presence_online")} onBack={() => setSidebar(true)} backAriaLabel={t("chat.title")} sidebarCollapsed={!sidebar} onToggleSidebar={() => setSidebar(value => !value)} sidebarToggleAriaLabel={t("chat.title")} onSearch={sampleNotice} searchAriaLabel={t("chat.search_messages")} onOpenSettings={sampleNotice} settingsAriaLabel={t("chat.dm_settings")} onVoiceCall={sampleNotice} voiceCallAriaLabel={t("chat.sidebar_voice_call_preview")} onVideoCall={sampleNotice} videoCallAriaLabel={t("nav.meetings")} />
           <div className="product-chat-messages" role="log" aria-label={t("chat.title")}><p className="text-center text-caption text-muted-foreground">16/10/2026</p>{bodies.map((body, index) => <ChatMessageRow key={`${index}-${body}`} message={{ id: `demo-chat-${index}`, sender: people[index % 3]!, body, ts: new Date(2026, 9, 16, 9, 12 + index * 3).getTime(), reactions: index === 1 && reactions ? { "👍": 1 } : {}, pinned: index === 1 && pinned }} senderLabel={people[index % 3]!} isOwn={index > 1} showReadReceipt={index === bodies.length - 1} showSenderName onReply={() => setReply(body)} onReact={() => setReactions(value => !value)} onToggleReaction={() => setReactions(value => !value)} onPin={() => setPinned(value => !value)} onCopy={() => setNotice(t("landing.productDemo.saved"))} onCreateTask={() => setCreating(true)} onEdit={index > 1 ? () => setDraft(body) : undefined} onDelete={index > 1 ? sampleNotice : undefined} />)}
-            {taskCreated && <Button variant="outline" className="product-chat-task-result" data-demo-result="chat-task" onClick={onTask}><ListChecks aria-hidden />UNI-22 · {t("landing.actionDemo.chatTaskTitle")}</Button>}
+            {taskCreated && <Button variant="outline" className="product-chat-task-result" data-demo-result="chat-task" onClick={onTask}><ListChecks aria-hidden />DEMO-111 · {t("landing.actionDemo.chatTaskTitle")}</Button>}
             {movie && step === 1 && <div className="product-chat-movie-action" data-demo-target="create-from-message"><ListChecks aria-hidden />{t("landing.actionDemo.createFromMessage")}</div>}
             {movie && step === 0 && <span className="product-chat-movie-target" data-demo-target="message-menu"><Ellipsis aria-hidden /></span>}
           </div>

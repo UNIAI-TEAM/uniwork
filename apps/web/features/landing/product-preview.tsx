@@ -74,14 +74,14 @@ export function ProductPreview({ initialFeature = "tasks" }: { initialFeature?: 
   };
   const openChatTask = () => showTask(chatTaskCreated ? "followup" : "design");
   const createTask = (title: string) => {
-    const number = taskSequence.current++ + 22;
+    const number = taskSequence.current++ + 111;
     const key = `sample-${number}`;
-    setTasks(current => [...current, { key, title, identifier: `UNI-${number}`, state: "todo", person: "Đ", category: "product" }]);
+    setTasks(current => [...current, { key, title, identifier: `DEMO-${number}`, state: "todo", person: "Đ", category: "product" }]);
     showTask(key);
   };
   const manualPanel = (key: ProductFeature) => {
     switch (key) {
-      case "dashboard": return <ProductDemoHome onTask={createTask} onMeeting={(title, startsAt) => { setMeetings(current => [...current, { title, startsAt }]); selectFeature("meetings", true); }} />;
+      case "dashboard": return <ProductDemoHome onTask={createTask} onOpenTask={() => showTask("brief")} onOpenMeetings={() => selectFeature("meetings", true)} onMeeting={(title, startsAt) => { setMeetings(current => [...current, { title, startsAt }]); selectFeature("meetings", true); }} />;
       case "tasks": return <ProductTaskBoard open={taskOpen} onOpenChange={setTaskOpen} tasks={tasks} query={query} onQuery={setQuery} selected={selected} onSelect={setSelected} onStatus={(key, status) => setTasks(current => current.map(task => task.key === key ? { ...task, state: status } : task))} onChat={() => selectFeature("chat", true)} />;
       case "meetings": return <><div className="product-demo-created-meetings">{meetings.map((meeting, index) => <p key={index}>{meeting.title} · {meeting.startsAt.replace("T", " · ")}</p>)}</div><MeetingPreview onTask={createTask} /></>;
       case "chat": return <ProductChatPreview messages={messages} onSend={message => setMessages(current => [...current, message].slice(-8))} onTask={openChatTask} created={chatTaskCreated} onCreate={toggleChatTask} />;

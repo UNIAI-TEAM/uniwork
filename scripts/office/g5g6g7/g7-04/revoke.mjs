@@ -180,7 +180,7 @@ export const AI_DISABLED_OWNER = "g7-qa";
  * BLOCKED step — and this text is what the artifact names, never a PASS.
  */
 export const AI_CONTENT_BLOCKER = "turn-1 AI content not verifiable under the fake provider (real-AI round)";
-export const AI_CONTENT_OWNER = AI_DISABLED_OWNER;
+export const AI_CONTENT_OWNER = "g7-qa";
 export const REVOKE_OWNER = "g7-qa";
 
 /** The 403 a flag hides a UniWork capability with (service/ai_uniwork.go:498-514). */
