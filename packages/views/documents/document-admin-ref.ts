@@ -11,6 +11,7 @@ import type { DocumentAdminSummary } from "@uniwork/core/types/document-access";
 export interface DocumentAdminRef {
   id: string;
   organization_id: string;
+  workspace_id: string;
   visibility: Document["visibility"];
   owner_kind?: Document["owner_kind"];
   my_level?: Document["my_level"];
@@ -26,6 +27,7 @@ export function adminRefFromSummary(summary: DocumentAdminSummary): DocumentAdmi
   return {
     id: summary.document.id,
     organization_id: summary.document.organization_id,
+    workspace_id: summary.document.workspace_id,
     visibility: summary.document.visibility,
     // Both wait S-DOC06: absent reads as not owned and no revision.
     owner_kind: summary.document.owner_kind ?? null,

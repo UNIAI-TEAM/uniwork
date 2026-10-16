@@ -18,7 +18,7 @@ type CreateDocumentSDI struct {
 	ParentID   *string          `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; thư mục chỉ nằm trong thư mục; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Icon       *string          `json:"icon" description:"Emoji ≤ 8 ký tự" example:"📄"`
 	Content    *json.RawMessage `json:"content" description:"ProseMirror JSON {type:\"doc\"}; server sanitize trước khi lưu"`
-	Visibility string           `json:"visibility" description:"workspace (mặc định) hoặc restricted" example:"workspace"`
+	Visibility string           `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted" example:"restricted"`
 }
 
 // CreateDocumentFileSDI documents POST
@@ -30,9 +30,10 @@ type CreateDocumentSDI struct {
 // stream is consumed part-by-part); a title that trails the file falls back
 // to the sanitized filename.
 type CreateDocumentFileSDI struct {
-	File     []byte  `formData:"file" description:"Byte tài liệu; MIME phải trong allowlist document_file và khớp magic bytes"`
-	ParentID *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	Title    *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`
+	Visibility *string `formData:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
+	File       []byte  `formData:"file" description:"Byte tài liệu; MIME phải trong allowlist document_file và khớp magic bytes"`
+	ParentID   *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Title      *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`
 }
 
 // PatchDocumentSDI is PATCH /api/v1/documents/{documentID}: autosave and
@@ -238,10 +239,12 @@ type MoveDocumentSDI struct {
 // ShareDocumentSDI is POST /api/v1/documents/{documentID}/shares (C-01 §5.3).
 // A principal must belong to the document's organization; an existing live
 // grant for the same principal is revoked and replaced in one transaction.
+// A grant whose principal is the document's own workspace is written on its
+// home row instead (SH-S1): no document_shares row, at most the edit level.
 type ShareDocumentSDI struct {
 	PrincipalType string `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
 	PrincipalID   string `json:"principal_id" description:"ULID người/workspace, hoặc ULID tổ chức khi principal_type=organization" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Level         string `json:"level" description:"view, comment, edit hoặc manage" example:"view"`
+	Level         string `json:"level" description:"view, comment, edit hoặc manage (manage không nhận cho workspace chứa tài liệu -> 422 level_not_allowed)" example:"view"`
 }
 
 // BreakGlassSDI is POST /api/v1/documents/{documentID}/break-glass: a workspace

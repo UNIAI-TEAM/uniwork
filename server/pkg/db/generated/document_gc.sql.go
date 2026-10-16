@@ -723,7 +723,7 @@ WHERE id = $2
   AND content_saved_at IS NOT NULL
   AND content_saved_at < $6
   AND (last_version_at IS NULL OR last_version_at < content_saved_at)
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level
 `
 
 type MarkDocumentAutoVersionedParams struct {
@@ -788,6 +788,7 @@ func (q *Queries) MarkDocumentAutoVersioned(ctx context.Context, arg MarkDocumen
 		&i.UpdatedAt,
 		&i.ArchiveBatchID,
 		&i.ContentRevision,
+		&i.WorkspaceLevel,
 	)
 	return i, err
 }

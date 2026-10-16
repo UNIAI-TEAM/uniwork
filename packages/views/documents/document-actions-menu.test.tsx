@@ -186,7 +186,7 @@ describe("DocumentActionsMenu", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
 
     fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.share") }));
-    expect(await screen.findByRole("dialog", { name: t("documents.share.title") })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Báo cáo Q4" }) })).toBeInTheDocument();
     expect(screen.getByText(t("documents.share.admin_scope_note"))).toBeInTheDocument();
   });
 
@@ -278,7 +278,7 @@ describe("DocumentActionsMenu ?access=requests (DOC7-W02)", () => {
   it("opens Share at the requests section for a manager, focuses its heading, then drops the parameter", async () => {
     const nav = fakeNav(URL);
     renderMenu(documentFixture(), { nav });
-    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Báo cáo Q4" }) });
     const heading = await within(dialog).findByRole("heading", {
       name: t("documents.access_request.section_title", { count: 1 }),
     });
@@ -288,7 +288,7 @@ describe("DocumentActionsMenu ?access=requests (DOC7-W02)", () => {
 
   it("opens for a break-glass admin (view + admin_scope)", async () => {
     renderMenu(documentFixture({ my_level: "view", admin_scope: true }), { nav: fakeNav(URL) });
-    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Báo cáo Q4" }) });
     expect(await within(dialog).findByText("Chi")).toBeInTheDocument();
   });
 
