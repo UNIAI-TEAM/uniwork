@@ -63,7 +63,8 @@ const (
 )
 
 // commitIntentSweepBatch bounds one sweep statement; a pass repeats it until
-// a batch comes back short. commitIntentSweepTick is the pass cadence.
+// a batch comes back short. commitIntentSweepTick is the default pass cadence;
+// DOCUMENT_COMMIT_INTENT_SWEEP_TICK overrides it (config.Config).
 const (
 	commitIntentSweepBatch = 500
 	commitIntentSweepTick  = 10 * time.Minute
@@ -82,11 +83,12 @@ const (
 // office_capability_off for the sync write flag (the X-03 capability name).
 const officeSyncWriteCapability = "sync_write"
 
-// CommitIntentPolicy is the claim TTL and the resume window. A zero field
-// keeps the default.
+// CommitIntentPolicy is the claim TTL, the resume window and the sweep
+// cadence. A zero field keeps the default.
 type CommitIntentPolicy struct {
 	ClaimTTL  time.Duration
 	Retention time.Duration
+	SweepTick time.Duration
 	// Await bounds how long a retry waits on a live claim of the same
 	// payload (commitIntentAwait when zero; tests shorten it).
 	Await time.Duration
@@ -112,6 +114,13 @@ func (p CommitIntentPolicy) retention() time.Duration {
 	return r
 }
 
+func (p CommitIntentPolicy) sweepTick() time.Duration {
+	if p.SweepTick <= 0 {
+		return commitIntentSweepTick
+	}
+	return p.SweepTick
+}
+
 func (p CommitIntentPolicy) await() time.Duration {
 	if p.Await <= 0 {
 		return commitIntentAwait
@@ -119,7 +128,7 @@ func (p CommitIntentPolicy) await() time.Duration {
 	return p.Await
 }
 
-// SetCommitIntentPolicy sets the claim TTL and the resume window.
+// SetCommitIntentPolicy sets the claim TTL, the resume window and the sweep cadence.
 func (s *DocumentService) SetCommitIntentPolicy(p CommitIntentPolicy) { s.intentPolicy = p }
 
 // DocumentFlags is the flag evaluator the commit reads office_sync_write
@@ -444,6 +453,10 @@ func (s *DocumentService) lookupCommitIntent(ctx context.Context, actor Actor, d
 // until a batch comes back short or ctx ends. It is retention of a ledger, not
 // a business change, so it writes no audit row (like EventRetention).
 func (s *DocumentService) SweepCommitIntents(ctx context.Context) (int, error) {
+	if s.q == nil {
+		s.intentCounters().AddOfficeCommitIntentsSwept(0)
+		return 0, nil
+	}
 	total := 0
 	for ctx.Err() == nil {
 		n, err := s.q.SweepDocumentCommitIntents(ctx, commitIntentSweepBatch)
