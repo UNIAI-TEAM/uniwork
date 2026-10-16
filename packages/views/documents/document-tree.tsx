@@ -1,46 +1,29 @@
 "use client";
 
-import { ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronRight, RefreshCw, Star } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useDraggable,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
+  DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import { useDocumentTree, useMoveDocument } from "@uniwork/core/documents/hooks-collections";
+import { useDocumentFavorites } from "@uniwork/core/documents/hooks-favorites";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import { documentErrorMessage } from "./document-error-message";
 import {
-  DocumentTreeRowMenu,
-  isRowMenuShortcut,
-  TREE_ROW_KEYSHORTCUTS,
-  useTreeRowMenuDialogs,
-  type TreeRowMenuActions,
+  DocumentTreeRowMenu, isRowMenuShortcut, TREE_ROW_KEYSHORTCUTS, useTreeRowMenuDialogs, type TreeRowMenuActions,
 } from "./document-tree-row-menu";
 import { documentIconFormat, DocumentTypeIcon } from "./document-type-icon";
 import {
-  findTreeNode,
-  flattenTree,
-  foldersOnly,
-  loadMoveRevision,
-  moveRefused,
-  moveTooDeep,
-  siblingMovePosition,
-  siblingsOf,
-  subtreeIds,
-  type TreeRow,
+  findTreeNode, flattenTree, foldersOnly, loadMoveRevision, moveRefused, moveTooDeep,
+  siblingMovePosition, siblingsOf, subtreeIds, type TreeRow,
 } from "./document-tree-model";
 import { useTreeReveal } from "./use-tree-reveal";
 
@@ -62,6 +45,7 @@ function treeRowPaddingLeft(depth: number): number {
 interface TreeRowItemProps {
   wsId: string;
   row: TreeRow;
+  starred: boolean;
   expanded: boolean;
   focused: boolean;
   current: boolean;
@@ -77,20 +61,8 @@ interface TreeRowItemProps {
 }
 
 function TreeRowItem({
-  wsId,
-  row,
-  expanded,
-  focused,
-  current,
-  tabbable,
-  moving,
-  dragDisabled,
-  menuActions,
-  registerRef,
-  onFocusRequest,
-  onKeyDown,
-  onToggle,
-  onOpen,
+  wsId, row, starred, expanded, focused, current, tabbable, moving, dragDisabled,
+  menuActions, registerRef, onFocusRequest, onKeyDown, onToggle, onOpen,
 }: TreeRowItemProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -182,7 +154,10 @@ function TreeRowItem({
           <DocumentTypeIcon format={documentIconFormat(row.node.kind, row.node.title)} className="size-4" />
         )}
       </span>
-      <span title={label} className="min-w-0 flex-1 truncate">{label}</span>
+      <span title={label} className="min-w-0 truncate">{label}</span>
+      {starred ? (
+        <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
+      ) : null}
       <DocumentTreeRowMenu
         wsId={wsId}
         node={row.node}
@@ -239,7 +214,9 @@ export interface DocumentTreeProps {
  */
 export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = true, className, folders = false, currentId = null, emptyLabel }: DocumentTreeProps) {
   const { t } = useTranslation();
+  const orgId = useOptionalWorkspace()?.workspace.organization_id ?? "";
   const query = useDocumentTree(wsId, rootId, { enabled, foldersOnly: folders });
+  const favorites = useDocumentFavorites(orgId, { enabled: enabled && !!orgId });
   const move = useMoveDocument(wsId);
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -248,6 +225,10 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
   const [movingId, setMovingId] = useState<string | null>(null);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
+  const starredIds = useMemo(
+    () => new Set((favorites.data ?? []).filter((fav) => !fav.workspace_id || fav.workspace_id === wsId).map((fav) => fav.document_id)),
+    [favorites.data, wsId],
+  );
   const nodes = useMemo(() => {
     const forest = query.data?.documents ?? [];
     return folders ? foldersOnly(forest) : forest;
@@ -471,6 +452,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
               key={row.node.id}
               wsId={wsId}
               row={row}
+              starred={starredIds.has(row.node.id)}
               expanded={expanded.has(row.node.id)}
               focused={focusedId === row.node.id}
               current={currentId === row.node.id}
