@@ -440,7 +440,6 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
       });
       test.info().annotations.push({ type: "measured", description: JSON.stringify(ring) });
       expect(ring.focusVisible, "the selected option is not :focus-visible").toBe(true);
-      finding("UXF-01", "Floor › Focus ring: .ai-model-item.selected:focus-visible has outline 2px var(--accent) at >= 3:1 against accent-soft (pin: outline none; fixed on fork main 99e5a5253; owner: REPIN-1 (UNI-1825), lane g6-fork_ui)");
       expect(ring.style).not.toBe("none");
       expect(ring.width).toBeGreaterThanOrEqual(2);
       expect(await contrastIn(frame, ring.color, ring.bg)).toBeGreaterThanOrEqual(3);
@@ -479,7 +478,6 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
       manageInList: !!pop.querySelector('[role="listbox"] .ai-model-manage'),
     }));
     test.info().annotations.push({ type: "measured", description: JSON.stringify(roles) });
-    finding("UXF-08", "Floor › S7: role=listbox on .ai-model-pop-list, .ai-model-pop is a labelled group, Manage outside the listbox (pin: listbox on .ai-model-pop with Manage inside; fixed on fork main 99e5a5253; owner: REPIN-1 (UNI-1825), lane g6-fork_ui)");
     expect(roles).toEqual({ pop: "group", list: "listbox", manageInList: false });
   });
 
@@ -492,7 +490,6 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
     // RFE-202: a non-empty composer, so an empty-composer `disabled` can never pass for the disclosure gate.
     await frame.locator(COMPOSER).first().click();
     await page.keyboard.type("Tóm tắt tài liệu này.");
-    finding("UXF-09", "Floor › S8 / IA S8: a region labelled aiUniworkDisclosureLabel with 'Đã hiểu' before the first UniWork AI turn, and Send aria-disabled + aria-describedby until then (pin: strings only, no component renders it; fixed on fork main 99e5a5253; owner: REPIN-1 (UNI-1825), lane g6-fork_ui)");
     const region = frame.getByRole("region", { name: /Nội dung gửi tới UniWork AI|What UniWork AI receives/i });
     await expect(region).toBeVisible({ timeout: 10_000 });
     await expect(send, "Send is aria-disabled before the acknowledgement").toHaveAttribute("aria-disabled", "true");
