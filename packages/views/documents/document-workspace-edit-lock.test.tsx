@@ -214,8 +214,18 @@ describe("DocumentWorkspace edit lock", () => {
     await waitFor(() => expect(screen.getByRole("img", { name: "Minh đang sửa" })).toBeTruthy());
   });
 
-  it("?edit_request=<id> opens the holder's prompt; Decline answers with the held lock id", async () => {
-    const request = { request_id: "r1", document_id: "d1", requester_id: "u3", requester_name: "Chi", holder_id: "me", status: "pending", created_at: SINCE, expires_at: today(23, 59) };
+  it("?edit_request=<id> opens the holder's prompt with age and remaining minutes from the request; Decline answers with the held lock id (R6-1)", async () => {
+    const now = Date.now();
+    const request = {
+      request_id: "r1",
+      document_id: "d1",
+      requester_id: "u3",
+      requester_name: "Chi",
+      holder_id: "me",
+      status: "pending",
+      created_at: new Date(now - 5 * 60_000).toISOString(),
+      expires_at: new Date(now + 10 * 60_000).toISOString(),
+    };
     editLockRoute.mockImplementation((path: string, opts: RouteOpts) => {
       if ((opts?.method ?? "GET") === "GET") return Promise.resolve(lockState({ lock: { ...holder, holder_id: "me", holder_name: "Tôi", held_by_me: true }, pending_requests: [request] }));
       if (path.endsWith("/answer")) return Promise.resolve({ ...request, status: "declined" });
@@ -225,6 +235,7 @@ describe("DocumentWorkspace edit lock", () => {
     await findEditor();
     const prompt = await screen.findByRole("region", { name: "Chi muốn sửa tài liệu này" });
     await waitFor(() => expect(prompt).toHaveFocus());
+    expect(prompt).toHaveTextContent("5 phút trước · tự hết hạn sau 10 phút");
     fireEvent.click(within(prompt).getByRole("button", { name: "Từ chối" }));
     await waitFor(() => expect(editLockRoute.mock.calls.some(([path]) => String(path).endsWith("/edit-requests/r1/answer"))).toBe(true));
     const answer = editLockRoute.mock.calls.find(([path]) => String(path).endsWith("/answer"));

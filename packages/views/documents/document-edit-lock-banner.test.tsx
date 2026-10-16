@@ -160,18 +160,85 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
     expect(region).toHaveTextContent("Chưa lấy được quyền sửa. Thử lại sau ít phút.");
   });
 
-  it("incoming request (holder): the prompt shows the 15-min caption and offers save-and-hand-over, decline and close", () => {
-    const onAccept = vi.fn();
-    const onDecline = vi.fn();
-    const onDismiss = vi.fn();
-    render(<EditRequestPrompt requesterName="Bình" onAccept={onAccept} onDecline={onDecline} onDismiss={onDismiss} focusOnMount />);
-    const prompt = screen.getByRole("region", { name: "Bình muốn sửa tài liệu này" });
-    expect(prompt).toHaveFocus();
-    expect(prompt).toHaveTextContent("Vừa xong · tự hết hạn sau 15 phút");
-    fireEvent.click(screen.getByRole("button", { name: "Lưu và nhường quyền" }));
-    fireEvent.click(screen.getByRole("button", { name: "Từ chối" }));
-    fireEvent.click(screen.getByRole("button", { name: t("common.close") }));
-    expect([onAccept, onDecline, onDismiss].map((fn) => fn.mock.calls.length)).toEqual([1, 1, 1]);
+  it("incoming request (holder): the prompt shows the remaining minutes from expiresAt and offers save-and-hand-over, decline and close (R6-1)", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-16T10:00:00Z"));
+      const onAccept = vi.fn();
+      const onDecline = vi.fn();
+      const onDismiss = vi.fn();
+      render(
+        <EditRequestPrompt
+          requesterName="Bình"
+          createdAt="2026-10-16T09:59:40Z"
+          expiresAt="2026-10-16T10:15:00Z"
+          onAccept={onAccept}
+          onDecline={onDecline}
+          onDismiss={onDismiss}
+          focusOnMount
+        />,
+      );
+      const prompt = screen.getByRole("region", { name: "Bình muốn sửa tài liệu này" });
+      expect(prompt).toHaveFocus();
+      expect(prompt).toHaveTextContent("Vừa xong · tự hết hạn sau 15 phút");
+      fireEvent.click(screen.getByRole("button", { name: "Lưu và nhường quyền" }));
+      fireEvent.click(screen.getByRole("button", { name: "Từ chối" }));
+      fireEvent.click(screen.getByRole("button", { name: t("common.close") }));
+      expect([onAccept, onDecline, onDismiss].map((fn) => fn.mock.calls.length)).toEqual([1, 1, 1]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("incoming request (holder): a 5-minute-old request reads relative age and remaining minutes, and a malformed or missing expiresAt degrades to title only (R6-1)", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-16T10:05:00Z"));
+      const { unmount } = render(
+        <EditRequestPrompt
+          requesterName="Bình"
+          createdAt="2026-10-16T10:00:00Z"
+          expiresAt="2026-10-16T10:15:00Z"
+          onAccept={vi.fn()}
+          onDecline={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      const prompt = screen.getByRole("region", { name: "Bình muốn sửa tài liệu này" });
+      expect(prompt).toHaveTextContent("5 phút trước · tự hết hạn sau 10 phút");
+      expect(prompt).not.toHaveTextContent("Vừa xong");
+      unmount();
+
+      // Fallback when createdAt is absent: derives age from expiresAt - 15 min
+      const { unmount: unmountNoCreated } = render(
+        <EditRequestPrompt
+          requesterName="Bình"
+          expiresAt="2026-10-16T10:15:00Z"
+          onAccept={vi.fn()}
+          onDecline={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("region", { name: "Bình muốn sửa tài liệu này" })).toHaveTextContent("5 phút trước · tự hết hạn sau 10 phút");
+      unmountNoCreated();
+
+      // Malformed expiresAt: degrades to title only, never NaN
+      render(
+        <EditRequestPrompt
+          requesterName="Bình"
+          createdAt="2026-10-16T10:00:00Z"
+          expiresAt="not-a-date"
+          onAccept={vi.fn()}
+          onDecline={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      const malformedPrompt = screen.getByRole("region", { name: "Bình muốn sửa tài liệu này" });
+      expect(malformedPrompt).not.toHaveTextContent("tự hết hạn");
+      expect(malformedPrompt).not.toHaveTextContent("NaN");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("incoming request whose save failed: says nothing was handed over", () => {

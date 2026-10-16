@@ -307,6 +307,8 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
   const prompt = request
     ? {
         requesterName: request.requester_name,
+        createdAt: request.created_at,
+        expiresAt: request.expires_at,
         pending: accepting !== null || lock.answerRequest.isPending,
         saveFailed,
         focusOnMount: request.request_id === linked,

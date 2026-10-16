@@ -5,13 +5,16 @@ import { HandHelping, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { relativeTime } from "../notifications/relative-time";
 
 export interface EditRequestPromptProps {
   requesterName: string;
+  createdAt?: string | null;
+  expiresAt?: string | null;
   /** "Save and hand over": saves first, hands over only once the save landed. */
   onAccept: () => void;
   onDecline: () => void;
-  /** Close = ignore: the request runs out by itself (15 min). */
+  /** Close = ignore: the request runs out by itself. */
   onDismiss: () => void;
   pending?: boolean;
   /** The save before the handover failed: nothing was handed over. */
@@ -20,19 +23,51 @@ export interface EditRequestPromptProps {
   focusOnMount?: boolean;
 }
 
-const REQUEST_TTL_MINUTES = 15;
+const MINUTE_MS = 60_000;
+const FALLBACK_SPAN_MS = 15 * MINUTE_MS;
+
+function requestCaption(
+  createdAt: string | null | undefined,
+  expiresAt: string | null | undefined,
+  locale: string,
+  t: ReturnType<typeof useTranslation>["t"],
+): string | null {
+  if (!expiresAt) return null;
+  const expiresMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresMs)) return null;
+  const nowMs = Date.now();
+  const minutes = Math.max(1, Math.ceil((expiresMs - nowMs) / MINUTE_MS));
+  const parsedCreated = createdAt ? Date.parse(createdAt) : Number.NaN;
+  const originMs = Number.isFinite(parsedCreated) ? parsedCreated : expiresMs - FALLBACK_SPAN_MS;
+  if (nowMs - originMs < MINUTE_MS) {
+    return t("documents.editLock.incomingCaption", { minutes });
+  }
+  const age = relativeTime(new Date(originMs).toISOString(), locale, new Date(nowMs)) || t("documents.editLock.incomingJustNow");
+  return t("documents.editLock.incomingCaptionAged", { age, minutes });
+}
 
 /**
  * Someone asks the holder for the document (addendum §9 "Nhận yêu cầu"): a
  * prompt inside the editor, never a modal over the holder's work.
  */
-export function EditRequestPrompt({ requesterName, onAccept, onDecline, onDismiss, pending = false, saveFailed = false, focusOnMount = false }: EditRequestPromptProps) {
-  const { t } = useTranslation();
+export function EditRequestPrompt({
+  requesterName,
+  createdAt,
+  expiresAt,
+  onAccept,
+  onDecline,
+  onDismiss,
+  pending = false,
+  saveFailed = false,
+  focusOnMount = false,
+}: EditRequestPromptProps) {
+  const { t, i18n } = useTranslation();
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     if (focusOnMount) ref.current?.focus();
   }, [focusOnMount]);
   const title = t("documents.editLock.incomingTitle", { name: requesterName || t("documents.editLock.lostSomeone") });
+  const caption = requestCaption(createdAt, expiresAt, i18n.language, t);
   // A live region mounted together with its text is not reliably announced: the region exists first,
   // the sentence goes in on the next commit. The buttons stay outside it (a status region is re-read whole).
   const [announced, setAnnounced] = useState("");
@@ -49,9 +84,7 @@ export function EditRequestPrompt({ requesterName, onAccept, onDecline, onDismis
         <HandHelping aria-hidden className="mt-0.5 size-4 shrink-0" />
         <div className="min-w-0">
           <p className="text-body font-medium text-pretty">{title}</p>
-          <p className="text-caption text-muted-foreground">
-            {t("documents.editLock.incomingCaption", { minutes: REQUEST_TTL_MINUTES })}
-          </p>
+          {caption ? <p className="text-caption text-muted-foreground">{caption}</p> : null}
           <p role="status" aria-live="polite" className="sr-only">
             {announced}
           </p>
