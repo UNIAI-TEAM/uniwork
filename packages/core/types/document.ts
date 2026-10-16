@@ -137,7 +137,9 @@ export const DocumentSchema = z.object({
   breadcrumbs: z.array(DocumentBreadcrumbSchema).optional().default([]),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
-  archived_at: z.string().nullable().optional(),
+  archived_at: z.string().nullable().optional().catch(undefined),
+  archived_by: z.string().nullable().optional().catch(undefined),
+  purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
   updated_by: z.string().optional().default(""),
@@ -163,6 +165,19 @@ export function isMyFolder(
 ): boolean {
   switch (doc?.system_kind) {
     case "my_folder":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** True when the caller manages a trashed row (RESTORE-01): views use this to
+ *  enable Restore / Delete forever and disable them for view/edit/unknown. */
+export function canManageTrashed(
+  item: { my_level?: string | null } | null | undefined,
+): boolean {
+  switch (item?.my_level) {
+    case "manage":
       return true;
     default:
       return false;
@@ -313,7 +328,9 @@ export const DocumentSummarySchema = z.object({
   admin_scope: z.boolean().optional().catch(undefined),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
-  archived_at: z.string().nullable().optional(),
+  archived_at: z.string().nullable().optional().catch(undefined),
+  archived_by: z.string().nullable().optional().catch(undefined),
+  purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
   updated_by: z.string().optional().default(""),

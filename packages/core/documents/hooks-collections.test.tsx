@@ -6,6 +6,7 @@ import { ApiError } from "../api/http";
 import { setAccessToken } from "../api/session";
 import { isDocumentNotVerifiable } from "../types/document";
 import {
+  canManageTrashed,
   documentFilterKey,
   useArchiveDocument,
   useDocumentArchiveImpact,
@@ -579,6 +580,8 @@ describe("documents collection hooks", () => {
       await expectNotVerifiable(() => result.current.mutateAsync({ documentId: "d2" }));
     });
     expect(qc.getQueryState(trashKey)?.isInvalidated).toBe(false);
+    expect(canManageTrashed({ my_level: "manage" })).toBe(true);
+    expect(canManageTrashed({ my_level: "edit" })).toBe(false);
   });
 });
 
