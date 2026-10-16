@@ -172,12 +172,15 @@ func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, s
 // renders the receipt. Nobody else shows another person's read state, and
 // every client that hears one reloads its sidebar, so a room-wide read (or a
 // repeat that moved nothing) cost every open client a reload for nothing.
-func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, userID string, at pgtype.Timestamptz) {
+func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, userID string, at pgtype.Timestamptz) error {
 	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: room.ID, UserID: userID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return // reading a public channel without joining: no pointer to move
+		return nil // reading a public channel without joining: no pointer to move
+	}
+	if err != nil {
+		return err
 	}
 	// Before the pointer check: a notification that arrived after the last
 	// read still closes, so the next message pushes again (UNI-1665).
@@ -186,13 +189,13 @@ func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, us
 	}); err != nil {
 		slog.WarnContext(ctx, "chat: close room notifications", "room_id", room.ID, "user_id", userID, "error", err)
 	}
-	if err == nil && member.LastReadAt.Valid && !at.Time.After(member.LastReadAt.Time) {
-		return
+	if member.LastReadAt.Valid && !at.Time.After(member.LastReadAt.Time) {
+		return nil
 	}
 	if err := s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
 		RoomID: room.ID, UserID: userID, LastReadAt: at,
 	}); err != nil {
-		return
+		return err
 	}
 	ev := Event{
 		Type: "chat.room.read",
@@ -205,4 +208,5 @@ func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, us
 	if peerID, err := dmPeerUserID(room, userID); err == nil {
 		s.pub.SendToUser(ctx, peerID, ev)
 	}
+	return nil
 }
