@@ -1,0 +1,203 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18080 FRONTEND_ORIGIN=http://localhost:13000 API_PUBLIC_URL=http://localhost:18080 PREVIEW_ORIGIN=http://localhost:13001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18080 NEXT_PUBLIC_WS_URL=ws://localhost:18080 NEXT_PUBLIC_APP_URL=http://localhost:13000 E2E_BASE_URL=http://localhost:13000 E2E_API_URL=http://localhost:18080 OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1; pnpm --filter @uniwork/e2e exec playwright test admin-contrast.spec.ts auth-contrast.spec.ts landing.spec.ts landing-action-motion.spec.ts landing-business-os.spec.ts landing-chapters.spec.ts landing-closing.spec.ts landing-content-distill.spec.ts landing-demo-request.spec.ts landing-office-design.spec.ts landing-office-editions.spec.ts landing-opening.spec.ts landing-playback.spec.ts landing-realism.spec.ts landing-scroll.spec.ts landing-studio.spec.ts landing-trust.spec.ts landing-updates.spec.ts landing-why.spec.ts meeting-prejoin-contrast.spec.ts office-ux-floor.spec.ts onboarding-contrast.spec.ts verify.spec.ts documents-home.spec.ts --reporter=line --retries=0; rc=$?; echo "E2E_EXIT=$rc"; exit $rc
+
+Running 146 tests using 1 worker
+
+(node:18070) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:18070) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/146] admin-contrast.spec.ts:50:3 › tương phản chữ của console admin đạt WCAG AA — light
+[2/146] admin-contrast.spec.ts:50:3 › tương phản chữ của console admin đạt WCAG AA — dark
+[3/146] auth-contrast.spec.ts:16:3 › tương phản chữ đạt WCAG AA — /login light
+[4/146] auth-contrast.spec.ts:39:3 › tương phản chữ đạt WCAG AA — /register light
+[5/146] auth-contrast.spec.ts:16:3 › tương phản chữ đạt WCAG AA — /login dark
+[6/146] auth-contrast.spec.ts:39:3 › tương phản chữ đạt WCAG AA — /register dark
+[7/146] documents-home.spec.ts:48:1 › create card, folder, move and the other-modules section on the owner's home
+[8/146] documents-home.spec.ts:120:1 › the header Open UniWork Office falls back to the installer dialog when no app answers
+[9/146] documents-home.spec.ts:225:3 › a view-only member › sees create cards at the root, none inside a folder shared at view level
+[10/146] documents-home.spec.ts:246:3 › a view-only member › gets no Move or Archive on a row shared at view level
+[11/146] landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 1440-light
+[12/146] landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 768-light
+[13/146] landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 820-dark
+[14/146] landing-action-motion.spec.ts:94:1 › reduced motion keeps click results without spatial effects
+[15/146] landing-business-os.spec.ts:6:3 › Business OS shows all capabilities around four readable light previews
+[16/146] landing-business-os.spec.ts:6:3 › Business OS shows all capabilities around four readable dark previews
+[17/146] landing-business-os.spec.ts:51:1 › the full Business OS gallery fits mobile in English
+[18/146] landing-business-os.spec.ts:73:1 › previews respond to keyboard and respect reduced motion
+[19/146] landing-business-os.spec.ts:101:1 › gallery motion pauses on request and outside the viewport
+[20/146] landing-chapters.spec.ts:16:3 › public chapters 1440-vi-light
+[21/146] landing-chapters.spec.ts:16:3 › public chapters 390-en-dark
+[22/146] landing-chapters.spec.ts:16:3 › public chapters 1510-en-dark
+[23/146] landing-chapters.spec.ts:16:3 › public chapters 768-vi-light
+[24/146] landing-chapters.spec.ts:16:3 › public chapters 320-vi-light
+[25/146] landing-chapters.spec.ts:92:1 › contextual closing demo links open their actual preview
+[26/146] landing-closing.spec.ts:18:3 › product-led closing /features/tasks 1440-en-light
+[27/146] landing-closing.spec.ts:18:3 › product-led closing / 1554-vi-dark
+[28/146] landing-closing.spec.ts:18:3 › product-led closing /features/tasks 768-vi-light
+[29/146] landing-closing.spec.ts:18:3 › product-led closing /features/tasks 390-en-dark
+[30/146] landing-closing.spec.ts:18:3 › product-led closing / 390-vi-light
+[31/146] landing-closing.spec.ts:18:3 › product-led closing /solutions/product 1254-vi-light
+[32/146] landing-closing.spec.ts:18:3 › product-led closing /solutions/operations 390-en-dark
+[33/146] landing-closing.spec.ts:18:3 › product-led closing /features/documents 1510-en-dark
+[34/146] landing-closing.spec.ts:18:3 › product-led closing /features/documents 320-vi-light
+[35/146] landing-content-distill.spec.ts:10:3 › introduction content is consolidated 1440-vi-light
+[36/146] landing-content-distill.spec.ts:10:3 › introduction content is consolidated 390-en-dark
+[37/146] landing-demo-request.spec.ts:8:2 › demo request keeps details on failure and confirms a saved receipt at 1440px
+[38/146] landing-demo-request.spec.ts:8:2 › demo request keeps details on failure and confirms a saved receipt at 390px
+[39/146] landing-demo-request.spec.ts:45:2 › hero and demo text stay readable in light mode
+[40/146] landing-demo-request.spec.ts:45:2 › hero and demo text stay readable in dark mode
+[41/146] landing-office-design.spec.ts:20:3 › Office B has working themed editors at 1306px light en
+[42/146] landing-office-design.spec.ts:20:3 › Office B has working themed editors at 1440px dark vi
+[43/146] landing-office-design.spec.ts:20:3 › Office B has working themed editors at 768px light en
+[44/146] landing-office-design.spec.ts:20:3 › Office B has working themed editors at 390px light vi
+[45/146] landing-office-design.spec.ts:20:3 › Office B has working themed editors at 390px dark en
+[46/146] landing-office-design.spec.ts:112:1 › Office images follow an explicit theme change
+[47/146] landing-office-editions.spec.ts:10:3 › Office menu keeps Enterprise and truthful upcoming Personal at 1440px in light
+[48/146] landing-office-editions.spec.ts:10:3 › Office menu keeps Enterprise and truthful upcoming Personal at 390px in dark
+[49/146] landing-office-editions.spec.ts:36:1 › Office trial opens a published Windows installer download
+[50/146] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1440px
+[51/146] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1280px
+[52/146] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1240px
+[53/146] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1239px
+[54/146] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1100px
+[55/146] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 768px
+[56/146] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 390px
+[57/146] landing-opening.spec.ts:109:3 › opening supports English and dark mode at 1440px
+[58/146] landing-opening.spec.ts:109:3 › opening supports English and dark mode at 390px
+[59/146] landing-opening.spec.ts:127:1 › opening respects a changed reduced-motion preference
+[60/146] landing-playback.spec.ts:8:1 › preview plays a real sequence, pauses and stops outside the viewport
+[61/146] landing-playback.spec.ts:29:1 › reduced motion is still by default and manual exploration retains local actions
+[62/146] landing-playback.spec.ts:49:3 › every storyboard reaches its last beat without clipping at 1440px
+[63/146] landing-playback.spec.ts:99:1 › storyboards become readable three-step stories at 390px
+[64/146] landing-playback.spec.ts:121:1 › original UNI wears the shared mark and retains its static fallback
+[65/146] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: desktop-vi
+[66/146] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: desktop-en
+[67/146] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: mobile-vi
+[68/146] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: mobile-en
+[69/146] landing-realism.spec.ts:11:3 › pending and source destination stay readable at 1440px
+[70/146] landing-realism.spec.ts:11:3 › pending and source destination stay readable at 820px
+[71/146] landing-realism.spec.ts:46:1 › Today and Projects task links open manual details even on direct entry
+[72/146] landing-realism.spec.ts:68:1 › chat waits for creation before attaching the task
+[73/146] landing-realism.spec.ts:85:1 › email keeps the same thread and Ask UNI only opens its cited source
+[74/146] landing-realism.spec.ts:114:1 › assignment opens details and a member picker without completing the task
+[75/146] landing-realism.spec.ts:136:1 › screen sharing needs source selection and confirmation; planned entries never autoplay
+[76/146] landing-scroll.spec.ts:7:3 › all explorer states and disclosures have translated text and labels: vi
+[77/146] landing-scroll.spec.ts:7:3 › all explorer states and disclosures have translated text and labels: en
+[78/146] landing-scroll.spec.ts:38:1 › grouped feature navigation supports keyboard selection
+[79/146] landing-scroll.spec.ts:58:1 › security and roadmap details are available without overwhelming the default view
+[80/146] landing-scroll.spec.ts:74:1 › decision sections use prominent semantic icon anchors
+[81/146] landing-scroll.spec.ts:103:1 › trust band explains provider choice without repeating security claims
+[82/146] landing-scroll.spec.ts:118:1 › feature selector stays visible in reduced motion without a decorative rail
+[83/146] landing-studio.spec.ts:8:1 › studio demo switches views and tabs locally, with keyboard support
+[84/146] landing-studio.spec.ts:39:1 › mobile menu closes with Escape and returns focus
+[85/146] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop
+[86/146] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile
+[87/146] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: user-1294
+[88/146] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop-dark-en
+[89/146] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile-dark-en
+[90/146] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1536 en light
+[91/146] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1280 vi dark
+  1) landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1280 vi dark ─────────────
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for locator('.site-header a[href="/"]').first()
+
+
+      24 |       // Client navigation retains global styles from the feature route.
+      25 |       await gotoLanding(page, "/features/tasks");
+    > 26 |       await page.locator('.site-header a[href="/"]').first().click();
+         |                                                              ^
+      27 |     } else {
+      28 |       await gotoLanding(page, "/");
+      29 |     }
+        at /workspace/e2e/landing-trust.spec.ts:26:62
+
+    Error Context: test-results/landing-trust-trust-chapte-7d555-act-and-usable-1280-vi-dark/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-trust-trust-chapte-7d555-act-and-usable-1280-vi-dark/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-trust-trust-chapte-7d555-act-and-usable-1280-vi-dark/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+(node:19465) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:19465) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[92/146] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 768 vi light
+[93/146] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 390 en dark
+[94/146] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 390 vi light
+[95/146] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 320 vi dark
+[96/146] landing-updates.spec.ts:8:1 › new product stories are local demos with truthful availability
+[97/146] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-vi
+[98/146] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-en
+[99/146] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-vi
+[100/146] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-en
+[101/146] landing-updates.spec.ts:65:1 › workspace finishes revealing without extra scrolling and respect reduced motion
+[102/146] landing-why.spec.ts:14:3 › Why UniWork — 1440px vi light
+[103/146] landing-why.spec.ts:14:3 › Why UniWork — 1510px en dark
+[104/146] landing-why.spec.ts:14:3 › Why UniWork — 768px en light
+[105/146] landing-why.spec.ts:14:3 › Why UniWork — 390px en dark
+[106/146] landing-why.spec.ts:14:3 › Why UniWork — 320px vi light
+[107/146] landing.spec.ts:48:3 › landing › dải tin cậy, FAQ và hai trang giải pháp
+[108/146] landing.spec.ts:137:3 › landing › đổi ngôn ngữ và chế độ sáng tối ngay trên header
+[109/146] landing.spec.ts:171:3 › landing › mỗi request nhận đúng ngôn ngữ của chính nó
+[110/146] landing.spec.ts:194:5 › landing › tương phản chữ đạt WCAG AA — light
+[111/146] landing.spec.ts:194:5 › landing › tương phản chữ đạt WCAG AA — dark
+[112/146] meeting-prejoin-contrast.spec.ts:20:3 › chữ trong khung camera tắt ở màn chuẩn bị vào họp đạt WCAG AA — light
+[113/146] meeting-prejoin-contrast.spec.ts:20:3 › chữ trong khung camera tắt ở màn chuẩn bị vào họp đạt WCAG AA — dark
+[114/146] office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light vi
+[115/146] office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light en
+[116/146] office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark vi
+[117/146] office-ux-floor.spec.ts:78:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark en
+[118/146] office-ux-floor.spec.ts:123:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › DOM order = visual order = the standard order, default focus Cancel, Tab stays in, the rest is inert
+[119/146] office-ux-floor.spec.ts:168:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › aria-disabled choices (web offline) stay in the Tab loop with a reason
+[120/146] office-ux-floor.spec.ts:189:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy sits between Reload and Overwrite with edit access
+[121/146] office-ux-floor.spec.ts:200:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Docs shows 'Xem khác biệt' before Reload
+[122/146] office-ux-floor.spec.ts:212:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › the window live nodes stay outside the inert tree while S5 is open
+[123/146] office-ux-floor.spec.ts:224:3 › live regions (Floor › Vùng live) › the frame has its two fixed live nodes from load, before any bar
+[124/146] office-ux-floor.spec.ts:239:3 › live regions (Floor › Vùng live) › an S6 bar is read once, through the window node; the bar itself is not live
+[125/146] office-ux-floor.spec.ts:267:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 buttons keep a visible border, not colour alone
+[126/146] office-ux-floor.spec.ts:284:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 aria-disabled buttons use GrayText text and border
+[127/146] office-ux-floor.spec.ts:314:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable
+[128/146] office-ux-floor.spec.ts:335:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable
+[129/146] office-ux-floor.spec.ts:353:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 390px: S5 full width minus 16px margins, buttons stacked
+[130/146] office-ux-floor.spec.ts:353:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 600px: S5 full width minus 16px margins, buttons stacked
+[131/146] office-ux-floor.spec.ts:373:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › reduced motion: no slide/fade on S6 or S5
+[132/146] office-ux-floor.spec.ts:394:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer)
+[133/146] office-ux-floor.spec.ts:406:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi
+[134/146] office-ux-floor.spec.ts:406:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en
+[135/146] office-ux-floor.spec.ts:424:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — light
+[136/146] office-ux-floor.spec.ts:406:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi
+[137/146] office-ux-floor.spec.ts:406:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en
+[138/146] office-ux-floor.spec.ts:424:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — dark
+[139/146] office-ux-floor.spec.ts:450:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected picker option has a 2px Highlight border, not only a fill
+[140/146] office-ux-floor.spec.ts:472:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it
+[141/146] office-ux-floor.spec.ts:486:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S8 disclosure region shows on the first UniWork AI turn and gates Send
+[142/146] onboarding-contrast.spec.ts:13:3 › tương phản chữ đạt WCAG AA — light
+[143/146] onboarding-contrast.spec.ts:13:3 › tương phản chữ đạt WCAG AA — dark
+[144/146] verify.spec.ts:10:1 › mã sai → lỗi; gửi lại đang khoá; mã đúng → onboarding; cổng chặn khi chưa xác thực
+[145/146] verify.spec.ts:39:1 › nút Google chỉ hiện khi server báo có Google
+[146/146] verify.spec.ts:47:1 › tương phản chữ đạt WCAG AA — /verify light và dark
+  1 failed
+    landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1280 vi dark ──────────────
+  29 skipped
+  116 passed (10.0m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test admin-contrast.spec.ts auth-contrast.spec.ts landing.spec.ts landing-action-motion.spec.ts landing-business-os.spec.ts landing-chapters.spec.ts landing-closing.spec.ts landing-content-distill.spec.ts landing-demo-request.spec.ts landing-office-design.spec.ts landing-office-editions.spec.ts landing-opening.spec.ts landing-playback.spec.ts landing-realism.spec.ts landing-scroll.spec.ts landing-studio.spec.ts landing-trust.spec.ts landing-updates.spec.ts landing-why.spec.ts meeting-prejoin-contrast.spec.ts office-ux-floor.spec.ts onboarding-contrast.spec.ts verify.spec.ts documents-home.spec.ts --reporter=line --retries=0
+E2E_EXIT=1
