@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   ENGINE_CONTRACT_VERSION,
+  ENGINE_LIMITS,
   ENGINE_PROTOCOL_VERSION,
   ENGINE_ERROR_CODES,
   EngineBoundaryError,
@@ -38,6 +39,16 @@ describe("contract constants", () => {
       expect(spec.kind.length, code).toBeGreaterThan(0);
       expect(typeof spec.retryable, code).toBe("boolean");
     }
+  });
+
+  it("carries the 2 GiB document-cap ceiling so a 200 MiB document and any configured cap pass", () => {
+    // SIZE-S1 (UNI-1859): one byte ceiling for documents. The boundary bound
+    // is the top of the DOCUMENT_MAX_BYTES range (2 GiB), not the 200 MiB
+    // default, so raising the configured cap never hits a stale protocol max.
+    // Output mirrors it: a grant's output.max_bytes is the same document cap.
+    const TWO_GIB = 2 * 1024 * 1024 * 1024;
+    expect(ENGINE_LIMITS.max_input_bytes).toBe(TWO_GIB);
+    expect(ENGINE_LIMITS.max_output_bytes).toBe(TWO_GIB);
   });
 });
 
@@ -149,6 +160,19 @@ describe("validateEnvelope", () => {
     expect(out.operation).toBe("cancel");
     expect(out.deadlineMs).toBeNull();
   });
+
+  it("rejects a declared input_length over the document-cap ceiling without reading the bytes", async () => {
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_length = ENGINE_LIMITS.max_input_bytes + 1;
+    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+      name: "EngineContractViolation",
+      field_path: "envelope.payload.input_length",
+    });
+  });
+
 });
 
 describe("canonicalJson + base64", () => {

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { signGrant } from "./grants.ts";
+import { signGrant, type ServiceGrant } from "./grants.ts";
 import {
   call,
   errorCode,
@@ -299,6 +299,58 @@ describe("submit, status and output hand-off", () => {
     await submit(h, { token, envelope });
     const done = await waitTerminal(h, { grant: job.grant, token });
     expect(done.body.error).toMatchObject({ code: "engine_result_invalid", reason: "invalid_utf8" });
+  });
+});
+
+describe("input byte bounds (SIZE-S1)", () => {
+  const MiB = 1024 * 1024;
+  const bigGrant = (target: Harness["target"], jobId: string): ServiceGrant["output"] => ({
+    file_id: "file-" + jobId,
+    url: target.origin + "/put/" + jobId + "?sig=abc",
+    method: "PUT",
+    headers: { "content-type": "text/markdown" },
+    expires_at: Date.now() + 60_000,
+    max_bytes: 200 * MiB,
+  });
+
+  it("accepts an input above the old 50 MiB bound and completes end to end", async () => {
+    // A document the server now accepts (50 MiB < size <= DOCUMENT_MAX_BYTES)
+    // must get past the body cap, the envelope bound and the service gate,
+    // and its output must PUT un-truncated past the 64 MiB read buffer.
+    const bytes = Buffer.alloc(50 * MiB + 1, "a");
+    const job = makeJob(h.target, { bytes, operation: "serialize", format: "md" });
+    job.grant.output = bigGrant(h.target, job.grant.job_id);
+    job.token = signGrant(job.grant, GRANT_KEY);
+    const res = await submit(h, job);
+    expect(res.status).toBe(202);
+    const done = await waitTerminal(h, job, 90_000);
+    expect(done.body.state).toBe("completed");
+    const upload = h.target.uploads.find((u) => u.path.includes(job.grant.job_id));
+    expect(upload?.body.length).toBe(bytes.length);
+  });
+
+  it("refuses an input over the document cap with upload_bounds and no job", async () => {
+    const bytes = Buffer.alloc(200 * MiB + 1, "a");
+    const job = makeJob(h.target, { bytes, operation: "serialize", format: "md" });
+    job.grant.output = bigGrant(h.target, job.grant.job_id);
+    job.token = signGrant(job.grant, GRANT_KEY);
+    const res = await submit(h, job);
+    expect(res.status).toBe(413);
+    expect(errorCode(res)).toBe("upload_bounds");
+    const err = res.body.error;
+    const maxBytes = err !== null && typeof err === "object" && "max_input_bytes" in err ? err.max_input_bytes : undefined;
+    expect(maxBytes).toBe(200 * MiB);
+    const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
+    expect(status.status).toBe(404);
+  });
+
+  it("refuses a body over the base64 envelope cap before buffering it", async () => {
+    // The envelope cap is ceil(input cap * 4/3) + 64 KiB: a body past it can
+    // only fail as upload_bounds, whatever it would have parsed to.
+    const bodyLimit = Math.ceil(((200 * MiB) * 4) / 3) + 64 * 1024;
+    const res = await call(h, "POST", "/v1/jobs", { rawBody: "x".repeat(bodyLimit + 1) });
+    expect(res.status).toBe(413);
+    expect(errorCode(res)).toBe("upload_bounds");
   });
 });
 

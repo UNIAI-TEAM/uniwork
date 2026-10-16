@@ -113,13 +113,14 @@ officeEngine:
     pullPolicy: IfNotPresent
   # Must match OFFICE_ENGINE_PORT in uniwork-office-engine.env.
   port: 8090
-  # tmpfs pages count against the memory limit: 512Mi /tmp (2 workers x 256 MiB
-  # temp) + 2 x 512 MiB job RSS + the service itself stays under 2Gi.
-  tmpSizeLimit: 512Mi
+  # tmpfs pages count against the memory limit: 1Gi /tmp (2 workers x 512 MiB
+  # temp — a 200 MiB job holds input + output + headroom on disk) + 2 x 512 MiB
+  # job RSS + the service itself stays under 2560Mi.
+  tmpSizeLimit: 1Gi
   terminationGracePeriodSeconds: 15
   resources:
     requests: { cpu: 250m, memory: 512Mi }
-    limits: { cpu: "2", memory: 2Gi }
+    limits: { cpu: "2", memory: 2560Mi }
   securityContext:
     # The supervisor runs as uid 0 to drop each worker to its slot uid; every
     # capability it does not need stays dropped (compose cap_add list). The

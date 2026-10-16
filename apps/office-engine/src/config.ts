@@ -69,10 +69,14 @@ export const PROVISIONAL_LIMITS: JobLimits = {
   maxJobMs: 120_000,
   cpuMs: 60_000,
   memoryBytes: 512 * MiB,
-  tempBytes: 256 * MiB,
-  // DocumentFile policy caps a Document version at 50 MiB (files/registry.go).
-  maxInputBytes: 50 * MiB,
-  maxOutputBytes: 50 * MiB,
+  // A job's temp dir holds its input and output files on disk at once; the
+  // effective floor is max(this, in + out + 64 MiB) — see loadConfig.
+  tempBytes: 512 * MiB,
+  // The document cap is the one ceiling (SIZE-S1, UNI-1859): DOCUMENT_MAX_BYTES
+  // defaults to 200 MiB, so the engine must take jobs that size. An engine
+  // refusal above this but below the cap is a bug, not a policy.
+  maxInputBytes: 200 * MiB,
+  maxOutputBytes: 200 * MiB,
 };
 
 /** Per-job uid sandbox (G2-05). Each worker slot owns one uid/gid; the pool
@@ -100,6 +104,16 @@ function positiveInt(env: Record<string, string | undefined>, key: string, fallb
   if (!Number.isSafeInteger(value) || value <= 0) throw new ConfigError(key + " must be a positive integer");
   if (max !== undefined && value > max) throw new ConfigError(key + " must be at most " + max);
   return value;
+}
+
+/** Per-job byte bound: the engine env wins, then the shared document cap
+ *  (DOCUMENT_MAX_BYTES, the one value that also configures the server), then
+ *  the provisional default. contractMax pins the top of the range the shared
+ *  contract allows. */
+function byteLimit(env: Record<string, string | undefined>, key: string, fallback: number, contractMax: number): number {
+  const shared = env[key] === undefined || env[key] === "" ? env.DOCUMENT_MAX_BYTES : undefined;
+  if (shared !== undefined) return positiveInt(env, "DOCUMENT_MAX_BYTES", fallback, contractMax);
+  return positiveInt(env, key, fallback, contractMax);
 }
 
 function secret(env: Record<string, string | undefined>, key: string): string {
@@ -159,6 +173,19 @@ export function loadConfig(env: Record<string, string | undefined>, defaults: { 
     throw new ConfigError("OFFICE_ENGINE_GRANT_KEY must differ from OFFICE_ENGINE_SERVICE_TOKEN");
   }
   const maxWorkers = positiveInt(env, "OFFICE_ENGINE_MAX_WORKERS", 2, 64);
+  const maxInputBytes = byteLimit(env, "OFFICE_ENGINE_MAX_INPUT_BYTES", PROVISIONAL_LIMITS.maxInputBytes, ENGINE_LIMITS.max_input_bytes);
+  const maxOutputBytes = byteLimit(env, "OFFICE_ENGINE_MAX_OUTPUT_BYTES", PROVISIONAL_LIMITS.maxOutputBytes, ENGINE_LIMITS.max_output_bytes);
+  // The job's temp dir holds input.bin and output.bin at once plus scratch:
+  // temp must fit in + out + 64 MiB headroom; unset, it takes the provisional
+  // 512 MiB budget or more when the caps need it. Refuse here, at boot — a
+  // job dying temp_limit mid-run is worse than a pod that will not start.
+  const tempFloorBytes = maxInputBytes + maxOutputBytes + 64 * MiB;
+  const tempMb = positiveInt(env, "OFFICE_ENGINE_TEMP_MB", Math.max(PROVISIONAL_LIMITS.tempBytes / MiB, Math.ceil(tempFloorBytes / MiB)), 65536);
+  if (tempMb * MiB < tempFloorBytes) {
+    throw new ConfigError(
+      "OFFICE_ENGINE_TEMP_MB must be at least " + Math.ceil(tempFloorBytes / MiB) + " (input + output + 64 MiB headroom)",
+    );
+  }
   return {
     host: env.OFFICE_ENGINE_HOST ?? "0.0.0.0",
     port: positiveInt(env, "OFFICE_ENGINE_PORT", 8090, 65535),
@@ -171,9 +198,9 @@ export function loadConfig(env: Record<string, string | undefined>, defaults: { 
       maxJobMs: positiveInt(env, "OFFICE_ENGINE_MAX_JOB_MS", PROVISIONAL_LIMITS.maxJobMs, ENGINE_LIMITS.max_deadline_ms),
       cpuMs: positiveInt(env, "OFFICE_ENGINE_CPU_MS", PROVISIONAL_LIMITS.cpuMs, ENGINE_LIMITS.max_deadline_ms),
       memoryBytes: positiveInt(env, "OFFICE_ENGINE_MEMORY_MB", PROVISIONAL_LIMITS.memoryBytes / MiB, 16384) * MiB,
-      tempBytes: positiveInt(env, "OFFICE_ENGINE_TEMP_MB", PROVISIONAL_LIMITS.tempBytes / MiB, 65536) * MiB,
-      maxInputBytes: positiveInt(env, "OFFICE_ENGINE_MAX_INPUT_BYTES", PROVISIONAL_LIMITS.maxInputBytes, ENGINE_LIMITS.max_input_bytes),
-      maxOutputBytes: positiveInt(env, "OFFICE_ENGINE_MAX_OUTPUT_BYTES", PROVISIONAL_LIMITS.maxOutputBytes, ENGINE_LIMITS.max_output_bytes),
+      tempBytes: tempMb * MiB,
+      maxInputBytes,
+      maxOutputBytes,
     },
     tempRoot: env.OFFICE_ENGINE_TEMP_DIR || defaults.tempRoot,
     workerEntry: defaults.workerEntry,
