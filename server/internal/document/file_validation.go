@@ -324,9 +324,9 @@ func validateOLE(r io.ReaderAt, size int64, contentType string) (FileFacts, erro
 	return FileFacts{Format: format}, nil
 }
 
-// validateText reads the whole file (up to TextScanBytes, which covers the
-// 50 MiB cap) in chunks and refuses invalid UTF-8 or NUL bytes: FileService
-// only checks the first 64 KiB (FS-C1 §9.1 known limit).
+// validateText reads the whole file (up to TextScanBytes, which follows the
+// configured document_file cap) in chunks and refuses invalid UTF-8 or NUL
+// bytes: FileService only checks the first 64 KiB (FS-C1 §9.1 known limit).
 func validateText(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, error) {
 	limit := min64(size, limits.TextScanBytes)
 	const chunk = 64 << 10

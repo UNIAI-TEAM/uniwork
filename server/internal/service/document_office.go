@@ -167,16 +167,18 @@ type OfficeJobInput struct {
 // documentFileMaxBytesFor reads the DocumentFile policy cap from f's
 // registry when f exposes one, or from files.DefaultRegistry() otherwise.
 func documentFileMaxBytesFor(f files.Service) int64 {
-	if r, ok := f.(interface{ Registry() files.Registry }); ok && r != nil {
-		if spec, err := r.Registry().Lookup(files.DocumentFile); err == nil && spec.Policy.MaxBytes > 0 {
-			return spec.Policy.MaxBytes
-		}
+	if p := documentFilePolicyFor(f); p.MaxBytes > 0 {
+		return p.MaxBytes
 	}
-	spec, err := files.DefaultRegistry().Lookup(files.DocumentFile)
-	if err != nil {
-		return files.DefaultDocumentMaxBytes
-	}
-	return spec.Policy.MaxBytes
+	return files.DefaultDocumentMaxBytes
+}
+
+// documentFilePolicy is the DocumentFile policy of this service's registry:
+// the cap and allowlist the same FileService enforces at upload (UNI-1859,
+// R1-2). document_sources.go reads it so can_save and Save's early refusal
+// judge a source file against the configured cap, not a cached default.
+func (s *DocumentService) documentFilePolicy() files.Policy {
+	return documentFilePolicyFor(s.files)
 }
 
 func (s *DocumentService) documentFileMaxBytes() int64 {

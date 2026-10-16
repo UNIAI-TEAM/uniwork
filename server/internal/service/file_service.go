@@ -92,8 +92,8 @@ type FileServiceOptions struct {
 	// Registry is the purpose table. Nil loads files.DefaultRegistry (or
 	// files.SpecsWithDocumentMaxBytes when DocumentMaxBytes > 0).
 	Registry *files.Registry
-	// DocumentMaxBytes overrides the document_file policy cap (and raises the
-	// export caps to max(100 MiB, DocumentMaxBytes)) when Registry is nil.
+	// DocumentMaxBytes overrides only the document_file policy cap when
+	// Registry is nil; audit/tenant exports stay at 100 MiB.
 	DocumentMaxBytes int64
 	// Signer overrides the store's own URL signing; nil uses the store.
 	Signer FileObjectSigner

@@ -143,12 +143,10 @@ func (s *DocumentOfficeService) versionExportInput(ctx context.Context, actor Ac
 	return officeExportInputWithCap(raw, limit)
 }
 
-// officeExportInput measures supplied bytes. They must fit the DocumentFile
-// cap and start like a ZIP container; the engine validates the rest.
-func officeExportInput(raw []byte) (officeInput, error) {
-	return officeExportInputWithCap(raw, documentFileMaxBytesFor(nil))
-}
-
+// officeExportInputWithCap measures supplied bytes. They must fit the
+// DocumentFile cap (the caller's own registry, or the default when maxBytes
+// is not positive) and start like a ZIP container; the engine validates the
+// rest.
 func officeExportInputWithCap(raw []byte, maxBytes int64) (officeInput, error) {
 	if maxBytes <= 0 {
 		maxBytes = documentFileMaxBytesFor(nil)
