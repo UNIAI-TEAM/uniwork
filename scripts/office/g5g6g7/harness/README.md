@@ -642,9 +642,13 @@ off refuses turn 1 with `403 office_capability_off` and names the flag in
 `error.fields.capability` (`ai_uniwork`, or the format, e.g. `ai_uniwork_xlsx`;
 `service/ai_uniwork.go:498-514`): that row is **BLOCKED** (exit 77) with that
 capability named in the blocker — never a PASS, whatever turn 2 answers —
-because no turn ever worked and nothing about the revoke can be concluded. A
-turn 1 that answered anything else but `200` (and is not the fake deployment's
-`503 ai_disabled`) is a **FAIL** naming both routes' status and code. A
+because no turn ever worked and nothing about the revoke can be concluded. That
+BLOCKED needs BOTH routes to answer that same refusal (BE-704-451): one route
+refusing while the other answers a 5xx or times out is not a capability blocker —
+the other route failed on its own — and the row is the `turn1_not_200` **FAIL**
+carrying both measured cells. A turn 1 that answered anything else but `200`
+(and is not the fake deployment's `503 ai_disabled`) is a **FAIL** naming both
+routes' status and code. A
 capability that turns off **between** the two turns (turn 1 `200` on both, turn 2
 `office_capability_off`) is a **FAIL** named as that capability flip, not as a
 revoke result (D2-03). The run-level test drives that flip through `downgrade` —
@@ -693,9 +697,21 @@ distinctive `error_class`, the transport message and the whole expectation live
 in `details`, which is not character-capped), and a route that produced no HTTP
 answer carries its own transport code instead: `timeout` (the request never came
 back), `transport` (any other failure), or `http_<status>` for a 5xx the call
-refuses (BE-704-352). Each route captures its own failure and BOTH routes are
+refuses (BE-704-352). The member's Save upload and commit go through that SAME
+mapper (BE-704-450): a refused 5xx, a timeout and a connection failure read
+`http_<status>`, `timeout` and `transport` on both Save cells too, never a code
+that is not on the wire. Each route captures its own failure and BOTH routes are
 always tried, so a session 500 or timeout still reports the frame route's
-measurement in the turn-1 FAIL instead of a generic exception. The reason is
+measurement in the turn-1 FAIL instead of a generic exception. Only a failure the
+shared call table really raises is read as a route failure — a refused status, an
+abort/timeout, or the platform's own `fetch` rejection: any other exception is
+rethrown to the driver-error path (BE-704-454), so a harness defect is never
+reported as a product-style route transport failure. Every dynamic value — a
+route's error code, `error.fields.capability`, an `error_class` — is redacted and
+bounded (21 characters) BEFORE it is interpolated, and a value that still does
+not fit becomes an explicit `oversized(<length>)` marker instead of being
+truncated (BE-704-452): the widest reason the helper can compose is 234
+characters and no measured cell is ever silently dropped, so the reason is
 therefore inside the record's own 240-char redaction by construction
 (`redactSignInError(reason) === reason`; the tests pin that for every verdict,
 including the widest one a row can compose), while the long text — the
