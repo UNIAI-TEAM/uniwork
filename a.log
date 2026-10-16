@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -3; go version
+b102210f050039a5e4ab629e69bc7345877bb893
+b102210f0 docs(office): state the block's real tool totals in §3.1
+d00dda407 fix(office): regenerate the tool schemas at the new block rev, withholding the unresolved tools
+3e6f379c6 fix(office): accept the documented unresolved schema cell in the mechanical-table parsers
+go version go1.27.0 linux/amd64

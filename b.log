@@ -1,0 +1,13 @@
+$ (cd server && GOTOOLCHAIN=go1.27.2 go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./... 2>&1 | tail -15; exit ${PIPESTATUS[0]}); rc=$?; echo; echo "CI_GOVULN_1272_EXIT=$rc"
+go: downloading go1.27.2 (linux/amd64)
+=== Symbol Results ===
+
+No vulnerabilities found.
+
+Your code is affected by 0 vulnerabilities.
+This scan also found 4 vulnerabilities in packages you import and 2
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.
+
+CI_GOVULN_1272_EXIT=0

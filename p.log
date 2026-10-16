@@ -1,0 +1,250 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test landing-product-pages.spec.ts --reporter=list > /tmp/d4b-LANDING_PRODUCT_PAGES.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/d4b-LANDING_PRODUCT_PAGES.log | tail -n 60; for x in e2e/test-results/*/error-context.md; do [ -f "$x" ] && { echo "===== $x"; head -c 2500 "$x"; }; done; echo; echo "E2E_LANDING_PRODUCT_PAGES_EXIT=$rc"
+    Đọc, gửi và sắp xếp thư từ các tài khoản IMAP/SMTP đã kết nối.
+    Đưa công việc của nhóm về cùng một nơi.
+    
+    Bắt đầu một workspace. Kết nối những cuộc trao đổi với công việc thực sự.
+    
+    Bắt đầu ngay
+    Xem demo"
+
+      41 |     await expect(page.locator(".feature-page-visual .lovable-canvas")).toBeVisible();
+      42 |     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`/features/${key}$`));
+    > 43 |     expect(await page.locator("main").innerText()).not.toContain("landing.");
+         |                                                        ^
+      44 |   }
+      45 |   expect(headings.size).toBe(features.length);
+      46 |   await page.goto("/features/not-a-feature");
+
+    Error Context: test-results/landing-product-pages-all--6b4a1-onical-URL-and-reference-UI/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-product-pages-all--6b4a1-onical-URL-and-reference-UI/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-product-pages-all--6b4a1-onical-URL-and-reference-UI/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) landing-product-pages.spec.ts:88:1 › English introductions and solution/resources links remain usable 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('banner').getByRole('button', { name: 'Tìm hiểu', exact: true })
+
+
+      94 |   await page.locator(".header-directory-toggle").nth(1).click();
+      95 |   await expect(page.locator('#header-directory-solutions a[href="/solutions/product"]')).toBeVisible();
+    > 96 |   await page.getByRole("banner").getByRole("button", { name: "Tìm hiểu", exact: true }).click();
+         |                                                                                         ^
+      97 |   await expect(page.locator("#header-directory-solutions")).toHaveCount(0);
+      98 |   await page.locator('#header-directory-learn a[href="/learn"]').first().click();
+      99 |   await expect(page).toHaveURL(/\/learn$/);
+
+    Error Context: test-results/landing-product-pages-Engl-b9060-sources-links-remain-usable/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-product-pages-Engl-b9060-sources-links-remain-usable/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-product-pages-Engl-b9060-sources-links-remain-usable/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    landing-product-pages.spec.ts:30:1 › all feature introductions have unique content, canonical URL and reference UI 
+    landing-product-pages.spec.ts:88:1 › English introductions and solution/resources links remain usable 
+  3 passed (1.2m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test landing-product-pages.spec.ts --reporter=list
+===== e2e/test-results/landing-product-pages-all--6b4a1-onical-URL-and-reference-UI/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-product-pages.spec.ts >> all feature introductions have unique content, canonical URL and reference UI
+- Location: landing-product-pages.spec.ts:30:1
+
+# Error details
+
+```
+Error: expect(received).not.toContain(expected) // indexOf
+
+Expected substring: not "landing."
+Received string:        "Sản phẩm
+Họp trực tuyến
+Họp cùng nhau. Không mất ngữ cảnh.
+
+Lên lịch, vào phòng họp và trao đổi với nhóm trong cùng workspace. Nội dung cuộc họp vẫn gắn với công việc.
+
+Bắt đầu ngay
+Xem demo
+
+Ghi hình và bản ghi lời nói phụ thuộc hạ tầng được cấu hình. AI họp cần bật tính năng và kết nối mô hình.
+
+Ra mắt sản phẩm
+Bản mô tả ra mắt
+
+Mục tiêu dự án
+
+ML
+Minh Linh
+HA
+Hà Anh
+TN
+Thảo Nguyên
+Họp dự án
+Công việc · Nhóm · Ngữ cảnh
+Họp trực tuyến
+Dữ liệu minh họa
+Trước, trong và sau cuộc họp.
+
+Các ví dụ minh họa trong cùng một dự án.
+
+Chuẩn bị trước cuộc họp
+
+Lên lịch hoặc tham gia cuộc họp qua lời mời.
+
+Ra mắt sản phẩm
+Tháng 9 năm 2026
+09 / 2026
+7
+8
+9
+Họp dự án
+10
+11
+12
+13
+14
+Xem xét nội dung
+15
+16
+17
+18
+19
+20
+21
+Ra mắt sản phẩm
+22
+23
+24
+25
+26
+27
+Công việc · Nhóm · Ngữ cảnh
+Cùng xem nội dung trong phòng họp
+
+Dùng micro, camera và chia sẻ màn hình trong phòng họp.
+
+Ra mắt sản phẩm
+Bản mô tả ra mắt
+
+Mục tiêu dự án
+
+ML
+Minh Linh
+HA
+Hà Anh
+TN
+Thảo Nguyên
+Họp dự án
+Công việc · Nhóm · Ngữ cảnh
+Giữ nội dung để đi tiếp
+
+Bản ghi và tóm tắt phụ thuộc cấu hình triển khai.
+
+Ghi hình và bản ghi lời nói phụ thuộc hạ tầng được cấu hình. AI họp cần bật tính năng và kết nối mô hình.
+
+Ra mắt sản phẩm
+H1
+B
+I
+ML
+HA
+TN
+Bản mô tả ra mắt
+Nhóm sản phẩm / v2
+Mục tiêu dự án
+
+Thống nhất nội dung và thiết kế trước ngày ra mắt website.
+
+HA
+Đã xem. Mình sẽ cập nhật phần thiết kế.
+Phạm vi thực hiện
+Thiết kế landing page
+Nội dung website
+Công việc · Nhóm · Ngữ cảnh
+Khám phá giao diện Họp trực tuyến
+
+Ghi hình và bản ghi lời nói phụ thuộc hạ tầng được cấu hình. AI họp cần bật t===== e2e/test-results/landing-product-pages-Engl-b9060-sources-links-remain-usable/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-product-pages.spec.ts >> English introductions and solution/resources links remain usable
+- Location: landing-product-pages.spec.ts:88:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for getByRole('banner').getByRole('button', { name: 'Tìm hiểu', exact: true })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content":
+      - /url: "#marketing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img "UniWork" [ref=e6]
+        - navigation "Main navigation" [ref=e17]:
+          - button "Product" [ref=e19] [cursor=pointer]
+          - button "Solutions" [expanded] [active] [ref=e23] [cursor=pointer]
+          - button "Office" [ref=e27] [cursor=pointer]
+          - button "Learn" [ref=e31] [cursor=pointer]
+          - link "Pricing" [ref=e34] [cursor=pointer]:
+            - /url: /pricing
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - button "Theme" [ref=e37] [cursor=pointer]
+            - button "Language" [ref=e38] [cursor=pointer]
+          - link "Sign in" [ref=e39] [cursor=pointer]:
+            - /url: /login
+          - link "Get started" [ref=e40] [cursor=pointer]:
+            - /url: /register
+      - generic [ref=e41]:
+        - generic [ref=e42]:
+          - 'link "Product teams Product teams run on context: why this work, who decided, and when. UniWork keeps all three next to the work itself." [ref=e43] [cursor=pointer]':
+            - /url: /solutions/product
+            - generic [ref=e48]:
+              - strong [ref=e49]: Product teams
+              - generic [ref=e50]: "Product teams run on context: why this work, who decided, and when. UniWork keeps all three next to the work itself."
+          - link "Operations teams Keep responsibilities, access scope and history beside the work so the team can coordinate and review when needed." [ref=e53] [cursor=pointer]:
+            - /url: /solutions/operations
+            - generic [ref=e58]:
+              - strong [ref=e59]: Operations teams
+              - generic [ref=e60]: Keep responsibilities, access scope and history beside the work so the team
+E2E_LANDING_PRODUCT_PAGES_EXIT=1
