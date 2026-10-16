@@ -287,7 +287,7 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 	if err != nil {
 		return UniworkTurn{}, err
 	}
-	allow := ai.UniworkModuleAllowlist(module, req.Tools, !doc.edit, false)
+	allow := ai.UniworkModuleAllowlist(module, req.Tools, !doc.edit, scope.DocumentID != "")
 	turn, err := ai.PlanUniworkTurn(transcriptMessages(conv), in.Body, allow)
 	if err != nil {
 		// The conversation exists and is untouched; the client still gets its
