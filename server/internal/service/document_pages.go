@@ -746,33 +746,43 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 					return err
 				}
 			}
-			// One row for the metadata half (title/icon and the content
-			// autosave); the home-row move below writes its own, so one
-			// command writes at most one row per fact.
+			// One row per write for the metadata half (title/icon moves and
+			// the content autosave); the home-row move below writes its own,
+			// so one command writes at most one row per fact. The frame still
+			// follows a metadata move only: an autosave audits metadata and
+			// does not fan out (C-01 §5.1).
+			var emit []audit.Event
 			if metaChanged {
-				if err := auditRecorder.Record(ctx, q, audit.Entry{
-					OrganizationID: updated.OrganizationID,
-					WorkspaceID:    updated.WorkspaceID,
-					Actor:          actor,
-					Action:         audit.ActionDocumentUpdated,
-					ResourceType:   "document",
-					ResourceID:     updated.ID,
-					Changes:        audit.Diff(before, after),
-					Metadata: map[string]any{
-						"revision":        strconv.FormatInt(updated.Revision, 10),
-						"content_changed": contentChanged,
-						"content_bytes":   updated.ContentBytes,
-					},
-				}, audit.Event{Topic: "document.updated", Payload: map[string]string{
+				emit = append(emit, audit.Event{Topic: "document.updated", Payload: map[string]string{
 					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
-				}}); err != nil {
-					return err
-				}
+				}})
+			}
+			if err := auditRecorder.Record(ctx, q, audit.Entry{
+				OrganizationID: updated.OrganizationID,
+				WorkspaceID:    updated.WorkspaceID,
+				Actor:          actor,
+				Action:         audit.ActionDocumentUpdated,
+				ResourceType:   "document",
+				ResourceID:     updated.ID,
+				Changes:        audit.Diff(before, after),
+				Metadata: map[string]any{
+					"revision":        strconv.FormatInt(updated.Revision, 10),
+					"content_changed": contentChanged,
+					"content_bytes":   updated.ContentBytes,
+				},
+			}, emit...); err != nil {
+				return err
 			}
 		}
 		if homeChanged {
 			if updated, err = writeDocumentHomeRow(ctx, q, actor, updated, documentHomeRowMove{
 				Visibility: *in.Visibility, WorkspaceLevel: doc.WorkspaceLevel,
+				// One successful PATCH bumps the revision once (C-01 §9.1
+				// item 3): the fields write above already moved it when it
+				// ran, so the home row joins that revision instead of adding
+				// a second bump. A visibility-only PATCH has no fields write
+				// and leaves the bump to this move.
+				KeepRevision: metaChanged || contentChanged,
 			}); err != nil {
 				return err
 			}

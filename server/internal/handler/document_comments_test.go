@@ -111,6 +111,21 @@ func newDocumentCollabWorld(t *testing.T) *documentCollabWorld {
 	return w
 }
 
+// homeRowEdit raises one document's home row to edit through the shares
+// route: SH-S1 §3 merges a share whose principal is the document's own
+// workspace into the row, where U-SH2/T3's root create default (Q-S3) leaves
+// it at view. Fixtures use it to mean what a workspace-visible document meant
+// before SH-S1 - every effective member edits.
+func homeRowEdit(t *testing.T, srv *httptest.Server, token, workspaceID, documentID string) {
+	t.Helper()
+	res, out := doJSON(t, srv, "POST", "/api/v1/documents/"+documentID+"/shares", token, map[string]any{
+		"principal_type": "workspace", "principal_id": workspaceID, "level": "edit",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("raise home row of %s to edit: %d %v", documentID, res.StatusCode, out)
+	}
+}
+
 // createDoc makes a page owned by the given token; visibility is
 // "workspace" (members edit) or "restricted" (shares only).
 func (w *documentCollabWorld) createDoc(t *testing.T, token, title, visibility string) string {
@@ -122,7 +137,14 @@ func (w *documentCollabWorld) createDoc(t *testing.T, token, title, visibility s
 	if res.StatusCode != 201 {
 		t.Fatalf("create doc %q: %d %v", title, res.StatusCode, out)
 	}
-	return out["document"].(map[string]any)["id"].(string)
+	id := out["document"].(map[string]any)["id"].(string)
+	if visibility == "workspace" {
+		// "Members edit" is the level the create default no longer carries
+		// (U-SH2/Q-S3 lands it at view), so the fixture sets it the way an
+		// owner does: a share for the home workspace.
+		homeRowEdit(t, w.srv, token, w.wsID, id)
+	}
+	return id
 }
 
 // share grants one user a level on a document through the service (the share

@@ -215,6 +215,14 @@ func (e *docStorageEnv) createFile(t *testing.T, actor Actor, name string, body 
 	if err != nil {
 		t.Fatalf("create file document %s: %v", name, err)
 	}
+	// U-SH2/Q-S3 leaves a root create that asks for the workspace toggle on
+	// the home row's view default, while these fixtures mean the level a
+	// workspace-visible document carried before SH-S1: every effective
+	// member edits (TestArchivedSaveRecheckInTransaction's edit peer,
+	// TestArchivedDocumentCommitUploadRestore's workspace peer). The row is
+	// re-levelled the way a write command would, with no revision, audit or
+	// event of its own.
+	res.Document = setWorkspaceLevel(t, e.f, res.Document, string(DocumentLevelEdit))
 	return res
 }
 

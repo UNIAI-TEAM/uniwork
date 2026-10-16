@@ -123,12 +123,15 @@ RETURNING *;
 -- 'workspace', the level the row grants every effective member of the
 -- document's workspace. Every caller runs it inside the transaction that
 -- already holds the row lock, so no revision is expected here; the write
--- bumps the revision like any other access-relevant change.
+-- bumps the revision like any other access-relevant change unless the caller
+-- asks to keep it (keep_revision): one successful command bumps the revision
+-- once, so a PATCH that already wrote the document's fields in the same
+-- request moves the home row to that same revision (C-01 §9.1 item 3).
 -- name: UpdateDocumentHomeRow :one
 UPDATE documents
 SET visibility = sqlc.arg(visibility),
     workspace_level = sqlc.arg(workspace_level),
-    revision = revision + 1,
+    revision = revision + CASE WHEN sqlc.arg(keep_revision)::boolean THEN 0 ELSE 1 END,
     updated_by = sqlc.arg(updated_by),
     updated_by_kind = sqlc.arg(updated_by_kind),
     updated_at = now()
