@@ -22,7 +22,11 @@ import (
 
 func (e *docStorageEnv) page(t *testing.T, actor Actor, content json.RawMessage) DocumentView {
 	t.Helper()
-	v, err := e.svc.CreatePage(context.Background(), actor, e.tn.wsA, CreatePageInput{Title: "Trang", Content: content})
+	// Explicitly workspace-visible: the version/restore cases read these pages
+	// as several members, and U-SH2's private default is not what they test.
+	v, err := e.svc.CreatePage(context.Background(), actor, e.tn.wsA, CreatePageInput{
+		Title: "Trang", Content: content, Visibility: documentVisibilityWorkspace,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

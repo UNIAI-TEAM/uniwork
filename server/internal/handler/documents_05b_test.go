@@ -261,8 +261,11 @@ func TestDocumentListSearchTree(t *testing.T) {
 // visible documents, with no duplicate, leak or short page.
 func TestDocumentListPermissionBeforeLimit(t *testing.T) {
 	w := newDocsWorld(t)
-	_, visibleA := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Visible A", "kind": "page"})
-	_, visibleB := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Visible B", "kind": "page"})
+	// The visible pair is explicitly workspace-visible: U-SH2 makes a root
+	// create private unless the request opens the home row, and this case is
+	// about the list predicate, not the default.
+	_, visibleA := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Visible A", "kind": "page", "visibility": "workspace"})
+	_, visibleB := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Visible B", "kind": "page", "visibility": "workspace"})
 	_, hidden := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Hidden", "kind": "page", "visibility": "restricted"})
 	member, _ := docsJoinWorkspace(t, w, "docs-invisible-member@example.com")
 

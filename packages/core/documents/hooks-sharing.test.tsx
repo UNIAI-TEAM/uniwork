@@ -88,14 +88,14 @@ describe("documents sharing hooks (G1-05b)", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ share: share() }));
     const { qc, wrapper } = setup();
     qc.setQueryData(documentKeys.shares("w1", "d1"), { my_level: "manage", via: "member" });
-    const { result } = renderHook(() => useShareDocument("w1", "d1"), { wrapper });
+    const { result } = renderHook(() => useShareDocument("w1", "d1", "w1"), { wrapper });
     await act(async () => {
       await result.current.mutateAsync({ principal_type: "user", principal_id: "u2", level: "view" });
     });
     expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(true);
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ share: { id: "s2" } }));
-    const second = renderHook(() => useShareDocument("w1", "d1"), { wrapper });
+    const second = renderHook(() => useShareDocument("w1", "d1", "w1"), { wrapper });
     await act(async () => {
       await expectNotVerifiable(() =>
         second.result.current.mutateAsync({
@@ -103,6 +103,81 @@ describe("documents sharing hooks (G1-05b)", () => {
           principal_id: "u2",
           level: "view",
         }),
+      );
+    });
+  });
+
+  it("useShareDocument accepts the merged home-row answer and refuses every other empty id", async () => {
+    // SH-S1: a share naming the document's own workspace is merged into its
+    // home row, so the answer carries the moved grant with an EMPTY share id
+    // and still proves the write the caller asked for.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ share: share({ id: "", principal_type: "workspace", principal_id: "w1" }) }),
+    );
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.shares("w1", "d1"), { my_level: "manage", via: "member" });
+    qc.setQueryData(documentKeys.detail("w1", "d1"), { id: "d1" });
+    const { result } = renderHook(() => useShareDocument("w1", "d1", "w1"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ principal_type: "workspace", principal_id: "w1", level: "view" });
+    });
+    expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.detail("w1", "d1"))?.isInvalidated).toBe(true);
+
+    // The same empty id for another workspace, or for a principal that is not
+    // a workspace, is still an unverifiable answer.
+    for (const row of [
+      share({ id: "", principal_type: "workspace", principal_id: "w2" }),
+      share({ id: "", principal_type: "user", principal_id: "w1" }),
+    ]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ share: row }));
+      const next = renderHook(() => useShareDocument("w1", "d1", "w1"), { wrapper });
+      await act(async () => {
+        await expectNotVerifiable(() =>
+          next.result.current.mutateAsync({
+            principal_type: "workspace",
+            principal_id: "w1",
+            level: "view",
+          }),
+        );
+      });
+    }
+  });
+
+  it("useShareDocument judges the merged answer by the document's workspace, not the route's (BE-SHS1-20)", async () => {
+    // Route/cache workspace w1, document home w2: the merged w2 answer is the
+    // write; the same answer for the route workspace is not.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ share: share({ id: "", principal_type: "workspace", principal_id: "w2" }) }),
+    );
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.shares("w1", "d1"), { my_level: "manage", via: "member" });
+    qc.setQueryData(documentKeys.detail("w1", "d1"), { id: "d1" });
+    const { result } = renderHook(() => useShareDocument("w1", "d1", "w2"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ principal_type: "workspace", principal_id: "w2", level: "view" });
+    });
+    expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.detail("w1", "d1"))?.isInvalidated).toBe(true);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ share: share({ id: "", principal_type: "workspace", principal_id: "w1" }) }),
+    );
+    const other = renderHook(() => useShareDocument("w1", "d1", "w2"), { wrapper });
+    await act(async () => {
+      await expectNotVerifiable(() =>
+        other.result.current.mutateAsync({ principal_type: "workspace", principal_id: "w1", level: "view" }),
+      );
+    });
+
+    // A missing document workspace never falls back to the route's.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ share: share({ id: "", principal_type: "workspace", principal_id: "w1" }) }),
+    );
+    const missing = renderHook(() => useShareDocument("w1", "d1", ""), { wrapper });
+    await act(async () => {
+      await expectNotVerifiable(() =>
+        missing.result.current.mutateAsync({ principal_type: "workspace", principal_id: "w1", level: "view" }),
       );
     });
   });

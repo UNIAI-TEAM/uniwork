@@ -31,7 +31,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   AND (sqlc.arg(see_all)::boolean
-       OR (sqlc.arg(member_visible)::boolean AND d.visibility = 'workspace')
+       OR (sqlc.arg(member_visible)::boolean AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner)::boolean AND d.acl_owner_id = sqlc.arg(actor_id)::text)
        OR (sqlc.arg(allow_shares)::boolean AND EXISTS (
             SELECT 1 FROM document_shares s
@@ -166,7 +167,7 @@ SELECT COALESCE((
 SELECT
   d.id, d.organization_id, d.workspace_id, d.kind, d.revision,
   d.current_version, d.file_version_id, d.archived_at,
-  d.owner_id, d.visibility, d.acl_owner_id
+  d.owner_id, d.visibility, d.acl_owner_id, d.workspace_level
 FROM documents d
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.id = ANY(sqlc.arg(ids)::text[]);

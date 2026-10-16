@@ -171,12 +171,20 @@ func newOfficeFixture(t *testing.T, content string) *officeFixture {
 // them. It answers (document id, version id, revision).
 func (f *officeFixture) seedDocument(t *testing.T, content string) (string, string, int64) {
 	t.Helper()
+	// Explicitly workspace-visible: the office cases have several members
+	// reach the document, and U-SH2's private default is not what they test.
 	res, err := f.docs.CreateFileDocument(context.Background(), f.actor, f.ws, CreateFileDocumentInput{
 		Title: "Tài liệu " + util.NewID()[20:], Filename: "note.md", Body: strings.NewReader(content),
+		Visibility: documentVisibilityWorkspace,
 	})
 	if err != nil {
 		t.Fatalf("seed document: %v", err)
 	}
+	// U-SH2/Q-S3 leaves the root create on the home row's view default, while
+	// these fixtures mean the edit a workspace-visible document gave every
+	// member before SH-S1: "another member with edit on the document"
+	// (TestDocumentOfficeJob's retry, the office lifecycle cancel case).
+	setWorkspaceLevel(t, f.pf, res.Document, string(DocumentLevelEdit))
 	return res.Document.ID, res.Version.ID, res.Document.Revision
 }
 

@@ -85,7 +85,9 @@ const documentVisibilityRestricted = "restricted"
 //  3. agent: view on a workspace-visible document, none on a restricted one.
 //  4. human member path via WorkspaceService.RequireMember on the document's
 //     workspace: ws owner/admin (org owner/admin implicit) and the ACL owner
-//     -> manage; effective member on a workspace-visible document -> edit.
+//     -> manage; effective member on a workspace-visible document -> the
+//     home row's workspace_level (SH-S1; 'edit' unless the row was
+//     re-levelled, never manage).
 //     A ws owner/admin on a restricted document they are not the ACL owner
 //     of gets no level here, only AdminScope (DOC-05).
 //  5. live shares: user, workspace (a workspace of the document's
@@ -186,7 +188,11 @@ func (s *DocumentService) resolveLevelInTenant(ctx context.Context, q *db.Querie
 			// "owner" names the §13 work-product delegation.
 			best = DocumentAccess{Level: DocumentLevelManage, Via: DocumentViaMember}
 		case doc.Visibility != documentVisibilityRestricted:
-			best = DocumentAccess{Level: DocumentLevelEdit, Via: DocumentViaMember}
+			// The home row carries its own level (SH-S1): a workspace-visible
+			// document grants workspace_level, not a fixed edit, and Q-S1
+			// tops that level at edit. Every row the migration predates
+			// carries the DEFAULT 'edit', so the migration is rights-neutral.
+			best = DocumentAccess{Level: DocumentLevel(doc.WorkspaceLevel), Via: DocumentViaMember}
 		}
 	case errors.Is(err, ErrForbidden):
 		// Not a member of the document's workspace: shares may still apply
