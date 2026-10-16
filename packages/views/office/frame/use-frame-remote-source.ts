@@ -19,7 +19,13 @@ import { blockOfHeadError, type FrameBlock, type FrameRemoteVersion, type Remote
  */
 
 /** Frames whose document may have a new head (a new version, or a metadata-only bump). */
-const HEAD_EVENTS: readonly WSEventType[] = ["document.version_created", "document.updated", "document.moved", "document.restored"];
+const HEAD_EVENTS: readonly WSEventType[] = [
+  "document.version_created",
+  "document.updated",
+  "document.workspace_access_changed",
+  "document.moved",
+  "document.restored",
+];
 /** Feed pages read per catch-up; a workspace beyond that is caught up on the next reconnect. */
 const FEED_PAGES = 50;
 
