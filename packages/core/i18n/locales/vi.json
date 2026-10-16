@@ -3323,7 +3323,7 @@
       "viewTasks_one": "Xem việc",
       "viewTasks_other": "Xem việc",
       "created": "Đã tạo việc",
-      "openTask": "Mở việc đã tạo từ \"{{title}}\"",
+      "openTask": "Đã tạo việc: mở \"{{title}}\"",
       "pickReason": "Chọn ít nhất một việc chưa tạo",
       "dueOn": "hạn {{date}}",
       "dialogTitle": "Tạo việc từ tóm tắt cuộc họp",

@@ -3324,7 +3324,7 @@
       "viewTasks_one": "View task",
       "viewTasks_other": "View tasks",
       "created": "Task created",
-      "openTask": "Open the task created from \"{{title}}\"",
+      "openTask": "Task created: open \"{{title}}\"",
       "pickReason": "Pick at least one item that is not a task yet",
       "dueOn": "due {{date}}",
       "dialogTitle": "Create tasks from the meeting summary",

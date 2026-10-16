@@ -530,6 +530,20 @@ describe("MeetingSummaryPanel › action items to tasks", () => {
     expect(screen.getByText("Đã tạo việc")).toBeInTheDocument();
   });
 
+  it("names the link to a created task starting with the words it shows", async () => {
+    respond();
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />
+        </WorkspaceProvider>,
+      ),
+    );
+    const link = await screen.findByRole("link", { name: /Báo khách/ });
+    expect(link).toHaveTextContent("Đã tạo việc");
+    expect(link.getAttribute("aria-label")?.startsWith("Đã tạo việc")).toBe(true);
+  });
+
   it("asks for a pick before reviewing, keeping the button reachable", async () => {
     respond();
     render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
