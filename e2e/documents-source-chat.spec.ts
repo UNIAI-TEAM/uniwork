@@ -4,7 +4,7 @@ import { loginFolderUser, seedFolderWorkspace } from "./documents-folders-fixtur
 import { libraryRowButton } from "./documents-onboard";
 
 /**
- * UNI-1814: "Đi tới bản gốc" on a chat file in Documents → "Từ nơi khác" lands
+ * UNI-1814: "Xem nơi đính kèm" on a chat file in Documents → "Từ nơi khác" lands
  * in the room the file was sent in, not the workspace chat. User A sends a file
  * in a DM with user B through the API; B opens Documents, picks the file from
  * its chat origin and follows the row's go-to-source action. The jump is the
@@ -56,7 +56,7 @@ test("go to source on a DM file opens that DM at the message", async ({ page }) 
   const table = page.getByRole("table", { name: "Tài liệu" });
   await expect(libraryRowButton(table, FILE_NAME)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Thao tác cho ${FILE_NAME}` }).click();
-  await page.getByRole("menuitem", { name: "Đi tới bản gốc" }).click();
+  await page.getByRole("menuitem", { name: "Xem nơi đính kèm" }).click();
 
   // The DM opens, not the workspace chat, and the message param is consumed.
   await expect(page).toHaveURL(new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/chat\\?room=${roomId}$`), { timeout: 60_000 });

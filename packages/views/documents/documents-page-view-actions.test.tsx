@@ -204,7 +204,8 @@ describe("file from another module", () => {
   it("opens the channel room at the message the file was sent in, inside this workspace", async () => {
     route({ sources: () => [source()] });
     const adapter = renderView();
-    await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.go_to_source"));
+    // The literal copy is pinned on purpose (U-SRC3): one label for every origin but email.
+    await pickFromMenu("Đề xuất ngân sách.pdf", "Xem nơi đính kèm");
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=msg1");
   });
 
@@ -232,7 +233,7 @@ describe("file from another module", () => {
   it("opens the Email Hub for an email attachment, under its own label", async () => {
     route({ sources: () => [source({ id: "email:a1", source: "email", name: "Hóa đơn.pdf", parent: { kind: "email_thread", id: "th1", title: "Hóa đơn", message_id: "" } })] });
     const adapter = renderView();
-    await pickFromMenu("Hóa đơn.pdf", t("documents.home.row.open_email"));
+    await pickFromMenu("Hóa đơn.pdf", "Mở Email");
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/email");
   });
 
