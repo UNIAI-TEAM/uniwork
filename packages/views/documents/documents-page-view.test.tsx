@@ -751,13 +751,12 @@ describe("DocumentsPageView", () => {
     expect(postCall("POST")).toBeUndefined();
   });
 
-  it("says a chat file opens Chat, and offers no save for a file the server will not copy", async () => {
+  it("says a chat file goes to the original, and offers no save for a file the server will not copy", async () => {
     route({ list: () => [], sources: () => [source({ can_save: false })] });
     renderView(vi.fn());
     const row = await rowOf("Đề xuất ngân sách.pdf");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách.pdf" }) }));
-    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_chat") })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.go_to_source") })).toBeNull();
+    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.go_to_source") })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.save_to_folder") })).toBeNull();
     expect(screen.getByRole("menuitem", { name: t("documents.home.row.download") })).toBeInTheDocument();
   });

@@ -6,9 +6,11 @@ type WorkspacePaths = ReturnType<typeof paths.workspace>;
 /**
  * Where "Go to the original" leads for a file from another module, built with
  * the workspace paths builders only. A task and a task comment link to the
- * task (a comment attachment's parent id is the task it was posted on); chat,
- * meeting and email open their module (meeting by id). An unknown parent kind
- * has no link.
+ * task (a comment attachment's parent id is the task it was posted on); a chat
+ * file opens its room (channel, DM or group: the parent id is the room id) at
+ * the message it was sent in, falling back to the room when the server named no
+ * message; meeting opens by id; email opens the Email Hub, which has no thread
+ * route. An unknown parent kind has no link.
  */
 export function sourceParentPath(ws: WorkspacePaths, parent: DocumentSourceFile["parent"]): string | null {
   switch (parent.kind) {
@@ -19,7 +21,7 @@ export function sourceParentPath(ws: WorkspacePaths, parent: DocumentSourceFile[
       return ws.meeting(parent.id);
     case "chat_channel":
     case "chat_dm":
-      return ws.chat();
+      return ws.chat({ room: parent.id, message: parent.message_id || undefined });
     case "email_thread":
       return ws.email();
     default:
@@ -28,14 +30,11 @@ export function sourceParentPath(ws: WorkspacePaths, parent: DocumentSourceFile[
 }
 
 /**
- * The label of that link: chat and email open the module only (there is no
- * per-message route), so they say so instead of promising the original.
+ * The label of that link: email opens the module only, so it says so instead
+ * of promising the original; everything else reaches the original.
  */
 export function sourceLinkLabelKey(parent: DocumentSourceFile["parent"]): string {
   switch (parent.kind) {
-    case "chat_channel":
-    case "chat_dm":
-      return "documents.home.row.open_chat";
     case "email_thread":
       return "documents.home.row.open_email";
     default:
