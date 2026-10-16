@@ -196,13 +196,17 @@ var feedDocumentActions = map[string]bool{
 }
 
 // feedGrantActions are the actions that can make a document readable to
-// someone: a document created (its creator reads it) or a share granted. One
-// of these on the page means a caller's readership cannot be proven to predate
+// someone: a document created (its creator reads it), a share granted, or the
+// home row turning on - a merged share (a share naming the document's own
+// workspace) writes document.workspace_access_changed, not document.shared,
+// and it is the grant that admits every member of that workspace. One of
+// these on the page means a caller's readership cannot be proven to predate
 // their snapshot, so a removal whose evidence the change destroyed (a purge, a
 // document becoming an owner's) answers 410 instead of guessing.
 var feedGrantActions = map[string]bool{
-	"document.created": true,
-	"document.shared":  true,
+	"document.created":                  true,
+	"document.shared":                   true,
+	"document.workspace_access_changed": true,
 }
 
 // DocumentChangeFeedRow is one incremental-feed row. It carries ids, the

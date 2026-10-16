@@ -120,8 +120,11 @@ func TestDocumentWorkspaceAccessChangedAuditAndOutbox(t *testing.T) {
 
 // TestDocumentChangesFeedWorkspaceHomeRow pins the feed halves SH-S1 touches:
 // a member whose home row turns off gets the ids-only removal (the new action
-// is read exactly like the visibility diff it replaces), and a level move that
-// keeps the row workspace-visible keeps delivering upserts.
+// is read exactly like the visibility diff it replaces), a level move that
+// keeps the row workspace-visible keeps delivering upserts, and a merged share
+// - the home row turning on through a share naming the document's own
+// workspace - counts as the grant it is, so a purge or an ownership change
+// that lands on the same page answers 410 instead of a silent skip.
 func TestDocumentChangesFeedWorkspaceHomeRow(t *testing.T) {
 	t.Run("turned off is a removal", func(t *testing.T) {
 		w := newFeedWorld(t, "shs1feedoff")
@@ -172,6 +175,67 @@ func TestDocumentChangesFeedWorkspaceHomeRow(t *testing.T) {
 		}
 		if got.ChangeKind != DocumentChangeKindUpsert || got.Revision != updated.Document.Revision {
 			t.Fatalf("home-row view row = %+v, want upsert revision %d", got, updated.Document.Revision)
+		}
+	})
+
+	t.Run("a purge after a merged share answers 410", func(t *testing.T) {
+		w := newFeedWorld(t, "shs1feedmergepurge")
+		// Owned by somebody else and restricted: the member reads it only
+		// through the home row, which the merged share turns on after their
+		// snapshot.
+		doc := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", aclOwner: w.tn.owner.ID, createdBy: w.tn.owner.ID})
+		feedCursor, held := w.snapshotThenFeed(t, 200)
+		if held[doc.ID] {
+			t.Fatal("the fixture is wrong: the member already read the restricted document")
+		}
+
+		// A share naming the document's own workspace merges into the home row
+		// (no document_shares row) and writes document.workspace_access_changed,
+		// never document.shared: it is still the grant that may have admitted
+		// the caller after the snapshot.
+		if _, err := w.f.svc.ShareDocument(w.f.ctx, Human(w.tn.owner.ID), doc.ID, DocumentShareInput{
+			PrincipalType: DocumentPrincipalWorkspace, PrincipalID: w.tn.wsA, Level: DocumentLevelView,
+		}); err != nil {
+			t.Fatalf("merged share: %v", err)
+		}
+		// The purge destroys the state its removal would be decided from, and
+		// the grant is on the same page: the caller may have become a reader
+		// after the snapshot, so the feed answers 410 - never a silent skip.
+		if _, err := w.f.pool.Exec(w.f.ctx, `DELETE FROM documents WHERE id = $1`, doc.ID); err != nil {
+			t.Fatal(err)
+		}
+		w.auditChange(t, "document.deleted", doc.ID)
+
+		if _, err := w.list(t, w.tn.member.ID, feedCursor, 200); !codedIs(err, "change_cursor_expired") {
+			t.Fatalf("purge after a merged share = %v, want 410 change_cursor_expired", err)
+		}
+	})
+
+	t.Run("becoming owned after a merged share answers 410", func(t *testing.T) {
+		w := newFeedWorld(t, "shs1feedmergeowned")
+		const workProduct = "01WPFEED0000000000000000000"
+		doc := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", aclOwner: w.tn.owner.ID, createdBy: w.tn.owner.ID})
+		feedCursor, held := w.snapshotThenFeed(t, 200)
+		if held[doc.ID] {
+			t.Fatal("the fixture is wrong: the member already read the restricted document")
+		}
+
+		if _, err := w.f.svc.ShareDocument(w.f.ctx, Human(w.tn.owner.ID), doc.ID, DocumentShareInput{
+			PrincipalType: DocumentPrincipalWorkspace, PrincipalID: w.tn.wsA, Level: DocumentLevelView,
+		}); err != nil {
+			t.Fatalf("merged share: %v", err)
+		}
+		// The owner change overwrites the pre-change owner state, so the page's
+		// grant is what proves the caller may have been a reader: 410, never a
+		// silent skip that leaves the document in their library.
+		if _, err := w.f.pool.Exec(w.f.ctx,
+			`UPDATE documents SET owner_kind = 'work_product', owner_id = $2 WHERE id = $1`, doc.ID, workProduct); err != nil {
+			t.Fatal(err)
+		}
+		w.auditChange(t, "document.updated", doc.ID)
+
+		if _, err := w.list(t, w.tn.member.ID, feedCursor, 200); !codedIs(err, "change_cursor_expired") {
+			t.Fatalf("owned after a merged share = %v, want 410 change_cursor_expired", err)
 		}
 	})
 }
