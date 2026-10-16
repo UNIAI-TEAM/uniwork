@@ -16,11 +16,10 @@ const TOOL_TOKEN_SOURCE = String.raw`\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b`;
 const SNAKE_CASE_TOOL = new RegExp(`^${TOOL_TOKEN_SOURCE}$`);
 const SCHEMA_SHA256 = /^[0-9a-f]{64}$/;
 // The extractor writes this instead of a hash when it cannot resolve a schema
-// statically — today the fork's `generate_mindmap`, whose schema spreads the
-// parameterised helper `nodeSchema(maxDepth)` — and the block header documents
-// the form. The row keeps its tool name, so the tool stays a tool of its
-// module; only the schema cell is missing, and a consumer that needs a schema
-// for it must treat the row as schemaless.
+// statically (e.g. `generate_mindmap` before G6-09d folded `nodeSchema(maxDepth)`),
+// and the block header documents the form. The row keeps its tool name, so the
+// tool stays a tool of its module; only the schema cell is missing, and a
+// consumer that needs a schema for it must treat the row as schemaless.
 const UNRESOLVED_SCHEMA_CELL = /^unresolved:[a-z0-9_:.-]+$/;
 const MODULE_NAME = /^[a-z][a-z0-9-]*$/;
 const HEADER = ["module", "tool", "input_schema_sha256", "editor_write", "source"];

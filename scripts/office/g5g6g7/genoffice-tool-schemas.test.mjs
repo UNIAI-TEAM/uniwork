@@ -38,11 +38,12 @@ const PARTIAL_DESCRIPTION_TOOLS = [
 ];
 
 // Tools whose block cell is the documented `unresolved:<reason>` form: the extractor cannot resolve the schema
-// statically (the fork spreads the parameterised helper `nodeSchema(maxDepth)` into `inputSchema`), so the block
-// carries no hash and the file lists the tool in the catalogue without a schema instead of offering it to a model.
-// The list is a decision, not an absorb: a third unresolved row in the block, or any other entry that is not
-// offered, fails below.
-const UNRESOLVED_SCHEMA_TOOLS = ['docs/generate_mindmap', 'markdown/generate_mindmap'];
+// statically, so the block carries no hash and the file lists the tool in the catalogue without a schema instead of
+// offering it to a model. Since G6-09d (`3e4e9b71f`) folds parameterised self-recursive arrows (`nodeSchema(maxDepth)`),
+// `docs/generate_mindmap` and `markdown/generate_mindmap` resolve (`ad838ec1…`) and this list is empty: any unresolved
+// row in the block, or any entry that is not offered, fails below.
+const UNRESOLVED_SCHEMA_TOOLS = [];
+const MINDMAP_SCHEMA_SHA256 = 'ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0';
 
 const schemaBytes = fs.readFileSync(SCHEMAS_FILE);
 const file = JSON.parse(schemaBytes.toString('utf8'));
@@ -189,6 +190,15 @@ test('every tool with a schema is offered whole; the withheld and partial ones a
       assert.ok(!tool.function.description.includes(RUNTIME_MARK), `${module}/${tool.function.name}`);
     }
   }
+  for (const module of ['docs', 'markdown']) {
+    const entry = file.catalogue.find((e) => e.module === module && e.name === 'generate_mindmap');
+    assert.ok(entry, `${module}/generate_mindmap is in the catalogue`);
+    assert.equal(entry.offered, true, `${module}/generate_mindmap is offered after G6-09d`);
+    assert.equal(entry.schemaComplete, true, `${module}/generate_mindmap schemaComplete after G6-09d`);
+    assert.equal(entry.inputSchemaSha256, MINDMAP_SCHEMA_SHA256, `${module}/generate_mindmap schema hash`);
+    assert.equal(entry.tableHash, MINDMAP_SCHEMA_SHA256, `${module}/generate_mindmap tableHash`);
+    assert.ok(file[module].some((t) => t.function.name === 'generate_mindmap'), `${module} offers generate_mindmap`);
+  }
   // The withheld rows are the only place the unresolved cell may appear, in the JSON and in the raw file alike; the
   // negative cases below drive that rule.
   assert.deepEqual(
@@ -199,10 +209,11 @@ test('every tool with a schema is offered whole; the withheld and partial ones a
 });
 
 test("the unresolved cell anywhere but a withheld entry's tableHash fails: a third entry, or the literal in a module array", () => {
-  const withheld = new Set(UNRESOLVED_SCHEMA_TOOLS);
+  const fixtureWithheld = ['docs/generate_mindmap', 'markdown/generate_mindmap'];
+  const withheld = new Set(fixtureWithheld);
   const cell = 'unresolved:identifier:depth';
   const entry = (key, tableHash) => ({ module: key.split('/')[0], name: key.split('/')[1], tableHash });
-  const withheldEntries = UNRESOLVED_SCHEMA_TOOLS.map((key) => entry(key, cell));
+  const withheldEntries = fixtureWithheld.map((key) => entry(key, cell));
   const text = (entries) => JSON.stringify({ header: {}, catalogue: entries, docs: [], markdown: [] });
   const clean = { text: text(withheldEntries), catalogue: withheldEntries, moduleArrays: { docs: [], markdown: [] }, withheld };
   assert.deepEqual(unresolvedCellFindings(clean), [], 'the withheld rows alone are clean');
