@@ -1,0 +1,1 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; for p in 18551 13451; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18551/tcp 13451/tcp 2>/dev/null; sleep 1; for p in 18551 13451; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true

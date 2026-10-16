@@ -1,0 +1,3 @@
+$ v=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').version"); curl -sf -o /dev/null http://localhost:13451/office-frame/docs/$v/manifest.json; rc=$?; echo; echo "FRAME_INSTALLED_EXIT=$rc"
+
+FRAME_INSTALLED_EXIT=0

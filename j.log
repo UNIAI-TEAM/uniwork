@@ -1,0 +1,14 @@
+$ grep -o '"type": *"\(finding\|measured\|contrast\)",[^}]*' /tmp/ux1-report.json | head -n 120; grep -E 'panic|ERROR' /tmp/ux1-server.log | tail -n 30; tail -n 20 /tmp/ux1-web.log; for p in 18551 13451; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18551/tcp 13451/tcp 2>/dev/null; true
+"type": "contrast",
+"type": "contrast",
+"type": "contrast",
+"type": "contrast",
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+▲ Next.js 16.3.8
+- Local:         http://localhost:13451
+- Network:       http://172.30.0.2:13451
+✓ Ready in 88ms
+✓ Running next.config.mjs took 126ms

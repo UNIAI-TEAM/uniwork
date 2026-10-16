@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+165735f70ea24549fa267add8caf5f21c44209b6
+165735f70 test(office): G7-09 UX floor e2e on the D web Docs frame
+c905e287f docs: G7-09 UX acceptance checklist for S1-S11
+a6d9cdc66 docs: plan v2.12 + folders addendum v1.1 for the 2026-10-16 user decisions
+1a09e6b0f chore: merge G7-12 harness round 3 (ae1c23e2e) into the G5-G7 root

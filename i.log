@@ -1,0 +1,266 @@
+$ export E2E_DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" E2E_BASE_URL=http://localhost:13451 E2E_API_URL=http://localhost:18551 NEXT_PUBLIC_API_URL=http://localhost:18551 OFFICE_UX_FLOOR_E2E=1 PLAYWRIGHT_OUTPUT_DIR=test-results-ux1 PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/ux1-report.json; rm -rf e2e/test-results-ux1; pnpm --filter @uniwork/e2e exec playwright test office-ux-floor.spec.ts --reporter=list,json > /tmp/ux1-UX_FLOOR.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/ux1-UX_FLOOR.log | tail -n 80; for f in e2e/test-results-ux1/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 4000 "$f"; }; done; grep -E "[0-9]+ (passed|failed|skipped|flaky|did not run)|expected to fail" /tmp/ux1-UX_FLOOR.log; grep -qE "[0-9]+ passed" /tmp/ux1-UX_FLOOR.log || { echo "no passing test in office-ux-floor.spec.ts"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_UX_FLOOR_EXIT=$rc"
+  -  16 office-ux-floor.spec.ts:255:3 › live regions (Floor › Vùng live) › the frame has its two fixed live nodes from load, before any bar
+  -  17 office-ux-floor.spec.ts:269:3 › live regions (Floor › Vùng live) › an S6 bar is read once, through the window node; the bar itself is not live
+  -  18 office-ux-floor.spec.ts:307:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 buttons keep a visible border, not colour alone
+  -  19 office-ux-floor.spec.ts:324:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 aria-disabled buttons use GrayText text and border
+  -  20 office-ux-floor.spec.ts:351:3 › forced colors (DESIGN.md › Colors › Forced colors) › S7 the selected picker option has a 2px Highlight border, not only a fill
+  -  21 office-ux-floor.spec.ts:375:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › zoom 200 %: no status label clipped by nowrap, S5 fully reachable
+  -  22 office-ux-floor.spec.ts:396:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable
+  -  23 office-ux-floor.spec.ts:414:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 390px: S5 full width minus 16px margins, buttons stacked
+  -  24 office-ux-floor.spec.ts:414:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 600px: S5 full width minus 16px margins, buttons stacked
+  -  25 office-ux-floor.spec.ts:433:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › reduced motion: no slide/fade on S6 or S5
+  -  26 office-ux-floor.spec.ts:445:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer)
+  -  27 office-ux-floor.spec.ts:457:3 › S7/S8 structure (Floor › S7, S8) › S7 listbox sits on the list, Manage and the footer are siblings after it
+  -  28 office-ux-floor.spec.ts:471:3 › S7/S8 structure (Floor › S7, S8) › S8 disclosure region shows on the first UniWork AI turn and gates Send
+
+
+  1) office-ux-floor.spec.ts:71:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light vi 
+
+    TimeoutError: locator.waitFor: Timeout 60000ms exceeded.
+    Call log:
+      - waiting for locator('[data-office-web="conflict"] .ow-dlg') to be visible
+
+
+      86 |         await page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first().click();
+      87 |         await page.keyboard.press("Control+s");
+    > 88 |         await frame.locator(S5_CARD).waitFor({ state: "visible", timeout: 60_000 });
+         |                                      ^
+      89 |         expect(await surfaceIsMode(frame, S5_CARD, mode), `the frame is not in ${mode} mode`).toBe(true);
+      90 |         await audit(frame, S5_CARD, "S5 step 1", mode);
+      91 |         await shot(frame, `s5-step1-${mode}-${locale}`);
+
+    Error Context: test-results-ux1/office-ux-floor-contrast-o-5ec70-eachable-S5-step-—-light-vi/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux1/office-ux-floor-contrast-o-5ec70-eachable-S5-step-—-light-vi/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux1/office-ux-floor-contrast-o-5ec70-eachable-S5-step-—-light-vi/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) office-ux-floor.spec.ts:112:7 › contrast on the rendered frame (DESIGN.md › Colors) › S7 picker with UniWork AI and the S9 result line — light vi 
+
+    Error: office_ai_uniwork_docx=true never reached /config
+
+    office_ai_uniwork_docx=true never reached /config
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    Call Log:
+    - Test timeout of 240000ms exceeded
+
+
+      80 |     const body = (await response.json()) as { flags?: Record<string, boolean> };
+      81 |     return body.flags?.[flag] ?? null;
+    > 82 |   }, { timeout: 45_000, intervals: [1_000], message: `${flag}=${enabled} never reached /config` }).toBe(enabled);
+         |                                                                                                    ^
+      83 | }
+      84 |
+      85 | export interface VersionRow {
+
+    Error Context: test-results-ux1/office-ux-floor-contrast-o-c3fc9-e-S9-result-line-—-light-vi/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux1/office-ux-floor-contrast-o-c3fc9-e-S9-result-line-—-light-vi/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux1/office-ux-floor-contrast-o-c3fc9-e-S9-result-line-—-light-vi/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    office-ux-floor.spec.ts:71:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light vi 
+    office-ux-floor.spec.ts:112:7 › contrast on the rendered frame (DESIGN.md › Colors) › S7 picker with UniWork AI and the S9 result line — light vi 
+  26 did not run
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test office-ux-floor.spec.ts --reporter=list,json
+===== e2e/test-results-ux1/office-ux-floor-contrast-o-5ec70-eachable-S5-step-—-light-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> contrast on the rendered frame (DESIGN.md › Colors) >> S6 clean + dirty bars and every reachable S5 step — light vi
+- Location: office-ux-floor.spec.ts:71:7
+
+# Error details
+
+```
+TimeoutError: locator.waitFor: Timeout 60000ms exceeded.
+Call log:
+  - waiting for locator('[data-office-web="conflict"] .ow-dlg') to be visible
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvaj5oji, WS ux-floor-mvaj5oji: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvaj5oji" [ref=f1e14]
+              - generic "WS ux-floor-mvaj5oji" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792128702079/rec-ws-1792128702079
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792128702079/rec-ws-1792128702079/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792128702079/rec-ws-1792128702079/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792128702079/rec-ws-1792128702079/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792128702079/rec-ws-1792128702079/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792128702079/rec-ws-1792128702079/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792128702079/rec-ws-1792128702079/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792128702079/rec-ws-1792128702079/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792128702079/rec-ws-1792128702079/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792128702079/rec-ws-1792128702079/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792128702079/rec-ws-1792128702079/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvaj5oji, ux-floor-mvaj5oji-1792128702079@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvaj5oji" [ref=f1e113]
+              - generic "ux-floor-mvaj5oji-1792128702079@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctr===== e2e/test-results-ux1/office-ux-floor-contrast-o-c3fc9-e-S9-result-line-—-light-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> contrast on the rendered frame (DESIGN.md › Colors) >> S7 picker with UniWork AI and the S9 result line — light vi
+- Location: office-ux-floor.spec.ts:112:7
+
+# Error details
+
+```
+Error: office_ai_uniwork_docx=true never reached /config
+
+office_ai_uniwork_docx=true never reached /config
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+
+Call Log:
+- Test timeout of 240000ms exceeded
+```
+
+# Test source
+
+```ts
+  1   | import { expect, type APIRequestContext, type Page } from "@playwright/test";
+  2   | import { readFileSync } from "node:fs";
+  3   | import { basename, resolve } from "node:path";
+  4   | import JSZip from "jszip";
+  5   | import { Client } from "pg";
+  6   | import { e2eApiUrl } from "./api-url";
+  7   | import { createRecordingAccount, type RecordingAccount } from "./meeting-recording-fixture";
+  8   | 
+  9   | /**
+  10  |  * Helpers for the Docs-in-web-frame flow (UNI-1013): seed an account with one
+  11  |  * DOCX through the API, switch the `office_docs_web` flag per organization, and
+  12  |  * read the Documents version history back so the spec asserts what the server
+  13  |  * stored, not what the page shows.
+  14  |  */
+  15  | const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
+  16  | const DOCX_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-simple.docx");
+  17  | const PIN_FILE = resolve(repoRoot, "apps/web/platform/office-frame/docs.pin.json");
+  18  | const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  19  | 
+  20  | export interface DocsWebPin {
+  21  |   version: string;
+  22  |   entry: string;
+  23  | }
+  24  | 
+  25  | export function readPinnedFrame(): DocsWebPin {
+  26  |   return JSON.parse(readFileSync(PIN_FILE, "utf8")) as DocsWebPin;
+  27  | }
+  28  | 
+  29  | export interface SeededDocx {
+  30  |   account: RecordingAccount;
+  31  |   documentId: string;
+  32  |   organizationId: string;
+  33  |   documentUrl: string;
+  34  | }
+  35  | 
+  36  | export async function seedDocx(page: Page, baseUrl: string, tag: string): Promise<SeededDocx> {
+  37  |   return seedDocument(page, baseUrl, tag, { name: "docs-web.docx", mimeType: DOCX_MIME, buffer: readFileSync(DOCX_FIXTURE) });
+  38  | }
+  39  | 
+  40  | /** A fresh account with one file document of any format (the module frame specs, UNI-1014). */
+  41  | export async function seedDocument(page: Page, baseUrl: string, tag: string, file: { name: string; mimeType: string; buffer: Buffer }): Promise<SeededDocx> {
+  42  |   const account = await createRecordingAccount(page, e2eApiUrl, tag);
+  43  |   const response = await page.request.post(`${e2eApiUrl}/api/v1/workspaces/${account.wsId}/documents/files`, {
+  44  |     headers: { authorization: `Bearer ${account.token}`, "Idempotency-Key": `${tag}-${Date.now().toString(36)}` },
+  45  |     multipart: { file },
+  46  |   });
+  47  |   expect(response.ok(), `seed ${file.name}: HTTP ${response.status()} ${await response.text()}`).toBeTruthy();
+  48  |   const { document } = (await response.json()) as { document: { id: string; organization_id: string } };
+  49  |   return {
+  50  |     account,
+  51  |     documentId: document.id,
+  52  |     organizationId: document.organization_id,
+  53  |     documentUrl: `${baseUrl}/${account.orgSlug}/${account.wsSlug}/documents/${document.id}`,
+  54  |   };
+  55  | }
+  56  | 
+  57  | /**
+  58  |  * Writes the override a platform admin would (organization scope by default,
+  59  |  * the way a staged rollout does), then waits until
+  60  |  * `GET /config?organization_id=` reports it (the server caches overrides for
+  61  |  * featureflags.CacheTTL and a direct write sends no invalidation  2 failed
+  26 did not run
+no passing test in office-ux-floor.spec.ts
+
+E2E_UX_FLOOR_EXIT=1
