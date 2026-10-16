@@ -611,3 +611,15 @@ describe("request shape", () => {
     expect((await call(h, "GET", "/v1/nothing")).status).toBe(404);
   });
 });
+
+describe("connection lifetime (SIZE-S1 fix5)", () => {
+  it("never initiates an idle close: keepAliveTimeout is disabled", () => {
+    // Node's default 5s keep-alive expiry destroys a socket that can already
+    // carry a pipelined request the event loop has not read yet — the close
+    // arrives at the client as ECONNRESET mid-upload (observed in CI on a
+    // loaded VM where the 280 MiB envelope stalled the shared loop past the
+    // deadline). Idle reaping belongs to the client; the server's only job is
+    // to never reset a connection it has not finished reading.
+    expect(h.service.server.keepAliveTimeout).toBe(0);
+  });
+});
