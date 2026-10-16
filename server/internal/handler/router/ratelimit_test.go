@@ -64,6 +64,7 @@ type caller struct {
 	bearer  string
 	guestID string // signed with the server secret
 	forged  string // raw uw_guest cookie value, never signed
+	device  string // X-UniWork-Device header, never verified
 }
 
 func (c caller) send(h http.Handler, method, path string) int {
@@ -77,6 +78,9 @@ func (c caller) send(h http.Handler, method, path string) int {
 	}
 	if c.forged != "" {
 		req.AddCookie(&http.Cookie{Name: meetings.GuestCookieName, Value: c.forged})
+	}
+	if c.device != "" {
+		req.Header.Set("X-UniWork-Device", c.device)
 	}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -468,4 +472,61 @@ func TestMCPAddressCeilingCoversEveryMethodAndNothingElse(t *testing.T) {
 	c.bearer = ""
 	c.spend(t, h, http.MethodGet, "/.well-known/oauth-protected-resource", 5)
 	c.spend(t, h, http.MethodPost, "/oauth/token", 5)
+}
+
+func TestDesktopDeviceKey(t *testing.T) {
+	req := func(v string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/auth/desktop/refresh", nil)
+		if v != "" {
+			r.Header.Set("X-UniWork-Device", v)
+		}
+		return r
+	}
+	id := "01J8X4DEVN1P2Q3R4S5T6W7V8X"[:26]
+	a := desktopDevice(req(id))
+	if a == "" || a != desktopDevice(req(" "+id+" ")) {
+		t.Fatalf("a ULID must key, whatever the spacing: %q", a)
+	}
+	if b := desktopDevice(req("01J8X4DEVN1P2Q3R4S5T6W7V8Y")); b == "" || b == a {
+		t.Fatalf("another id must key differently: %q vs %q", b, a)
+	}
+	for name, v := range map[string]string{"none": "", "short": "abc", "long": id + "0", "slash": "01J8X4DEVN1P2Q3R4S5T6W7V/", "space inside": "01J8X4DEVN1P 2Q3R4S5T6W7V"} {
+		if got := desktopDevice(req(v)); got != "" {
+			t.Errorf("%s: key = %q, want the address fallback", name, got)
+		}
+	}
+}
+
+// Spec N1 §3.4: phones behind one carrier address each refresh on their own
+// budget; the address ceiling still stops a caller rotating device ids; a
+// client that sends no header (Office today) keeps the old 60 a minute per address.
+func TestDesktopRefreshBudgetsEachDeviceUnderAnAddressCeiling(t *testing.T) {
+	h, _ := limitedMux(t)
+	const path = "/api/v1/auth/desktop/refresh"
+	deviceID := func(i int) string { return fmt.Sprintf("01J8X4DEVN1P2Q3R4S5T6%05d", i) } // 26 chars
+	carrier := "10.40.0.1"
+	for i := 0; i < 100; i++ {
+		caller{ip: carrier, device: deviceID(i)}.spend(t, h, http.MethodPost, path, 1)
+	}
+	one := caller{ip: carrier, device: deviceID(0)}
+	one.spend(t, h, http.MethodPost, path, 59)
+	one.wantRefused(t, h, http.MethodPost, path, "one device's budget: 60 a minute")
+	caller{ip: carrier, device: deviceID(1)}.spend(t, h, http.MethodPost, path, 1)
+
+	rotating := caller{ip: "10.40.0.2"}
+	for i := 0; i < 600; i++ {
+		rotating.device = deviceID(1000 + i)
+		if code := rotating.send(h, http.MethodPost, path); code == http.StatusTooManyRequests {
+			t.Fatalf("request %d of 600 refused", i+1)
+		}
+	}
+	rotating.device = deviceID(9999)
+	rotating.wantRefused(t, h, http.MethodPost, path, "the address ceiling: 600 a minute whatever the device id")
+
+	legacy := caller{ip: "10.40.0.3"}
+	legacy.spend(t, h, http.MethodPost, path, 60)
+	legacy.wantRefused(t, h, http.MethodPost, path, "no header: the address's own 60 a minute, as before")
+	// start and exchange stay on the credential budget, untouched by the above.
+	caller{ip: carrier}.spend(t, h, http.MethodGet, "/api/v1/auth/desktop/start", 60)
+	caller{ip: carrier}.wantRefused(t, h, http.MethodGet, "/api/v1/auth/desktop/start", "credential budget still 60 a minute per address")
 }
