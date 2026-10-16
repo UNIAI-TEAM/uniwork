@@ -29,3 +29,10 @@ fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/service/ai_credentials_
 # PR #279 (850c91de) reintroduced that conversation id on the same line as
 # the word token. Still a test ULID, not a credential.
 850c91de8bfa831de1dc9a0848d4d6003131d161:server/internal/handler/ai_uniwork_test.go:generic-api-key:287
+# Office holdout run-JSON secret guard test (b52c195f, "covers more than the
+# devset's three shapes"): fixed fake AWS / JWT / api_key strings fed to
+# redactSecrets() so the test can assert each is caught. Not credentials; the
+# file left HEAD later but the commit stays in shared history.
+b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:aws-access-token:820
+b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:jwt:821
+b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:generic-api-key:832
