@@ -32,8 +32,12 @@ export interface DocumentEditLockBannerProps {
 export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRequest, onEditHere, onEditNow, pending = false }: DocumentEditLockBannerProps) {
   const { t, i18n } = useTranslation();
   const time = (iso: string | null | undefined) => formatLockTime(iso, i18n.language);
-  const action = (label: string, run: () => void, variant: "default" | "outline" = "outline") => (
-    <Button key={label} type="button" size="sm" variant={variant} aria-disabled={pending || undefined} aria-busy={pending || undefined} onClick={run}>
+  // `outline` draws no text colour of its own: the label inherits the notice
+  // tone's foreground, which on the `muted` strip falls below 4.5 in dark
+  // mode (V4-1). `text-foreground` stays correct when `lost` repaints the
+  // same button on the warning strip.
+  const action = (label: string, run: () => void, variant: "default" | "outline" = "outline", className?: string) => (
+    <Button key={label} type="button" size="sm" variant={variant} className={className} aria-disabled={pending || undefined} aria-busy={pending || undefined} onClick={run}>
       {label}
     </Button>
   );
@@ -89,8 +93,9 @@ export function DocumentEditLockBanner({ view, onTakeOver, onRequest, onCancelRe
       }
       if (view.canTakeOver) actions.push(action(t("documents.editLock.takeOver"), onTakeOver, "default"));
       else if (view.canRequest && view.request?.state !== "pending" && view.rateLimitedMinutes === null) {
-        const label = view.request?.state === "notReleased" ? t("documents.editLock.requestAgain") : t("documents.editLock.request");
-        actions.push(action(label, onRequest));
+        const muted = view.request?.state === "notReleased";
+        const label = muted ? t("documents.editLock.requestAgain") : t("documents.editLock.request");
+        actions.push(action(label, onRequest, "outline", muted ? "text-foreground" : undefined));
       }
       lines = sentences;
       body = sentences.join(" ");

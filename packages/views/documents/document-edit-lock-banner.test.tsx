@@ -133,7 +133,9 @@ describe("DocumentEditLockBanner (addendum §11.3)", () => {
     expect(region.textContent).toBe("An chưa nhả quyền sửa.");
     expect(screen.getByTestId("edit-lock-banner").querySelector(".bg-muted")).toBeTruthy();
     expect(screen.getByTestId("edit-lock-banner").querySelector(".lucide-clock")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Yêu cầu lại" })).toBeTruthy();
+    // V4-1: `outline` inherits the strip's foreground; `text-muted-foreground`
+    // on `bg-muted` measures 4.25 in dark mode, so the class is pinned.
+    expect(screen.getByRole("button", { name: "Yêu cầu lại" })).toHaveClass("text-foreground");
   });
 
   it("rate limited: muted tone with Clock icon, only the rate-limit sentence and no request button", () => {
