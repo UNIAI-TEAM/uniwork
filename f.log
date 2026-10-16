@@ -1,0 +1,306 @@
+$ NODE_ENV=test AI_PROVIDER=fake npx vitest run --root web/docs/bridge --environment jsdom --reporter=verbose; rc=$?; echo; echo "DOCS_BRIDGE_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/bridge
+
+ ✓ draft-recovery.test.ts > crypto > round-trips, binds the record key, and fails closed for another key 9ms
+ ✓ draft-recovery.test.ts > IndexedDB store > puts, lists by prefix, deletes, and closes every connection 12ms
+ ✓ draft-recovery.test.ts > writer > writes an encrypted copy every 30 s while dirty, keyed scope:etag:tabId 6ms
+ ✓ draft-recovery.test.ts > writer > writes nothing without a grant or a document 1ms
+ ✓ draft-recovery.test.ts > writer > writes on pagehide 3ms
+ ✓ draft-recovery.test.ts > writer > a save that lands while a write runs still clears the scope 4ms
+ ✓ draft-recovery.test.ts > writer > stops after dispose 1ms
+ ✓ draft-recovery.test.ts > offer on open > after a reload with the same key: Restore hands the bytes over, then the copy moves to the new load 11ms
+ ✓ draft-recovery.test.ts > offer on open > Discard deletes the offered copy and restores nothing 5ms
+ ✓ draft-recovery.test.ts > offer on open > Escape (dismiss) keeps the copy and restores nothing 3ms
+ ✓ draft-recovery.test.ts > offer on open > offers a draft of an older version, labelled, and re-keys it on Restore 6ms
+ ✓ draft-recovery.test.ts > offer on open > offers the newest decryptable record of the scope 6ms
+ ✓ draft-recovery.test.ts > offer on open > a new key (second sign-in) must not delete the old record: it is skipped 3ms
+ ✓ draft-recovery.test.ts > offer on open > a second tab does not delete, overwrite or consume the first tab's live draft 7ms
+ ✓ draft-recovery.test.ts > offer on open > never offers this load's own records, and a damaged record is skipped, not deleted 5ms
+ ✓ draft-recovery.test.ts > offer on open > shows nothing without a grant and leaves other scopes alone 4ms
+ ✓ draft-recovery.test.ts > shared database > a fresh database gets the drafts and keys stores at version 1 1ms
+ ✓ draft-recovery.test.ts > shared database > uses a database the host created first as it is: no version bump, keys untouched 1ms
+ ✓ browser.test.ts > theme > defaults to system and applies data-theme on change 3ms
+ ✓ browser.test.ts > language > maps navigator.languages and honors the localStorage override 1ms
+ ✓ browser.test.ts > attachments > registers files as web-file ids and reads text back 2ms
+ ✓ browser.test.ts > attachments > rejects non-text extraction and non-image pastes 2ms
+ ✓ browser.test.ts > print > prints this frame with a zero-margin sheet and resolves on afterprint 18ms
+ ✓ browser.test.ts > print > does not settle before afterprint (Firefox/Safari return from print() at once) 21ms
+ ✓ browser.test.ts > print > prints in light for both themes and restores the user theme afterwards 3ms
+ ✓ browser.test.ts > print > neutralises the preview print-zoom when the renderer asks for a non-1 print scale 2ms
+ ✓ browser.test.ts > print > reports a failure to start printing without throwing 1ms
+ ✓ browser.test.ts > downloads > safeFileName strips separators and reserved characters 0ms
+ ✓ browser.test.ts > downloads > downloadBlob clicks a transient <a download> on a blob URL, then revokes it 4ms
+ ✓ browser.test.ts > downloads > downloadBytes wraps the bytes in a typed Blob 1ms
+ ✓ browser.test.ts > external links > guardedOpen opens http(s) in a new tab without an opener 0ms
+ ✓ browser.test.ts > external links > guardedOpen blocks "javascript:alert(1)" 0ms
+ ✓ browser.test.ts > external links > guardedOpen blocks "data:text/html,x" 0ms
+ ✓ browser.test.ts > external links > guardedOpen blocks "file:///etc/passwd" 0ms
+ ✓ browser.test.ts > external links > guardedOpen blocks "blob:x" 0ms
+ ✓ browser.test.ts > external links > guardedOpen blocks "/relative" 0ms
+ ✓ browser.test.ts > external links > guardedOpen blocks "" 0ms
+ ✓ browser.test.ts > external links > guardedOpen blocks "mailto:a@b.c" 0ms
+ ✓ browser.test.ts > external links > openExternal reports whether the link was allowed 0ms
+ ✓ browser.test.ts > external links > the renderer window.open is replaced by the guard at load 0ms
+ ✓ browser.test.ts > clipboard > copyImageToClipboard rejects non-image data and missing clipboard support 0ms
+ ✓ browser.test.ts > clipboard > writes image/png + text/html carrying the display size 1ms
+ ✓ conflict-diff.test.ts > diffContent > stats line, a card per difference, unchanged runs collapsed 18ms
+ ✓ conflict-diff.test.ts > diffContent > each card names its side in text: my version = the unsaved bytes, the head = the version on UniWork (UXF-V1-F1) 3ms
+ ✓ conflict-diff.test.ts > diffContent > identical documents say so 1ms
+ ✓ conflict-diff.test.ts > buildDiff > compares the paragraphs of two docx files 19ms
+ ✓ conflict-diff.test.ts > buildDiff > a file that is not a docx gives the failure line, never a throw 1ms
+ ✓ conflict-diff.test.ts > Docs web frame: save conflict dialog > shows "View differences" before Reload; it opens the comparison against the head and Back returns 37ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > accepts a top-level page with headless=1 and a same-origin path 3ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > resolves relative and same-origin absolute URLs against the page 1ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > is inert in a frame: ?open= is ignored whatever the URL says 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > needs the explicit opt-in 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects cross-origin absolute 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects other port 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects other scheme, same host 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects protocol-relative 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects protocol-relative, same host 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects backslash protocol-relative 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects double backslash 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects data: 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects blob: of the same origin 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects javascript: 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects credentials 0ms
+ ✓ headless.test.ts > parseHeadlessEntry (the gate) > rejects pages that are not http(s) and unparsable URLs 0ms
+ ✓ headless.test.ts > isTopLevel > is true for an unframed window and false for a framed one 0ms
+ ✓ headless.test.ts > isTopLevel > fails closed when the parent cannot be read 0ms
+ ✓ headless.test.ts > createHeadlessPort > synthesizes init: the document as init.open, light theme, print/export-only grants 1ms
+ ✓ headless.test.ts > createHeadlessPort > refuses every api.* request 1ms
+ ✓ headless.test.ts > createHeadless + webapi > opens the document with credentials omitted and signals opened -> done 14ms
+ ✓ headless.test.ts > createHeadless + webapi > is read-only: every save path is refused 5ms
+ ✓ headless.test.ts > createHeadless + webapi > signals failed when the document cannot be fetched, and stays failed 9ms
+ ✓ headless.test.ts > createHeadless + webapi > reports a failed renderer export 1ms
+ ✓ webapi.test.ts > paths > round-trips file ids and rejects foreign paths 12ms
+ ✓ webapi.test.ts > boot open (consumePendingOpenDocx) > opens init.documentId through api.open once 4ms
+ ✓ webapi.test.ts > boot open (consumePendingOpenDocx) > uses init.open without a round-trip 3ms
+ ✓ webapi.test.ts > boot open (consumePendingOpenDocx) > fetches a url source without cookies 8ms
+ ✓ webapi.test.ts > boot open (consumePendingOpenDocx) > error: reports a fatal error to the host and opens nothing 8ms
+ ✓ webapi.test.ts > boot open (consumePendingOpenDocx) > timeout: opens nothing 2ms
+ ✓ webapi.test.ts > host open request -> onOpenDocx > delivers to listeners after boot and answers {opened, title} 2ms
+ ✓ webapi.test.ts > host open request -> onOpenDocx > queues an open that arrives before the renderer booted 1ms
+ ✓ webapi.test.ts > openDocxPath / openDocx > success: reopens a bridge path 2ms
+ ✓ webapi.test.ts > openDocxPath / openDocx > ignores non-bridge paths without a request 1ms
+ ✓ webapi.test.ts > openDocxPath / openDocx > error / timeout -> null 1ms
+ ✓ webapi.test.ts > openDocxPath / openDocx > openDocx: success opens the picked file 2ms
+ ✓ webapi.test.ts > openDocxPath / openDocx > openDocx: cancelled / error / timeout -> null 1ms
+ ✓ webapi.test.ts > saveDocx > success: sends bytes + etag, tracks the new etag, emits saved 2ms
+ ✓ webapi.test.ts > saveDocx > conflict: tells the host, asks the user; Cancel stays unsaved with a visible reason 23ms
+ ✓ webapi.test.ts > saveDocx > conflict dialog: focus starts on Cancel, Overwrite is destructive, Esc cancels, Tab stays inside 20ms
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+ ✓ webapi.test.ts > saveDocx > conflict -> Overwrite… -> confirm: re-reads the head etag and saves over the newer version 10ms
+ ✓ webapi.test.ts > saveDocx > conflict -> Reload latest: the latest version replaces the document, no error banner 8ms
+ ✓ webapi.test.ts > saveDocx > conflict on an autosave: reported to the host, no prompt 1ms
+ ✓ webapi.test.ts > saveDocx > error: shows the localized sentence of the failure, never the host message 3ms
+ ✓ webapi.test.ts > saveDocx > timeout: reports a timed-out save 1ms
+ ✓ webapi.test.ts > saveDocx > network failure: a translated message, not the raw browser error 1ms
+ ✓ webapi.test.ts > saveDocx > timeout after the host committed: the next save is based on that version, no conflict 2ms
+ ✓ webapi.test.ts > saveDocx > timeout while someone else saved (other size): keeps the old etag, so the conflict is asked 5ms
+ ✓ webapi.test.ts > saveDocx > timeout while someone else committed a same-size version: not adopted, the conflict is asked (RF-7) 8ms
+ ✓ webapi.test.ts > saveDocx > rejects a path that is not a UniWork document 1ms
+ ✓ webapi.test.ts > saveDocxAs / saveDocxNew > saveDocxAs success: new file id, source passed, editor path switches 1ms
+ ✓ webapi.test.ts > saveDocxAs / saveDocxNew > saveDocxAs cancelled -> {ok:false} without an error 1ms
+ ✓ webapi.test.ts > saveDocxAs / saveDocxNew > saveDocxAs error / timeout 1ms
+ ✓ webapi.test.ts > saveDocxAs / saveDocxNew > saveDocxNew is a silent saveAs 1ms
+ ✓ webapi.test.ts > getRecentFiles > success: maps files to bridge paths 1ms
+ ✓ webapi.test.ts > getRecentFiles > error / timeout / malformed -> [] 2ms
+ ✓ webapi.test.ts > exportPdf / print > success: server PDF of the current file is downloaded 6ms
+ ✓ webapi.test.ts > exportPdf / print > dirty: sends the live docx bytes (transferred) with the file id 3ms
+ ✓ webapi.test.ts > exportPdf / print > clean: exports the stored version only, without serializing 2ms
+ ✓ webapi.test.ts > exportPdf / print > never-saved document: exports the live bytes without a file id 1ms
+ ✓ webapi.test.ts > exportPdf / print > serializer failure: falls back to the stored version; unregister stops it 2ms
+ ✓ webapi.test.ts > exportPdf / print > dirty + export error: still falls back to print 15ms
+ ✓ webapi.test.ts > exportPdf / print > unsaved document: in-frame print, no request 2ms
+ ✓ webapi.test.ts > exportPdf / print > error / timeout: falls back to in-frame print 8ms
+ ✓ webapi.test.ts > exportPdf / print > cancelled: no fallback 2ms
+ ✓ webapi.test.ts > exportPdf / print > deferred print parts become one export 2ms
+ ✓ webapi.test.ts > exportPdf / print > host print request: pdf mode exports, dialog mode prints 3ms
+Not implemented: Window's focus() method
+ ✓ webapi.test.ts > exportPdf / print > host print request goes through the browser print path and answers after it settles 22ms
+ ✓ webapi.test.ts > exportPdf / print > host print request reports printed:false when the browser refuses to print 2ms
+ ✓ webapi.test.ts > exportPdf / print > exportHtml downloads locally 3ms
+ ✓ webapi.test.ts > onRenamedDocx > maps a host rename of a known file to old/new paths 1ms
+ ✓ webapi.test.ts > onRenamedDocx > ignores renames of files this frame never opened 1ms
+ ✓ webapi.test.ts > fetchImage / convertAltChunkHtml > fetchImage: data: URLs locally, http(s) through image.fetch 1ms
+ ✓ webapi.test.ts > fetchImage / convertAltChunkHtml > fetchImage: not found / error / timeout -> null 1ms
+ ✓ webapi.test.ts > fetchImage / convertAltChunkHtml > convertAltChunkHtml: bytes on success, null otherwise 1ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save: runs the editor save flow and answers with the new version 3ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict: the frame shows the one conflict dialog; Cancel answers cancelled 5ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict -> Overwrite… confirmed: answers ok with the new version 7ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict -> Reload latest: answers ok without a versionId 8ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict without the download capability: no download choice 12ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict with the download capability: the bytes go to api.download, then Reload 35ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict with the download capability and my version over init.downloadMaxBytes: the download choice is aria-disabled up front 65ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict: a version exactly at init.downloadMaxBytes can still be downloaded 59ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict -> Overwrite gets 401: the session line, closing answers unauthorized 10ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict: the editor result carries the localized conflict sentence, not the server message 4ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save while a save runs: busy, not conflict 1ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save timeout / no document 1ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > saveAs: drives the editor Save As with the host name 1ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > saveAs: a renderer that serializes first (real delay) still gets the host name 21ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > saveAs: times out only when the editor never starts Save As 3ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > saveAs cancelled / no editor 1ms
+ ✓ webapi.test.ts > replacing a dirty document > openDocxPath asks first; Cancel keeps the document, Discard opens 5ms
+ ✓ webapi.test.ts > replacing a dirty document > openDocx asks after the pick, and not at all when clean 3ms
+ ✓ webapi.test.ts > fatal open failure > shows a blocking notice and refuses every save until the host opens a document 7ms
+ ✓ webapi.test.ts > fatal open failure > init timeout (no host answered) lands in the same fatal state 2ms
+ ✓ webapi.test.ts > dirty + title events > answers the host close check from the guard 1ms
+ ✓ webapi.test.ts > dirty + title events > polls the close guard and pushes dirty changes 2ms
+ ✓ webapi.test.ts > dirty + title events > an edit event reports dirty without waiting for the poll 4ms
+ ✓ webapi.test.ts > dirty + title events > pushes document.title changes 2ms
+ ✓ webapi.test.ts > projectApi (in-memory, AI-only) > keeps chats per file and rebinds temp chats 1ms
+ ✓ webapi.test.ts > draft recovery (C18) > keeps an encrypted copy while dirty and offers it on the next load: Restore = recovered 17ms
+ ✓ webapi.test.ts > draft recovery (C18) > Discard opens the server version and deletes the copy 9ms
+ ✓ hide.test.ts > webCapabilities (the single web capability source) > turns every capability off, and says it is the web platform 2ms
+ ✓ hide.test.ts > webCapabilities (the single web capability source) > is frozen: a stray write cannot re-enable an entry 1ms
+ ✓ hide.test.ts > webCapabilities (the single web capability source) > is exported by the hide module so install.ts merges it into window.desktop 0ms
+ ✓ hide.test.ts > webCapabilities (the single web capability source) > File > Open and recents turn on only with the negotiated host grants 0ms
+ ✓ hide.test.ts > hide stubs behind the hidden desktop-only entries > resolve to the "not supported" value and never reject 1ms
+ ✓ hide.test.ts > hide stubs behind the hidden desktop-only entries > on* subscribers return a disposer 0ms
+ ✓ hide.test.ts > AI / search / image bridge stays stubbed with a typed "unavailable" answer > aiChat fails with the ai-unavailable error 0ms
+ ✓ hide.test.ts > AI / search / image bridge stays stubbed with a typed "unavailable" answer > aiStream emits exactly one terminal error chunk for its request and resolves 1ms
+ ✓ hide.test.ts > AI / search / image bridge stays stubbed with a typed "unavailable" answer > a throwing stream listener does not break aiStream 1ms
+ ✓ hide.test.ts > AI / search / image bridge stays stubbed with a typed "unavailable" answer > webSearch / imageSearch return the renderer's method:"error" shape, not empty results 0ms
+ ✓ hide.test.ts > AI / search / image bridge stays stubbed with a typed "unavailable" answer > aiGenerateImage returns an error, fetchImage returns null (no placeholder bitmap) 0ms
+ ✓ hide.test.ts > AI / search / image bridge stays stubbed with a typed "unavailable" answer > account / billing entries are inert and report signed-out 0ms
+ ✓ hide.test.ts > AI / search / image bridge stays stubbed with a typed "unavailable" answer > getAiSettings is a valid empty config and setAiSettings persists nothing 0ms
+ ✓ hide.test.ts > AI / search / image bridge stays stubbed with a typed "unavailable" answer > isAiUnavailable only matches this module's errors 0ms
+ ✓ webapi.test.ts > draft recovery (C18) > a copy under another key is skipped without a prompt and never deleted 8ms
+ ✓ webapi.test.ts > draft recovery (C18) > a document opened in the frame other than the init document is never drafted 4ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > answers uniworkState readOnly so the renderer makes the editor read-only 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > answers readOnly for a file the host marks writable:false even with the save grant 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > stays editable with the save grant 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > refuses saveDocx without calling api.save 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > answers a host save request unsupported and never starts the editor flow 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > refuses Save As too unless the host grants saveAs separately 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > allows a saved copy when the host grants saveAs 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > clean: reloads through api.open (the event version) and hands the head to the renderer 52ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > the Save after a head reload is based on the reply (etag = its revision), not the old copy 52ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > dirty: the content is not replaced and the warn bar shows 3ms
+ ✓ headless.test.ts > install.ts > top-level + opt-in: opens the same-origin document without a handshake 972ms
+ ✓ headless.test.ts > install.ts > framed: ?headless=1&open= is ignored entirely 38ms
+ ✓ headless.test.ts > install.ts > top-level without the opt-in: ?open= alone does nothing 46ms
+ ✓ module-bridge.test.ts > safe-api > fills missing members: on* -> disposer, others -> async undefined 2ms
+ ✓ module-bridge.test.ts > safe-api > never makes the object a thenable and leaves symbols alone 0ms
+ ✓ module-bridge.test.ts > safe-api > fallbackFor + mergeModules: later modules win 1ms
+ ✓ module-bridge.test.ts > capability-object > starts with the defaults and receives the host grants in place 1ms
+ ✓ module-bridge.test.ts > capability-object > capEnabled: on unless explicitly false (desktop sets no object) 0ms
+ ✓ module-bridge.test.ts > installModuleBridge > installs the globals with appearance members, capabilities and safe fallbacks 6ms
+ ✓ module-bridge.test.ts > installModuleBridge > desktopOpen is off until the host grants it (A7) 1ms
+ ✓ module-bridge.test.ts > installModuleBridge > desktopOpen follows an explicit host grant (A7) 1ms
+ ✓ module-bridge.test.ts > installModuleBridge > several globals; `capabilities.on` limits which ones carry the object 1ms
+ ✓ module-bridge.test.ts > C10: no autosave on the web > default capabilities turn every autosave key off 1ms
+ ✓ uniwork-ai-no-save.test.ts > a UniWork AI turn never saves (G6-A03, web) > sends no request but the chat completion, and the edit only marks the document dirty 16ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > every frame claims download and uniworkAi (the UniWork AI adapter is in the frame) 2ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > docs: download is effective after init when the host advertises it 2ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > pdf: download is effective after init when the host advertises it 1ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > markdown: download is effective after init when the host advertises it 1ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > html: download is effective after init when the host advertises it 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > slides: download is effective after init when the host advertises it 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > sheets: download is effective after init when the host advertises it 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > docs: no download without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > pdf: no download without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > markdown: no download without the host grant 1ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > html: no download without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > slides: no download without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > sheets: no download without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > docs: a host advertising uniworkAi gets the effective grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > pdf: a host advertising uniworkAi gets the effective grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > markdown: a host advertising uniworkAi gets the effective grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > html: a host advertising uniworkAi gets the effective grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > slides: a host advertising uniworkAi gets the effective grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > sheets: a host advertising uniworkAi gets the effective grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > docs: no uniworkAi without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > pdf: no uniworkAi without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > markdown: no uniworkAi without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > html: no uniworkAi without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > slides: no uniworkAi without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > sheets: no uniworkAi without the host grant 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > docs: uniworkAi alone is effective and opens AI without credentials 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > pdf: uniworkAi alone is effective and opens AI without credentials 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > markdown: uniworkAi alone is effective and opens AI without credentials 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > html: uniworkAi alone is effective and opens AI without credentials 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > slides: uniworkAi alone is effective and opens AI without credentials 0ms
+ ✓ frame-capabilities.test.ts > frame base capabilities (X-02) > sheets: uniworkAi alone is effective and opens AI without credentials 0ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > an AI turn is running: no reload, the AI bar; the turn ends, the version loads 1517ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 403 (revoked) locks the frame: the bar, then every save is refused without a request 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 401 > Save: the bar is the only surface, the reason that means "stay dirty, nothing more to say" 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 401 > Save As and the first save: a result without an error shows no editor toast either 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 401 > the first save of a new document 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 403 > Save: the bar is the only surface, the reason that means "stay dirty, nothing more to say" 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 403 > Save As and the first save: a result without an error shows no editor toast either 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 403 > the first save of a new document 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 410 > Save: the bar is the only surface, the reason that means "stay dirty, nothing more to say" 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 410 > Save As and the first save: a result without an error shows no editor toast either 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 410 > the first save of a new document 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > an error the bar does not own (a 500, the network) keeps the editor toast text 6ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > doc.blocked on a dirty frame: the bar and the lock at once, Save and Save As refused, edits kept 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > doc.blocked with an organisation reason: the bar only, the editor usable, Save still reaches the host 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > doc.blocked deleted on a clean frame: the delete bar, a not_found answer to the host 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 410 (deleted): the delete bar and a not_found answer to the host 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 401: the sign-in-again bar, no lock 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > an Overwrite refused for an organisation reason leaves the organisation bar behind 9ms
+ ✓ webapi.test.ts > the comments version notifier (G8-12 §3.3) > the open file and every landed save reach frameDocVersion; only the save is announced 7ms
+stderr | head-match.test.ts > ownHeadAfterUnknown > compares a url source by fetching it without credentials
+[office-web] reading the head version failed: Error: download failed: HTTP 500
+    at readHead (/home/ubuntu/work/uniwork-office/web/docs/bridge/head-match.ts:24:22)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at ownHeadAfterUnknown (/home/ubuntu/work/uniwork-office/web/docs/bridge/head-match.ts:50:22)
+    at /home/ubuntu/work/uniwork-office/web/docs/bridge/head-match.test.ts:83:7
+    at file:///home/ubuntu/work/uniwork-office/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20
+
+stderr | head-match.test.ts > ownHeadAfterUnknown > a head that cannot be read is not ours
+[office-web] reading the head version failed: Error: boom
+    at Object.<anonymous> (/home/ubuntu/work/uniwork-office/web/docs/bridge/head-match.test.ts:93:65)
+    at Object.Mock [as request] (file:///home/ubuntu/work/uniwork-office/node_modules/@vitest/spy/dist/index.js:332:34)
+    at ownHeadAfterUnknown (/home/ubuntu/work/uniwork-office/web/docs/bridge/head-match.ts:40:42)
+    at /home/ubuntu/work/uniwork-office/web/docs/bridge/head-match.test.ts:94:18
+    at file:///home/ubuntu/work/uniwork-office/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/ubuntu/work/uniwork-office/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/ubuntu/work/uniwork-office/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/ubuntu/work/uniwork-office/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/ubuntu/work/uniwork-office/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+
+ ✓ head-match.test.ts > ownHeadAfterUnknown > adopts a moved head holding exactly the sent bytes 2ms
+ ✓ head-match.test.ts > ownHeadAfterUnknown > does not adopt a same-size head with other content 0ms
+ ✓ head-match.test.ts > ownHeadAfterUnknown > does not adopt an unmoved head, a different size, another file or a missing base etag 0ms
+ ✓ head-match.test.ts > ownHeadAfterUnknown > compares a url source by fetching it without credentials 7ms
+ ✓ head-match.test.ts > ownHeadAfterUnknown > a head that cannot be read is not ours 1ms
+ ✓ focus-return.test.ts > docs frame: focus hand-back after a host dialog > puts the focus back in the editor the user was in when the body is active 18ms
+ ✓ focus-return.test.ts > docs frame: focus hand-back after a host dialog > falls back to the first editing surface when none was focused yet 4ms
+ ✓ focus-return.test.ts > docs frame: focus hand-back after a host dialog > leaves a focused element alone 2ms
+ ✓ focus-return.test.ts > docs frame: focus hand-back after a host dialog > does not steal the focus from a click (pointer press just before) 3ms
+ ✓ focus-return.test.ts > docs frame: focus hand-back after a host dialog > a press followed by the window losing focus does not block the hand-back 2ms
+ ✓ focus-return.test.ts > docs frame: focus hand-back after a host dialog > stays out of an open modal dialog 2ms
+ ✓ focus-return.test.ts > docs frame: focus hand-back after a host dialog > stops after it is removed 1ms
+ ✓ host-appearance.test.ts > host-authoritative theme + language > applies init theme/locale, then the host events, live 3ms
+ ✓ host-appearance.test.ts > host-authoritative theme + language > wins over localStorage and never writes to it (the storage is the UniWork page's) 1ms
+ ✓ host-appearance.test.ts > host-authoritative theme + language > does not hang boot when the host never sends init 2ms
+ ✓ host-appearance.test.ts > host-authoritative theme + language > an unknown host locale falls back to en instead of throwing 1ms
+ ✓ doc-handoff.test.ts > doc handoff (web OpenFileResult.dataUrl) > hands the bytes to fetchDocBytes without fetch() (the frame CSP refuses blob:/data:) 3ms
+ ✓ doc-handoff.test.ts > doc handoff (web OpenFileResult.dataUrl) > is one-shot: a second read of the same handle fails 1ms
+ ✓ doc-handoff.test.ts > doc handoff (web OpenFileResult.dataUrl) > drops an unclaimed handle after the TTL 2ms
+ ✓ doc-handoff.test.ts > doc handoff (web OpenFileResult.dataUrl) > leaves other URLs to fetch() (desktop handoff path unchanged) 2ms
+ ✓ app-open.test.ts > app.open helper > reads the grant by value: an unset key is not a grant 1ms
+ ✓ app-open.test.ts > app.open helper > sends nothing without the capability 1ms
+ ✓ app-open.test.ts > app.open helper > sends one app.open with the feature tag and no timeout (the host may wait on its dialog) 0ms
+ ✓ app-open.test.ts > app.open helper > a rejection (old host: unsupported) stays quiet: unavailable, no throw 0ms
+ ✓ mock-port.test.ts > mock port comments handlers > answers comments.list and mentions.search unsupported by default 2ms
+ ✓ mock-port.test.ts > mock port comments handlers > lets a test replace a comments request with override() 0ms
+
+ Test Files  15 passed (15)
+      Tests  266 passed (266)
+   Start at  09:30:02
+   Duration  5.18s (transform 3.57s, setup 0ms, import 4.59s, tests 3.66s, environment 5.23s)
+
+
+DOCS_BRIDGE_EXIT=0

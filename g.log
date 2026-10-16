@@ -1,0 +1,20 @@
+$ NODE_ENV=test AI_PROVIDER=fake npx vitest run --root apps/docs tests/compare.test.ts --reporter=verbose; rc=$?; echo; echo "DOCS_COMPARE_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ✓ tests/compare.test.ts > editorBlockTexts > includes an unsaved paragraph on the current-document side 2ms
+ ✓ tests/compare.test.ts > editorBlockTexts > keeps protected block previews and inline break text comparable 0ms
+ ✓ tests/compare.test.ts > compares the live unsaved document after picking the original DOCX 42ms
+ ✓ tests/compare.test.ts > compareParagraphs > reports identical documents as all same 0ms
+ ✓ tests/compare.test.ts > compareParagraphs > detects an added paragraph 0ms
+ ✓ tests/compare.test.ts > compareParagraphs > detects a removed paragraph 0ms
+ ✓ tests/compare.test.ts > compareParagraphs > merges adjacent remove+add into changed 0ms
+ ✓ tests/compare.test.ts > compareParagraphs > handles empty documents 0ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  09:30:07
+   Duration  3.22s (transform 2.09s, setup 0ms, import 2.77s, tests 47ms, environment 315ms)
+
+
+DOCS_COMPARE_EXIT=0
