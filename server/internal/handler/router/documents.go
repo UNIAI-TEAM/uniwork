@@ -84,6 +84,14 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		status: http.StatusCreated,
 		auth:   true,
 	})
+	d.Post("/workspaces/{workspaceID}/documents/my-folder", h.EnsureMyFolder, apiOp{
+		summary:     "Ensure the caller's personal My Folder",
+		description: "Tạo lười và trả về thư mục gốc cá nhân (My Folder, system_kind=my_folder, visibility=restricted) của thành viên đang gọi trong workspace (MYFOLDER-01). Tự idempotent: lần đầu tạo hàng kèm audit/outbox document.created (metadata system_kind=my_folder), các lần sau trả lại cùng hàng và không ghi audit thêm; luôn trả 200 DocumentSDO, body rỗng.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentSDO{},
+		status:      http.StatusOK,
+		auth:        true,
+	})
 	d.Post("/workspaces/{workspaceID}/documents/files", h.CreateDocumentFile, apiOp{
 		summary: "Create a file document",
 		description: "Tạo document kiểu file bằng một request multipart: phần file stream vào FileService (purpose document_file, ≤ 50 MiB, MIME allowlist + magic bytes), parent_id/title là form field tùy chọn. " +

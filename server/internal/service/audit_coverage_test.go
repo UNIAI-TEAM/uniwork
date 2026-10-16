@@ -2024,6 +2024,17 @@ func TestReusedAuditActionCommandsWriteTheirOwnRows(t *testing.T) {
 			}
 			return env, res.Document.ID
 		},
+		"EnsureMyFolder": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			v, created, err := env.svc.EnsureMyFolder(context.Background(), human(env.tn.member), env.tn.wsA)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !created {
+				t.Fatal("expected first EnsureMyFolder to create the row")
+			}
+			return env, v.Document.ID
+		},
 	}
 	for command, run := range cases {
 		t.Run(command, func(t *testing.T) {

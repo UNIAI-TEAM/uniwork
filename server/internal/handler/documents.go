@@ -183,6 +183,22 @@ func (h *handlers) createDocument(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, sdo.DocumentSDO{Document: documentDTO(view)})
 }
 
+// ensureMyFolder is POST /workspaces/{workspaceID}/documents/my-folder
+// (MYFOLDER-01, addendum §2): lazily creates and returns the caller's personal
+// My Folder in workspaceID (200 DocumentSDO whether newly created or existing).
+func (h *handlers) ensureMyFolder(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	view, _, err := h.Documents.EnsureMyFolder(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.DocumentSDO{Document: documentDTO(view)})
+}
+
 // getDocument is GET /documents/{documentID}: the working copy for a page or
 // the descriptor for a file document, with the caller's level and crumbs.
 func (h *handlers) getDocument(w http.ResponseWriter, r *http.Request) {
