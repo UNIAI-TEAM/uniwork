@@ -39,6 +39,14 @@
 // whatever turn 2 answers; any other non-200 turn 1 is a FAIL naming both
 // routes; and a capability that flips off between the two turns is a FAIL named
 // as that flip, not as a revoke result.
+//
+// BE-704-202 closed the last hole: under `AI_PROVIDER=fake` a turn 1 that
+// answered 200 still carries an unverifiable CONTENT (classifyAiResponse BLOCKs
+// it), and the row used to PASS while its own record said that step BLOCKED. The
+// turn-1 step status now decides too: every revoke assertion may hold and the row
+// still ends BLOCKED (exit 77) naming "turn-1 AI content not verifiable under the
+// fake provider (real-AI round)" — the record keeps every revoke assertion as
+// PASS, and a broken revoke assertion still wins over that BLOCKED.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -46,12 +54,14 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, w
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { after, before, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { G8_API_CALLS, G8_CALLS } from "../harness/api-contract.mjs";
+import { redactSignInError } from "../harness/app-steps.mjs";
 import { routeCatalogue, sdiFields } from "../harness/server-contract.helper.mjs";
 import {
+  AI_CONTENT_BLOCKER,
   AI_DISABLED_BLOCKER,
   CASE_EXPECTATIONS,
   REVOKE_CASES,
@@ -66,6 +76,44 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../../../..");
 /** The world cache an earlier driver version wrote; it must never come back. */
 const LEGACY_WORLD_CACHE = "g7-04-revoke-world.json";
+
+/**
+ * The result of this file must not depend on the shell it runs in (BE-704-203,
+ * repo CLAUDE.md: "Tests pin every env they depend on"). `classifyAiResponse`
+ * reads `AI_PROVIDER` and the real-upstream guard, `parseArgs` reads
+ * `HARNESS_RUN_DIR`, and the driver's evidence line reads the OFFICE_EVIDENCE_*
+ * keys, `OFFICE_FORK_SHA` and — through `ledgerIdentity` → `readPin` —
+ * `OFFICE_PIN_DIR` — so each test gets them pinned and restored.
+ * `AI_PROVIDER` is pinned off `fake` and the real-upstream guard off, so a row
+ * can only PASS here when its own fake carries a real-labelled answer AND the run
+ * opts in through the driver's own guard (`fetchImpl.allowRealAiUpstream`, the
+ * seam the HTTP-server tests use through `HARNESS_ALLOW_REAL_AI_UPSTREAM`).
+ */
+const PINNED_AI_PROVIDER = "openai";
+const PINNED_ENV_KEYS = [
+  "AI_PROVIDER",
+  "HARNESS_ALLOW_REAL_AI_UPSTREAM",
+  "HARNESS_RUN_DIR",
+  "OFFICE_EVIDENCE_ID",
+  "OFFICE_EVIDENCE_REQ",
+  "OFFICE_FORK_SHA",
+  "OFFICE_PIN_DIR",
+];
+let savedEnv = {};
+beforeEach(() => {
+  savedEnv = {};
+  for (const key of PINNED_ENV_KEYS) {
+    savedEnv[key] = process.env[key];
+    if (key === "AI_PROVIDER") process.env[key] = PINNED_AI_PROVIDER;
+    else delete process.env[key];
+  }
+});
+afterEach(() => {
+  for (const key of PINNED_ENV_KEYS) {
+    if (savedEnv[key] === undefined) delete process.env[key];
+    else process.env[key] = savedEnv[key];
+  }
+});
 
 // ---- the run dir the driver reads (start status + ports.env) ----------------
 
@@ -100,6 +148,10 @@ function sha256Of(bytes) {
  * commit-intent lookup answers the { status, ok, body } shape the driver's own
  * call() returns. `ignoreRevokeOnAiTurn` / `allowSaveAfterRevoke` /
  * `commitIntentAfterRevoke` are the three mutations the failure tests drive.
+ * `aiMode: "real"` answers the 200 with a real-labelled upstream payload and
+ * turns the driver's own real-upstream guard on (`fetchImpl.allowRealAiUpstream`)
+ * — without both, the turn-1 content is BLOCKED and the row can only be BLOCKED
+ * (BE-704-202).
  */
 function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false, allowSaveAfterRevoke = false, commitIntentAfterRevoke = false } = {}) {
   const state = {
@@ -218,7 +270,15 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
         }
         if (state.removed.has(caller)) return json(404, { error: { code: "not_found", message: "not found" } });
       }
-      return json(200, { id: "chatcmpl-test", model: "fake-stub", provider: "fake", choices: [{ index: 0, message: { role: "assistant", content: "[fake provider] stub" }, finish_reason: "stop" }] });
+      // A real-labelled answer is what a PASS needs: classifyAiResponse BLOCKs
+      // any 200 whose provider/model/content is labelled fake (BE-704-202).
+      const real = aiMode === "real";
+      return json(200, {
+        id: "chatcmpl-test",
+        model: real ? "gpt-4o-mini" : "fake-stub",
+        provider: real ? "openai-compatible" : "fake",
+        choices: [{ index: 0, message: { role: "assistant", content: real ? "Xin chào, đây là bản nháp đầu tiên." : "[fake provider] stub" }, finish_reason: "stop" }],
+      });
     }
     if (method === "GET" && path === `/api/v1/documents/${DOC_ID}/versions`) {
       const caller = callerOf(init);
@@ -285,6 +345,10 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
     if (method === "POST" && path === "/api/v1/me/delete") return json(200, { deleted: true });
     return json(404, { error: { code: "not_found", path } });
   };
+
+  // The driver's own real-upstream seam (the same one a real runner opens with
+  // HARNESS_ALLOW_REAL_AI_UPSTREAM=1): without it the turn-1 content stays BLOCKED.
+  if (aiMode === "real") fetchImpl.allowRealAiUpstream = true;
 
   return { state, fetchImpl };
 }
@@ -396,7 +460,7 @@ describe("G7-04 revoke CLI args", () => {
 describe("G7-04 revoke cases (G7-A02.1)", () => {
   for (const caseName of REVOKE_CASES) {
     it(`${caseName} -> PASS (exit 0) with versions +0 and no committed intent`, async () => {
-      const mock = createMockRevokeServer();
+      const mock = createMockRevokeServer({ aiMode: "real" });
       const scratch = makeScratchRunDir();
       try {
         const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName });
@@ -415,8 +479,43 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
     });
   }
 
+  for (const caseName of REVOKE_CASES) {
+    it(`${caseName}: a turn 1 that answered 200 from the fake provider BLOCKs the row (exit 77) with the content blocker named, while every revoke assertion stays PASS (BE-704-202)`, async () => {
+      // aiMode "fake" (the default): the 200 carries a provider/model/content the
+      // classifier labels fake, so the turn-1 CONTENT is BLOCKED although the
+      // status is 200 — the shape cloud D2 ran under AI_PROVIDER=fake.
+      const mock = createMockRevokeServer();
+      const scratch = makeScratchRunDir();
+      try {
+        const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName });
+        assert.equal(res.status, "BLOCKED", res.reason);
+        assert.equal(res.exitCode, 77);
+        assert.equal(res.blocker, AI_CONTENT_BLOCKER);
+        assert.match(res.blocker, /turn-1 AI content not verifiable under the fake provider \(real-AI round\)/);
+        // the row's own record is why: turn 1 answered 200 on both routes, and the
+        // content step the row is measured against is BLOCKED (pre-fix this row PASSed)
+        assert.equal(res.steps.aiTurn1.status, "BLOCKED");
+        assert.equal(res.details.aiTurn1.session.status, 200);
+        assert.equal(res.details.aiTurn1.frame.status, 200);
+        // and the evidence still shows the revoke was proven: every revoke step is PASS
+        for (const step of ["revoke", "aiTurn2", "saveRefused", "versionsBefore", "versionsAfter", "commitIntent"]) {
+          assert.equal(res.steps[step].status, "PASS", `${step}: ${JSON.stringify(res.steps[step])}`);
+        }
+        assert.equal(res.versionCounts.versionsBefore, 1);
+        assert.equal(res.versionCounts.versionsAfterRevoke, 1);
+        // BE-704-204: the reason prints the MEASURED answers of both turns, and
+        // the record's redaction keeps them (a reason cut at 240 loses its tail)
+        assert.match(res.reason, /AI turn 1 session 200\/frame 200/);
+        assert.match(res.reason, /AI turn 2 session /);
+        assert.equal(redactSignInError(res.reason), res.reason);
+      } finally {
+        scratch.cleanup();
+      }
+    });
+  }
+
   it("deactivate asserts each route as the code answers it: 403 member_deactivated on the session route, 401 unauthorized (error_class session) on the frame route with the file:line reason (D1-02)", async () => {
-    const mock = createMockRevokeServer();
+    const mock = createMockRevokeServer({ aiMode: "real" });
     const scratch = makeScratchRunDir();
     try {
       const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
@@ -439,7 +538,7 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
   });
 
   it("remove answers 204 on the DELETE itself and 404 not_found on both AI routes next", async () => {
-    const mock = createMockRevokeServer();
+    const mock = createMockRevokeServer({ aiMode: "real" });
     const scratch = makeScratchRunDir();
     try {
       const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "remove" });
@@ -456,7 +555,7 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
   });
 
   it("downgrade asserts what the code does: the AI turn still answers 200 (view-only AI is allowed, G6-05u) and the Save proof is the upload 403 forbidden with the commit 404 the route answers (BE-704-03)", async () => {
-    const mock = createMockRevokeServer();
+    const mock = createMockRevokeServer({ aiMode: "real" });
     const scratch = makeScratchRunDir();
     try {
       const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "downgrade", fixtureId: "fx-xlsx-revenue-xyz" });
@@ -479,7 +578,7 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
   });
 
   it("each (case, fixture) run seeds its own world, so a second case on the same run dir is not blocked by the first run's revoke (D1-01)", async () => {
-    const mock = createMockRevokeServer();
+    const mock = createMockRevokeServer({ aiMode: "real" });
     const scratch = makeScratchRunDir();
     try {
       const first = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
@@ -494,7 +593,7 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
   });
 
   it("counts versions with the owner's token, whose read the revoke never refuses (BE-704-02)", async () => {
-    const mock = createMockRevokeServer();
+    const mock = createMockRevokeServer({ aiMode: "real" });
     const scratch = makeScratchRunDir();
     try {
       const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
@@ -518,7 +617,7 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
   });
 
   it("never writes a world cache, deletes a stale one an earlier driver left, and never reuses its tokens (BE-704-04)", async () => {
-    const mock = createMockRevokeServer();
+    const mock = createMockRevokeServer({ aiMode: "real" });
     const scratch = makeScratchRunDir();
     const stale = join(scratch.dir, LEGACY_WORLD_CACHE);
     writeFileSync(stale, `${JSON.stringify({ apiOrigin: "http://127.0.0.1:1", owner: { token: "tok-stale-owner" }, member: { token: "tok-stale-member" }, workspaceId: WS_ID })}\n`);
@@ -563,6 +662,9 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
       assert.equal(res.status, "FAIL");
       assert.equal(res.exitCode, 1);
       assert.match(res.reason, /AI turn 2|200/);
+      // BE-704-202: this row's turn-1 content is BLOCKED too (the fake provider),
+      // and the broken revoke assertion still wins over that BLOCKED
+      assert.equal(res.steps.aiTurn1.status, "BLOCKED");
     } finally {
       scratch.cleanup();
     }
@@ -666,6 +768,9 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
       assert.equal(res.details.aiTurn2.session.code, "office_capability_off");
       assert.match(res.reason, /capability ai_uniwork_docx turned off between turn 1 and turn 2/);
       assert.match(res.reason, /not a revoke result/);
+      // the measured answers of both turns, not the expectations (BE-704-204)
+      assert.match(res.reason, /turn 1 session 200\/frame 200/);
+      assert.match(res.reason, /turn 2 session 403 office_capability_off\/frame 403 office_capability_off/);
     } finally {
       scratch.cleanup();
     }
@@ -866,6 +971,11 @@ describe("decideRevokeOutcome", () => {
     assert.equal(out.exitCode, 1);
     assert.match(out.reason, /capability ai_uniwork_docx turned off between turn 1 and turn 2/);
     assert.match(out.reason, /not a revoke result/);
+    // measured, not the expectation (BE-704-204)
+    assert.match(out.reason, /turn 1 session 200\/frame 200/);
+    assert.match(out.reason, /turn 2 session 403 office_capability_off\/frame 403 office_capability_off/);
+    // the record's redaction (240 chars) must keep the flip named and measured
+    assert.equal(redactSignInError(out.reason), out.reason);
   });
 
   it("BLOCKs on a 503 ai_disabled turn 1 only after every revoke assertion passed", () => {
@@ -874,6 +984,51 @@ describe("decideRevokeOutcome", () => {
     assert.equal(decideRevokeOutcome(disabled).exitCode, 77);
     // a broken revoke assertion still wins over the BLOCKED
     assert.equal(decideRevokeOutcome({ ...disabled, versionsAfterRevoke: 2 }).status, "FAIL");
+  });
+
+  it("BLOCKs (exit 77) a row whose turn-1 CONTENT step is BLOCKED under the fake provider, naming it, with every revoke assertion held (BE-704-202)", () => {
+    const blockedContent = { ...base(), aiTurn1Step: { status: "BLOCKED" } };
+    const out = decideRevokeOutcome(blockedContent);
+    assert.equal(out.status, "BLOCKED");
+    assert.equal(out.exitCode, 77);
+    assert.equal(out.owner, "g7-qa");
+    assert.equal(out.blocker, AI_CONTENT_BLOCKER);
+    // measured answers of both turns, never the expectations (BE-704-204)
+    assert.match(out.reason, /AI turn 1 session 200\/frame 200/);
+    assert.match(out.reason, /AI turn 2 session 403 member_deactivated\/frame 401 unauthorized error_class=session/);
+    assert.match(out.reason, /versions 1 -> 1/);
+    // and the record's own redaction (240 chars) must keep every word of it
+    assert.equal(redactSignInError(out.reason), out.reason);
+    // any FAIL still wins over that BLOCKED
+    assert.equal(decideRevokeOutcome({ ...blockedContent, versionsAfterRevoke: 2 }).status, "FAIL");
+    assert.equal(decideRevokeOutcome({ ...blockedContent, commitIntent: { hasCommitted: true } }).status, "FAIL");
+    assert.equal(decideRevokeOutcome({ ...blockedContent, revoke: { status: 500 } }).status, "FAIL");
+    assert.equal(decideRevokeOutcome({ ...blockedContent, aiTurn2: { session: { status: 200 }, frame: { status: 200 } } }).status, "FAIL");
+    // a turn-1 step that is not BLOCKED keeps the clean record PASS
+    assert.equal(decideRevokeOutcome({ ...base(), aiTurn1Step: { status: "PASS" } }).status, "PASS");
+    // and the ai_disabled refusal keeps its own blocker, never the content one
+    const disabledTurn = { ...blockedContent, aiTurn1: { session: { status: 503, code: "ai_disabled" }, frame: { status: 503, code: "ai_disabled" } } };
+    assert.equal(decideRevokeOutcome(disabledTurn).blocker, AI_DISABLED_BLOCKER);
+  });
+
+  it("a BLOCKED reason prints the MEASURED answers, not the expectations (BE-704-204)", () => {
+    // The disabled branch returns before the turn-2 comparison, so the measured
+    // turn 2 here is deliberately nothing like the case's expectation: a reason built
+    // from x.aiTurn2 would read "403 member_deactivated / 401 unauthorized ... session"
+    // — an expectation printed as if it had been observed.
+    const out = decideRevokeOutcome({
+      ...base(),
+      aiTurn1: { session: { status: 503, code: "ai_disabled" }, frame: { status: 503, code: "ai_disabled" } },
+      aiTurn1Step: { status: "BLOCKED" },
+      aiTurn2: { session: { status: 200 }, frame: { status: 200 } },
+    });
+    assert.equal(out.status, "BLOCKED");
+    assert.equal(out.blocker, AI_DISABLED_BLOCKER);
+    assert.match(out.reason, /AI turn 1 session 503 ai_disabled\/frame 503 ai_disabled/);
+    assert.match(out.reason, /AI turn 2 session 200\/frame 200/);
+    assert.ok(!/AI turn 2 session 403/.test(out.reason), `the reason printed the expectation: ${out.reason}`);
+    // and the record's own redaction (240 chars) must keep every word of it
+    assert.equal(redactSignInError(out.reason), out.reason);
   });
 });
 
@@ -908,13 +1063,46 @@ describe("G7-04 revoke CLI", () => {
       scratch.cleanup();
     }
   });
+
+  it("a turn 1 that answered 200 with content the fake provider cannot be verified from exits 77 and prints the content blocker (BE-704-202)", async () => {
+    // Nothing opens the real-upstream guard here (the pin deletes
+    // HARNESS_ALLOW_REAL_AI_UPSTREAM), so this is the cloud runner's own shape:
+    // a 200 turn 1 whose content is labelled fake, and therefore unverifiable.
+    const mock = createMockRevokeServer();
+    const { server, origin } = await startMockHttp(mock);
+    const scratch = makeScratchRunDir();
+    writeFileSync(join(scratch.dir, "ports.env"), `API_ORIGIN=${origin}\nWEB_ORIGIN=${origin}\n`);
+    const revokeScript = join(REPO_ROOT, "scripts/office/g5g6g7/g7-04/revoke.mjs");
+    try {
+      const run = await new Promise((done, fail) => {
+        const child = spawn(process.execPath, [revokeScript, "--case", "deactivate", "--fixture", "fx-docx-report-vi", "--run-dir", scratch.dir], { cwd: REPO_ROOT, env: process.env });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.on("data", (d) => { stdout += d.toString("utf8"); });
+        child.stderr.on("data", (d) => { stderr += d.toString("utf8"); });
+        child.on("error", fail);
+        child.on("close", (status) => done({ status, stdout, stderr }));
+      });
+      assert.equal(run.status, 77, run.stderr);
+      assert.match(run.stderr, /BLOCKED: turn-1 AI content not verifiable under the fake provider \(real-AI round\)/);
+      // the artifact shows the revoke assertions held, and names the verdict
+      const artifact = readFileSync(join(scratch.dir, "logs", "g7-04-revoke-deactivate-fx-docx-report-vi.log"), "utf8");
+      assert.match(artifact, /AI turn 1 session 200\/frame 200/);
+      assert.match(artifact, /AI turn 2 session 403 member_deactivated\/frame 401 unauthorized error_class=session; Save upload 403 member_deactivated\/commit 403 member_deactivated/);
+      assert.match(artifact, /verdict BLOCKED/);
+      assert.ok(!/tok-/.test(artifact), "the artifact carries a token");
+    } finally {
+      await new Promise((done) => server.close(done));
+      scratch.cleanup();
+    }
+  });
 });
 
 // ---- evidence.mjs run + verify ---------------------------------------------
 
 describe("G7-04 evidence.mjs run + verify", () => {
   it("writes one valid evidence line per (case, fixture) for G7-A02 and verify passes", async () => {
-    const mock = createMockRevokeServer();
+    const mock = createMockRevokeServer({ aiMode: "real" });
     const { server, origin } = await startMockHttp(mock);
     const scratch = makeScratchRunDir();
     writeFileSync(join(scratch.dir, "ports.env"), `API_ORIGIN=${origin}\nWEB_ORIGIN=${origin}\n`);
@@ -943,7 +1131,7 @@ describe("G7-04 evidence.mjs run + verify", () => {
         const run = await runCmd([
           evidenceScript, "run", "--req", "G7-A02", "--fixture", c.fixture, "--checker", "tester-cloud", "--out", outDir,
           "--", process.execPath, revokeScript, "--case", c.caseName, "--fixture", c.fixture, "--run-dir", scratch.dir,
-        ], { ...process.env, OFFICE_FORK_SHA: "0d03b18" });
+        ], { ...process.env, OFFICE_FORK_SHA: "0d03b18", HARNESS_ALLOW_REAL_AI_UPSTREAM: "1" });
         assert.equal(run.status, 0, `${c.caseName} exit status (${run.stderr})`);
       }
 
