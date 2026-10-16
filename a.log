@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+b696bcddb347f61b9f4f70c3697d4aaa5c13c0d0
+b8bca493dba58a966e6f07471231c24a477d4bbe
+b696bcddb Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1843-restore-purge
+72f797a10 feat(documents): admit edit holders to read-only trash list (UNI-1843)
+f6c792a21 feat(documents): add manual permanent delete endpoint POST /documents/{documentID}/purge (UNI-1843)
+92cd1a502 feat(documents): add trash item schema fields and canManageTrashed
+227c9608f test(documents): pin useRestoreDocument partial batch and cache invalidation
+7f701bb6f feat(documents): add purgeDocument endpoint and usePurgeDocument hook
+9cb7bf9a1 feat(documents): restore per item with managed same-batch descendants
+b8bca493d chore: merge VERHIST-01 (UNI-1849, fdcfad4be) into the G5-G7 root
