@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api/http";
-import { classifyDocumentError } from "./errors";
+import { classifyDocumentError, shareLevelNotAllowedMax } from "./errors";
 
 // classifyDocumentError reads the server's error_class stamp first, then the
 // stable code, then the status. CODE_TO_CLASS mirrors errorClassByCode in
@@ -43,5 +43,18 @@ describe("classifyDocumentError", () => {
   it("leaves an unlisted code with an unclassifiable status unknown", () => {
     const err = new ApiError("x", "no_such_documents_code", 422);
     expect(classifyDocumentError(err).cls).toBe("unknown");
+  });
+
+  it("reads the home-row ceiling of a level_not_allowed refusal", () => {
+    // SH-S1 Q-S1: the code carries no error_class on purpose (it is neither a
+    // lost permission nor a reload), so fields.max is the client's whole
+    // reading of the refusal, and never a level the code does not name.
+    const refused = new ApiError("dòng Workspace gốc chỉ nhận view, comment hoặc edit", "level_not_allowed", 422, undefined, {
+      max: "edit",
+    });
+    expect(shareLevelNotAllowedMax(refused)).toBe("edit");
+    expect(shareLevelNotAllowedMax(new ApiError("x", "level_not_allowed", 422))).toBeNull();
+    expect(shareLevelNotAllowedMax(new ApiError("x", "level_not_allowed", 422, undefined, { max: "owner" }))).toBeNull();
+    expect(shareLevelNotAllowedMax(new ApiError("x", "break_glass_required", 403))).toBeNull();
   });
 });

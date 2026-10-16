@@ -9161,7 +9161,8 @@
       "folder_not_supported": "A folder has no content to open or edit.",
       "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
       "source_not_saveable": "This file can't be copied into Documents.",
-      "folder_name_taken": "A folder with this name already exists here. Choose another name."
+      "folder_name_taken": "A folder with this name already exists here. Choose another name.",
+      "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level."
     }
   },
   "squads": {

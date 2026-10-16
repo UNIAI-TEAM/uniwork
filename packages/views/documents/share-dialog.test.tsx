@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
@@ -308,6 +309,57 @@ describe("ShareDialog", () => {
 
     await waitFor(() => expect(posts.length).toBe(1));
     expect(posts[0]).toEqual({ principal_type: "workspace", principal_id: "w2", level: "edit" });
+  });
+
+  it("never offers the document's own workspace as a share principal", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) {
+        return Promise.resolve({
+          workspaces: [
+            { id: WS, slug: "team", name: "Team", organization_id: ORG, organization_slug: "acme", organization_name: "Acme" },
+            { id: "w2", slug: "design", name: "Design", organization_id: ORG, organization_slug: "acme", organization_name: "Acme" },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_workspace"));
+    // SH-S1: the document's own workspace is its home row, moved only by the
+    // visibility control, so the workspace list leaves it out.
+    fireEvent.click(screen.getByRole("combobox", { name: t("documents.share.principal_placeholder") }));
+    expect(await screen.findByRole("option", { name: "Design" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Team" })).toBeNull();
+  });
+
+  it("words the home-row level refusal with the ceiling the server names", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
+      if (path === "/api/v1/documents/d1/shares" && opts?.method === "POST") {
+        return Promise.reject(
+          new ApiError("dòng Workspace gốc chỉ nhận view, comment hoặc edit", "level_not_allowed", 422, undefined, {
+            max: "edit",
+          }),
+        );
+      }
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_workspace"));
+    await pickOption(t("documents.share.principal_placeholder"), "Design");
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("documents.errors.level_not_allowed", { max: t("documents.share.level_edit") }),
+    );
   });
 
   it("keeps the picked people and shows the message when the batch fails", async () => {

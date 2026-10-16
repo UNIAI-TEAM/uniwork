@@ -107,6 +107,43 @@ describe("documents sharing hooks (G1-05b)", () => {
     });
   });
 
+  it("useShareDocument accepts the merged home-row answer and refuses every other empty id", async () => {
+    // SH-S1: a share naming the document's own workspace is merged into its
+    // home row, so the answer carries the moved grant with an EMPTY share id
+    // and still proves the write the caller asked for.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ share: share({ id: "", principal_type: "workspace", principal_id: "w1" }) }),
+    );
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.shares("w1", "d1"), { my_level: "manage", via: "member" });
+    qc.setQueryData(documentKeys.detail("w1", "d1"), { id: "d1" });
+    const { result } = renderHook(() => useShareDocument("w1", "d1"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ principal_type: "workspace", principal_id: "w1", level: "view" });
+    });
+    expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.detail("w1", "d1"))?.isInvalidated).toBe(true);
+
+    // The same empty id for another workspace, or for a principal that is not
+    // a workspace, is still an unverifiable answer.
+    for (const row of [
+      share({ id: "", principal_type: "workspace", principal_id: "w2" }),
+      share({ id: "", principal_type: "user", principal_id: "w1" }),
+    ]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ share: row }));
+      const next = renderHook(() => useShareDocument("w1", "d1"), { wrapper });
+      await act(async () => {
+        await expectNotVerifiable(() =>
+          next.result.current.mutateAsync({
+            principal_type: "workspace",
+            principal_id: "w1",
+            level: "view",
+          }),
+        );
+      });
+    }
+  });
+
   it("useShareDocumentBatch invalidates what useShareDocument does and refuses an unverifiable answer", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ shares: [share({ id: "s1", principal_id: "u2" }), share({ id: "s2", principal_id: "u3" })] }),

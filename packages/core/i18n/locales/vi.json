@@ -9155,7 +9155,8 @@
       "folder_not_supported": "Thư mục không có nội dung để mở hay chỉnh sửa.",
       "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa lưu trữ được một lần. Hãy lưu trữ từng phần bên trong trước.",
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
-      "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác."
+      "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
+      "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn."
     }
   },
   "squads": {

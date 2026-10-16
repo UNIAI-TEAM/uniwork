@@ -4,7 +4,7 @@ import { useId, useMemo, useState } from "react";
 import { Building2, Link2, ShieldCheck, UserRound, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
-import { classifyDocumentError } from "@uniwork/core/documents/errors";
+import { classifyDocumentError, shareLevelNotAllowedMax } from "@uniwork/core/documents/errors";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import {
   useDocumentShares,
@@ -138,11 +138,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
     // People pick through SharePeoplePicker; this list feeds the single select.
     switch (principalType) {
       case "workspace":
-        return (orgWorkspaces.data ?? []).map((w) => ({ value: w.id, label: w.name }));
+        // The document's own workspace is its home row, moved only by the visibility control (until SH-W1's dialog surfaces it): never offered as a share.
+        return (orgWorkspaces.data ?? [])
+          .filter((w) => w.id !== wsId).map((w) => ({ value: w.id, label: w.name }));
       default:
         return [{ value: doc.organization_id, label: workspace.organization_name }];
     }
-  }, [principalType, orgWorkspaces.data, doc.organization_id, workspace.organization_name]);
+  }, [principalType, orgWorkspaces.data, wsId, doc.organization_id, workspace.organization_name]);
 
   const submitShare = async () => {
     if (principalType === "user") return people.submit(level);
@@ -154,7 +156,12 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
       // workspace grants clear the choice for the next one.
       setPrincipalId(principalType === "organization" ? doc.organization_id : "");
     } catch (err) {
-      setAddError(apiErrorMessage(err) ?? t("documents.share.submit_failed"));
+      // A share for the document's own workspace above the home row's ceiling
+      // (SH-S1 Q-S1) names that ceiling: say it here instead of the server's
+      // own sentence, which is outside the reader's language table.
+      const max = shareLevelNotAllowedMax(err);
+      const fallback = apiErrorMessage(err) ?? t("documents.share.submit_failed");
+      setAddError(max ? t("documents.errors.level_not_allowed", { max: levelLabel(max) }) : fallback);
     }
   };
 
