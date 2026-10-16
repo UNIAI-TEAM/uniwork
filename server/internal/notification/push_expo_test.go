@@ -53,10 +53,11 @@ func TestExpoPushSenderMapsTickets(t *testing.T) {
 			t.Fatalf("%s → %v, want a retryable error", to, err)
 		}
 	}
-	// A 4xx carries Expo's reason into the error, so a wrong EXPO_ACCESS_TOKEN
-	// is visible in the dead-letter log rather than just "401".
-	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[unauth]"}, msg); err == nil || !strings.Contains(err.Error(), "bad access token") {
-		t.Fatalf("401 → %v, want Expo's message in the error", err)
+	// A 4xx carries Expo's error code (never its message, which can echo
+	// request values) into the error, so a wrong EXPO_ACCESS_TOKEN reads as
+	// UNAUTHORIZED in the dead-letter log rather than just "401".
+	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[unauth]"}, msg); err == nil || !strings.Contains(err.Error(), "UNAUTHORIZED") || strings.Contains(err.Error(), "bad access token") {
+		t.Fatalf("401 → %v, want Expo's error code and not its message", err)
 	}
 	if err := s.Send(context.Background(), db.PushSubscription{Endpoint: "ExponentPushToken[ok]"}, PushMessage{Title: "t"}); err != nil || got[0]["body"] != nil {
 		t.Fatalf("empty body must be omitted: %v %v", got[0]["body"], err)

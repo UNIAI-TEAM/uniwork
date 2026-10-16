@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -85,10 +86,26 @@ func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg P
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		// Read (and so drain) a bounded snippet: it keeps the connection
-		// reusable and puts Expo's reason (bad token, bad request) in the log.
-		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
-		return fmt.Errorf("expo push: %s: %s", resp.Status, bytes.TrimSpace(snippet))
+		// Read (and so drain) a bounded body: it keeps the connection
+		// reusable. Only Expo's error codes reach the log — its messages can
+		// echo request values, and spec N2 §3.4 keeps message text out of logs.
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+		var failure struct {
+			Errors []struct {
+				Code string `json:"code"`
+			} `json:"errors"`
+		}
+		_ = json.Unmarshal(raw, &failure)
+		codes := make([]string, 0, len(failure.Errors))
+		for _, e := range failure.Errors {
+			if e.Code != "" {
+				codes = append(codes, e.Code)
+			}
+		}
+		if len(codes) == 0 {
+			return fmt.Errorf("expo push: %s", resp.Status)
+		}
+		return fmt.Errorf("expo push: %s: %s", resp.Status, strings.Join(codes, ","))
 	}
 	var out expoResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
