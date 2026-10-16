@@ -27,11 +27,20 @@
 //   * Any checksum divergence between the hosts FAILs (exit 1), never a delay.
 //   * The dirty editor row is driven through the app's own editor (CDP); when
 //     that cannot be driven the row is BLOCKED, never PASS.
-//   * Nothing is copied: the harness drivers (`harness/web.mjs`,
-//     `harness/app.mjs`, `harness/app-steps.mjs`, `harness/lib.mjs`) and the
-//     tracer helpers (`g7-10/tracer.mjs`) are imported; the CLI writes exactly
-//     one artifact per (row, fixture) plus the evidence line `evidence.mjs`
-//     wraps.
+//   * Reuse, not copies (BE-704-05): the harness drivers (`harness/web.mjs`,
+//     `harness/app.mjs`, `harness/app-steps.mjs`, `harness/lib.mjs`), the tracer
+//     helpers (`g7-10/tracer.mjs`) and the G8-19 desktop helpers
+//     (`g8-19/anchors.mjs`: `pageAction` and `EDIT_DRIVERS`) are imported; the
+//     driver's only redactor is `redactSignInError` from
+//     `harness/app-steps.mjs`. The one thing this file still owns is the
+//     `DIRTY_EDIT_PLANS` NAMES its record prints (insert-row / split-block): the
+//     ACTIONS come from `EDIT_DRIVERS`. The CLI writes exactly one artifact per
+//     (row, fixture) plus the evidence line `evidence.mjs` wraps.
+//   * The dirty-editor half of the chain is G5-A03.3 ONLY (D1-04): the G7-A01
+//     chain runs no `app-dirty` / `web-save-2` / `dirty-kept` / `app-reload` step.
+//   * A BLOCKED step stops only the steps that consume its result; a FAILed step
+//     always stops the chain (see `STEP_DEPENDENCIES`).
+//   * A BLOCKED step with no named blocker is a FAIL (BE-704-10).
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,7 +49,6 @@ import {
   BLOCKED_EXIT,
   DEV_CLIENT_ID,
   HARNESS_DEPLOYMENT_ID,
-  concludeAtStartGate,
   evidenceLine,
   fixtureSha256Of,
   harnessEvidenceId,
@@ -58,6 +66,7 @@ import {
   listAppSyncIntentFiles,
   loadPlaywrightChromium,
   parseEnvFile,
+  redactSignInError,
   resolveAppStepTimeoutMs,
   resolveLoopTimeoutMs,
   runBoundedAppStep,
@@ -75,6 +84,11 @@ import {
   cleanupSeededOrganization,
   seedFixtureDocument,
 } from "../g7-10/tracer.mjs";
+// The desktop editor action + the per-format structural edit plans (G8-19).
+// `pageAction` is the awaited implementation the old local `appPageAction` copied
+// (BE-704-07: the copies dropped the `await` on `wait(250)`); `EDIT_DRIVERS` holds
+// the plans this row drives (BE-704-05). Both are imported, never re-declared.
+import { EDIT_DRIVERS, pageAction } from "../g8-19/anchors.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = resolve(HERE, "../../../..");
@@ -125,18 +139,14 @@ export function exitCodeFor(status) {
 }
 
 const REASON_MAX_CHARS = 2000;
-/** A reason/blocker safe for an artifact: no token, ticket or credential-looking run. */
-const safe = (text) => {
-  let out = String(text ?? "").replace(/\s+/g, " ").trim();
-  out = out.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, "<url>");
-  out = out.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, (m, scheme) => `${scheme} <redacted>`);
-  out = out.replace(
-    /(?<=\b(?:access_token|refresh_token|id_token|token|secret|password|credential|authorization|api_?key|ticket|attempt_id|code|state)\s*[:=]\s*)[^\s,;&"']+/gi,
-    "<redacted>",
-  );
-  out = out.replace(/[A-Za-z0-9_-]{32,}/g, "<redacted>");
-  return out.length > REASON_MAX_CHARS ? `${out.slice(0, REASON_MAX_CHARS)}...` : out;
-};
+/**
+ * A reason/blocker safe for an artifact: no token, ticket or credential-looking
+ * run. This is `harness/app-steps.mjs` `redactSignInError` (the same function
+ * `revoke.mjs`, `harness/world.mjs` and `harness/api.mjs` redact with) with the
+ * driver's own 2000-char cap; the driver keeps no second copy of the rules
+ * (BE-704-05).
+ */
+const safe = (text) => redactSignInError(text, { maxChars: REASON_MAX_CHARS });
 
 function assertKnownRow(row) {
   if (!ROW_IDS.includes(row)) throw new Error(`--row must be one of ${ROW_IDS.join(" | ")}, got "${row}"`);
@@ -209,15 +219,15 @@ export const ROW_REQUIRED_STEPS = Object.freeze({
     "web-sees",
     "final-shas",
   ]),
+  // G7-A01 runs NO dirty-editor step: the dirty editor belongs to G5-A03.3 only
+  // (D1-04). The row is web -> app -> offline desktop save -> reconnect -> web
+  // sees -> AI turn + Save -> final; a BLOCKED `app-dirty` cannot stop it
+  // because it is not in this list at all.
   "G7-A01": Object.freeze([
     "seed",
     "web-open",
     "web-save-1",
     "app-open",
-    "app-dirty",
-    "web-save-2",
-    "dirty-kept",
-    "app-reload",
     "app-offline-save",
     "app-reconnect",
     "web-sees",
@@ -228,17 +238,72 @@ export const ROW_REQUIRED_STEPS = Object.freeze({
 });
 
 /**
- * The row's outcome from its record (pure, so the tests can pin every verdict):
- *   1. a FAILed step is a FAIL (its reason wins);
- *   2. else a BLOCKED step is a BLOCKED (exit 77) with the blockers joined;
- *   3. else a required step that did not run is a FAIL (`step X did not run`);
- *   4. a three-way checksum divergence is a FAIL (never a delay);
- *   5. a version tally other than one-per-user-Save / zero-per-AI-turn is a FAIL.
+ * Which step's RESULT each later step consumes (D1-04), written producer ->
+ * consumers. A BLOCKED producer therefore skips exactly its consumers, and the
+ * skip is transitive (a consumer of a skipped step is skipped too), so a BLOCKED
+ * dirty step in the G5-A03 chain skips `dirty-kept` (it asserts the dirty bytes
+ * survived) and `app-reload` (it discards the dirty edit) while the INDEPENDENT
+ * desktop half still runs: `app-offline-save` -> `app-reconnect` -> `web-sees`
+ * -> `final-shas` (G5-A03.2). A FAILed step is different: it always stops the
+ * chain, because a FAIL is a product divergence, not a missing precondition.
+ *
+ * The rule in one line: a BLOCKED step stops the chain only for the steps that
+ * depend on its result; a FAIL always stops it; a PASS never does.
  */
+export const STEP_DEPENDENCIES = Object.freeze({
+  seed: Object.freeze(["web-open", "web-save-1", "app-open"]),
+  "web-open": Object.freeze(["web-save-1", "web-save-2", "web-sees"]),
+  "web-save-1": Object.freeze(["app-open"]),
+  "app-open": Object.freeze(["app-dirty", "app-offline-save", "app-reload", "ai-save"]),
+  "app-dirty": Object.freeze(["web-save-2", "dirty-kept", "app-reload"]),
+  "web-save-2": Object.freeze(["dirty-kept", "app-reload"]),
+  "dirty-kept": Object.freeze([]),
+  "app-reload": Object.freeze([]),
+  "app-offline-save": Object.freeze(["app-reconnect"]),
+  "app-reconnect": Object.freeze(["web-sees", "final-shas"]),
+  "web-sees": Object.freeze(["final-shas"]),
+  // `ai-turn` has NO consumer: the Save after a BLOCKED AI turn still runs (the
+  // harness writes the stand-in bytes for the AI edit), so the deterministic
+  // "one version per user Save, zero per AI turn" mechanics are still recorded
+  // while the row can never close on a fake provider (acceptance.md l.87).
+  "ai-turn": Object.freeze([]),
+  "ai-save": Object.freeze(["final-shas"]),
+});
+
+/**
+ * The steps of `row` a BLOCKED `step` makes unrunnable: its consumers, and the
+ * consumers of those, in chain order. Empty when nothing consumes the step's
+ * result, which is what makes a BLOCKED step harmless to the rest of the chain.
+ */
+export function dependentSteps(row, step) {
+  const required = ROW_REQUIRED_STEPS[row] ?? ROW_REQUIRED_STEPS["G7-A01"];
+  // consumes[Z] = the producers Z reads the result of
+  const consumes = new Map(required.map((name) => [name, new Set()]));
+  for (const [producer, consumers] of Object.entries(STEP_DEPENDENCIES)) {
+    for (const consumer of consumers) consumes.get(consumer)?.add(producer);
+  }
+  const skip = new Set([step]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const name of required) {
+      if (skip.has(name)) continue;
+      if ([...consumes.get(name)].some((input) => skip.has(input))) {
+        skip.add(name);
+        grew = true;
+      }
+    }
+  }
+  skip.delete(step);
+  return required.filter((name) => skip.has(name));
+}
+
 export function decideCrossHostOutcome(record = {}) {
   const steps = record.steps ?? {};
   const entries = Object.entries(steps);
-  const failing = ([, s]) => s?.status !== "PASS" && s?.status !== "BLOCKED";
+  // SKIPPED (a step whose input a BLOCKED step never produced) is "did not run",
+  // not a FAIL: the BLOCKED branch below owns the verdict (D1-04).
+  const failing = ([, s]) => s?.status !== "PASS" && s?.status !== "BLOCKED" && s?.status !== "SKIPPED";
   const failed = entries.filter(failing);
   if (failed.length > 0) {
     const owners = [...new Set(failed.map(([, s]) => s?.owner || ""))].filter(Boolean);
@@ -253,7 +318,21 @@ export function decideCrossHostOutcome(record = {}) {
   if (entries.length === 0) return { status: "FAIL", exitCode: 1, reason: "no steps ran", blocker: "" };
   const blocked = entries.filter(([, s]) => s.status === "BLOCKED");
   const required = ROW_REQUIRED_STEPS[record.row] ?? ROW_REQUIRED_STEPS["G7-A01"];
-  const missing = required.filter((name) => !steps[name]);
+  const missing = required.filter((name) => !steps[name] || steps[name].status === "SKIPPED");
+  // BE-704-10: a BLOCKED step with no named blocker cannot be attributed to an
+  // owner, so it is a FAIL, not a BLOCKED (the README and acceptance.md l.87
+  // require BLOCKED to carry a named blocker).
+  const unattributed = blocked.filter(([, s]) => !String(s?.blocker ?? "").trim());
+  if (unattributed.length > 0) {
+    return {
+      status: "FAIL",
+      exitCode: 1,
+      reason: safe(
+        `BLOCKED without a named blocker: ${unattributed.map(([name]) => name).join(", ")} (a BLOCKED step must name its blocker)`,
+      ),
+      blocker: "",
+    };
+  }
   if (blocked.length > 0) {
     const blockers = [...new Set(blocked.map(([, s]) => s?.blocker || ""))].filter(Boolean);
     const owners = [...new Set(blocked.map(([, s]) => s?.owner || ""))].filter(Boolean);
@@ -302,81 +381,29 @@ export function decideCrossHostOutcome(record = {}) {
 // ---- in-page editor actions (desktop) ------------------------------------------------------
 
 /**
- * The desktop-editor dirtying plans: product commands only, one per fixture
- * format. Cites: fork `apps/sheets/src/renderer/control.ts:4-5,63-90` (goto
- * activates a range), `apps/docs/src/renderer/control.ts:6,50` (goto a block),
- * `apps/docs/src/renderer/App.tsx:4188` (`window.__genofficeControl`); the
- * same plans drive the G8-19 rows (`g8-19/anchors.mjs` EDIT_DRIVERS).
+ * The dirtying plans this driver records, one per fixture format, with the
+ * editor's own control request shapes. The ACTIONS are the imported G8-19
+ * `EDIT_DRIVERS.shift` plans (the same product commands the G8-A02 row drives),
+ * so a fork UI change is applied in one place (BE-704-05); this map only NAMES
+ * them for the record and pins the `req` shape against the fork control handler:
+ *   * docs  - `handleDocsControl` (`apps/docs/src/renderer/control.ts:29-56`)
+ *     takes `{ cmd: "goto", target: { kind: string; block?: number } }`, and a
+ *     block is valid only when `0 <= block < doc.childCount`; `EDIT_DRIVERS.docx.shift`
+ *     sends `goto({ kind: "block", block: 0 })`, in range for the fixture
+ *     (`apps/docs/src/renderer/App.tsx` exposes `window.__genofficeControl`).
+ *   * sheets - `handleSheetsControl` (`apps/sheets/src/renderer/control.ts:38-92`)
+ *     takes `{ cmd: "goto", target: { kind: string; sheet?: string; range?: string } }`
+ *     and splits `range` with `splitSheetRange`, so `"A7"` and
+ *     `"Doanh thu Q2!A7"` are both accepted; `EDIT_DRIVERS.xlsx.shift` sends
+ *     `{ kind: "range", sheet: "Doanh thu Q2", range: "A7" }` (the sheet named in
+ *     `target.sheet` and the bare range in `target.range`), which resolves to the
+ *     same worksheet. Both handlers answer `{ status: "not_ready" }` while the
+ *     editor boots, which is why `pageAction` retries (with an awaited wait).
  */
 export const DIRTY_EDIT_PLANS = Object.freeze({
-  sheets: {
-    name: "insert-row",
-    actions: [
-      { type: "control", req: { cmd: "goto", target: { kind: "range", sheet: "Doanh thu Q2", range: "A7" } } },
-      { type: "click", selector: "button[aria-label]", name: "^(Insert row|Chèn hàng)$" },
-    ],
-  },
-  docs: {
-    name: "split-block",
-    actions: [
-      { type: "control", req: { cmd: "goto", target: { kind: "block", block: 0 } } },
-      { type: "key", key: "Enter", target: ".ProseMirror" },
-    ],
-  },
+  sheets: Object.freeze({ name: "insert-row", actions: EDIT_DRIVERS.xlsx.shift }),
+  docs: Object.freeze({ name: "split-block", actions: EDIT_DRIVERS.docx.shift }),
 });
-
-/** Text of the S6 new-version bar (`docs/office/g5g6g7/ux/EXPERIENCE.md:957-958`), vi + en. */
-const REMOTE_NEWER_TEXT = /(phiên bản mới hơn trên UniWork|newer version (?:is )?on UniWork)/i;
-const REMOTE_NEWER_VERSION = /(?:phiên bản|version)\s*\(?\s*(\d+)/i;
-/** The bar's reload action (`uwRemoteReload`). */
-const REMOTE_NEWER_RELOAD = /(Tải lại bản mới nhất|Reload latest)/i;
-const CONFIRM_ACTION = /^(Tải lại|Reload|Đồng ý|Xác nhận|Có|OK|Continue)$/i;
-
-/**
- * One editor-page action (self-contained: Playwright serializes it), the shape
- * `g8-19/anchors.mjs` pageAction established: `control` calls the editor's own
- * `window.__genofficeControl`, `click` finds a product control by CSS +
- * accessible name, `key` dispatches keydown/keyup to a target (the editors'
- * own keymaps handle it). Resolves `{status:"ok"|"error"}`.
- */
-export function appPageAction(action) {
-  const wait = (ms) => new Promise((done) => setTimeout(done, ms));
-  const labelOf = (el) => (el.getAttribute("aria-label") || el.textContent || "").replace(/\s+/g, " ").trim();
-  if (action.type === "control") {
-    for (let i = 0; i < 40; i += 1) {
-      const fn = window.__genofficeControl;
-      const reply = typeof fn === "function" ? fn(action.req) : null;
-      if (reply && reply.status !== "not_ready") {
-        return reply.status === "ok"
-          ? { status: "ok", result: reply.result ?? null }
-          : { status: "error", reason: JSON.stringify(reply.error ?? reply) };
-      }
-      wait(250);
-    }
-    return { status: "error", reason: "__genofficeControl stayed not_ready" };
-  }
-  if (action.type === "click") {
-    const re = action.name ? new RegExp(action.name, "i") : null;
-    let el = null;
-    for (let i = 0; i < 20 && !el; i += 1) {
-      el = [...document.querySelectorAll(action.selector || "button")].find((node) => !re || re.test(labelOf(node))) ?? null;
-      if (!el) wait(250);
-    }
-    if (!el) return { status: "error", reason: `no element ${action.selector || "button"}${action.name ? ` named /${action.name}/` : ""}` };
-    if (el.disabled || el.getAttribute("aria-disabled") === "true") return { status: "error", reason: `${labelOf(el) || action.selector} is disabled` };
-    el.click();
-    return { status: "ok", label: labelOf(el).slice(0, 80) };
-  }
-  if (action.type === "key") {
-    const target = action.target ? document.querySelector(action.target) : document.activeElement || document.body;
-    if (!target) return { status: "error", reason: `no ${action.target}` };
-    const init = { key: action.key, code: action.code ?? action.key, bubbles: true, cancelable: true };
-    target.dispatchEvent(new KeyboardEvent("keydown", init));
-    target.dispatchEvent(new KeyboardEvent("keyup", init));
-    return { status: "ok" };
-  }
-  return { status: "error", reason: `unknown page action ${action.type}` };
-}
 
 /**
  * The S6 surface on one app page: any element whose text carries the
@@ -835,7 +862,7 @@ async function createCdpAppCtrl({
         return { edited: false, source: "none", reason: `no ${kind} editor page for the working copy: ${err.message}` };
       }
       for (const action of plan.actions) {
-        const res = await ctrl.evalBounded(page, appPageAction, action, `edit:${action.type}`).catch((err) => {
+        const res = await ctrl.evalBounded(page, pageAction, action, `edit:${action.type}`).catch((err) => {
           if (err?.isAppStepTimeout) throw err;
           return { status: "error", reason: err.message };
         });
@@ -964,6 +991,12 @@ function emptyRecord({ row, fixture, kind }) {
     reason: "",
     blocker: "",
     owner: "",
+    // BE-704-08: which of the three edit steps this run drove through the app's
+    // OWN editor UI. "real" = the editor itself made the edit; "standin" = the
+    // harness wrote the format's deterministic bytes into the working copy (a
+    // working-copy write, never claimed as a UI edit). G7-A01 runs no dirty step
+    // (D1-04), so its `dirty` entry is always "standin".
+    uiEdits: { dirty: "standin", offlineSave: "standin", aiSave: "standin" },
     steps: {},
     versionCounts: {},
     versionIds: {},
@@ -1089,9 +1122,45 @@ export async function runCrossHostRow({
     currentStep = "";
     return record.steps[name];
   };
+  /**
+   * Whether a recorded step's outcome must stop the whole chain (D1-04). A FAIL
+   * always stops it; a BLOCKED stops it only for the steps that consume its
+   * result (see `dependentSteps`); a PASS never does.
+   */
   const stop = (name) => {
     const s = record.steps[name];
-    return s.status !== "PASS";
+    return Boolean(s) && s.status !== "PASS";
+  };
+  /**
+   * Whether a recorded step's outcome must END the chain right now (D1-04).
+   * A FAIL always does. A BLOCKED does NOT: the later steps that consume its
+   * result are recorded SKIPPED instead (see `runStep`), so the row still ends
+   * BLOCKED (77) with the named blocker while every step that reads nothing the
+   * BLOCKED step produced still runs. A PASS never does.
+   */
+  const aborts = (name) => record.steps[name]?.status === "FAIL";
+  /**
+   * Runs one step, but records SKIPPED instead when a BLOCKED step's result it
+   * depends on never arrived. A BLOCKED step therefore stops the chain only for
+   * the steps that need its result: in the G5-A03 chain a BLOCKED `app-dirty`
+   * skips `dirty-kept`/`app-reload` (they read the dirty editor state) while the
+   * independent `web-save-2` -> `app-offline-save` -> `app-reconnect` ->
+   * `web-sees` -> `final-shas` still run (D1-04).
+   */
+  const skipped = new Set();
+  const runStep = async (name, source, fn) => {
+    if (skipped.has(name)) {
+      record.steps[name] = {
+        source,
+        status: "SKIPPED",
+        reason: "skipped: it consumes the result of a BLOCKED step (D1-04)",
+        elapsedMs: 0,
+      };
+      return record.steps[name];
+    }
+    const result = await step(name, source, fn);
+    if (result.status === "BLOCKED") for (const dep of dependentSteps(row, name)) skipped.add(dep);
+    return result;
   };
 
   const runChain = async () => {
@@ -1112,6 +1181,14 @@ export async function runCrossHostRow({
     const kind = FIXTURE_KIND[fixture];
     const user = { key: "cross-host-seeded", id: userId, email, password, token };
     const wc0 = () => app?.workingCopy?.() ?? null;
+    /**
+     * The version the NEXT commit must create: the server's own count plus one.
+     * Read from the server rather than counted locally, so a step that never ran
+     * (a SKIPPED step after a BLOCKED one, D1-04) cannot desynchronise the
+     * expectation: whatever committed, the next Save is one more. Call it BEFORE
+     * the commit it predicts (the count moves as soon as the commit lands).
+     */
+    const nextVersion = async () => (await listVersions({ apiOrigin, fetchImpl, documentId, token })) + 1;
 
     // --- 1. web edit + Save (G7-A01.1 / G5-A03.1 source) --------------------
     const webOpen = await step("web-open", "web", async () => {
@@ -1147,13 +1224,14 @@ export async function runCrossHostRow({
           : { status: "FAIL", reason: saved.reason ?? "the web frame did not save the edit" };
       }
       const head = await readFrameHeadViaProtocol({ apiOrigin, fetchImpl, documentId, token, withBytes: true });
-      if (head.version !== 2 || head.versionId !== saved.versionId || head.sha256 !== head.checksum) {
+      const want = 2;
+      if (head.version !== want || head.versionId !== saved.versionId || head.sha256 !== head.checksum) {
         return {
           status: "FAIL",
-          reason: `the web Save did not land as version 2 of the same bytes (version=${head.version}, id=${head.versionId}, saved=${saved.versionId})`,
+          reason: `the web Save did not land as version ${want} of the same bytes (version=${head.version}, id=${head.versionId}, saved=${saved.versionId})`,
         };
       }
-      record.versionIds.v2 = head.versionId;
+      record.versionIds[`v${head.version}`] = head.versionId;
       record.versionCounts.afterWebSave1 = head.version;
       record.checksums.webAfterWebSave1 = head.sha256;
       record.details.webSaveAt = now();
@@ -1214,89 +1292,108 @@ export async function runCrossHostRow({
     });
     if (stop("app-open")) return;
 
-    // --- 3. the app is dirty, a web Save lands (G5-A03.3) -------------------
-    const appDirty = await step("app-dirty", "app-ui", async () => {
-      const dirty = await app.makeDirty({ path: record.details.appPath, documentId });
-      if (!dirty?.edited) {
-        return { status: "BLOCKED", blocker: dirty?.reason ?? "the app document could not be made dirty through CDP", owner: BLOCKED_OWNER };
-      }
-      if (dirty.source !== "app-ui") {
-        return { status: "FAIL", reason: "the dirty edit was not driven through the app's own editor (CDP)" };
-      }
-      const wc = wc0();
-      record.details.dirtyEdit = { source: dirty.source, plan: dirty.plan ?? "" };
-      record.details.dirtyEditSha = wc?.sha256 ?? "";
-      return { source: dirty.source, plan: dirty.plan ?? "", workingCopySha256: wc?.sha256 ?? "" };
-    });
-    if (stop("app-dirty")) return;
-
-    const webSave2 = await step("web-save-2", "web", async () => {
-      const saved = await web.editAndSave({ marker: `web-2-${Date.now().toString(36)}` });
-      if (!saved.saved) {
-        return saved.drivable === false
-          ? { status: "BLOCKED", blocker: saved.reason, owner: BLOCKED_OWNER }
-          : { status: "FAIL", reason: saved.reason ?? "the second web Save did not happen" };
-      }
-      const head = await readFrameHeadViaProtocol({ apiOrigin, fetchImpl, documentId, token, withBytes: true });
-      if (head.version !== 3 || head.versionId !== saved.versionId) {
-        return { status: "FAIL", reason: `the second web Save did not land as version 3 (version=${head.version}, id=${head.versionId})` };
-      }
-      record.versionIds.v3 = head.versionId;
-      record.versionCounts.afterWebSave2 = head.version;
-      record.checksums.webAfterWebSave2 = head.sha256;
-      record.details.webSaveAt = now();
-      record.userSaves.push({ version: head.version, versionId: head.versionId, checksum: head.checksum, source: "web" });
-      hooks?.afterWebSave?.({ version: head.version, versionId: head.versionId, revision: head.revision, checksum: head.checksum, source: "web" });
-      return { versionId: head.versionId, version: head.version };
-    });
-    if (stop("web-save-2")) return;
-
-    const dirtyKept = await step("dirty-kept", "app", async () => {
-      await app.nudgeSync?.();
-      const noticed = await pollUntil(async () => app.remoteNewerBar({ version: 3 }), (r) => r?.visible === true, {
-        boundMs: stepTimeout,
-        intervalMs: pollMs,
+    // --- 3. the app is dirty, a web Save lands (G5-A03.3 ONLY, D1-04) ------
+    // G5-A03.3 is the only row that drives the dirty editor; G7-A01 runs no
+    // step here at all, so a fork whose editor control never becomes ready can
+    // no longer block the G7-A01 chain.
+    if (row === "G5-A03") {
+      const appDirty = await runStep("app-dirty", "app-ui", async () => {
+        const dirty = await app.makeDirty({ path: record.details.appPath, documentId });
+        if (!dirty?.edited) {
+          return { status: "BLOCKED", blocker: dirty?.reason ?? "the app document could not be made dirty through CDP", owner: BLOCKED_OWNER };
+        }
+        if (dirty.source !== "app-ui") {
+          return { status: "FAIL", reason: "the dirty edit was not driven through the app's own editor (CDP)" };
+        }
+        const wc = wc0();
+        record.details.dirtyEdit = { source: dirty.source, plan: dirty.plan ?? "" };
+        record.details.dirtyEditSha = wc?.sha256 ?? "";
+        record.uiEdits.dirty = "real";
+        return { source: dirty.source, plan: dirty.plan ?? "", workingCopySha256: wc?.sha256 ?? "" };
       });
-      const wc = wc0();
-      const problems = [];
-      if (wc?.sha256 !== record.details.dirtyEditSha) {
-        problems.push(`the app replaced its local bytes (working copy ${wc?.sha256 ?? "none"} != ${record.details.dirtyEditSha})`);
-      }
-      if (Number(wc?.binding?.baseVersion ?? 0) !== 2) {
-        problems.push(`the app reloaded the incoming version (binding v${wc?.binding?.baseVersion ?? "none"})`);
-      }
-      if (noticed.value?.visible !== true) {
-        problems.push(`the S6 new-version bar was not visible: ${noticed.value?.reason ?? "no probe answer"}`);
-      }
-      if (problems.length > 0) return { status: "FAIL", reason: problems.join("; ") };
-      record.details.remoteNewerBar = noticed.value;
-      return { bar: noticed.value, workingCopySha256: wc.sha256 };
-    });
-    if (stop("dirty-kept")) return;
+      // A BLOCKED dirty step must NOT stop the later steps that can still run
+      // (D1-04): `web-save-2` -> `app-offline-save` -> `app-reconnect` ->
+      // `web-sees` -> `final-shas` read nothing the dirty step produced, so only
+      // `dirty-kept` (which asserts the dirty bytes survived) is skipped, and
+      // the row still ends BLOCKED (77) with the named blocker. A FAIL still
+      // wins and stops the chain.
+      if (aborts("app-dirty")) return;
 
-    // --- discard/reload the dirty edit to continue --------------------------
-    const appReload = await step("app-reload", "app-ui", async () => {
-      const clicked = await app.clickReload();
-      if (!clicked?.clicked) {
-        return { status: "BLOCKED", blocker: `the S6 reload action could not be driven: ${clicked?.reason ?? "unknown"}`, owner: BLOCKED_OWNER };
-      }
-      const settled = await pollUntil(async () => app.workingCopy(), (wc) => Number(wc?.binding?.baseVersion) === 3 && wc.sha256 === record.checksums.webAfterWebSave2, {
-        boundMs: stepTimeout,
-        intervalMs: pollMs,
+      const webSave2 = await runStep("web-save-2", "web", async () => {
+        const want = await nextVersion();
+        const saved = await web.editAndSave({ marker: `web-2-${Date.now().toString(36)}` });
+        if (!saved.saved) {
+          return saved.drivable === false
+            ? { status: "BLOCKED", blocker: saved.reason, owner: BLOCKED_OWNER }
+            : { status: "FAIL", reason: saved.reason ?? "the second web Save did not happen" };
+        }
+        const head = await readFrameHeadViaProtocol({ apiOrigin, fetchImpl, documentId, token, withBytes: true });
+        if (head.version !== want || head.versionId !== saved.versionId) {
+          return { status: "FAIL", reason: `the second web Save did not land as version ${want} (version=${head.version}, id=${head.versionId})` };
+        }
+        record.versionIds[`v${head.version}`] = head.versionId;
+        record.versionCounts.afterWebSave2 = head.version;
+        record.checksums.webAfterWebSave2 = head.sha256;
+        record.details.webSaveAt = now();
+        record.userSaves.push({ version: head.version, versionId: head.versionId, checksum: head.checksum, source: "web" });
+        hooks?.afterWebSave?.({ version: head.version, versionId: head.versionId, revision: head.revision, checksum: head.checksum, source: "web" });
+        return { versionId: head.versionId, version: head.version };
       });
-      if (!settled.ok) {
-        const wc = settled.value ?? {};
-        return {
-          status: "FAIL",
-          reason: `the app did not settle on v3 after the reload (binding v${wc.binding?.baseVersion ?? "none"}, working copy ${wc.sha256 ?? "none"})`,
-        };
-      }
-      return { versionId: settled.value.binding.baseVersionId, version: 3 };
-    });
-    if (stop("app-reload")) return;
+      if (aborts("web-save-2")) return;
+
+      const dirtyKept = await runStep("dirty-kept", "app", async () => {
+        await app.nudgeSync?.();
+        const webSave2Version = record.versionCounts.afterWebSave2;
+        const noticed = await pollUntil(async () => app.remoteNewerBar({ version: webSave2Version }), (r) => r?.visible === true, {
+          boundMs: stepTimeout,
+          intervalMs: pollMs,
+        });
+        const wc = wc0();
+        const problems = [];
+        if (wc?.sha256 !== record.details.dirtyEditSha) {
+          problems.push(`the app replaced its local bytes (working copy ${wc?.sha256 ?? "none"} != ${record.details.dirtyEditSha})`);
+        }
+        if (Number(wc?.binding?.baseVersion ?? 0) !== record.versionCounts.afterWebSave1) {
+          problems.push(`the app reloaded the incoming version (binding v${wc?.binding?.baseVersion ?? "none"})`);
+        }
+        if (noticed.value?.visible !== true) {
+          problems.push(`the S6 new-version bar was not visible: ${noticed.value?.reason ?? "no probe answer"}`);
+        }
+        if (problems.length > 0) return { status: "FAIL", reason: problems.join("; ") };
+        record.details.remoteNewerBar = noticed.value;
+        return { bar: noticed.value, workingCopySha256: wc.sha256 };
+      });
+      if (aborts("dirty-kept")) return;
+
+      // --- discard/reload the dirty edit to continue ------------------------
+      const appReload = await runStep("app-reload", "app-ui", async () => {
+        const clicked = await app.clickReload();
+        if (!clicked?.clicked) {
+          return { status: "BLOCKED", blocker: `the S6 reload action could not be driven: ${clicked?.reason ?? "unknown"}`, owner: BLOCKED_OWNER };
+        }
+        const settled = await pollUntil(
+          async () => app.workingCopy(),
+          (wc) => Number(wc?.binding?.baseVersion) === record.versionCounts.afterWebSave2 && wc.sha256 === record.checksums.webAfterWebSave2,
+          { boundMs: stepTimeout, intervalMs: pollMs },
+        );
+        if (!settled.ok) {
+          const wc = settled.value ?? {};
+          return {
+            status: "FAIL",
+            reason: `the app did not settle on v${record.versionCounts.afterWebSave2} after the reload (binding v${wc.binding?.baseVersion ?? "none"}, working copy ${wc.sha256 ?? "none"})`,
+          };
+        }
+        return { versionId: settled.value.binding.baseVersionId, version: record.versionCounts.afterWebSave2 };
+      });
+      if (aborts("app-reload")) return;
+    }
 
     // --- 4. desktop offline edit + Save (G7-A01.3) --------------------------
-    const offlineSave = await step("app-offline-save", "app-ui", async () => {
+    const offlineSave = await runStep("app-offline-save", "app-ui", async () => {
+      // The count the offline Save must NOT move: read before the cut, because
+      // `listVersions` goes straight to the API and is unaffected by the app's
+      // cut proxy, so this is the server's own tally at the moment of the cut.
+      const baseVersion = await listVersions({ apiOrigin, fetchImpl, documentId, token });
       await app.cutLink();
       const dirty = await app.makeDirty({ path: record.details.appPath, documentId });
       const uiEdit = Boolean(dirty?.edited && dirty.source === "app-ui");
@@ -1305,9 +1402,10 @@ export async function runCrossHostRow({
         : kind === "sheets"
           ? buildXlsxRevenueWithXyzBytes(repoRoot).bytes
           : buildEditedDocxFixtureBytes(repoRoot).v2Bytes;
+      record.uiEdits.offlineSave = uiEdit ? "real" : "standin";
       if (!uiEdit) {
         record.notes.push(
-          `the offline Save's edit was written by the harness as the format's deterministic stand-in (a working-copy write), not typed in the editor: ${dirty?.reason ?? "the editor plan did not run"} — this is not a UI edit`,
+          `the offline Save's edit was written by the harness as the format's deterministic stand-in (a working-copy write), not typed in the editor: ${dirty?.reason ?? "the editor plan did not run"} — this is not a UI edit (uiEdits.offlineSave=standin)`,
         );
       }
       const saved = await app.save({ path: record.details.appPath, offline: true, standInBytes: standIn });
@@ -1316,84 +1414,87 @@ export async function runCrossHostRow({
       const intents = app.intents();
       const wc = app.workingCopy();
       const problems = [];
-      if (versions !== 3) problems.push(`the server created a version while the app was offline (${versions})`);
+      if (versions !== baseVersion) problems.push(`the server created a version while the app was offline (${versions}, want ${baseVersion})`);
       if (intents.length === 0 && !["offline", "paused_offline"].includes(String(wc?.binding?.state))) {
         problems.push("the app held no save intent and no offline state for the offline Save");
       }
-      if (Number(wc?.binding?.baseVersion ?? 0) !== 3) problems.push(`the offline Save moved the app base (v${wc?.binding?.baseVersion ?? "none"})`);
+      if (Number(wc?.binding?.baseVersion ?? 0) !== baseVersion) problems.push(`the offline Save moved the app base (v${wc?.binding?.baseVersion ?? "none"}, want v${baseVersion})`);
       if (problems.length > 0) return { status: "FAIL", reason: problems.join("; ") };
       record.versionCounts.whileCut = versions;
       record.details.offlineEdit = { source: uiEdit ? "app-ui" : "harness-working-copy-write", plan: dirty?.plan ?? "" };
       return { editSource: uiEdit ? "app-ui" : "harness-working-copy-write", intentFiles: intents.length, versionsWhileCut: versions };
     });
-    if (stop("app-offline-save")) return;
+    if (aborts("app-offline-save")) return;
 
     // --- 5. reconnect -> commit -> the web sees the version ------------------
-    const reconnect = await step("app-reconnect", "app", async () => {
+    const reconnect = await runStep("app-reconnect", "app", async () => {
+      const want = await nextVersion();
       await app.restoreLink();
       await app.nudgeSync?.();
       await app.save({ path: record.details.appPath, offline: false });
+      // (the count is read before the save: it moves as soon as the commit lands)
       const settled = await pollUntil(
         async () => app.workingCopy(),
-        (wc) => wc?.binding?.state === "saved" && Number(wc?.binding?.baseVersion) === 4 && wc.sha256 === wc.binding?.baseChecksum,
+        (wc) => wc?.binding?.state === "saved" && Number(wc?.binding?.baseVersion) === want && wc.sha256 === wc.binding?.baseChecksum,
         { boundMs: stepTimeout, intervalMs: pollMs },
       );
       if (!settled.ok) {
         const wc = settled.value ?? {};
         return {
           status: "FAIL",
-          reason: `the app did not settle on a saved v4 receipt after reconnect (state=${wc.binding?.state ?? "none"}, baseVersion=${wc.binding?.baseVersion ?? "none"}, intents=${app.intents().length})`,
+          reason: `the app did not settle on a saved v${want} receipt after reconnect (state=${wc.binding?.state ?? "none"}, baseVersion=${wc.binding?.baseVersion ?? "none"}, intents=${app.intents().length})`,
         };
       }
       const versions = await listVersions({ apiOrigin, fetchImpl, documentId, token });
-      if (versions !== 4) return { status: "FAIL", reason: `expected 4 server versions after the reconnect commit, got ${versions}` };
+      if (versions !== want) return { status: "FAIL", reason: `expected ${want} server versions after the reconnect commit, got ${versions}` };
       const head = await readFrameHeadViaProtocol({ apiOrigin, fetchImpl, documentId, token });
       if (head.versionId !== settled.value.binding.baseVersionId || head.checksum !== settled.value.sha256) {
         return { status: "FAIL", reason: "the app's committed version does not match the server head the web would load" };
       }
-      record.versionIds.v4 = head.versionId;
+      record.versionIds[`v${head.version}`] = head.versionId;
       record.versionCounts.afterReconnect = head.version;
       record.checksums.desktopAfterReconnect = head.checksum;
       record.userSaves.push({ version: head.version, versionId: head.versionId, checksum: head.checksum, source: "app" });
       hooks?.afterAppCommit?.({ version: head.version, versionId: head.versionId, revision: head.revision, checksum: head.checksum, source: "app" });
       return { versionId: head.versionId, version: head.version, checksum: head.checksum, intentsRemaining: app.intents().length };
     });
-    if (stop("app-reconnect")) return;
+    if (aborts("app-reconnect")) return;
 
-    const webSees = await step("web-sees", "web", async () => {
+    const webSees = await runStep("web-sees", "web", async () => {
+      const reconnectVersionId = record.versionIds[`v${record.versionCounts.afterReconnect}`];
       const since = (record.details.webSaveAt ?? 0) - 1;
       const announced = await pollUntil(
         async () => web.announcements({ sinceMs: Math.max(0, since) }),
-        (list) => Array.isArray(list) && list.some((m) => m.versionId === record.versionIds.v4),
+        (list) => Array.isArray(list) && list.some((m) => m.versionId === reconnectVersionId),
         { boundMs: stepTimeout, intervalMs: pollMs },
       );
-      const match = (announced.value ?? []).find((m) => m.versionId === record.versionIds.v4) ?? null;
+      const match = (announced.value ?? []).find((m) => m.versionId === reconnectVersionId) ?? null;
       if (!match) {
         return {
           status: "FAIL",
-          reason: `the web host announced no doc.remoteVersion for ${record.versionIds.v4} within ${stepTimeout} ms (the web S6 path is off without office_sync_feed; nothing was captured)`,
+          reason: `the web host announced no doc.remoteVersion for ${reconnectVersionId} within ${stepTimeout} ms (the web S6 path is off without office_sync_feed; nothing was captured)`,
         };
       }
-      const reload = await web.waitForReload({ versionId: record.versionIds.v4, timeoutMs: stepTimeout });
+      const reload = await web.waitForReload({ versionId: reconnectVersionId, timeoutMs: stepTimeout });
       if (!reload?.reloaded) {
         return { status: "FAIL", reason: `the web frame did not reload the announced version: ${reload?.reason ?? "no reload"}` };
       }
       const head = await web.fetchHeadViaFrameRoute();
-      if (head.sha256 !== record.checksums.desktopAfterReconnect || head.versionId !== record.versionIds.v4) {
+      if (head.sha256 !== record.checksums.desktopAfterReconnect || head.versionId !== reconnectVersionId) {
         return {
           status: "FAIL",
-          reason: `the web content checksum is not the desktop's committed checksum (web ${head.sha256} v${head.versionId}, desktop ${record.checksums.desktopAfterReconnect} v${record.versionIds.v4})`,
+          reason: `the web content checksum is not the desktop's committed checksum (web ${head.sha256} v${head.versionId}, desktop ${record.checksums.desktopAfterReconnect} v${reconnectVersionId})`,
         };
       }
       record.checksums.webContent = head.sha256;
       record.details.webSees = { announced: match, reload: { versionId: reload.versionId, version: reload.version }, webContentSha256: head.sha256 };
       return { versionId: reload.versionId, announcedVersionId: match.versionId, webContentSha256: head.sha256 };
     });
-    if (stop("web-sees")) return;
+    if (aborts("web-sees")) return;
 
     // --- 6. AI turn + Save (G7-A01.5, G7-A01 only) ---------------------------
     if (row === "G7-A01") {
-      const aiTurn = await step("ai-turn", "protocol", async () => {
+      const aiTurn = await runStep("ai-turn", "protocol", async () => {
         const before = await listVersions({ apiOrigin, fetchImpl, documentId, token });
         const docBefore = await callTracerApi({ apiOrigin, fetchImpl, name: "getDocument", params: { documentID: documentId }, token });
         const revisionBefore = docBefore.data?.document?.revision;
@@ -1439,33 +1540,36 @@ export async function runCrossHostRow({
       // deterministic mechanics (0 versions on the turn, 1 on the Save) are what
       // the row records, while the AI segment itself can never close the row
       // (acceptance.md l.87). Only a FAILed turn stops the chain.
-      if (aiTurn.status === "FAIL") return;
+      if (aborts("ai-turn")) return;
 
-      const aiSave = await step("ai-save", "app", async () => {
+      const aiSave = await runStep("ai-save", "app", async () => {
+        const want = await nextVersion();
         const standIn = kind === "sheets" ? buildXlsxRevenueWithXyzBytes(repoRoot).bytes : buildEditedDocxFixtureBytes(repoRoot).v2Bytes;
+        // (the count is read before the save: it moves as soon as the commit lands)
+        record.uiEdits.aiSave = "standin";
         record.notes.push(
-          "the AI turn is a document-route protocol call (contract-p0 A10); the Save after it stores the format's deterministic stand-in bytes for the AI edit — the fork's AI-panel wiring is not driven by this harness",
+          "the AI turn is a document-route protocol call (contract-p0 A10); the Save after it stores the format's deterministic stand-in bytes for the AI edit (uiEdits.aiSave=standin) — the fork's AI-panel wiring is not driven by this harness",
         );
         const saved = await app.save({ path: record.details.appPath, offline: false, standInBytes: standIn });
         if (saved?.reason) return { status: "FAIL", reason: saved.reason };
         const head = await readFrameHeadViaProtocol({ apiOrigin, fetchImpl, documentId, token });
         const wc = app.workingCopy();
-        if (head.version !== 5 || Number(wc?.binding?.baseVersion) !== 5 || wc.sha256 !== head.checksum) {
+        if (head.version !== want || Number(wc?.binding?.baseVersion) !== want || wc.sha256 !== head.checksum) {
           return {
             status: "FAIL",
-            reason: `the Save after the AI turn did not create exactly one version (server v${head.version}, app v${wc?.binding?.baseVersion ?? "none"})`,
+            reason: `the Save after the AI turn did not create exactly one version (server v${head.version}, app v${wc?.binding?.baseVersion ?? "none"}, want v${want})`,
           };
         }
-        record.versionIds.v5 = head.versionId;
+        record.versionIds[`v${head.version}`] = head.versionId;
         record.versionCounts.afterAiSave = head.version;
         record.userSaves.push({ version: head.version, versionId: head.versionId, checksum: head.checksum, source: "app" });
         return { versionId: head.versionId, version: head.version, checksum: head.checksum };
       });
-      if (stop("ai-save")) return;
+      if (aborts("ai-save")) return;
     }
 
     // --- 7. both hosts on the same result (G7-A01.6 / G5-A03.2) -------------
-    await step("final-shas", "protocol", async () => {
+    await runStep("final-shas", "protocol", async () => {
       const head = await readFrameHeadViaProtocol({ apiOrigin, fetchImpl, documentId, token, withBytes: true });
       const wc = app.workingCopy();
       const webHead = await web.fetchHeadViaFrameRoute();
@@ -1607,25 +1711,6 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   if (results.some((r) => r.status === "FAIL")) return 1;
   if (results.some((r) => r.status === "BLOCKED")) return BLOCKED_EXIT;
   return 0;
-}
-
-// The start gate's own evidence line (a step that never ran): the harness
-// convention (`concludeAtStartGate`), kept out of `main` so a dry run never
-// writes a ledger line.
-export async function concludeAtGate({ runDir, row, fixture, argv, env = process.env }) {
-  const gate = startGate(readStartStatus(runDir));
-  if (gate.gate === "proceed") return null;
-  const command = `node scripts/office/g5g6g7/g7-04/cross-host.mjs --row ${row} --fixture ${fixture} --run-dir ${runDir}`;
-  const exitCode = await concludeAtStartGate(gate, {
-    runDir,
-    requirementId: row,
-    fixtureId: fixture,
-    command,
-    checker: "harness:g7-04/cross-host.mjs",
-    startedAt: new Date().toISOString(),
-    argv: argv ?? [...process.argv],
-  });
-  return { exitCode, gate };
 }
 
 /**
