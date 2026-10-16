@@ -1,0 +1,4 @@
+$ git rev-parse HEAD; git log --oneline -2
+40d18bed6eba1e07f3d79622f078df45cb27e212
+40d18bed6 chore: merge G5-G7 root fcf9651df (develop f6df189ed, landing typecheck + G7-04 knip fixes) into the REPIN-1 branch (UNI-1825)
+fcf9651df chore(merge): develop f6df189ed into the G5-G7 root (UNI-923)

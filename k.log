@@ -1,0 +1,1 @@
+$ for p in 18850 13770; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; true

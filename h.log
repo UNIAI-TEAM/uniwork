@@ -1,0 +1,520 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18850 FRONTEND_ORIGIN=http://localhost:13770 API_PUBLIC_URL=http://localhost:18850 PREVIEW_ORIGIN=http://localhost:13771 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18850 NEXT_PUBLIC_WS_URL=ws://localhost:18850 NEXT_PUBLIC_APP_URL=http://localhost:13770 E2E_BASE_URL=http://localhost:13770 E2E_API_URL=http://localhost:18850 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); export OFFICE_UX_FLOOR_E2E=1; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test office-ux-floor.spec.ts --grep "S9 result line . light vi" --reporter=list > /tmp/s9dbg-office-ux-floor.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/s9dbg-office-ux-floor.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; cat "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/s9dbg-office-ux-floor.log && echo "skipped: office-ux-floor has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/s9dbg-office-ux-floor.log || { echo "no passing test matched office-ux-floor"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_S9_DEBUG_EXIT=$rc"
+
+Running 1 test using 1 worker
+
+(node:56571) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56571) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi (1.6m)
+
+
+  1) office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi 
+
+    TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+    Call log:
+      - waiting for locator('.ai-chat .ai-msg-actions, .ai-chat .ai-msg-error').first() to be visible
+
+
+      411 |         await page.keyboard.type("Tóm tắt tài liệu này trong một câu.");
+      412 |         await page.keyboard.press("Enter");
+    > 413 |         await frame.locator(".ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
+          |                                                                                         ^
+      414 |         await audit(frame, ".ai-chat", "S9 result/error", mode);
+      415 |         await shot(frame, `s9-result-${mode}-${locale}`);
+      416 |       });
+
+    Error Context: test-results/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    office-ux-floor.spec.ts:401:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi 
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test office-ux-floor.spec.ts --grep S9 result line . light vi --reporter=list
+===== e2e/test-results/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — light vi
+- Location: office-ux-floor.spec.ts:401:7
+
+# Error details
+
+```
+TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+Call log:
+  - waiting for locator('.ai-chat .ai-msg-actions, .ai-chat .ai-msg-error').first() to be visible
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvb4khz6, WS ux-floor-mvb4khz6: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvb4khz6" [ref=f1e14]
+              - generic "WS ux-floor-mvb4khz6" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792164665346/rec-ws-1792164665346
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792164665346/rec-ws-1792164665346/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792164665346/rec-ws-1792164665346/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792164665346/rec-ws-1792164665346/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792164665346/rec-ws-1792164665346/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792164665346/rec-ws-1792164665346/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792164665346/rec-ws-1792164665346/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792164665346/rec-ws-1792164665346/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792164665346/rec-ws-1792164665346/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792164665346/rec-ws-1792164665346/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792164665346/rec-ws-1792164665346/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvb4khz6, ux-floor-mvb4khz6-1792164665346@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvb4khz6" [ref=f1e113]
+              - generic "ux-floor-mvb4khz6-1792164665346@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+          - generic [ref=f1e135]:
+            - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+              - /url: /rec-org-1792164665346/rec-ws-1792164665346/documents
+            - generic [ref=f1e139]: docs-web.docx
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - status "Chưa có thay đổi" [ref=f1e142]
+              - button "Lưu vào UniWork" [disabled] [ref=f1e144]:
+                - generic [ref=f1e145]: Lưu
+            - group [ref=f1e147]:
+              - button "Mở bằng UniWork Office" [ref=f1e148] [cursor=pointer]
+              - button "Tùy chọn UniWork Office" [ref=f1e150] [cursor=pointer]
+            - button "Hành động khác" [ref=f1e151] [cursor=pointer]
+        - iframe [active] [ref=f1e154]:
+          - generic [ref=f2e1]:
+            - button "Thảo luận" [ref=f2e4] [cursor=pointer]
+            - generic [ref=f2e9]:
+              - generic [ref=f2e10]:
+                - generic [ref=f2e11]:
+                  - button "Tệp" [ref=f2e13] [cursor=pointer]
+                  - button "Lưu (Ctrl+S)" [disabled] [ref=f2e14]
+                  - button "Hoàn tác" [disabled] [ref=f2e19]
+                  - button "Làm lại" [disabled] [ref=f2e23]
+                  - button "Trang đầu" [ref=f2e28] [cursor=pointer]
+                  - button "Chèn" [ref=f2e29] [cursor=pointer]
+                  - button "Vẽ" [ref=f2e30] [cursor=pointer]
+                  - button "Thiết kế" [ref=f2e31] [cursor=pointer]
+                  - button "Bố trí" [ref=f2e32] [cursor=pointer]
+                  - button "Tham khảo" [ref=f2e33] [cursor=pointer]
+                  - button "Xem lại" [ref=f2e34] [cursor=pointer]
+                  - button "Xem" [ref=f2e35] [cursor=pointer]
+                - generic [ref=f2e36]:
+                  - generic [ref=f2e38]:
+                    - button "AI" [ref=f2e39] [cursor=pointer]
+                    - button "AI Tóm tắt" [ref=f2e46] [cursor=pointer]
+                    - button "AI Trau chuốt" [ref=f2e53] [cursor=pointer]
+                    - button "AI Định dạng" [ref=f2e61] [cursor=pointer]
+                    - button "Bản đồ tư duy AI" [ref=f2e67] [cursor=pointer]
+                  - generic [ref=f2e78]:
+                    - generic [ref=f2e79]:
+                      - button "Dán" [ref=f2e80] [cursor=pointer]
+                      - button "Dán" [ref=f2e88] [cursor=pointer]
+                    - generic [ref=f2e93]:
+                      - button "Cắt (Ctrl+X)" [ref=f2e94] [cursor=pointer]
+                      - button "Sao chép (Ctrl+C)" [ref=f2e99] [cursor=pointer]
+                      - 'button "Sao chép định dạng: nhấp vào đây, sau đó chọn văn bản cần định dạng" [ref=f2e103] [cursor=pointer]'
+                  - generic [ref=f2e110]:
+                    - generic [ref=f2e111]:
+                      - generic [ref=f2e112]:
+                        - textbox "Phông chữ" [ref=f2e113]: Calibri
+                        - button "Phông chữ" [ref=f2e114] [cursor=pointer]
+                      - generic [ref=f2e117]:
+                        - textbox "Cỡ chữ" [ref=f2e118]: "16"
+                        - button "Cỡ chữ" [ref=f2e119] [cursor=pointer]
+                      - button "Tăng cỡ chữ" [ref=f2e122] [cursor=pointer]
+                      - button "Giảm cỡ chữ" [ref=f2e126] [cursor=pointer]
+                      - button [ref=f2e132] [cursor=pointer]
+                      - button "Xóa toàn bộ định dạng" [ref=f2e139] [cursor=pointer]
+                    - generic [ref=f2e146]:
+                      - button "In đậm (Ctrl+B)" [ref=f2e147] [cursor=pointer]:
+                        - generic [ref=f2e148]: B
+                      - button "In nghiêng (Ctrl+I)" [ref=f2e149] [cursor=pointer]:
+                        - generic [ref=f2e150]: I
+                      - button "Gạch chân (Ctrl+U)" [ref=f2e151] [cursor=pointer]:
+                        - generic [ref=f2e152]: U
+                      - button "Gạch ngang" [ref=f2e153] [cursor=pointer]:
+                        - generic [ref=f2e154]: ab
+                      - button [ref=f2e155] [cursor=pointer]
+                      - button [ref=f2e159] [cursor=pointer]
+                      - generic [ref=f2e164]:
+                        - button "Màu tô sáng văn bản" [ref=f2e165] [cursor=pointer]
+                        - button [ref=f2e170] [cursor=pointer]
+                      - generic [ref=f2e173]:
+                        - button [ref=f2e174] [cursor=pointer]
+                        - button [ref=f2e179] [cursor=pointer]
+                  - generic [ref=f2e184]:
+                    - generic [ref=f2e185]:
+                      - generic [ref=f2e186]:
+                        - button "Dấu đầu dòng" [ref=f2e187] [cursor=pointer]
+                        - button "Dấu đầu dòng" [ref=f2e193] [cursor=pointer]
+                      - generic [ref=f2e196]:
+                        - button "Đánh số" [ref=f2e197] [cursor=pointer]:
+                          - img [ref=f2e198]:
+                            - generic [ref=f2e199]: "1"
+                            - generic [ref=f2e200]: "2"
+                            - generic [ref=f2e201]: "3"
+                        - button "Đánh số" [ref=f2e203] [cursor=pointer]
+                      - 'button "Danh sách đa cấp: chọn hoặc định nghĩa định dạng đánh số đa cấp" [ref=f2e207] [cursor=pointer]'
+                      - button "Giảm thụt lề" [ref=f2e213] [cursor=pointer]
+                      - button "Tăng thụt lề" [ref=f2e217] [cursor=pointer]
+                      - button "Hiện/ẩn ký hiệu định dạng" [ref=f2e222] [cursor=pointer]
+                    - generic [ref=f2e225]:
+                      - button "Căn trái (Ctrl+L)" [ref=f2e226] [cursor=pointer]
+                      - button "Căn giữa (Ctrl+E)" [ref=f2e229] [cursor=pointer]
+                      - button "Căn phải (Ctrl+R)" [ref=f2e232] [cursor=pointer]
+                      - button "Căn đều (Ctrl+J)" [ref=f2e235] [cursor=pointer]
+                      - button "Khoảng cách dòng" [ref=f2e240] [cursor=pointer]
+                      - button "Tô màu nền đoạn văn" [ref=f2e248] [cursor=pointer]
+                      - button "Viền đoạn văn" [ref=f2e256] [cursor=pointer]
+                  - generic [ref=f2e265]:
+                    - generic [ref=f2e266]:
+                      - button "AaBb Tiêu đề 1" [ref=f2e267] [cursor=pointer]:
+                        - generic [ref=f2e268]: AaBb
+                        - generic [ref=f2e269]: Tiêu đề 1
+                      - button "AaBb Tiêu đề 2" [ref=f2e270] [cursor=pointer]:
+                        - generic [ref=f2e271]: AaBb
+                        - generic [ref=f2e272]: Tiêu đề 2
+                      - button "Aa Hyperlink" [ref=f2e273] [cursor=pointer]:
+                        - generic [ref=f2e274]: Aa
+                        - generic [ref=f2e275]: Hyperlink
+                      - button "AaBb Đoạn danh sách" [ref=f2e276] [cursor=pointer]:
+                        - generic [ref=f2e277]: AaBb
+                        - generic [ref=f2e278]: Đoạn danh sách
+                      - button "AaBb Bình thường" [ref=f2e279] [cursor=pointer]:
+                        - generic [ref=f2e280]: AaBb
+                        - generic [ref=f2e281]: Bình thường
+                    - button "Thêm kiểu" [ref=f2e282] [cursor=pointer]
+                    - button "Ngăn kiểu" [ref=f2e285] [cursor=pointer]
+                  - generic [ref=f2e294]:
+                    - button "Tìm" [ref=f2e295] [cursor=pointer]
+                    - button "Thay thế" [ref=f2e299] [cursor=pointer]
+                    - button "Chọn tất cả" [ref=f2e307] [cursor=pointer]
+                - button [ref=f2e311] [cursor=pointer]
+              - generic [ref=f2e314]:
+                - complementary [ref=f2e316]:
+                  - separator "UniAI" [ref=f2e317]
+                  - generic [ref=f2e318]:
+                    - generic [ref=f2e319]: UniAI
+                    - generic [ref=f2e324]:
+                      - button "Di chuyển bảng AI sang phải" [ref=f2e325] [cursor=pointer]
+                      - button "Thu gọn bảng điều khiển" [ref=f2e329] [cursor=pointer]
+                  - generic [ref=f2e333]: Hãy đọc và xác nhận lời công bố trước khi gửi.
+                  - generic [ref=f2e335]:
+                    - generic [ref=f2e336]: Để AI giúp bạn viết và chỉnh sửa
+                    - generic [ref=f2e337]: Đưa ra yêu cầu hoặc chỉ cần đặt câu hỏi;khi có văn bản được chọn, các lệnh viết lại sẽ áp dụng cho phần đã chọn.
+                    - generic [ref=f2e338]:
+                      - button "Tóm tắt các ý chính của tài liệu này" [ref=f2e339] [cursor=pointer]
+                      - button "Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn" [ref=f2e340] [cursor=pointer]
+                      - button "Viết tiếp từ nội dung hiện tại của tài liệu" [ref=f2e341] [cursor=pointer]
+                      - button "Tìm và điền vào các vị trí giữ chỗ trong tài liệu này" [ref=f2e342] [cursor=pointer]
+                      - button "Tạo bản đồ tư duy cho tài liệu này" [ref=f2e343] [cursor=pointer]
+                  - generic [ref=f2e344]:
+                    - generic [ref=f2e345]: Hãy đọc và xác nhận lời công bố trước khi gửi.
+                    - region "Nội dung gửi tới UniWork AI" [active] [ref=f2e346]:
+                      - paragraph [ref=f2e347]: "UniWork AI đọc nội dung đang mở trong tài liệu này, kể cả phần chưa lưu, và gửi tới UniWork cùng nhà cung cấp mô hình để trả lời. Mỗi lượt dùng tín dụng AI của UniWork. AI không tự lưu: bạn xem lại rồi bấm Lưu."
+                      - generic [ref=f2e348]:
+                        - button "Đã hiểu" [ref=f2e349] [cursor=pointer]
+                        - button "Tìm hiểu thêm" [ref=f2e350] [cursor=pointer]
+                    - generic [ref=f2e351]:
+                      - textbox "Mô tả tác vụ chỉnh sửa hoặc viết, hoặc đặt câu hỏi" [ref=f2e352]: Tóm tắt tài liệu này trong một câu.
+                      - generic [ref=f2e353]:
+                        - 'button "Mô hình: UniWork AI" [ref=f2e355] [cursor=pointer]':
+                          - generic [ref=f2e361]: UniWork AI
+                        - button "Đính kèm tệp cục bộ (hoặc kéo thả vào bảng điều khiển)" [ref=f2e364] [cursor=pointer]
+                        - button "Theo dõi thay đổi" [ref=f2e367] [cursor=pointer]
+                        - button "Gửi" [disabled] [ref=f2e370]
+                - generic [ref=f2e372]:
+                  - main [ref=f2e375]:
+                    - generic [ref=f2e379]:
+                      - heading "标题" [level=1] [ref=f2e380]
+                      - paragraph [ref=f2e381]: 第一段。
+                      - paragraph [ref=f2e382]: 第二段。
+                  - contentinfo [ref=f2e383]:
+                    - generic [ref=f2e384]:
+                      - button "Trang 1 / 1" [ref=f2e385] [cursor=pointer]
+                      - button "10 từ" [ref=f2e386] [cursor=pointer]
+                      - 'button "Theo dõi thay đổi: Tắt" [ref=f2e387] [cursor=pointer]'
+                      - status [ref=f2e388]: Đã lưu mọi thay đổi
+                      - generic "Đã mở docs-web.docx" [ref=f2e389]: — Đã mở docs-web.docx
+                    - generic [ref=f2e390]:
+                      - group [ref=f2e391]:
+                        - button "Bố trí in" [ref=f2e392] [cursor=pointer]
+                        - button "Bố trí Web" [ref=f2e396] [cursor=pointer]
+                        - button "Dàn bài" [ref=f2e400] [cursor=pointer]
+                        - button "Chế độ đọc" [ref=f2e405] [cursor=pointer]
+                      - button "−" [ref=f2e408] [cursor=pointer]
+                      - slider [ref=f2e409]: "70"
+                      - button "+" [ref=f2e410] [cursor=pointer]
+                      - button "74%" [ref=f2e411] [cursor=pointer]
+            - status [ref=f2e412]
+            - alert [ref=f2e413]
+  - status [ref=f1e155]
+  - region "Notifications alt+T"
+  - alert [ref=f1e156]
+```
+
+# Test source
+
+```ts
+  313 |     await page.setViewportSize({ width: 640, height: 400 });
+  314 |     const frame = await openDocs(page, seeded);
+  315 |     await makeDirty(page, `uw-ux-z-${Date.now().toString(36)}`);
+  316 |     await commitElsewhere(request, seeded);
+  317 |     await waitForBar(frame, "warn");
+  318 |     await page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first().click();
+  319 |     await page.keyboard.press("Control+s");
+  320 |     await frame.locator(S5_CARD).waitFor({ state: "visible", timeout: 60_000 });
+  321 |     expect(await clippedLabels(frame, false), "labels cut by nowrap at 200 %").toEqual([]);
+  322 |     await reachable(frame);
+  323 |     await shot(frame, "zoom-200");
+  324 |     // WCAG 1.4.12 text spacing (Floor › Phóng to 200% / text spacing): line height 1.5, paragraph spacing 2, letter 0.12, word 0.16 (em).
+  325 |     await frame.addStyleTag({ content: "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }" });
+  326 |     expect(await clippedLabels(frame, true), "labels cut or hidden with the 1.4.12 spacing overrides").toEqual([]);
+  327 |     await reachable(frame);
+  328 |     await shot(frame, "text-spacing");
+  329 |   });
+  330 | 
+  331 |   test("S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable", async ({ page, request }) => {
+  332 |     await prepare(page, baseUrl, "light", "vi");
+  333 |     const frame = await reachConflict(page, request, seeded);
+  334 |     await sizeFrame(page, 320, 256);
+  335 |     const title = await frame.locator(`${S5_CARD} .ow-dlg-title`).evaluate((el) => {
+  336 |       const r = el.getBoundingClientRect();
+  337 |       return { top: r.top, height: r.height, cut: el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1 };
+  338 |     });
+  339 |     expect(title.top, "the title starts inside the frame").toBeGreaterThanOrEqual(0);
+  340 |     expect(title.height).toBeGreaterThan(0);
+  341 |     expect(title.cut, "the title is clipped").toBe(false);
+  342 |     const scroll = await frame.locator(S5_MASK).evaluate((m) => ({ sh: m.scrollHeight, ch: m.clientHeight, oy: getComputedStyle(m).overflowY }));
+  343 |     if (scroll.sh > scroll.ch) expect(["auto", "scroll"], "taller than the frame and the backdrop does not scroll").toContain(scroll.oy);
+  344 |     await reachable(frame);
+  345 |     await shot(frame, "s5-320x256");
+  346 |   });
+  347 | 
+  348 |   for (const width of [390, 600]) {
+  349 |     test(`narrow web frame ${width}px: S5 full width minus 16px margins, buttons stacked`, async ({ page, request }) => {
+  350 |       await prepare(page, baseUrl, "light", "vi");
+  351 |       const frame = await reachConflict(page, request, seeded);
+  352 |       await sizeFrame(page, width);
+  353 |       const box = await frame.locator(S5_CARD).evaluate((card) => {
+  354 |         const r = card.getBoundingClientRect();
+  355 |         const btns = [...card.querySelectorAll<HTMLElement>(".ow-dlg-btn")].map((b) => b.getBoundingClientRect());
+  356 |         return { left: r.left, width: r.width, inner: window.innerWidth, xs: btns.map((b) => Math.round(b.left)), ys: btns.map((b) => b.top) };
+  357 |       });
+  358 |       test.info().annotations.push({ type: "measured", description: JSON.stringify(box) });
+  359 |       await shot(frame, `s5-narrow-${width}`);
+  360 |       expect(new Set(box.xs).size, "buttons share one column").toBe(1);
+  361 |       expect(new Set(box.ys.map(Math.round)).size, "stacked: every button on its own row").toBe(box.ys.length);
+  362 |       expect([...box.ys].sort((a, b) => a - b), "stacked top-to-bottom = DOM order").toEqual(box.ys);
+  363 |       expect(Math.abs(box.left - 16), "16px left margin").toBeLessThanOrEqual(1);
+  364 |       expect(Math.abs(box.width - (box.inner - 32)), "full width minus 2x16px").toBeLessThanOrEqual(1);
+  365 |     });
+  366 |   }
+  367 | 
+  368 |   test("reduced motion: no slide/fade on S6 or S5", async ({ page, request }) => {
+  369 |     await prepare(page, baseUrl, "light", "vi");
+  370 |     await page.emulateMedia({ reducedMotion: "reduce" });
+  371 |     const frame = await openDocs(page, seeded);
+  372 |     // The recorder goes in BEFORE the surfaces appear: a finished animation/transition is gone from getAnimations().
+  373 |     await recordMotion(frame, `${S6_BAR}, ${S5_MASK}`);
+  374 |     await commitElsewhere(request, seeded);
+  375 |     await waitForBar(frame, "info");
+  376 |     await makeDirty(page, `uw-ux-m-${Date.now().toString(36)}`);
+  377 |     await commitElsewhere(request, seeded);
+  378 |     await waitForBar(frame, "warn");
+  379 |     await page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first().click();
+  380 |     await page.keyboard.press("Control+s");
+  381 |     await frame.locator(S5_CARD).waitFor({ state: "visible", timeout: 60_000 });
+  382 |     await page.waitForTimeout(1_000);
+  383 |     const motion = await motionSeen(frame, [S6_BAR, S5_MASK, S5_CARD]);
+  384 |     test.info().annotations.push({ type: "measured", description: JSON.stringify(motion) });
+  385 |     expect(motion.missing, "surfaces not found: the measurement would be vacuous").toEqual([]);
+  386 |     expect(motion.moving, "slide/fade under prefers-reduced-motion").toEqual([]);
+  387 |   });
+  388 | 
+  389 |   test("target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer)", async ({ page, request }) => {
+  390 |     await prepare(page, baseUrl, "light", "vi");
+  391 |     const frame = await reachConflict(page, request, seeded);
+  392 |     const small = await smallTargets(frame);
+  393 |     expect(small).toEqual([]);
+  394 |   });
+  395 | });
+  396 | 
+  397 | test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags)", () => {
+  398 |   aiFlagsBeforeAll(() => seeded);
+  399 |   for (const mode of MODES) {
+  400 |     for (const locale of LOCALES) {
+  401 |       test(`S7 picker with UniWork AI and the S9 result line — ${mode} ${locale}`, async ({ page }) => {
+  402 |         await prepare(page, baseUrl, mode, locale);
+  403 |         const frame = await openDocs(page, seeded);
+  404 |         await openPicker(frame);
+  405 |         await audit(frame, PICKER_POP, "S7 picker", mode);
+  406 |         await shot(frame, `s7-picker-${mode}-${locale}`);
+  407 |         await uniworkOption(frame).click();
+  408 |         // S9: one UniWork AI turn against the fake provider; the answer (or its error line) is measured.
+  409 |         const composer = frame.locator(COMPOSER).first();
+  410 |         await composer.click();
+  411 |         await page.keyboard.type("Tóm tắt tài liệu này trong một câu.");
+  412 |         await page.keyboard.press("Enter");
+> 413 |         await frame.locator(".ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
+      |                                                                                         ^ TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+  414 |         await audit(frame, ".ai-chat", "S9 result/error", mode);
+  415 |         await shot(frame, `s9-result-${mode}-${locale}`);
+  416 |       });
+  417 |     }
+  418 | 
+  419 |     test(`S7 the selected option's focus ring is >= 3:1 against accent-soft — ${mode}`, async ({ page }) => {
+  420 |       await prepare(page, baseUrl, mode, "vi");
+  421 |       const frame = await openDocs(page, seeded);
+  422 |       await selectUniworkAi(frame);
+  423 |       // Keyboard open, so :focus-visible applies: the chip, Enter, the list enters at the selected option.
+  424 |       await frame.locator(".ai-model-chip").first().focus();
+  425 |       await page.keyboard.press("Enter");
+  426 |       await frame.locator(PICKER_POP).waitFor();
+  427 |       const selected = frame.locator(".ai-model-item.selected").first();
+  428 |       await selected.focus();
+  429 |       await page.keyboard.press("ArrowDown");
+  430 |       await page.keyboard.press("ArrowUp");
+  431 |       await selected.focus();
+  432 |       const ring = await selected.evaluate((el) => {
+  433 |         const cs = getComputedStyle(el);
+  434 |         return { style: cs.outlineStyle, width: parseFloat(cs.outlineWidth), color: cs.outlineColor, bg: cs.backgroundColor, focusVisible: el.matches(":focus-visible") };
+  435 |       });
+  436 |       test.info().annotations.push({ type: "measured", description: JSON.stringify(ring) });
+  437 |       expect(ring.focusVisible, "the selected option is not :focus-visible").toBe(true);
+  438 |       expect(ring.style).not.toBe("none");
+  439 |       expect(ring.width).toBeGreaterThanOrEqual(2);
+  440 |       expect(await contrastIn(frame, ring.color, ring.bg)).toBeGreaterThanOrEqual(3);
+  441 |     });
+  442 |   }
+  443 | 
+  444 |   test("S7 the selected picker option has a 2px Highlight border, not only a fill", async ({ page }) => {
+  445 |     await prepare(page, baseUrl, "light", "vi");
+  446 |     await page.emulateMedia({ forcedColors: "active" });
+  447 |     const frame = await openDocs(page, seeded);
+  448 |     await selectUniworkAi(frame);
+  449 |     await openPicker(frame);
+  450 |     const sel = await frame.locator(".ai-model-item.selected").first().evaluate((el) => {
+  451 |       const probe = document.createElement("span");
+  452 |       probe.style.color = "Highlight";
+  453 |       el.append(probe);
+  454 |       const hl = getComputedStyle(probe).color;
+  455 |       probe.remove();
+  456 |       const cs = getComputedStyle(el);
+  457 |       return { width: parseFloat(cs.borderTopWidth), color: cs.borderTopColor, outline: cs.outlineStyle, hl };
+  458 |     });
+  459 |     test.info().annotations.push({ type: "measured", description: JSON.stringify(sel) });
+  460 |     await shot(frame, "s7-forced-colors");
+  461 |     expect(sel.width).toBeGreaterThanOrEqual(2);
+  462 |     expect(sel.color).toBe(sel.hl);
+  463 |   });
+  464 | 
+  465 |   test("S7 listbox sits on the list, Manage and the footer are siblings after it", async ({ page }) => {
+  466 |     await prepare(page, baseUrl, "light", "vi");
+  467 |     const frame = await openDocs(page, seeded);
+  468 |     await openPicker(frame);
+  469 |     const roles = await frame.locator(PICKER_POP).evaluate((pop) => ({
+  470 |       pop: pop.getAttribute("role"),
+  471 |       list: pop.querySelector(".ai-model-pop-list")?.getAttribute("role") ?? null,
+  472 |       manageInList: !!pop.querySelector('[role="listbox"] .ai-model-manage'),
+  473 |     }));
+  474 |     test.info().annotations.push({ type: "measured", description: JSON.stringify(roles) });
+  475 |     expect(roles).toEqual({ pop: "group", list: "listbox", manageInList: false });
+  476 |   });
+  477 | 
+  478 |   test("S8 disclosure region shows on the first UniWork AI turn and gates Send", async ({ page }) => {
+  479 |     await prepare(page, baseUrl, "light", "vi");
+  480 |     const frame = await openDocs(page, seeded);
+  481 |     await selectUniworkAi(frame);
+  482 |     const send = frame.locator(".ai-send-btn:not(.ai-stop-btn)").first();
+  483 |     await expect(send, "S8: the composer has its Send button").toBeVisible({ timeout: 15_000 });
+  484 |     // RFE-202: a non-empty composer, so an empty-composer `disabled` can never pass for the disclosure gate.
+  485 |     await frame.locator(COMPOSER).first().click();
+  486 |     await page.keyboard.type("Tóm tắt tài liệu này.");
+  487 |     const region = frame.getByRole("region", { name: /Nội dung gửi tới UniWork AI|What UniWork AI receives/i });
+  488 |     await expect(region).toBeVisible({ timeout: 10_000 });
+  489 |     await expect(send, "Send is aria-disabled before the acknowledgement").toHaveAttribute("aria-disabled", "true");
+  490 |     const reason = await send.evaluate((b) => b.getAttribute("aria-describedby")?.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() ?? "").join(" ") ?? "");
+  491 |     // aiUniworkSendNeedsAck (vi/en) — the disclosure is the reason, not an empty composer.
+  492 |     expect(reason, "Send's aria-describedby names the disclosure reason").toMatch(/xác nhận lời công bố|confirm the notice/i);
+  493 |     await audit(frame, ".ai-composer", "S8 disclosure", "light");
+  494 |     await frame.getByRole("button", { name: /Đã hiểu|Got it/i }).first().click();
+  495 |     await expect(send, "Send is enabled after 'Đã hiểu'").not.toHaveAttribute("aria-disabled", "true");
+  496 |     await expect(send, "Send is enabled after 'Đã hiểu' (the composer is not empty)").toBeEnabled();
+  497 |   });
+  498 | });
+  499 | 
+```no passing test matched office-ux-floor
+
+E2E_S9_DEBUG_EXIT=1

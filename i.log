@@ -1,0 +1,27 @@
+$ grep -E "path=/api/v1/[^ ]*(ai|office-frame|uniwork)" /tmp/s9dbg-server.log | sed -E "s/ (request_id|correlation_id|trace_id|span_id)=[^ ]*//g" | tail -n 150; echo; grep -iE "ERR|WRN|panic|fake|provider|model" /tmp/s9dbg-server.log | sed -E "s/ (request_id|correlation_id|trace_id|span_id)=[^ ]*//g" | tail -n 80; echo "SERVER_AI_DUMP_EXIT=0"
+15:31:05.423 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=1.768ms actor_id=01M52ND61W33ATYRQF8MQP4TKY actor_kind=human
+15:31:36.719 INF http request method=OPTIONS path=/api/v1/workspaces/01M52ND62XAEBV9EEAD82C7G6Q/email-hub/unread-count status=200 duration=8µs
+15:31:36.719 INF http request method=OPTIONS path=/api/v1/workspaces/01M52ND62XAEBV9EEAD82C7G6Q/ai/capabilities status=200 duration=4µs
+15:31:36.731 INF http request method=GET path=/api/v1/workspaces/01M52ND62XAEBV9EEAD82C7G6Q/email-hub/unread-count status=200 duration=7.665ms organization_id=01M52ND62MTZTW7V87V7FP56EK workspace_id=01M52ND62XAEBV9EEAD82C7G6Q actor_id=01M52ND61W33ATYRQF8MQP4TKY actor_kind=human
+15:31:36.759 INF http request method=GET path=/api/v1/workspaces/01M52ND62XAEBV9EEAD82C7G6Q/ai/capabilities status=200 duration=35.77ms organization_id=01M52ND62MTZTW7V87V7FP56EK workspace_id=01M52ND62XAEBV9EEAD82C7G6Q actor_id=01M52ND61W33ATYRQF8MQP4TKY actor_kind=human
+15:31:37.685 INF http request method=GET path=/api/v1/workspaces/01M52ND62XAEBV9EEAD82C7G6Q/email-hub/unread-count status=200 duration=8.545ms organization_id=01M52ND62MTZTW7V87V7FP56EK workspace_id=01M52ND62XAEBV9EEAD82C7G6Q actor_id=01M52ND61W33ATYRQF8MQP4TKY actor_kind=human
+15:31:37.691 INF http request method=GET path=/api/v1/workspaces/01M52ND62XAEBV9EEAD82C7G6Q/ai/capabilities status=200 duration=13.475ms organization_id=01M52ND62MTZTW7V87V7FP56EK workspace_id=01M52ND62XAEBV9EEAD82C7G6Q actor_id=01M52ND61W33ATYRQF8MQP4TKY actor_kind=human
+15:31:38.773 INF http request method=OPTIONS path=/api/v1/office-frame/documents/01M52ND63R7YX6DEKD1JBQXXCX status=200 duration=15µs
+15:31:38.782 INF http request method=GET path=/api/v1/office-frame/documents/01M52ND63R7YX6DEKD1JBQXXCX status=200 duration=7.798ms organization_id=01M52ND62MTZTW7V87V7FP56EK workspace_id=01M52ND62XAEBV9EEAD82C7G6Q actor_id=01M52ND61W33ATYRQF8MQP4TKY actor_kind=human
+15:31:39.060 INF http request method=OPTIONS path=/api/v1/office-frame/documents/01M52ND63R7YX6DEKD1JBQXXCX/recents status=200 duration=11µs
+15:31:39.067 INF http request method=GET path=/api/v1/office-frame/documents/01M52ND63R7YX6DEKD1JBQXXCX/recents status=200 duration=6.339ms organization_id=01M52ND62MTZTW7V87V7FP56EK workspace_id=01M52ND62XAEBV9EEAD82C7G6Q actor_id=01M52ND61W33ATYRQF8MQP4TKY actor_kind=human
+15:31:39.075 INF http request method=OPTIONS path=/api/v1/office-frame/documents/01M52ND63R7YX6DEKD1JBQXXCX/content status=200 duration=7µs
+15:31:39.081 INF http request method=GET path=/api/v1/office-frame/documents/01M52ND63R7YX6DEKD1JBQXXCX/content status=200 duration=6.048ms organization_id=01M52ND62MTZTW7V87V7FP56EK workspace_id=01M52ND62XAEBV9EEAD82C7G6Q actor_id=01M52ND61W33ATYRQF8MQP4TKY actor_kind=human
+15:31:39.256 WRN http request method=GET path=/api/v1/office-frame/documents/01M52ND63R7YX6DEKD1JBQXXCX/content status=401 duration=253µs
+15:31:39.416 INF http request method=GET path=/api/v1/office-frame/documents/01M52ND63R7YX6DEKD1JBQXXCX/recents status=200 duration=4.495ms organization_id=01M52ND62MTZTW7V87V7FP56EK workspace_id=01M52ND62XAEBV9EEAD82C7G6Q actor_id=01M52ND61W33ATYRQF8MQP4TKY actor_kind=human
+
+15:29:52.238 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+15:29:52.238 INF ai gateway enabled component=server provider=fake
+15:31:04.681 WRN http request method=POST path=/api/v1/auth/refresh status=401 duration=390µs
+15:31:36.117 WRN http request method=POST path=/api/v1/auth/refresh status=401 duration=247µs
+15:31:36.161 INF http request method=OPTIONS path=/api/v1/auth/providers status=200 duration=8µs
+15:31:36.162 INF http request method=GET path=/api/v1/auth/providers status=200 duration=181µs
+15:31:36.304 INF http request method=OPTIONS path=/api/v1/auth/providers status=200 duration=8µs
+15:31:36.307 INF http request method=GET path=/api/v1/auth/providers status=200 duration=340µs
+15:31:39.256 WRN http request method=GET path=/api/v1/office-frame/documents/01M52ND63R7YX6DEKD1JBQXXCX/content status=401 duration=253µs
+SERVER_AI_DUMP_EXIT=0

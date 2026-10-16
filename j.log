@@ -1,0 +1,6 @@
+$ grep -iE "error|warn|fail" /tmp/s9dbg-web.log | tail -n 40; echo "WEB_LOG_DUMP_EXIT=0"
+⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::13770
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::13770)
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 start: `next start`
+WEB_LOG_DUMP_EXIT=0

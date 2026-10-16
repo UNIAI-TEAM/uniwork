@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18850 13770; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18850/tcp 13770/tcp 2>/dev/null; sleep 1; for p in 18850 13770; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+40d18bed6eba1e07f3d79622f078df45cb27e212
+40d18bed6 chore: merge G5-G7 root fcf9651df (develop f6df189ed, landing typecheck + G7-04 knip fixes) into the REPIN-1 branch (UNI-1825)
+fcf9651df chore(merge): develop f6df189ed into the G5-G7 root (UNI-923)
+585e3f4c3 fix(scripts): give the G7-04 AI content owner its own value
+992ccc1ef docs(e2e): keep historical 0.1.0-fa22cd9 pin origin in openPicker comment
