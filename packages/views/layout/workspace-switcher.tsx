@@ -18,6 +18,7 @@ import {
 import { SidebarMenuButton } from "@uniwork/ui/components/ui/sidebar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useNavigation } from "../navigation";
+import { WorkspaceIcon } from "./workspace-icon";
 
 /**
  * Sidebar header: organization › current workspace. The menu groups every
@@ -25,7 +26,7 @@ import { useNavigation } from "../navigation";
  * Switching is an in-app push, not a reload — the layout resolves the new
  * pair and the realtime provider reconnects on its own.
  *
- * The initial tile is not decoration: in the collapsed icon rail it is the
+ * The workspace icon is not decoration: in the collapsed icon rail it is the
  * only thing left of this control, and a rail whose top slot is blank reads
  * as a broken header rather than a nav.
  */
@@ -78,14 +79,12 @@ export function WorkspaceSwitcher({
         {/* aria-hidden, which also keeps it visible in the icon rail: the
             menu-button primitive makes every other direct span child
             sr-only there, and the rail was once left with no workspace mark
-            at all. Its meaning (initial, unread dot) is in the aria-label. */}
+            at all. Its meaning (workspace icon, unread dot) is in the aria-label. */}
         <span aria-hidden className="relative shrink-0">
-          <span
-            aria-hidden
-            className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-body font-semibold text-sidebar-primary-foreground group-data-[collapsible=icon]:size-6 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:text-caption"
-          >
-            {current.name.trim().slice(0, 1).toUpperCase()}
-          </span>
+          <WorkspaceIcon
+            workspace={current}
+            className="size-8 rounded-lg bg-sidebar-primary text-body font-semibold text-sidebar-primary-foreground group-data-[collapsible=icon]:size-6 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:text-caption"
+          />
           {elsewhere ? (
             <span
               className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary ring-2 ring-surface group-data-[collapsible=icon]:ring-app-shell"
@@ -102,7 +101,7 @@ export function WorkspaceSwitcher({
         </span>
         <ChevronDown aria-hidden className="ml-auto size-3! text-muted-foreground group-data-[collapsible=icon]:hidden" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-60">
+      <DropdownMenuContent align="start" className="max-w-80 min-w-60">
         {[...groups.entries()].map(([orgId, g]) => (
           <DropdownMenuGroup key={orgId}>
             <DropdownMenuLabel>{g.name}</DropdownMenuLabel>
@@ -110,9 +109,17 @@ export function WorkspaceSwitcher({
               <DropdownMenuItem
                 key={w.id}
                 onClick={() => go(paths.workspace(w.organization_slug, w.slug).tasks())}
-                className={cn(w.id === current.id && "font-medium")}
               >
-                <span className="min-w-0 flex-1 truncate">{w.name}</span>
+                <WorkspaceIcon
+                  workspace={w}
+                  className="size-5 rounded-sm bg-muted text-caption font-semibold text-muted-foreground"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block truncate", w.id === current.id && "font-medium")}>{w.name}</span>
+                  {w.description ? (
+                    <span className="block truncate text-caption text-muted-foreground">{w.description}</span>
+                  ) : null}
+                </span>
                 {w.id !== current.id && unreadIn(w.id) > 0 ? (
                   <span
                     role="img"

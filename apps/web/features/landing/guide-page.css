@@ -1,0 +1,32 @@
+.public-guide { max-width: 75ch; margin-inline: auto; padding: 136px 24px 72px; }
+.public-guide > nav:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--muted-foreground); font-size: var(--text-body); }
+.public-guide header { margin-block: 28px 40px; }
+.public-guide h1 { font-size: var(--text-hero-sm); font-weight: 750; line-height: 1.2; letter-spacing: -.025em; text-wrap: balance; }
+.public-guide p, .public-guide li { font-size: var(--text-body-lg); line-height: 1.8; }
+.public-guide p { margin-top: 16px; color: var(--muted-foreground); }
+.public-guide h2 { font-size: var(--text-title-lg); line-height: 1.35; font-weight: 650; }
+.public-guide > section, .public-guide-related { margin-top: 40px; scroll-margin-top: 112px; }
+.public-guide ol, .public-guide ul { padding-left: 24px; margin-top: 16px; }
+.public-guide ol { list-style: decimal; }
+.public-guide ul { list-style: disc; }
+.public-guide li + li { margin-top: 8px; }
+.public-guide a { color: var(--brand); text-underline-offset: 4px; }
+.public-guide a:hover { text-decoration: underline; }
+.public-guide-contents, .public-guide-related { border-block-start: 1px solid var(--border); padding-top: 24px; }
+.public-guide-contents h2 { font-size: var(--text-title-sm); }
+.public-guide-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 24px; font-size: var(--text-body); line-height: 1.65; }
+.public-guide-table caption { text-align: start; font-weight: 600; margin-bottom: 12px; }
+.public-guide-table th, .public-guide-table td { text-align: start; vertical-align: top; padding: 12px 10px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.public-guide-table thead th { background: var(--muted); font-weight: 650; }
+.public-guide-table tbody th { font-weight: 600; white-space: nowrap; }
+.public-guide-table thead th:first-child { width: 27%; }
+.public-guide-table thead th:nth-child(2) { width: 19%; }
+.public-guide-table thead th:last-child { width: 54%; }
+.public-guide-example { margin-top: 24px; padding-block: 20px; border-block: 1px solid var(--border); }
+.public-guide-example h3 { font-size: var(--text-title-sm); font-weight: 600; }
+.public-guide-illustration { margin-top: 28px; }
+.public-guide-illustration img { width: 100%; height: auto; border-radius: 12px; }
+.public-guide-illustration figcaption { font-size: var(--text-caption); line-height: 1.7; color: var(--muted-foreground); margin-top: 12px; }
+.public-guide-image-dark, .dark .public-guide-image-light { display: none; }
+.dark .public-guide-image-dark { display: block; }
+@media (max-width: 767px) { .public-guide { padding: 108px 24px 48px; } .public-guide h1 { font-size: var(--text-hero-sm); } }

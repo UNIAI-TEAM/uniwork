@@ -4,11 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
-
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/unicomhub/uniwork/server/internal/util"
-	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"unicode/utf8"
 )
 
 const chatMessageKindPost = "post"
@@ -33,10 +29,10 @@ type ChatPostInfo struct {
 
 // SendPostMessageInput creates an announcement-style post in a chat room.
 type SendPostMessageInput struct {
-	Title            string
-	Body             string
-	PinToTop         bool
-	ReplyToMessageID *string
+	Title       string
+	Body        string
+	PinToTop    bool
+	ClientMsgID string
 }
 
 func postFromMetadata(kind string, meta chatMessageMetadata, body string) *ChatPostInfo {
@@ -80,13 +76,13 @@ func (s *ChatService) SendPostMessage(
 	if title == "" {
 		return ChatMessageRow{}, Invalid("tiêu đề bài đăng không được để trống")
 	}
-	if len(title) > maxPostTitleLen {
+	if utf8.RuneCountInString(title) > maxPostTitleLen {
 		return ChatMessageRow{}, Invalid("tiêu đề bài đăng quá dài")
 	}
 	if body == "" {
 		return ChatMessageRow{}, Invalid("nội dung bài đăng không được để trống")
 	}
-	if len(body) > maxPostBodyLen {
+	if utf8.RuneCountInString(body) > maxPostBodyLen {
 		return ChatMessageRow{}, Invalid("nội dung bài đăng quá dài")
 	}
 
@@ -116,29 +112,5 @@ func (s *ChatService) SendPostMessage(
 		return ChatMessageRow{}, err
 	}
 
-	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.CreateChatPostMessage(ctx, db.CreateChatPostMessageParams{
-		ID:             util.NewID(),
-		RoomID:         room.ID,
-		OrganizationID: room.OrganizationID,
-		WorkspaceID:    anchorWS,
-		SenderID:       userID,
-		Body:           body,
-		Metadata:       meta,
-	})
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-
-	u, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	createdAt := msg.CreatedAt.Time
-	_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
-		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
-	})
-	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
-	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
+	return s.sendKindMessage(ctx, userID, room, chatMessageKindPost, body, meta, in.ClientMsgID, nil)
 }

@@ -31,22 +31,29 @@ import { OnboardingLogoutButton } from "./components/onboarding-logout-button";
  * A suspended organization still holds its members (ADR 0032 D1), and its
  * notice links here too: such a person is told so and is offered only the
  * invitations, since founding another organization would be refused.
+ *
+ * Which of the two titles applies is only known once the organization list
+ * is in, so until then the shell shows its loading frame rather than a title
+ * it might have to take back; `pending` holds the same frame while the host
+ * is still resolving the session, so the page is never blank and the shell is
+ * not mounted twice.
  */
-export function NoOrganizationView() {
+export function NoOrganizationView({ pending = false }: { pending?: boolean } = {}) {
   const { t } = useTranslation(undefined, { keyPrefix: "onboarding.noOrganization" });
-  const { data: organizations, isLoading } = useOrganizations();
+  // `isPending`, not `isLoading`: it also covers the query held back by `pending`.
+  const { data: organizations, isPending: organizationsPending } = useOrganizations(!pending);
   // Same query as the list below, so this reads the cache: no second request.
-  const { data: invitations } = useMyInvitations();
+  const { data: invitations } = useMyInvitations(!pending);
   const held = organizations?.find(holdsOrganization);
   const invited = (invitations?.length ?? 0) > 0;
 
   const join = (
     <PathSection key="join" id="get-started-join" title={t("join_title")} body={t("join_body")}>
-      <PendingInvitations />
+      <PendingInvitations enabled={!pending} />
     </PathSection>
   );
   let create: ReactNode = null;
-  if (isLoading) create = <CreateSkeleton key="create" />;
+  if (organizationsPending) create = <CreateSkeleton key="create" />;
   else if (!held) {
     create = (
       <PathSection key="create" id="get-started-create" title={t("create_title")} body={t("create_body")}>
@@ -66,8 +73,9 @@ export function NoOrganizationView() {
 
   return (
     <AuthShell
-      title={held ? t("held_title", { name: held.name }) : t("title")}
+      title={organizationsPending ? undefined : held ? t("held_title", { name: held.name }) : t("title")}
       description={held ? t("held_description") : t("description")}
+      nameInTitle={!!held}
     >
       <div className="flex flex-col gap-8">
         {ordered}
@@ -91,25 +99,34 @@ function PathSection({ id, title, body, children }: { id: string; title: string;
   );
 }
 
-/** The create path's final shape while the organization list loads, so nothing pops in above the join path. */
+/**
+ * The create path's final shape while the organization list loads, so nothing
+ * pops in above the join path. Each bar sits in a box of its line's height
+ * (title-sm 22px, body 20px) and the button keeps the lg button's height on
+ * either pointer, so the swap moves nothing.
+ */
 function CreateSkeleton() {
   return (
     <div aria-hidden className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <Skeleton className="h-5 w-40" />
-        <Skeleton className="h-4 w-full" />
+        <div className="flex h-5.5 items-center">
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <div className="flex h-5 items-center">
+          <Skeleton className="h-3.5 w-full" />
+        </div>
       </div>
-      <Skeleton className="h-11 w-full rounded-control" />
+      <Skeleton className="h-9 w-full rounded-control pointer-coarse:h-11" />
     </div>
   );
 }
 
-function PendingInvitations() {
+function PendingInvitations({ enabled }: { enabled: boolean }) {
   const { t } = useTranslation();
   const { user } = useSession();
-  const { data: invitations, isLoading, isError, refetch, isRefetching } = useMyInvitations();
+  const { data: invitations, isPending, isError, refetch, isRefetching } = useMyInvitations(enabled);
 
-  if (isLoading) return <InvitationListSkeleton rows={2} />;
+  if (isPending) return <InvitationListSkeleton rows={2} />;
   if (isError) return <InvitationListError onRetry={() => void refetch()} busy={isRefetching} />;
   if (!invitations?.length) {
     // The address is the fact that matters: it is what an admin must invite.

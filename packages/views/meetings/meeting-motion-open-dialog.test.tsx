@@ -72,7 +72,7 @@ describe("MeetingMotionOpenDialog", () => {
     attendance.summary = { members: 3, present: 1, late: 1, excused: 0, absent: 1, quorum_met: false };
     renderDialog();
     expect(await screen.findByText("Chưa đủ tỉ lệ có mặt tối thiểu (cần 80%).")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mở biểu quyết" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Mở biểu quyết" })).not.toHaveAttribute("aria-disabled");
   });
 
   it("warns that nobody can vote when no member is present", async () => {

@@ -49,6 +49,9 @@ func (s *ChatService) EditChatMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
+	if err := s.updateCopiedComment(ctx, userID, updated); err != nil {
+		return ChatMessageRow{}, err
+	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
 	u, err := s.q.GetUserByID(ctx, updated.SenderID)
 	if err != nil {
@@ -57,9 +60,10 @@ func (s *ChatService) EditChatMessage(
 	return chatMessageRowFromDB(updated, u.DisplayName), nil
 }
 
-// DeleteChatMessage soft-deletes the caller's own message and releases the
-// FileService reference in the same transaction; the bytes stay with the
-// garbage collector, which re-checks every reference provider.
+// DeleteChatMessage soft-deletes the caller's own message (or, for a room
+// moderator, anyone's reminder) and releases the FileService reference in the
+// same transaction; the bytes stay with the garbage collector, which
+// re-checks every reference provider.
 func (s *ChatService) DeleteChatMessage(
 	ctx context.Context, userID, workspaceID, roomID, messageID string,
 ) error {
@@ -78,12 +82,37 @@ func (s *ChatService) DeleteChatMessage(
 		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, SenderID: userID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrForbidden
+		// A repeating reminder outlives its author's membership, so a room
+		// moderator may retire someone else's; every other kind stays the
+		// sender's own.
+		moderator, merr := s.isChatRoomModerator(ctx, userID, room)
+		if merr != nil {
+			return merr
+		}
+		if !moderator {
+			return ErrForbidden
+		}
+		deleted, err = q.SoftDeleteChatReminderMessage(ctx, db.SoftDeleteChatReminderMessageParams{
+			ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrForbidden
+		}
 	}
 	if err != nil {
 		return err
 	}
 	if err := s.releaseChatMessageFile(ctx, q, deleted); err != nil {
+		return err
+	}
+	if deleted.ThreadRootID.Valid {
+		if err := q.DropChatThreadReplyStats(ctx, db.DropChatThreadReplyStatsParams{
+			ThreadRootID: deleted.ThreadRootID, RoomID: room.ID, WorkspaceID: anchorWS,
+		}); err != nil {
+			return err
+		}
+	}
+	if err := deleteCommentCopiedFromMessage(ctx, q, userID, deleted.ID); err != nil {
 		return err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -101,7 +130,25 @@ func (s *ChatService) DeleteChatMessage(
 		return err
 	}
 	s.publishChatMessageDeleted(ctx, room, deleted.ID)
+	if deleted.ThreadRootID.Valid {
+		// The root's reply count changed; clients refetch it on this frame.
+		s.publishChatMessageUpdated(ctx, room, deleted.ThreadRootID.String)
+	}
 	return nil
+}
+
+// updateCopiedComment carries an edit onto the task comment copied from the
+// message, with its audit row and task.comment_updated in one transaction.
+func (s *ChatService) updateCopiedComment(ctx context.Context, userID string, msg db.ChatMessage) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := updateCommentCopiedFromMessage(ctx, s.q.WithTx(tx), userID, msg); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.ChatRoom, messageID string) {
@@ -121,6 +168,9 @@ func (s *ChatService) ToggleChatMessagePin(
 ) (ChatMessageRow, error) {
 	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
 	if err := s.memberCanPerformRoomAction(ctx, userID, roomID, room, func(p ChatRoomMemberPermissions) bool {
@@ -145,7 +195,7 @@ func (s *ChatService) ToggleChatMessagePin(
 	}
 	row := chatMessageRowFromDB(updated, u.DisplayName)
 	row.Pinned = pinned
-	return row, nil
+	return s.signChatMediaRow(ctx, room, row), nil
 }
 
 func (s *ChatService) publishChatMessageUpdated(ctx context.Context, room db.ChatRoom, messageID string) {

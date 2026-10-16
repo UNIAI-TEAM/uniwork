@@ -1,5 +1,4 @@
-import { PricingPage } from "../../features/landing/marketing-overview-pages";
-import { marketingMetadata } from "../../platform/feature-metadata";
-
-export function generateMetadata() { return marketingMetadata("pricing", "/pricing"); }
-export default function Page() { return <PricingPage />; }
+import { publicPage } from "../../platform/public-page";
+import { seoMetadata } from "../../platform/seo";
+export function generateMetadata() { return seoMetadata("/pricing"); }
+export default function Page() { return publicPage("/pricing"); }

@@ -12,9 +12,11 @@ type ListChatMessagesSDI struct {
 	MarkRead string `query:"mark_read" description:"0 giữ nguyên last_read_at (CatchUp sau khi mở phòng chưa đọc)" example:"0"`
 }
 
-// StreamChatFileMessageSDI is GET .../messages/{messageID}/file.
-type StreamChatFileMessageSDI struct {
-	Variant string `query:"variant" enum:"thumb" description:"thumb: ảnh thu nhỏ (cạnh dài tối đa 640px) cho dòng thời gian; ảnh chưa có bản thu nhỏ trả về tệp gốc. Bỏ trống để tải tệp gốc" example:"thumb"`
+// ListChatThreadMessagesSDI documents GET .../chat/rooms/{roomID}/threads/{messageID}/messages query params.
+type ListChatThreadMessagesSDI struct {
+	Cursor string `query:"cursor" description:"Trường cursor của câu trả lời cũ nhất đang có (không phải tin gốc), gửi lại nguyên văn để lấy trang cũ hơn" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	Before string `query:"before" description:"Cũ: mốc RFC3339, có thể bỏ sót tin cùng giây; dùng cursor thay thế" example:"2026-03-26T10:00:00Z"`
+	Limit  int    `query:"limit" description:"Số câu trả lời mỗi trang (trang đầu thêm tin gốc)" example:"50"`
 }
 
 // SendChatMessageSDI is POST /workspaces/{workspaceID}/chat/messages.
@@ -88,7 +90,7 @@ type CreateChatPostSDI struct {
 
 // CreateGroupSDI is POST /workspaces/{workspaceID}/chat/groups.
 type CreateGroupSDI struct {
-	Name          string   `json:"name" description:"Group display name" example:"Team Alpha"`
+	Name          string   `json:"name" maxLength:"80" description:"Group display name (up to 80 characters; empty takes a default)" example:"Team Alpha"`
 	MemberUserIDs []string `json:"member_user_ids" description:"Other member UniWork user ids (min 2)" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\",\"01J8X4USR0N1P2Q3R4S5T6U7V9\"]"`
 }
 
@@ -111,6 +113,7 @@ type MintChatVoiceTokenSDI struct {
 // VoiceSignalSDI is POST voice invite/hangup on a chat room.
 type VoiceSignalSDI struct {
 	CallID string `json:"call_id" maxLength:"64" description:"Client-generated voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Video  bool   `json:"video,omitempty" description:"True when the caller started with the camera on" example:"true"`
 }
 
 // ChatPresenceSDI is POST .../chat/presence.

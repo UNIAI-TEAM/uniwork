@@ -81,14 +81,18 @@ func (w *ChatReminderWorker) batch(ctx context.Context, now time.Time) (fired, c
 		if !r.MessageGone {
 			loc, _ := homeLocation(r.Timezone)
 			occurrence, next = nextChatReminderFire(r.Repeat, r.RemindAt.Time.In(loc), occurrence, now)
-			if err := auditRecorder.Emit(ctx, q, audit.System("chat_reminder"), audit.Event{
-				Topic: "chat.reminder.due", Version: 1,
-				OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID,
-				Payload: map[string]string{"room_id": r.RoomID, "message_id": r.MessageID},
-			}); err != nil {
-				return 0, 0, err
+			// An archived room skips this occurrence but keeps the schedule:
+			// unarchiving the channel brings its reminders back.
+			if !r.RoomArchived {
+				if err := auditRecorder.Emit(ctx, q, audit.System("chat_reminder"), audit.Event{
+					Topic: "chat.reminder.due", Version: 1,
+					OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID,
+					Payload: map[string]string{"room_id": r.RoomID, "message_id": r.MessageID},
+				}); err != nil {
+					return 0, 0, err
+				}
+				fired++
 			}
-			fired++
 		}
 		if err := q.AdvanceChatReminder(ctx, db.AdvanceChatReminderParams{
 			MessageID: r.MessageID, Occurrence: int32(occurrence),

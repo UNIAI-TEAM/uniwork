@@ -98,19 +98,31 @@ describe("ChannelDirectorySheet", () => {
     expect(screen.queryByRole("button", { name: t("chat.channel.join_named", { name: "design" }) })).toBeNull();
   });
 
-  it("narrows the list accent-insensitively at once and waits for a pause before asking the server", async () => {
-    requestMock.mockResolvedValue({ rooms: [room("c1", "Thiết kế"), room("c3", "Kinh doanh")] });
+  it("narrows the list accent-insensitively and never asks the server again", async () => {
+    requestMock.mockResolvedValue({ rooms: [room("c1", "Phòng kỹ thuật"), room("c3", "Kinh doanh")] });
     renderSheet();
-    expect(await screen.findByText("Thiết kế")).toBeInTheDocument();
+    expect(await screen.findByText("Phòng kỹ thuật")).toBeInTheDocument();
     const callsBefore = requestMock.mock.calls.length;
 
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "thiet" } });
-    expect(await screen.findByText("Thiết kế")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "phong" } });
+    expect(await screen.findByText("Phòng kỹ thuật")).toBeInTheDocument();
     expect(screen.queryByText("Kinh doanh")).toBeNull();
-    // No request per keystroke: the server query follows ~250ms later.
+    // The directory is loaded once; typing never refetches (a server filter
+    // that does not fold accents would drop "Phòng kỹ thuật" here).
+    await new Promise((resolve) => setTimeout(resolve, 300));
     expect(requestMock.mock.calls.length).toBe(callsBefore);
-    await waitFor(() => expect(requestMock.mock.calls.length).toBeGreaterThan(callsBefore));
-    expect(String(requestMock.mock.calls.at(-1)?.[0])).toContain("thiet");
+    expect(screen.getByText("Phòng kỹ thuật")).toBeInTheDocument();
+  });
+
+  it("matches _ literally instead of as a wildcard", async () => {
+    requestMock.mockResolvedValue({ rooms: [room("c1", "dev_ops"), room("c3", "Kinh doanh")] });
+    renderSheet();
+    expect(await screen.findByText("Kinh doanh")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "_" } });
+    await waitFor(() => expect(screen.queryByText("Kinh doanh")).toBeNull());
+    expect(screen.getByText("dev_ops")).toBeInTheDocument();
+    for (const call of requestMock.mock.calls) expect(String(call[0])).not.toContain("q=");
   });
 
   it("names its close button", async () => {

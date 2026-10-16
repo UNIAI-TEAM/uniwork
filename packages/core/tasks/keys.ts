@@ -7,6 +7,8 @@
  */
 export const taskKeys = {
   list: (wsId: string) => ["tasks", wsId] as const,
+  /** Prefix of every `detail` entry, whatever workspace the task is in. */
+  details: () => ["task"] as const,
   detail: (taskId: string) => ["task", taskId] as const,
   comments: (taskId: string) => ["comments", taskId] as const,
   queryRoot: (wsId: string) => ["tasks-query", wsId] as const,

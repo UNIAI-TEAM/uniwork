@@ -35,6 +35,7 @@ type VoiceCallLogDTO struct {
 	Outcome         string                    `json:"outcome" description:"completed, unanswered, or declined" example:"completed"`
 	DurationSeconds int                       `json:"duration_seconds,omitempty" description:"Call length in seconds when completed" example:"125"`
 	CallerID        string                    `json:"caller_id" description:"User id of the caller" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	Video           bool                      `json:"video,omitempty" description:"True when the call was started with the camera on" example:"true"`
 	Participants    []VoiceCallParticipantDTO `json:"participants,omitempty" description:"People involved in the call"`
 	RecordingID     string                    `json:"recording_id,omitempty" description:"Chat voice recording id when present" example:"01J8X4REC0N1P2Q3R4S5T6U7V8"`
 	RecordingStatus string                    `json:"recording_status,omitempty" description:"ACTIVE, PROCESSING, COMPLETE, or FAILED" example:"COMPLETE"`
@@ -71,16 +72,23 @@ type ChatVoiceRecordingPlaybackSDO struct {
 
 // VoiceMessageDTO is metadata for private voice-message content.
 type VoiceMessageDTO struct {
-	DurationMS  int    `json:"duration_ms" description:"Recording duration in milliseconds" example:"12500"`
-	ContentType string `json:"content_type" description:"Sniffed audio MIME type" example:"audio/webm"`
-	SizeBytes   int64  `json:"size_bytes" description:"Stored audio size in bytes" example:"184320"`
+	DurationMS   int    `json:"duration_ms" description:"Recording duration in milliseconds" example:"12500"`
+	ContentType  string `json:"content_type" description:"Sniffed audio MIME type" example:"audio/webm"`
+	SizeBytes    int64  `json:"size_bytes" description:"Stored audio size in bytes" example:"184320"`
+	URL          string `json:"url,omitempty" description:"URL presign ngắn hạn để phát trực tiếp từ object storage; trống khi không ký được" example:"https://storage.example.com/uniwork/chat/voice/01J8X4FILE?X-Amz-Signature=abc"`
+	URLExpiresAt string `json:"url_expires_at,omitempty" description:"Thời điểm URL hết hạn (RFC3339); tải lại tin nhắn để có URL mới" example:"2026-03-26T22:00:00Z"`
 }
 
-// FileMessageDTO is metadata for private chat-file content (object_key stays server-side).
+// FileMessageDTO is a chat file: its metadata plus presigned read URLs for
+// the viewer (UNI-1633); the storage key itself stays server-side.
 type FileMessageDTO struct {
-	Filename    string `json:"filename" description:"Original filename" example:"sprint.pdf"`
-	ContentType string `json:"content_type" description:"Sniffed MIME type" example:"application/pdf"`
-	SizeBytes   int64  `json:"size_bytes" description:"Stored file size in bytes" example:"204800"`
+	Filename     string `json:"filename" description:"Original filename" example:"sprint.pdf"`
+	ContentType  string `json:"content_type" description:"Sniffed MIME type" example:"application/pdf"`
+	SizeBytes    int64  `json:"size_bytes" description:"Stored file size in bytes" example:"204800"`
+	URL          string `json:"url,omitempty" description:"URL presign ngắn hạn để xem tệp trực tiếp từ object storage (inline); trống khi không ký được" example:"https://storage.example.com/uniwork/chat/files/01J8X4FILE?X-Amz-Signature=abc"`
+	DownloadURL  string `json:"download_url,omitempty" description:"URL presign tải tệp xuống với tên gốc (Content-Disposition: attachment)" example:"https://storage.example.com/uniwork/chat/files/01J8X4FILE?response-content-disposition=attachment&X-Amz-Signature=abc"`
+	ThumbURL     string `json:"thumb_url,omitempty" description:"URL presign ảnh thu nhỏ (cạnh dài tối đa 640px); bằng url khi ảnh chưa có bản thu nhỏ" example:"https://storage.example.com/uniwork/chat/files/01J8X4THUMB?X-Amz-Signature=abc"`
+	URLExpiresAt string `json:"url_expires_at,omitempty" description:"Thời điểm URL sớm nhất hết hạn (RFC3339); tải lại tin nhắn để có URL mới" example:"2026-03-26T22:00:00Z"`
 }
 
 // ChatPollOptionDTO is one poll choice with vote count.
@@ -143,6 +151,7 @@ type ChatMessageDTO struct {
 	ReplyCount        int                  `json:"reply_count,omitempty" description:"Reply count on a thread root" example:"3"`
 	LastReplyAt       string               `json:"last_reply_at,omitempty" description:"RFC3339 of latest reply on a thread root"`
 	ThreadUnread      bool                 `json:"thread_unread,omitempty" description:"Caller has unread replies in this thread"`
+	ThreadFollowing   bool                 `json:"thread_following,omitempty" description:"Caller follows this thread and has not muted it (set on the root in a thread listing)"`
 	CreatedAt         string               `json:"created_at" description:"RFC3339 timestamp" example:"2026-03-26T10:00:00Z"`
 	Cursor            string               `json:"cursor,omitempty" description:"Opaque history position; pass it back verbatim as ?cursor= to list older messages" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 	EditedAt          string               `json:"edited_at,omitempty" description:"RFC3339 timestamp when the message was last edited" example:"2026-03-26T10:05:00Z"`
@@ -168,7 +177,8 @@ type ChatRoomDTO struct {
 	Kind                  string                        `json:"kind" description:"dm, group, or channel" example:"channel"`
 	Name                  string                        `json:"name" description:"Room display name" example:"marketing"`
 	WorkspaceID           string                        `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	MemberUserIDs         []string                      `json:"member_user_ids" description:"Other member user ids" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
+	MemberUserIDs         []string                      `json:"member_user_ids" description:"Other member user ids (dm and group; empty for a channel)" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
+	MemberCount           int                           `json:"member_count,omitempty" description:"Channel members, the caller included (channels only)" example:"42"`
 	MentionUnreadCount    int                           `json:"mention_unread_count" description:"Unread messages that mention the caller" example:"1"`
 	UnreadCount           int                           `json:"unread_count" description:"Unread messages for the caller" example:"3"`
 	PeerUserID            string                        `json:"peer_user_id,omitempty" description:"DM peer user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
@@ -186,6 +196,7 @@ type ChatRoomDTO struct {
 	ProjectID             string                        `json:"project_id,omitempty" description:"Linked project id when set"`
 	Topic                 string                        `json:"topic,omitempty" description:"Channel topic"`
 	IsDefault             bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
+	NotificationsMuted    bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
 }
 
 // ChatChannelListSDO is GET .../chat/channels.
@@ -205,6 +216,12 @@ type ChatThreadDTO struct {
 	RootCreated  string `json:"root_created_at" description:"RFC3339 of root message"`
 	Unread       bool   `json:"unread" description:"Caller has unread replies"`
 	Reason       string `json:"reason,omitempty" description:"Why the caller follows: author|replied|mentioned|manual"`
+}
+
+// ChatThreadReadSDO is POST .../chat/threads/{messageID}/read.
+type ChatThreadReadSDO struct {
+	OK             bool   `json:"ok" description:"true when the read pointer moved" example:"true"`
+	PreviousReadAt string `json:"previous_read_at" description:"Con trỏ đã đọc trước lần đánh dấu này (RFC3339; thời điểm tin gốc nếu chưa từng đọc), dùng làm since cho tóm tắt" example:"2026-09-05T00:00:00.123456Z"`
 }
 
 // ChatThreadListSDO is GET .../chat/threads.
@@ -275,6 +292,7 @@ type ChatRoomMemberDTO struct {
 	SendRestricted bool   `json:"send_restricted" description:"Read-only when true" example:"false"`
 	Email          string `json:"email" description:"Account email" example:"member@example.com"`
 	DisplayName    string `json:"display_name" description:"Display name" example:"Nguyen Van A"`
+	IsCreator      bool   `json:"is_creator" description:"True for the member who created the room" example:"false"`
 }
 
 // ChatRoomMemberListSDO is GET .../rooms/{roomID}/members.

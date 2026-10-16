@@ -368,7 +368,7 @@ export async function surfaceIsMode(frame: Frame, selector: string, mode: Mode):
  * invalidation, so the wait is one TTL for the whole set; one setFlag per flag paid it per flag (cloud r1: the hook ran
  * out of its budget while polling the third). Same row ids as setFlag, so the two never fight.
  */
-export async function setOrgFlags(organizationId: string, flags: Record<string, boolean>): Promise<void> {
+async function setOrgFlags(organizationId: string, flags: Record<string, boolean>): Promise<void> {
   const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL ?? "postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" });
   await client.connect();
   try {

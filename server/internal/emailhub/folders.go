@@ -12,9 +12,11 @@ const (
 	FolderStarred = "STARRED"
 )
 
-// SyncableFolders lists logical folders pulled from IMAP.
+// SyncableFolders lists logical folders pulled from IMAP on the background
+// worker and on a full account sync. SPAM is included so mail marked junk on
+// the provider shows up without waiting for the user to open Spam (UNI-1638).
 func SyncableFolders() []string {
-	return []string{FolderInbox, FolderSent, FolderDrafts, FolderTrash}
+	return []string{FolderInbox, FolderSent, FolderDrafts, FolderTrash, FolderSpam}
 }
 
 // DefaultMailboxMap returns static logical→IMAP names before LIST discovery.

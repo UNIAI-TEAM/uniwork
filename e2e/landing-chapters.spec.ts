@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady, gotoLanding } from "./landing-ready";
 
 const overview = ["learn", "features", "solutions", "solutions/product", "solutions/operations", "pricing", "enterprise"];
 const features = ["dashboard", "tasks", "projects", "today", "calendar", "workflows", "meetings", "chat", "email", "outputs", "documents", "approvals", "knowledge", "ask", "agents", "automation", "organization", "audit"];
@@ -21,7 +22,8 @@ for (const sample of samples) {
     page.on("pageerror", error => errors.push(error.message));
     const leaves = sample.all ? features : ["tasks", "chat", "automation"];
     for (const route of [...overview, ...leaves.map(key => `features/${key}`)]) {
-      const response = await page.goto(`/${route}`);
+      const response = await gotoLanding(page, `/${route}`);
+      await landingReady(page);
       expect(response?.status(), route).toBe(200);
       await expect(page.locator("main")).toHaveCount(1);
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
@@ -30,20 +32,37 @@ for (const sample of samples) {
       const contrast = await auditText(page, ".chapter-world > :not(.feature-demo)");
       expect(contrast.fails, `${route} contrast`).toEqual([]);
       if (route.startsWith("features/")) {
-        await expect(page.locator(".feature-example-copy h3")).toHaveCount(3);
+        const examples = page.locator(".feature-examples");
+        await expect(examples.getByRole("tab")).toHaveCount(3);
         await expect(page.locator('.feature-page-art .feature-art[role="img"]')).toBeVisible();
-        await expect(page.locator('.feature-page-details .feature-art[role="img"]')).toHaveCount(3);
+        for (const index of [0, 1, 2]) {
+          await examples.getByRole("tab").nth(index).click();
+          await expect(examples.getByRole("tab").nth(index)).toHaveAttribute("aria-selected", "true");
+          await expect(examples.locator('.feature-art[role="img"]:visible')).toHaveCount(1);
+          await expect(examples.locator('.feature-art[role="img"]:visible')).toHaveAttribute("data-variant", String(index + 1));
+        }
+        await examples.getByRole("tab").first().focus();
+        await page.keyboard.press("ArrowDown");
+        await expect(examples.getByRole("tab").nth(1)).toBeFocused();
+        await page.keyboard.press("Enter");
+        await expect(examples.getByRole("tab").nth(1)).toHaveAttribute("aria-selected", "true");
         await expect(page.locator('.feature-demo [data-action="expand-preview"]'), route).toBeVisible();
       } else {
         await expect(page.locator(".chapter-hero .chapter-scene")).toBeVisible();
       }
-      if (["solutions", "pricing", "enterprise"].includes(route)) {
+      if (["solutions", "pricing"].includes(route)) {
         await expect(page.getByRole("table")).toHaveCount(1);
-        await expect(page.locator(".chapter-table tbody tr")).toHaveCount(3);
+        await expect(page.locator(".chapter-table tbody tr")).toHaveCount(route === "pricing" ? 2 : 3);
+      }
+      if (route === "enterprise") {
+        await expect(page.locator(".chapter-table")).toHaveCount(0);
+        await expect(page.locator("#governance article")).toHaveCount(3);
+        await expect(page.locator(".chapter-confirmation")).toHaveCount(3);
+        await expect(page.locator(".chapter-confirmation").last()).toContainText("SLA");
       }
       if (route === "features") {
         await expect(page.locator(".feature-family-nav a")).toHaveCount(6);
-        await expect(page.locator('.feature-directory-visual a[href^="/features/"]')).toHaveCount(18);
+        await expect(page.locator('.feature-directory-visual a[href*="/features/"]')).toHaveCount(18);
         await page.locator('.feature-family-nav a[href="#family-ai"]').click();
         await expect(page).toHaveURL(/#family-ai$/);
         await expect(page.locator("#family-ai")).toBeInViewport();
@@ -62,8 +81,9 @@ for (const sample of samples) {
       }
     }
     expect(errors).toEqual([]);
-    await page.goto("/solutions");
-    await page.locator('.chapter-table a[href="/solutions/product"]').click();
+    await gotoLanding(page, "/solutions");
+    await landingReady(page);
+    await page.locator('.chapter-table a[href$="/solutions/product"]').click();
     await expect(page).toHaveURL(/\/solutions\/product$/);
     await expect(page.locator(".chapter-row")).toHaveCount(3);
   });
@@ -78,7 +98,8 @@ test("contextual closing demo links open their actual preview", async ({ page, c
     ["solutions/product", "tasks"], ["solutions/operations", "organization"],
   ] as const;
   for (const [route, feature] of destinations) {
-    await page.goto(`/${route}`);
+    await gotoLanding(page, `/${route}`);
+    await landingReady(page);
     const demo = page.locator(".final-compact-demo");
     await expect(demo).toHaveAttribute("href", `/features/${feature}#feature-preview`);
     await demo.click();

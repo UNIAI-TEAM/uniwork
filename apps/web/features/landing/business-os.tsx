@@ -1,4 +1,5 @@
 "use client";
+import { MarketingAnchor } from "../../platform/marketing-link";
 
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
@@ -113,7 +114,7 @@ export function BusinessOs() {
             onClick={() => setMotionPaused(paused => !paused)}>
             {motionPaused ? <Play aria-hidden /> : <Pause aria-hidden />}
           </Button>
-          <a className="business-os-explore" href={`#${ANCHORS.platform}`}>{t("landing.businessOs.explore")}<ArrowRight aria-hidden /></a>
+          <MarketingAnchor className="business-os-explore" href={`#${ANCHORS.platform}`}>{t("landing.businessOs.explore")}<ArrowRight aria-hidden /></MarketingAnchor>
         </div>
       </footer>
     </section>

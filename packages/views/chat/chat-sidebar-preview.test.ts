@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyKnownPeopleToRoomPreviews,
   compareRoomPreviewRecency,
   formatChatSidebarPreviewText,
   formatChatSidebarTime,
@@ -291,7 +292,24 @@ describe("chat-sidebar-preview", () => {
           voiceCallLabel: "Cuộc gọi",
         },
       ),
-    ).toBe("u9: peer");
+    ).toBe("peer");
+    expect(
+      formatChatSidebarPreviewText(
+        {
+          body: "Sửa tối ưu phần chat",
+          kind: "text",
+          senderId: "01M4WJJEDVW2TDT49SB7FYS7D1",
+          senderName: "01M4WJJEDVW2TDT49SB7FYS7D1",
+          createdAt: "2026-03-26T10:00:00Z",
+        },
+        {
+          currentUserId: "self",
+          isGroup: true,
+          youLabel: "Bạn",
+          voiceCallLabel: "Cuộc gọi",
+        },
+      ),
+    ).toBe("Sửa tối ưu phần chat");
   });
 
   it("formats weekday and full date buckets for sidebar time", () => {
@@ -333,6 +351,30 @@ describe("chat-sidebar-preview", () => {
         },
       ),
     ).toBeGreaterThan(0);
+  });
+
+  it("uses a known name when the preview only has the sender id", () => {
+    const senderId = "01M4W8BRMSRN6FBD2XM7WEM8";
+    const previews = applyKnownPeopleToRoomPreviews(
+      {
+        room1: {
+          body: `[@${senderId}](mention://member/${senderId}) xem giúp`,
+          kind: "text",
+          senderId,
+          senderName: "",
+          createdAt: "2026-03-26T10:00:00Z",
+        },
+      },
+      [{ user_id: senderId.toLowerCase(), display_name: "Trà My Đào" }],
+    );
+    expect(
+      formatChatSidebarPreviewText(previews.room1, {
+        currentUserId: "me",
+        isGroup: true,
+        youLabel: "Bạn",
+        voiceCallLabel: "Cuộc gọi",
+      }),
+    ).toBe("Trà My Đào: @Trà My Đào xem giúp");
   });
 
   it("shows a sticker as words, never as its markdown", () => {

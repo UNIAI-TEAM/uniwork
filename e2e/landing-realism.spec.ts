@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { landingReady, gotoLanding } from "./landing-ready";
 import { openManualPreview, selectWorkspaceFeature } from "./landing-catalog-helpers";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -11,7 +12,8 @@ for (const width of [1440, 820]) {
     test.setTimeout(180_000);
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/");
+    await gotoLanding(page, "/");
+    await landingReady(page);
     await expect(page.locator("#landing-title")).toBeVisible();
     const dir = resolve(import.meta.dirname, "../.impeccable/review");
     if (process.env.LANDING_CAPTURE === "1") {
@@ -23,8 +25,14 @@ for (const width of [1440, 820]) {
       await selectWorkspaceFeature(page, key, false);
       const film = page.locator(".product-playback");
       await film.scrollIntoViewIfNeeded();
-      await film.getByRole("button", { name: "Phát demo", exact: true }).click();
-      await expect(film).toHaveAttribute("data-running", "true");
+      // A press that lands before the film hydrates does nothing; press again
+      // until it runs, but never press the stop button it turns into.
+      await expect(async () => {
+        if ((await film.getAttribute("data-running")) !== "true") {
+          await film.getByRole("button", { name: "Phát demo", exact: true }).click({ timeout: 2_000 });
+        }
+        await expect(film).toHaveAttribute("data-running", "true", { timeout: 1_000 });
+      }).toPass({ timeout: 15_000 });
       await page.clock.runFor(key === "meetings" ? 5400 : 8000);
       await film.getByRole("button", { name: "Dừng demo", exact: true }).click();
       await expect(film).toHaveAttribute("data-step", key === "meetings" ? "2" : "3");
@@ -37,18 +45,21 @@ for (const width of [1440, 820]) {
 
 test("Today and Projects task links open manual details even on direct entry", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#daily-tools");
+  await gotoLanding(page, "/#daily-tools");
+  await landingReady(page);
   await page.waitForLoadState("networkidle");
   await openManualPreview(page);
   await page.locator(".today-summary button").first().click();
   await expect(page.locator("#product-preview")).toHaveAttribute("data-presentation", "explore");
   await expect(page.locator(".preview-selection")).toContainText("onboarding");
-  await page.goto("/#daily-tools");
+  await gotoLanding(page, "/#daily-tools");
+  await landingReady(page);
   await openManualPreview(page);
   await page.locator(".today-summary button").last().click();
   await expect(page.locator("#product-preview")).toHaveAttribute("data-presentation", "explore");
   await expect(page.locator(".meeting-room")).toBeVisible();
-  await page.goto("/#du-an-tong-quan");
+  await gotoLanding(page, "/#du-an-tong-quan");
+  await landingReady(page);
   await openManualPreview(page);
   await page.locator(".catalog-preview").getByRole("button", { name: /công việc/i }).click();
   await expect(page.locator("#product-preview")).toHaveAttribute("data-presentation", "explore");
@@ -56,7 +67,8 @@ test("Today and Projects task links open manual details even on direct entry", a
 
 test("chat waits for creation before attaching the task", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#trao-doi");
+  await gotoLanding(page, "/#trao-doi");
+  await landingReady(page);
   const film = page.locator(".product-playback");
   await page.clock.install();
   await film.getByRole("button", { name: "Phát demo", exact: true }).click();
@@ -72,7 +84,8 @@ test("chat waits for creation before attaching the task", async ({ page }) => {
 
 test("email keeps the same thread and Ask UNI only opens its cited source", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#email");
+  await gotoLanding(page, "/#email");
+  await landingReady(page);
   // Let the shared auth/config Providers settle before freezing demo timers.
   await page.waitForLoadState("networkidle");
   const film = page.locator(".product-playback");
@@ -100,7 +113,8 @@ test("email keeps the same thread and Ask UNI only opens its cited source", asyn
 
 test("assignment opens details and a member picker without completing the task", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#du-an");
+  await gotoLanding(page, "/#du-an");
+  await landingReady(page);
   // /config settling remounts the landing; installing the clock before that
   // restarts the film mid-sequence.
   await page.waitForLoadState("networkidle");
@@ -121,7 +135,8 @@ test("assignment opens details and a member picker without completing the task",
 
 test("screen sharing needs source selection and confirmation; planned entries never autoplay", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#hop");
+  await gotoLanding(page, "/#hop");
+  await landingReady(page);
   const film = page.locator(".product-playback");
   await expect(film.locator(".action-stage")).toBeVisible();
   await page.clock.install();

@@ -6,12 +6,12 @@ import { chatKeys } from "./chat-keys";
 import {
   CHAT_HISTORY_PAGE_SIZE,
   CHAT_MESSAGE_CACHE_MAX,
-  catchUpLoadedRoomTimelines,
   catchUpRoomTimeline,
   flattenRoomTimeline,
   insertCreatedTimelineMessage,
   keepRoomTimelineHead,
   olderRoomPageParam,
+  refreshLoadedRoomTimelines,
   replaceTimelineMessage,
   type RoomTimeline,
 } from "./room-timeline";
@@ -157,12 +157,32 @@ describe("catchUpRoomTimeline", () => {
     await Promise.all([catchUpRoomTimeline(qc, "ws1", "room1"), catchUpRoomTimeline(qc, "ws1", "room1")]);
     expect(ids(qc.getQueryData<RoomTimeline>(key)!)).toEqual(["b", "c"]);
   });
+});
+
+// UNI-1662: a read `after` the newest message never sees an edit, a delete or
+// a reaction made to a loaded one while the socket was down.
+describe("refreshLoadedRoomTimelines", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const key = chatKeys.roomMessages("ws1", "room1");
+
+  it("refreshes the newest page of a shown timeline after a reconnect", async () => {
+    const list = vi.spyOn(chatApi, "listChatRoomMessages").mockResolvedValue([]);
+    const qc = new QueryClient();
+    qc.setQueryData(key, timeline([msg("b", 2)], [msg("a", 1)]));
+    new QueryObserver(qc, { queryKey: key, enabled: false }).subscribe(() => {});
+
+    refreshLoadedRoomTimelines(qc, "ws1");
+
+    expect(qc.getQueryData<RoomTimeline>(key)?.pages).toEqual([[msg("b", 2)]]);
+    await vi.waitFor(() => expect(qc.getQueryState(key)?.isInvalidated).toBe(true));
+    expect(list).not.toHaveBeenCalledWith("ws1", "room1", expect.objectContaining({ after: expect.anything() }));
+  });
 
   it("only marks stale a loaded timeline nobody shows", async () => {
     const list = vi.spyOn(chatApi, "listChatRoomMessages");
     const qc = new QueryClient();
     qc.setQueryData(key, timeline([msg("b", 2)]));
-    catchUpLoadedRoomTimelines(qc, "ws1");
+    refreshLoadedRoomTimelines(qc, "ws1");
     await vi.waitFor(() => expect(qc.getQueryState(key)?.isInvalidated).toBe(true));
     expect(list).not.toHaveBeenCalled();
   });

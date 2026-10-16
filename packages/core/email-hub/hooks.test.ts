@@ -349,6 +349,28 @@ describe("email hub thread detail cache", () => {
       expect.any(AbortSignal),
     );
   });
+
+  it("does not refetch on mount when prefetch already hydrated the body", async () => {
+    vi.mocked(getEmailHubThread).mockResolvedValue({
+      id: "th1",
+      body_text: "Full message body",
+      body_cached: true,
+      snippet: "snippet",
+    } as never);
+    const qc = new QueryClient();
+    prefetchEmailHubThread(qc, "ws1", "acc1", "th1");
+    await waitFor(() =>
+      expect(qc.getQueryState(threadDetailKey("ws1", "acc1", "th1"))?.status).toBe("success"),
+    );
+    vi.mocked(getEmailHubThread).mockClear();
+
+    const { result } = renderHook(() => useEmailHubThread("ws1", "acc1", "th1"), {
+      wrapper: wrapperFor(qc),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(getEmailHubThread).not.toHaveBeenCalled();
+    expect(emailHubHasReadableBody(result.current.data)).toBe(true);
+  });
 });
 
 describe("email hub thread hooks", () => {
