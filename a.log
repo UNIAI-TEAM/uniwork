@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+40d18bed6eba1e07f3d79622f078df45cb27e212
+fb8dcf05f2ae434c3492a15ff4349e7ba45412a5
+40d18bed6 chore: merge G5-G7 root fcf9651df (develop f6df189ed, landing typecheck + G7-04 knip fixes) into the REPIN-1 branch (UNI-1825)
+fcf9651df chore(merge): develop f6df189ed into the G5-G7 root (UNI-923)
+585e3f4c3 fix(scripts): give the G7-04 AI content owner its own value
+992ccc1ef docs(e2e): keep historical 0.1.0-fa22cd9 pin origin in openPicker comment
+3f437fac0 test(office): re-bless the G7-06 goldens at frame pin 0.1.0-5a72c13
+5b07a1606 fix(landing): pass the library access filter to the demo toolbar
+
+SYNCED_EXIT=1
