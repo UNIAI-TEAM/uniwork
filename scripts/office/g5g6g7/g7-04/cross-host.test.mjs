@@ -423,8 +423,27 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
     dirtySource: "none",
     remoteCommits: [],
     calls: [],
+    // a write the real app makes only after its own Save round-trip (D2-01)
+    pendingSettle: null,
     workingCopyPath,
     kind,
+    /**
+     * The real app writes its offline receipt (the intent file and the binding)
+     * only once the module's own Save lands: `aiOffice.uniworkSave` asks the
+     * module to write and returns (`service.ts:3642`), and the module's Save is
+     * what calls `onUserSave` (`service.ts:2936`) -> the coordinator mints the
+     * intent (`save-coordinator.ts:477-518`). A fake that writes it inline hides
+     * a driver that reads once, so this arms the write to happen after `reads`
+     * reads of `workingCopy()`.
+     */
+    deferSettle(reads, apply) {
+      const remaining = Number(reads) || 0;
+      if (remaining <= 0) {
+        apply();
+        return;
+      }
+      app.pendingSettle = { remaining, apply };
+    },
     async openDocument() {
       if (!app.signedIn) return { opened: false, reason: app.signInFailureReason || app.blockerReason };
       const v = mock.head();
@@ -445,6 +464,13 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
       return { opened: true, path: workingCopyPath, kind, binding };
     },
     workingCopy() {
+      // a deferred settle lands on the read that reaches zero (never inside
+      // `apply`, so a nested read cannot tick twice)
+      const pending = app.pendingSettle;
+      if (pending && --pending.remaining <= 0) {
+        app.pendingSettle = null;
+        pending.apply();
+      }
       const bindingPath = join(docsDir, "binding.json");
       if (!existsSync(bindingPath)) {
         return { bindingPresent: false, filePresent: false, binding: null, bindingState: null, workingCopyFilePath: null, sha256: "" };
@@ -532,29 +558,44 @@ function createFakeApp({ runDir, mock, documentId, userId = USER_ID, kind = "she
       const binding = app.workingCopy().binding;
       const head = mock.head();
       if (offline === true) {
-        mkdirSync(intentsDir, { recursive: true });
         const edited = bytes ?? standInBytes ?? editedBytes(mock.head().bytes, knobs.offlineMarker ?? "desktop-offline-edit");
-        writeFileSync(workingCopyPath, edited);
-        writeFileSync(join(intentsDir, "01JINTENT00000000000000001.rec"), "encrypted-intent");
-        writeFileSync(
-          join(docsDir, "binding.json"),
-          JSON.stringify({ ...binding, state: "offline", error: "network" }),
-        );
-        return { saved: false, held: true, binding: app.workingCopy().binding };
+        const hold = () => {
+          mkdirSync(intentsDir, { recursive: true });
+          writeFileSync(workingCopyPath, edited);
+          writeFileSync(join(intentsDir, "01JINTENT00000000000000001.rec"), "encrypted-intent");
+          writeFileSync(
+            join(docsDir, "binding.json"),
+            JSON.stringify({ ...binding, baseVersion: Number(binding.baseVersion) + (knobs.offlineBaseMoves ? 1 : 0), state: "offline", error: "network" }),
+          );
+        };
+        // an app that never writes its receipt: no intent, no offline state
+        if (knobs.offlineNeverHolds) return { saved: false, held: false, binding };
+        app.deferSettle(knobs.offlineIntentAfterReads, hold);
+        return { saved: false, held: true, binding };
       }
       if (app.offline === true && knobs.restoreOnSave !== false) return { saved: false, held: true, binding };
       const edited = bytes ?? standInBytes ?? readFileSync(workingCopyPath);
-      const res = mock.commit({
-        bytes: edited,
-        baseRevision: head.revision,
-        source: "app",
-        idempotencyKey: idempotencyKey ?? `app-cross-host-${documentId}-${mock.state.versions.length}`,
-      });
-      if (res.status !== 200) return { saved: false, reason: `commit answered ${res.status}` };
-      rmSync(join(intentsDir, "01JINTENT00000000000000001.rec"), { force: true });
-      const v = mock.head();
-      app.reloadTo(v);
-      return { saved: true, binding: app.workingCopy().binding };
+      const commit = () => {
+        const res = mock.commit({
+          bytes: edited,
+          baseRevision: head.revision,
+          source: "app",
+          idempotencyKey: idempotencyKey ?? `app-cross-host-${documentId}-${mock.state.versions.length}`,
+        });
+        if (res.status !== 200) return { saved: false, reason: `commit answered ${res.status}` };
+        rmSync(join(intentsDir, "01JINTENT00000000000000001.rec"), { force: true });
+        const v = mock.head();
+        app.reloadTo(v);
+        return { saved: true, binding: app.workingCopy().binding };
+      };
+      // the stand-in Save is the one after the AI turn; knobs delay or drop its
+      // commit + binding the way the real one lands after the IPC call returns
+      if (standInBytes && knobs.standInSaveNeverSettles) return { saved: false, held: false, binding };
+      if (standInBytes && Number(knobs.standInSaveSettleAfterReads) > 0) {
+        app.deferSettle(knobs.standInSaveSettleAfterReads, commit);
+        return { saved: false, held: false, binding };
+      }
+      return commit();
     },
     async close() {
       app.calls.push("close");
@@ -1000,6 +1041,107 @@ describe("G7-04 cross-host chain with fakes (rows G7-A01 / G5-A03)", () => {
       assert.equal(result.status, "FAIL");
       assert.match(result.reason, /AI turn/i);
     } finally {
+      scratch.cleanup();
+    }
+  });
+});
+
+describe("G7-04 cross-host D2-01: the app's own Save is read asynchronously (round 2)", () => {
+  /** The G7-A01 chain with the real-labelled AI turn the row needs. */
+  const runG7A01 = (mock, scratch, knobs, stepTimeoutMs) => {
+    process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM = "1";
+    return runChain({ row: "G7-A01", fixture: "fx-docx-report-vi", mock, scratch, knobs, stepTimeoutMs });
+  };
+
+  it("app-offline-save waits for the app's own receipt: an intent that lands only after N polls still PASSes", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      const { result, app } = await runG7A01(mock, scratch, { app: { offlineIntentAfterReads: 3 } });
+      assert.equal(result.status, "PASS", result.reason);
+      const step = result.record.steps["app-offline-save"];
+      assert.equal(step.status, "PASS");
+      assert.equal(step.intentFiles, 1, "the settled step must report the intent the app wrote");
+      // the offline Save held: no server version while the link was cut
+      assert.equal(result.record.versionCounts.whileCut, 2);
+      assert.equal(app.calls.filter((call) => call === "saveOffline").length, 1);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("app-offline-save FAILs after the bound with the observed intent count, binding state and baseVersion when the app never holds the Save", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      const { result } = await runG7A01(mock, scratch, { app: { offlineNeverHolds: true } }, 300);
+      assert.equal(result.status, "FAIL");
+      assert.equal(result.exitCode, 1);
+      const step = result.record.steps["app-offline-save"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /no save intent and no offline state/i);
+      assert.match(step.reason, /intents=0/);
+      assert.match(step.reason, /binding state "ready"/);
+      assert.match(step.reason, /baseVersion=2/);
+      assert.ok(step.elapsedMs >= 300, `the step must wait its whole bound before failing (waited ${step.elapsedMs} ms)`);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("app-offline-save still FAILs when the app parks an intent but moves its base while cut", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      const { result } = await runG7A01(mock, scratch, { app: { offlineIntentAfterReads: 2, offlineBaseMoves: true } });
+      assert.equal(result.status, "FAIL");
+      assert.match(result.record.steps["app-offline-save"].reason, /moved the app base/);
+      assert.match(result.record.steps["app-offline-save"].reason, /want v2/);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("ai-save waits for the commit and the app binding: a Save that settles only after N polls still PASSes", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      const { result } = await runG7A01(mock, scratch, { app: { standInSaveSettleAfterReads: 3 } });
+      assert.equal(result.status, "PASS", result.reason);
+      const step = result.record.steps["ai-save"];
+      assert.equal(step.status, "PASS");
+      assert.equal(result.record.versionCounts.afterAiSave, result.record.versionCounts.afterReconnect + 1);
+      assert.equal(result.record.checksums.desktopWorkingCopy, result.record.checksums.server);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
+      scratch.cleanup();
+    }
+  });
+
+  it("ai-save FAILs after the bound with what it observed when the app binding never reaches the Save", async () => {
+    const scratch = makeScratchRunDir();
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    mock.state.kind = "docs";
+    try {
+      const { result } = await runG7A01(mock, scratch, { app: { standInSaveNeverSettles: true } }, 300);
+      assert.equal(result.status, "FAIL");
+      // the reconnect committed normally: only the Save after the AI turn is missing
+      assert.equal(result.record.steps["app-reconnect"].status, "PASS");
+      const step = result.record.steps["ai-save"];
+      assert.equal(step.status, "FAIL");
+      assert.match(step.reason, /did not create exactly one version/);
+      assert.match(step.reason, new RegExp(`server v${result.record.versionCounts.afterReconnect}\\b`));
+      assert.match(step.reason, new RegExp(`want v${result.record.versionCounts.afterReconnect + 1}`));
+      assert.ok(step.elapsedMs >= 300, `the step must wait its whole bound before failing (waited ${step.elapsedMs} ms)`);
+    } finally {
+      delete process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM;
       scratch.cleanup();
     }
   });

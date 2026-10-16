@@ -491,6 +491,47 @@ async function pollUntil(fn, pred, { boundMs = DEFAULT_STEP_TIMEOUT_MS, interval
   }
 }
 
+// ---- the app's own receipt for a Save (D2-01) -----------------------------------------------
+
+/**
+ * The binding states that mean the app parked the Save instead of sending it:
+ * `offline` and `paused_offline`, both accepted binding states
+ * (`apps/shell/src/main/uniwork-docs/binding-store.ts:197-217`) and what the
+ * save coordinator writes for an offline verdict
+ * (`apps/shell/src/main/uniwork-docs/save-coordinator.ts:483-491` — verdict
+ * `offline` -> intent state `paused_offline` — committed to the binding at
+ * l.518).
+ */
+export const OFFLINE_SAVE_STATES = Object.freeze(["offline", "paused_offline"]);
+
+/**
+ * One read of the app's own receipt for a Save (D2-01): the `.rec` intent files
+ * its durable store holds (the `listAppSyncIntentFiles` location —
+ * `<userData>/uniwork-sync/store/<deploymentId>/<accountId>/intents`, the layer
+ * root `apps/shell/src/main/uniwork-docs/wiring.ts:336-347` builds and the
+ * `intents` registration names, `uniwork-sync/store/paths.ts` +
+ * `uniwork-sync/intent-store.ts`) plus the binding snapshot beside the working
+ * copy.
+ *
+ * The fork writes BOTH asynchronously after `aiOffice.uniworkSave` resolves:
+ * the service asks the module to write and returns at once
+ * (`uniwork-docs/service.ts:3642`; `uniwork-docs/module-save.ts:56/l.60` only
+ * sends `menu:command save`), and the module's own Save is what calls
+ * `onUserSave` (`service.ts:2936-2965`) -> the coordinator mints the intent and
+ * parks the binding (`save-coordinator.ts:477-518`). A single read right after
+ * the Save can therefore still be empty — exactly how D2-01 failed all four
+ * rows in 986-1521 ms — so a step polls this instead.
+ */
+export function readAppSaveReceipt(app) {
+  const workingCopy = app.workingCopy();
+  return {
+    workingCopy,
+    intentFiles: app.intents().length,
+    state: String(workingCopy?.binding?.state ?? workingCopy?.bindingState ?? "none"),
+    baseVersion: Number(workingCopy?.binding?.baseVersion ?? 0),
+  };
+}
+
 // ---- the real web host controller (D web page + the pinned frame) ---------------------------
 
 const FRAME_OPEN_PATH = /^\/api\/v1\/office-frame\/documents\/[^/]+$/;
@@ -1435,19 +1476,34 @@ export async function runCrossHostRow({
       }
       const saved = await app.save({ path: record.details.appPath, offline: true, standInBytes: standIn });
       if (saved?.reason) return { status: "FAIL", reason: saved.reason };
+      // The app writes its receipt for this Save asynchronously (the module's
+      // own Save lands after `aiOffice.uniworkSave` resolved — see
+      // `readAppSaveReceipt`): poll until the intent file or the offline binding
+      // is there, THEN assert the split held. Reading once raced the app's own
+      // Save and failed all four rows of D2-01 in 986-1521 ms.
+      const held = await pollUntil(
+        async () => readAppSaveReceipt(app),
+        (receipt) => receipt.intentFiles > 0 || OFFLINE_SAVE_STATES.includes(receipt.state),
+        { boundMs: stepTimeout, intervalMs: pollMs },
+      );
       const versions = await listVersions({ apiOrigin, fetchImpl, documentId, token });
-      const intents = app.intents();
-      const wc = app.workingCopy();
+      const receipt = held.value;
+      const wc = receipt.workingCopy;
       const problems = [];
-      if (versions !== baseVersion) problems.push(`the server created a version while the app was offline (${versions}, want ${baseVersion})`);
-      if (intents.length === 0 && !["offline", "paused_offline"].includes(String(wc?.binding?.state))) {
-        problems.push("the app held no save intent and no offline state for the offline Save");
+      if (!held.ok) {
+        // the state in quotes: `state=<value>` is redacted as a credential by
+        // `redactSignInError`'s key/value rule, and the observed value is the
+        // point of this message
+        problems.push(
+          `the app held no save intent and no offline state for the offline Save within ${stepTimeout} ms (intents=${receipt.intentFiles}, binding state "${receipt.state}", baseVersion=${receipt.baseVersion})`,
+        );
       }
+      if (versions !== baseVersion) problems.push(`the server created a version while the app was offline (${versions}, want ${baseVersion})`);
       if (Number(wc?.binding?.baseVersion ?? 0) !== baseVersion) problems.push(`the offline Save moved the app base (v${wc?.binding?.baseVersion ?? "none"}, want v${baseVersion})`);
       if (problems.length > 0) return { status: "FAIL", reason: problems.join("; ") };
       record.versionCounts.whileCut = versions;
       record.details.offlineEdit = { source: uiEdit ? "app-ui" : "harness-working-copy-write", plan: dirty?.plan ?? "" };
-      return { editSource: uiEdit ? "app-ui" : "harness-working-copy-write", intentFiles: intents.length, versionsWhileCut: versions };
+      return { editSource: uiEdit ? "app-ui" : "harness-working-copy-write", intentFiles: receipt.intentFiles, versionsWhileCut: versions };
     });
     if (aborts("app-offline-save")) return;
 
@@ -1577,14 +1633,28 @@ export async function runCrossHostRow({
         );
         const saved = await app.save({ path: record.details.appPath, offline: false, standInBytes: standIn });
         if (saved?.reason) return { status: "FAIL", reason: saved.reason };
-        const head = await readFrameHeadViaProtocol({ apiOrigin, fetchImpl, documentId, token });
-        const wc = app.workingCopy();
-        if (head.version !== want || Number(wc?.binding?.baseVersion) !== want || wc.sha256 !== head.checksum) {
+        // The commit and the binding both land after the IPC Save resolves
+        // (D2-01): poll the server head and the app's own receipt together,
+        // like `app-reload` and `app-reconnect` poll their own settle.
+        const settled = await pollUntil(
+          async () => ({
+            head: await readFrameHeadViaProtocol({ apiOrigin, fetchImpl, documentId, token }),
+            wc: app.workingCopy(),
+          }),
+          (seen) =>
+            seen.head?.version === want &&
+            Number(seen.wc?.binding?.baseVersion ?? 0) === want &&
+            seen.wc?.sha256 === seen.head?.checksum,
+          { boundMs: stepTimeout, intervalMs: pollMs },
+        );
+        if (!settled.ok) {
+          const seen = settled.value ?? {};
           return {
             status: "FAIL",
-            reason: `the Save after the AI turn did not create exactly one version (server v${head.version}, app v${wc?.binding?.baseVersion ?? "none"}, want v${want})`,
+            reason: `the Save after the AI turn did not create exactly one version (server v${seen.head?.version ?? "none"}, app v${seen.wc?.binding?.baseVersion ?? "none"}, want v${want})`,
           };
         }
+        const head = settled.value.head;
         record.versionIds[`v${head.version}`] = head.versionId;
         record.versionCounts.afterAiSave = head.version;
         record.userSaves.push({ version: head.version, versionId: head.versionId, checksum: head.checksum, source: "app" });

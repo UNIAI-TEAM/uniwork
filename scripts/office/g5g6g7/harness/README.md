@@ -475,9 +475,13 @@ bytes and shows the S6 new-version bar while a web Save lands (a reload there is
 a FAIL), then the bar's reload action discards the edit; `G5-A03.2`/`G7-A01.4`
 the desktop's reconnect commit is announced to the web frame and reloaded (the
 announced version id must be the desktop's); `G7-A01.3` the offline Save holds an
-intent with zero server versions; `G7-A01.5` the AI turn creates zero versions and
-the Save after it exactly one; `G7-A01.6` the three checksums agree and the
-tally is one version per user Save.
+intent with zero server versions (the step polls for the app's own receipt — a
+`.rec` intent file or an `offline`/`paused_offline` binding — within the step
+bound, because the fork writes it only after the module's own Save lands, so a
+read straight after `aiOffice.uniworkSave` can still be empty); `G7-A01.5` the AI
+turn creates zero versions and the Save after it exactly one (polled the same way,
+until the server head and the app binding agree); `G7-A01.6` the three checksums
+agree and the tally is one version per user Save.
 
 Which edits a run really drove through the editor UI is on the row: `uiEdits`
 (record and artifact) carries `dirty`, `offlineSave` and `aiSave`, each `real`
