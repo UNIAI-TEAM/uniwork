@@ -3359,7 +3359,13 @@
       "not_found_generate": "This meeting no longer exists. Reload the page.",
       "invalid_request": "The task request was not valid. Reload the page and try again.",
       "generateFailed": "Could not generate the summary. Try again.",
-      "tasksFailed": "Could not create the tasks. Try again."
+      "tasksFailed": "Could not create the tasks. Try again.",
+      "tasks_quota_exceeded": "Your organization has reached its plan's task limit. Ask an organization owner or admin to upgrade the plan.",
+      "tasks_plan_inactive": "Your organization's plan does not allow new tasks right now. Ask an organization owner or admin to check the plan.",
+      "active_duplicate_items": "An open task already has the same title as: {{items}}. Untick these items or pick another project, then try again.",
+      "active_duplicate_task": "An open task already has this title: {{task}}. Untick the matching item or pick another project, then try again.",
+      "active_duplicate": "An item has the same title as an open task. Untick the matching item or pick another project, then try again.",
+      "duplicateItemNote": "Same title as an open task"
     },
     "participantCount_one": "{{count}} participant",
     "participantCount_other": "{{count}} participants",

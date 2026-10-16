@@ -634,6 +634,24 @@ describe("MeetingSummaryPanel › action items to tasks", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
+  it("names the items that duplicate an open task, keeping the review open with them marked", async () => {
+    vi.mocked(toast.error).mockClear();
+    respond({
+      post: () => Promise.reject(new ApiError("x", "active_duplicate_task", 409, undefined, { indexes: [0] })),
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    const dialog = await pickAndReview();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
+
+    const text =
+      "Đã có việc đang mở trùng tên với: “Gửi biên bản”. Bỏ chọn các mục này hoặc chọn dự án khác rồi thử lại.";
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(text));
+    expect(screen.getByTestId("summary-live-region")).toHaveTextContent(text);
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(within(dialog).getByText("Trùng tên với một việc đang mở")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Gửi biên bản", hidden: true })).toBeChecked();
+  });
+
   it("drops the selection when the summary is replaced", async () => {
     let current: unknown = base;
     respond({ summary: () => current });

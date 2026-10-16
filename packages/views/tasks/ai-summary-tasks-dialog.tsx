@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CalendarDays, Flag, FolderKanban, ListChecks, Sparkles, UserRound } from "lucide-react";
+import { CalendarDays, CircleAlert, Flag, FolderKanban, ListChecks, Sparkles, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskPriority } from "@uniwork/core/types";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
@@ -78,6 +78,7 @@ function TaskEditorCard({
   total,
   draft,
   copy,
+  note,
   onChange,
 }: {
   wsId: string;
@@ -87,6 +88,8 @@ function TaskEditorCard({
   total: number;
   draft: AiSummaryTaskDraft;
   copy: AiSummaryTasksDialogCopy;
+  /** Why the last attempt refused this item, shown on its card. */
+  note?: string;
   onChange: (patch: Partial<AiSummaryTaskDraft>) => void;
 }) {
   const { t } = useTranslation();
@@ -95,7 +98,7 @@ function TaskEditorCard({
   const due = seed.due?.trim();
 
   return (
-    <li className="rounded-lg border border-border bg-surface">
+    <li className={cn("rounded-lg border bg-surface", note ? "border-destructive" : "border-border")}>
       <div className="space-y-4 p-4">
         <div className="flex items-start gap-3">
           {total > 1 ? (
@@ -112,6 +115,12 @@ function TaskEditorCard({
           )}
           <div className="min-w-0 flex-1 space-y-1.5">
             <p className="text-body font-semibold leading-snug text-foreground">{seed.title}</p>
+            {note ? (
+              <p className="flex items-center gap-1 text-caption text-destructive">
+                <CircleAlert className="size-3.5 shrink-0" aria-hidden />
+                {note}
+              </p>
+            ) : null}
             {owner || (due && copy.spokenDue) ? (
               <div className="flex flex-wrap gap-1.5">
                 {owner ? (
@@ -176,6 +185,7 @@ function AiSummaryTasksForm({
   seeds,
   initialProjectId,
   copy,
+  itemNotes,
   pending,
   onCancel,
   onConfirm,
@@ -185,6 +195,7 @@ function AiSummaryTasksForm({
   seeds: readonly AiSummaryTaskSeed[];
   initialProjectId?: string;
   copy: AiSummaryTasksDialogCopy;
+  itemNotes?: Readonly<Record<number, string>>;
   pending: boolean;
   onCancel: () => void;
   onConfirm: (input: { projectId?: string; drafts: Record<number, AiSummaryTaskDraft> }) => void;
@@ -224,6 +235,7 @@ function AiSummaryTasksForm({
                 total={seeds.length}
                 draft={draft}
                 copy={copy}
+                note={itemNotes?.[seed.index]}
                 onChange={(patch) =>
                   setDrafts((prev) => ({ ...prev, [seed.index]: { ...(prev[seed.index] ?? seed.draft), ...patch } }))
                 }
@@ -262,6 +274,7 @@ export function AiSummaryTasksDialog({
   seeds,
   initialProjectId,
   copy,
+  itemNotes,
   pending,
   onConfirm,
 }: {
@@ -273,20 +286,22 @@ export function AiSummaryTasksDialog({
   seeds: readonly AiSummaryTaskSeed[];
   initialProjectId?: string;
   copy: AiSummaryTasksDialogCopy;
+  /** Per item index: why the last attempt refused it, shown on its card. */
+  itemNotes?: Readonly<Record<number, string>>;
   pending: boolean;
   onConfirm: (input: { projectId?: string; drafts: Record<number, AiSummaryTaskDraft> }) => void;
 }) {
   const [opening, setOpening] = useState(0);
   const [wasOpen, setWasOpen] = useState(open);
-  const [shown, setShown] = useState({ seeds, copy });
+  const [shown, setShown] = useState({ seeds, copy, itemNotes });
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) setOpening((n) => n + 1);
   }
-  if (open && (shown.seeds !== seeds || shown.copy !== copy)) {
-    setShown({ seeds, copy });
+  if (open && (shown.seeds !== seeds || shown.copy !== copy || shown.itemNotes !== itemNotes)) {
+    setShown({ seeds, copy, itemNotes });
   }
-  const view = open ? { seeds, copy } : shown;
+  const view = open ? { seeds, copy, itemNotes } : shown;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -298,6 +313,7 @@ export function AiSummaryTasksDialog({
           seeds={view.seeds}
           initialProjectId={initialProjectId}
           copy={view.copy}
+          itemNotes={view.itemNotes}
           pending={pending}
           onCancel={() => onOpenChange(false)}
           onConfirm={onConfirm}

@@ -3358,7 +3358,13 @@
       "not_found_generate": "Cuộc họp không còn. Tải lại trang.",
       "invalid_request": "Yêu cầu tạo việc không hợp lệ. Tải lại trang rồi thử lại.",
       "generateFailed": "Chưa tạo được tóm tắt. Thử lại.",
-      "tasksFailed": "Chưa tạo được việc. Thử lại."
+      "tasksFailed": "Chưa tạo được việc. Thử lại.",
+      "tasks_quota_exceeded": "Tổ chức đã đạt giới hạn số việc của gói hiện tại. Nhờ chủ sở hữu hoặc quản trị tổ chức nâng gói.",
+      "tasks_plan_inactive": "Gói của tổ chức hiện không cho tạo thêm việc. Nhờ chủ sở hữu hoặc quản trị tổ chức kiểm tra gói.",
+      "active_duplicate_items": "Đã có việc đang mở trùng tên với: {{items}}. Bỏ chọn các mục này hoặc chọn dự án khác rồi thử lại.",
+      "active_duplicate_task": "Đã có việc đang mở trùng tên: {{task}}. Bỏ chọn mục trùng hoặc chọn dự án khác rồi thử lại.",
+      "active_duplicate": "Có việc trùng tên với một việc đang mở. Bỏ chọn mục trùng hoặc chọn dự án khác rồi thử lại.",
+      "duplicateItemNote": "Trùng tên với một việc đang mở"
     },
     "participantCount_one": "{{count}} người tham dự",
     "participantCount_other": "{{count}} người tham dự",

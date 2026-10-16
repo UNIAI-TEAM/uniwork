@@ -45,10 +45,12 @@ const copyFor = (count: number): AiSummaryTasksDialogCopy => ({
 function Harness({
   open,
   seeds,
+  notes,
   onConfirm = vi.fn(),
 }: {
   open: boolean;
   seeds: AiSummaryTaskSeed[];
+  notes?: Record<number, string>;
   onConfirm?: (input: { projectId?: string }) => void;
 }) {
   return (
@@ -59,6 +61,7 @@ function Harness({
       idPrefix="t"
       seeds={seeds}
       copy={copyFor(seeds.length)}
+      itemNotes={notes}
       pending={false}
       onConfirm={onConfirm}
     />
@@ -108,5 +111,10 @@ describe("AiSummaryTasksDialog", () => {
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ projectId: undefined }));
+  });
+
+  it("marks the item a refusal named on its card", () => {
+    render(wrap(<Harness open seeds={[seed]} notes={{ 0: "Trùng tên với một việc đang mở" }} />));
+    expect(within(screen.getByRole("dialog")).getByText("Trùng tên với một việc đang mở")).toBeInTheDocument();
   });
 });

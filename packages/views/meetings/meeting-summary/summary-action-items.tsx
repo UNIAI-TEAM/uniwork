@@ -154,6 +154,14 @@ function SelectableActionItems({
       })),
     [flow.pickedOpen],
   );
+  const duplicateNote = t("meetings.summaryErrors.duplicateItemNote");
+  const itemNotes = useMemo<Record<number, string> | undefined>(
+    () =>
+      flow.duplicateIndexes.size > 0
+        ? Object.fromEntries([...flow.duplicateIndexes].map((index) => [index, duplicateNote]))
+        : undefined,
+    [flow.duplicateIndexes, duplicateNote],
+  );
   const blocked = count === 0 || flow.pending;
 
   return (
@@ -196,6 +204,7 @@ function SelectableActionItems({
         wsId={workspaceId}
         idPrefix={`meeting-task-${summary.id}`}
         seeds={seeds}
+        itemNotes={itemNotes}
         initialProjectId={projectId}
         pending={flow.pending}
         copy={{

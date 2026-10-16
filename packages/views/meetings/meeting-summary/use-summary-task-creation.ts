@@ -10,10 +10,12 @@ import type { MeetingSummary } from "@uniwork/core/types/meeting";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { useOptionalNavigation } from "../../navigation";
 import type { AiSummaryTaskDraft } from "../../tasks/ai-summary-tasks-dialog";
-import { summaryErrorText } from "./summary-error-copy";
+import { errorIndexes, summaryErrorText } from "./summary-error-copy";
 
 /** Refusals after which the ticks no longer describe the summary on screen. */
 const STALE_SELECTION = new Set(["summary_superseded", "summary_item_already_converted"]);
+
+const NONE: ReadonlySet<number> = new Set();
 
 /**
  * Selection, review dialog and the create call for ONE summary. The caller
@@ -39,6 +41,8 @@ export function useSummaryTaskCreation({
   const nav = useOptionalNavigation();
   const [picked, setPicked] = useState<ReadonlySet<number>>(() => new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Items the last attempt refused as duplicates of an open task.
+  const [duplicateIndexes, setDuplicateIndexes] = useState<ReadonlySet<number>>(NONE);
 
   const items = summary.action_items ?? [];
   // Only items still open count: one converted since the tick (here or by
@@ -56,13 +60,16 @@ export function useSummaryTaskCreation({
   }
 
   function openReview() {
-    if (pickedOpen.length > 0 && !create.isPending) setDialogOpen(true);
+    if (pickedOpen.length === 0 || create.isPending) return;
+    setDuplicateIndexes(NONE);
+    setDialogOpen(true);
   }
 
   function submit(input: { projectId?: string; drafts: Record<number, AiSummaryTaskDraft> }) {
     const body = buildMeetingSummaryTasksBody(summary.id, items, picked, input.drafts, input.projectId);
     if (!body || create.isPending) return;
     announce(t("meetings.summaryAi.creatingStatus"));
+    setDuplicateIndexes(NONE);
     create.mutate(body, {
       onSuccess: (result) => {
         setDialogOpen(false);
@@ -90,10 +97,16 @@ export function useSummaryTaskCreation({
         });
       },
       onError: (err) => {
-        const text = summaryErrorText(err, t, "tasks");
+        const code = errorCode(err) ?? "";
+        const text = summaryErrorText(err, t, "tasks", { items });
         announce(text);
         toast.error(text);
-        if (STALE_SELECTION.has(errorCode(err) ?? "")) {
+        if (code === "active_duplicate_task") {
+          // Nothing is unticked for the host: the review stays open with the
+          // clashing items marked, so they choose what to drop or move.
+          setDuplicateIndexes(new Set(errorIndexes(err)));
+        }
+        if (STALE_SELECTION.has(code)) {
           setDialogOpen(false);
           setPicked(new Set());
         }
@@ -106,6 +119,7 @@ export function useSummaryTaskCreation({
     picked,
     pickedOpen,
     toggle,
+    duplicateIndexes,
     dialogOpen,
     setDialogOpen,
     openReview,
