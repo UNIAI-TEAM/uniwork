@@ -1,0 +1,30 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && export REDIS_TEST_URL=redis://localhost:6379/1 && AI_PROVIDER=fake go test -race -count=1 -v ./internal/service/ -run 'AIUniwork|Uniwork|TestEveryAuditedCommandWritesItsRow|TestReusedAuditActionCommandsWriteTheirOwnRows' 2>&1 | grep -E '^(---|FAIL|ok|PASS|panic)' | tail -60; rc=${PIPESTATUS[0]}; echo; echo "GO_SERVICE_EXIT=$rc"
+--- PASS: TestUniworkAIFormatOfEveryFrameModule (0.00s)
+--- PASS: TestUniworkAIGrantNeedsChatAndTheDocumentFormat (0.00s)
+--- PASS: TestAIUniworkConcurrencyGlobalRefusalUnwinds (0.01s)
+--- PASS: TestAIUniworkConcurrencyReleaseOnCancelledRequest (0.00s)
+--- PASS: TestAIUniworkRunLimitReachedOnModelCalls (0.00s)
+--- PASS: TestAIUniworkRunLimitReachedOnToolRounds (0.00s)
+--- PASS: TestAIUniworkRunRejectsForeignRunID (0.00s)
+--- PASS: TestAIUniworkRunCreditsSettleAfterCancelledRequest (0.00s)
+--- PASS: TestAIUniworkRunCreditsWithoutStore (0.00s)
+--- PASS: TestAIUniworkMeterKeyNamesRunAndSeq (0.00s)
+--- PASS: TestAIUniworkCreditsExhaustedBeforeGateway (0.00s)
+--- PASS: TestAIUniworkUsageRecordedWhenClientDisconnects (0.36s)
+--- PASS: TestAIUniworkRetrySameRunAcceptedAfter429 (0.37s)
+--- PASS: TestAIUniworkRunRetryUsageChargedOnce (0.34s)
+--- PASS: TestAIUniworkNextRunSeesPriorTurns (0.36s)
+--- PASS: TestAIUniworkUsageUnknownRowAndMetric (0.39s)
+--- PASS: TestAIUniworkCreditsExhaustedStopsBeforeGateway (0.37s)
+--- PASS: TestAIUniworkConcurrencyBound (0.00s)
+--- PASS: TestAIUniworkFormatTokens (0.00s)
+--- PASS: TestAIUniworkEveryFrameModuleReachesThePack (0.00s)
+--- PASS: TestAIUniworkOrgBoundWithoutRedis (0.00s)
+--- PASS: TestAIUniworkLeasesExpireIndependently (2.21s)
+--- PASS: TestAIUniworkRedisErrorFailsOpen (0.10s)
+--- PASS: TestEveryAuditedCommandWritesItsRow (29.80s)
+--- PASS: TestReusedAuditActionCommandsWriteTheirOwnRows (1.09s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	36.596s
+
+GO_SERVICE_EXIT=0

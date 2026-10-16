@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8; (redis-cli -u redis://localhost:6379/1 ping || docker ps --format '{{.Names}}' | grep -i redis); echo "REDIS_PROBE_DONE"
+f2dd093c52ae6390a0c862ed3641351bcb67c490
+f2dd093c5 docs(office): say which asks the holdout cap count covers
+fea62d1b5 chore(office): comment the final-at-cap boundary in the holdout runner
+01acdba4a test(office): pin final-at-cap as a natural finish in the holdout runner
+bb77c7fc4 docs(office): holdout README for the run cap and cap_reached
+34d2db6bc feat(office): count cap-ended asks in the holdout report
+8bed11ace fix(office): end the holdout ask at the run's cap, not its tenth call
+fd647b2f9 fix(ai): keep the refusal's fields in the UniWork error envelope
+7c79a5c77 fix(ai): name the refused run on a run_limit_reached answer
+PONG
+REDIS_PROBE_DONE
