@@ -189,7 +189,10 @@ export function summarizeRun(run, flaky = new Set()) {
       invalidArgumentAsks: run.asks.filter((a) => (a.invalidArguments ?? []).length > 0).length,
     },
     redactedAsks: run.asks.filter((a) => (a.redactions ?? []).length > 0).length,
+    // G712-61: `wallMs` sums the raw per-ask walls, renewal time included; `wallMsNoRenewals` is the wall a pilot uses
+    // for "server overhead (wall − model sum)". A run file from before the field counts its raw wall as the clean one.
     wallMs: sum((a) => a.wallMs),
+    wallMsNoRenewals: sum((a) => a.wallMsNoRenewals ?? a.wallMs),
   };
 }
 
@@ -437,8 +440,8 @@ export function checkRunSet(runs, session = null) {
 
 /** Facts and problems about HOW the runs were measured; a problem blocks a signed verdict. */
 // Without a recorded module list (an older run file) an ask's modules follow its group; a cross ask can use any module.
-// Redaction kinds whose shape can be a harmless string (a long identifier): listed in the run, never void it (G712-26).
-const SOFT_REDACTION_KINDS = new Set(['base64_run', 'hex_run']);
+// Redaction kinds whose shape can be a harmless string (a long identifier, an address a reply quotes): listed in the run, never void it (G712-26, G712-62).
+const SOFT_REDACTION_KINDS = new Set(['base64_run', 'hex_run', 'email']);
 const MODULE_GROUP = { sheets: 'xlsx', docs: 'docx', slides: 'other', pdf: 'other', markdown: 'other', html: 'other' };
 const modulesOfAsk = (ask) => ask.modules ?? (ask.group === 'cross' ? Object.keys(MODULE_GROUP) : Object.keys(MODULE_GROUP).filter((m) => MODULE_GROUP[m] === ask.group));
 
@@ -492,7 +495,7 @@ export function measurementConditions(runs, summaries) {
   else {
     nameOnly = Object.entries(surface).filter(([, v]) => v.source === 'name-only').map(([m]) => m);
   }
-  // base64_run / hex_run may be false positives (a long identifier); they stay listed in the run's `redactions` but do not void it (G712-26).
+  // base64_run / hex_run / email may be false positives (a long identifier, an address a reply quotes); they stay listed in the run's `redactions` but do not void it (G712-26, G712-62).
   const voids = (hits) => (hits ?? []).some((h) => !SOFT_REDACTION_KINDS.has(h.kind));
   const flagged = runs.filter((r) => (r.redactions ?? []).some((x) => voids(x.kinds)) || r.asks.some((a) => voids(a.redactions)));
   if (flagged.length > 0) problems.push(`secret-looking values were redacted in run(s) ${flagged.map((r) => r.runIndex).join(', ')}; a flagged run cannot count as a pass`);
@@ -847,9 +850,9 @@ export function renderReport(report) {
   row('Số lượt hỏi chờ người duyệt', d.awaiting);
   w();
   w('Ghi chú: viewer, thu hồi quyền và bản cũ do backend của harness từ chối mọi lần ghi, nên "ghi trái phép" của các vai đó và "ghi áp lên bản cũ" bằng 0 theo cấu trúc, không phải bằng chứng về khung hay máy chủ (bảo vệ thật nằm ở khung/máy chủ, harness này không chạy chúng).');
-  // G712-42: a soft-only hit (base64_run/hex_run) keeps the verdict, so report.md itself must say the run had redactions.
+  // G712-42, G712-62: a soft-only hit (base64_run/hex_run/email) keeps the verdict, so report.md itself must say the run had redactions.
   const redactedAsks = report.summaries.reduce((n, s) => n + s.redactedAsks, 0);
-  w(`Che bí mật: ${redactedAsks} lượt hỏi có giá trị bị che${report.redactionKinds.length > 0 ? ` (loại: ${report.redactionKinds.join(', ')})` : ' (không loại nào)'}. Loại \`base64_run\`/\`hex_run\` được liệt kê trong \`redactions\` để người đọc xem nhưng không làm mất hiệu lực lần chạy; loại khoá, token, userinfo, host:port và IP thì làm lần chạy không thể là đạt.`);
+  w(`Che bí mật: ${redactedAsks} lượt hỏi có giá trị bị che${report.redactionKinds.length > 0 ? ` (loại: ${report.redactionKinds.join(', ')})` : ' (không loại nào)'}. Loại \`base64_run\`/\`hex_run\`/\`email\` được liệt kê trong \`redactions\` để người đọc xem nhưng không làm mất hiệu lực lần chạy; loại khoá, token, userinfo, host:port và IP thì làm lần chạy không thể là đạt.`);
   if (report.reviews?.grading) {
     const g = report.reviews.grading;
     w();

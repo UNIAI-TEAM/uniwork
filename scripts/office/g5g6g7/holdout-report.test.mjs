@@ -279,7 +279,8 @@ describe('thresholds file', () => {
       }
     };
     for (const dir of ['docs/office', 'scripts/office']) walk(path.join(repoRoot, dir));
-    assert.deepEqual(found.map((f) => path.relative(repoRoot, f)), ['docs/office/g5g6g7/holdout/thresholds-G7-D1.json']);
+    // G712-W1: win32 separates with a backslash, so compare the relative path in POSIX form on every host.
+    assert.deepEqual(found.map((f) => path.relative(repoRoot, f).split(path.sep).join('/')), ['docs/office/g5g6g7/holdout/thresholds-G7-D1.json']);
   });
 });
 
@@ -555,6 +556,15 @@ describe('measurement conditions (G712-3, G712-5, G712-8, G712-9)', () => {
     inconclusive([run(1, key, { redactions: [{ ask: 'HO-B-001/vi', kinds: keyKinds }] }), run(2, bigSuite()), run(3, bigSuite())], /redacted in run\(s\) 1; a flagged run cannot count as a pass/);
   });
 
+  it('keeps the verdict when only an email was listed as redacted (G712-62)', () => {
+    const kinds = [{ kind: 'email', count: 1 }];
+    const soft = bigSuite((a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, redactions: kinds } : a));
+    const runs = [run(1, soft, { redactions: [{ ask: 'HO-B-001/vi', kinds }] }), run(2, bigSuite()), run(3, bigSuite())];
+    assert.equal(judge(runs).status, 'PASS', 'an address a reply quotes is a soft kind: it voids no run');
+    assert.equal(summarizeRun(runs[0]).redactedAsks, 1, 'the hit stays listed in the run');
+    assert.match(renderReport(buildReport(runs)), /Che bí mật: 1 lượt hỏi có giá trị bị che \(loại: email\)/, 'and report.md names it as soft');
+  });
+
   it('counts token renewals per run, and a renewed run keeps its verdict (G7-12 pilot blocker)', () => {
     const renewed = (a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, renewals: [{ kind: 'session', ms: 3 }, { kind: 'frame', ms: 5 }] } : a);
     const runs = [run(1, bigSuite(renewed)), run(2, bigSuite()), run(3, bigSuite())];
@@ -562,6 +572,14 @@ describe('measurement conditions (G712-3, G712-5, G712-8, G712-9)', () => {
     assert.equal(o.status, 'PASS', o.blockers.join(' | '));
     assert.deepEqual(summarizeRun(runs[0]).load.renewals, { session: 1, frame: 1 });
     assert.deepEqual(summarizeRun(runs[1]).load.renewals, { session: 0, frame: 0 }, 'a run file without renewal notes counts as none');
+    // G712-61: the summary keeps both walls - the raw one and the one with the renewal time taken out - and a run file
+    // from before the field counts its raw wall as the clean one.
+    const weighted = (a) => (a.id === 'HO-B-001' && a.lang === 'vi' ? { ...a, wallMs: 20, renewalMs: 6, wallMsNoRenewals: 14 } : a);
+    const w = summarizeRun(run(1, bigSuite(weighted)));
+    const p = summarizeRun(run(2, bigSuite()));
+    assert.equal(w.wallMs - p.wallMs, 10, 'the raw wall is summed');
+    assert.equal(w.wallMsNoRenewals - p.wallMsNoRenewals, 4, 'the wall for server overhead has the renewal time out');
+    assert.equal(p.wallMsNoRenewals, p.wallMs, 'a run file without the field counts its raw wall');
     const md = renderReport(buildReport([runs[0]]));
     assert.match(md, /Gia hạn token \(phiên \/ khung\)/, 'the load table names the renewals');
     assert.match(md, /\| 1 \/ 1 \|/, 'the row carries the per-run counts');
