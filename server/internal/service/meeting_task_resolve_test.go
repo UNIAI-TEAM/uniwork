@@ -151,6 +151,7 @@ func TestLoadAssigneeCandidatesOnlyAssignable(t *testing.T) {
 	ue := registerVerified(t, s.q, as, "e@example.com", "Em Hoa")
 	_ = ue // registered, never joins: an outsider
 
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
 	addMember(t, s, w.ID, ub.ID)
 	if err := s.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: w.OrganizationID, UserID: uc.ID, Role: "member"}); err != nil {
 		t.Fatal(err)

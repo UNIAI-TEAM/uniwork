@@ -39,6 +39,7 @@ func summaryTasksFixture(t *testing.T) (*MeetingService, db.User, db.User, db.Wo
 	t.Helper()
 	s, ua, ub, w := meetingFixture(t)
 	s.Tasks = NewTaskService(s.pool, s.q, s.ws, nil)
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
 	addMember(t, s, w.ID, ub.ID)
 	m, err := s.CreateInstant(context.Background(), ua.ID, w.ID, "Giao ban")
 	if err != nil {

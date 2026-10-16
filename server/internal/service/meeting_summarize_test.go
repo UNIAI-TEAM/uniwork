@@ -106,7 +106,8 @@ func TestSummarizeFailuresAnswerFixedCodes(t *testing.T) {
 		}}, status: http.StatusBadGateway, code: "ai_failed", reason: summaryReasonEmpty, usage: "succeeded"},
 		{name: "empty object", fake: &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
 			return provider.CompletionResponse{Text: `{"summary":"","decisions":[],"action_items":[]}`, Model: "fake", InputTokens: 10}
-		}}, status: http.StatusBadGateway, code: "ai_failed", reason: summaryReasonEmpty, usage: "succeeded"},
+			// ParseSummaryJSON refuses an answer with nothing in it, so this is a parse failure.
+		}}, status: http.StatusBadGateway, code: "ai_failed", reason: summaryReasonParse, usage: "succeeded"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
