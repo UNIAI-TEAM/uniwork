@@ -412,6 +412,9 @@ func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext
 			continue
 		}
 		srcs, err := s.taskContext(ctx, tc, t.ID)
+		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
+			continue // gone or out of reach since GetByRefIn read it: skip the hit, keep the turn
+		}
 		if err != nil {
 			return nil, err
 		}
