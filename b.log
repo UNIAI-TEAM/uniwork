@@ -1,0 +1,33 @@
+$ node --test scripts/office/g5g6g7/genoffice-tool-schemas.test.mjs 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "SCHEMA_MATCH_EXIT=$rc"; [ $rc -eq 0 ]
+TAP version 13
+# Subtest: the file header pins the same fork rev and the same mechanical block as genoffice-tools.md
+ok 1 - the file header pins the same fork rev and the same mechanical block as genoffice-tools.md
+  ---
+  duration_ms: 0.971116
+  ...
+# Subtest: the file lists exactly the tool names of the committed extract block, module by module
+ok 2 - the file lists exactly the tool names of the committed extract block, module by module
+  ---
+  duration_ms: 1.036429
+  ...
+# Subtest: every tool is offered with its real schema; the partial descriptions are exactly the reviewed ones
+ok 3 - every tool is offered with its real schema; the partial descriptions are exactly the reviewed ones
+  ---
+  duration_ms: 6.580089
+  ...
+# Subtest: holdout-backend loads the file with --tool-schemas semantics and offers every mapped tool a real schema
+ok 4 - holdout-backend loads the file with --tool-schemas semantics and offers every mapped tool a real schema
+  ---
+  duration_ms: 10.144264
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 99.702462
+
+SCHEMA_MATCH_EXIT=0

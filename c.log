@@ -1,0 +1,4 @@
+$ cp docs/office/g5g6g7/genoffice-tool-schemas.json /tmp/gts.bak; python3 -c "import json;p='docs/office/g5g6g7/genoffice-tool-schemas.json';d=json.load(open(p));d['docs'][0]['function']['parameters']['x_mut']=1;json.dump(d,open(p,'w'),indent=2)"; node --test scripts/office/g5g6g7/genoffice-tool-schemas.test.mjs >/dev/null 2>&1; a=$?; cp /tmp/gts.bak docs/office/g5g6g7/genoffice-tool-schemas.json; echo; echo "RED_MUT schema=$a"; [ $a -ne 0 ] && echo RED_OK
+
+RED_MUT schema=1
+RED_OK

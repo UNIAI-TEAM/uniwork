@@ -1,0 +1,4 @@
+$ python3 -c "import yaml;yaml.safe_load(open(\".github/workflows/ci.yml\"))"; rc=$?; grep -n "docs/office/\*\*" .github/workflows/ci.yml; echo; echo "CI_YAML_EXIT=$rc"; [ $rc -eq 0 ]
+66:              - 'docs/office/**'
+
+CI_YAML_EXIT=0

@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+a5672986c325de00b3fcd53738a0f36c1e678254
+c91af525a2437bd5c699cefb639110b199f8255b
+a5672986c chore: merge the D root c91af525a into the g6-09-tool-schemas lane branch
+2648d03b6 docs(office): §5/§8 record the desktop preview CSP as shipped by G6-09
+0fea2b2cd ci: run the frontend job when docs/office changes (schema file guard)
+c91af525a chore: merge G7-03a integration fault queue (908053854) into the G5-G7 root
+b397945d5 chore: merge the D root 4b87247c1 into the G6-09 tool-schemas lane branch
+4b87247c1 chore: merge G7-12 holdout harness follow-up (2a738ede8) into the G5-G7 root
+
+SYNCED_EXIT=0
