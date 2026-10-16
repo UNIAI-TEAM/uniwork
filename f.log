@@ -1,0 +1,86 @@
+$ pids=""; for i in $(seq $(nproc)); do timeout 1500 sh -c "while :; do :; done" & pids="$pids $!"; done; echo "LOAD_PIDS=$pids"; uptime; DEBUG=pw:browser xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts e2e/docs-selection-bar-painter.spec.ts e2e/docs-mirrored-margins.spec.ts --repeat-each 20 --retries 0 --workers 2 --reporter=list 2>&1 | grep -vE "pw:browser" | tail -80; rc=${PIPESTATUS[0]}; uptime; kill $pids 2>/dev/null; echo; echo "REPEAT20_LOAD_EXIT=$rc"; [ $rc -eq 0 ]
+LOAD_PIDS= 7604 7605 7606 7607
+ 00:10:12 up 3 min,  0 user,  load average: 2.33, 1.24, 0.50
+(node:10011) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  25 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (6.2s)
+  ✓  26 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (2.9s)
+(node:10123) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  27 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.7s)
+(node:10291) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  28 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (5.9s)
+(node:10402) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  29 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (2.9s)
+  ✓  31 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.8s)
+(node:10575) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  30 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (6.3s)
+(node:10686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  32 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (3.1s)
+  ✓  34 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.5s)
+(node:10857) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  33 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (6.3s)
+(node:10967) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  35 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (2.9s)
+  ✓  37 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.8s)
+(node:11140) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  36 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (6.2s)
+(node:11194) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  38 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (3.3s)
+  ✓  40 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.7s)
+(node:11442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  39 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (6.1s)
+(node:11456) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  41 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (3.2s)
+  ✓  43 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.8s)
+  ✓  42 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (6.5s)
+(node:11723) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11732) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  44 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (3.0s)
+  ✓  46 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.4s)
+  ✓  45 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (6.4s)
+(node:12008) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12017) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  47 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (3.2s)
+  ✓  48 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (6.2s)
+  ✓  49 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.6s)
+(node:12310) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  50 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (3.2s)
+  ✓  52 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.8s)
+  ✓  51 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (5.9s)
+(node:12564) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12573) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  53 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (3.4s)
+  ✓  54 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (5.9s)
+  ✓  55 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.8s)
+(node:12932) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  56 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (2.6s)
+  ✓  58 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.9s)
+(node:13103) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  57 e2e/docs-mirrored-margins.spec.ts:122:7 › docs mirrored margins › even pages swap inside/outside on the canvas, ruler, dialog and export (6.3s)
+  ✓  59 e2e/docs-selection-bar-painter.spec.ts:154:7 › docs selection bar and format painter › selection bar selects line, lines, paragraph and document (2.9s)
+  ✓  60 e2e/docs-selection-bar-painter.spec.ts:224:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (3.4s)
+
+  60 passed (2.4m)
+ 00:12:37 up 6 min,  0 user,  load average: 7.28, 3.59, 1.48
+
+REPEAT20_LOAD_EXIT=0

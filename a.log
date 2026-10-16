@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -5; git merge-base --is-ancestor origin/main HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+98abb91fa57548e9b8b70e58453fbdff79cbd5ab
+b72a061770ce261533937a95018c083140129d53
+98abb91f merge: fork main b72a06177 (G7-03a sync queue test hooks) into the G6-10 painter deflake branch
+594932bf test(e2e): poll the laid-out mirrored offset instead of one rect read
+d7d0980a test(e2e): wait for the exact clicked caret in the format painter spec
+b72a0617 Merge G7-03a (UNI-1380) 695421c05: env-gated sync queue test hooks for the fault queue
+2746ca65 Merge G6-09b (UNI-1374) 00ed3540b: image URL rule enforced in code
+
+SYNCED_EXIT=0
