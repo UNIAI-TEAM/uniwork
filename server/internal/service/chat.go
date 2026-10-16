@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -444,7 +445,9 @@ func (s *ChatService) listMessages(
 	// SkipMarkRead is set (unread room open).
 	if !in.SkipMarkRead && !before.Valid && len(out) > 0 {
 		last := out[len(out)-1]
-		s.markChatRoomRead(ctx, room, userID, pgtype.Timestamptz{Time: last.CreatedAt, Valid: true})
+		if err := s.markChatRoomRead(ctx, room, userID, pgtype.Timestamptz{Time: last.CreatedAt, Valid: true}); err != nil {
+			slog.WarnContext(ctx, "chat: read pointer not moved", "error", err, "room_id", room.ID, "user_id", userID)
+		}
 	}
 	return out, nil
 }
@@ -493,8 +496,7 @@ func (s *ChatService) MarkRoomRead(ctx context.Context, userID, workspaceID, roo
 	if err != nil {
 		return err
 	}
-	s.markChatRoomRead(ctx, room, userID, preview.CreatedAt)
-	return nil
+	return s.markChatRoomRead(ctx, room, userID, preview.CreatedAt)
 }
 
 // SendWorkspaceMessage posts a text message to the workspace channel.
