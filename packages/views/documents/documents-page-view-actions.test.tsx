@@ -201,11 +201,15 @@ describe("file from another module", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.download_failed")));
   });
 
-  it("opens the module that holds the file, inside this workspace", async () => {
-    route({ sources: () => [source()] });
+  it("opens the chat room and message that holds the file", async () => {
+    route({
+      sources: () => [
+        source({ parent: { kind: "chat_channel", id: "c1", title: "Kênh chung", message_id: "m1" } }),
+      ],
+    });
     const adapter = renderView();
-    await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.open_chat"));
-    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat");
+    await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.go_to_source"));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=m1");
   });
 
   it("opens the task a comment attachment belongs to", async () => {
