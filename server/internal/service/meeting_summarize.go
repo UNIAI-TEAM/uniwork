@@ -206,6 +206,11 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID 
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	// A conversion of the meeting's current summary under way finishes
+	// first: it then links its tasks to a summary that was still the latest.
+	if err := q.LockMeetingSummaryChanges(ctx, m.ID); err != nil {
+		return db.MeetingSummary{}, err
+	}
 	row, err := q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
 		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, Summary: res.Summary,
 		Decisions: string(decisions), ActionItems: string(items), Model: resp.Model, CreatedBy: userID,

@@ -272,6 +272,41 @@ func TestSummarizeIsSingleFlightPerMeeting(t *testing.T) {
 	}
 }
 
+// UNI-1853 review: the store of a new summary waits for a conversion of the
+// meeting's summary under way (here, a transaction holding the same lock), so
+// the conversion never links tasks to a summary that was replaced under it.
+func TestSummarizeStoreWaitsForAConversion(t *testing.T) {
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: `{"summary":"ok","decisions":[],"action_items":[]}`, Model: "fake"}
+	}}
+	s, ua, m, _ := summaryFixture(t, fake, ai.Options{})
+	ctx := context.Background()
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := s.q.WithTx(tx).LockMeetingSummaryChanges(ctx, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("the summary was stored under a conversion: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	if err := tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("after the conversion: %v", err)
+	}
+}
+
 // A meeting with nothing to read is refused with summary_no_source before
 // the model is asked.
 func TestSummarizeWithoutSourceIsRefused(t *testing.T) {

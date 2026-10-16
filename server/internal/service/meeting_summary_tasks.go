@@ -177,8 +177,10 @@ func errSummarySuperseded() error {
 
 // CreateTasksFromSummary turns chosen action items of the meeting's latest
 // summary into tasks. Every task, its link to the item and the batch's audit
-// row commit in one transaction, so a refusal anywhere leaves nothing behind,
-// and the summary row lock serializes conversions of the same summary.
+// row commit in one transaction, so a refusal anywhere leaves nothing behind.
+// The meeting's summary lock (LockMeetingSummaryChanges, also taken by the
+// store of Summarize) keeps a regenerated summary from committing under the
+// batch, and the summary row lock serializes conversions of the same summary.
 func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, meetingID string, in SummaryTasksInput) (SummaryTasksResult, error) {
 	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
 	if err != nil {
@@ -259,6 +261,12 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 	tasks, err := s.Tasks.CreateManyWith(ctx, actor, m.WorkspaceID, inputs, CreateManyOptions{
 		KeepOrder: true,
 		Before: func(ctx context.Context, q *db.Queries, ws db.Workspace) error {
+			// The meeting lock first: a regenerated summary commits either
+			// before the re-read below, which then refuses this one as
+			// superseded, or after this batch commits.
+			if err := q.LockMeetingSummaryChanges(ctx, meetingID); err != nil {
+				return err
+			}
 			if _, err := q.LockMeetingSummary(ctx, db.LockMeetingSummaryParams{
 				ID: summaryID, MeetingID: meetingID, OrganizationID: m.OrganizationID,
 			}); err != nil {

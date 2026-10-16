@@ -362,3 +362,48 @@ func TestCreateTasksFromSummaryIgnoresADeletedMeetingProject(t *testing.T) {
 		t.Fatalf("named deleted project: %v, want not found", err)
 	}
 }
+
+// UNI-1853 review: a conversion and a regeneration of the same meeting take
+// one lock, so a summary that commits while a conversion is under way makes
+// the conversion answer summary_superseded instead of linking tasks to a
+// summary nobody sees any more. A transaction stands in for Summarize's
+// store: it holds the lock and inserts the new summary, and commits only
+// after the conversion has had time to reach the lock.
+func TestCreateTasksFromSummaryWaitsForARegeneration(t *testing.T) {
+	s, ua, _, w, m := summaryTasksFixture(t)
+	ctx := context.Background()
+	old := seedSummary(t, s, m, ua.ID, ai.ActionItem{Title: "Gửi báo cáo"})
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	if err := q.LockMeetingSummaryChanges(ctx, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
+		ID: util.NewID(), MeetingID: m.ID, Summary: "Bản mới", Decisions: "[]", ActionItems: `[{"title":"Khác"}]`,
+		Model: "fake", CreatedBy: ua.ID, OrganizationID: m.OrganizationID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{SummaryID: old.ID, Items: []MeetingSummaryTaskItem{{Index: 0}}})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("the conversion did not wait for the regeneration: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, <-done, "summary_superseded")
+	if n := countRows(t, s, `SELECT count(*) FROM tasks WHERE workspace_id = $1`, w.ID); n != 0 {
+		t.Fatalf("tasks linked to a superseded summary: %d", n)
+	}
+}

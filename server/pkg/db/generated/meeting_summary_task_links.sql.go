@@ -102,3 +102,17 @@ func (q *Queries) LockMeetingSummary(ctx context.Context, arg LockMeetingSummary
 	err := row.Scan(&id)
 	return id, err
 }
+
+const lockMeetingSummaryChanges = `-- name: LockMeetingSummaryChanges :exec
+SELECT pg_advisory_xact_lock(hashtextextended('meeting_summary_tx:' || $1::text, 0))
+`
+
+// Serializes a conversion with a new summary of the same meeting: both
+// CreateTasksFromSummary and the store of Summarize take this lock in their
+// transaction before they read or write the meeting's summaries, so the
+// conversion's re-read of the latest summary sees every summary committed
+// before it and none commits under it. Released at commit or rollback.
+func (q *Queries) LockMeetingSummaryChanges(ctx context.Context, meetingID string) error {
+	_, err := q.db.Exec(ctx, lockMeetingSummaryChanges, meetingID)
+	return err
+}
