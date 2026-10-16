@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+7a8154623372f4b8f34c5b823b862b9696c5f591
+9863ca89bd4c5c1fb3f8546001e72a60be818c3c
+7a8154623 Merge branch 'feature/UNI-1850-myfolder-sharedbyme' into feature/UNI-1868-listfilter
+8a1f0a97e Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1850-myfolder-sharedbyme
+9863ca89b chore: merge SRC-02a (UNI-1815, 54a24d6c6) into the G5-G7 root
+91ede2c4e test(e2e): match the named share dialog title from SH-S1
+54a24d6c6 test(e2e): keep the library row lookup off the go-to-source button
+40265f41f fix(documents): compact go-to-source on every row width, keep the preview close off the image
+cb6b6db57 chore: merge root 549906774 (S2V-1 fix) into SRC-02
+549906774 fix(documents): unescape the source file id in its routes
