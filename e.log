@@ -1,0 +1,173 @@
+$ node --test scripts/events-catalogue.test.mjs scripts/alerts-runbooks.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/governance.test.mjs; rc=$?; echo; echo "SCRIPTS_EXIT=$rc"
+TAP version 13
+# Subtest: every alert has a runbook_url whose file exists and is named after the alert
+ok 1 - every alert has a runbook_url whose file exists and is named after the alert
+  ---
+  duration_ms: 4.372428
+  ...
+# Subtest: every runbook has the four sections in order and a status line
+ok 2 - every runbook has the four sections in order and a status line
+  ---
+  duration_ms: 14.004472
+  ...
+# Subtest: every runbook is referenced by an alert or is a listed operator runbook
+ok 3 - every runbook is referenced by an alert or is a listed operator runbook
+  ---
+  duration_ms: 1.18779
+  ...
+# Subtest: runbook index lists every alert
+ok 4 - runbook index lists every alert
+  ---
+  duration_ms: 0.387605
+  ...
+# Subtest: the Go env scanner recognizes literal readers without false positives
+ok 5 - the Go env scanner recognizes literal readers without false positives
+  ---
+  duration_ms: 1.702088
+  ...
+# Subtest: raw literal keys participate in the undocumented-variable contract
+ok 6 - raw literal keys participate in the undocumented-variable contract
+  ---
+  duration_ms: 0.327357
+  ...
+# Subtest: every variable the server reads is documented in .env.example
+ok 7 - every variable the server reads is documented in .env.example
+  ---
+  duration_ms: 221.698701
+  ...
+# Subtest: the Go catalogue and the documented table agree
+ok 8 - the Go catalogue and the documented table agree
+  ---
+  duration_ms: 14.600187
+  ...
+# Subtest: every catalogue row has the one-line shape this file parses
+ok 9 - every catalogue row has the one-line shape this file parses
+  ---
+  duration_ms: 1.118144
+  ...
+# Subtest: the client knows every event that has a realtime audience
+ok 10 - the client knows every event that has a realtime audience
+  ---
+  duration_ms: 2.223889
+  ...
+# Subtest: event names follow <entity>.<verb> and carry no version
+ok 11 - event names follow <entity>.<verb> and carry no version
+  ---
+  duration_ms: 1.120881
+  ...
+# Subtest: payload keys are ids or revisions; content travels only through Patch
+ok 12 - payload keys are ids or revisions; content travels only through Patch
+  ---
+  duration_ms: 1.274687
+  ...
+# Subtest: the patchable task fields are exactly the ones ADR 0015 accepted
+ok 13 - the patchable task fields are exactly the ones ADR 0015 accepted
+  ---
+  duration_ms: 0.533513
+  ...
+# Subtest: the client decodes exactly the fields task.updated lists in Patch
+ok 14 - the client decodes exactly the fields task.updated lists in Patch
+  ---
+  duration_ms: 2.534602
+  ...
+# Subtest: every event has a scope or is explicitly infrastructure
+ok 15 - every event has a scope or is explicitly infrastructure
+  ---
+  duration_ms: 0.996055
+  ...
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 16 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 7.1363
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 17 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 5.966303
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 18 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.370655
+  ...
+# Subtest: both hooks exist and are executable
+ok 19 - both hooks exist and are executable
+  ---
+  duration_ms: 0.202046
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 20 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 2.181439
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 21 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 67.22575
+  ...
+# Subtest: historical message exceptions only allow their immutable commit and subject
+ok 22 - historical message exceptions only allow their immutable commit and subject
+  ---
+  duration_ms: 0.455469
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 23 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 2.500795
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 24 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.324849
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 25 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 11.903865
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 26 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.332636
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 27 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 15.951795
+  ...
+# Subtest: every plan says whether it shipped
+ok 28 - every plan says whether it shipped
+  ---
+  duration_ms: 55.303855
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 29 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 1.164045
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 30 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 289.704037
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 31 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 0.654686
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 32 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 51.598169
+  ...
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 567.584767
+
+SCRIPTS_EXIT=0

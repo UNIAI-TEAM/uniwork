@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+c3d7f9a36cc56ffa80c79c19d128c72591e1d454
+1dcb78457c1cb755dda703248e936799e82637d3
+c3d7f9a36 test(documents): pin one revision bump on visibility-only PATCH and merged home shares
+7944bf1bd fix(documents): judge the merged home-row share by the document's workspace
+eb29a3ae7 Merge branch 'feature/UNI-923-office-g5-g6-g7' of github.com:UNIAI-TEAM/uniwork into feature/UNI-1780-sh-s1-workspace-level
+1dcb78457 chore: merge G6-03a run409 + G7-12 cap-aware harness (f2dd093c5) into the G5-G7 root
+f2dd093c5 docs(office): say which asks the holdout cap count covers
+fea62d1b5 chore(office): comment the final-at-cap boundary in the holdout runner
+01acdba4a test(office): pin final-at-cap as a natural finish in the holdout runner
+bb77c7fc4 docs(office): holdout README for the run cap and cap_reached
