@@ -1412,9 +1412,19 @@ describe('usage rows and arguments', () => {
     assert.equal(parseArgs(['--server-url', 'http://localhost:1', '--anchors', 'lenient']).anchors, 'lenient');
   });
 
-  it('resolves symlinks before deciding an --out is outside the repo (G712-15)', () => {
+  it('resolves symlinks before deciding an --out is outside the repo (G712-15)', (t) => {
     const link = path.join(tmpRoot, 'link-into-repo');
-    fs.symlinkSync(path.join(repoRoot, 'docs'), link);
+    try {
+      fs.symlinkSync(path.join(repoRoot, 'docs'), link);
+    } catch (err) {
+      // G712-73: the sibling of the review export's symlink case - a host that refuses symlink creation (win32 without
+      // developer mode) skips this case with the reason instead of failing it, and a host that can create one runs it.
+      if (err?.code === 'EPERM' || err?.code === 'EACCES') {
+        t.skip(`this host does not permit creating a symlink (${err.code})`);
+        return;
+      }
+      throw err;
+    }
     assert.equal(isInsideRepo(path.join(link, 'runs')), true);
     assert.throws(() => parseArgs(['--server-url', 'http://localhost:1', '--out', path.join(link, 'runs')]), /inside the repo/);
     assert.equal(isInsideRepo(path.join(tmpRoot, 'plain', 'runs')), false);
