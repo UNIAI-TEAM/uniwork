@@ -149,20 +149,14 @@ export function uniworkOption(frame: Frame): Locator {
 
 /**
  * Opens the picker popup and returns once the UniWork AI option is listed. The group's beforeAll has already proven
- * the frame token grants `uniwork_ai`, so a picker without the row is the pinned frame's own limit, not the setup:
- * the test is skipped with that reason (runtime condition, so it runs again on the first pin that lists the row).
- * Cloud r2 (frame 0.1.0-05fd209): fork packages/ui/src/ai-model-picker-options.ts:47 drops every provider without
- * models, and UNIWORK_PROVIDER_META (packages/ai-provider/src/providers.ts:373-379) has `models: []`; fork commit
- * 7888df06c ("list uniwork provider in model picker when available", in fork main 99e5a5253) lists it.
+ * the frame token grants `uniwork_ai`, so a picker without the row is a failure of the pinned frame, never a skip:
+ * the frame lists a provider with an empty model list since fork 7888df06c (in the pin since 0.1.0-fa22cd9; current pin 0.1.0-5a72c13).
  */
 export async function openPicker(frame: Frame): Promise<void> {
   await openAiPanel(frame);
   await frame.locator(".ai-model-chip").first().click();
   await frame.locator(PICKER_POP).waitFor({ state: "visible", timeout: 15_000 });
-  const listed = await uniworkOption(frame).waitFor({ state: "visible", timeout: 15_000 }).then(() => true, () => false);
-  const reason = `blocked: frame ${pinnedVersion()} lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui`;
-  if (!listed) test.info().annotations.push({ type: "blocked", description: reason });
-  test.skip(!listed, reason);
+  await uniworkOption(frame).waitFor({ state: "visible", timeout: 15_000 });
 }
 
 /** Selects UniWork AI in the picker (it closes) and reopens it, so the selected option is UniWork AI. */
