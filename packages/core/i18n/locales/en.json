@@ -8942,6 +8942,7 @@
       "empty": "No versions yet. Create the first checkpoint from the working copy.",
       "load_more": "Load more",
       "row_version": "Version {{no}}",
+      "author_system": "System",
       "current_badge": "Current",
       "view": "View content",
       "preview_title": "Content of version {{no}}",
