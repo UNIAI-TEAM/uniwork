@@ -15,7 +15,7 @@ import {
   TOOL_OPS, createBackend, frameToolCounts, modulesOfCase, offeredTools, opsOfTool, toolCatalogue, toolSurface, unobtainableOps,
 } from './holdout-backend.mjs';
 import {
-  DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, MANIFEST_KIND, MAX_STEPS, buildAsks, createServerSession, createUsageReader, firstMessages, httpTransport,
+  DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, MANIFEST_KIND, MAX_STEPS, buildAsks, createServerSession, createUsageReader, firstMessages, fixtureEmails, httpTransport,
   isInsideRepo, parseArgs, preflight, redactSecrets, runHoldout, sha256Hex,
 } from './holdout-run.mjs';
 import { OPERATIONS, loadCases, score } from './holdout-score.mjs';
@@ -408,6 +408,61 @@ describe('answer adapter', () => {
     assert.deepEqual([elsewhere.adapter.writeBacked, elsewhere.adapter.writeUnbacked, elsewhere.adapter.writeFormula], [0, 1, 0], 'the address still has to be the right one');
   });
 
+  it('credits a formula at a formula item only when it equals the expected formula after normalising (G712-25)', () => {
+    const formulaCase = synthCase({
+      category: 'edit', tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: { numeric: [], structural: [{ kind: 'formula', anchor: 'Q1!C3', value: '=SUM(B2:B5)' }], writes: 1, mustNotContain: [] },
+      referenceAnswer: { numeric: {}, structural: [{ kind: 'formula', anchor: 'Q1!C3', value: '=SUM(B2:B5)' }], writes: 1, text: 'test reference' },
+    });
+    const line = reportFor({ items: [{ kind: 'formula', anchor: 'Q1!C3', value: '=SUM(B2:B5)' }] });
+    const outcome = (formula) => {
+      const out = deriveAnswer(formulaCase, { reply: line, calls: [{ name: 'propose_operations' }], writes: 1, dropped: [], modules: ['sheets'], sheetNames: ['Q1'], writeLog: [{ name: 'propose_operations', applied: true, args: { operations: [{ range: 'Q1!C3', formula }] } }] });
+      return [score(formulaCase, out.answer).checks.find((x) => x.id.startsWith('structural:')).status, out.adapter.writeBacked, out.adapter.writeUnbacked, out.adapter.writeFormula];
+    };
+    assert.deepEqual(outcome('=1+1'), ['fail', 0, 1, 0], 'a wrong formula at the right cell fails');
+    assert.deepEqual(outcome('=SUM(B2:B6)'), ['fail', 0, 1, 0], 'another range fails');
+    assert.deepEqual(outcome('=SUM(B2:B5)'), ['pass', 1, 0, 1]);
+    assert.deepEqual(outcome('= sum( $B$2 : $B$5 )'), ['pass', 1, 0, 1], 'case, spaces and absolute references are normalised');
+    assert.deepEqual(outcome('SUM(B2:B5)'), ['fail', 0, 1, 0], 'a text without the leading = is no formula write');
+  });
+
+  it('decides the formula branch by the expectation when the case spells its formula without a leading = (G712-27)', () => {
+    const bare = { kind: 'formula', anchor: 'Q1!C3', value: 'SUM(B2:B5)' };
+    const bareCase = synthCase({
+      category: 'edit', tools: { allowed: ['read_range', 'write_range'], required: ['write_range'] },
+      expected: { numeric: [], structural: [bare], writes: 1, mustNotContain: [] },
+      referenceAnswer: { numeric: {}, structural: [bare], writes: 1, text: 'test reference' },
+    });
+    const line = reportFor({ items: [bare] });
+    const outcome = (formula) => {
+      const out = deriveAnswer(bareCase, { reply: line, calls: [{ name: 'propose_operations' }], writes: 1, dropped: [], modules: ['sheets'], sheetNames: ['Q1'], writeLog: [{ name: 'propose_operations', applied: true, args: { operations: [{ range: 'Q1!C3', formula }] } }] });
+      return [out.adapter.writeBacked, out.adapter.writeUnbacked, out.adapter.writeFormula];
+    };
+    assert.deepEqual(outcome('SUM(B2:B5)'), [1, 0, 1], 'the leaf equal to the expected formula is the formula, with or without the =');
+    assert.deepEqual(outcome('=SUM(B2:B5)'), [1, 0, 1]);
+    assert.deepEqual(outcome('= sum( $B$2 : $B$5 )'), [1, 0, 1]);
+    assert.deepEqual(outcome('=1+1'), [0, 1, 0], 'a wrong formula still fails');
+    assert.deepEqual(outcome('SUM(B2:B6)'), [0, 1, 0], 'another range fails whatever its =');
+    assert.deepEqual(outcome('hello'), [0, 1, 0], 'a text that is not the formula is not credited');
+  });
+
+  it('judges the real formula-expecting case (read at runtime) by the formula text (G712-25)', () => {
+    const real = cases.find((c) => c.expected.structural.some((x) => x.kind === 'formula'));
+    assert.ok(real, 'the set has a formula-expecting case');
+    // The real case reads only (writes: 0); an edit variant of it is what makes the write proof reachable.
+    const edit = { ...real, category: 'edit', tools: { allowed: [...real.tools.allowed, 'write_range'], required: ['write_range'] }, expected: { ...real.expected, numeric: [], writes: 1 } };
+    const items = edit.expected.structural.filter((x) => x.kind === 'formula');
+    const line = reportFor({ items });
+    const run = (make) => {
+      const backend = createBackend(edit);
+      backend.execute('propose_operations', JSON.stringify({ edits: items.map(make) }));
+      const out = deriveAnswer(edit, { reply: line, calls: [{ name: 'propose_operations' }], writes: backend.writes(), writeLog: backend.writeLog(), dropped: [], modules: ['sheets'], sheetNames: backend.sheetNames(), sourceText: backend.sourceText() });
+      return [out.adapter.writeBacked, out.adapter.writeUnbacked, out.adapter.writeFormula];
+    };
+    assert.deepEqual(run((x) => ({ anchor: x.anchor, formula: `=${x.value}` })), [items.length, 0, items.length], 'the expected formulas credit');
+    assert.deepEqual(run((x) => ({ anchor: x.anchor, formula: '=1+1' })), [0, items.length, 0], 'wrong formulas do not');
+  });
+
   it('does not pass a real xlsx value edit written with wrong formulas (G712-23)', () => {
     const edits = cases.filter((c) => c.format === 'xlsx' && c.expected.writes > 0 && c.expected.structural.some((x) => x.kind === 'cell' && !x.anchor.includes('#') && String(x.value) !== ''));
     assert.ok(edits.length >= 1);
@@ -560,8 +615,8 @@ describe('answer adapter', () => {
 const usageReader = async (ids) => new Map(ids.map((id, i) => [id, { promptId: 'office_uniwork_ai@test', provider: 'fake', model: 'stub-resolved', status: 'succeeded', latencyMs: 100 + (i % 7), inputTokens: 5, outputTokens: 2 }]));
 const noSleep = async () => {};
 
-async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
-  const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs });
+async function runWith({ model, onlyIds = null, runs = 1, threads = 2, hooks, delayMs = 0, mintDelayMs = 0, opts = {}, usage = usageReader, subset = null, mount = null }, dirName) {
+  const facade = await startStubFacade({ model: model ?? scriptedModel(cases), hooks, delayMs, mintDelayMs });
   const session = await createServerSession({ serverUrl: facade.url });
   const mounts = [];
   const wrapped = { ...session, mount: (id, o) => { mounts.push({ id, ...o }); return mount ? mount(id, o, session, mounts.length) : session.mount(id, o); } };
@@ -620,7 +675,8 @@ describe('runner against a stub façade', () => {
     assert.ok(ask.modelTurns >= 2);
     assert.ok(ask.toolCalls.length >= 1);
     assert.ok(ask.calls.every((c) => c.status === 200 && c.traceId && c.clientMs >= 0 && c.usage.latencyMs >= 100));
-    assert.deepEqual(ask.counts, { rateLimited: 0, serverErrors: 0, retries: 0, remounts: 0 });
+    assert.deepEqual(ask.counts, { rateLimited: 0, serverErrors: 0, retries: 0 });
+    assert.deepEqual(ask.renewals, [], 'a reference run renews nothing');
     assert.equal(ask.tokens.source, 'ai_usage_events');
     assert.equal(ask.tokens.input, 5 * ask.calls.length);
     assert.equal(ask.answer.tools.used.includes('compute'), true);
@@ -685,7 +741,7 @@ describe('runner faults and failures', () => {
     }, 'retry');
     const ask = docs[0].asks[0];
     assert.equal(ask.status, 'pass');
-    assert.deepEqual(ask.counts, { rateLimited: 2, serverErrors: 1, retries: 3, remounts: 0 });
+    assert.deepEqual(ask.counts, { rateLimited: 2, serverErrors: 1, retries: 3 });
     assert.deepEqual(ask.calls.slice(0, 3).map((c) => c.status), [429, 429, 503]);
     assert.deepEqual(waits.slice(0, 2), [2000, 2000]);
     assert.equal(ask.modelTurns, ask.calls.filter((c) => c.status === 200).length);
@@ -701,11 +757,19 @@ describe('runner faults and failures', () => {
     assert.equal(ask.modelTurns, 0);
   });
 
-  it('mints a fresh frame token once after a 401 and carries on', async () => {
-    const { docs, mounts } = await runWith({ ...only(readOnlyNumeric), hooks: { before: (i) => (i === 0 ? { status: 401 } : null) } }, 'remount');
-    assert.equal(docs[0].asks[0].counts.remounts, 1);
-    assert.equal(docs[0].asks[0].status, 'pass');
+  it('mints a fresh frame token for the same document once after a 401 and carries on', async () => {
+    // One thread: two lanes fire their first call together, so which ask takes the forced 401 is a race; the retry policy
+    // is not about concurrency, and the ask order of one lane is the list order.
+    const { docs, mounts, facade } = await runWith({ ...only(readOnlyNumeric), threads: 1, hooks: { before: (i) => (i === 0 ? { status: 401 } : null) } }, 'remount');
+    const ask = docs[0].asks[0];
+    assert.equal(ask.status, 'pass');
+    assert.equal(ask.renewals.length, 1);
+    assert.equal(ask.renewals[0].kind, 'frame');
+    assert.ok(Number.isFinite(ask.renewals[0].ms) && ask.renewals[0].ms >= 0);
+    assert.equal(ask.calls[1].renewed, 'frame', 'the retried call names the renewal it followed');
     assert.ok(mounts.some((m) => m.fresh === true));
+    assert.equal(facade.stats.uploads, 1, 'the document still exists: the fixture is not uploaded twice');
+    assert.equal(facade.stats.mints, 2, 'the mount mint, then the renewal');
   });
 
   it('stops a run that never answers at the façade limit of model calls', async () => {
@@ -720,7 +784,8 @@ describe('runner faults and failures', () => {
   it('replays setup.history before the question and runs the case through the same path', async () => {
     const withHistory = pick((c) => c.setup?.history);
     const { docs, facade } = await runWith({ ...only(withHistory) }, 'history');
-    const first = facade.requests[0].body.messages;
+    // The vi ask's own request: with two lanes the two asks' first calls arrive in whichever order, so requests[0] is not it.
+    const first = facade.requests.find((r) => r.body.messages.at(-1).content.includes(withHistory.query.vi)).body.messages;
     assert.equal(first.length, withHistory.setup.history.length + 1);
     withHistory.setup.history.forEach((turn, i) => assert.ok(first[i].content.includes(turn.text)));
     assert.ok(first.at(-1).content.includes(withHistory.query.vi));
@@ -772,7 +837,112 @@ describe('runner faults and failures', () => {
     }
     assert.deepEqual(redactSecrets('host 10.20.30.40.').hits, [{ kind: 'ipv4', count: 1 }]);
     assert.deepEqual(redactSecrets('Bearer abcdefghijklmnopqrstuv').hits, [{ kind: 'key', count: 1 }]);
-    assert.deepEqual(redactSecrets('Tổng 1.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'without a unit the shape is ambiguous: flagged for a human');
+    assert.deepEqual(redactSecrets('Tổng 10.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'without a unit and a lead of two digits the shape is ambiguous: flagged for a human');
+    // G712-40: the one-digit lead is kept in the money context only, never by the shape alone: a bare quad, a portless
+    // URL host and a quad before a port are redacted and flagged, so no upstream-shaped value is written unlisted.
+    assert.deepEqual(redactSecrets('Tổng 1.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'a one-digit lead without a money marker is no longer kept (G712-40)');
+    assert.deepEqual(redactSecrets('1.100.100.100').hits, [{ kind: 'ipv4', count: 1 }], 'a bare one-digit-lead quad is flagged');
+    assert.deepEqual(redactSecrets('gọi http://1.100.100.100/v1 ngay').hits, [{ kind: 'ipv4', count: 1 }], 'a portless URL host is flagged');
+    assert.deepEqual(redactSecrets('gọi 1.100.100.100:8080 ngay').hits, [{ kind: 'ipv4', count: 1 }], 'a quad before a port is flagged');
+    assert.deepEqual(redactSecrets('số 2.100.100.100').hits, [], 'the amount word is the money context (G712-40)');
+    assert.deepEqual(redactSecrets('Tổng 2.100.100.100 đồng').hits, [], 'a currency unit is the money context');
+  });
+
+  it('also redacts bearer tokens, provider keys, JWTs, userinfo URLs, long hex/base64 runs and private hosts, never money or dates (G712-10)', () => {
+    const cases10 = [
+      ['authorization: bearer abcdefghijklmnop1234', 'key'],
+      ['key sk-live1234abcd5678', 'key'],
+      ['key ak-ABCD1234efgh5678', 'key'],
+      ['key xai-ABCD1234efgh5678', 'key'],
+      ['token ghp_abcdefghijklmnopqrstuvwxyz0123', 'key'],
+      ['id AKIAABCDEFGHIJKLMNOP', 'key'],
+      ['jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkw.abc123_-xyz', 'jwt'],
+      ['open https://user:s3cretpw@gw.example/v1/x now', 'userinfo_url'],
+      ['open https://tok3nvalue@gw.example/v1/x now', 'userinfo_url'],
+      ['call gw.corp.example:8443 now', 'private_host'],
+      ['call build-box.internal today', 'private_host'],
+      ['call localhost:5432 today', 'private_host'],
+      ['call 10.20.30.40:8443 today', 'ipv4'],
+      ['call [fd00::1]:8443 today', 'ipv6'],
+      ['call 2001:db8:85a3:0:0:8a2e:370:7334 today', 'ipv6'],
+      [`digest ${'a1b2c3d4'.repeat(8)}`, 'hex_run'],
+      [`blob ${'Ab3dE6gH9kLm'.repeat(4)}`, 'base64_run'],
+      ['api_key=zx81abcd5678efgh', 'credential'],
+      ['call 2.100.100.100:8080 today', 'ipv4'],
+      ['call 10.100.100.100 today', 'ipv4'],
+      ['blob q3Vh9Z/Lm2Xk+Rt7PwB4nYcD8sE1fGjH6aKoUiT0vNxM5zQ', 'base64_run'],
+    ];
+    for (const [text, kind] of cases10) {
+      const out = redactSecrets(text);
+      assert.deepEqual(out.hits.map((h) => h.kind), [kind], text);
+      assert.match(out.text, new RegExp(`\\[redacted:${kind}\\]`), text);
+    }
+    const harmless = [
+      'Tổng 31.337.000 đồng và 1.100.100.100 VNĐ', 'Doanh thu Q1!G8 = SUM(G2:G7), Q1!B2:B5', 'Ngày 2026-10-15T09:30:00+07:00 và 15/10/2026 lúc 09:30:45',
+      'Tổng 22060000 VND (31,337,000)', 'tokens: 5600000, input_tokens: 123456789', 'Xem report.xlsx:2026 và Sheet1.A1:B2', 'Thời hạn 12:30, tỷ lệ 10:1',
+      'trace 0123456789abcdef0123456789abcdef',
+      // G712-26: a slash-joined path, a long CamelCase identifier and a dotted number with a one-digit lead are not secrets.
+      'tệp /home/ubuntu/orca/workspaces/uniwork/feature-UNI-1384-g7-12-holdout-eval/scripts/office/g5g6g7/holdout-run.mjs',
+      'xem docs/office/g5g6g7/holdout/cases/HO-XLSX-023.json và packages/views/layout/module-icons.ts',
+      'lớp aVeryLongCamelCaseIdentifierWithNumbers12345 và AbstractSingletonProxyFactoryBean2WithExtras12345',
+      'số 2.100.100.100',
+      'Một đoạn văn tiếng Việt dài không có bí mật nào cả, chỉ có chữ và số 12345.',
+    ];
+    for (const text of harmless) assert.deepEqual(redactSecrets(text), { text, hits: [] }, text);
+  });
+
+  it('redacts an email as a soft kind, and keeps an address the case set itself carries (G712-62)', () => {
+    const email = 'g712-holdout-test@example.com';
+    const flagged = redactSecrets(`sign-in for ${email} was refused`);
+    assert.deepEqual(flagged.hits, [{ kind: 'email', count: 1 }]);
+    assert.equal(flagged.text, 'sign-in for [redacted:email] was refused');
+    // Exact provenance, not a broad pattern: the case's own address stays, another address beside it still goes.
+    const exemptEmails = new Set([email]);
+    assert.deepEqual(redactSecrets(`write to ${email} today`, { exemptEmails }), { text: `write to ${email} today`, hits: [] });
+    const mixed = redactSecrets(`write to ${email} or bookkeeping@example.com`, { exemptEmails });
+    assert.deepEqual(mixed.hits, [{ kind: 'email', count: 1 }], 'only the exact address the cases carry is exempt');
+    assert.equal(mixed.text, `write to ${email} or [redacted:email]`);
+  });
+
+  it('reads the emails a case set really carries, so the runner exempts exactly them (G712-62)', () => {
+    const synthetic = [
+      { id: 'S-1', query: { vi: 'thư gửi ops@example.org' }, referenceAnswer: { text: 'gửi ops@example.org và kế toán', structural: [{ value: 'ops@example.org' }] } },
+      { id: 'S-2', query: { vi: 'không có địa chỉ nào' } },
+    ];
+    assert.deepEqual([...fixtureEmails(synthetic)], ['ops@example.org'], 'every address-shaped value of the loaded case data is read');
+    assert.deepEqual([...fixtureEmails([])], [], 'a case set without an address exempts nothing');
+  });
+
+  it('keeps the base64 guard\'s miss rate at or under the number its comment documents (G712-41)', () => {
+    // The comment on looksEncoded documents the measurement (2.2% of 40-character blobs missed on 100000 random blobs, 2026-10-16).
+    // This is a deterministic sample of the same population: same blobs every run, so a guard that got worse fails here and an
+    // improvement passes; the bound is the measured 2.3%.
+    const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let a = 20261016;
+    const next = () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    let missed = 0;
+    const samples = 20000;
+    for (let i = 0; i < samples; i += 1) {
+      const blob = Array.from({ length: 40 }, () => ALPHABET[Math.floor(next() * 64)]).join('');
+      missed += redactSecrets(blob).hits.length === 0 ? 1 : 0;
+    }
+    assert.ok(missed / samples <= 0.023, `the base64 guard missed ${missed}/${samples} random 40-character blobs (measured 2.2% when the number was documented)`);
+  });
+
+  it('keeps the per-ask redaction: a leaked token is redacted in the written run, the run counted and flagged (G712-10)', async () => {
+    const leak = mutate((r) => (r.content ? { content: r.content.replace('UNIWORK_ANSWER', 'see https://svc-user:pw12345678@gw.corp.example:8443/v1 and bearer abcdefghijklmnop1234\nUNIWORK_ANSWER') } : r));
+    const { docs, files } = await runWith({ ...only(readOnlyNumeric), model: leak }, 'secret-wide');
+    assert.equal(files.length, 1);
+    const text = fs.readFileSync(files[0], 'utf8');
+    assert.doesNotMatch(text, /pw12345678|gw\.corp\.example|abcdefghijklmnop1234/);
+    assert.ok(docs[0].asks[0].redactions.length > 0);
+    assert.deepEqual(docs[0].asks.map((a) => a.status), ['pass', 'pass']);
   });
 
   it('turns a transport that always throws into error asks, not a crash', async () => {
@@ -850,6 +1020,215 @@ describe('runner faults and failures', () => {
     const { docs: ok } = await runWith({ ...only(oneWrite) }, 'edit-ok');
     assert.notEqual(ok[0].asks[0].status, 'fail');
     assert.ok(ok[0].asks[0].adapter.writeBacked > 0);
+  });
+});
+
+describe('token renewal mid-run (G7-12 pilot blocker)', () => {
+  // Two cases over two different fixtures: the mount cache then holds two documents, so a renewal can be told from an upload.
+  const firstOfEachFixture = [...new Map(cases.map((c) => [c.fixtures[0].id, c])).values()].slice(0, 2);
+  const one = firstOfEachFixture[0];
+  const only = (c) => ({ onlyIds: [c.id], subset: cases });
+
+  it('renews an expired session and an expired frame token: the run completes, both are counted and no fixture is re-uploaded', async () => {
+    const dir = path.join(tmpRoot, 'renew');
+    const password = 'Holdout-Test-Pw!';
+    const email = 'g712-holdout-test@example.com';
+    const facade = await startStubFacade({ model: scriptedModel(cases), sessionExpiresAfterCalls: 2, frameExpiresAfterCalls: 2 });
+    const session = await createServerSession({ serverUrl: facade.url, email, password });
+    const lines = [];
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 2, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: firstOfEachFixture.map((c) => c.id), sessionId: 's-renew', opts: { sleep: noSleep }, log: (line) => lines.push(line),
+      });
+      const text = fs.readFileSync(files[0], 'utf8');
+      const doc = JSON.parse(text);
+      assert.equal(doc.status, 'completed');
+      assert.equal(doc.asks.length, 4);
+      assert.deepEqual(doc.asks.filter((a) => a.errored).map((a) => `${a.id}/${a.lang}: ${a.error}`), []);
+      assert.ok(doc.renewals.session >= 1, `a session renewal was counted: ${JSON.stringify(doc.renewals)}`);
+      assert.ok(doc.renewals.frame >= 1, `a frame renewal was counted: ${JSON.stringify(doc.renewals)}`);
+      assert.equal(facade.stats.uploads, 2, 'each fixture is uploaded once; a renewal mints for the document that still exists');
+      assert.ok(facade.stats.mints > facade.stats.uploads, 'the renewals minted again');
+      const notes = doc.asks.flatMap((a) => a.renewals);
+      assert.equal(notes.length, doc.renewals.session + doc.renewals.frame, 'the run summary counts every ask note');
+      assert.ok(notes.every((r) => ['session', 'frame'].includes(r.kind) && Number.isFinite(r.ms) && r.ms >= 0), JSON.stringify(notes));
+      // The renewal time is not a call's latency: the retried call keeps its own clientMs, and the renewal is named on it.
+      const retried = doc.asks.flatMap((a) => a.calls).filter((c) => c.renewed);
+      assert.ok(retried.length >= 1);
+      assert.ok(retried.every((c) => c.status === 200 && Number.isFinite(c.clientMs)));
+      // The test user's credentials (the email address too) never reach the run file or a log line.
+      for (const secret of [email, password, 'stub-access-', 'stub-refresh-', 'uniwork_refresh']) {
+        assert.equal(text.includes(secret), false, `the run file carries ${secret}`);
+        assert.ok(lines.every((line) => !line.includes(secret)), `a log line carries ${secret}`);
+      }
+      assert.match(lines.join('\n'), /renewal\(s\)/, 'the log line reports the renewals');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('gives up after a second consecutive 401, with the one renewal it made counted', async () => {
+    const { docs, facade } = await runWith({ ...only(one), threads: 1, hooks: { before: () => ({ status: 401 }) } }, 'renew-twice');
+    const ask = docs[0].asks[0];
+    assert.equal(ask.errored, true);
+    assert.equal(ask.status, 'fail');
+    assert.match(ask.error, /HTTP 401/);
+    assert.deepEqual(ask.renewals.map((r) => r.kind), ['frame'], 'one renewal, then the ask stops');
+    assert.deepEqual(ask.calls.map((c) => c.status), [401, 401]);
+    assert.equal(facade.stats.uploads, 1, 'the fixture is uploaded once');
+    assert.equal(facade.stats.mints, 3, 'the mount mint, then one renewal per ask');
+  });
+
+  it('counts a frame renewal once per token minted when two asks share a fixture (G712-60)', async () => {
+    const byFixture = new Map();
+    for (const c of cases) byFixture.set(c.fixtures[0].id, [...(byFixture.get(c.fixtures[0].id) ?? []), c]);
+    const shared = [...byFixture.values()].find((group) => group.length >= 2)[0];
+    const dir = path.join(tmpRoot, 'renew-shared');
+    // Both asks of the one case 401 on their first call, so both renew the frame token at once; the held-back mint keeps
+    // the second renewal inside the first one's window, where it joins and mints nothing.
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i < 2 ? { status: 401 } : null) }, mintDelayMs: 20 });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 2, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [shared.id], sessionId: 's-renew-shared', opts: { sleep: noSleep },
+      });
+      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
+      assert.equal(doc.status, 'completed');
+      assert.deepEqual(doc.asks.filter((a) => a.errored).map((a) => `${a.id}/${a.lang}: ${a.error}`), []);
+      assert.equal(doc.asks.length, 2, 'one case, two languages, one fixture');
+      assert.equal(facade.stats.uploads, 1, 'the fixture is uploaded once: a renewal mints for the document that still exists');
+      assert.equal(facade.stats.mints - facade.stats.uploads, 1, 'exactly one frame token was renewed');
+      assert.equal(doc.renewals.frame, 1, 'the printed count is the tokens minted, not the asks that asked for one');
+      assert.equal(doc.asks.flatMap((a) => a.renewals).filter((r) => r.kind === 'frame').length, doc.renewals.frame, 'the frame notes equal the run summary');
+      assert.ok(doc.asks.every((a) => a.calls.some((c) => c.renewed === 'frame')), 'both asks recorded the renewal action');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('keeps the renewal time out of the per-ask wall used for server overhead, and keeps the raw wall (G712-61)', async () => {
+    const fixtureId = one.fixtures[0].id;
+    const dir = path.join(tmpRoot, 'renew-wall');
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i === 0 ? { status: 401 } : null) }, mintDelayMs: 60 });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      // Warm the mount first: the asks' walls then carry no upload or first mint, only their own work.
+      await session.mount(fixtureId);
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-renew-wall', opts: { sleep: noSleep },
+      });
+      const [renewing, plain] = JSON.parse(fs.readFileSync(files[0], 'utf8')).asks;
+      assert.equal(renewing.renewals.length, 1);
+      assert.ok(renewing.renewalMs >= 60, `the held-back mint is part of the renewal time: ${renewing.renewalMs} ms`);
+      assert.equal(renewing.wallMsNoRenewals, Number((renewing.wallMs - renewing.renewalMs).toFixed(1)), 'the raw wall is kept beside the clean one');
+      const modelSum = (a) => a.calls.filter((c) => c.status === 200).reduce((n, c) => n + c.clientMs, 0);
+      const cleanOverhead = renewing.wallMsNoRenewals - modelSum(renewing);
+      const plainOverhead = plain.wallMs - modelSum(plain);
+      assert.ok(cleanOverhead - plainOverhead < renewing.renewalMs, `server overhead (wall − model sum) reads at the level of an ask that never renewed: ${cleanOverhead} vs ${plainOverhead}`);
+      assert.deepEqual([plain.renewalMs, plain.wallMsNoRenewals], [0, plain.wallMs], 'an ask that renewed nothing keeps its wall');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('redacts the test user\'s address when a renewal failure text carries it: run file and log lines stay clean (G712-62)', async () => {
+    const dir = path.join(tmpRoot, 'renew-email');
+    const email = 'g712-holdout-test@example.com';
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i === 0 ? { status: 401 } : null) } });
+    const session = await createServerSession({ serverUrl: facade.url, email });
+    // A renewal that fails the way a server body could echo the address back: the error text names it.
+    const failing = { ...session, mount: (fixtureId, o) => (o?.fresh ? Promise.reject(new Error(`session renewal via login failed: 401 ${email} is not allowed`)) : session.mount(fixtureId, o)) };
+    const lines = [];
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session: failing, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-renew-email', opts: { sleep: noSleep }, log: (line) => lines.push(line),
+      });
+      const text = fs.readFileSync(files[0], 'utf8');
+      const doc = JSON.parse(text);
+      assert.equal(doc.status, 'completed', 'the failed renewal is one error ask, not a dead run');
+      const errored = doc.asks.filter((a) => a.errored);
+      assert.equal(errored.length, 1);
+      assert.match(errored[0].error, /session renewal via login failed: 401 \[redacted:email\] is not allowed/);
+      assert.equal(text.includes(email), false, 'the run file carries no address');
+      assert.ok(lines.every((line) => !line.includes(email)), 'no log line carries the address');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('re-uploads the fixture once when the mint says the document is gone, then mints for the new one (G712-63)', async () => {
+    const dir = path.join(tmpRoot, 'renew-404');
+    const mintedOnce = new Set();
+    const goneAfterFirstMint = (docId) => { const again = mintedOnce.has(docId); mintedOnce.add(docId); return again ? 404 : null; };
+    const facade = await startStubFacade({ model: scriptedModel(cases), hooks: { before: (i) => (i === 0 ? { status: 401 } : null), mint: goneAfterFirstMint } });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-renew-404', opts: { sleep: noSleep },
+      });
+      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
+      assert.equal(doc.status, 'completed');
+      const [renewing] = doc.asks;
+      assert.equal(renewing.errored, false, 'the renewal re-uploads and the ask goes on');
+      assert.equal(facade.stats.uploads, 2, 'the fixture is uploaded again exactly once');
+      assert.equal(facade.stats.mints, 2, 'the first mount minted, the 404 mint minted nothing, the new document minted');
+      const askedDocs = [...new Set(facade.requests.map((r) => r.doc))];
+      assert.equal(askedDocs.length, 2, 'the retried call goes to the document uploaded in its place');
+      assert.notEqual(askedDocs[0], askedDocs[1]);
+      assert.equal(renewing.renewals.filter((r) => r.kind === 'frame').length, 1, 'the re-upload renewal is one token minted');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('renews through POST /api/v1/auth/login when the sign-in left no refresh cookie', async () => {
+    const dir = path.join(tmpRoot, 'renew-login');
+    const facade = await startStubFacade({ model: scriptedModel(cases), sessionExpiresAfterCalls: 1, setRefreshCookie: false });
+    const session = await createServerSession({ serverUrl: facade.url });
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 2, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-login', opts: { sleep: noSleep },
+      });
+      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
+      assert.equal(doc.status, 'completed');
+      assert.deepEqual(doc.asks.filter((a) => a.errored).map((a) => a.error), []);
+      assert.ok(doc.renewals.session >= 1, JSON.stringify(doc.renewals));
+      assert.ok(facade.stats.logins >= 1, 'the credentials were the way back');
+      assert.equal(facade.stats.refreshes, 0, 'there was no refresh cookie to use');
+    } finally {
+      await facade.close();
+    }
+  });
+
+  it('renews both tokens before use when they are older than their windows, and prefers the refresh cookie', async () => {
+    let clock = 0;
+    const nowMs = () => clock;
+    const dir = path.join(tmpRoot, 'renew-proactive');
+    const facade = await startStubFacade({ model: scriptedModel(cases) });
+    const session = await createServerSession({ serverUrl: facade.url, nowMs });
+    clock = 13 * 60 * 1000; // the access token minted at sign-in is now past SESSION_RENEW_AFTER_MS (12 min)
+    try {
+      const files = await runHoldout({
+        cases, runs: 1, threads: 1, outDir: dir, session, transport: httpTransport(facade.url), usageReader, redis: 'off',
+        onlyIds: [one.id], sessionId: 's-proactive', opts: { sleep: noSleep, nowMs, frameRenewAfterMs: 0 },
+      });
+      const doc = JSON.parse(fs.readFileSync(files[0], 'utf8'));
+      assert.equal(doc.status, 'completed');
+      assert.deepEqual(doc.asks.filter((a) => a.errored).map((a) => a.error), []);
+      assert.ok(doc.asks.flatMap((a) => a.calls).every((c) => c.status === 200), 'nothing had to answer 401');
+      assert.ok(doc.renewals.session >= 1, 'the session was renewed before its first use');
+      assert.ok(doc.renewals.frame >= 1, 'the frame token was renewed before its first call');
+      assert.equal(facade.stats.refreshes, doc.renewals.session, 'every session renewal used the refresh cookie');
+      assert.equal(facade.stats.logins, 0);
+    } finally {
+      await facade.close();
+    }
   });
 });
 

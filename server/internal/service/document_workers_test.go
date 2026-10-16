@@ -6,6 +6,8 @@ package service
 
 import (
 	"context"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 )
@@ -19,6 +21,84 @@ func countVersions(t *testing.T, f *docPermFixture, documentID, reason string) i
 		t.Fatal(err)
 	}
 	return n
+}
+
+func TestDocumentWorkersCommitIntentSweepTick(t *testing.T) {
+	t.Run("unset policy keeps commitIntentSweepTick default", func(t *testing.T) {
+		svc := NewDocumentService(nil, nil, nil, nil)
+		w := svc.NewDocumentWorkers()
+		if w.IntentTick != 0 {
+			t.Fatalf("IntentTick = %v, want 0 when policy SweepTick is unset", w.IntentTick)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var mu sync.Mutex
+		var ticks []time.Duration
+		w.after = func(d time.Duration) <-chan time.Time {
+			mu.Lock()
+			ticks = append(ticks, d)
+			if slices.Contains(ticks, commitIntentSweepTick) {
+				cancel()
+			}
+			mu.Unlock()
+			return make(chan time.Time)
+		}
+		w.Run(ctx)
+		if !slices.Contains(ticks, commitIntentSweepTick) {
+			t.Fatalf("observed ticks %v, want default %v (%v)", ticks, commitIntentSweepTick, 10*time.Minute)
+		}
+	})
+
+	t.Run("configured policy SweepTick threads into NewDocumentWorkers and Run", func(t *testing.T) {
+		const customTick = 15 * time.Millisecond
+		svc := NewDocumentService(nil, nil, nil, nil)
+		svc.SetCommitIntentPolicy(CommitIntentPolicy{SweepTick: customTick})
+		w := svc.NewDocumentWorkers()
+		if w.IntentTick != customTick {
+			t.Fatalf("NewDocumentWorkers().IntentTick = %v, want %v", w.IntentTick, customTick)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		var mu sync.Mutex
+		var ticks []time.Duration
+		intentPasses := 0
+		w.swept = func(kind string, err error) {
+			if kind != "commit_intent" {
+				return
+			}
+			if err != nil {
+				t.Errorf("commit_intent sweep error: %v", err)
+			}
+			mu.Lock()
+			intentPasses++
+			if intentPasses >= 3 {
+				cancel()
+			}
+			mu.Unlock()
+		}
+		w.after = func(d time.Duration) <-chan time.Time {
+			mu.Lock()
+			ticks = append(ticks, d)
+			mu.Unlock()
+			if d == customTick {
+				ch := make(chan time.Time, 1)
+				time.AfterFunc(customTick, func() { ch <- time.Now() })
+				return ch
+			}
+			return make(chan time.Time)
+		}
+		w.Run(ctx)
+		if intentPasses < 3 {
+			t.Fatalf("commit_intent passes = %d, want at least 3 on %v tick", intentPasses, customTick)
+		}
+		if !slices.Contains(ticks, customTick) {
+			t.Fatalf("observed ticks %v, want %v", ticks, customTick)
+		}
+		if slices.Contains(ticks, commitIntentSweepTick) {
+			t.Fatalf("observed ticks %v still used default %v instead of override %v", ticks, commitIntentSweepTick, customTick)
+		}
+	})
 }
 
 func TestDocumentWorkers(t *testing.T) {
