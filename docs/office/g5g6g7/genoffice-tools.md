@@ -250,7 +250,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 
 ### 3.1 Đối chiếu cột cơ học với cột tay
 
-- **Tên công cụ:** 141 dòng, khớp đúng tập tên của các bảng tay §4 theo từng module — docs 38, markdown 10, html 8, sheets 21,
+- **Tên công cụ:** 143 dòng, khớp đúng tập tên của các bảng tay §4 theo từng module — docs 39, markdown 11, html 8, sheets 21,
   slides 18, pdf 46; `agent-core` không có dòng nào. Không thiếu, không thừa, không trùng. So với bản G6-01 (135 dòng) có 6 dòng
   mới, đều do G6-12 thêm công cụ: `ask_clarification` ở docs, markdown, sheets và pdf (bốn hàng, cùng `input_schema_sha256`
   `7b1327af…` với html — hợp đồng C-ASK), cùng `summarize_range` và `compare_ranges` ở sheets (§9 dòng 21, 24).
