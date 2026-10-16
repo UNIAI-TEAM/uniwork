@@ -1,4 +1,7 @@
-import { type Page } from "@playwright/test";
+import { type Frame, type Page } from "@playwright/test";
+
+/** A page or a same-origin frame (the office frames are measured inside their iframe). */
+type Surface = Page | Frame;
 
 /**
  * Phép đo tương phản dùng chung cho mọi spec — đo trên trang đã render, không
@@ -16,7 +19,7 @@ import { type Page } from "@playwright/test";
  * 150ms. Đọc `getComputedStyle` ngay lúc đó trả về màu đang chạy dở — từng làm
  * test này báo "Bỏ qua 2.44:1" trong khi giá trị token đã đúng.
  */
-async function settle(page: Page) {
+async function settle(page: Surface) {
   await page.evaluate(
     async () =>
       await Promise.all(
@@ -39,7 +42,7 @@ async function settle(page: Page) {
   );
 }
 
-export async function auditText(page: Page, rootSelector = "body") {
+export async function auditText(page: Surface, rootSelector = "body") {
   await settle(page);
   return page.evaluate((rootSelector) => {
     // Gộp màu bằng chính bộ vẽ của trình duyệt, không tự parse chuỗi. Token của
@@ -139,6 +142,8 @@ export async function auditText(page: Page, rootSelector = "body") {
 
     const fails: string[] = [];
     let checked = 0;
+    /** The lowest ratio measured and its node, so a report can quote the margin, not only "0 below AA". */
+    let min: { ratio: number; need: number; text: string } | null = null;
     for (const el of Array.from(document.querySelectorAll<HTMLElement>(`${rootSelector} *`))) {
       const own = Array.from(el.childNodes)
         .filter((n) => n.nodeType === Node.TEXT_NODE)
@@ -163,10 +168,11 @@ export async function auditText(page: Page, rootSelector = "body") {
       // màu chữ có alpha thì cũng gộp; trên gradient lấy điểm màu tệ nhất
       const got = Math.min(...grounds.map((back) => ratio(flatten([...back, cs.color]), flatten(back))));
       checked++;
+      if (!min || got < min.ratio) min = { ratio: Math.round(got * 100) / 100, need, text: own.slice(0, 26) };
       if (got < need) {
         fails.push(`"${own.slice(0, 26)}" ${got.toFixed(2)}:1 < ${need} (${Math.round(size)}px/${weight})`);
       }
     }
-    return { fails, checked, colorLevel4 };
+    return { fails, checked, colorLevel4, min };
   }, rootSelector);
 }
