@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -98,6 +99,9 @@ func TestSummarizeFailuresAnswerFixedCodes(t *testing.T) {
 			status: http.StatusGatewayTimeout, code: "ai_timeout", reason: summaryReasonTimeout, usage: "failed", usageCode: "ai_provider_timeout"},
 		{name: "vendor rate limit", fake: &provider.Fake{Err: &provider.StatusError{Status: http.StatusTooManyRequests, RetryAfter: 7 * time.Second}},
 			status: http.StatusTooManyRequests, code: "ai_rate_limited", reason: summaryReasonRateLimited, usage: "failed", usageCode: "ai_rate_limited", retryAfter: 7},
+		// An answer cut at max_tokens was billed: it is bad output, not an outage.
+		{name: "truncated", fake: &provider.Fake{Err: provider.ErrTruncated},
+			status: http.StatusBadGateway, code: "ai_failed", reason: summaryReasonParse, usage: "failed", usageCode: "ai_output_invalid"},
 		{name: "malformed json", fake: &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
 			return provider.CompletionResponse{Text: `{"summary": "cut off` + secret, Model: "fake", InputTokens: 10, OutputTokens: 5}
 		}}, status: http.StatusBadGateway, code: "ai_failed", reason: summaryReasonParse, usage: "succeeded"},
@@ -153,6 +157,27 @@ func TestSummarizeFailuresAnswerFixedCodes(t *testing.T) {
 				t.Fatal("the failed run left the meeting's summary lock held")
 			}
 		})
+	}
+}
+
+// UNI-1853 review: the failure log names the usage row of a refused gateway
+// call too, not only of a failure after the gateway answered.
+func TestSummaryFailureUsageID(t *testing.T) {
+	refused := &ai.Error{Code: ai.ErrProviderError.Code, UsageEventID: "u-gw"}
+	cases := []struct {
+		name, given string
+		err         error
+		want        string
+	}{
+		{"after the answer", "u-resp", summaryStepError{reason: summaryReasonParse, err: errors.New("x")}, "u-resp"},
+		{"gateway refusal", "", fmt.Errorf("wrapped: %w", refused), "u-gw"},
+		{"no usage row", "", ai.ErrDisabled, ""},
+		{"not an ai error", "", errors.New("x"), ""},
+	}
+	for _, c := range cases {
+		if got := summaryUsageID(c.given, c.err); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 

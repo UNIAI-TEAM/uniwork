@@ -342,12 +342,11 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	if strings.TrimSpace(resp.Text) == "" {
 		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonEmpty, err: errSummaryEmptyOutput})
 	}
+	// ParseSummaryJSON also refuses an object with no summary, decisions or
+	// action items, so that answer counts as parse; empty is blank text only.
 	res, err := ai.ParseSummaryJSON(resp.Text)
 	if err != nil {
 		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonParse, err: err})
-	}
-	if summaryIsEmpty(res) {
-		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonEmpty, err: errSummaryEmptyOutput})
 	}
 	// The answer is billed: store it even if the request has gone away, the
 	// way the gateway still settles its usage row.

@@ -216,7 +216,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 			_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderTimeout.Code, latency, nil)
 			g.observe(req.Capability, "failed", latency)
 			g.log.Warn("ai: provider timeout", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
-			return Response{}, ErrProviderTimeout.wrap(perr)
+			return Response{}, ErrProviderTimeout.wrapUsage(perr, row.ID)
 		}
 		// A vendor rate limit is a throttle, not an outage (design §6.4/§3.4):
 		// the caller is told to slow down and how long to wait — the vendor's
@@ -229,6 +229,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 			g.observe(req.Capability, "failed", latency)
 			g.log.Warn("ai: provider rate limited", "usage_event_id", row.ID, "capability", req.Capability,
 				"retry_after_s", limited.Fields["retry_after"], "latency_ms", latency.Milliseconds())
+			limited.UsageEventID = row.ID
 			return Response{}, limited
 		}
 		// A structured answer cut at max_tokens is bad output, not an outage:
@@ -237,21 +238,21 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 			_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrOutputInvalid.Code, latency, nil)
 			g.observe(req.Capability, "failed", latency)
 			g.log.Warn("ai: output truncated", "usage_event_id", row.ID, "capability", req.Capability, "output_tokens", resp.OutputTokens)
-			return Response{}, ErrOutputInvalid.wrap(perr)
+			return Response{}, ErrOutputInvalid.wrapUsage(perr, row.ID)
 		}
 		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderError.Code, latency, nil)
 		g.observe(req.Capability, "failed", latency)
 		g.log.Warn("ai: provider error", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds(), "err", perr)
 		if errors.Is(perr, provider.ErrUnsupportedMedia) {
-			return Response{}, ErrMediaUnsupported.wrap(perr)
+			return Response{}, ErrMediaUnsupported.wrapUsage(perr, row.ID)
 		}
-		return Response{}, ErrProviderError.wrap(perr)
+		return Response{}, ErrProviderError.wrapUsage(perr, row.ID)
 	}
 	calls, denied := auditToolCalls(resp.ToolCalls, req.Tools)
 	if denied != "" && !req.FilterToolCalls {
 		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrToolNotAllowed.Code, latency, calls)
 		g.observe(req.Capability, "failed", latency)
-		return Response{}, ErrToolNotAllowed.wrap(errors.New("tool " + denied))
+		return Response{}, ErrToolNotAllowed.wrapUsage(errors.New("tool "+denied), row.ID)
 	}
 	// UsagePresent is false only when the vendor positively reported no usage
 	// block. A response that carries token counts did report usage, whatever

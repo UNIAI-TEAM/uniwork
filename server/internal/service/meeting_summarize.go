@@ -85,7 +85,7 @@ func errSummaryTimeout() error {
 	return coded(http.StatusGatewayTimeout, "ai_timeout", "AI trả lời quá lâu. Thử lại sau.")
 }
 
-// errSummaryEmptyOutput is a model answer that parsed but says nothing.
+// errSummaryEmptyOutput is a model answer with no text at all.
 var errSummaryEmptyOutput = errors.New("meetings: summary output is empty")
 
 // summaryStepError is a failure after the gateway answered, so after the
@@ -100,20 +100,38 @@ func (e summaryStepError) Unwrap() error { return e.err }
 
 // summaryFailure turns a failed run into the refusal the client sees, counts
 // it, and logs the cause with the ids that tie it to its usage row. A billed
-// call that left no summary (parse, empty, store) is logged at Warn with the
-// usage_event_id, so an orphaned usage row can be traced (UNI-1853 L2).
+// call that left no summary (truncated, parse, empty, store) is logged at
+// Warn with the usage_event_id, so an orphaned usage row can be traced
+// (UNI-1853 L2); a gateway refusal names its own row (summaryUsageID).
 func (s *MeetingService) summaryFailure(meetingID, usageEventID string, err error) error {
 	reason, out := classifySummaryFailure(err)
 	s.summaryErrorCount(reason)
-	slog.Warn("meetings: summary failed", "meeting_id", meetingID, "usage_event_id", usageEventID, "reason", reason, "err", err)
+	slog.Warn("meetings: summary failed", "meeting_id", meetingID, "usage_event_id", summaryUsageID(usageEventID, err),
+		"reason", reason, "err", err)
 	return out
+}
+
+// summaryUsageID is the usage row a failed run left: the one the gateway
+// answered with, or the one its refusal names (timeout, vendor error,
+// truncated output), "" when the call never reached the vendor.
+func summaryUsageID(usageEventID string, err error) string {
+	if usageEventID != "" {
+		return usageEventID
+	}
+	var aiErr *ai.Error
+	if errors.As(err, &aiErr) {
+		return aiErr.UsageEventID
+	}
+	return ""
 }
 
 // classifySummaryFailure maps a cause to its metric reason and its refusal.
 // Quota and rate limit keep the gateway's code, status and fields (the
 // rate limit's retry_after among them, UNI-1853 L16); everything the model
 // side did wrong is ai_failed; a store failure stays an internal error, so
-// the handler answers 500 without echoing it.
+// the handler answers 500 without echoing it. An answer the gateway refused
+// as invalid (cut at max_tokens) was billed like any other bad output, so it
+// counts as parse, not as a provider outage.
 func classifySummaryFailure(err error) (string, error) {
 	var step summaryStepError
 	if errors.As(err, &step) {
@@ -129,6 +147,8 @@ func classifySummaryFailure(err error) (string, error) {
 			return summaryReasonNotConfigured, errSummaryNotConfigured()
 		case ai.ErrProviderTimeout.Code:
 			return summaryReasonTimeout, errSummaryTimeout()
+		case ai.ErrOutputInvalid.Code:
+			return summaryReasonParse, errSummaryFailed()
 		case ai.ErrQuotaExceeded.Code:
 			return summaryReasonQuota, CodedError{Code: aiErr.Code, Status: aiErr.Status, Msg: ai.ErrQuotaExceeded.Msg, Fields: aiErr.Fields}
 		case ai.ErrRateLimited.Code:
@@ -147,11 +167,6 @@ func (s *MeetingService) summaryErrorCount(reason string) {
 	if s.metrics != nil {
 		s.metrics.IncSummaryError(reason)
 	}
-}
-
-// summaryIsEmpty is a parsed answer with nothing to store.
-func summaryIsEmpty(res ai.MeetingSummary) bool {
-	return strings.TrimSpace(res.Summary) == "" && len(res.Decisions) == 0 && len(res.ActionItems) == 0
 }
 
 // claimSummaryRun claims the meeting's summary run lease (UNI-1853 M9): one
