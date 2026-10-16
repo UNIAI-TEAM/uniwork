@@ -1065,10 +1065,18 @@ func (w *isoWorld) buildEditLocks(t *testing.T, tn *isoTenant) {
 	t.Helper()
 	ctx := context.Background()
 	m := tn.marker
-	out := w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{"title": m + " Locked page", "kind": "page"})
+	out := w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{"title": m + " Locked page", "kind": "page", "visibility": "workspace"})
 	tn.ids["lockDocument"] = isoID(t, out, "document")
+	// The matrix's controls run as the tenant's other members: the third
+	// member's POST /edit-requests gates at edit, and a created
+	// workspace-visible row opens at view (Q-S3). The share grant on the
+	// document's own workspace raises the home row to edit (SH-S1's merge),
+	// so the revision it bumps to is read back for the lock row's base.
+	w.call(t, "POST", "/api/v1/documents/"+tn.ids["lockDocument"]+"/shares", tn.token,
+		map[string]any{"principal_type": "workspace", "principal_id": tn.wsID, "level": "edit"})
+	out = w.call(t, "GET", "/api/v1/documents/"+tn.ids["lockDocument"], tn.token, nil)
 	tn.ids["lockDocumentRevision"] = isoString(t, out, "document", "revision")
-	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{"title": m + " Peer-locked page", "kind": "page"})
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{"title": m + " Peer-locked page", "kind": "page", "visibility": "workspace"})
 	tn.ids["peerLockDocument"] = isoID(t, out, "document")
 	tn.ids["docEditor"] = util.NewID()
 

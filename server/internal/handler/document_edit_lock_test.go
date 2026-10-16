@@ -71,6 +71,41 @@ func newEditLockWorld(t *testing.T) *editLockWorld {
 
 func lockPath(id string, rest string) string { return "/api/v1/documents/" + id + "/edit-lock" + rest }
 
+// shareEditToWorkspace raises the document's home row to workspace/edit: the
+// pre-SH-S1 default these scenarios were written for, where every member
+// held edit. Create only takes visibility (workspace opens at view, Q-S3);
+// a share grant for the document's own workspace merges into the home row
+// (SH-S1), and 403 on a member's write would never reach the lock gate the
+// tests exist for. One successful share also bumps the revision by one.
+func shareEditToWorkspace(t *testing.T, srv *httptest.Server, token, docID, wsID string) {
+	t.Helper()
+	res, out := doJSON(t, srv, "POST", "/api/v1/documents/"+docID+"/shares", token, map[string]any{
+		"principal_type": "workspace", "principal_id": wsID, "level": "edit",
+	})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("share edit to workspace: %d %v", res.StatusCode, out)
+	}
+}
+
+// createEditablePage is createPage for the lock tests: workspace-visible
+// (SH-S1's 1cd4497d9 creates root documents restricted) and back at member
+// edit through shareEditToWorkspace, so the other editor reaches the lock
+// gate. The shared createPage stays as it is: the root tests call it as the
+// owner and pass. The one share bump leaves the page at revision 2.
+func createEditablePage(t *testing.T, w *editLockWorld, title string) string {
+	t.Helper()
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents", w.token, map[string]any{
+		"title": title, "kind": "page", "visibility": "workspace",
+		"content": map[string]any{"type": "doc", "content": []any{map[string]any{"type": "paragraph"}}},
+	})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("create editable page: %d %v", res.StatusCode, out)
+	}
+	id := out["document"].(map[string]any)["id"].(string)
+	shareEditToWorkspace(t, w.srv, w.token, id, w.wsID)
+	return id
+}
+
 func (w *editLockWorld) acquire(t *testing.T, token, docID, editor string) map[string]any {
 	t.Helper()
 	res, out := doJSON(t, w.srv, "POST", lockPath(docID, ""), token, map[string]any{"editor_id": editor, "client": "web_page"})
@@ -119,7 +154,7 @@ func wantLocked(t *testing.T, what string, res *http.Response, out map[string]an
 // and are covered by TestEditLockRefusesCommitRoutesHandler (CBE-1b-2).
 func TestEditLockWritesRefusedWith423Handler(t *testing.T) {
 	w := newEditLockWorld(t)
-	_, id := createPage(t, w.docsWorld, "Locked", nil)
+	id := createEditablePage(t, w, "Locked")
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions", w.token, map[string]any{"label": "v1"})
 	if res.StatusCode != 201 {
 		t.Fatalf("version: %d %v", res.StatusCode, out)
@@ -141,13 +176,13 @@ func TestEditLockWritesRefusedWith423Handler(t *testing.T) {
 	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.token, map[string]any{"revision": "1", "content": pageContent("mine")})
 	wantLocked(t, "owner without the lock id", res, out, w.userID, true)
 
-	// A rename needs no lock (Q5).
-	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.editorToken, map[string]any{"revision": "1", "title": "Renamed"})
+	// A rename needs no lock (Q5); the fixture share bumped the revision to 2.
+	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.editorToken, map[string]any{"revision": "2", "title": "Renamed"})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("rename by the other editor: %d %v", res.StatusCode, out)
 	}
 	// The holder writes with its lock id; a stale base is then the usual 422.
-	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.token, map[string]any{"revision": "2", "content": pageContent("mine"), "edit_lock_id": lockID})
+	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+id, w.token, map[string]any{"revision": "3", "content": pageContent("mine"), "edit_lock_id": lockID})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("holder's write: %d %v", res.StatusCode, out)
 	}
@@ -169,6 +204,9 @@ func TestEditLockRefusesCommitRoutesHandler(t *testing.T) {
 	enableOfficeDocsWeb(t, w.q)
 	editor, _ := w.officeJoinWorkspace(t, "lock-commit-editor@example.com")
 	docID := w.createDocx(t, "locked.docx", frameDocx(t, "v1"))
+	// createDocx opens the file workspace-visible but at view (Q-S3); the
+	// member's staged upload is an edit, so the home row must carry edit.
+	shareEditToWorkspace(t, w.srv, w.token, docID, w.wsID)
 
 	stage := func(t *testing.T, token string) string {
 		t.Helper()
@@ -287,7 +325,7 @@ func TestEditLockRouteStatusesClientCancel(t *testing.T) {
 // outsider who learns nothing.
 func TestEditLockRouteStatuses(t *testing.T) {
 	w := newEditLockWorld(t)
-	_, id := createPage(t, w.docsWorld, "Statuses", nil)
+	id := createEditablePage(t, w, "Statuses")
 	editorID := util.NewID()
 
 	// R1 with no lock.

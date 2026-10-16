@@ -132,6 +132,7 @@ export function LibraryRowView({
   const accessKey = rowAccessLabelKey(row);
   const visibilityKey = rowVisibilityLabelKey(row);
   const restricted = doc?.visibility === "restricted";
+  const starred = Boolean(doc && handlers.isStarred(doc.id));
   const metaLine = [editor, updated, size].filter(Boolean).join(" · ");
 
   // A trashed folder is not browsable: its primary action is Restore when the
@@ -161,7 +162,6 @@ export function LibraryRowView({
       actions.push({ id: "open-app", label: t("documents.home.row.open_app"), icon: MonitorUp, run: () => void appRequest.current?.() });
     }
     if (handlers.onToggleStar) {
-      const starred = handlers.isStarred(doc.id);
       actions.push({
         id: "star",
         label: starred ? t("documents.home.row.unstar") : t("documents.home.row.star"),
@@ -223,6 +223,9 @@ export function LibraryRowView({
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="truncate text-body text-foreground">{title}</span>
+          {starred ? (
+            <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
+          ) : null}
           {archived || doc?.archived_at ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}

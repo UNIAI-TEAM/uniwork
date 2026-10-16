@@ -52,7 +52,7 @@ function source(over: Record<string, unknown> = {}) {
   return {
     id: "chat:m1",
     source: "chat",
-    parent: { kind: "chat_channel", id: "c1", title: "Kênh chung" },
+    parent: { kind: "chat_channel", id: "c1", title: "Kênh chung", message_id: "msg1" },
     name: "Đề xuất ngân sách.pdf",
     mime_type: "application/pdf",
     extension: "pdf",
@@ -201,22 +201,54 @@ describe("file from another module", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.download_failed")));
   });
 
-  it("opens the chat room and message that holds the file", async () => {
-    route({
-      sources: () => [
-        source({ parent: { kind: "chat_channel", id: "c1", title: "Kênh chung", message_id: "m1" } }),
-      ],
-    });
+  it("opens the channel room at the message the file was sent in, inside this workspace", async () => {
+    route({ sources: () => [source()] });
+    const adapter = renderView();
+    // The literal copy is pinned on purpose (U-SRC3): one label for every origin but email.
+    await pickFromMenu("Đề xuất ngân sách.pdf", "Xem nơi đính kèm");
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=msg1");
+  });
+
+  it("opens the DM room at the message the file was sent in", async () => {
+    route({ sources: () => [source({ parent: { kind: "chat_dm", id: "dm1", title: "Dũng", message_id: "msg7" } })] });
     const adapter = renderView();
     await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.go_to_source"));
-    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=m1");
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=dm1&message=msg7");
+  });
+
+  it("opens a group room (sent as chat_dm with the group's room id)", async () => {
+    route({ sources: () => [source({ parent: { kind: "chat_dm", id: "group1", title: "Nhóm dự án", message_id: "msg8" } })] });
+    const adapter = renderView();
+    await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.go_to_source"));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=group1&message=msg8");
+  });
+
+  it("opens the room only when the server named no message", async () => {
+    route({ sources: () => [source({ parent: { kind: "chat_channel", id: "c1", title: "Kênh chung" } })] });
+    const adapter = renderView();
+    await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.go_to_source"));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1");
+  });
+
+  it("opens the Email Hub for an email attachment, under its own label", async () => {
+    route({ sources: () => [source({ id: "email:a1", source: "email", name: "Hóa đơn.pdf", parent: { kind: "email_thread", id: "th1", title: "Hóa đơn", message_id: "" } })] });
+    const adapter = renderView();
+    await pickFromMenu("Hóa đơn.pdf", "Mở Email");
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/email");
   });
 
   it("opens the task a comment attachment belongs to", async () => {
-    route({ sources: () => [source({ id: "task:a1", source: "task", name: "Phụ lục.docx", extension: "docx", parent: { kind: "task", id: "t7", title: "Việc" } })] });
+    route({ sources: () => [source({ id: "task:a1", source: "task", name: "Phụ lục.docx", extension: "docx", parent: { kind: "task", id: "t7", title: "Việc", message_id: "" } })] });
     const adapter = renderView();
     await pickFromMenu("Phụ lục.docx", t("documents.home.row.go_to_source"));
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/tasks/t7");
+  });
+
+  it("opens the meeting a file belongs to", async () => {
+    route({ sources: () => [source({ id: "meeting:a1", source: "meeting", name: "Biên bản.docx", extension: "docx", parent: { kind: "meeting", id: "mt3", title: "Họp tuần", message_id: "" } })] });
+    const adapter = renderView();
+    await pickFromMenu("Biên bản.docx", t("documents.home.row.go_to_source"));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/meetings/mt3");
   });
 
   it("goes nowhere for a parent the web app has no page for", async () => {
@@ -269,6 +301,32 @@ describe("starring a document", () => {
     expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.starred") })).toBeInTheDocument();
     expect(await rowOf("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Khác")).toBeNull();
+  });
+
+  it("shows the star marker on the row after starring and removes it after unstarring", async () => {
+    let starred = false;
+    const fav = { document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" };
+    route({
+      list: () => [summary()],
+      favorites: () => (starred ? [fav] : []),
+      post: (path) => {
+        if (path === "/api/v1/documents/d1/favorite") starred = true;
+        return { favorite: fav };
+      },
+      del: (path) => {
+        if (path === "/api/v1/documents/d1/favorite") starred = false;
+        return { status: "ok" };
+      },
+    });
+    renderView();
+    const row = await rowOf("Kế hoạch Q4");
+    expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+
+    await pickFromMenu("Kế hoạch Q4", t("documents.home.row.star"));
+    expect(await within(row).findByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+
+    await pickFromMenu("Kế hoạch Q4", t("documents.home.row.unstar"));
+    await waitFor(() => expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull());
   });
 });
 
