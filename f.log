@@ -1,0 +1,6 @@
+$ bash scripts/turbo-cache-check.sh; echo "TURBO_CACHE_EXIT=$?"
+Updated 1 path from the index
+before=48e27ad97777fb93
+after=555f067fdedd32b5
+PASS: hash tracks dependency sources
+TURBO_CACHE_EXIT=0

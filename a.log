@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+691534090a0e1576662b36d28a71b71faff6f8ae
+691534090 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-923-office-g5g7-develop-pr2
+89262b63b chore: merge DOC05-LOCKSTEP (UNI-1413 + UNI-1628, b102210f0) into the G5-G7 root
+cbcc2a66e chore: merge C-01 6.1 audit docs follow-up (4defebdfb) into the G5-G7 root

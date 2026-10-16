@@ -1,0 +1,3 @@
+$ node scripts/office/build-upstream.mjs; echo "XLSX_GW_EXIT=$?"
+{"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
+XLSX_GW_EXIT=0
