@@ -405,12 +405,12 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
         await audit(frame, PICKER_POP, "S7 picker", mode);
         await shot(frame, `s7-picker-${mode}-${locale}`);
         await uniworkOption(frame).click();
-        // S9: one UniWork AI turn against the fake provider; the answer (or its error line) is measured.
+        // S9: one UniWork AI turn against the fake provider; the finished reply is detected by its action toolbar (or the error line) and measured.
         const composer = frame.locator(COMPOSER).first();
         await composer.click();
         await page.keyboard.type("Tóm tắt tài liệu này trong một câu.");
         await page.keyboard.press("Enter");
-        await frame.locator(".ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
+        await frame.locator(".ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
         await audit(frame, ".ai-chat", "S9 result/error", mode);
         await shot(frame, `s9-result-${mode}-${locale}`);
       });
