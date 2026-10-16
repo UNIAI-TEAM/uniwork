@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+77a8d36e4f7a88d8453c35e78ffa4879b372ef68
+b8bca493dba58a966e6f07471231c24a477d4bbe
+77a8d36e4 fix(documents): keep a clear gap before the access group in the library toolbar (UNI-1868)
+a19be6299 fix(documents): keep the Trang chip on recent and shared, trust only known formats (UNI-1868)
+1bfc19ab4 chore(merge): G5-G7 root b8bca493d into LISTFILTER-01 web
+22f526b06 test(documents): cover server-side type/access filters (UNI-1868)
+a9f72bd8c feat(documents): send type chips and access filter to the list APIs (UNI-1868)
+b8bca493d chore: merge VERHIST-01 (UNI-1849, fdcfad4be) into the G5-G7 root
+beafb3adc chore: merge ICONS-01 (UNI-1842, f04cfb878) into the G5-G7 root
+f04cfb878 chore(merge): G5-G7 root b65535f35 into ICONS-01
+fdcfad4be chore(merge): G5-G7 root b65535f35 into VERHIST-01
+10b16375a chore: merge LISTFILTER-01 server + core (UNI-1868, 7a8154623) into the G5-G7 root
