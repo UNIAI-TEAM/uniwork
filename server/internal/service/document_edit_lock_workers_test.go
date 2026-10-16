@@ -292,12 +292,13 @@ func TestArchiveReleasesEditLock(t *testing.T) {
 	wantNotFound(t, err)
 }
 
-// FA5b: the owner seams archive in the caller's transaction, so the edit
-// lock release they write is part of that transaction too: the tenure ends
-// with document_archived and carries the release audit row and the
-// lock_changed frame the public archive writes, as soon as the caller
-// commits. The release counters stay unflushed - the seam cannot see the
-// commit - so the seam's caller owns the metric, not the command.
+// FA5b / CBE-1e-b-1: the owner seams archive in the caller's transaction, so
+// the edit lock release they write is part of that transaction too: the
+// tenure ends with document_archived and carries the release audit row and
+// the lock_changed frame the public archive writes as soon as the caller
+// commits, and rolls back with the document if the caller rolls back. The
+// release counters stay unflushed - the seam cannot see the commit - so the
+// seam's caller owns the metric, not the command.
 func TestOwnerSeamArchiveReleasesEditLock(t *testing.T) {
 	calls := map[string]func(w *lockWorld, q *db.Queries, owner Actor, d db.Document) error{
 		"ArchiveOwnedDocumentsInTx": func(w *lockWorld, q *db.Queries, owner Actor, d db.Document) error {
@@ -351,6 +352,44 @@ func TestOwnerSeamArchiveReleasesEditLock(t *testing.T) {
 			}
 			if n := w.countOutbox(t, "document.archived", owned.ID); n != 1 {
 				t.Fatalf("document.archived rows %d, want 1", n)
+			}
+		})
+
+		t.Run(seam+" rollback", func(t *testing.T) {
+			w := newLockWorld(t)
+			w.svc.SetOwnerLevelResolver(mapOwnerResolver{w.tn.member.ID: DocumentLevelEdit})
+			defer w.svc.SetOwnerLevelResolver(nil)
+			owned := w.env.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "workspace", aclOwner: w.tn.aclOwner.ID, createdBy: w.tn.aclOwner.ID, ownerID: "wp-seam"})
+			held := w.acquire(t, w.tn.member, owned.ID, "e")
+
+			tx, err := w.env.f.pool.Begin(w.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := call(w, w.env.f.q.WithTx(tx), human(w.tn.owner), owned); err != nil {
+				_ = tx.Rollback(w.ctx)
+				t.Fatal(err)
+			}
+			if err := tx.Rollback(w.ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			if got := w.env.doc(t, owned.ID); got.ArchivedAt.Valid || got.ArchiveBatchID.Valid {
+				t.Fatalf("document archived after rollback: archived_at=%v batch=%v", got.ArchivedAt, got.ArchiveBatchID)
+			}
+			w.wantLive(t, held.Lock.ID)
+			var releasedForLock int
+			if err := w.env.f.pool.QueryRow(w.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND metadata::jsonb->>'lock_id' = $2`,
+				audit.ActionDocumentEditLockReleased, held.Lock.ID).Scan(&releasedForLock); err != nil {
+				t.Fatal(err)
+			}
+			if releasedForLock != 0 || w.countAudit(t, audit.ActionDocumentEditLockReleased, owned.ID) != 0 {
+				t.Fatalf("released audit rows after rollback: lock_id=%d doc=%d, want 0",
+					releasedForLock, w.countAudit(t, audit.ActionDocumentEditLockReleased, owned.ID))
+			}
+			if n := w.countOutbox(t, topicDocumentLockChanged, owned.ID); n != 1 {
+				t.Fatalf("lock_changed rows after rollback %d, want 1 (acquire only)", n)
 			}
 		})
 	}
