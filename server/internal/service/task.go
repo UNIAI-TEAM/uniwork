@@ -637,15 +637,7 @@ func (s *TaskService) guardActiveDuplicateTask(
 	if normalized == "" {
 		return nil
 	}
-	lockKey := strings.Join([]string{
-		"task-active-duplicate",
-		ws.OrganizationID,
-		ws.ID,
-		projectID.String,
-		parentTaskID.String,
-		normalized,
-	}, "|")
-	if err := q.LockTaskDuplicateKey(ctx, lockKey); err != nil {
+	if err := q.LockTaskDuplicateKey(ctx, activeDuplicateLockKey(ws, projectID, parentTaskID, normalized)); err != nil {
 		return err
 	}
 	if allowDuplicate {
@@ -669,11 +661,30 @@ func (s *TaskService) guardActiveDuplicateTask(
 		Status: http.StatusConflict,
 		Msg:    fmt.Sprintf("đã có task đang mở với tiêu đề này: %s-%d – %s", ws.TaskPrefix, dup.Number, dup.Title),
 		Err:    ErrConflict,
-		Fields: map[string]any{
-			"task_id":    dup.ID,
-			"identifier": fmt.Sprintf("%s-%d", ws.TaskPrefix, dup.Number),
-			"title":      dup.Title,
-		},
+		Fields: activeDuplicateFields(ws, dup),
+	}
+}
+
+// activeDuplicateLockKey is the advisory key guardActiveDuplicateTask holds
+// for one normalized title under one workspace/project/parent.
+func activeDuplicateLockKey(ws db.Workspace, projectID, parentTaskID pgtype.Text, normalized string) string {
+	return strings.Join([]string{
+		"task-active-duplicate",
+		ws.OrganizationID,
+		ws.ID,
+		projectID.String,
+		parentTaskID.String,
+		normalized,
+	}, "|")
+}
+
+// activeDuplicateFields names the open task an active_duplicate_task refusal
+// points at.
+func activeDuplicateFields(ws db.Workspace, dup db.Task) map[string]any {
+	return map[string]any{
+		"task_id":    dup.ID,
+		"identifier": fmt.Sprintf("%s-%d", ws.TaskPrefix, dup.Number),
+		"title":      dup.Title,
 	}
 }
 

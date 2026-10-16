@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -259,13 +261,16 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 			// The people and projects named are checked before the items'
 			// state: a reference the workspace does not have is refused as
 			// such, whatever became of the item.
+			projects := make([]pgtype.Text, 0, len(inputs))
 			for _, ti := range inputs {
 				if _, err := s.Tasks.assigneeKind(ctx, ws.OrganizationID, ws.ID, ti.AssigneeID, "", true); err != nil {
 					return err
 				}
-				if _, err := s.Tasks.normalizeProjectID(ctx, q, ws.OrganizationID, ws.ID, ti.ProjectID); err != nil {
+				projectID, err := s.Tasks.normalizeProjectID(ctx, q, ws.OrganizationID, ws.ID, ti.ProjectID)
+				if err != nil {
 					return err
 				}
+				projects = append(projects, projectID)
 			}
 			links, err := s.liveSummaryLinks(ctx, q, m.OrganizationID, summaryID)
 			if err != nil {
@@ -285,7 +290,7 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 					Fields: map[string]any{"indexes": converted},
 				}
 			}
-			return nil
+			return refuseSummaryDuplicates(ctx, q, ws, indexes, inputs, projects)
 		},
 		After: func(ctx context.Context, q *db.Queries, ws db.Workspace, tasks []db.Task) error {
 			taskIDs := make([]string, 0, len(tasks))
@@ -326,6 +331,78 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 		out.Links = append(out.Links, SummaryTaskLink{Index: indexes[i], TaskID: t.ID})
 	}
 	return out, nil
+}
+
+// refuseSummaryDuplicates finds, before any insert, every item the
+// active-duplicate guard of createTaskInTx would refuse: a title that matches
+// an open task under the same project (summary tasks have no parent), or that
+// repeats an earlier item of the batch under the same project. One refusal
+// names them all in fields.indexes, so the host knows which items to leave
+// out, instead of the batch rolling back on the first one with no item named.
+// The open task of the lowest refused item that has one is named in the
+// guard's own fields. The guard's key locks are taken here, in sorted order so
+// two batches cannot deadlock on them, and held until commit, so the answer
+// stays true while the batch inserts.
+func refuseSummaryDuplicates(ctx context.Context, q *db.Queries, ws db.Workspace, indexes []int, inputs []CreateTaskInput, projects []pgtype.Text) error {
+	keys := make([]string, len(inputs))
+	locks := make([]string, 0, len(inputs))
+	for i, in := range inputs {
+		normalized := normalizeTaskTitle(in.Title)
+		if normalized == "" {
+			continue
+		}
+		keys[i] = activeDuplicateLockKey(ws, projects[i], pgtype.Text{}, normalized)
+		locks = append(locks, keys[i])
+	}
+	sort.Strings(locks)
+	locks = slices.Compact(locks)
+	for _, key := range locks {
+		if err := q.LockTaskDuplicateKey(ctx, key); err != nil {
+			return err
+		}
+	}
+	var refused []int
+	var named *db.Task
+	namedIndex := -1
+	seen := make(map[string]struct{}, len(inputs))
+	for i, in := range inputs {
+		if keys[i] == "" {
+			continue
+		}
+		if _, repeat := seen[keys[i]]; repeat {
+			refused = append(refused, indexes[i])
+			continue
+		}
+		seen[keys[i]] = struct{}{}
+		dup, err := q.FindActiveDuplicateTask(ctx, db.FindActiveDuplicateTaskParams{
+			OrganizationID: ws.OrganizationID, WorkspaceID: ws.ID, ProjectID: projects[i],
+			NormalizedTitle: normalizeTaskTitle(in.Title),
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		refused = append(refused, indexes[i])
+		if named == nil || indexes[i] < namedIndex {
+			named, namedIndex = &dup, indexes[i]
+		}
+	}
+	if len(refused) == 0 {
+		return nil
+	}
+	sort.Ints(refused)
+	fields := map[string]any{}
+	if named != nil {
+		fields = activeDuplicateFields(ws, *named)
+	}
+	fields["indexes"] = refused
+	return CodedError{
+		Code: "active_duplicate_task", Status: http.StatusConflict, Err: ErrConflict,
+		Msg:    "có việc trùng tiêu đề với một task đang mở hoặc với việc khác trong lần tạo này",
+		Fields: fields,
+	}
 }
 
 // summaryTaskDescription is the host's description, then what the AI said

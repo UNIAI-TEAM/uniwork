@@ -280,3 +280,48 @@ func TestSummaryViewDescribesTheItems(t *testing.T) {
 		t.Fatalf("deleted task still linked: %+v %v", v, err)
 	}
 }
+
+// UNI-1853 review: a batch that would trip the active-duplicate guard is
+// refused once, before any insert, naming every item that would: an item
+// whose title matches an open task in its project, and every repeat of a
+// title earlier in the same batch. The open task of the lowest such item is
+// named the way the guard names it.
+func TestCreateTasksFromSummaryNamesEveryDuplicateItem(t *testing.T) {
+	s, ua, _, w, m := summaryTasksFixture(t)
+	ctx := context.Background()
+	open, err := s.Tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Gửi  báo cáo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := seedSummary(t, s, m, ua.ID,
+		ai.ActionItem{Title: "Đặt phòng"},
+		ai.ActionItem{Title: "gửi báo cáo"},
+		ai.ActionItem{Title: "Mới"},
+		ai.ActionItem{Title: "Đặt phòng"},
+	)
+	_, err = s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{
+		{Index: 3}, {Index: 2}, {Index: 1}, {Index: 0},
+	}})
+	ce := wantCode(t, err, "active_duplicate_task")
+	if idx, _ := ce.Fields["indexes"].([]int); !slices.Equal(idx, []int{0, 1}) {
+		t.Fatalf("indexes = %v, want [0 1] (index 0 repeats index 3, index 1 matches an open task)", ce.Fields)
+	}
+	if ce.Fields["task_id"] != open.ID || ce.Fields["title"] != open.Title {
+		t.Fatalf("fields = %v, want the open task %s named", ce.Fields, open.ID)
+	}
+	if n := countRows(t, s, `SELECT count(*) FROM tasks WHERE workspace_id = $1 AND origin_id = $2`, w.ID, m.ID); n != 0 {
+		t.Fatalf("a refused batch created %d tasks", n)
+	}
+
+	// The same title under another project is not a duplicate, and leaving
+	// the named items out lets the rest through.
+	project, err := s.Tasks.CreateProject(ctx, Human(ua.ID), w.ID, CreateProjectInput{Title: "Khác"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{
+		{Index: 3}, {Index: 2}, {Index: 1, ProjectID: &project.ID},
+	}}); err != nil {
+		t.Fatalf("without the duplicates: %v", err)
+	}
+}
