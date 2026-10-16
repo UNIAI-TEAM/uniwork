@@ -106,6 +106,7 @@ beforeEach(() => {
       kind: "page",
       visibility: "restricted",
       organization_id: "o1",
+      workspace_id: "w1",
       revision: "4",
       acl_owner: { user_id: "u2" },
     }),

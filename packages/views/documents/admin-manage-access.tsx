@@ -56,6 +56,7 @@ export function useAdminManageAccess(
         // Lenient enums: an unknown visibility reads as the narrower one.
         visibility: data.visibility === "workspace" ? "workspace" : "restricted",
         organization_id: data.organization_id,
+        workspace_id: data.workspace_id,
         revision: data.revision,
         // Any owner kind means a work product owns it: the dialog hides itself.
         owner_kind: data.owner_kind ? "work_product" : null,

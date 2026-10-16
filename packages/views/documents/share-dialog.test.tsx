@@ -336,6 +336,54 @@ describe("ShareDialog", () => {
     expect(screen.queryByRole("option", { name: "Team" })).toBeNull();
   });
 
+  it("judges the home row by the document's workspace, not the route's (BE-SHS1-20)", async () => {
+    // Route workspace ws1, document home w2 (an organization-wide shared-with-me
+    // row opened from another workspace): ws1 is an ordinary recipient, w2 is
+    // the home row, and the merged w2 answer (empty share id) is the write.
+    let shareReads = 0;
+    const posts: any[] = [];
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) {
+        shareReads += 1;
+        return Promise.resolve(accessPayload);
+      }
+      if (path === "/api/v1/documents/d1/shares" && opts?.method === "POST") {
+        posts.push(opts.body);
+        return Promise.resolve({
+          share: { id: "", principal_type: "workspace", principal_id: "w2", level: opts.body.level },
+        });
+      }
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) {
+        return Promise.resolve({
+          workspaces: [
+            { id: WS, slug: "team", name: "Team", organization_id: ORG, organization_slug: "acme", organization_name: "Acme" },
+            { id: "w2", slug: "design", name: "Design", organization_id: ORG, organization_slug: "acme", organization_name: "Acme" },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderDialog(documentFixture({ workspace_id: "w2" }));
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_workspace"));
+    fireEvent.click(screen.getByRole("combobox", { name: t("documents.share.principal_placeholder") }));
+    expect(await screen.findByRole("option", { name: "Team" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Design" })).toBeNull();
+    fireEvent.pointerDown(screen.getByRole("option", { name: "Team" }), { pointerType: "mouse" });
+    fireEvent.pointerUp(screen.getByRole("option", { name: "Team" }), { pointerType: "mouse" });
+    fireEvent.click(screen.getByRole("option", { name: "Team" }));
+    await waitFor(() => expect(screen.queryAllByRole("option")).toHaveLength(0));
+
+    const before = shareReads;
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
+    await waitFor(() => expect(posts.length).toBe(1));
+    // The answer verifies against w2: the shares key is invalidated and read again.
+    await waitFor(() => expect(shareReads).toBeGreaterThan(before));
+    expect(screen.queryByText(t("documents.share.submit_failed"))).toBeNull();
+  });
+
   it("words the home-row level refusal with the ceiling the server names", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);

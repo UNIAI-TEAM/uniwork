@@ -90,7 +90,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
   const owned = !!doc.owner_kind;
 
   const access = useDocumentShares(wsId, doc.id, { enabled: open && canAdminister && !owned });
-  const share = useShareDocument(wsId, doc.id);
+  const share = useShareDocument(wsId, doc.id, doc.workspace_id);
   const revokeShare = useRevokeDocumentShare(wsId, doc.id);
   const update = useUpdateDocument(wsId, doc.id);
 
@@ -140,11 +140,11 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
       case "workspace":
         // The document's own workspace is its home row, moved only by the visibility control (until SH-W1's dialog surfaces it): never offered as a share.
         return (orgWorkspaces.data ?? [])
-          .filter((w) => w.id !== wsId).map((w) => ({ value: w.id, label: w.name }));
+          .filter((w) => w.id !== doc.workspace_id).map((w) => ({ value: w.id, label: w.name }));
       default:
         return [{ value: doc.organization_id, label: workspace.organization_name }];
     }
-  }, [principalType, orgWorkspaces.data, wsId, doc.organization_id, workspace.organization_name]);
+  }, [principalType, orgWorkspaces.data, doc.workspace_id, doc.organization_id, workspace.organization_name]);
 
   const submitShare = async () => {
     if (principalType === "user") return people.submit(level);

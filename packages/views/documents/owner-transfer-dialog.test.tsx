@@ -40,6 +40,7 @@ function target(over: Partial<ShareDialogTarget> = {}): ShareDialogTarget {
     id: "d1",
     title: "Kế hoạch Q4",
     organization_id: ORG,
+    workspace_id: WS,
     visibility: "workspace",
     revision: "7",
     owner_kind: undefined,

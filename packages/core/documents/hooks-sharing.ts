@@ -53,14 +53,16 @@ export function useDocumentSettings(orgId: string, opts?: { enabled?: boolean })
 }
 
 /** Grant (or move) one principal's level on a document. A share naming the
- *  document's own workspace - `wsId` - is merged into its home row (SH-S1), so
- *  that answer carries no share id and still counts as the write it is; both
- *  keys invalidate as for a visibility move. */
-export function useShareDocument(wsId: string, documentId: string) {
+ *  document's own workspace - `documentWorkspaceId`, which may differ from the
+ *  route/cache `wsId` - is merged into its home row (SH-S1), so that answer
+ *  carries no share id and still counts as the write it is; both keys
+ *  invalidate as for a visibility move. An empty `documentWorkspaceId` never
+ *  falls back to `wsId`: every answer without a row identity then throws. */
+export function useShareDocument(wsId: string, documentId: string, documentWorkspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: ShareDocumentBody) =>
-      requireVerifiableShare(await shareDocument(documentId, body), wsId),
+      requireVerifiableShare(await shareDocument(documentId, body), documentWorkspaceId),
     onSuccess: () =>
       Promise.all([
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),

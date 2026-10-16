@@ -15,6 +15,9 @@ const AdminSummarySchema = z.object({
   kind: z.string().catch("").default(""),
   visibility: z.string(),
   organization_id: z.string().catch("").default(""),
+  // The document's own workspace (the server's DocumentAdminSummaryDocumentDTO
+  // sends it); empty when absent, and an empty id never matches a merged share.
+  workspace_id: z.string().catch("").default(""),
   revision: z.string().catch("").default(""),
   owner_kind: z.string().nullable().optional().catch(undefined),
   archived_at: z.string().nullable().optional().catch(undefined),

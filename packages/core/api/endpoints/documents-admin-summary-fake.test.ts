@@ -13,6 +13,7 @@ const summary = {
   kind: "page",
   visibility: "restricted",
   organization_id: "o1",
+  workspace_id: "w2",
   revision: "7",
   acl_owner: { user_id: "u2" },
 };
@@ -33,8 +34,17 @@ describe("documents admin-summary (fake)", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(summary)).mockResolvedValueOnce(json({ summary }));
     const bare = await getDocumentAdminSummaryFake("d1");
     expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/documents/d1/admin-summary");
-    expect(bare).toMatchObject({ id: "d1", visibility: "restricted", acl_owner: { user_id: "u2" } });
+    expect(bare).toMatchObject({ id: "d1", workspace_id: "w2", visibility: "restricted", acl_owner: { user_id: "u2" } });
     expect(await getDocumentAdminSummaryFake("d1")).toMatchObject({ id: "d1", title: "Kế hoạch Q4" });
+  });
+
+  it("reads a missing or malformed workspace_id as empty instead of failing the summary", async () => {
+    const { workspace_id: _drop, ...without } = summary;
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(without))
+      .mockResolvedValueOnce(json({ ...summary, workspace_id: 7 }));
+    expect(await getDocumentAdminSummaryFake("d1")).toMatchObject({ id: "d1", workspace_id: "" });
+    expect(await getDocumentAdminSummaryFake("d1")).toMatchObject({ id: "d1", workspace_id: "" });
   });
 
   it.each([{ nope: true }, { id: 1 }, { summary: null }, null, [], "str"])("degrades %#", async (body) => {
