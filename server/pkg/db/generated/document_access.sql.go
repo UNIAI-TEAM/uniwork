@@ -564,21 +564,54 @@ JOIN documents d
   ON d.organization_id = $1
  AND d.workspace_id = c.workspace_id
  AND d.id = c.document_id
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
+ AND cv.id = d.file_version_id
 WHERE d.archived_at IS NULL
   AND d.owner_id IS NULL
+  AND ($4::text IS NULL
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = $5::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($6::text[])))
+                    AND length(d.title) > length($4::text) + 1
+                    AND right(lower(d.title), length($4::text) + 1) = '.' || $4::text))))
+  -- UNI-1868 access filter. Every row this walk keeps reaches the caller
+  -- through a share, so the level the filter compares is the share level; a
+  -- member leg that outranks it makes the row's via member (the service drops
+  -- those), and never a false negative here. 'restricted' is the visibility.
+  AND ($7::text IS NULL
+       OR ($7::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($7::text <> 'restricted' AND EXISTS (
+            SELECT 1 FROM document_shares a
+            WHERE a.organization_id = d.organization_id
+              AND a.workspace_id = d.workspace_id
+              AND a.document_id = d.id
+              AND a.revoked_at IS NULL
+              AND a.level = ANY($8::text[])
+              AND ((a.principal_type = 'user' AND a.principal_id = $2)
+                   OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
+                   OR (a.principal_type = 'workspace' AND a.principal_id = ANY($3::text[]))))))
   AND (
-    $4::timestamptz IS NULL
-    OR c.created_at < $4::timestamptz
-    OR (c.created_at = $4::timestamptz AND d.id > $5::text)
+    $9::timestamptz IS NULL
+    OR c.created_at < $9::timestamptz
+    OR (c.created_at = $9::timestamptz AND d.id > $10::text)
   )
 ORDER BY c.created_at DESC, d.id
-LIMIT $6
+LIMIT $11
 `
 
 type ListDocumentShareCandidatesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	UserID         string             `json:"user_id"`
 	WorkspaceIds   []string           `json:"workspace_ids"`
+	Format         pgtype.Text        `json:"format"`
+	FormatMime     pgtype.Text        `json:"format_mime"`
+	FormatMimes    []string           `json:"format_mimes"`
+	Access         pgtype.Text        `json:"access"`
+	AccessLevels   []string           `json:"access_levels"`
 	AfterCreatedAt pgtype.Timestamptz `json:"after_created_at"`
 	AfterID        pgtype.Text        `json:"after_id"`
 	MaxRows        int32              `json:"max_rows"`
@@ -601,6 +634,11 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 		arg.OrganizationID,
 		arg.UserID,
 		arg.WorkspaceIds,
+		arg.Format,
+		arg.FormatMime,
+		arg.FormatMimes,
+		arg.Access,
+		arg.AccessLevels,
 		arg.AfterCreatedAt,
 		arg.AfterID,
 		arg.MaxRows,

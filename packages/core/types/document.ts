@@ -49,6 +49,23 @@ export type DocumentOwnerKind = (typeof DOCUMENT_OWNER_KINDS)[number];
 export const DOCUMENT_SYSTEM_KINDS = ["my_folder"] as const;
 export type DocumentSystemKind = (typeof DOCUMENT_SYSTEM_KINDS)[number];
 
+/**
+ * The file formats the library filters by (UNI-1868): the server's
+ * `?format=` list, which is also the value it reports per file row. The
+ * server answers with the MIME the current version was verified as, else the
+ * title's extension, so a row's `format` here is the server's own reading.
+ */
+export const DOCUMENT_FILE_FORMATS = ["docx", "xlsx", "pptx", "pdf", "md", "html"] as const;
+export type DocumentFileFormat = (typeof DOCUMENT_FILE_FORMATS)[number];
+
+/**
+ * The access filter beside the type chips (UNI-1868): `manage` exactly the
+ * rows the caller manages, `edit` the rows they manage or edit, and
+ * `restricted` the rows whose visibility is restricted.
+ */
+export const DOCUMENT_ACCESS_FILTERS = ["manage", "edit", "restricted"] as const;
+export type DocumentAccessFilter = (typeof DOCUMENT_ACCESS_FILTERS)[number];
+
 export const DOCUMENT_DISPOSITIONS = ["attachment", "inline"] as const;
 export type DocumentDisposition = (typeof DOCUMENT_DISPOSITIONS)[number];
 
@@ -282,6 +299,11 @@ export const DocumentSummarySchema = z.object({
   // document came from. Newer fields: a drifted value reads as absent rather
   // than failing the whole page.
   size_bytes: z.number().nullable().optional().catch(undefined),
+  // The library format of a file row (UNI-1868): the format the server
+  // derived from the current version's MIME, else the title's extension.
+  // Absent for a page, a folder and a file neither names; a drifted value
+  // reads as absent, and the view then reads the title's extension itself.
+  format: z.string().nullable().optional().catch(undefined),
   origin: z.string().nullable().optional().catch(undefined),
   snippet: z.string().nullable().optional(),
   // The viewer's level on this row (every list route carries it); a drifted
@@ -328,7 +350,7 @@ type DocumentSummaryWire = Omit<z.infer<typeof DocumentSummarySchema>, "path" | 
 
 export type DocumentSummary = Omit<
   DocumentSummaryWire,
-  "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin" | "system_kind"
+  "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin" | "system_kind" | "format"
 > & {
   kind: DocumentKind;
   system_kind?: DocumentSystemKind | null;
@@ -337,6 +359,7 @@ export type DocumentSummary = Omit<
   my_level?: DocumentAccessLevel | null;
   via?: DocumentAccessVia | null;
   owner_kind?: DocumentOwnerKind | null;
+  format?: DocumentFileFormat | null;
 };
 
 export const DocumentListSchema = z.object({
