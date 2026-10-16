@@ -47,7 +47,7 @@ func TestChatRuleRetriesWhenTheMembershipGateFails(t *testing.T) {
 		t.Fatal("inbox should stay empty before a successful retry")
 	}
 	var deliveries int
-	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM notification_deliveries WHERE outbox_event_id = $1`, ev.ID).Scan(&deliveries); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM notification_deliveries WHERE event_id = $1`, ev.ID).Scan(&deliveries); err != nil {
 		t.Fatal(err)
 	}
 	if deliveries != 0 {
