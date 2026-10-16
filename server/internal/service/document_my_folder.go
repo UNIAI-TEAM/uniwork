@@ -40,6 +40,26 @@ func isMyFolder(doc db.Document) bool {
 	return doc.SystemKind.Valid && doc.SystemKind.String == DocumentSystemKindMyFolder
 }
 
+func errInvalidDestination() error {
+	return coded(http.StatusBadRequest, "invalid_destination", "destination chỉ nhận giá trị my_folder và không đi kèm parent_id")
+}
+
+// validateDocumentDestination enforces addendum §4: destination may only be ""
+// or "my_folder", and "my_folder" is mutually exclusive with parent_id.
+func validateDocumentDestination(destination, parentID string) error {
+	switch destination {
+	case "":
+		return nil
+	case DocumentSystemKindMyFolder:
+		if parentID != "" {
+			return errInvalidDestination()
+		}
+		return nil
+	default:
+		return errInvalidDestination()
+	}
+}
+
 // EnsureMyFolder returns the caller's personal root folder in workspaceID,
 // creating it when none exists yet (addendum §2). Only human workspace
 // members may ensure one (ADR 0010: agents never create documents).

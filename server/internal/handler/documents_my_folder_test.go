@@ -55,3 +55,63 @@ func TestEnsureMyFolderRoute(t *testing.T) {
 		t.Fatalf("PATCH my-folder = %d code=%q class=%q, want 409 my_folder_locked/conflict", resPatch.StatusCode, code, class)
 	}
 }
+
+func TestCreateWithMyFolderDestinationRoutes(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	docsBase := "/api/v1/workspaces/" + w.wsID + "/documents"
+
+	// 1. Page create with destination="my_folder" (lazily creates My Folder).
+	resPage, outPage := doJSON(t, w.srv, "POST", docsBase, w.token, map[string]any{
+		"title":       "Note in My Folder",
+		"destination": "my_folder",
+	})
+	if resPage.StatusCode != 201 {
+		t.Fatalf("POST /documents destination=my_folder = %d %v", resPage.StatusCode, outPage)
+	}
+	pageDoc, _ := outPage["document"].(map[string]any)
+	mfID, _ := pageDoc["parent_id"].(string)
+	if mfID == "" || pageDoc["visibility"] != "restricted" {
+		t.Fatalf("unexpected page SDO: %v", pageDoc)
+	}
+
+	// 2. Multipart file upload with destination="my_folder".
+	resFile, rawFile := doMultipart(t, w.srv, "POST", docsBase+"/files", w.token,
+		map[string]string{"title": "File in My Folder", "destination": "my_folder"}, "note.md", []byte("# hello\n"), nil)
+	if resFile.StatusCode != 201 {
+		t.Fatalf("POST /documents/files destination=my_folder = %d %s", resFile.StatusCode, rawFile)
+	}
+
+	// 3. Blank file create with destination="my_folder".
+	resBlank, outBlank := doJSON(t, w.srv, "POST", docsBase+"/files/blank", w.token, map[string]any{
+		"format":      "docx",
+		"title":       "Blank in My Folder",
+		"destination": "my_folder",
+	})
+	if resBlank.StatusCode != 201 {
+		t.Fatalf("POST /documents/files/blank destination=my_folder = %d %v", resBlank.StatusCode, outBlank)
+	}
+	blankDoc, _ := outBlank["document"].(map[string]any)
+	if blankDoc["parent_id"] != mfID || blankDoc["visibility"] != "restricted" {
+		t.Fatalf("unexpected blank SDO: %v, want parent_id=%q", blankDoc, mfID)
+	}
+
+	// 4. Both parent_id and destination="my_folder", or unknown destination -> 400 invalid_destination (no error_class).
+	for _, body := range []map[string]any{
+		{"title": "Bad", "destination": "my_folder", "parent_id": mfID},
+		{"title": "Bad", "destination": "elsewhere"},
+	} {
+		resBad, outBad := doJSON(t, w.srv, "POST", docsBase, w.token, body)
+		if code, class := errCodeClass(outBad); resBad.StatusCode != 400 || code != "invalid_destination" || class != "" {
+			t.Fatalf("POST /documents(%v) = %d code=%q class=%q, want 400 invalid_destination/\"\"", body, resBad.StatusCode, code, class)
+		}
+		resBadBlank, outBadBlank := doJSON(t, w.srv, "POST", docsBase+"/files/blank", w.token, map[string]any{
+			"format":      "docx",
+			"title":       "Bad",
+			"destination": body["destination"],
+			"parent_id":   body["parent_id"],
+		})
+		if code, class := errCodeClass(outBadBlank); resBadBlank.StatusCode != 400 || code != "invalid_destination" || class != "" {
+			t.Fatalf("POST /documents/files/blank(%v) = %d code=%q class=%q, want 400 invalid_destination/\"\"", body, resBadBlank.StatusCode, code, class)
+		}
+	}
+}

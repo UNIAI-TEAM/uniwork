@@ -1,13 +1,19 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestEnsureMyFolder(t *testing.T) {
@@ -282,4 +288,191 @@ func TestMyFolderLocks(t *testing.T) {
 	if _, err := env.svc.ArchiveDocument(ctx, member, child.Document.ID, ArchiveDocumentInput{IdempotencyKey: "arch-child"}); err != nil {
 		t.Fatalf("archive child inside My Folder: %v", err)
 	}
+}
+
+// MF-3: destination="my_folder" on CreatePage (page and folder), CreateFileDocument,
+// and CreateBlankFile lazily creates the caller's My Folder in the same tx, places
+// the child inside it with inherited restricted visibility, rolls back My Folder
+// if child creation fails, validates mutual exclusion with parent_id and allowlist,
+// and includes destination in the idempotency fingerprint.
+func TestCreateWithMyFolderDestination(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	ctx := env.f.ctx
+	member := human(env.tn.member)
+	creator := human(env.tn.creator)
+	owner := human(env.tn.owner)
+	office := NewDocumentOfficeService(DocumentOfficeOptions{
+		Pool: env.f.pool, Queries: env.f.q, Files: env.fs, Documents: env.svc,
+	})
+
+	// 1. Validation: unknown destination or destination="my_folder" + parent_id -> 400 invalid_destination.
+	for _, tc := range []struct {
+		name        string
+		destination string
+		parentID    string
+	}{
+		{"unknown destination", "root", ""},
+		{"both parent_id and destination", "my_folder", "01J8X4DOC0N1P2Q3R4S5T6U7"},
+	} {
+		_, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{
+			Title: "Bad", Destination: tc.destination, ParentID: tc.parentID,
+		})
+		if ce := wantCode(t, err, "invalid_destination"); ce.Status != 400 {
+			t.Fatalf("CreatePage(%s) status = %d, want 400", tc.name, ce.Status)
+		}
+		_, err = env.svc.CreateFileDocument(ctx, member, env.tn.wsA, CreateFileDocumentInput{
+			Title: "Bad", Filename: "bad.pdf", Body: bytes.NewReader(pdfBody("bad")),
+			Destination: tc.destination, ParentID: tc.parentID,
+		})
+		if ce := wantCode(t, err, "invalid_destination"); ce.Status != 400 {
+			t.Fatalf("CreateFileDocument(%s) status = %d, want 400", tc.name, ce.Status)
+		}
+		_, err = office.CreateBlankFile(ctx, member, env.tn.wsA, BlankFileInput{
+			Format: "docx", Title: "Bad", Destination: tc.destination, ParentID: tc.parentID,
+		})
+		if ce := wantCode(t, err, "invalid_destination"); ce.Status != 400 {
+			t.Fatalf("CreateBlankFile(%s) status = %d, want 400", tc.name, ce.Status)
+		}
+	}
+
+	// 2. Rollback atomicity: if child creation fails inside the transaction (e.g. quota exceeded),
+	// the newly-created My Folder rolls back with it.
+	env.setStorageLimit(t, 1)
+	_, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, CreateFileDocumentInput{
+		Title: "Over Quota", Filename: "over.pdf", Body: bytes.NewReader(pdfBody("over-quota")),
+		Destination: DocumentSystemKindMyFolder,
+	})
+	wantCode(t, err, "quota_exceeded")
+	if _, err := env.f.q.GetMyFolder(ctx, db.GetMyFolderParams{
+		OrganizationID: env.tn.orgID, WorkspaceID: env.tn.wsA, AclOwnerID: pgtype.Text{String: member.ID, Valid: true},
+	}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("expected My Folder to roll back when child create failed, got err=%v", err)
+	}
+	env.setStorageLimit(t, 1<<40)
+
+	// 3. CreatePage (page + folder) with destination="my_folder" when member has no My Folder yet:
+	// lazily creates My Folder, places page inside it, defaults visibility=restricted, includes My Folder in breadcrumbs,
+	// and writes two document.created audit + outbox rows on first create and one on subsequent creates.
+	pageKey := "mf-page-" + util.NewID()
+	pageView, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{
+		Title: "Draft Page", Destination: DocumentSystemKindMyFolder, IdempotencyKey: pageKey,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(destination=my_folder): %v", err)
+	}
+	mf, err := env.f.q.GetMyFolder(ctx, db.GetMyFolderParams{
+		OrganizationID: env.tn.orgID, WorkspaceID: env.tn.wsA, AclOwnerID: pgtype.Text{String: member.ID, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("GetMyFolder after CreatePage: %v", err)
+	}
+	if !pageView.Document.ParentID.Valid || pageView.Document.ParentID.String != mf.ID {
+		t.Fatalf("page parent_id = %+v, want %q", pageView.Document.ParentID, mf.ID)
+	}
+	if pageView.Document.Visibility != documentVisibilityRestricted {
+		t.Fatalf("page visibility = %q, want restricted", pageView.Document.Visibility)
+	}
+	if len(pageView.Breadcrumbs) != 1 || pageView.Breadcrumbs[0].ID != mf.ID {
+		t.Fatalf("page breadcrumbs = %+v, want [%s]", pageView.Breadcrumbs, mf.ID)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentCreated, mf.ID); n != 1 {
+		t.Fatalf("My Folder audit count = %d, want 1", n)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentCreated, pageView.Document.ID); n != 1 {
+		t.Fatalf("page audit count = %d, want 1", n)
+	}
+
+	// Subsequent folder create in member's My Folder writes only the child's audit row.
+	subFolder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{
+		Kind: DocumentKindFolder, Title: "Subfolder", Destination: DocumentSystemKindMyFolder,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(folder, destination=my_folder): %v", err)
+	}
+	if subFolder.Document.ParentID.String != mf.ID || subFolder.Document.Visibility != documentVisibilityRestricted {
+		t.Fatalf("subfolder parent=%q vis=%q, want %q/restricted", subFolder.Document.ParentID.String, subFolder.Document.Visibility, mf.ID)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentCreated, mf.ID); n != 1 {
+		t.Fatalf("My Folder audit count after second create = %d, want 1", n)
+	}
+
+	// Idempotency for CreatePage: replay with destination="my_folder" succeeds; mismatching destination fails.
+	replayPage, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{
+		Title: "Draft Page", Destination: DocumentSystemKindMyFolder, IdempotencyKey: pageKey,
+	})
+	if err != nil || replayPage.Document.ID != pageView.Document.ID {
+		t.Fatalf("CreatePage replay = %v, %v", replayPage.Document.ID, err)
+	}
+	_, err = env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{
+		Title: "Draft Page", IdempotencyKey: pageKey,
+	})
+	wantCode(t, err, "idempotency_payload_mismatch")
+	_, err = env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{
+		Title: "Draft Page", ParentID: mf.ID, IdempotencyKey: pageKey,
+	})
+	wantCode(t, err, "idempotency_payload_mismatch")
+
+	// 4. CreateFileDocument with destination="my_folder" for creator (who has no My Folder yet).
+	fileBytes := pdfBody("mf-file-" + util.NewID())
+	fileKey := "mf-file-" + util.NewID()
+	fileRes, err := env.svc.CreateFileDocument(ctx, creator, env.tn.wsA, CreateFileDocumentInput{
+		Title: "Uploaded PDF", Filename: "up.pdf", Body: bytes.NewReader(fileBytes),
+		Destination: DocumentSystemKindMyFolder, IdempotencyKey: fileKey,
+	})
+	if err != nil {
+		t.Fatalf("CreateFileDocument(destination=my_folder): %v", err)
+	}
+	creatorMF, err := env.f.q.GetMyFolder(ctx, db.GetMyFolderParams{
+		OrganizationID: env.tn.orgID, WorkspaceID: env.tn.wsA, AclOwnerID: pgtype.Text{String: creator.ID, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("GetMyFolder(creator): %v", err)
+	}
+	if fileRes.Document.ParentID.String != creatorMF.ID || fileRes.Document.Visibility != documentVisibilityRestricted {
+		t.Fatalf("file parent=%q vis=%q, want %q/restricted", fileRes.Document.ParentID.String, fileRes.Document.Visibility, creatorMF.ID)
+	}
+	fileReplay, err := env.svc.CreateFileDocument(ctx, creator, env.tn.wsA, CreateFileDocumentInput{
+		Title: "Uploaded PDF", Filename: "up.pdf", Body: bytes.NewReader(fileBytes),
+		Destination: DocumentSystemKindMyFolder, IdempotencyKey: fileKey,
+	})
+	if err != nil || fileReplay.Document.ID != fileRes.Document.ID {
+		t.Fatalf("CreateFileDocument replay = %v, %v", fileReplay.Document.ID, err)
+	}
+	_, err = env.svc.CreateFileDocument(ctx, creator, env.tn.wsA, CreateFileDocumentInput{
+		Title: "Uploaded PDF", Filename: "up.pdf", Body: bytes.NewReader(fileBytes),
+		IdempotencyKey: fileKey,
+	})
+	wantCode(t, err, "idempotency_payload_mismatch")
+
+	// 5. CreateBlankFile with destination="my_folder" for owner (who has no My Folder yet).
+	blankKey := "mf-blank-" + util.NewID()
+	blankRes, err := office.CreateBlankFile(ctx, owner, env.tn.wsA, BlankFileInput{
+		Format: "docx", Title: "Blank Doc", Destination: DocumentSystemKindMyFolder, IdempotencyKey: blankKey,
+	})
+	if err != nil {
+		t.Fatalf("CreateBlankFile(destination=my_folder): %v", err)
+	}
+	ownerMF, err := env.f.q.GetMyFolder(ctx, db.GetMyFolderParams{
+		OrganizationID: env.tn.orgID, WorkspaceID: env.tn.wsA, AclOwnerID: pgtype.Text{String: owner.ID, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("GetMyFolder(owner): %v", err)
+	}
+	if blankRes.Document.ParentID.String != ownerMF.ID || blankRes.Document.Visibility != documentVisibilityRestricted {
+		t.Fatalf("blank parent=%q vis=%q, want %q/restricted", blankRes.Document.ParentID.String, blankRes.Document.Visibility, ownerMF.ID)
+	}
+	blankReplay, err := office.CreateBlankFile(ctx, owner, env.tn.wsA, BlankFileInput{
+		Format: "docx", Title: "Blank Doc", Destination: DocumentSystemKindMyFolder, IdempotencyKey: blankKey,
+	})
+	if err != nil || blankReplay.Document.ID != blankRes.Document.ID {
+		t.Fatalf("CreateBlankFile replay = %v, %v", blankReplay.Document.ID, err)
+	}
+	_, err = office.CreateBlankFile(ctx, owner, env.tn.wsA, BlankFileInput{
+		Format: "docx", Title: "Blank Doc", IdempotencyKey: blankKey,
+	})
+	wantCode(t, err, "idempotency_payload_mismatch")
+	_, err = office.CreateBlankFile(ctx, owner, env.tn.wsA, BlankFileInput{
+		Format: "docx", Title: "Blank Doc", ParentID: ownerMF.ID, IdempotencyKey: blankKey,
+	})
+	wantCode(t, err, "idempotency_payload_mismatch")
 }

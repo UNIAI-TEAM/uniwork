@@ -118,6 +118,9 @@ var errorClassByCode = map[string]string{
 //     archived, so it must not read as permission (drop the copy) or gone.
 //   offline_lease_expired is an app-side reason only: the server never
 //     emits it (G5-D1 row 15), an online renewal re-checks live access.
+//   invalid_destination           (400) a create request named an unknown
+//     destination or combined destination="my_folder" with parent_id
+//     (MYFOLDER-01, §4): request validation error with no recovery class.
 //   comment_deleted        (409) the target comment is a tombstone (G8-03).
 //     "conflict" would send the client down its reload-and-retry path; the
 //     composer shows "Bình luận này đã bị xóa." and keeps its draft instead.

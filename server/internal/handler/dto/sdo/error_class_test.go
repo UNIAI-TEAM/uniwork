@@ -111,6 +111,9 @@ func TestErrorClassTable(t *testing.T) {
 		// The access report export's row cap (UNI-1643, 422 fields.max_rows):
 		// the same kind of count limit, the web asks to narrow the filter.
 		"access_report_too_large",
+		// MYFOLDER-01 (UNI-1850, §4): 400 validation refusal when create
+		// names an unknown destination or pairs destination="my_folder" with parent_id.
+		"invalid_destination",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {
