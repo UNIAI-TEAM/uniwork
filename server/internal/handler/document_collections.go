@@ -371,6 +371,14 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 		at := doc.ArchivedAt.Time.UTC().Format(time.RFC3339)
 		out.ArchivedAt = &at
 	}
+	if doc.ArchivedBy.Valid && doc.ArchivedBy.String != "" {
+		by := doc.ArchivedBy.String
+		out.ArchivedBy = &by
+	}
+	if doc.PurgeAfter.Valid {
+		after := doc.PurgeAfter.Time.UTC().Format(time.RFC3339)
+		out.PurgeAfter = &after
+	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
 	}

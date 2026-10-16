@@ -991,3 +991,128 @@ func TestDocumentCompaction(t *testing.T) {
 		}
 	})
 }
+
+func TestDocumentTrashEditHolders(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "tredit")
+	f.svc.SetFiles(&releaseSpy{})
+	owner := Human(tn.aclOwner.ID)
+	editor := Human(tn.member.ID)
+
+	t.Run("TR-1: edit holder sees trashed rows with my_level=edit, does not see unrelated rows, content read is 404, restore and purge are 403", func(t *testing.T) {
+		// 1. Workspace-visible document with workspace_level = 'edit' (default).
+		wsEdit := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, title: "WS Edit Doc",
+		})
+		// 2. Restricted document with a live 'edit' share to editor.
+		sharedEdit := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, title: "Shared Edit Doc",
+		})
+		f.share(t, sharedEdit, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
+		// 3. Unrelated rows: workspace-visible with workspace_level = 'view',
+		// restricted with 'view' share, and restricted with no share.
+		wsView := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, title: "WS View Doc",
+		})
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET workspace_level = 'view' WHERE id = $1`, wsView.ID); err != nil {
+			t.Fatal(err)
+		}
+		sharedView := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, title: "Shared View Doc",
+		})
+		f.share(t, sharedView, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
+		unsharedRestricted := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, title: "Unshared Restricted Doc",
+		})
+
+		for _, id := range []string{wsEdit.ID, sharedEdit.ID, wsView.ID, sharedView.ID, unsharedRestricted.ID} {
+			if _, err := f.svc.ArchiveDocument(f.ctx, owner, id, ArchiveDocumentInput{}); err != nil {
+				t.Fatalf("archive %s: %v", id, err)
+			}
+		}
+
+		trash, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Limit: 100})
+		if err != nil {
+			t.Fatalf("ListDocuments(Archived=true): %v", err)
+		}
+		byID := map[string]DocumentListItem{}
+		for _, it := range trash.Items {
+			byID[it.Document.ID] = it
+		}
+		for _, wantID := range []string{wsEdit.ID, sharedEdit.ID} {
+			it, ok := byID[wantID]
+			if !ok {
+				t.Fatalf("edit holder trash missing %s (got ids %v)", wantID, listIDs(trash))
+			}
+			if it.Access.Level != DocumentLevelEdit {
+				t.Fatalf("item %s Access.Level = %q, want %q", wantID, it.Access.Level, DocumentLevelEdit)
+			}
+		}
+		for _, unwantedID := range []string{wsView.ID, sharedView.ID, unsharedRestricted.ID} {
+			if _, ok := byID[unwantedID]; ok {
+				t.Fatalf("edit holder trash leaked unrelated row %s", unwantedID)
+			}
+		}
+
+		// Agents remain capped at view and never see the trash.
+		agentTrash, err := f.svc.ListDocuments(f.ctx, agentActor(tn.agent), tn.wsA, ListDocumentsInput{Archived: true, Limit: 100})
+		if err != nil {
+			t.Fatalf("agent ListDocuments(Archived=true): %v", err)
+		}
+		if len(agentTrash.Items) != 0 {
+			t.Fatalf("agent trash = %v, want empty", listIDs(agentTrash))
+		}
+
+		// Content read of trashed item stays manage-only (404 for edit holder).
+		for _, id := range []string{wsEdit.ID, sharedEdit.ID} {
+			if _, err := f.svc.GetDocument(f.ctx, editor, id); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("edit holder GetDocument(%s) = %v, want ErrNotFound", id, err)
+			}
+			if _, err := f.svc.RestoreDocument(f.ctx, editor, id, ArchiveDocumentInput{}); !errors.Is(err, ErrForbidden) {
+				t.Fatalf("edit holder RestoreDocument(%s) = %v, want ErrForbidden", id, err)
+			}
+			if _, err := f.svc.PurgeDocument(f.ctx, editor, id); !errors.Is(err, ErrForbidden) {
+				t.Fatalf("edit holder PurgeDocument(%s) = %v, want ErrForbidden", id, err)
+			}
+		}
+	})
+
+	t.Run("TR-2: creator with no current edit/manage access (ownership transferred away or restricted share revoked) does not see trashed row", func(t *testing.T) {
+		// Case A: created by editor, ownership transferred to aclOwner, restricted (no share).
+		transferredRestricted := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.member.ID, title: "Transferred Restricted",
+		})
+		// Case B: created by editor, ownership transferred to aclOwner, workspace-visible with workspace_level = 'view'.
+		transferredView := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.member.ID, title: "Transferred View",
+		})
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET workspace_level = 'view' WHERE id = $1`, transferredView.ID); err != nil {
+			t.Fatal(err)
+		}
+		// Case C: created by editor, restricted, had an edit share that was revoked.
+		revokedShareDoc := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.member.ID, title: "Revoked Share",
+		})
+		sh := f.share(t, revokedShareDoc, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
+		if _, err := f.pool.Exec(f.ctx, `UPDATE document_shares SET revoked_at = now() WHERE id = $1`, sh.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		for _, id := range []string{transferredRestricted.ID, transferredView.ID, revokedShareDoc.ID} {
+			if _, err := f.svc.ArchiveDocument(f.ctx, owner, id, ArchiveDocumentInput{}); err != nil {
+				t.Fatalf("archive %s: %v", id, err)
+			}
+		}
+
+		trash, err := f.svc.ListDocuments(f.ctx, editor, tn.wsA, ListDocumentsInput{Archived: true, Limit: 100})
+		if err != nil {
+			t.Fatalf("ListDocuments(Archived=true): %v", err)
+		}
+		ids := listIDs(trash)
+		for _, id := range []string{transferredRestricted.ID, transferredView.ID, revokedShareDoc.ID} {
+			if containsID(ids, id) {
+				t.Fatalf("creator without current edit/manage access saw trashed row %s (got %v)", id, ids)
+			}
+		}
+	})
+}

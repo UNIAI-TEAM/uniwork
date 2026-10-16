@@ -315,8 +315,10 @@ WHERE d.organization_id = sqlc.arg(organization_id)
 ORDER BY d.position, d.id
 LIMIT sqlc.arg(page_limit);
 
--- The trash view: manage-only (workspace admin, the ACL owner, or a manage
--- share), ordered by archive time descending.
+-- The trash view: manage or edit (workspace admin, the ACL owner, a
+-- workspace-visible document with workspace_level = 'edit' for a human
+-- workspace member, or a manage/edit share), ordered by archive time
+-- descending.
 -- name: ListArchivedDocumentsPage :many
 SELECT d.*
 FROM documents d
@@ -332,13 +334,16 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND ((sqlc.arg(see_all)
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
+       OR (sqlc.arg(member_visible) AND NOT sqlc.arg(agent)::boolean
+           AND d.visibility = 'workspace'
+           AND d.workspace_level = 'edit')
        OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = 'manage'
+              AND s.level IN ('manage', 'edit')
               AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
