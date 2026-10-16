@@ -12,7 +12,9 @@ Cột **Chế độ**:
 
 - `auto` — chạy trong `e2e/office-ux-floor.spec.ts` (gate `OFFICE_UX_FLOOR_E2E=1`, trên trang D web host frame Docs đã pin,
   đo trong iframe cùng origin); ghi tên test. Test có `finding()` là finding chặn đã biết: test tới được trạng thái rồi mới
-  đánh dấu expected-fail với mã `UXF-nn`; khi sản phẩm sửa xong, test "unexpectedly passed" và bỏ dấu.
+  đánh dấu expected-fail với mã `UXF-nn`; khi sản phẩm sửa xong, test "unexpectedly passed" và bỏ dấu. Expected-fail cũng nuốt
+  timeout/throw xảy ra sau khi tới trạng thái, nên khi đọc báo cáo cloud phải đối chiếu thông điệp lỗi của từng expected-fail
+  với quy tắc ở annotation `finding`; lỗi không nói về quy tắc đó là fail thật, không phải finding.
 - `manual` — người kiểm ghi lại: NVDA + Windows (Chrome/Edge), VoiceOver + macOS, ảnh chụp; ghi âm screen reader là artifact.
 - `fork e2e (proposed)` — bề mặt chỉ có ở shell Electron của fork; một dòng đề xuất cách e2e của fork kiểm, chưa làm.
 - `blocked` — S3, S11 (desktop): BLOCKED tới khi G5-05u merge (G5-D1 đã ký 2026-10-13, G5-05u HOLD vì UNI-1645);
@@ -30,7 +32,7 @@ Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pi
 | G-04 | S5 | W | Floor › Chung | Điều khiển không chạy được: `aria-disabled` + `aria-describedby` lý do, giữ trong thứ tự Tab | auto: `aria-disabled choices (web offline) stay in the Tab loop with a reason` |
 | G-05 | S2 S3 S6 S8 | W + D | Floor › Chung | Như G-04 cho S6 (chờ commit), S8 (Gửi), S2/S3 | manual (W S6/S8: NVDA); D: fork e2e (proposed): fixture intent `committing` rồi đọc thuộc tính |
 | G-06 | S5 | W + D | Floor › Chung | Nút danger `aria-disabled` giữ chữ `danger-text` | manual: ảnh S5 offline light/dark |
-| L-01 | shell, frame | W | Floor › Vùng live | Mỗi frame có đúng một `role=status` và một `role=alert` (rỗng) cố định từ lúc tải | auto: `the frame has its two fixed live nodes from load, before any bar` |
+| L-01 | shell, frame | W | Floor › Vùng live | Mỗi frame có đúng một `role=status` và một `role=alert` (rỗng) cố định từ lúc tải | auto: `the frame has its two fixed live nodes from load, before any bar` (**UXF-10**) |
 | L-02 | shell | D | Floor › Vùng live | Như L-01 cho cửa sổ shell | fork e2e (proposed): đếm `[role=status]`/`[role=alert]` gốc của shell ngay sau `ready-to-show` |
 | L-03 | mọi | W + D | Floor › Vùng live | Không đổi `aria-live`/`role` lúc chạy; alert ghi một lần rồi xóa ~1 s; hai sự kiện trong 1 s xếp hàng | manual: NVDA + Windows (ghi âm), VoiceOver + macOS BLOCKED(G7-D2) |
 | L-04 | S6 | W | Floor › Vùng live, › S6 | Thanh không mang `role=status|alert`/`aria-live`; câu đọc đúng một lần qua nút polite của cửa sổ | auto: `an S6 bar is read once, through the window node; the bar itself is not live`; manual: NVDA xác nhận một lần đọc |
@@ -43,9 +45,10 @@ Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pi
 | T-03 | S1 S2 S3 | D | Floor › S1, › Vùng chạm | Vùng chạm pill (24 px mịn, 40 px thô trong thanh tiêu đề), nút tên hàng S2/S3 | fork e2e (proposed): đo `::before` bằng `elementFromPoint` tại mép vùng chạm |
 | F-01 | S1 S5 S6 | W + D | Floor › Focus ring | Ring kế thừa của fork hiện rõ ở hai chế độ | manual: ảnh focus bàn phím từng bề mặt |
 | F-02 | S7 | W | Floor › Focus ring, › S7 | `.ai-model-item.selected:focus-visible` ring ≥ 3:1 với `accent-soft`, light + dark | auto: `S7 the selected option's focus ring is >= 3:1 against accent-soft — {mode}` (**UXF-01**) |
-| Z-01 | S5 S6 | W | Floor › Phóng to 200% | Không nhãn trạng thái bị cắt bởi `nowrap` không lối thoát; S5 dùng đủ (viewport CSS 640×400 = 1280×800 ở 200 %) | auto: `zoom 200 %: no status label clipped by nowrap, S5 fully reachable` |
+| Z-01 | S5 S6 | W | Floor › Phóng to 200% | Không nhãn trạng thái bị cắt bởi `nowrap` không lối thoát; S5 dùng đủ (viewport CSS 640×400 = 1280×800 ở 200 %) | auto: `zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable` (phần 200 %) |
+| Z-03 | S5 S6 | W | Floor › Phóng to 200% / text spacing (WCAG 1.4.12) | Chèn style ghi đè 1.4.12 (line-height 1.5, letter-spacing 0.12em, word-spacing 0.16em, khoảng đoạn 2em) vào frame: không nhãn bị cắt (nowrap hoặc hộp `overflow` ẩn quá thấp), S5 vẫn dùng đủ | auto: cùng test với Z-01 (phần text spacing) |
 | Z-02 | S1 S2 | D | Floor › Phóng to 200% | Pill ellipsis nhưng câu đủ ở mô tả; badge/dòng phụ xuống dòng | fork e2e (proposed): `webContents.setZoomFactor(2)` rồi cùng kiểm `nowrap`/`scrollWidth` |
-| M-01 | S5 S6 | W | Floor › Chuyển động | `prefers-reduced-motion: reduce`: không hiệu ứng trượt/mờ | auto: `reduced motion: no slide/fade on S6 or S5` |
+| M-01 | S5 S6 | W | Floor › Chuyển động | `prefers-reduced-motion: reduce`: không hiệu ứng trượt/mờ | auto: `reduced motion: no slide/fade on S6 or S5` (ghi `animationstart`/`transitionrun` từ trước khi bề mặt hiện, và đo thời lượng computed của thanh/mask/thẻ) |
 | M-02 | S1 | D | Floor › Chuyển động | Spinner thành biểu tượng tĩnh + "Đang lưu…" | fork e2e (proposed): emulate reduced motion trong Electron, kiểm `getAnimations()` rỗng và chữ |
 | FC-01 | S5 | W | Floor › Forced colors; DESIGN › Forced colors | Nút S5 giữ viền nhìn thấy (không chỉ màu) | auto: `S5 buttons keep a visible border, not colour alone` |
 | FC-02 | S5 | W | DESIGN › Forced colors | Nút `aria-disabled` dùng chữ + viền `GrayText` | auto: `S5 aria-disabled buttons use GrayText text and border` (**UXF-05**) |
@@ -83,7 +86,7 @@ Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pi
 | S7-01 | S7 | W | Floor › S7 | `listbox` ở `.ai-model-pop-list`, `.ai-model-pop` là `group`, "Quản lý"/footer là anh em sau danh sách | auto: `S7 listbox sits on the list, Manage and the footer are siblings after it` (**UXF-08**) |
 | S7-02 | S7 | W | Floor › S7 | Roving tabindex, ↑/↓, Home/End, Esc trả focus về chip; chip `aria-haspopup=listbox` + `aria-expanded` | manual: bàn phím + NVDA |
 | S7-03 | S7 | D | Floor › S7, IA S7 | Picker footer desktop (`aiUniworkFooterSignIn`, `cloudState*`), tín dụng qua `aria-describedby` | fork e2e (proposed): fixture trạng thái cloud cho từng hàng bảng UniWork AI |
-| S8-01 | S8 | W | Floor › S8 | `region` nhãn `aiUniworkDisclosureLabel`, `tabindex=-1`, không cướp focus; Gửi `aria-disabled` + `aria-describedby` | auto: `S8 disclosure region shows on the first UniWork AI turn and gates Send` (**UXF-09**); manual: NVDA |
+| S8-01 | S8 | W | Floor › S8 | `region` nhãn `aiUniworkDisclosureLabel`, `tabindex=-1`, không cướp focus; Gửi `aria-disabled` + `aria-describedby` tới khi bấm "Đã hiểu", rồi bật | auto: `S8 disclosure region shows on the first UniWork AI turn and gates Send` (**UXF-09**); manual: NVDA |
 | S8-02 | S8 | D | Floor › S8 | Như S8-01 trên desktop, biến thể tệp cục bộ (S10) | fork e2e (proposed) |
 | S9-01 | S9 | W + D | Floor › S9 | Luồng không `aria-live`; nút polite riêng đọc câu trả lời một lần; `aria-busy` khi stream; Gửi ↔ Dừng đổi `aria-label` + báo polite | manual: NVDA ghi âm; VoiceOver BLOCKED(G7-D2) |
 | S9-02 | S9 | W | DESIGN › Colors | Tương phản dòng kết quả/lỗi | auto: G-01 (`S7 picker with UniWork AI and the S9 result line`) |
@@ -104,19 +107,21 @@ Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pi
 
 ## Findings chặn đã biết (frame `0.1.0-05fd209`)
 
-Chi tiết (vị trí, giá trị đo, quy tắc) ở báo cáo lane `reports/ux-accept_local/worker-r1.md`; lead chuyển Advisor.
+Chi tiết (vị trí, giá trị đo, quy tắc) ở báo cáo lane `reports/ux-accept_local/worker-r1.md`; lead chuyển Advisor. Pin hiện tại
+của D: `0.1.0-05fd209`.
 
-| Mã | Hàng | Tóm tắt |
-| --- | --- | --- |
-| UXF-01 | F-02 | Ring focus của tùy chọn đang chọn trong picker không có (`outline: none`) |
-| UXF-02 | S5-03 | S5 không có "Lưu thành bản sao…" |
-| UXF-03 | S5-04 | S5 Docs không có "Xem khác biệt" |
-| UXF-04 | L-05 | Nút live của frame bị `inert` khi S5 mở |
-| UXF-05 | FC-02 | Forced colors: nút `aria-disabled` không dùng `GrayText` |
-| UXF-06 | FC-03 | Forced colors: tùy chọn đang chọn không có viền `Highlight` |
-| UXF-07 | S5-12 | Frame hẹp 480–767 px: S5 giữ `max-width: 448px`, không rộng toàn phần trừ 16 px |
-| UXF-08 | S7-01 | Picker: `listbox` ở `.ai-model-pop`, "Quản lý" nằm trong listbox |
-| UXF-09 | S8-01 | S8 không được render (chỉ có chuỗi) |
+| Mã | Hàng | Tóm tắt | Owner / trạng thái |
+| --- | --- | --- | --- |
+| UXF-01 | F-02 | Ring focus của tùy chọn đang chọn trong picker không có (`outline: none`) | đã sửa ở fork main 99e5a5253, chờ D re-pin (pin hiện 0.1.0-05fd209) |
+| UXF-02 | S5-03 | S5 không có "Lưu thành bản sao…" | card G5-12 (Lưu thành bản sao) |
+| UXF-03 | S5-04 | S5 Docs không có "Xem khác biệt" | chờ Advisor phân công (fork) |
+| UXF-04 | L-05 | Nút live của frame bị `inert` khi S5 mở | chờ Advisor phân công (fork) |
+| UXF-05 | FC-02 | Forced colors: nút `aria-disabled` không dùng `GrayText` | chờ Advisor phân công (fork) |
+| UXF-06 | FC-03 | Forced colors: tùy chọn đang chọn không có viền `Highlight` | chờ Advisor phân công (fork) |
+| UXF-07 | S5-12 | Frame hẹp 480–767 px: S5 giữ `max-width: 448px`, không rộng toàn phần trừ 16 px | chờ Advisor phân công (fork) |
+| UXF-08 | S7-01 | Picker: `listbox` ở `.ai-model-pop`, "Quản lý" nằm trong listbox | đã sửa ở fork main 99e5a5253, chờ D re-pin (pin hiện 0.1.0-05fd209) |
+| UXF-09 | S8-01 | S8 không được render (chỉ có chuỗi) | đã sửa ở fork main 99e5a5253, chờ D re-pin (pin hiện 0.1.0-05fd209) |
+| UXF-10 | L-01 | Hai nút live của cửa sổ chỉ được tạo ở lần announce đầu (`remote-bar.ts` `liveNode()`), không có từ lúc tải | chờ Advisor phân công (fork) |
 
 ## Ký nghiệm thu
 
