@@ -1,0 +1,48 @@
+$ node --test scripts/office/frame-protocol-vendor.test.mjs 2>&1 | tail -60; rc=${PIPESTATUS[0]}; echo; echo "VENDOR_PIN_EXIT=$rc"
+TAP version 13
+# Subtest: normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+ok 1 - normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+  ---
+  duration_ms: 0.605698
+  ...
+# Subtest: a CRLF copy of each vendored file normalises to the same hash as the LF file
+ok 2 - a CRLF copy of each vendored file normalises to the same hash as the LF file
+  ---
+  duration_ms: 2.581472
+  ...
+# Subtest: every frame pin records the same protocolSha256, equal to the vendored protocol
+ok 3 - every frame pin records the same protocolSha256, equal to the vendored protocol
+  ---
+  duration_ms: 1.531985
+  ...
+# Subtest: the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+ok 4 - the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+  ---
+  duration_ms: 1.20056
+  ...
+# Subtest: the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+ok 5 - the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+  ---
+  duration_ms: 0.672793
+  ...
+# Subtest: the three vendored files name one fork commit in their header
+ok 6 - the three vendored files name one fork commit in their header
+  ---
+  duration_ms: 0.655808
+  ...
+# Subtest: the vendored protocol carries the OQ-C2 comments.create anchor rule
+ok 7 - the vendored protocol carries the OQ-C2 comments.create anchor rule
+  ---
+  duration_ms: 0.617374
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 47.655714
+
+VENDOR_PIN_EXIT=0
