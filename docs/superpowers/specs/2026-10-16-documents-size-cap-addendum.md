@@ -35,6 +35,8 @@ Một giới hạn dung lượng tài liệu duy nhất (200 MB) cho tải lên 
 
 Tài sản cạnh tài liệu (10 MiB), trang UniNote (2 MiB), `PREVIEW_ASSET_MAX_BYTES`, tải xuống app (256 MiB) **không đổi**.
 
+**Engine Office (r3, size-cap:005):** engine nhận đầu vào tối đa 383 MiB = 401604608 byte (`ENGINE_LIMITS.max_input_bytes`) vì job đi trong một envelope JSON base64 và chuỗi V8 tối đa 0x1fffffe8 ký tự; engine kẹp `DOCUMENT_MAX_BYTES` thừa hưởng về mức này và không khởi động nếu `OFFICE_ENGINE_MAX_INPUT_BYTES` đặt cao hơn. Dải của server vẫn `[1 MiB, 2 GiB]`: tài liệu lớn hơn 383 MiB vẫn lưu và tải xuống được, job engine trả 413 `upload_bounds`; transport nhị phân/streaming là việc của SIZE-OPS1.
+
 ### 3.1 `GET /api/v1/config` — thêm `documents.limits`
 
 ```json
