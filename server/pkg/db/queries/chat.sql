@@ -155,8 +155,7 @@ WHERE file_id = ANY($1::text[])
 SELECT * FROM chat_messages
 WHERE room_id = $1
   AND sender_id = $2
-  AND client_msg_id = $3
-  AND deleted_at IS NULL;
+  AND client_msg_id = $3;
 
 -- name: CreateChatVoiceCallLog :one
 INSERT INTO chat_messages (

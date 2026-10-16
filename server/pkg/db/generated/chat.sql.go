@@ -571,7 +571,6 @@ SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_mess
 WHERE room_id = $1
   AND sender_id = $2
   AND client_msg_id = $3
-  AND deleted_at IS NULL
 `
 
 type GetChatMessageByClientMsgIDParams struct {

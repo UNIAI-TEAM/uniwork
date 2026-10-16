@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -627,6 +628,12 @@ func (s *ChatService) sendMessage(
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
 }
 
+// errClientMsgIDDeleted answers a resend after the original was soft-deleted:
+// the unique index still blocks a new row, so the client must drop the outbox entry.
+func errClientMsgIDDeleted() error {
+	return coded(http.StatusGone, "chat_message_deleted", "tin nhắn này đã bị xoá")
+}
+
 func (s *ChatService) existingMessageByClientMsgID(
 	ctx context.Context, roomID, senderID, clientMsgID string,
 ) (db.ChatMessage, bool, error) {
@@ -640,6 +647,9 @@ func (s *ChatService) existingMessageByClientMsgID(
 	}
 	if err != nil {
 		return db.ChatMessage{}, false, err
+	}
+	if msg.DeletedAt.Valid {
+		return db.ChatMessage{}, false, errClientMsgIDDeleted()
 	}
 	return msg, true, nil
 }
