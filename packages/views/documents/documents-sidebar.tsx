@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Clock, FolderTree, House, Plus, Star, Users } from "lucide-react";
+import { Clock, FolderTree, House, Plus, Star, Trash2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DocumentSourceKind } from "@uniwork/core/documents/sources-schema";
 import {
@@ -133,6 +133,7 @@ export function DocumentsSidebar({
       <NavItem icon={Clock} label={t("documents.home.sidebar.recent")} current={isView("recent")} onClick={() => onView({ kind: "recent" })} />
       <NavItem icon={Star} label={t("documents.home.sidebar.starred")} count={starredCount} current={isView("starred")} onClick={() => onView({ kind: "starred" })} />
       <NavItem icon={Users} label={t("documents.home.sidebar.shared")} current={isView("shared")} onClick={() => onView({ kind: "shared" })} />
+      <NavItem icon={Trash2} label={t("documents.home.sidebar.trash")} current={isView("archived")} onClick={() => onView({ kind: "archived" })} />
 
       <SectionLabel
         action={

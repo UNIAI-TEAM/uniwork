@@ -253,6 +253,6 @@ test.describe("a view-only member", () => {
     await page.getByRole("button", { name: `Thao tác cho ${sharedPageTitle}` }).click();
     await expect(page.getByRole("menuitem", { name: "Mở trên web" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Di chuyển" })).toHaveCount(0);
-    await expect(page.getByRole("menuitem", { name: "Lưu trữ" })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: "Chuyển vào thùng rác" })).toHaveCount(0);
   });
 });

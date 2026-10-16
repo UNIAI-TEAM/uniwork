@@ -144,6 +144,7 @@ export function TreeRowItem({
         wsId={wsId}
         node={row.node}
         focused={focused}
+        starred={starred}
         open={menuOpen}
         onOpenChange={setMenuOpen}
         onOpen={onOpen}

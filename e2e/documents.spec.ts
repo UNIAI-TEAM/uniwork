@@ -210,7 +210,7 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
   // Below xl the navigation folds into a sheet; the trigger opens it.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Điều hướng" }).click();
-  await expect(page.getByRole("button", { name: "Trang chủ Tài liệu" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Tài liệu của workspace" })).toBeVisible({ timeout: 30_000 });
   await shot(page, "documents-library-mobile-tree-vi");
   await page.keyboard.press("Escape");
 
