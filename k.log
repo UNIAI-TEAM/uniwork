@@ -1,0 +1,45 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=1 -v ./internal/handler/ -run "DocumentSource|SourceFileIDParam|TestSwaggerSpecFollowsChiRoutesAndSDI" 2>&1 | tail -n 80; rc=${PIPESTATUS[0]}; echo; echo "GO_HANDLER_EXIT=$rc"
+=== RUN   TestDocumentSourceDTOMessageIDOnTheWire
+=== RUN   TestDocumentSourceDTOMessageIDOnTheWire/chat_file
+=== RUN   TestDocumentSourceDTOMessageIDOnTheWire/task_file
+--- PASS: TestDocumentSourceDTOMessageIDOnTheWire (0.00s)
+    --- PASS: TestDocumentSourceDTOMessageIDOnTheWire/chat_file (0.00s)
+    --- PASS: TestDocumentSourceDTOMessageIDOnTheWire/task_file (0.00s)
+=== RUN   TestDocumentSourceEscapedFileID
+2026/10/16 19:03:59 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/auth/register status=200 duration=23.628ms request_id=cursor/8vxZbXhPoz-000001 correlation_id=01M531K0BA76NNHQ6FS4WQNF8T
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=4.572ms request_id=cursor/8vxZbXhPoz-000002 correlation_id=01M531K0C21ZAN417HWD772APF
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/auth/register status=200 duration=14.669ms request_id=cursor/8vxZbXhPoz-000003 correlation_id=01M531K0C7SPM93EGBWXYKM6PA
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.141ms request_id=cursor/8vxZbXhPoz-000004 correlation_id=01M531K0CQR1132CAW7NY1DMAK
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.746ms request_id=cursor/8vxZbXhPoz-000005 correlation_id=01M531K0CS39K1MEKWWAV8WYY4
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.163ms request_id=cursor/8vxZbXhPoz-000006 correlation_id=01M531K0D7DWCK46QVQH27Y58K
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.631ms request_id=cursor/8vxZbXhPoz-000007 correlation_id=01M531K0DAJW7DW27JFG82ME47
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.093ms request_id=cursor/8vxZbXhPoz-000008 correlation_id=01M531K0DR71880P31JKS07NM8
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/orgs status=201 duration=14.678ms request_id=cursor/8vxZbXhPoz-000009 correlation_id=01M531K0DT5VX3VZCX8HVEW5JG
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/orgs/01M531K0DWZXVYFK3NXSCZVFNQ/workspaces status=201 duration=9.615ms request_id=cursor/8vxZbXhPoz-000010 correlation_id=01M531K0E9JY8YYJZ8939RY8Z7
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/workspaces/01M531K0ED0P1GSKG5WA5P6828/invitations status=200 duration=6.565ms request_id=cursor/8vxZbXhPoz-000011 correlation_id=01M531K0EM7VEPCK3306K5421G
+2026/10/16 19:03:59 INFO http request method=GET path=/api/v1/me/invitations status=200 duration=1.83ms request_id=cursor/8vxZbXhPoz-000012 correlation_id=01M531K0EVH1GRKCD2XZ64G226
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/invitations/01M531K0ENE9Z46BJX8M6QTQBF01M531K0ENE9Z46BJX8P9D44HA/accept status=200 duration=6.658ms request_id=cursor/8vxZbXhPoz-000013 correlation_id=01M531K0EX321TWVC9XTGQVMZV
+2026/10/16 19:03:59 INFO http request method=GET path=/api/v1/me/invitations status=200 duration=1.114ms request_id=cursor/8vxZbXhPoz-000014 correlation_id=01M531K0F4GECEV51B9FX4F5CS
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/invitations/01M531K0EQMMV2R6SYVG8VAVMJ01M531K0EQMMV2R6SYVKTJ3JQ3/accept status=200 duration=4.38ms request_id=cursor/8vxZbXhPoz-000015 correlation_id=01M531K0F63SG61KBJXND793R5
+2026/10/16 19:03:59 INFO http request method=GET path=/api/v1/me/invitations status=200 duration=958µs request_id=cursor/8vxZbXhPoz-000016 correlation_id=01M531K0FBVD0YE9D48DRXQ71E
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/invitations/01M531K0ERMW5G6K9VK6HGDKZ101M531K0ERMW5G6K9VK9JYJVS9/accept status=200 duration=4.666ms request_id=cursor/8vxZbXhPoz-000017 correlation_id=01M531K0FDD2DSMJ1GBZHF5ZMC
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/workspaces/01M531K0ED0P1GSKG5WA5P6828/chat/room status=200 duration=3.839ms request_id=cursor/8vxZbXhPoz-000018 correlation_id=01M531K0FJGD79HTEYD8W1AV61
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/workspaces/01M531K0ED0P1GSKG5WA5P6828/chat/dm status=200 duration=5.3ms request_id=cursor/8vxZbXhPoz-000019 correlation_id=01M531K0FP1HAFA6KBSA4B1FZ1
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/workspaces/01M531K0ED0P1GSKG5WA5P6828/chat/groups status=200 duration=3.047ms request_id=cursor/8vxZbXhPoz-000020 correlation_id=01M531K0FWPY94BGPC1FXY4XWP
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/workspaces/01M531K0ED0P1GSKG5WA5P6828/chat/rooms/01M531K0FXDZZK68CQA3SHPQG7/messages status=200 duration=3.377ms request_id=cursor/8vxZbXhPoz-000021 correlation_id=01M531K0G0DQJ7P6VBKDND777F
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/workspaces/01M531K0ED0P1GSKG5WA5P6828/chat/rooms/01M531K0FQ3Y4A6EJB8JP1J9Y1/messages/file status=200 duration=4.722ms request_id=cursor/8vxZbXhPoz-000022 correlation_id=01M531K0G47HM7YF4HXNZH7CYX
+2026/10/16 19:03:59 INFO http request method=GET path=/api/v1/workspaces/01M531K0ED0P1GSKG5WA5P6828/documents/sources/chat:01M531K0G790JKYJASHJ72G1JB/download status=200 duration=3.455ms request_id=cursor/8vxZbXhPoz-000023 correlation_id=01M531K0GBZR5NVQKYY2XSB1JF
+2026/10/16 19:03:59 INFO http request method=GET path=/api/v1/workspaces/01M531K0ED0P1GSKG5WA5P6828/documents/sources/chat:01M531K0G790JKYJASHJ72G1JB/download status=200 duration=2.191ms request_id=cursor/8vxZbXhPoz-000024 correlation_id=01M531K0GE5JF10YTENJTV35ZY
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/workspaces/01M531K0ED0P1GSKG5WA5P6828/documents/sources/chat:01M531K0G790JKYJASHJ72G1JB/save status=201 duration=11.935ms request_id=cursor/8vxZbXhPoz-000025 correlation_id=01M531K0GHN4MKHHAPWJJED33B
+2026/10/16 19:03:59 INFO http request method=POST path=/api/v1/workspaces/01M531K0ED0P1GSKG5WA5P6828/documents/sources/chat:01M531K0G790JKYJASHJ72G1JB/save status=201 duration=5.764ms request_id=cursor/8vxZbXhPoz-000026 correlation_id=01M531K0GY6S23483JGNKGZRKX
+--- PASS: TestDocumentSourceEscapedFileID (0.73s)
+=== RUN   TestSourceFileIDParamBadEscapeIsNotFound
+--- PASS: TestSourceFileIDParamBadEscapeIsNotFound (0.00s)
+=== RUN   TestSwaggerSpecFollowsChiRoutesAndSDI
+2026/10/16 19:04:03 INFO http request method=GET path=/swagger/doc.json status=200 duration=823µs request_id=cursor/8vxZbXhPoz-000027 correlation_id=01M531K4FN1SWRZXFBRW1TAJTV
+--- PASS: TestSwaggerSpecFollowsChiRoutesAndSDI (4.17s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	5.993s
+
+GO_HANDLER_EXIT=0

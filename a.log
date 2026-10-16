@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+cb6b6db57ae1a689105482815da6af4285a01f01
+cb6b6db57 chore: merge root 549906774 (S2V-1 fix) into SRC-02
+549906774 fix(documents): unescape the source file id in its routes
+a95885f5c fix(documents): unescape the source file id in its routes
+e00598cb4 fix(documents): type the go-to-source row and isolate the late preview test
+e0614f724 refactor(documents): move the source preview into its own file
+c81a2fba3 fix(documents): source rows — link only known parents, name the email button, preview renderable images
+9adc78b4c feat(documents): open files from elsewhere view-only
+1a69b0647 chore: merge SRC-01 (UNI-1814, da241952b) into the G5-G7 root

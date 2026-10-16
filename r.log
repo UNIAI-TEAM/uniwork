@@ -1,0 +1,504 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18551 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18551 PREVIEW_ORIGIN=http://localhost:13452 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads FF_DOCUMENTS=true NEXT_PUBLIC_API_URL=http://localhost:18551 NEXT_PUBLIC_WS_URL=ws://localhost:18551 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18551 OFFICE_FORK_SHA=$(node -p "require(\"./apps/web/platform/office-frame/docs.pin.json\").gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-source-chat.spec.ts documents-home.spec.ts documents.spec.ts --repeat-each=3 --reporter=list > /tmp/s2a2-e2e.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/s2a2-e2e.log | tail -n 200; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; echo "##### JUMP-DIAG"; sed -n '/\[jump-diag\] begin/,/\[jump-diag\] end/p' /tmp/s2a2-e2e.log | head -c 80000; echo "##### END JUMP-DIAG"; grep -E "[0-9]+ (skipped|did not run)" /tmp/s2a2-e2e.log; grep -qE "[0-9]+ passed" /tmp/s2a2-e2e.log || { echo "no passing test"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+
+Running 27 tests using 1 worker
+
+(node:173599) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:173599) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 documents-home.spec.ts:48:1 › create card, folder, move and the other-modules section on the owner's home (9.7s)
+  ✓   2 documents-home.spec.ts:120:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.7s)
+  ✓   3 documents-home.spec.ts:225:3 › a view-only member › sees create cards at the root, none inside a folder shared at view level (2.5s)
+  ✓   4 documents-home.spec.ts:246:3 › a view-only member › gets no Move or Archive on a row shared at view level (2.3s)
+  ✘   5 documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message (2.7s)
+(node:173738) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:173738) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   6 documents.spec.ts:80:1 › a page is created, typed into, and survives a reload (7.2s)
+  ✓   7 documents.spec.ts:128:1 › a file document takes a new version and downloads it (4.1s)
+  ✓   8 documents.spec.ts:160:1 › the library lists pages across its tabs and the tree opens one (5.5s)
+  ✓   9 documents.spec.ts:224:1 › the library and the page editor never call the Office service (2.5s)
+(node:173850) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:173850) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  10 documents-home.spec.ts:48:1 › create card, folder, move and the other-modules section on the owner's home (8.8s)
+  ✓  11 documents-home.spec.ts:120:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.5s)
+  ✓  12 documents-home.spec.ts:225:3 › a view-only member › sees create cards at the root, none inside a folder shared at view level (2.6s)
+  ✓  13 documents-home.spec.ts:246:3 › a view-only member › gets no Move or Archive on a row shared at view level (2.4s)
+  ✘  14 documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message (2.6s)
+(node:173989) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:173989) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  15 documents.spec.ts:80:1 › a page is created, typed into, and survives a reload (6.9s)
+  ✓  16 documents.spec.ts:128:1 › a file document takes a new version and downloads it (4.0s)
+  ✓  17 documents.spec.ts:160:1 › the library lists pages across its tabs and the tree opens one (5.2s)
+  ✓  18 documents.spec.ts:224:1 › the library and the page editor never call the Office service (2.3s)
+(node:174105) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:174105) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  19 documents-home.spec.ts:48:1 › create card, folder, move and the other-modules section on the owner's home (7.6s)
+  ✓  20 documents-home.spec.ts:120:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.6s)
+  ✓  21 documents-home.spec.ts:225:3 › a view-only member › sees create cards at the root, none inside a folder shared at view level (2.5s)
+  ✓  22 documents-home.spec.ts:246:3 › a view-only member › gets no Move or Archive on a row shared at view level (2.3s)
+  ✘  23 documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message (2.7s)
+(node:174242) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:174242) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  24 documents.spec.ts:80:1 › a page is created, typed into, and survives a reload (7.0s)
+  ✓  25 documents.spec.ts:128:1 › a file document takes a new version and downloads it (4.0s)
+  ✓  26 documents.spec.ts:160:1 › the library lists pages across its tabs and the tree opens one (5.2s)
+  ✓  27 documents.spec.ts:224:1 › the library and the page editor never call the Office service (2.6s)
+
+
+  1) documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message ───
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177946106\.txt/ })
+    Expected: visible
+    Error: strict mode violation: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177946106\.txt/ }) resolved to 2 elements:
+        1) <button type="button" class="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">…</button> aka getByRole('button', { name: 'File de-xuat-dm-1792177946106' })
+        2) <button tabindex="0" type="button" data-slot="button" aria-label="Xem nơi đính kèm: de-xuat-dm-1792177946106.txt" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border bg-clip-padding font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 …>…</button> aka getByRole('button', { name: 'Xem nơi đính kèm: de-xuat-dm-' })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177946106\.txt/ })
+
+
+      57 |
+      58 |   const table = page.getByRole("table", { name: "Tài liệu" });
+    > 59 |   await expect(libraryRowButton(table, FILE_NAME)).toBeVisible({ timeout: 30_000 });
+         |                                                    ^
+      60 |   await page.getByRole("button", { name: `Thao tác cho ${FILE_NAME}` }).click();
+      61 |   diag.mark("go-to-source click");
+      62 |   await page.getByRole("menuitem", { name: "Xem nơi đính kèm" }).click();
+
+    Error Context: test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message ───
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177989571\.txt/ })
+    Expected: visible
+    Error: strict mode violation: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177989571\.txt/ }) resolved to 2 elements:
+        1) <button type="button" class="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">…</button> aka getByRole('button', { name: 'File de-xuat-dm-1792177989571' })
+        2) <button tabindex="0" type="button" data-slot="button" aria-label="Xem nơi đính kèm: de-xuat-dm-1792177989571.txt" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border bg-clip-padding font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 …>…</button> aka getByRole('button', { name: 'Xem nơi đính kèm: de-xuat-dm-' })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177989571\.txt/ })
+
+
+      57 |
+      58 |   const table = page.getByRole("table", { name: "Tài liệu" });
+    > 59 |   await expect(libraryRowButton(table, FILE_NAME)).toBeVisible({ timeout: 30_000 });
+         |                                                    ^
+      60 |   await page.getByRole("button", { name: `Thao tác cho ${FILE_NAME}` }).click();
+      61 |   diag.mark("go-to-source click");
+      62 |   await page.getByRole("menuitem", { name: "Xem nơi đính kèm" }).click();
+
+    Error Context: test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message-repeat1/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message-repeat1/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message-repeat1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message ───
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792178030779\.txt/ })
+    Expected: visible
+    Error: strict mode violation: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792178030779\.txt/ }) resolved to 2 elements:
+        1) <button type="button" class="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">…</button> aka getByRole('button', { name: 'File de-xuat-dm-1792178030779' })
+        2) <button tabindex="0" type="button" data-slot="button" aria-label="Xem nơi đính kèm: de-xuat-dm-1792178030779.txt" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border bg-clip-padding font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 …>…</button> aka getByRole('button', { name: 'Xem nơi đính kèm: de-xuat-dm-' })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792178030779\.txt/ })
+
+
+      57 |
+      58 |   const table = page.getByRole("table", { name: "Tài liệu" });
+    > 59 |   await expect(libraryRowButton(table, FILE_NAME)).toBeVisible({ timeout: 30_000 });
+         |                                                    ^
+      60 |   await page.getByRole("button", { name: `Thao tác cho ${FILE_NAME}` }).click();
+      61 |   diag.mark("go-to-source click");
+      62 |   await page.getByRole("menuitem", { name: "Xem nơi đính kèm" }).click();
+
+    Error Context: test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message-repeat2/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message-repeat2/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message-repeat2/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message ────
+    documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message ────
+    documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message ────
+  24 passed (2.2m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-source-chat.spec.ts documents-home.spec.ts documents.spec.ts --repeat-each=3 --reporter=list
+===== e2e/test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-source-chat.spec.ts >> go to source on a DM file opens that DM at the message
+- Location: documents-source-chat.spec.ts:24:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177946106\.txt/ })
+Expected: visible
+Error: strict mode violation: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177946106\.txt/ }) resolved to 2 elements:
+    1) <button type="button" class="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">…</button> aka getByRole('button', { name: 'File de-xuat-dm-1792177946106' })
+    2) <button tabindex="0" type="button" data-slot="button" aria-label="Xem nơi đính kèm: de-xuat-dm-1792177946106.txt" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border bg-clip-padding font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 …>…</button> aka getByRole('button', { name: 'Xem nơi đính kèm: de-xuat-dm-' })
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177946106\.txt/ })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org srcchat1792177946106-a, WS srcchat1792177946106-a: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org srcchat1792177946106-a" [ref=f1e14]
+              - generic "WS srcchat1792177946106-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792177946141/rec-ws-1792177946141
+          - listitem [ref=f1e30]:
+            - link "Hộp việc 1 thông báo chưa đọc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792177946141/rec-ws-1792177946141/inbox
+              - generic [ref=f1e36]: Hộp việc
+              - generic "1 thông báo chưa đọc": "1"
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792177946141/rec-ws-1792177946141/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792177946141/rec-ws-1792177946141/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792177946141/rec-ws-1792177946141/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792177946141/rec-ws-1792177946141/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792177946141/rec-ws-1792177946141/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792177946141/rec-ws-1792177946141/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792177946141/rec-ws-1792177946141/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện 1 thông báo chưa đọc" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792177946141/rec-ws-1792177946141/chat
+                - generic [ref=f1e97]: Trò chuyện
+                - generic "1 thông báo chưa đọc": "1"
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792177946141/rec-ws-1792177946141/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "srcchat1792177946106-b, srcchat1792177946106-b-1792177946246@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: S
+            - generic [ref=f1e112]:
+              - generic "srcchat1792177946106-b" [ref=f1e113]
+              - generic "srcchat1792177946106-b-1792177946246@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "1 thông báo chưa đọc" [ref=f1e124] [cursor=pointer]:
+            - generic [ref=f1e125]: "1"
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e130]:
+        - generic [ref=f1e131]:
+          - heading "Tài liệu" [level=1] [ref=f1e137]
+          - generic [ref=f1e138]:
+       ===== e2e/test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message-repeat1/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-source-chat.spec.ts >> go to source on a DM file opens that DM at the message
+- Location: documents-source-chat.spec.ts:24:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177989571\.txt/ })
+Expected: visible
+Error: strict mode violation: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177989571\.txt/ }) resolved to 2 elements:
+    1) <button type="button" class="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">…</button> aka getByRole('button', { name: 'File de-xuat-dm-1792177989571' })
+    2) <button tabindex="0" type="button" data-slot="button" aria-label="Xem nơi đính kèm: de-xuat-dm-1792177989571.txt" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border bg-clip-padding font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 …>…</button> aka getByRole('button', { name: 'Xem nơi đính kèm: de-xuat-dm-' })
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792177989571\.txt/ })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org srcchat1792177989571-a, WS srcchat1792177989571-a: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org srcchat1792177989571-a" [ref=f1e14]
+              - generic "WS srcchat1792177989571-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792177989603/rec-ws-1792177989603
+          - listitem [ref=f1e30]:
+            - link "Hộp việc 1 thông báo chưa đọc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792177989603/rec-ws-1792177989603/inbox
+              - generic [ref=f1e36]: Hộp việc
+              - generic "1 thông báo chưa đọc": "1"
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792177989603/rec-ws-1792177989603/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792177989603/rec-ws-1792177989603/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792177989603/rec-ws-1792177989603/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792177989603/rec-ws-1792177989603/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792177989603/rec-ws-1792177989603/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792177989603/rec-ws-1792177989603/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792177989603/rec-ws-1792177989603/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện 1 thông báo chưa đọc" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792177989603/rec-ws-1792177989603/chat
+                - generic [ref=f1e97]: Trò chuyện
+                - generic "1 thông báo chưa đọc": "1"
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792177989603/rec-ws-1792177989603/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "srcchat1792177989571-b, srcchat1792177989571-b-1792177989697@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: S
+            - generic [ref=f1e112]:
+              - generic "srcchat1792177989571-b" [ref=f1e113]
+              - generic "srcchat1792177989571-b-1792177989697@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "1 thông báo chưa đọc" [ref=f1e124] [cursor=pointer]:
+            - generic [ref=f1e125]: "1"
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e130]:
+        - generic [ref=f1e131]:
+          - heading "Tài liệu" [level=1] [ref=f1e137]
+          - generic [ref=f1e138]:
+       ===== e2e/test-results/documents-source-chat-go-t-6ac3b-pens-that-DM-at-the-message-repeat2/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-source-chat.spec.ts >> go to source on a DM file opens that DM at the message
+- Location: documents-source-chat.spec.ts:24:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792178030779\.txt/ })
+Expected: visible
+Error: strict mode violation: getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792178030779\.txt/ }) resolved to 2 elements:
+    1) <button type="button" class="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">…</button> aka getByRole('button', { name: 'File de-xuat-dm-1792178030779' })
+    2) <button tabindex="0" type="button" data-slot="button" aria-label="Xem nơi đính kèm: de-xuat-dm-1792178030779.txt" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border bg-clip-padding font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 …>…</button> aka getByRole('button', { name: 'Xem nơi đính kèm: de-xuat-dm-' })
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for getByRole('table', { name: 'Tài liệu' }).getByRole('button', { name: /^(?!Thao tác cho ).*de-xuat-dm-1792178030779\.txt/ })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org srcchat1792178030779-a, WS srcchat1792178030779-a: chuyển workspace" [ref=f1e10]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org srcchat1792178030779-a" [ref=f1e14]
+              - generic "WS srcchat1792178030779-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792178030813/rec-ws-1792178030813
+          - listitem [ref=f1e30]:
+            - link "Hộp việc 1 thông báo chưa đọc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792178030813/rec-ws-1792178030813/inbox
+              - generic [ref=f1e36]: Hộp việc
+              - generic "1 thông báo chưa đọc": "1"
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792178030813/rec-ws-1792178030813/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792178030813/rec-ws-1792178030813/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792178030813/rec-ws-1792178030813/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792178030813/rec-ws-1792178030813/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792178030813/rec-ws-1792178030813/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792178030813/rec-ws-1792178030813/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792178030813/rec-ws-1792178030813/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện 1 thông báo chưa đọc" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792178030813/rec-ws-1792178030813/chat
+                - generic [ref=f1e97]: Trò chuyện
+                - generic "1 thông báo chưa đọc": "1"
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792178030813/rec-ws-1792178030813/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "srcchat1792178030779-b, srcchat1792178030779-b-1792178030910@example.com: tài khoản" [ref=f1e110]':
+            - generic [ref=f1e111]: S
+            - generic [ref=f1e112]:
+              - generic "srcchat1792178030779-b" [ref=f1e113]
+              - generic "srcchat1792178030779-b-1792178030910@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "1 thông báo chưa đọc" [ref=f1e124] [cursor=pointer]:
+            - generic [ref=f1e125]: "1"
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e130]:
+        - generic [ref=f1e131]:
+          - heading "Tài liệu" [level=1] [ref=f1e137]
+          - generic [ref=f1e138]:
+       ##### JUMP-DIAG
+##### END JUMP-DIAG
+
+E2E_EXIT=1
