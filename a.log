@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+98abb91fa57548e9b8b70e58453fbdff79cbd5ab
+98abb91f merge: fork main b72a06177 (G7-03a sync queue test hooks) into the G6-10 painter deflake branch
+594932bf test(e2e): poll the laid-out mirrored offset instead of one rect read
+d7d0980a test(e2e): wait for the exact clicked caret in the format painter spec
