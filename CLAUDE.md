@@ -471,7 +471,8 @@ database and never reveal whether an id exists to a non-member.
   limiter Redis call gives up after 100ms and fails open. The LiveKit
   webhook, `/mcp` and `/api/v1/auth/desktop/refresh` skip the global
   limiter; refresh is budgeted per device (`desktop-refresh`, 60/min, keyed
-  by the unverified `X-UniWork-Device` header) under an address ceiling
+  by the address plus the unverified `X-UniWork-Device` header, so a known
+  id cannot be spent from elsewhere) under an address ceiling
   (`desktop-refresh-ip`, 600/min):
   `TestDesktopRefreshBudgetsEachDeviceUnderAnAddressCeiling`. `/mcp` is
   budgeted per access-token hash (`mcp`, 120/min; the router reads no

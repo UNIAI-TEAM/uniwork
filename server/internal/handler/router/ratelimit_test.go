@@ -523,6 +523,13 @@ func TestDesktopRefreshBudgetsEachDeviceUnderAnAddressCeiling(t *testing.T) {
 	rotating.device = deviceID(9999)
 	rotating.wantRefused(t, h, http.MethodPost, path, "the address ceiling: 600 a minute whatever the device id")
 
+	// A device id is not a secret: a stranger who knows one spends only the
+	// budget of (their address, id), never the real device's.
+	stranger := caller{ip: "10.40.0.9", device: deviceID(5)}
+	stranger.spend(t, h, http.MethodPost, path, 60)
+	stranger.wantRefused(t, h, http.MethodPost, path, "the stranger's own (address, device) budget")
+	caller{ip: carrier, device: deviceID(5)}.spend(t, h, http.MethodPost, path, 1)
+
 	legacy := caller{ip: "10.40.0.3"}
 	legacy.spend(t, h, http.MethodPost, path, 60)
 	legacy.wantRefused(t, h, http.MethodPost, path, "no header: the address's own 60 a minute, as before")

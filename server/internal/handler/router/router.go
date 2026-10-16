@@ -98,10 +98,19 @@ func New(d Deps, h Routes) http.Handler {
 		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1/auth/desktop/refresh", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
-	// Native refresh: per device (desktopDevice) under a ceiling per address;
-	// the ceiling runs first so a request it refuses opens no device counter.
+	// Native refresh: per (address, device) under a ceiling per address; the
+	// ceiling runs first so a request it refuses opens no device counter. The
+	// address is part of the key because a device id is not a secret: keyed by
+	// id alone, anyone who learned one could spend that device's budget from
+	// elsewhere. Phones behind one carrier address still get a budget each.
 	refreshCeiling := mw.RateLimitByIdentityBucket(d.Redis, "desktop-refresh-ip", 600, time.Minute, proxies, nil)
-	refreshPerDevice := mw.RateLimitByIdentityBucket(d.Redis, "desktop-refresh", 60, time.Minute, proxies, desktopDevice)
+	refreshPerDevice := mw.RateLimitByIdentityBucket(d.Redis, "desktop-refresh", 60, time.Minute, proxies, func(r *http.Request) string {
+		id := desktopDevice(r)
+		if id == "" {
+			return ""
+		}
+		return mw.ClientIP(r, proxies) + ":" + id
+	})
 	refreshLimit := func(next http.Handler) http.Handler { return refreshCeiling(refreshPerDevice(next)) }
 	// In-room limiters budget per verified person, not per address: a formal
 	// meeting often sits behind one office NAT. They run after OptionalAuth.
@@ -119,6 +128,9 @@ func New(d Deps, h Routes) http.Handler {
 			"Content-Type",
 			"Idempotency-Key",
 			"If-Match",
+			// Native refresh budget key (registerAuth); a browser-origin caller
+			// that sends it must pass preflight too.
+			"X-UniWork-Device",
 			mw.CorrelationHeader,
 			telemetry.DebugTraceHeader,
 			meetings.GuestSessionHeader,

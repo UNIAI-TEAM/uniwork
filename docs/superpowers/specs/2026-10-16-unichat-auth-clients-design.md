@@ -28,7 +28,7 @@ Hai app UniChat đăng nhập bằng luồng PKCE đã có của `DesktopAuthSer
 `UserAgent: row.ClientID + "/" + platform` ở `Exchange` và `device.ClientID + "/" + device.Platform` ở `Refresh` (cần `client_id` trên `device_sessions`, đã có). Office giữ đúng chuỗi cũ nên `isNewDevice` (`CountRefreshTokensForUserAgent`) không đổi.
 
 ### 3.4 Rate limit refresh theo thiết bị
-`POST /auth/desktop/refresh` rời `credentialLimit` và rời cả global limiter 300/IP (`ExceptPaths`, vì limiter đó vẫn chặn trường hợp NAT nhà mạng), nhận hai lớp: bucket `desktop-refresh` theo `device_session_id` (client gửi thêm header `X-UniWork-Device`; không header → theo IP) ngân sách 60/phút — bằng `credentialLimit` cũ nên client Office chưa gửi header giữ nguyên ngân sách theo IP — dưới trần theo IP `desktop-refresh-ip` 600/phút (mẫu `mcp-ip`). Header không được xác minh ở router (router không đọc DB), trần theo IP chặn kẻ xoay vòng id. Redis quá 100 ms → fail open như mọi limiter.
+`POST /auth/desktop/refresh` rời `credentialLimit` và rời cả global limiter 300/IP (`ExceptPaths`, vì limiter đó vẫn chặn trường hợp NAT nhà mạng), nhận hai lớp: bucket `desktop-refresh` theo cặp (IP, `device_session_id`) (client gửi thêm header `X-UniWork-Device`; không header → theo IP; có IP trong khóa vì id thiết bị không bí mật, kẻ biết id không tiêu được ngân sách của máy thật từ địa chỉ khác) ngân sách 60/phút — bằng `credentialLimit` cũ nên client Office chưa gửi header giữ nguyên ngân sách theo IP — dưới trần theo IP `desktop-refresh-ip` 600/phút (mẫu `mcp-ip`). Header không được xác minh ở router (router không đọc DB), trần theo IP chặn kẻ xoay vòng id. Redis quá 100 ms → fail open như mọi limiter.
 
 ### 3.5 Không đổi
 Giao thức PKCE, bảng `desktop_auth_attempts`/`device_sessions`/`refresh_tokens`, audit action (`ActionAuthDesktopSessionCreated` đã mang `client_id`), `start`/`exchange` vẫn dưới `credentialLimit`.
@@ -51,4 +51,4 @@ Lệnh hẹp: `make test-go` (gói `config`, `service`, `handler/router`); `pnpm
 ## 6. Để builder quyết
 Tên header; số ngân sách chính xác; `redirect_scheme` tính ở service hay handler; có gộp `uniwork-chat-desktop` và `uniwork-chat-mobile` thành một client hay không (spec cha chọn hai để tách nhãn thiết bị).
 
-**Đã quyết:** header là `X-UniWork-Device`; ngân sách 60/phút theo thiết bị dưới trần 600/phút theo IP; không tính `redirect_scheme` ở đâu cả mà dùng lại `redirect_uri` sẵn có của attempt; giữ hai client chat riêng để tách nhãn thiết bị.
+**Đã quyết:** header là `X-UniWork-Device`; ngân sách 60/phút theo cặp (IP, thiết bị) dưới trần 600/phút theo IP; header nằm trong CORS `AllowedHeaders`; không tính `redirect_scheme` ở đâu cả mà dùng lại `redirect_uri` sẵn có của attempt; giữ hai client chat riêng để tách nhãn thiết bị.
