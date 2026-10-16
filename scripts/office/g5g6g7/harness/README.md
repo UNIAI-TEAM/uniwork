@@ -747,8 +747,8 @@ BLOCKED needs BOTH routes to answer that same refusal (BE-704-451): one route
 refusing while the other answers a 5xx or times out is not a capability blocker —
 the other route failed on its own — and the row is the `turn1_not_200` **FAIL**
 carrying both measured cells. A turn 1 that answered anything else but `200`
-(and is not the fake deployment's `503 ai_disabled`) is a **FAIL** naming both
-routes' status and code. A
+(and is not the fake deployment's `503 ai_disabled` on both routes, BE-704-551)
+is a **FAIL** naming both routes' status and code. A
 capability that turns off **between** the two turns (turn 1 `200` on both, turn 2
 `office_capability_off`) is a **FAIL** named as that capability flip, not as a
 revoke result (D2-03). The run-level test drives that flip through `downgrade` —

@@ -74,6 +74,7 @@ import {
   parseArgs,
   reasonValueOf,
   runRevokeCase,
+  turn1DisabledOf,
 } from "./revoke.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -888,6 +889,46 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
     }
   });
 
+  it("BE-704-551: the ai_disabled BLOCKED needs BOTH turn-1 routes — one 503 ai_disabled with a 500 or a timeout on the other route is turn1_not_200 FAIL (exit 1) naming both cells", async () => {
+    const combos = [
+      [{ aiMode: "disabled", frameFailure: "500" }, "t1 s503 ai_disabled/f500 http_500"],
+      [{ aiMode: "disabled", sessionFailure: "500" }, "t1 s500 http_500/f503 ai_disabled"],
+      [{ aiMode: "disabled", frameFailure: "timeout" }, "t1 s503 ai_disabled/f0 timeout"],
+      [{ aiMode: "disabled", sessionFailure: "timeout" }, "t1 s0 timeout/f503 ai_disabled"],
+    ];
+    for (const [options, cell] of combos) {
+      const mock = createMockRevokeServer(options);
+      const scratch = makeScratchRunDir();
+      try {
+        const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+        assert.equal(res.status, "FAIL", `${cell}: ${res.reason}`);
+        assert.equal(res.exitCode, 1);
+        assert.equal(res.blocker, "", "a mixed route failure is a FAIL, never an ai_disabled BLOCKED");
+        assert.equal(res.details.verdict, "turn1_not_200");
+        assert.equal(res.steps.aiTurn1.status, "FAIL");
+        assert.equal(res.steps.aiTurn1.reason, "turn1_not_200");
+        assert.match(res.reason, /^turn1_not_200; t1 s/);
+        assert.ok(res.reason.includes(cell), `${cell} missing from ${res.reason}`);
+        assert.equal(res.steps.exception, undefined);
+        assert.equal(redactSignInError(res.reason), res.reason);
+      } finally {
+        scratch.cleanup();
+      }
+    }
+    const bothDisabled = createMockRevokeServer({ aiMode: "disabled" });
+    const scratch = makeScratchRunDir();
+    try {
+      const res = await runCase({ fetchImpl: bothDisabled.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      assert.equal(res.status, "BLOCKED");
+      assert.equal(res.exitCode, 77);
+      assert.equal(res.blocker, AI_DISABLED_BLOCKER);
+      assert.equal(res.steps.aiTurn1.status, "BLOCKED");
+      assert.equal(res.steps.aiTurn1.reason, "ai_disabled");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
   it("BE-704-450: a Save upload/commit failure carries the SAME mapped code as the AI routes (http_<status>, timeout, transport), never a second vocabulary", async () => {
     const combos = [
       // a deactivate refuses the member's Save at the gate, so the OTHER route's
@@ -1257,6 +1298,32 @@ describe("decideRevokeOutcome", () => {
     }
     // the BLOCKED branch itself is unchanged: both routes must answer the refusal
     assert.equal(decideRevokeOutcome({ ...base(), aiTurn1: { session: refusal, frame: refusal } }).status, "BLOCKED");
+  });
+
+  it("BE-704-551: the ai_disabled BLOCKED applies only when BOTH turn-1 routes answer 503 ai_disabled — any other non-200 route is turn1_not_200 FAIL with both cells", () => {
+    const disabled = { status: 503, code: "ai_disabled" };
+    const mixed = [
+      { session: disabled, frame: { status: 500, code: "http_500" } },
+      { session: { status: 500, code: "http_500" }, frame: disabled },
+      { session: disabled, frame: { status: 0, code: "timeout" } },
+      { session: { status: 0, code: "timeout" }, frame: disabled },
+    ];
+    for (const aiTurn1 of mixed) {
+      assert.equal(turn1DisabledOf(aiTurn1), false);
+      const out = decideRevokeOutcome({ ...base(), aiTurn1 });
+      assert.equal(out.status, "FAIL", JSON.stringify(aiTurn1));
+      assert.equal(out.exitCode, 1);
+      assert.equal(out.details.verdict, "turn1_not_200");
+      assert.match(out.reason, /^turn1_not_200; t1 s/);
+      const cell = (answer) => `${answer.status ?? "none"}${answer.code ? ` ${answer.code}` : ""}`;
+      assert.ok(out.reason.includes(`s${cell(aiTurn1.session)}/f${cell(aiTurn1.frame)}`), out.reason);
+      assert.equal(redactSignInError(out.reason), out.reason);
+    }
+    assert.equal(turn1DisabledOf({ session: disabled, frame: disabled }), true);
+    const both = decideRevokeOutcome({ ...base(), aiTurn1: { session: disabled, frame: disabled } });
+    assert.equal(both.status, "BLOCKED");
+    assert.equal(both.exitCode, 77);
+    assert.equal(both.blocker, AI_DISABLED_BLOCKER);
   });
 
   it("BE-704-452: every dynamic value a reason interpolates is bounded and redacted first, with an explicit marker for an oversized one", () => {

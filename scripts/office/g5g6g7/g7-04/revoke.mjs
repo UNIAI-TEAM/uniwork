@@ -54,8 +54,9 @@
 //     with the capability named: the deployment has that flag off, so no turn
 //     ever worked and the row can never PASS, whatever turn 2 answers. A turn 1
 //     answering anything else but 200 (and not the 503 `ai_disabled` of a fake
-//     deployment), including one route refusing the capability while the other
-//     500s or times out, is a FAIL naming both routes. A capability that turns
+//     deployment on both routes, BE-704-551), including one route refusing the
+//     capability or `ai_disabled` while the other 500s or times out, is a FAIL
+//     naming both routes. A capability that turns
 //     off between the two turns (turn 1 200, turn 2 `office_capability_off`) is a
 //     FAIL named as that flip, not as a revoke result (D2-03).
 //   * Under `AI_PROVIDER=fake` the turn-1 CONTENT claim cannot be verified
@@ -423,6 +424,25 @@ export function turn1CapabilityOffOf(aiTurn1) {
   return isCapabilityRefusal(aiTurn1?.session) && isCapabilityRefusal(aiTurn1?.frame);
 }
 
+/** The 503 `ai_disabled` refusal a fake deployment answers one route with (contract-p0 §8). */
+function isAiDisabledRefusal(answer) {
+  return answer?.status === 503 && answer?.code === "ai_disabled";
+}
+
+/**
+ * BE-704-551: the `ai_disabled` BLOCKED applies only when BOTH turn-1 routes
+ * answered `503 ai_disabled` (the same both-routes rule `turn1CapabilityOffOf`
+ * enforces). The service is disabled deployment-wide, so one route answering
+ * `503 ai_disabled` while the other route answered anything else (a 5xx, a
+ * timeout, a different code) is NOT an `ai_disabled` blocker — that other route
+ * failed on its own and the row is the `turn1_not_200` FAIL naming both
+ * measurements. One helper, so the verdict and the row's own step can never
+ * read the turn differently.
+ */
+export function turn1DisabledOf(aiTurn1) {
+  return isAiDisabledRefusal(aiTurn1?.session) && isAiDisabledRefusal(aiTurn1?.frame);
+}
+
 /**
  * The pure verdict of one case. Hard rules first: a new version, a committed
  * intent or a per-route AI/Save answer that is not the code's is a FAIL. Only
@@ -474,10 +494,9 @@ export function decideRevokeOutcome({
     details: { verdict, expected, why, mismatch },
   });
   // Under a fake deployment the turn-1 CONTENT claim cannot be proven; the turn
-  // answers 503 `ai_disabled` (contract-p0 §8). Derived from the turn itself so a
-  // caller cannot forget to pass the flag.
-  const turn1Disabled =
-    aiDisabled ?? (aiTurn1?.session?.status === 503 && aiTurn1?.session?.code === "ai_disabled");
+  // answers 503 `ai_disabled` on both routes (contract-p0 §8, BE-704-551).
+  // Derived from the turn itself so a caller cannot forget to pass the flag.
+  const turn1Disabled = aiDisabled ?? turn1DisabledOf(aiTurn1);
   // D2-02: a turn 1 the deployment refused because the capability is off proves
   // no revoke — but only when BOTH routes answered that same refusal
   // (BE-704-451); one refusal with a failing other route is the turn-1 FAIL
@@ -517,7 +536,7 @@ export function decideRevokeOutcome({
     return blocked("ai_disabled", AI_DISABLED_BLOCKER, AI_DISABLED_OWNER, AI_DISABLED_BLOCKER);
   }
   // D2-02: the row may PASS only after a turn 1 that answered 200 on both
-  // routes; anything else but the fake deployment's 503 is a FAIL naming both.
+  // routes; anything else but the fake deployment's 503 on both routes is a FAIL naming both.
   const turn1Misses = turn1MissesOf(aiTurn1);
   if (turn1Misses.length) {
     return fail("turn1_not_200", { why: TURN_1_PRECONDITION_REASON, mismatch: turn1Misses });
@@ -857,7 +876,10 @@ export async function runRevokeCase({
     const aiSegment = classifyAiResponse(aiTurn1.session.raw, null, {
       allowRealUpstream: Boolean(fetchImpl?.allowRealAiUpstream || process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM === "1"),
     });
-    const aiDisabled = aiTurn1.session.status === 503 && aiTurn1.session.code === "ai_disabled";
+    // BE-704-551: the `ai_disabled` BLOCKED requires 503 `ai_disabled` on BOTH
+    // turn-1 routes, the same way `turn1CapabilityOffOf` requires the capability
+    // refusal on both; a mixed turn falls to `turn1_not_200` FAIL below.
+    const aiDisabled = turn1DisabledOf(aiTurn1);
     // D2-02 + BE-704-451: a capability-off turn 1 is the same kind of BLOCKED —
     // the environment cannot show the revoke — and names the capability it read,
     // but only when BOTH routes answered that refusal; a mixed turn is the FAIL
