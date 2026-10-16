@@ -20,13 +20,25 @@ Cột **Chế độ**:
 - `blocked` — S3, S11 (desktop): BLOCKED tới khi G5-05u merge (G5-D1 đã ký 2026-10-13, G5-05u HOLD vì UNI-1645);
   phần macOS VoiceOver/Safari: BLOCKED(G7-D2).
 
-Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pin lúc viết: `0.1.0-05fd209`.
+Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pin lúc viết: `0.1.0-05fd209`. Spec đọc pin từ
+`apps/web/platform/office-frame/docs.pin.json`, không ghi cứng pin trong logic/selector (marker S5 nhận cả `data-docs-web` và
+`data-office-web`, hàng UniWork AI tìm theo nhóm), nên REPIN-1 chạy lại đúng file này.
+
+**Nhóm S7/S8/S9 (UniWork AI) — blocked ở pin `0.1.0-05fd209`, owner REPIN-1 (UNI-1825), lane g6-fork_ui.** Phía server đã đủ:
+`beforeAll` của nhóm bật `office_ai_uniwork` + `office_ai_uniwork_docx` rồi mint frame token và đòi `ai.uniwork_ai = true`
+(Starter có `office.ai_cloud`, `AI_PROVIDER=fake` có model cho `office_uniwork_ai`). Pin không vẽ hàng UniWork AI:
+`packages/ui/src/ai-model-picker-options.ts:47` bỏ provider không có model và `UNIWORK_PROVIDER_META.models = []`
+(fork 7888df06c sửa, có trong fork main 99e5a5253). Vì vậy `openPicker` gọi `test.skip` lúc chạy với lý do này (annotation
+`blocked`) khi hàng không có — không xanh giả; pin đầu tiên có hàng sẽ chạy cả nhóm. Các dòng G-01 (phần S7/S9), F-02, FC-03,
+S7-01, S8-01, S9-02 dưới đây vì thế đang blocked, không phải pass.
+
+Annotation `contrast` ghi số nút đo và **tỉ lệ nhỏ nhất** (tỉ lệ, ngưỡng cần, nút) cho từng bề mặt và chế độ.
 
 ## Chung, vùng live, vùng chạm, focus, zoom, chuyển động, forced colors
 
 | id | S# | Host | Floor | Kiểm | Chế độ |
 | --- | --- | --- | --- | --- | --- |
-| G-01 | S5 S6 S7 S9 | W | Floor › Chung; DESIGN › Colors | Chữ ≥ 4.5:1 (lớn ≥ 3:1) đo trên trang render, light + dark, vi + en | auto: `S6 clean + dirty bars and every reachable S5 step — {mode} {locale}`, `S7 picker with UniWork AI and the S9 result line — {mode} {locale}` |
+| G-01 | S5 S6 S7 S9 | W | Floor › Chung; DESIGN › Colors | Chữ ≥ 4.5:1 (lớn ≥ 3:1) đo trên trang render, light + dark, vi + en | auto: `S6 clean + dirty bars and every reachable S5 step — {mode} {locale}`, `S7 picker with UniWork AI and the S9 result line — {mode} {locale}` (phần S7/S9 blocked: pin không có hàng UniWork AI, owner REPIN-1 (UNI-1825)) |
 | G-02 | S1 S2 S3 S4 S10 S11 | D | Floor › Chung; DESIGN › Colors | Như G-01 trên bề mặt desktop | fork e2e (proposed): spec Playwright-Electron của shell mở từng bề mặt qua fixture store, chạy cùng phép đo `auditText` trên `webContents` light/dark |
 | G-03 | mọi | W + D | Floor › Chung | Trạng thái không chỉ bằng màu (badge/pill luôn có chữ) | manual: ảnh light/dark + forced colors từng trạng thái |
 | G-04 | S5 | W | Floor › Chung | Điều khiển không chạy được: `aria-disabled` + `aria-describedby` lý do, giữ trong thứ tự Tab | auto: `aria-disabled choices (web offline) stay in the Tab loop with a reason` |
@@ -44,7 +56,7 @@ Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pi
 | T-02 | S5 S6 S7 S9 | W | Floor › Vùng chạm, › S5, › S7, › S9 | 44 px khi `pointer: coarse` | manual: thiết bị cảm ứng thật, ảnh có thước |
 | T-03 | S1 S2 S3 | D | Floor › S1, › Vùng chạm | Vùng chạm pill (24 px mịn, 40 px thô trong thanh tiêu đề), nút tên hàng S2/S3 | fork e2e (proposed): đo `::before` bằng `elementFromPoint` tại mép vùng chạm |
 | F-01 | S1 S5 S6 | W + D | Floor › Focus ring | Ring kế thừa của fork hiện rõ ở hai chế độ | manual: ảnh focus bàn phím từng bề mặt |
-| F-02 | S7 | W | Floor › Focus ring, › S7 | `.ai-model-item.selected:focus-visible` ring ≥ 3:1 với `accent-soft`, light + dark | auto: `S7 the selected option's focus ring is >= 3:1 against accent-soft — {mode}` (**UXF-01**) |
+| F-02 | S7 | W | Floor › Focus ring, › S7 | `.ai-model-item.selected:focus-visible` ring ≥ 3:1 với `accent-soft`, light + dark | auto: `S7 the selected option's focus ring is >= 3:1 against accent-soft — {mode}` (**UXF-01**); blocked: pin không có hàng UniWork AI, owner REPIN-1 (UNI-1825) |
 | Z-01 | S5 S6 | W | Floor › Phóng to 200% | Không nhãn trạng thái bị cắt bởi `nowrap` không lối thoát; S5 dùng đủ (viewport CSS 640×400 = 1280×800 ở 200 %) | auto: `zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable` (phần 200 %) |
 | Z-03 | S5 S6 | W | Floor › Phóng to 200% / text spacing (WCAG 1.4.12) | Chèn style ghi đè 1.4.12 (line-height 1.5, letter-spacing 0.12em, word-spacing 0.16em, khoảng đoạn 2em) vào frame: không nhãn bị cắt (nowrap hoặc hộp `overflow` ẩn quá thấp), S5 vẫn dùng đủ | auto: cùng test với Z-01 (phần text spacing) |
 | Z-02 | S1 S2 | D | Floor › Phóng to 200% | Pill ellipsis nhưng câu đủ ở mô tả; badge/dòng phụ xuống dòng | fork e2e (proposed): `webContents.setZoomFactor(2)` rồi cùng kiểm `nowrap`/`scrollWidth` |
@@ -52,7 +64,7 @@ Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pi
 | M-02 | S1 | D | Floor › Chuyển động | Spinner thành biểu tượng tĩnh + "Đang lưu…" | fork e2e (proposed): emulate reduced motion trong Electron, kiểm `getAnimations()` rỗng và chữ |
 | FC-01 | S5 | W | Floor › Forced colors; DESIGN › Forced colors | Nút S5 giữ viền nhìn thấy (không chỉ màu) | auto: `S5 buttons keep a visible border, not colour alone` |
 | FC-02 | S5 | W | DESIGN › Forced colors | Nút `aria-disabled` dùng chữ + viền `GrayText` | auto: `S5 aria-disabled buttons use GrayText text and border` (**UXF-05**) |
-| FC-03 | S7 | W | DESIGN › Forced colors | Tùy chọn đang chọn có viền 2px `Highlight` | auto: `S7 the selected picker option has a 2px Highlight border, not only a fill` (**UXF-06**) |
+| FC-03 | S7 | W | DESIGN › Forced colors | Tùy chọn đang chọn có viền 2px `Highlight` | auto: `S7 the selected picker option has a 2px Highlight border, not only a fill` (**UXF-06**); blocked: pin không có hàng UniWork AI, owner REPIN-1 (UNI-1825) |
 | FC-04 | S2 S3 | D | DESIGN › Forced colors | Tab S2 đang chọn viền 2px `Highlight`; progress fill/chấm `forced-color-adjust: none` | fork e2e (proposed): `emulateMedia({forcedColors})` trên cửa sổ shell; S3 blocked |
 | N-01 | mọi | W + D | Floor › Không chỉ `title` | Giải thích an toàn dữ liệu nằm trong DOM, không chỉ `title` | manual: NVDA đọc mô tả bằng focus |
 
@@ -83,13 +95,13 @@ Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pi
 | S6-02 | S6 | W | Floor › S6 | Biến thể `uwLockRegion` (revoke, delete, nạp thất bại) | manual: ảnh + NVDA (xóa/thu hồi quyền khi đang mở) |
 | S6-03 | S6 | W + D | Floor › S6 | Không tự ẩn khi có focus/hover | manual |
 | S6-04 | S6 | W | State Patterns › S6 | Biến thể AI đang chạy (`uwRemoteNewerAi`) | manual: ảnh light/dark (cần lượt AI đang chạy khi có version mới) |
-| S7-01 | S7 | W | Floor › S7 | `listbox` ở `.ai-model-pop-list`, `.ai-model-pop` là `group`, "Quản lý"/footer là anh em sau danh sách | auto: `S7 listbox sits on the list, Manage and the footer are siblings after it` (**UXF-08**) |
+| S7-01 | S7 | W | Floor › S7 | `listbox` ở `.ai-model-pop-list`, `.ai-model-pop` là `group`, "Quản lý"/footer là anh em sau danh sách | auto: `S7 listbox sits on the list, Manage and the footer are siblings after it` (**UXF-08**); blocked: pin không có hàng UniWork AI, owner REPIN-1 (UNI-1825) |
 | S7-02 | S7 | W | Floor › S7 | Roving tabindex, ↑/↓, Home/End, Esc trả focus về chip; chip `aria-haspopup=listbox` + `aria-expanded` | manual: bàn phím + NVDA |
 | S7-03 | S7 | D | Floor › S7, IA S7 | Picker footer desktop (`aiUniworkFooterSignIn`, `cloudState*`), tín dụng qua `aria-describedby` | fork e2e (proposed): fixture trạng thái cloud cho từng hàng bảng UniWork AI |
-| S8-01 | S8 | W | Floor › S8 | `region` nhãn `aiUniworkDisclosureLabel`, `tabindex=-1`, không cướp focus; Gửi `aria-disabled` + `aria-describedby` tới khi bấm "Đã hiểu", rồi bật | auto: `S8 disclosure region shows on the first UniWork AI turn and gates Send` (**UXF-09**); manual: NVDA |
+| S8-01 | S8 | W | Floor › S8 | `region` nhãn `aiUniworkDisclosureLabel`, `tabindex=-1`, không cướp focus; Gửi `aria-disabled` + `aria-describedby` tới khi bấm "Đã hiểu", rồi bật | auto: `S8 disclosure region shows on the first UniWork AI turn and gates Send` (**UXF-09**; Gửi đo với ô soạn có chữ, lý do = `aiUniworkSendNeedsAck`); blocked: pin không có hàng UniWork AI, owner REPIN-1 (UNI-1825); manual: NVDA |
 | S8-02 | S8 | D | Floor › S8 | Như S8-01 trên desktop, biến thể tệp cục bộ (S10) | fork e2e (proposed) |
 | S9-01 | S9 | W + D | Floor › S9 | Luồng không `aria-live`; nút polite riêng đọc câu trả lời một lần; `aria-busy` khi stream; Gửi ↔ Dừng đổi `aria-label` + báo polite | manual: NVDA ghi âm; VoiceOver BLOCKED(G7-D2) |
-| S9-02 | S9 | W | DESIGN › Colors | Tương phản dòng kết quả/lỗi | auto: G-01 (`S7 picker with UniWork AI and the S9 result line`) |
+| S9-02 | S9 | W | DESIGN › Colors | Tương phản dòng kết quả/lỗi | auto: G-01 (`S7 picker with UniWork AI and the S9 result line`); blocked: pin không có hàng UniWork AI, owner REPIN-1 (UNI-1825) |
 | S10-01 | S10 | D | IA S10, Floor › S8 | Tệp cục bộ: mục UniWork AI theo trạng thái đăng nhập, khối S8 biến thể `aiUniworkLocalFile` | fork e2e (proposed): mở tệp chưa bind cloud, đăng nhập/đăng xuất bằng fixture |
 | S11-01 | S11 | D | Floor › S11 | Lock panel `region` `aria-labelledby`, ghi "{tiêu đề}. {câu}" một lần vào alert, focus tiêu đề | blocked (G5-05u); sau đó fork e2e (proposed) |
 | S11-02 | S11 | W | IA S11, State Patterns › S6 | Web: thanh S6 error + editor chỉ đọc khi mất quyền/xóa | manual: ảnh light/dark vi/en |
@@ -112,16 +124,16 @@ của D: `0.1.0-05fd209`.
 
 | Mã | Hàng | Tóm tắt | Owner / trạng thái |
 | --- | --- | --- | --- |
-| UXF-01 | F-02 | Ring focus của tùy chọn đang chọn trong picker không có (`outline: none`) | đã sửa ở fork main 99e5a5253; chờ D re-pin do lane g6-fork_ui làm sau khi G6-09 READY (pin hiện 0.1.0-05fd209) |
+| UXF-01 | F-02 | Ring focus của tùy chọn đang chọn trong picker không có (`outline: none`) | card re-pin REPIN-1 (UNI-1825), lane g6-fork_ui; đã sửa ở fork main 99e5a5253 |
 | UXF-02 | S5-03 | S5 không có "Lưu thành bản sao…" | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
 | UXF-03 | S5-04 | S5 Docs không có "Xem khác biệt" | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
 | UXF-04 | L-05 | Nút live của frame bị `inert` khi S5 mở | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
 | UXF-05 | FC-02 | Forced colors: nút `aria-disabled` không dùng `GrayText` | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
 | UXF-06 | FC-03 | Forced colors: tùy chọn đang chọn không có viền `Highlight` | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
 | UXF-07 | S5-12 | Frame hẹp 480–767 px: S5 giữ `max-width: 448px`, không rộng toàn phần trừ 16 px | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
-| UXF-08 | S7-01 | Picker: `listbox` ở `.ai-model-pop`, "Quản lý" nằm trong listbox | đã sửa ở fork main 99e5a5253; chờ D re-pin do lane g6-fork_ui làm sau khi G6-09 READY (pin hiện 0.1.0-05fd209) |
-| UXF-09 | S8-01 | S8 không được render (chỉ có chuỗi) | đã sửa ở fork main 99e5a5253; chờ D re-pin do lane g6-fork_ui làm sau khi G6-09 READY (pin hiện 0.1.0-05fd209) |
-| UXF-10 | L-01 | Hai nút live của cửa sổ chỉ được tạo ở lần announce đầu (`remote-bar.ts` `liveNode()`), không có từ lúc tải | đề xuất card fork UXF-FIX (UNI-1824); chờ Advisor xác nhận |
+| UXF-08 | S7-01 | Picker: `listbox` ở `.ai-model-pop`, "Quản lý" nằm trong listbox | card re-pin REPIN-1 (UNI-1825), lane g6-fork_ui; đã sửa ở fork main 99e5a5253 |
+| UXF-09 | S8-01 | S8 không được render (chỉ có chuỗi) | card re-pin REPIN-1 (UNI-1825), lane g6-fork_ui; đã sửa ở fork main 99e5a5253 |
+| UXF-10 | L-01 | Hai nút live của cửa sổ chỉ được tạo ở lần announce đầu (`remote-bar.ts` `liveNode()`), không có từ lúc tải | card fork UXF-FIX (UNI-1824), lane g5-fork_main |
 
 ## Ký nghiệm thu
 
