@@ -346,7 +346,7 @@ describe("file from another module", () => {
     const row = await rowOf("Đề xuất ngân sách.pdf");
     const secondary = within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) });
     // S2V-2: an icon button rendered at every list width — nothing in its
-    // chain may carry a ladder `hidden @min-[..]/library:block` rung.
+    // chain may carry a ladder rung (hidden plus a container min-width block).
     const wrapper = secondary.parentElement;
     expect(wrapper?.className ?? "").not.toMatch(/(^|\s)hidden(\s|$)/);
     expect(wrapper?.className ?? "").not.toMatch(/@min-\[\d+rem\]\/library:block/);
