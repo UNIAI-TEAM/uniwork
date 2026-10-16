@@ -190,6 +190,42 @@ func (q *Queries) DeleteWorkspaceMembershipsInOrg(ctx context.Context, arg Delet
 	return err
 }
 
+const filterActiveOrganizationMemberUserIDs = `-- name: FilterActiveOrganizationMemberUserIDs :many
+SELECT m.user_id::text AS user_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.organization_id = $1
+  AND m.user_id = ANY($2::text[])
+  AND m.deactivated_at IS NULL
+  AND o.status = 'active'
+`
+
+type FilterActiveOrganizationMemberUserIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	UserIds        []string `json:"user_ids"`
+}
+
+// tenant: self
+func (q *Queries) FilterActiveOrganizationMemberUserIDs(ctx context.Context, arg FilterActiveOrganizationMemberUserIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, filterActiveOrganizationMemberUserIDs, arg.OrganizationID, arg.UserIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1
 `

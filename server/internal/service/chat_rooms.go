@@ -264,10 +264,8 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 	if len(allIDs) > maxChatGroupMembers {
 		return ChatRoomSummary{}, errChatGroupTooLarge()
 	}
-	for _, id := range memberIDs {
-		if err := s.requireOrgPeer(ctx, w.OrganizationID, id); err != nil {
-			return ChatRoomSummary{}, err
-		}
+	if err := s.requireOrgPeers(ctx, w.OrganizationID, memberIDs); err != nil {
+		return ChatRoomSummary{}, err
 	}
 	if len(allIDs) < 3 {
 		return ChatRoomSummary{}, Invalid("nhóm cần ít nhất 2 thành viên khác bạn")
@@ -512,14 +510,8 @@ func (s *ChatService) createChatRoom(
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
-	for _, id := range uniqueUserIDs(allMemberIDs) {
-		role := "member"
-		if id == creatorID {
-			role = "admin"
-		}
-		if err := s.ensureRoomMemberTx(ctx, q, room, anchorWorkspaceID, id, role); err != nil {
-			return db.ChatRoom{}, err
-		}
+	if err := insertChatRoomMembers(ctx, q, room, anchorWorkspaceID, creatorID, allMemberIDs); err != nil {
+		return db.ChatRoom{}, err
 	}
 	// Only room administration is audited; message traffic is not
 	// (OPEN_QUESTIONS A4). The realtime notice now leaves through the outbox,
@@ -784,12 +776,12 @@ func normalizeUserIDs(userIDs []string) []string {
 }
 
 func defaultGroupNameFromUsers(ctx context.Context, q *db.Queries, memberIDs []string) string {
-	names := make([]string, 0, len(memberIDs))
-	for _, id := range memberIDs {
-		u, err := q.GetUserByID(ctx, id)
-		if err != nil {
-			continue
-		}
+	rows, err := q.GetUsersByIDs(ctx, uniqueUserIDs(memberIDs))
+	if err != nil {
+		return "Group"
+	}
+	names := make([]string, 0, len(rows))
+	for _, u := range rows {
 		label := strings.TrimSpace(u.DisplayName)
 		if label == "" {
 			label = u.Email
