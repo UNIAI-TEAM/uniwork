@@ -26,6 +26,49 @@ export function frameInstallState(pins = readPins(), root = FRAME_ROOT) {
   );
 }
 
+/** The AI grant of a frame-token answer (`ai.ai`, `ai.uniwork_ai`); an absent or drifted field reads as off, as the host reads it. */
+export function frameGrantFromToken(body) {
+  const grant = body && typeof body === "object" ? body.ai : null;
+  return { ai: grant?.ai === true, uniworkAi: grant?.uniwork_ai === true };
+}
+
+const FRAME_TOKEN_URL = /\/documents\/([^/?#]+)\/office\/frame-token(?:[?#]|$)/;
+
+/**
+ * Listens for the frame-token mints the host page makes (POST .../documents/<id>/office/frame-token)
+ * and keeps the AI grant of the latest mint per document. `settled()` waits for the answers still
+ * being read and returns the map. A mint whose body cannot be read records nothing (the job then
+ * fails that shot: no grant proven).
+ * @param {{ on: (event: string, handler: (response: any) => void) => void }} page
+ */
+export function trackFrameGrants(page) {
+  /** @type {Map<string, { ai: boolean, uniworkAi: boolean }>} */
+  const grants = new Map();
+  const pending = [];
+  page.on("response", (response) => {
+    const match = FRAME_TOKEN_URL.exec(response.url());
+    if (!match || response.request().method() !== "POST") return;
+    pending.push(
+      Promise.resolve()
+        .then(() => response.json())
+        .then((body) => grants.set(match[1], frameGrantFromToken(body)))
+        .catch(() => {}),
+    );
+  });
+  return {
+    settled: async () => {
+      await Promise.all(pending);
+      return grants;
+    },
+  };
+}
+
+/** An ok shot stamped with the grant its document's token carried; any other result, or a document with no mint seen, is returned as it is. */
+export function withFrameGrant(result, grants, documentId) {
+  const grant = grants.get(documentId);
+  return result.status === "ok" && grant ? { ...result, ...grant } : result;
+}
+
 /** What the document page shows for `module`: the frame host's state or a notice. Runs in the page. */
 export function readFrameState(module) {
   const host = document.querySelector(`[data-office-docs-frame][data-office-module="${module}"]`);
@@ -160,6 +203,7 @@ export async function captureWeb({ ports, fixtures, playwright, log = () => {}, 
     // the product shows English until the locale cookie says otherwise (e2e/locale-state.ts)
     await context.addCookies([{ name: "uniwork-locale", value: "vi", url: webOrigin }]);
     const page = await context.newPage();
+    const frameGrants = trackFrameGrants(page);
     try {
       await signIn(page, webOrigin, seed);
     } catch (error) {
@@ -171,7 +215,8 @@ export async function captureWeb({ ports, fixtures, playwright, log = () => {}, 
       log(`web: ${fixture.id} -> ${new URL(url).pathname.replace(/[0-9A-HJKMNP-TV-Z]{26}/g, "<id>")}`);
       try {
         await page.goto(url, { waitUntil: "domcontentloaded" });
-        results[fixture.id] = await captureOpenFrame(page, fixture.module);
+        const shot = await captureOpenFrame(page, fixture.module);
+        results[fixture.id] = withFrameGrant(shot, await frameGrants.settled(), seed.documents[fixture.id]);
       } catch (error) {
         results[fixture.id] = failed(`capture_error: ${String(error.message).split("\n")[0]}`);
       }
