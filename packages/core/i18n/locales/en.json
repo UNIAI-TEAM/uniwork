@@ -8949,6 +8949,7 @@
       "people_empty": "No matching members.",
       "people_loading": "Loading members…",
       "person_unknown": "Unknown member",
+      "workspace_unknown": "Another workspace",
       "members_error_first": "Could not load the members.",
       "members_error_partial": "Not every member loaded, so some people may be missing.",
       "members_error_limit": "Only part of a very large member list is shown.",

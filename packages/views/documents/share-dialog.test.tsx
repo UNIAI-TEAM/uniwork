@@ -473,7 +473,7 @@ describe("ShareDialog", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("share failed");
     expect(screen.getByRole("button", { name: t("documents.share.people_remove", { name: "Bình" }) })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeEnabled();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("shares three people at one level with ONE batch POST and lists the three grants", async () => {
@@ -519,7 +519,7 @@ describe("ShareDialog", () => {
     }
     // Success clears the selection for the next batch.
     expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
-    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("names the refused person on a 422 principal_not_in_organization and lists nothing new", async () => {
@@ -560,7 +560,7 @@ describe("ShareDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.people_remove", { name: "Chi" }) }));
 
     expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
-    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("drops the picked people when the principal type moves away from person", async () => {
@@ -572,7 +572,7 @@ describe("ShareDialog", () => {
     await pickOption(t("documents.share.principal_label"), t("documents.share.principal_user"));
 
     expect(screen.queryByRole("list", { name: t("documents.share.people_chosen") })).toBeNull();
-    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("documents.share.submit") })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("drops the picked people when the dialog closes and opens again", async () => {
@@ -696,7 +696,7 @@ describe("ShareDialog", () => {
 
     await waitFor(() => expect(posts.length).toBe(1));
     expect(posts[0]).toEqual({ principal_type: "organization", principal_id: ORG, level: "view" });
-    await waitFor(() => expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: t("documents.share.submit") })).not.toHaveAttribute("aria-disabled", "true"));
   });
 
   it("explains the link limit without leaving the dialog", async () => {
@@ -909,6 +909,89 @@ describe("ShareDialog", () => {
     await screen.findByText(t("documents.share.access_title"));
     const input = screen.getByRole("combobox", { name: t("documents.share.principal_placeholder") });
     expect(input.closest(".sm\\:col-span-2")).not.toBeNull();
+  });
+
+  it("keeps disabled submit and visibility-save buttons in the tab order via aria-disabled and blocks clicks (VIS-SHS1-11)", async () => {
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    const submitBtn = screen.getByRole("button", { name: t("documents.share.submit") });
+    const saveVisBtn = screen.getByRole("button", { name: t("documents.share.visibility_save") });
+
+    expect(submitBtn).not.toBeDisabled();
+    expect(submitBtn).toHaveAttribute("aria-disabled", "true");
+    expect(saveVisBtn).not.toBeDisabled();
+    expect(saveVisBtn).toHaveAttribute("aria-disabled", "true");
+
+    const callsBefore = requestMock.mock.calls.length;
+    fireEvent.click(submitBtn);
+    fireEvent.click(saveVisBtn);
+    expect(requestMock.mock.calls.length).toBe(callsBefore);
+  });
+
+  it("marks the caller / ACL owner with people_already_shared in the people picker (VIS-SHS1-16)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1/shares") return Promise.resolve(accessPayload);
+      if (path.startsWith("/api/v1/orgs/acme/members")) {
+        return Promise.resolve({
+          members: [
+            { user_id: "u1", email: "an@acme.vn", display_name: "An Chủ Sở Hữu", role: "owner", created_at: "" },
+            ...membersPayload.members,
+          ],
+          next_cursor: "",
+        });
+      }
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    const input = screen.getByRole("combobox", { name: t("documents.share.principal_placeholder") });
+    input.focus();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.change(input, { target: { value: "An Chủ Sở Hữu" } });
+    const selfOption = await screen.findByRole("option", { name: /An Chủ Sở Hữu/ });
+    expect(selfOption).toHaveTextContent(t("documents.share.people_already_shared"));
+  });
+
+  it("translates an unverifiable link-create response via documents.share.link_create_failed instead of raw English (VIS-SHS1-17)", async () => {
+    serve({
+      // Missing token/url causes useCreateDocumentLink to throw DocumentNotVerifiableError("result not verifiable")
+      createLink: () => Promise.resolve({ link: { id: "l9", view_count: 0, created_at: "2026-09-28T03:00:00Z" } }),
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.link_create") }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(t("documents.share.link_create_failed"));
+    expect(alert).not.toHaveTextContent(/result not verifiable/i);
+  });
+
+  it("renders a generic translated label instead of a raw workspace id when a workspace share is missing from orgWorkspaces (VIS-SHS1-13)", async () => {
+    serve({
+      access: {
+        ...accessPayload,
+        shares: [
+          {
+            id: "s-unknown-ws",
+            principal_type: "workspace",
+            principal_id: "ws-ns",
+            level: "view",
+            active: true,
+            effective_level: "view",
+            granted_by: "u1",
+            granted_by_kind: "human",
+            created_at: "2026-09-26T03:00:00Z",
+          },
+        ],
+      },
+    });
+    renderDialog();
+    const access = await screen.findByRole("region", { name: t("documents.share.access_title") });
+    expect(await within(access).findByText(t("documents.share.workspace_unknown"))).toBeInTheDocument();
+    expect(within(access).queryByText("ws-ns")).toBeNull();
   });
 });
 

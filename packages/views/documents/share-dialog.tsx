@@ -5,36 +5,15 @@ import { Building2, Link2, ShieldCheck, UserRound, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
-import {
-  useDocumentShares,
-  useRevokeDocumentShare,
-  useShareDocument,
-} from "@uniwork/core/documents/hooks-sharing";
+import { useDocumentShares, useRevokeDocumentShare, useShareDocument } from "@uniwork/core/documents/hooks-sharing";
 import { useOrgWorkspaces } from "@uniwork/core/organizations";
 import { canAdministerDocument } from "@uniwork/core/permissions";
 import { paths } from "@uniwork/core/paths";
-import type {
-  DocumentAccess,
-  DocumentAccessLevel,
-  DocumentAccessVia,
-} from "@uniwork/core/types/document";
+import type { DocumentAccess, DocumentAccessLevel } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
-import { Input } from "@uniwork/ui/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Label } from "@uniwork/ui/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@uniwork/ui/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useOptionalWorkspace } from "../layout/workspace-context";
@@ -112,7 +91,9 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
   const people = useSharePeople(wsId, doc.id, (id) => members.nameOf(id) ?? id, setAddError);
   const pending = share.isPending || people.isPending;
   const workspaceName = (id: string) =>
-    orgWorkspaces.data?.find((w) => w.id === id)?.name || id;
+    orgWorkspaces.data?.find((w) => w.id === id)?.name ||
+    (workspace.id === id && workspace.name ? workspace.name : "") ||
+    t("documents.share.workspace_unknown");
 
   const principalName = (row: AccessShare): string | null => {
     switch (row.principal_type) {
@@ -151,8 +132,11 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
   }, [principalType, orgWorkspaces.data, doc.workspace_id, doc.organization_id, workspace.organization_name]);
 
   const submitShare = async () => {
-    if (principalType === "user") return people.submit(level);
-    if (!principalId || share.isPending) return;
+    if (principalType === "user") {
+      if (!people.ids.length || pending) return;
+      return people.submit(level);
+    }
+    if (!principalId || pending) return;
     setAddError(null);
     try {
       await share.mutateAsync({ principal_type: principalType, principal_id: principalId, level });
@@ -289,7 +273,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                       </p>
                     ) : null}
                     {principalType === "user" ? (
-                      <SharePeoplePicker id="share-principal-id" members={members.rows} shares={shares} people={people} />
+                      <SharePeoplePicker
+                        id="share-principal-id"
+                        members={members.rows}
+                        shares={shares}
+                        alreadySharedUserIds={[access.data.acl_owner?.user_id, user?.id]}
+                        people={people}
+                      />
                     ) : (
                       <Select
                         items={principalItems}
@@ -335,7 +325,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                     <Button
                       type="button"
                       className="w-full"
-                      disabled={(principalType === "user" ? !people.ids.length : !principalId) || pending}
+                      aria-disabled={((principalType === "user" ? !people.ids.length : !principalId) || pending) || undefined}
                       aria-busy={pending || undefined}
                       onClick={() => void submitShare()}
                     >
@@ -477,25 +467,13 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
 }
 
 function NameOrSkeleton({ name }: { name: string | null }) {
-  return name === null ? (
-    <Skeleton aria-hidden className="h-4 w-24" />
-  ) : (
-    <span className="truncate" title={name}>
-      {name}
-    </span>
-  );
+  return name === null ? <Skeleton aria-hidden className="h-4 w-24" /> : <span className="truncate" title={name}>{name}</span>;
 }
 
 function VisibilitySection({
-  doc,
-  pending,
-  error,
-  onSave,
+  doc, pending, error, onSave,
 }: {
-  doc: Pick<ShareDialogTarget, "visibility">;
-  pending: boolean;
-  error: string | null;
-  onSave: (next: "workspace" | "restricted") => void;
+  doc: Pick<ShareDialogTarget, "visibility">; pending: boolean; error: string | null; onSave: (next: "workspace" | "restricted") => void;
 }) {
   const { t } = useTranslation();
   const [choice, setChoice] = useState<"workspace" | "restricted" | null>(null);
@@ -504,9 +482,7 @@ function VisibilitySection({
 
   return (
     <section aria-labelledby="share-visibility-title" className="flex flex-col gap-2 rounded-lg border border-border p-3">
-      <h3 id="share-visibility-title" className="text-label font-medium text-foreground">
-        {t("documents.share.visibility_title")}
-      </h3>
+      <h3 id="share-visibility-title" className="text-label font-medium text-foreground">{t("documents.share.visibility_title")}</h3>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {(["workspace", "restricted"] as const).map((value) => (
           <button
@@ -521,39 +497,25 @@ function VisibilitySection({
                 : "rounded-lg border border-border px-3 py-2 text-left hover:bg-surface-hover"
             }
           >
-            <span className="block text-body font-medium text-foreground">
-              {t(`documents.share.visibility_${value}`)}
-            </span>
-            <span className="block text-caption text-muted-foreground">
-              {t(`documents.share.visibility_${value}_hint`)}
-            </span>
+            <span className="block text-body font-medium text-foreground">{t(`documents.share.visibility_${value}`)}</span>
+            <span className="block text-caption text-muted-foreground">{t(`documents.share.visibility_${value}_hint`)}</span>
           </button>
         ))}
       </div>
-      {error ? (
-        <p role="alert" className="text-caption text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p role="alert" className="text-caption text-destructive">{error}</p> : null}
       <div>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          disabled={!changed || pending}
+          aria-disabled={(!changed || pending) || undefined}
           aria-busy={pending || undefined}
           onClick={() => {
+            if (!changed || pending) return;
             if (current === "workspace" || current === "restricted") onSave(current);
           }}
         >
-          {pending ? (
-            <>
-              <Spinner aria-hidden role="presentation" />
-              {t("documents.share.visibility_saving")}
-            </>
-          ) : (
-            t("documents.share.visibility_save")
-          )}
+          {pending ? <><Spinner aria-hidden role="presentation" />{t("documents.share.visibility_saving")}</> : t("documents.share.visibility_save")}
         </Button>
       </div>
     </section>

@@ -7,6 +7,7 @@ import { apiErrorMessage } from "@uniwork/core/api";
 import { isBreakGlassRequiredError } from "@uniwork/core/api/endpoints/documents";
 import { useRevokeDocumentBreakGlass } from "@uniwork/core/documents/break-glass-queries";
 import { shareLevelNotAllowedMax } from "@uniwork/core/documents/errors";
+import { isDocumentNotVerifiable } from "@uniwork/core/types/document";
 import type { DocumentBreakGlassGrant } from "@uniwork/core/types/document-access";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useOptionalWorkspace } from "../layout/workspace-context";
@@ -44,6 +45,9 @@ export function shareErrorMessage(err: unknown, t: ReturnType<typeof useTranslat
   const max = shareLevelNotAllowedMax(err);
   if (max) {
     return t("documents.errors.level_not_allowed", { max: t(`documents.share.level_${max}`) });
+  }
+  if (isDocumentNotVerifiable(err)) {
+    return undefined;
   }
   return apiErrorMessage(err);
 }

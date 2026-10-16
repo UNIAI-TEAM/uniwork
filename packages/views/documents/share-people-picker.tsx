@@ -89,12 +89,15 @@ export function SharePeoplePicker({
   id,
   members,
   shares,
+  alreadySharedUserIds,
   people,
 }: {
   id: string;
   members: readonly OrgMember[];
   /** The document's grants; live person grants are marked in the list. */
   shares: readonly Pick<DocumentShare, "principal_type" | "principal_id" | "active">[];
+  /** Additional user ids that already hold access (e.g., ACL owner and caller). */
+  alreadySharedUserIds?: readonly (string | null | undefined)[];
   people: ReturnType<typeof useSharePeople>;
 }) {
   const { t } = useTranslation();
@@ -102,10 +105,13 @@ export function SharePeoplePicker({
   /** Name of the person just removed, spoken through the status region until the next pick. */
   const [removed, setRemoved] = useState<string | null>(null);
   const { ids: value, change: onChange, isPending: disabled } = people;
-  const sharedIds = useMemo(
-    () => new Set(shares.filter((r) => r.principal_type === "user" && r.active).map((r) => r.principal_id)),
-    [shares],
-  );
+  const sharedIds = useMemo(() => {
+    const ids = new Set(shares.filter((r) => r.principal_type === "user" && r.active).map((r) => r.principal_id));
+    for (const uid of alreadySharedUserIds ?? []) {
+      if (uid) ids.add(uid);
+    }
+    return ids;
+  }, [shares, alreadySharedUserIds]);
 
   const options = useMemo<PersonOption[]>(
     () => members.map((m) => ({ id: m.user_id, name: m.display_name || m.email, email: m.email })),

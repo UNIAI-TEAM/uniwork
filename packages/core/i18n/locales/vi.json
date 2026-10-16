@@ -8944,6 +8944,7 @@
       "people_empty": "Không có thành viên phù hợp.",
       "people_loading": "Đang tải thành viên…",
       "person_unknown": "Thành viên không xác định",
+      "workspace_unknown": "Workspace khác",
       "members_error_first": "Không tải được danh sách thành viên.",
       "members_error_partial": "Chưa tải hết thành viên nên có thể thiếu người.",
       "members_error_limit": "Danh sách quá dài nên chỉ hiển thị một phần thành viên.",
