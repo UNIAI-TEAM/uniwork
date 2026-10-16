@@ -118,13 +118,16 @@ type Config struct {
 	MailFrom                      string
 	// TenorAPIKey enables Tenor GIF search in chat; empty uses a small built-in catalog.
 	TenorAPIKey string
-	// VAPID keys enable Web Push (F-07). Both empty turns push off: the push
-	// consumer acknowledges rows without sending and the client hides the
-	// option. VAPID_SUBJECT is a mailto: or https origin the push service can
+	// VAPID keys enable Web Push (F-07). Both empty turns web push off: the
+	// push consumer acknowledges web subscriptions without sending and the
+	// client hides the option (Expo mobile push needs no VAPID). VAPID_SUBJECT is a mailto: or https origin the push service can
 	// contact about abuse; it defaults to the frontend origin.
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
 	VAPIDSubject    string
+	// ExpoAccessToken authenticates mobile push to Expo Push Service when the
+	// Expo project enables enhanced push security; empty sends unauthenticated.
+	ExpoAccessToken string
 	// RUMSampleRate is the share of web sessions that report web-vitals to
 	// POST /api/v1/rum (F-11 §2.8); 0 turns reporting off client-side.
 	RUMSampleRate             float64
@@ -310,6 +313,7 @@ func Load() (Config, error) {
 		VAPIDPublicKey:                os.Getenv("VAPID_PUBLIC_KEY"),
 		VAPIDPrivateKey:               os.Getenv("VAPID_PRIVATE_KEY"),
 		VAPIDSubject:                  os.Getenv("VAPID_SUBJECT"),
+		ExpoAccessToken:               os.Getenv("EXPO_ACCESS_TOKEN"),
 		RUMSampleRate:                 parseRatio(os.Getenv("RUM_SAMPLE_RATE"), 0.2),
 		OfficeInstallerDevURL:         os.Getenv("OFFICE_INSTALLER_DEV_URL"),
 		OfficeInstallerBetaURL:        os.Getenv("OFFICE_INSTALLER_BETA_URL"),

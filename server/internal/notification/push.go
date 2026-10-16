@@ -14,11 +14,13 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// PushMessage is what a browser receives: the rendered title, where a click
-// goes, and a tag so the browser replaces an older banner of the same group
-// rather than stacking them. No task description, nothing beyond the title.
+// PushMessage is what a browser or the mobile app receives: the rendered
+// title, a short body (chat only), where a click goes, and a tag so an older
+// banner of the same group is replaced rather than stacked. No task
+// description, nothing beyond the title and that short body.
 type PushMessage struct {
 	Title string `json:"title"`
+	Body  string `json:"body,omitempty"`
 	URL   string `json:"url"`
 	Tag   string `json:"tag"`
 }
