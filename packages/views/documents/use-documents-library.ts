@@ -14,7 +14,12 @@ import {
 } from "@uniwork/core/documents/hooks-collections";
 import { isEndpointMissing, useDocumentSources } from "@uniwork/core/documents/hooks-library";
 import type { DocumentSourceType } from "@uniwork/core/documents/sources-schema";
-import type { DocumentList, DocumentTreeNode } from "@uniwork/core/types/document";
+import type {
+  DocumentAccessFilter,
+  DocumentFileFormat,
+  DocumentList,
+  DocumentTreeNode,
+} from "@uniwork/core/types/document";
 import type { LibraryView } from "./documents-sidebar";
 import {
   documentRow,
@@ -116,6 +121,16 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     [userId],
   );
 
+  // The server-side pair of the type chips (UNI-1868): the file chips become
+  // `format`, "Trang" keeps `kind=page`, and the access buttons become
+  // `access`. The trash accepts only `format` and `access=restricted` — a
+  // manage/edit carried in from another tab is clamped here, and the toolbar
+  // hides those options while the trash is open.
+  const serverFormat = SOURCE_TYPES.has(chip) ? (chip as DocumentFileFormat) : undefined;
+  const archived = view.kind === "archived";
+  const serverAccess: DocumentAccessFilter | undefined =
+    access === "all" ? undefined : archived && access !== "restricted" ? undefined : access;
+
   const queryClient = useQueryClient();
   const tree = useDocumentTree(wsId, undefined, { enabled });
   const favorites = useDocumentFavorites(orgId, { enabled: enabled && !!orgId });
@@ -123,8 +138,10 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     () => ({
       ...(folderId ? { parentId: folderId } : {}),
       ...(chip === "page" ? { kind: "page" as const } : {}),
+      ...(serverFormat ? { format: serverFormat } : {}),
+      ...(serverAccess ? { access: serverAccess } : {}),
     }),
-    [folderId, chip],
+    [folderId, chip, serverFormat, serverAccess],
   );
   // The starred view reads the workspace root list too (the home root's own
   // cache entry when it was open), so starred rows get dates and editors.
@@ -147,9 +164,26 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   }, [folderAutoPaging, homeQuery]);
 
   const rootQuery = useDocumentList(wsId, {}, { enabled: enabled && view.kind === "starred" });
-  const archivedQuery = useDocumentList(wsId, { archived: true }, { enabled: enabled && view.kind === "archived" });
-  const recentQuery = useRecentDocuments(wsId, { enabled: enabled && view.kind === "recent" });
-  const sharedQuery = useSharedWithMe(wsId, { enabled: enabled && view.kind === "shared" });
+  const archivedFilter = useMemo(
+    () => ({
+      archived: true,
+      ...(chip === "page" ? { kind: "page" as const } : {}),
+      ...(serverFormat ? { format: serverFormat } : {}),
+      ...(serverAccess ? { access: serverAccess } : {}),
+    }),
+    [chip, serverFormat, serverAccess],
+  );
+  const archivedQuery = useDocumentList(wsId, archivedFilter, { enabled: enabled && archived });
+  const recentQuery = useRecentDocuments(wsId, {
+    enabled: enabled && view.kind === "recent",
+    format: serverFormat,
+    access: serverAccess,
+  });
+  const sharedQuery = useSharedWithMe(wsId, {
+    enabled: enabled && view.kind === "shared",
+    format: serverFormat,
+    access: serverAccess,
+  });
   const sourceFilter = useMemo(
     () => ({
       ...(view.kind === "sources" && view.source ? { source: view.source } : {}),
@@ -254,17 +288,33 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     }
   }
 
-  const rows = state.rows.filter((row) => matchesChip(row, chip) && matchesAccess(row, access));
+  // What the server could not filter (UNI-1868): the starred view (favorites
+  // + cache) and the sources view keep the client predicates on every row,
+  // and on a merged home they run on the source rows only — a document row
+  // there is the server's answer, and a folder surviving `format` would fall
+  // honestly say "no matches in what is loaded". A merged home counts only
+  // while source rows actually merged — an empty sources answer leaves the
+  // doc list fully server-filtered.
+  const mergedHome = Boolean(home && !folderId && sourcesWanted && sourcesAvailable && sourceRows.length > 0);
+  const clientFiltered = view.kind === "starred" || view.kind === "sources" || mergedHome;
+  const rows = state.rows.filter((row) => {
+    const clientSide = view.kind === "starred" || view.kind === "sources" || (mergedHome && row.type === "source");
+    return !clientSide || (matchesChip(row, chip) && matchesAccess(row, access));
+  });
   return {
     state: { ...state, rows },
-    /** Rows before the chip and access filters: an empty table under either is "no matches". */
-    unfilteredCount: state.rows.length,
+    /** Whether the chip/access filters ran on the client here — decides which
+     *  empty-state copy the list shows ("no matches" server-side vs "no
+     *  matches in what is loaded" client-side). */
+    clientFiltered,
     tree: nodes,
     folderIndex,
     starredIds: new Set(starred.map((fav) => fav.document_id)),
     starredCount: favorites.data ? starred.length : null,
     sourcesAvailable,
-    access,
+    // The trash never offers or sends manage/edit: the toolbar reads this
+    // clamped value, not the raw state.
+    access: (serverAccess ?? "all") as AccessFilter,
     setAccess,
     sort,
     setSort,
