@@ -34,6 +34,7 @@ import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { useDropUpload } from "./use-drop-upload";
+import { useSourcePreview } from "./source-preview-dialog";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchBox } from "./documents-search-box";
@@ -134,6 +135,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const createFile = useCreateDocumentFile(wsId);
   const creator = useCreateOfType(wsId, onOpen);
   const downloadSource = useDownloadDocumentSource(wsId);
+  const sourcePreview = useSourcePreview(downloadSource);
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
   const members = useMembers(enabled ? wsId : "");
@@ -215,6 +217,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
       const target = context ? sourceParentPath(paths.workspace(context.workspace.organization_slug, context.workspace.slug), row.source.parent) : null;
       if (target) push(target);
     },
+    onPreviewSource: sourcePreview.open,
     onDownloadSource: (sourceId) => {
       void downloadSource.mutateAsync({ sourceId }).then(
         (blob) => {
@@ -456,6 +459,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         error={uploadError}
         onSubmit={(file) => void uploadFile(file)}
       />
+
+      {sourcePreview.dialog}
 
       {rowDialogs.dialogs}
     </div>

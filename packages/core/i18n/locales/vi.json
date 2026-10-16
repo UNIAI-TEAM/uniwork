@@ -9584,6 +9584,10 @@
         "starred": "Đã gắn sao",
         "unstar": "Bỏ gắn sao",
         "go_to_source": "Xem nơi đính kèm",
+        "go_to_source_named": "Xem nơi đính kèm: {{title}}",
+        "preview_loading": "Đang tải ảnh…",
+        "preview_failed": "Không xem được file. Thử lại.",
+        "preview_close": "Đóng",
         "download": "Tải xuống",
         "save_to_folder": "Lưu vào thư mục",
         "menu": "Thao tác cho {{title}}",
@@ -9592,6 +9596,7 @@
         "move": "Di chuyển",
         "archive": "Lưu trữ",
         "open_email": "Mở Email",
+        "open_email_named": "Mở Email: {{title}}",
         "new_subfolder": "Thư mục con mới",
         "rename": "Đổi tên"
       },

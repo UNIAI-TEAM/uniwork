@@ -10,12 +10,16 @@
  * spanner all read the one class below, so none can drift out of step.
  *
  * Below the first rung only Name and the actions column exist (Name = the
- * container - 58px). Tailwind finds the classes as literals, so each rung is
+ * container - 82px). Tailwind finds the classes as literals, so each rung is
  * written out in full; `documents-library-ladder.test.tsx` re-derives every
  * threshold from the column widths.
  *
- * Fixed columns (px): actions 56 -> 96 from the first rung, Editor 144,
+ * Fixed columns (px): actions 80 -> 96 from the first rung, Editor 144,
  * Updated 96, Size 96, Source 112, Type 144, My access 112, Visibility 144.
+ * The actions column is 80 and not 56 so a source row's icon button (28) can
+ * sit next to the ⋯ menu (28) with the gap and cell padding; on a coarse
+ * pointer both grow to the 44px touch target and the column grows to 108
+ * with them — the quick app command stays gated until the first rung.
  *
  * | container | plain library              | open folder (Type)        |
  * | --------- | -------------------------- | ------------------------- |
@@ -51,7 +55,7 @@ export interface LibraryLadder {
 }
 
 const NAME: LibraryColumn = { id: "name", col: "", cell: "" };
-const ACTIONS: LibraryColumn = { id: "actions", col: "w-14 @min-[45rem]/library:w-24", cell: "" };
+const ACTIONS: LibraryColumn = { id: "actions", col: "w-20 pointer-coarse:w-27 pointer-fine:@min-[45rem]/library:w-24", cell: "" };
 
 const EDITOR: LibraryColumn = { id: "editor", col: "hidden w-36 @min-[45rem]/library:table-column", cell: "hidden @min-[45rem]/library:table-cell" };
 const UPDATED: LibraryColumn = { id: "updated", col: "hidden w-24 @min-[45rem]/library:table-column", cell: "hidden @min-[45rem]/library:table-cell" };

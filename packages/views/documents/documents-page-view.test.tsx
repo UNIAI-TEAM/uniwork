@@ -581,7 +581,7 @@ describe("DocumentsPageView", () => {
     expect(within(row).getAllByText(t("documents.home.origin.chat")).length).toBeGreaterThan(0);
     expect(within(row).getByText("Dũng")).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
-    expect(within(row).getByRole("button", { name: t("documents.home.row.download") })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) })).toBeInTheDocument();
     // The sidebar names the modules once the sources API answered.
     expect(screen.getByRole("button", { name: t("documents.home.origin.chat") })).toBeInTheDocument();
 
