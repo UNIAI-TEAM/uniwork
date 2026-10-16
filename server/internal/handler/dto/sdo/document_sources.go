@@ -3,9 +3,10 @@ package sdo
 // DocumentSourceParentDTO is where a source file lives. For task_comment the
 // id is the task's (the comment is read on the task page).
 type DocumentSourceParentDTO struct {
-	Kind  string `json:"kind" description:"chat_channel, chat_dm, task, task_comment, meeting hoặc email_thread" example:"chat_channel"`
-	ID    string `json:"id" description:"ULID của kênh/hội thoại, công việc, cuộc họp hoặc luồng email" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
-	Title string `json:"title" description:"Tên hiển thị của nơi chứa tệp" example:"Kênh dự án"`
+	Kind      string `json:"kind" description:"chat_channel, chat_dm, task, task_comment, meeting hoặc email_thread" example:"chat_channel"`
+	ID        string `json:"id" description:"ULID của kênh/hội thoại, công việc, cuộc họp hoặc luồng email" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	Title     string `json:"title" description:"Tên hiển thị của nơi chứa tệp" example:"Kênh dự án"`
+	MessageID string `json:"message_id,omitempty" description:"Với chat: ULID tin nhắn mang tệp đính kèm (deep link highlight)" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 }
 
 // DocumentSourceOwnerDTO is who put the file there.

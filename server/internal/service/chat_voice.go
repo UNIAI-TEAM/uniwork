@@ -651,6 +651,11 @@ func (s *ChatService) finalizeVoiceCall(
 	}, emit...); err != nil {
 		return err
 	}
+	if room.Kind == chatRoomKindDM && outcome == voiceCallOutcomeUnanswered {
+		if err := emitChatMessageNotifications(ctx, q, room, sess.callerID, msg.ID, "", "", chatMentions{}); err != nil {
+			return err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}

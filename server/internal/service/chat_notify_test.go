@@ -127,6 +127,127 @@ func TestChatSendWritesDurableNotificationRows(t *testing.T) {
 	}
 }
 
+func TestChatEditNotifiesOnlyNewMentions(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixtureFiles(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "edit-mention", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sent, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "xem giúp"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chatNotifyRecipients(t, s, "chat.message.mentioned", sent.ID); len(got) != 0 {
+		t.Fatalf("plain send mentioned %v", got)
+	}
+	pub.events = nil
+	pub.sent = nil
+	pub.batches = nil
+	mentionBody := "[@B](mention://member/" + ub.ID + ") xem giúp"
+	if _, err := s.EditChatMessage(ctx, ua.ID, w.ID, ch.ID, sent.ID, mentionBody); err != nil {
+		t.Fatal(err)
+	}
+	if got := chatNotifyRecipients(t, s, "chat.message.mentioned", sent.ID); !slices.Equal(got, []string{ub.ID}) {
+		t.Fatalf("after edit mentioned %v, want [%s]", got, ub.ID)
+	}
+	if n := len(pub.batches); n != 1 || pub.batches[0] != "chat.mention.created" {
+		t.Fatalf("mention frames = %v, want one chat.mention.created batch", pub.batches)
+	}
+	if got := pub.sentTo("chat.mention.created"); len(got) != 1 || got[0] != "user:"+ub.ID {
+		t.Fatalf("mention frame targets = %v", got)
+	}
+	beforeRows, err := s.pool.Query(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'chat.message.mentioned' AND payload::jsonb->>'message_id' = $1`, sent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mentionRows int
+	if beforeRows.Next() {
+		if err := beforeRows.Scan(&mentionRows); err != nil {
+			t.Fatal(err)
+		}
+	}
+	beforeRows.Close()
+	if _, err := s.EditChatMessage(ctx, ua.ID, w.ID, ch.ID, sent.ID, mentionBody+" "); err != nil {
+		t.Fatal(err)
+	}
+	if got := chatNotifyRecipients(t, s, "chat.message.mentioned", sent.ID); !slices.Equal(got, []string{ub.ID}) {
+		t.Fatalf("second edit duplicated mentions: %v", got)
+	}
+	var afterRows int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'chat.message.mentioned' AND payload::jsonb->>'message_id' = $1`, sent.ID).Scan(&afterRows); err != nil {
+		t.Fatal(err)
+	}
+	if afterRows != mentionRows {
+		t.Fatalf("mention outbox rows = %d, want %d", afterRows, mentionRows)
+	}
+	if got := chatNotifyRecipients(t, s, "chat.dm.received", sent.ID); len(got) != 0 {
+		t.Fatalf("edit created dm rows: %v", got)
+	}
+}
+
+func latestVoiceCallLogID(t *testing.T, s *ChatService, roomID string) string {
+	t.Helper()
+	var id string
+	err := s.pool.QueryRow(context.Background(),
+		`SELECT id FROM chat_messages WHERE room_id = $1 AND kind = 'voice_call_log' ORDER BY created_at DESC LIMIT 1`, roomID,
+	).Scan(&id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestMissedDMCallNotifiesThePeer(t *testing.T) {
+	s, _, q, ua, ub, w, _ := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "missed-1", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "missed-1"); err != nil {
+		t.Fatal(err)
+	}
+	msgID := latestVoiceCallLogID(t, s, dm.ID)
+	if got := chatNotifyRecipients(t, s, "chat.dm.received", msgID); !slices.Equal(got, []string{ub.ID}) {
+		t.Fatalf("missed call dm notify %v, want peer %s", got, ub.ID)
+	}
+
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "answered-1", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "answered-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "answered-1"); err != nil {
+		t.Fatal(err)
+	}
+	answeredID := latestVoiceCallLogID(t, s, dm.ID)
+	if got := chatNotifyRecipients(t, s, "chat.dm.received", answeredID); len(got) != 0 {
+		t.Fatalf("completed call should not dm-notify: %v", got)
+	}
+
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "declined-1", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "declined-1"); err != nil {
+		t.Fatal(err)
+	}
+	declinedID := latestVoiceCallLogID(t, s, dm.ID)
+	if got := chatNotifyRecipients(t, s, "chat.dm.received", declinedID); len(got) != 0 {
+		t.Fatalf("declined call should not dm-notify: %v", got)
+	}
+}
+
 // sendEveryKind sends a poll, a note, a post and a reminder into roomID, each
 // keyed by clientMsgID plus its kind, and returns them in that order.
 func sendEveryKind(t *testing.T, s *ChatService, userID, workspaceID, roomID, clientMsgID string) []ChatMessageRow {

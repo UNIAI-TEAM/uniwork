@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -443,7 +445,9 @@ func (s *ChatService) listMessages(
 	// SkipMarkRead is set (unread room open).
 	if !in.SkipMarkRead && !before.Valid && len(out) > 0 {
 		last := out[len(out)-1]
-		s.markChatRoomRead(ctx, room, userID, pgtype.Timestamptz{Time: last.CreatedAt, Valid: true})
+		if err := s.markChatRoomRead(ctx, room, userID, pgtype.Timestamptz{Time: last.CreatedAt, Valid: true}); err != nil {
+			slog.WarnContext(ctx, "chat: read pointer not moved", "error", err, "room_id", room.ID, "user_id", userID)
+		}
 	}
 	return out, nil
 }
@@ -492,8 +496,7 @@ func (s *ChatService) MarkRoomRead(ctx context.Context, userID, workspaceID, roo
 	if err != nil {
 		return err
 	}
-	s.markChatRoomRead(ctx, room, userID, preview.CreatedAt)
-	return nil
+	return s.markChatRoomRead(ctx, room, userID, preview.CreatedAt)
 }
 
 // SendWorkspaceMessage posts a text message to the workspace channel.
@@ -570,6 +573,10 @@ func (s *ChatService) sendMessage(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+	meta, err := buildChatTextMessageMetadata(mentions, in.Priority)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
 	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID:               util.NewID(),
 		RoomID:           room.ID,
@@ -580,6 +587,7 @@ func (s *ChatService) sendMessage(
 		Body:             body,
 		ReplyToMessageID: replyTo,
 		ClientMsgID:      clientMsg,
+		Metadata:         meta,
 	})
 	if err != nil {
 		if clientMsgID != "" && isUniqueViolation(err) {
@@ -590,22 +598,6 @@ func (s *ChatService) sendMessage(
 			}
 		}
 		return ChatMessageRow{}, err
-	}
-	msg, err = s.persistMessageMentions(ctx, q, msg, mentions)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	if priority := normalizeMessagePriority(in.Priority); priority != "" {
-		meta, err := encodeMessagePriorityMetadata(msg.Metadata, priority)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-		msg, err = q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-			ID: msg.ID, RoomID: room.ID, WorkspaceID: anchorWS, Metadata: meta,
-		})
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
 	}
 	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", "", mentions); err != nil {
 		return ChatMessageRow{}, err
@@ -627,6 +619,12 @@ func (s *ChatService) sendMessage(
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
 }
 
+// errClientMsgIDDeleted answers a resend after the original was soft-deleted:
+// the unique index still blocks a new row, so the client must drop the outbox entry.
+func errClientMsgIDDeleted() error {
+	return coded(http.StatusGone, "chat_message_deleted", "tin nhắn này đã bị xoá")
+}
+
 func (s *ChatService) existingMessageByClientMsgID(
 	ctx context.Context, roomID, senderID, clientMsgID string,
 ) (db.ChatMessage, bool, error) {
@@ -640,6 +638,9 @@ func (s *ChatService) existingMessageByClientMsgID(
 	}
 	if err != nil {
 		return db.ChatMessage{}, false, err
+	}
+	if msg.DeletedAt.Valid {
+		return db.ChatMessage{}, false, errClientMsgIDDeleted()
 	}
 	return msg, true, nil
 }

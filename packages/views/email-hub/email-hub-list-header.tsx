@@ -111,6 +111,7 @@ function BulkBar({ bulk }: { bulk: EmailHubBulkActions }) {
 }
 
 export interface EmailHubListHeaderProps {
+  headingAs?: "h1" | "h2" | "h3";
   nav: EmailHubFolderNavProps;
   accountMenu: EmailHubAccountMenuProps;
   isScheduledFolder: boolean;
@@ -139,6 +140,7 @@ export interface EmailHubListHeaderProps {
  * compose, which the sidebar holds on larger screens.
  */
 export function EmailHubListHeader({
+  headingAs: Heading = "h1",
   nav,
   accountMenu,
   isScheduledFolder,
@@ -170,13 +172,13 @@ export function EmailHubListHeader({
           <EmailHubFolderMenu {...nav} />
         </div>
         {/* Below `lg` the folder menu shows the name; the heading stays for screen readers. */}
-        <h1
+        <Heading
           data-email-hub-list-heading=""
           tabIndex={-1}
           className="sr-only min-w-0 truncate px-1 text-title font-semibold lg:not-sr-only"
         >
           {folderLabel}
-        </h1>
+        </Heading>
         {countText ? (
           <span className="hidden shrink-0 px-1 text-caption tabular-nums text-muted-foreground sm:inline">
             {countText}
