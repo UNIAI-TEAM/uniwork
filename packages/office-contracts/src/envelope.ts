@@ -13,9 +13,11 @@ import { decodeStrictBase64, sha256Hex } from "./canonical-json.ts";
 // Two failure classes are deliberate and both precede any job:
 //   * EngineContractViolation - the request does not satisfy the schema
 //     (unknown or caller-authority key, missing field, wrong type, declared
-//     value outside its own bound). No job, no grant, untouched revision.
-//   * EngineBoundaryError upload_* - schema-valid but the ACTUAL decoded bytes
-//     disagree with what was declared.
+//     value not even a safe non-negative integer).
+//   * EngineBoundaryError upload_* - schema-valid but the byte bound or the
+//     ACTUAL decoded bytes disagree with what was declared. A declared
+//     input_length already over the transport ceiling lands here too
+//     (size-cap:005): the refusal is the 413 byte bound, not a schema slip.
 
 export const TRUSTED_ENGINE_VERSIONS = ["genoffice@09485f88+uniwork-office.0"] as const;
 
@@ -197,10 +199,17 @@ async function validateInputBytes(
       "input_bytes, input_checksum and input_length are validated together",
     );
   }
-  const declaredLength = requireSafeInt(payload.input_length, fieldPath + ".input_length", {
-    min: 0,
-    max: ENGINE_LIMITS.max_input_bytes,
-  });
+  // A DECLARED length past the transport ceiling is the byte bound itself,
+  // not a schema slip (size-cap:005): report it with the typed 413 before the
+  // checksum, the string check and the decode see a byte. Non-integer,
+  // negative or unsafe lengths stay contract violations.
+  const declaredLength = requireSafeInt(payload.input_length, fieldPath + ".input_length", { min: 0 });
+  if (declaredLength > bound) {
+    throw new EngineBoundaryError("upload_bounds", {
+      declared_length: declaredLength,
+      max_input_bytes: bound,
+    });
+  }
   const declaredChecksum = requireHex64(payload.input_checksum, fieldPath + ".input_checksum");
   const text = requireString(payload.input_bytes, fieldPath + ".input_bytes", {
     minLength: 0,

@@ -415,6 +415,8 @@ khi job tồn tại:
 
 ```text
 - client_engine_version không nằm trong TRUSTED_ENGINE_VERSIONS   -> engine_incompatible (409)
+- input_length khai đã vượt max_input_bytes (trần truyền tải),
+  kiểm ngay sau khi đọc số, trước cả checksum lẫn decode         -> upload_bounds (413)
 - byte ĐÃ GIẢI MÃ vượt max_input_bytes                            -> upload_bounds (413)
 - độ dài giải mã khác input_length khai, hoặc SHA-256 đo được
   khác input_checksum khai                                        -> upload_checksum_mismatch (409)
@@ -841,7 +843,7 @@ qua loopback — xem §12.3.
 | Malformed | `malformed-unknown-operation` | `ContractViolation` tại `envelope.operation`, 0 job |
 | Malformed | `malformed-float-length` | `ContractViolation` tại `envelope.payload.input_length`, 0 job |
 | Malformed | `malformed-negative-deadline` | `ContractViolation` tại `envelope.deadline_ms`, 0 job |
-| Malformed | `malformed-oversize-input` | **(sửa r2a)** `ContractViolation` tại `envelope.payload.input_length` — **không** phải `upload_bounds`, vì đây là trần *khai báo*; byte thật vượt trần mới là `upload_bounds` |
+| Malformed | `malformed-oversize-input` | **(sửa r4)** `upload_bounds` 413, `error_class: quota`, không retryable, 0 job — quyết định size-cap:005 (UNI-1859): input vượt trần engine là lỗi byte có kiểu, không phải `ContractViolation`; kiểm ngay khi đọc `input_length`, trước decode |
 | Malformed | `malformed-bad-checksum-hex` | `ContractViolation` tại `envelope.payload.input_checksum` |
 | Version | `contract-version-mismatch` | **(sửa r2a)** `ContractViolation` tại `envelope.contract_version` — **không** phải `contract_mismatch` |
 | Version | `protocol-version-mismatch` | **(sửa r2a)** `ContractViolation` tại `envelope.protocol_version` — **không** phải `protocol_mismatch` |

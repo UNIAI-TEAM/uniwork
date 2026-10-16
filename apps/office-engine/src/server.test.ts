@@ -4,6 +4,7 @@ import { request, type ClientRequest } from "node:http";
 import type { Socket } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PROVISIONAL_LIMITS } from "../src/index.ts";
+import { ENGINE_LIMITS } from "@uniwork/office-contracts";
 import { signGrant, type ServiceGrant } from "../src/grants.ts";
 import {
   call,
@@ -356,6 +357,29 @@ describe("input byte bounds (SIZE-S1)", () => {
     expect(res.status).toBe(413);
     expect(errorCode(res)).toBe("upload_bounds");
   });
+
+  it("refuses a declared input_length over the transport ceiling with the typed 413, no job created", async () => {
+    // size-cap:005: a body under the wire cap but declaring more than the
+    // 383 MiB engine ceiling gets upload_bounds, not contract_violation.
+    const job = makeJob(h.target, { text: "x" });
+    const envelope = {
+      ...job.envelope,
+      payload: {
+        ...(job.envelope.payload as object),
+        input_bytes: Buffer.from("x").toString("base64"),
+        input_length: ENGINE_LIMITS.max_input_bytes + 1,
+      },
+    };
+    const res = await submit(h, { token: job.token, envelope });
+    expect(res.status).toBe(413);
+    expect(errorCode(res)).toBe("upload_bounds");
+    const err = res.body.error;
+    const maxBytes = err !== null && typeof err === "object" && "max_input_bytes" in err ? err.max_input_bytes : undefined;
+    expect(maxBytes).toBe(ENGINE_LIMITS.max_input_bytes);
+    const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
+    expect(status.status).toBe(404);
+  });
+
 });
 
 describe("submit body memory bound (SIZE-S1 fix3)", () => {
