@@ -519,8 +519,23 @@ WHERE d.organization_id = $5
   AND ($13::text IS NULL OR d.updated_by = $13)
   AND ($14::timestamptz IS NULL OR d.updated_at >= $14)
   AND ($15::timestamptz IS NULL OR d.updated_at < $15)
+  -- MYFOLDER-01: also exclude system rows
+  AND (NOT $16::boolean
+       OR (($2::boolean OR $9::boolean)
+           AND d.acl_owner_id IS NOT NULL
+           AND d.acl_owner_id = $3
+           AND (d.visibility = 'workspace'
+                OR EXISTS (
+                     SELECT 1 FROM document_shares sbm
+                     WHERE sbm.organization_id = d.organization_id
+                       AND sbm.workspace_id = d.workspace_id
+                       AND sbm.document_id = d.id
+                       AND sbm.revoked_at IS NULL
+                       AND ((sbm.principal_type = 'user')
+                            OR (sbm.principal_type = 'workspace')
+                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))))
   AND ($1::text IS NULL
-       OR (NOT $16::boolean
+       OR (NOT $17::boolean
            AND (NOT $2::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
@@ -544,7 +559,7 @@ WHERE d.organization_id = $5
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $1::text || '%' ESCAPE '\')
-       OR (($16::boolean OR NOT (NOT $2::boolean
+       OR (($17::boolean OR NOT (NOT $2::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
                  OR EXISTS (
@@ -567,10 +582,10 @@ WHERE d.organization_id = $5
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || $1::text || '%' ESCAPE '\'))
-  AND ($17::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($17, $18::text))
+  AND ($18::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($18, $19::text))
 ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $19
+LIMIT $20
 `
 
 type ListDocumentsPageParams struct {
@@ -589,6 +604,7 @@ type ListDocumentsPageParams struct {
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
+	SharedByMe      bool               `json:"shared_by_me"`
 	MatchTitle      bool               `json:"match_title"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
@@ -695,6 +711,7 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 		arg.UpdatedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
+		arg.SharedByMe,
 		arg.MatchTitle,
 		arg.CursorAt,
 		arg.CursorID,

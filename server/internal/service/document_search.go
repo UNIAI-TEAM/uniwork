@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -55,6 +56,7 @@ type ListDocumentsInput struct {
 	UpdatedBy   string
 	UpdatedFrom time.Time
 	UpdatedTo   time.Time
+	SharedByMe  bool
 	Cursor      string
 	Limit       int
 }
@@ -254,6 +256,9 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	if err != nil {
 		return DocumentListPage{}, err
 	}
+	if in.SharedByMe && in.ParentID != nil {
+		return DocumentListPage{}, coded(http.StatusBadRequest, "invalid_filter", "shared_by_me không thể dùng cùng parent_id")
+	}
 	cursor, err := decodeDocumentCursor(in.Cursor)
 	if err != nil {
 		return DocumentListPage{}, err
@@ -300,6 +305,9 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 
 	out := DocumentListPage{Items: []DocumentListItem{}}
 	switch {
+	case in.Archived && in.SharedByMe:
+		return out, nil
+
 	case in.Archived:
 		// The trash answers to manage-level eyes only (decideDocumentAccess
 		// does the same on a single row).
@@ -358,13 +366,15 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		if cursor.At != nil {
 			cursorAt = pgtype.Timestamptz{Time: *cursor.At, Valid: true}
 		}
+		// MYFOLDER-01: also exclude system rows
 		rows, err := s.q.ListDocumentsPage(ctx, db.ListDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
 			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
-			Query: query, MatchTitle: matchTitle,
+			SharedByMe: in.SharedByMe,
+			Query:      query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
 		if err != nil {
