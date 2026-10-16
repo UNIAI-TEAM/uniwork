@@ -24,7 +24,7 @@ import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-op
 import { DocumentTypeIcon } from "./document-type-icon";
 import { libraryCell, type LibraryLadder } from "./library-columns";
 import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
-import { sourceLinkLabelKey, sourceOpenAction } from "./source-links";
+import { sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked } from "./source-links";
 import {
   formatBytes,
   isFolderRow,
@@ -111,6 +111,7 @@ export function LibraryRowView({
   const folder = isFolderRow(row);
   const doc = row.type === "document" ? row.doc : null;
   const source = row.type === "source" ? row.source : null;
+  const sourceLinked = source ? sourceParentLinked(source.parent) : false;
 
   const editor = doc
     ? doc.updated_by
@@ -199,16 +200,16 @@ export function LibraryRowView({
     }
   }
   if (row.type === "source") {
-    actions.push(
-      { id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: ExternalLink, run: () => handlers.onGoToSource(row) },
-      { id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) },
-    );
+    // A parent kind with no route offers neither the menu item nor the button.
+    if (sourceLinked) {
+      actions.push({ id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: ExternalLink, run: () => handlers.onGoToSource(row) });
+    }
+    actions.push({ id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) });
     // Only a file the server marks as copyable offers the save.
     if (row.source.can_save) {
       actions.push({ id: "save", label: t("documents.home.row.save_to_folder"), icon: FolderInput, run: () => handlers.onSaveSource(row) });
     }
   }
-
   const quick = desktop ? (
     <DesktopOpenAction
       {...desktop}
@@ -217,18 +218,19 @@ export function LibraryRowView({
       operation={rowAppOperation(level)}
       requestRef={appRequest}
     />
-  ) : source ? (
+  ) : source && sourceLinked ? (
     <Button
       type="button"
       variant="outline"
       size="xs"
-      aria-label={t("documents.home.row.go_to_source_named", { title })}
+      aria-label={t(sourceLinkNamedLabelKey(source.parent), { title })}
       onClick={() => handlers.onGoToSource(row)}
     >
       <ExternalLink aria-hidden />
       {t(sourceLinkLabelKey(source.parent))}
     </Button>
   ) : null;
+
 
   const nameCell = (
     <>

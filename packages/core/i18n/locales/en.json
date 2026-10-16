@@ -9600,6 +9600,7 @@
         "move": "Move",
         "archive": "Archive",
         "open_email": "Open Email",
+        "open_email_named": "Open Email: {{title}}",
         "new_subfolder": "New subfolder",
         "rename": "Rename"
       },

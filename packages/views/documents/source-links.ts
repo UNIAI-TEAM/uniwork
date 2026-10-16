@@ -10,6 +10,8 @@ export interface SourceLinkPaths {
 
 /** Image extensions the browser draws in the preview when the mime type does not say so. */
 const IMAGE_EXTENSIONS: Record<string, true> = { png: true, jpg: true, jpeg: true, gif: true, webp: true, avif: true, bmp: true };
+/** The mime types a browser actually draws; image/tiff, image/heic, image/svg+xml… download instead of showing a broken frame. */
+const IMAGE_MIMES: Record<string, true> = { "image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true, "image/avif": true, "image/bmp": true };
 
 /**
  * What the primary click of a "Từ nơi khác" row does with the file (U-SRC1):
@@ -20,7 +22,7 @@ const IMAGE_EXTENSIONS: Record<string, true> = { png: true, jpg: true, jpeg: tru
  * route yet (UNI-1815 server gap); they download until one lands.
  */
 export function sourceOpenAction(source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension">): "image" | "download" {
-  if (source.mime_type.toLowerCase().startsWith("image/")) return "image";
+  if (IMAGE_MIMES[source.mime_type.toLowerCase()] === true) return "image";
   const ext = source.extension.toLowerCase() || source.name.split(".").pop()?.toLowerCase() || "";
   return IMAGE_EXTENSIONS[ext] === true ? "image" : "download";
 }
@@ -51,6 +53,21 @@ export function sourceParentPath(ws: SourceLinkPaths, parent: DocumentSourceFile
   }
 }
 
+/** Whether "View where attached" has a destination at all for this parent kind. */
+export function sourceParentLinked(parent: DocumentSourceFile["parent"]): boolean {
+  switch (parent.kind) {
+    case "task":
+    case "task_comment":
+    case "meeting":
+    case "chat_channel":
+    case "chat_dm":
+    case "email_thread":
+      return true;
+    default:
+      return false;
+  }
+}
+
 /**
  * The label of that link: email opens the module only, so it says so instead
  * of promising the origin; everything else says "View where attached".
@@ -61,5 +78,19 @@ export function sourceLinkLabelKey(parent: DocumentSourceFile["parent"]): string
       return "documents.home.row.open_email";
     default:
       return "documents.home.row.go_to_source";
+  }
+}
+
+/**
+ * The `aria-label` of the row's secondary button: the visible label plus the
+ * file title, so the accessible name contains the label (WCAG 2.5.3) — email
+ * keeps its own words instead of "Xem nơi đính kèm".
+ */
+export function sourceLinkNamedLabelKey(parent: DocumentSourceFile["parent"]): string {
+  switch (parent.kind) {
+    case "email_thread":
+      return "documents.home.row.open_email_named";
+    default:
+      return "documents.home.row.go_to_source_named";
   }
 }

@@ -9594,6 +9594,7 @@
         "move": "Di chuyển",
         "archive": "Lưu trữ",
         "open_email": "Mở Email",
+        "open_email_named": "Mở Email: {{title}}",
         "new_subfolder": "Thư mục con mới",
         "rename": "Đổi tên"
       },

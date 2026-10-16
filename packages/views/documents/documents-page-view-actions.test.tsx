@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
@@ -263,6 +263,50 @@ describe("file from another module", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("closes with the failed toast when the browser cannot draw the image", async () => {
+    route({ sources: () => [source({ id: "chat:i3", name: "Ảnh lỗi.png", mime_type: "image/png", extension: "png" })] });
+    downloadBlob.mockResolvedValue(new Blob(["nope"], { type: "image/png" }));
+    renderView();
+    const { restore } = stubDownload();
+    try {
+      const row = await rowOf("Ảnh lỗi.png");
+      fireEvent.click(sourceNameButton(row));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.error(await within(dialog).findByRole("img", { name: "Ảnh lỗi.png" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.preview_failed")));
+    } finally {
+      restore();
+    }
+  });
+
+  it("drops a blob that resolves after the preview was closed", async () => {
+    route({ sources: () => [source({ id: "chat:i4", name: "Chậm.png", mime_type: "image/png", extension: "png" })] });
+    const gate = Promise.withResolvers<Blob>();
+    downloadBlob.mockImplementation(() => gate.promise);
+    renderView();
+    const { createUrl, revokeUrl, restore } = stubDownload();
+    try {
+      const row = await rowOf("Chậm.png");
+      fireEvent.click(sourceNameButton(row));
+      fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: t("documents.home.row.preview_close") }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+      await act(async () => {
+        gate.resolve(new Blob(["png"], { type: "image/png" }));
+        const settle = Promise.withResolvers<void>();
+        setTimeout(settle.resolve, 0);
+        await settle.promise;
+      });
+      // The closed preview never became an object URL and never reopened.
+      expect(createUrl).not.toHaveBeenCalled();
+      expect(revokeUrl).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
   it("says why when the download is refused", async () => {
     route({ sources: () => [source()] });
     downloadBlob.mockRejectedValue(new ApiError("Tệp đã bị xoá", "not_found", 404));
@@ -321,9 +365,12 @@ describe("file from another module", () => {
     const adapter = renderView();
     await pickFromMenu("Hóa đơn.pdf", "Mở Email");
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/email");
-    // The row's own button says it too.
+    // The row's own button says it too — and its accessible name says the
+    // visible label (WCAG 2.5.3), not the generic go-to-source copy.
     const row = await rowOf("Hóa đơn.pdf");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Hóa đơn.pdf" }) }));
+    const secondary = within(row).getByRole("button", { name: t("documents.home.row.open_email_named", { title: "Hóa đơn.pdf" }) });
+    expect(secondary).toHaveTextContent(t("documents.home.row.open_email"));
+    fireEvent.click(secondary);
     expect(adapter.push).toHaveBeenCalledTimes(2);
   });
 
@@ -341,7 +388,7 @@ describe("file from another module", () => {
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/meetings/mt3");
   });
 
-  it("downloads on the primary click of an unknown parent; its go-to-source still goes nowhere", async () => {
+  it("downloads on the primary click of an unknown parent and offers no go-to-source", async () => {
     route({ sources: () => [source({ parent: { kind: "unknown", id: "x", title: "?" } })] });
     downloadBlob.mockResolvedValue(new Blob(["pdf"]));
     const adapter = renderView();
@@ -350,7 +397,12 @@ describe("file from another module", () => {
       const row = await rowOf("Đề xuất ngân sách.pdf");
       fireEvent.click(sourceNameButton(row));
       await waitFor(() => expect(clicked).toHaveLength(1));
-      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) }));
+
+      // A parent kind with no route gets neither the row button nor the menu item.
+      expect(within(row).queryByRole("button", { name: /nơi đính kèm|Mở Email/ })).toBeNull();
+      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách.pdf" }) }));
+      expect(await screen.findByRole("menuitem", { name: t("documents.home.row.download") })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: t("documents.home.row.go_to_source") })).toBeNull();
       expect(adapter.push).not.toHaveBeenCalled();
     } finally {
       restore();

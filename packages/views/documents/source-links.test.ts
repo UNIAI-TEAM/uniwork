@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import { paths } from "@uniwork/core/paths";
-import { sourceLinkLabelKey, sourceOpenAction, sourceParentPath } from "./source-links";
+import { sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked, sourceParentPath } from "./source-links";
 
 const ws = paths.workspace("acme", "eng");
 
@@ -41,6 +41,22 @@ describe("sourceParentPath", () => {
   it("opens the meeting by id, and nothing for an unknown kind", () => {
     expect(sourceParentPath(ws, parent("meeting", "m1"))).toBe(ws.meeting("m1"));
     expect(sourceParentPath(ws, { kind: "fax", id: "x", title: "", message_id: "" } as unknown as Parent)).toBeNull();
+  });
+});
+
+describe("sourceParentLinked", () => {
+  it("links every known parent kind and not an unknown one", () => {
+    for (const kind of ["task", "task_comment", "meeting", "chat_channel", "chat_dm", "email_thread"] as const) {
+      expect(sourceParentLinked(parent(kind, "x"))).toBe(true);
+    }
+    expect(sourceParentLinked({ kind: "fax", id: "x", title: "", message_id: "" } as unknown as Parent)).toBe(false);
+  });
+});
+
+describe("sourceLinkNamedLabelKey", () => {
+  it("names the row button after its visible label (WCAG 2.5.3)", () => {
+    expect(sourceLinkNamedLabelKey(parent("chat_channel", "c", "m"))).toBe("documents.home.row.go_to_source_named");
+    expect(sourceLinkNamedLabelKey(parent("email_thread", "e"))).toBe("documents.home.row.open_email_named");
   });
 });
 
@@ -87,6 +103,20 @@ describe("sourceOpenAction", () => {
       file(),
     ]) {
       expect(sourceOpenAction(f)).toBe("download");
+    }
+  });
+
+  it("previews only the mime types a browser can draw; tiff/heic/svg download", () => {
+    for (const f of [
+      file({ mime_type: "image/tiff" }),
+      file({ mime_type: "image/heic" }),
+      file({ mime_type: "image/x-icon" }),
+      file({ mime_type: "image/svg+xml" }),
+      file({ extension: "svg" }),
+      file({ mime_type: "IMAGE/PNG" }),
+    ]) {
+      // The image/ prefix is not enough: only the IMAGE_EXTENSIONS set previews.
+      expect(sourceOpenAction(f)).toBe(f.mime_type === "IMAGE/PNG" ? "image" : "download");
     }
   });
 });

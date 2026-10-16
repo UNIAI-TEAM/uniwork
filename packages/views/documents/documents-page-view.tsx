@@ -496,7 +496,17 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         >
           <DialogTitle className="sr-only">{preview?.name ?? ""}</DialogTitle>
           {preview?.url ? (
-            <img src={preview.url} alt={preview.name} className="mx-auto max-h-[80vh] w-full object-contain" />
+            <img
+              src={preview.url}
+              alt={preview.name}
+              className="mx-auto max-h-[80vh] w-full object-contain"
+              onError={() => {
+                // A mime the allowlist passed can still fail to draw: close and say so.
+                previewSeq.current += 1;
+                setPreview(null);
+                toast.error(t("documents.home.row.preview_failed"));
+              }}
+            />
           ) : (
             <div role="status" className="flex h-64 items-center justify-center">
               <span className="sr-only">{t("documents.home.row.preview_loading")}</span>
