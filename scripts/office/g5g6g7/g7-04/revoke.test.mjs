@@ -31,6 +31,14 @@
 // turn 1 is BLOCKED while the revoke assertion still runs. The routes are
 // pinned against the Go router (server-contract.helper.mjs), so a route rename
 // fails here, not on a cloud VM.
+//
+// Cloud D2 added the turn-1 precondition (D2-02/D2-03): a row may PASS only
+// when AI turn 1 answered 200 on BOTH routes. A turn 1 refused 403
+// `office_capability_off` is BLOCKED with the capability named (the deployment
+// has the flag off, so no turn ever worked and the revoke cannot be shown),
+// whatever turn 2 answers; any other non-200 turn 1 is a FAIL naming both
+// routes; and a capability that flips off between the two turns is a FAIL named
+// as that flip, not as a revoke result.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -48,6 +56,7 @@ import {
   CASE_EXPECTATIONS,
   REVOKE_CASES,
   REVOKE_FIXTURES,
+  capabilityOffBlocker,
   decideRevokeOutcome,
   parseArgs,
   runRevokeCase,
@@ -104,6 +113,8 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
     intents: new Map(),
     registrations: [],
     calls: [],
+    aiCalls: 0,
+    fileName: "",
     seq: 0,
     revokeApplied: false,
   };
@@ -119,6 +130,16 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
     if (state.deactivated.has(userId)) return json(403, { error: { code: "member_deactivated", message: "member deactivated" } });
     if (state.removed.has(userId)) return json(404, { error: { code: "not_found", message: "not found" } });
     return null;
+  };
+  /**
+   * The 403 `office_capability_off` the real route answers when the deployment
+   * has the capability off (service/ai_uniwork.go:498-514): fields.capability
+   * names the format of the document's module (docx | xlsx), read from the
+   * uploaded file's extension.
+   */
+  const capabilityOff = () => {
+    const format = (state.fileName.split(".").pop() ?? "").toLowerCase();
+    return json(403, { error: { code: "office_capability_off", message: "UniWork AI dang tat cho to chuc nay", fields: { capability: `ai_uniwork_${format}` } } });
   };
 
   const fetchImpl = async (urlStr, init = {}) => {
@@ -145,6 +166,7 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
     if (method === "POST" && path === "/api/v1/invitations/inv-1/accept") return json(200, { membership: { workspace_id: WS_ID } });
     if (method === "POST" && path === `/api/v1/workspaces/${WS_ID}/documents/files`) {
       const file = init.body.get("file");
+      state.fileName = String(file.name ?? "");
       const bytes = Buffer.from(await file.arrayBuffer());
       state.versions = [{ id: V1_ID, version: 1, revision: "1", checksum_sha256: sha256Of(bytes), size_bytes: bytes.length, bytes }];
       return json(201, { document: { id: DOC_ID, workspace_id: WS_ID, organization_id: ORG_ID, revision: "1", current_version: 1, file: { version_id: V1_ID } } });
@@ -179,6 +201,12 @@ function createMockRevokeServer({ aiMode = "fake", ignoreRevokeOnAiTurn = false,
       const caller = isFrame ? frameCallerOf(init) : callerOf(init);
       if (!caller) return unauthorized();
       if (aiMode === "disabled" && !state.revokeApplied) return json(503, { error: { code: "ai_disabled", message: "AI chua duoc cau hinh tren server" } });
+      state.aiCalls += 1;
+      // Cloud D2-02/D2-03: turn 1 (calls 1-2) with the capability off, and a
+      // capability that flips off after turn 1 (calls 3+).
+      if (aiMode === "capability-off" && !state.revokeApplied) return capabilityOff();
+      if (aiMode === "capability-off-turn2" && state.aiCalls > 2) return capabilityOff();
+      if (aiMode === "turn1-forbidden" && state.aiCalls <= 2) return json(403, { error: { code: "forbidden", message: "forbidden" } });
       if (!ignoreRevokeOnAiTurn) {
         // A deactivated member is 403 member_deactivated on the session route;
         // the frame resolver only forwards ErrNotFound/ErrForbidden to
@@ -571,6 +599,78 @@ describe("G7-04 revoke cases (G7-A02.1)", () => {
     }
   });
 
+  for (const caseName of REVOKE_CASES) {
+    it(`${caseName}: turn 1 refused 403 office_capability_off is BLOCKED (exit 77) with the capability named, whatever turn 2 answers (D2-02)`, async () => {
+      const mock = createMockRevokeServer({ aiMode: "capability-off" });
+      const scratch = makeScratchRunDir();
+      try {
+        const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName });
+        assert.equal(res.status, "BLOCKED", res.reason);
+        assert.equal(res.exitCode, 77);
+        assert.equal(res.blocker, capabilityOffBlocker("ai_uniwork_docx"));
+        assert.match(res.blocker, /ai_uniwork_docx/);
+        assert.match(res.blocker, /turn 1 refused/);
+        assert.equal(res.steps.aiTurn1.status, "BLOCKED");
+        assert.equal(res.details.aiTurn1.session.status, 403);
+        assert.equal(res.details.aiTurn1.session.code, "office_capability_off");
+        assert.equal(res.details.aiTurn1.frame.status, 403);
+        assert.equal(res.details.aiTurn1.frame.code, "office_capability_off");
+        // the revoke itself still ran: a blocked row never claims the revoke failed
+        assert.equal(res.versionCounts.versionsAfterRevoke, 1);
+        assert.equal(res.steps.revoke.status, "PASS");
+      } finally {
+        scratch.cleanup();
+      }
+    });
+  }
+
+  it("the capability named is the document's own format: an xlsx row names ai_uniwork_xlsx (D2-02)", async () => {
+    const mock = createMockRevokeServer({ aiMode: "capability-off" });
+    const scratch = makeScratchRunDir();
+    try {
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate", fixtureId: "fx-xlsx-revenue-xyz" });
+      assert.equal(res.status, "BLOCKED", res.reason);
+      assert.equal(res.blocker, capabilityOffBlocker("ai_uniwork_xlsx"));
+      assert.match(res.blocker, /ai_uniwork_xlsx/);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("turn 1 answering a non-200 that is neither capability-off nor ai_disabled is a FAIL naming both routes (D2-02)", async () => {
+    const mock = createMockRevokeServer({ aiMode: "turn1-forbidden" });
+    const scratch = makeScratchRunDir();
+    try {
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      assert.equal(res.status, "FAIL");
+      assert.equal(res.exitCode, 1);
+      assert.match(res.reason, /AI turn 1/);
+      assert.match(res.reason, /the session route answered 403 forbidden, want 200/);
+      assert.match(res.reason, /the frame route answered 403 forbidden, want 200/);
+      assert.equal(res.details.aiTurn1.session.status, 403);
+      assert.equal(res.details.aiTurn1.frame.status, 403);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("turn 1 200 on both routes but turn 2 refused office_capability_off is a FAIL named as a capability flip, not a revoke result (D2-03)", async () => {
+    const mock = createMockRevokeServer({ aiMode: "capability-off-turn2" });
+    const scratch = makeScratchRunDir();
+    try {
+      const res = await runCase({ fetchImpl: mock.fetchImpl, runDir: scratch.dir, caseName: "deactivate" });
+      assert.equal(res.status, "FAIL");
+      assert.equal(res.exitCode, 1);
+      assert.equal(res.details.aiTurn1.session.status, 200);
+      assert.equal(res.details.aiTurn1.frame.status, 200);
+      assert.equal(res.details.aiTurn2.session.code, "office_capability_off");
+      assert.match(res.reason, /capability ai_uniwork_docx turned off between turn 1 and turn 2/);
+      assert.match(res.reason, /not a revoke result/);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
   it("a start.sh that failed is a FAIL (exit 1), and a blocked one is BLOCKED (77)", async () => {
     const failed = makeScratchRunDir({ startState: "failed", startReason: "server build failed" });
     const blocked = makeScratchRunDir({ startState: "blocked", startReason: "missing xvfb" });
@@ -691,12 +791,122 @@ describe("decideRevokeOutcome", () => {
     assert.equal(decideRevokeOutcome({ ...downgrade, save: { upload: { status: 404, code: "not_found" }, commit: { status: 404, code: "not_found" } } }).status, "FAIL");
   });
 
+  it("turn 1 refused 403 office_capability_off is BLOCKED (exit 77) with the capability named, for all three cases (D2-02)", () => {
+    // Each case brings the revoke record it really answers (cloud D2): the row is
+    // BLOCKED only because the revoke assertions themselves held.
+    const perCase = {
+      deactivate: { aiTurn2: { session: { status: 403, code: "member_deactivated" }, frame: { status: 401, code: "unauthorized", errorClass: "session" } }, save: { upload: { status: 403, code: "member_deactivated" }, commit: { status: 403, code: "member_deactivated" } } },
+      downgrade: { aiTurn2: { session: { status: 403, code: "office_capability_off" }, frame: { status: 403, code: "office_capability_off" } }, save: { upload: { status: 403, code: "forbidden" }, commit: { status: 404, code: "not_found" } } },
+      remove: { aiTurn2: { session: { status: 404, code: "not_found" }, frame: { status: 404, code: "not_found" } }, save: { upload: { status: 404, code: "not_found" }, commit: { status: 404, code: "not_found" } } },
+    };
+    for (const caseName of REVOKE_CASES) {
+      const out = decideRevokeOutcome({
+        ...base(),
+        caseName,
+        expectations: CASE_EXPECTATIONS[caseName],
+        revoke: { status: CASE_EXPECTATIONS[caseName].revoke },
+        ...perCase[caseName],
+        aiTurn1: {
+          session: { status: 403, code: "office_capability_off", capability: "ai_uniwork_xlsx" },
+          frame: { status: 403, code: "office_capability_off", capability: "ai_uniwork_xlsx" },
+        },
+      });
+      assert.equal(out.status, "BLOCKED", caseName);
+      assert.equal(out.exitCode, 77);
+      assert.equal(out.blocker, capabilityOffBlocker("ai_uniwork_xlsx"));
+      assert.match(out.blocker, /ai_uniwork_xlsx/);
+      assert.match(out.blocker, /turn 1 refused/);
+    }
+  });
+
+  it("turn 1 capability-off stays BLOCKED whatever turn 2 says, while a hard revoke violation still wins (D2-02)", () => {
+    const capabilityOff = {
+      ...base(),
+      aiTurn1: {
+        session: { status: 403, code: "office_capability_off", capability: "ai_uniwork_docx" },
+        frame: { status: 403, code: "office_capability_off", capability: "ai_uniwork_docx" },
+      },
+    };
+    assert.equal(decideRevokeOutcome(capabilityOff).status, "BLOCKED");
+    // downgrade-xlsx in cloud D2: turn 2 answered the capability refusal, not the expected 200
+    const downgradeOff = {
+      ...capabilityOff,
+      caseName: "downgrade",
+      expectations: CASE_EXPECTATIONS.downgrade,
+      revoke: { status: 200 },
+      aiTurn2: { session: { status: 403, code: "office_capability_off" }, frame: { status: 403, code: "office_capability_off" } },
+      save: { upload: { status: 403, code: "forbidden" }, commit: { status: 404, code: "not_found" } },
+    };
+    assert.equal(decideRevokeOutcome(downgradeOff).status, "BLOCKED");
+    // a version that appeared across the revoke is a real defect, not a blocked environment
+    assert.equal(decideRevokeOutcome({ ...capabilityOff, versionsAfterRevoke: 2 }).status, "FAIL");
+    assert.equal(decideRevokeOutcome({ ...capabilityOff, commitIntent: { hasCommitted: true } }).status, "FAIL");
+  });
+
+  it("turn 1 answering anything but 200 (not a capability refusal) is a FAIL naming both routes (D2-02)", () => {
+    const out = decideRevokeOutcome({ ...base(), aiTurn1: { session: { status: 403, code: "forbidden" }, frame: { status: 403, code: "forbidden" } } });
+    assert.equal(out.status, "FAIL");
+    assert.equal(out.exitCode, 1);
+    assert.match(out.reason, /AI turn 1/);
+    assert.match(out.reason, /the session route answered 403 forbidden, want 200/);
+    assert.match(out.reason, /the frame route answered 403 forbidden, want 200/);
+    // a frame route that never answered 200 is not a PASS either
+    assert.equal(decideRevokeOutcome({ ...base(), aiTurn1: { session: { status: 200 }, frame: { status: 404, code: "not_found" } } }).status, "FAIL");
+  });
+
+  it("turn 1 200 on both routes but turn 2 refused office_capability_off is a FAIL named as a capability flip (D2-03)", () => {
+    const out = decideRevokeOutcome({
+      ...base(),
+      aiTurn2: {
+        session: { status: 403, code: "office_capability_off", capability: "ai_uniwork_docx" },
+        frame: { status: 403, code: "office_capability_off", capability: "ai_uniwork_docx" },
+      },
+    });
+    assert.equal(out.status, "FAIL");
+    assert.equal(out.exitCode, 1);
+    assert.match(out.reason, /capability ai_uniwork_docx turned off between turn 1 and turn 2/);
+    assert.match(out.reason, /not a revoke result/);
+  });
+
   it("BLOCKs on a 503 ai_disabled turn 1 only after every revoke assertion passed", () => {
     const disabled = { ...base(), aiTurn1: { session: { status: 503, code: "ai_disabled" }, frame: { status: 503, code: "ai_disabled" } } };
     assert.equal(decideRevokeOutcome(disabled).status, "BLOCKED");
     assert.equal(decideRevokeOutcome(disabled).exitCode, 77);
     // a broken revoke assertion still wins over the BLOCKED
     assert.equal(decideRevokeOutcome({ ...disabled, versionsAfterRevoke: 2 }).status, "FAIL");
+  });
+});
+
+// ---- the CLI surface -------------------------------------------------------
+
+describe("G7-04 revoke CLI", () => {
+  it("a capability-off turn 1 exits 77 and prints the capability it read (D2-02)", async () => {
+    const mock = createMockRevokeServer({ aiMode: "capability-off" });
+    const { server, origin } = await startMockHttp(mock);
+    const scratch = makeScratchRunDir();
+    writeFileSync(join(scratch.dir, "ports.env"), `API_ORIGIN=${origin}\nWEB_ORIGIN=${origin}\n`);
+    const revokeScript = join(REPO_ROOT, "scripts/office/g5g6g7/g7-04/revoke.mjs");
+    try {
+      const run = await new Promise((done, fail) => {
+        const child = spawn(process.execPath, [revokeScript, "--case", "deactivate", "--fixture", "fx-docx-report-vi", "--run-dir", scratch.dir], { cwd: REPO_ROOT, env: process.env });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.on("data", (d) => { stdout += d.toString("utf8"); });
+        child.stderr.on("data", (d) => { stderr += d.toString("utf8"); });
+        child.on("error", fail);
+        child.on("close", (status) => done({ status, stdout, stderr }));
+      });
+      assert.equal(run.status, 77, run.stderr);
+      assert.match(run.stderr, /BLOCKED: UniWork AI capability ai_uniwork_docx is off on this deployment: turn 1 refused, the revoke cannot be shown/);
+      // the artifact log carries the same blocker and both turns
+      const artifact = readFileSync(join(scratch.dir, "logs", "g7-04-revoke-deactivate-fx-docx-report-vi.log"), "utf8");
+      assert.match(artifact, /AI turn 1 session 403 office_capability_off\/frame 403 office_capability_off/);
+      assert.match(artifact, /expected aiTurn1 200 on both routes/);
+      assert.ok(!/tok-/.test(artifact), "the artifact carries a token");
+    } finally {
+      await new Promise((done) => server.close(done));
+      scratch.cleanup();
+    }
   });
 });
 
