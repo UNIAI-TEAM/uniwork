@@ -7,6 +7,7 @@ import type { User } from "../types/user";
 import { chatKeys } from "./chat-keys";
 import { useChatRoomMessageLinks } from "./link-hooks";
 import { patchChatMessageLinked } from "./realtime-cache";
+import { refreshLoadedRoomTimelines } from "./room-timeline";
 
 const user: User = {
   id: "u1",
@@ -51,5 +52,23 @@ describe("useChatRoomMessageLinks", () => {
 
     await waitFor(() => expect(list).toHaveBeenLastCalledWith("ws1", "room1", ["m1"]));
     expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  it("fetches every shown message's links again after a reconnect", async () => {
+    const list = vi.spyOn(chatApi, "listChatRoomMessageLinks").mockResolvedValue([]);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const ids = ["m1", "m2"];
+    renderHook(() => useChatRoomMessageLinks("ws1", "room1", ids), { wrapper: wrapper(qc) });
+    await waitFor(() =>
+      expect(qc.getQueryData<Map<string, unknown[]>>(chatKeys.roomMessageLinksRoom("ws1", "room1"))?.size).toBe(2),
+    );
+    expect(list).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      refreshLoadedRoomTimelines(qc, "ws1");
+    });
+
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    expect(list).toHaveBeenLastCalledWith("ws1", "room1", ["m1", "m2"]);
   });
 });

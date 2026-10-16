@@ -24,7 +24,6 @@ import {
   useSendChatThreadMessage,
   useSendChatVoiceMessage,
   useSendChatFileMessage,
-  useChatSendOutboxFlush,
   useChatSendOutboxCount,
   useSyncChatRoomsOnAuth,
 } from "@uniwork/core/chat";
@@ -57,6 +56,7 @@ import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
 import { useChatBlockActions } from "./use-chat-block-actions";
 import { useChatMediaSend } from "./use-chat-media-send";
+import { useChatSendOutboxToast } from "./use-chat-send-outbox-toast";
 import { useChatPageSignals } from "./use-chat-page-signals";
 import { useChatVoiceCall } from "./chat-voice-call-host";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
@@ -101,7 +101,6 @@ export function ChatPageView({
   const sendRoomMessage = useSendChatRoomMessage(workspaceId);
   const sendVoiceMessage = useSendChatVoiceMessage(workspaceId);
   const sendFileMessage = useSendChatFileMessage(workspaceId);
-  useChatSendOutboxFlush(workspaceId, currentUserId);
   const pendingOutboxCount = useChatSendOutboxCount(workspaceId, currentUserId);
 
   const { workspaceRoom, contacts: roomContacts, groups, channels } = useMemo(
@@ -133,6 +132,7 @@ export function ChatPageView({
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  useChatSendOutboxToast(workspaceId, currentUserId);
 
   const currentMember = useCurrentMember(workspaceId);
 
@@ -225,7 +225,7 @@ export function ChatPageView({
     refreshRoomTimelineOnOpen(queryClient, workspaceId, activeRoomId);
   }, [workspaceId, activeRoomId, queryClient]);
 
-  useChatMentionNotify({ currentUserId, activeRoomId });
+  useChatMentionNotify({ workspaceId, currentUserId, activeRoomId });
 
   const { data: activeRoomMembers = [] } = useChatRoomMembers(
     workspaceId,
@@ -285,13 +285,10 @@ export function ChatPageView({
         workspaceMembers,
         groupMemberProfiles,
         (member) => resolveChatNicknameForUser(nicknamesByUserId, member.user_id) || memberDisplayLabel(member),
-        target.kind === "group"
-          ? activeGroup?.member_user_ids
-          : target.kind === "channel"
-            ? activeChannel?.member_user_ids
-            : undefined,
+        // A channel's members are the profiles above, read from its room roster.
+        target.kind === "group" ? activeGroup?.member_user_ids : undefined,
       ),
-    [activeChannel, activeGroup, currentUserId, groupMemberProfiles, nicknamesByUserId, target.kind, workspaceMembers],
+    [activeGroup, currentUserId, groupMemberProfiles, nicknamesByUserId, target.kind, workspaceMembers],
   );
   const mentionAllLabel = t("chat.mention_all");
   // The draft lives in the composer's store, keyed by conversation: typing
@@ -520,6 +517,7 @@ export function ChatPageView({
         chatSendRestricted={chatSendRestricted}
         chatSendMutedByModerator={chatSendMutedByModerator}
         canPinMessages={canPinMessages}
+        canModerate={roomPermissions.isModerator}
         canCreatePolls={canCreatePolls}
         canCreateNotes={canCreateNotes}
         peerLastReadAt={peerLastReadAt}

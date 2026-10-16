@@ -104,4 +104,22 @@ describe("mergeOptimisticChatMessages", () => {
     expect(merged).toHaveLength(2);
     expect(merged.map((message) => message.id)).toContain("pending:cmid-mine");
   });
+
+  // A queued thread reply must stay in its thread: without the root the main
+  // timeline showed it mid-channel and the thread panel never did.
+  it("keeps an outbox entry's thread root", () => {
+    const optimistic = outboxToOptimisticChatMessage(
+      {
+        workspaceId: "ws1",
+        senderId: "u1",
+        roomId: "room1",
+        body: "reply",
+        client_msg_id: "cmid-thread",
+        thread_root_id: "root1",
+        queued_at: "2026-09-05T08:00:00.000Z",
+      },
+      "u1",
+    );
+    expect(optimistic.threadRootId).toBe("root1");
+  });
 });

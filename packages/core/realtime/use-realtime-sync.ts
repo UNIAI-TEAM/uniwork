@@ -11,8 +11,7 @@ import { auditKeys } from "../audit/hooks";
 import { emitQuotaThreshold } from "../billing/quota-threshold-bus";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
-import { catchUpLoadedRoomTimelines, catchUpOnChatSubscribeAck } from "../chat/room-timeline";
-import { documentKeys } from "../documents/keys";
+import { catchUpOnChatSubscribeAck, refreshLoadedRoomTimelines } from "../chat/room-timeline";
 import { graphKeys } from "../graph/keys";
 import { invalidateEmailHubCounts, invalidateEmailHubForInboxChanged } from "../email-hub/query-cache";
 import { homeKeys } from "../home/keys";
@@ -34,6 +33,7 @@ import {
   shouldInvalidateMeetingDetail,
   TRANSCRIPT_INVALIDATE_MS,
 } from "./invalidate-scheduler";
+import { allWorkspaceKeys } from "./reconnect-keys";
 import { shouldInvalidateCalendar } from "./should-invalidate-calendar";
 import { createSourcesRefresher } from "./source-events";
 
@@ -182,6 +182,14 @@ function keysFor(
       if (payload.room_id) {
         push(chatKeys.roomMembers(wsId, payload.room_id));
       }
+      break;
+    }
+    case "chat.channel.created":
+    case "chat.channel.updated":
+    case "chat.channel.archived": {
+      push(chatKeys.rooms(wsId)); // through the chat scheduler (isChatRoomsKey)
+      push(["chat", "channels", wsId]);
+      push(["chat", "project-channels", wsId]);
       break;
     }
     case "chat.voice.recording.started":
@@ -364,7 +372,9 @@ function handleChatRealtimeEvent(
     case "chat.message.updated":
     case "chat.thread.replied": {
       if (roomId && messageId) {
-        chatScheduler.scheduleUpsert(roomId, messageId, type === "chat.message.created", payload.sender_id);
+        // A thread reply is not unread on the main timeline: the sidebar counts thread_root_id IS NULL.
+        const created = type === "chat.message.created" && !payload.thread_root_id;
+        chatScheduler.scheduleUpsert(roomId, messageId, created, payload.sender_id);
         return true;
       }
       return false;
@@ -378,7 +388,7 @@ function handleChatRealtimeEvent(
     }
     case "chat.mention.created": {
       if (roomId) {
-        chatScheduler.scheduleMention(roomId, payload.sender_id ?? "");
+        if (!payload.thread_root_id) chatScheduler.scheduleMention(roomId, payload.sender_id ?? "");
         if (messageId) chatScheduler.scheduleUpsert(roomId, messageId);
         return true;
       }
@@ -418,40 +428,6 @@ function handleChatRealtimeEvent(
 const RENAMED_EVENTS: Record<string, WSEventType> = {
   "comment.created": "task.comment_added",
 };
-
-/** Keys that could have gone stale while the socket was down. */
-function allWorkspaceKeys(wsId: string) {
-  return [
-    taskKeys.list(wsId),
-    taskKeys.myTasks(wsId),
-    taskKeys.queryRoot(wsId),
-    taskKeys.tableRoot(wsId),
-    taskKeys.statuses(wsId),
-    taskKeys.labels(wsId),
-    taskKeys.properties(wsId),
-    taskKeys.views(wsId),
-    taskKeys.viewPrefs(wsId),
-    taskKeys.pins(wsId),
-    taskKeys.projects(wsId),
-    chatKeys.rooms(wsId),
-    chatKeys.room(wsId),
-    // Open room timelines catch up by cursor instead (catchUpLoadedRoomTimelines).
-    chatKeys.messages(wsId),
-    chatKeys.threadMessagesRoot(wsId),
-    meetingKeys.list(wsId),
-    meetingKeys.stats(wsId),
-    calendarKeys.all(wsId),
-    meetingKeys.joinRequestsRoot,
-    notificationKeys.lists(),
-    notificationKeys.unreadCount(),
-    // Documents go stale while the socket is down; workspace root is the
-    // prefix of every document key, and the org-scoped favorites list is a
-    // different branch of the same feature.
-    documentKeys.workspace(wsId),
-    documentKeys.favoritesRoot,
-    graphKeys.workspace(wsId),
-  ];
-}
 
 /**
  * Events after which the projector re-reads a TASK node. The refresh covers
@@ -556,7 +532,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         if (isChatRoomsKey(wsId, queryKey)) chatScheduler.scheduleRoomActivity();
         else scheduler.schedule(queryKey);
       }
-      catchUpLoadedRoomTimelines(qc, wsId);
+      refreshLoadedRoomTimelines(qc, wsId);
     });
     return () => {
       offAny();

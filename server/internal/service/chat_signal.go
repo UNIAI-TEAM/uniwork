@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -28,6 +29,10 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if room.Kind != chatRoomKindDM && !voiceCallMultiPartyKind(room.Kind) {
 		return Invalid("cuộc gọi thoại chỉ khả dụng trong tin nhắn trực tiếp, nhóm hoặc kênh")
 	}
+	// A call rings every member and ends in a log message under the caller's name.
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return err
+	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
 		return err
@@ -36,7 +41,9 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if callerName == "" {
 		callerName = u.Email
 	}
-	s.trackVoiceCallInvite(room, callID, userID, callerName, video)
+	if err := s.trackVoiceCallInvite(room, callID, userID, callerName, video); err != nil {
+		return err
+	}
 	ev := Event{
 		Type: "chat.voice.invite",
 		Payload: map[string]string{
@@ -98,19 +105,17 @@ func (s *ChatService) SignalVoiceHangup(
 	}
 	s.trackVoiceCallParticipant(roomID, callID, userID)
 	s.stopVoiceRecordingOnHangup(ctx, room, callID, userID)
-	if logErr := s.finalizeVoiceCall(ctx, room, userID, callID); logErr != nil {
-		return logErr
-	}
+	// The session is gone either way, so the other side hears the hangup even
+	// when the call log could not be written.
+	logErr := s.finalizeVoiceCall(ctx, room, userID, callID)
 	ev := Event{
 		Type: "chat.voice.hangup",
 		Payload: map[string]string{
 			"room_id": roomID, "call_id": callID, "user_id": userID,
 		},
 	}
-	if pubErr := s.publishVoiceRoomSignal(ctx, room, userID, ev); pubErr != nil {
-		return pubErr
-	}
-	return nil
+	pubErr := s.publishVoiceRoomSignal(ctx, room, userID, ev)
+	return errors.Join(logErr, pubErr)
 }
 
 // SignalTyping broadcasts a typing indicator for a chat room.
@@ -173,6 +178,13 @@ func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, us
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return // reading a public channel without joining: no pointer to move
+	}
+	// Before the pointer check: a notification that arrived after the last
+	// read still closes, so the next message pushes again (UNI-1665).
+	if err := s.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
+		UserID: userID, GroupKeys: []string{ChatDMNotifyGroup(room.ID), ChatMentionNotifyGroup(room.ID)},
+	}); err != nil {
+		slog.WarnContext(ctx, "chat: close room notifications", "room_id", room.ID, "user_id", userID, "error", err)
 	}
 	if err == nil && member.LastReadAt.Valid && !at.Time.After(member.LastReadAt.Time) {
 		return

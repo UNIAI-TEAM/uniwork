@@ -47,8 +47,8 @@ describe("sharedItemsFromMessages", () => {
         body: "note.pdf",
         file: file({ filename: "note.pdf", content_type: "application/pdf", size_bytes: 1, download_url: "https://files/note.pdf" }),
       }),
-      message({ id: "m1", body: "![gif:vỗ tay](https://media.example/v.gif)" }),
-      message({ id: "m2", body: "![sticker:ăn mừng](https://media.example/s.webp)" }),
+      message({ id: "m1", body: "![gif:vỗ tay](https://media.tenor.com/v.gif)" }),
+      message({ id: "m2", body: "![sticker:ăn mừng](https://media.tenor.com/s.webp)" }),
       message({
         id: "v1",
         kind: "file",

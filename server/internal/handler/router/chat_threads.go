@@ -12,8 +12,9 @@ func registerChatThreads(r api, h Routes, chatWriteLimit func(http.Handler) http
 	r.Group(func(th api) {
 		th.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/threads/{messageID}/messages", h.ListChatThreadMessages, apiOp{
 			summary:     "List thread messages",
-			description: "Tin gốc và các câu trả lời trong thread (một cấp).",
+			description: "Một trang câu trả lời trong thread (một cấp), cũ trước; trang đầu có tin gốc đứng đầu.",
 			tags:        []string{"chat"},
+			sdi:         sdi.ListChatThreadMessagesSDI{},
 			sdo:         sdo.ChatMessageDTO{},
 			auth:        true,
 		})
@@ -41,9 +42,9 @@ func registerChatThreads(r api, h Routes, chatWriteLimit func(http.Handler) http
 		})
 		th.Post("/workspaces/{workspaceID}/chat/threads/{messageID}/read", h.MarkChatThreadRead, apiOp{
 			summary:     "Mark chat thread read",
-			description: "Cập nhật last_read_at cho caller trên thread.",
+			description: "Cập nhật last_read_at cho caller trên thread; trả con trỏ cũ để tóm tắt bắt đầu từ đó.",
 			tags:        []string{"chat"},
-			sdo:         sdo.StatusSDO{},
+			sdo:         sdo.ChatThreadReadSDO{},
 			auth:        true,
 		})
 		th.Get("/workspaces/{workspaceID}/chat/threads", h.ListChatThreads, apiOp{

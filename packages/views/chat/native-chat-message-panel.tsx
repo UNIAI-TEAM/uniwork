@@ -58,6 +58,7 @@ export function NativeChatMessagePanel({
   anchorMessageId = null,
   onClearAnchor,
   canPinMessages = true,
+  canModerate = false,
   canSendMessages = false,
   /** Thread API is channel/group/workspace only — never DM (work-hub decision 8). */
   threadsEnabled = false,
@@ -82,6 +83,8 @@ export function NativeChatMessagePanel({
   anchorMessageId?: string | null;
   onClearAnchor?: () => void;
   canPinMessages?: boolean;
+  /** Room moderator: may delete other members' reminders. */
+  canModerate?: boolean;
   /** May write in this room (send, unlink a task): mirrors the server's send gate. */
   canSendMessages?: boolean;
   threadsEnabled?: boolean;
@@ -114,14 +117,18 @@ export function NativeChatMessagePanel({
   const {
     data: latestRows = [],
     isPending: latestPending,
-    hasNextPage: hasMore,
-    isFetchingNextPage: loadingOlder,
-    fetchNextPage,
+    hasNextPage: roomHasMore,
+    isFetchingNextPage: roomLoadingOlder,
+    fetchNextPage: fetchOlderRoomPage,
   } = useChatRoomMessages(workspaceId, roomId, CHAT_MESSAGE_INITIAL);
   // Mirrors stickToBottomRef for rendering: the "back to latest" button shows
   // only once the reader has scrolled away from the newest message.
   const [awayFromLatest, setAwayFromLatest] = useState(false);
   const threadQuery = useChatThreadMessages(workspaceId, roomId, threadRoot?.id ?? "", threadsEnabled && !!threadRoot);
+  // An open thread pages its own older replies (UNI-1679), not the room's.
+  const hasMore = threadRoot ? threadQuery.hasNextPage : roomHasMore;
+  const loadingOlder = threadRoot ? threadQuery.isFetchingNextPage : roomLoadingOlder;
+  const fetchNextPage = threadRoot ? threadQuery.fetchNextPage : fetchOlderRoomPage;
   useClearDeliveredChatSends(latestRows);
   useClearDeliveredChatSends(threadQuery.data ?? []);
   useMarkChatRoomReadAtLatest(
@@ -158,10 +165,19 @@ export function NativeChatMessagePanel({
       threadRoot,
       threadRows: threadQuery.data,
       pendingEntries,
+      outboxEntries,
       currentUserId,
       threadsEnabled,
     });
-  }, [allMessages, currentUserId, pendingEntries, threadQuery.data, threadRoot, threadsEnabled]);
+  }, [
+    allMessages,
+    currentUserId,
+    outboxEntries,
+    pendingEntries,
+    threadQuery.data,
+    threadRoot,
+    threadsEnabled,
+  ]);
 
   const openThread = useCallback(
     (message: ChatMessage) => {
@@ -285,7 +301,7 @@ export function NativeChatMessagePanel({
   }, [highlightMessageId]);
 
   const loadOlder = useCallback(async () => {
-    if (loadingOlder || !hasMore || threadRoot || anchorMessages) return;
+    if (loadingOlder || !hasMore || (!threadRoot && anchorMessages)) return;
     stickToBottomRef.current = false;
     const prevHeight = scrollRef.current?.scrollHeight ?? 0;
     const result = await fetchNextPage();
@@ -335,9 +351,10 @@ export function NativeChatMessagePanel({
       nameContext,
       showSenderName,
       canPinMessages,
+      canModerate,
       actions,
     }),
-    [actions, canPinMessages, currentUserId, nameContext, roomId, showSenderName, workspaceId, youLabel],
+    [actions, canModerate, canPinMessages, currentUserId, nameContext, roomId, showSenderName, workspaceId, youLabel],
   );
 
   const renderMessage = useCallback(
@@ -372,14 +389,18 @@ export function NativeChatMessagePanel({
     el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
   };
 
+  // The latest page replaces the anchor window; re-sticking lets the list pin
+  // it to the bottom and the room be marked read, as scrollToLatest does.
   const clearAnchor = () => {
+    stickToBottomRef.current = true;
+    setAwayFromLatest(false);
     setLocalAnchor(null);
     if (anchorMessageId) onClearAnchor?.();
   };
 
   // Older history loads in the message's own shape. When more exists, a
   // button offers it too — scrolling up is not the only way to ask.
-  const canLoadOlder = hasMore && !threadRoot && !anchorMessages;
+  const canLoadOlder = hasMore && (!!threadRoot || !anchorMessages);
   const listHeader =
     loadingOlder || loadingAnchor ? (
       <ChatOlderMessagesSkeleton
@@ -401,6 +422,9 @@ export function NativeChatMessagePanel({
     >
       {threadRoot ? (
         <ChatThreadBar
+          workspaceId={workspaceId}
+          threadRootId={threadRoot.id}
+          following={threadQuery.data?.find((row) => row.id === threadRoot.id)?.thread_following ?? false}
           onClose={() => {
             closeThread();
             onFocusComposer?.();

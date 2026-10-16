@@ -672,6 +672,8 @@ func New(d Deps) http.Handler {
 		RemoveChatRoomMember:             h.removeWorkspaceChatRoomMember,
 		LeaveChatRoom:                    h.leaveChatRoom,
 		MarkChatRoomRead:                 h.markChatRoomRead,
+		MuteChatRoom:                     h.muteChatRoom,
+		UnmuteChatRoom:                   h.unmuteChatRoom,
 		ListWorkspaceChatMessages:        h.listWorkspaceChatMessages,
 		SendWorkspaceChatMessage:         h.sendWorkspaceChatMessage,
 		ListChatRoomMessages:             h.listChatRoomMessages,

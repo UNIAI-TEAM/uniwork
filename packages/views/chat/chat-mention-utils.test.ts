@@ -8,6 +8,7 @@ import {
   formatMemberMentionToken,
   getActiveMentionQuery,
   insertMentionToken,
+  mentionCandidatesFromBody,
   messageBodyHasMention,
   resolveActiveMentionQuery,
   serializeComposerDraftToMessageBody,
@@ -138,6 +139,16 @@ describe("chat-mention-utils", () => {
     expect(buildChatMentionCandidates("dm", "me", members, {}, (m) => m.display_name)).toEqual(
       [],
     );
+    // A channel offers its roster (the profiles), not the whole workspace.
+    expect(
+      buildChatMentionCandidates(
+        "channel",
+        "me",
+        members,
+        { u3: { user_id: "u3", display_name: "Three", email: "u3@x.com" } },
+        (m) => m.display_name,
+      ),
+    ).toEqual([{ kind: "member", userId: "u3", label: "Three", email: "u3@x.com" }]);
     expect(
       buildChatMentionCandidates(
         "group",
@@ -148,6 +159,67 @@ describe("chat-mention-utils", () => {
         ["ME", "u3"],
       ),
     ).toEqual([{ kind: "member", userId: "u3", label: "Three", email: "u3@x.com" }]);
+    const three = { u3: { user_id: "u3", display_name: "Three", email: "u3@x.com" } };
+    expect(
+      buildChatMentionCandidates("channel", "me", members, three, (m) => m.display_name, ["u3"]),
+    ).toEqual([{ kind: "member", userId: "u3", label: "Three", email: "u3@x.com" }]);
+    // A channel only I am in lists nobody else: workspace members outside it would get a chip but no notification.
+    expect(buildChatMentionCandidates("channel", "me", members, {}, (m) => m.display_name, [])).toEqual([]);
+    expect(buildChatMentionCandidates("channel", "me", members, {}, (m) => m.display_name)).toEqual([]);
+  });
+
+  it("does not nest a shorter name inside a longer one", () => {
+    const people = [
+      { kind: "member" as const, userId: "U1", label: "Minh" },
+      { kind: "member" as const, userId: "U2", label: "Minh Anh" },
+    ];
+    expect(serializeComposerDraftToMessageBody("@Minh Anh ơi", people, "all")).toBe(
+      "[@Minh Anh](mention://member/U2) ơi",
+    );
+    expect(serializeComposerDraftToMessageBody("@Minh và @Minh Anh", people, "all")).toBe(
+      "[@Minh](mention://member/U1) và [@Minh Anh](mention://member/U2)",
+    );
+  });
+
+  it("gives members who share a name distinct labels", () => {
+    const candidates = buildChatMentionCandidates(
+      "workspace",
+      "me",
+      [
+        { user_id: "u1", email: "an.nguyen@x.com", display_name: "An" },
+        { user_id: "u2", email: "an.tran@x.com", display_name: "An" },
+        { user_id: "u3", email: "", display_name: "Binh" },
+        { user_id: "u4", email: "", display_name: "Binh" },
+      ],
+      {},
+      (m) => m.display_name,
+    );
+    expect(candidates.map((candidate) => candidate.label)).toEqual([
+      "An (an.nguyen)",
+      "An (an.tran)",
+      "Binh (u3)",
+      "Binh (u4)",
+    ]);
+    expect(serializeComposerDraftToMessageBody("@An (an.tran) xem", candidates, "all")).toBe(
+      "[@An (an.tran)](mention://member/u2) xem",
+    );
+  });
+
+  it("keeps the original mention ids when an edited message is serialized", () => {
+    const original = "[@An](mention://member/u2) xem [@all](mention://all/all)";
+    const fromNameContext = [
+      { kind: "member" as const, userId: "u1", label: "An" },
+      { kind: "member" as const, userId: "u2", label: "An" },
+    ];
+    expect(mentionCandidatesFromBody(original)).toEqual([{ kind: "member", userId: "u2", label: "An" }]);
+    const edited = deserializeMessageBodyToComposerDraft(original) + " nhé";
+    expect(
+      serializeComposerDraftToMessageBody(
+        edited,
+        [...mentionCandidatesFromBody(original), ...fromNameContext],
+        "all",
+      ),
+    ).toBe("[@An](mention://member/u2) xem [@all](mention://all/all) nhé");
   });
 
   it("keeps a multi-word name open and matches without accents", () => {

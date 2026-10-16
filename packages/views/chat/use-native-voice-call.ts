@@ -303,9 +303,20 @@ export function useNativeVoiceCall({
       applyIncomingInvite(payload as VoiceInvitePayload);
     });
 
+    // Our own frame: another tab of ours answered or declined. Stop ringing
+    // here without a reason or a hangup; any other state is left alone.
+    const handledElsewhere = (data: VoiceInvitePayload & { user_id?: string }) => {
+      if (data.user_id !== currentUserId) return false;
+      const current = stateRef.current;
+      if (current.status === "incoming" && current.callId === data.call_id && current.roomId === data.room_id) {
+        closeLocal();
+      }
+      return true;
+    };
+
     const offAccept = ws.on("chat.voice.accept", (payload) => {
       const data = payload as VoiceInvitePayload & { user_id?: string };
-      if (!data.room_id || !data.call_id || data.user_id === currentUserId) return;
+      if (!data.room_id || !data.call_id || handledElsewhere(data)) return;
       if (isMultiPartyVoiceCall(data.call_kind)) return;
       if (!voiceEventForUser(data, currentUserId, allowedRoomIdsRef.current)) return;
       const current = stateRef.current;
@@ -325,8 +336,7 @@ export function useNativeVoiceCall({
 
     const offHangup = ws.on("chat.voice.hangup", (payload) => {
       const data = payload as VoiceInvitePayload & { user_id?: string };
-      if (!data.room_id || !data.call_id) return;
-      if (data.user_id === currentUserId) return;
+      if (!data.room_id || !data.call_id || handledElsewhere(data)) return;
       if (!voiceEventForUser(data, currentUserId, allowedRoomIdsRef.current)) return;
       closedCallIdsRef.current.add(data.call_id);
       const current = stateRef.current;

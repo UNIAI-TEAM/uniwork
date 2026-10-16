@@ -9,6 +9,7 @@ import { isDefaultWorkspaceChannel } from "./chat-room-helpers";
 import { useActiveChatRoomStore } from "./active-chat-room-store";
 import {
   CHAT_MESSAGE_CACHE_MAX,
+  compareMessages,
   insertCreatedTimelineMessage,
   mapRoomTimeline,
   markStaleUnlessObserved,
@@ -94,6 +95,8 @@ export function bumpThreadRootReplyCount(
   if (!existing || !rootId) return existing;
   return existing.map((entry) => {
     if (entry.id !== rootId) return entry;
+    // A root already past this reply has counted it: later frames for it (an edit, a reaction) bump nothing.
+    if (entry.last_reply_at && Date.parse(entry.last_reply_at) >= Date.parse(reply.created_at)) return entry;
     return {
       ...entry,
       reply_count: (entry.reply_count ?? 0) + 1,
@@ -151,6 +154,19 @@ function patchWorkspaceMessageListIfLoaded(
   if (existing === undefined) return;
   qc.setQueryData<ChatMessageRecord[]>(key, patch(existing));
 }
+/**
+ * The root heads a thread's first page, so the generic "newer than the head's
+ * oldest row" test would take any reply. A reply older than the head's oldest
+ * reply belongs on an older page (an edit of one not loaded): only a refetch
+ * places it without a hole in the cursor chain.
+ */
+function placeThreadReply(data: RoomTimeline, message: ChatMessageRecord): RoomTimeline | null {
+  if (roomTimelineHas(data, message.id)) return replaceTimelineMessage(data, message);
+  const oldestReply = data.pages[0]?.find((entry) => entry.thread_root_id);
+  if (oldestReply && compareMessages(message, oldestReply) < 0) return null;
+  return insertCreatedTimelineMessage(data, message);
+}
+
 function patchThreadReplyCaches(
   qc: QueryClient,
   wsId: string,
@@ -161,10 +177,15 @@ function patchThreadReplyCaches(
   if (!rootId) return;
 
   const threadKey = chatKeys.threadMessages(wsId, roomId, rootId);
-  const prior = qc.getQueryData<ChatMessageRecord[]>(threadKey);
-  const alreadyPresent = prior?.some((entry) => entry.id === message.id) ?? false;
+  const prior = qc.getQueryData<RoomTimeline>(threadKey);
+  const alreadyPresent = roomTimelineHas(prior, message.id);
 
-  qc.setQueryData<ChatMessageRecord[]>(threadKey, (old) => mergeMessageIntoList(old, message));
+  // Only a loaded thread is patched; the next open fetches one that is not.
+  if (prior) {
+    const next = placeThreadReply(prior, message);
+    if (next) qc.setQueryData<RoomTimeline>(threadKey, next);
+    else void qc.invalidateQueries({ queryKey: threadKey, exact: true });
+  }
 
   const patchMainList = (existing: ChatMessageRecord[]) => {
     const withoutReply = removeMessageFromList(existing, message.id);
@@ -334,6 +355,11 @@ export async function fetchAndPatchChatMessage(
   const isOwn = viewerId != null && message.sender_id === viewerId;
   qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) => {
     const room = old?.find((entry) => entry.id === roomId);
+    // An edit, reaction or vote on an older message is not the room's latest.
+    const isLatest =
+      room?.last_message_at != null &&
+      Date.parse(message.created_at) >= Date.parse(room.last_message_at);
+    if (!created && !isLatest) return old;
     return patchRoomSidebarFromMessage(old, roomId, message, {
       incrementUnread: created && !isOwn && !viewing && shouldIncrementUnreadLocally(room),
     });
@@ -354,10 +380,13 @@ export function patchChatMessageDeleted(
   patchWorkspaceMessageListIfLoaded(qc, wsId, roomId, (existing) =>
     removeMessageFromList(existing, messageId),
   );
-  // Thread message caches are keyed by root; drop the id from any cached thread list.
-  qc.setQueriesData<ChatMessageRecord[]>(
+  // Thread message caches are keyed by root; drop the id from every loaded page of each.
+  qc.setQueriesData<RoomTimeline>(
     { queryKey: ["chat", "thread-messages", wsId, roomId] },
-    (old) => removeMessageFromList(old, messageId),
+    (old) =>
+      old && roomTimelineHas(old, messageId)
+        ? mapRoomTimeline(old, (page) => removeMessageFromList(page, messageId))
+        : old,
   );
 }
 

@@ -45,6 +45,7 @@ describe("ChatCreateReminderDialog", () => {
       expect(mutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           roomId: "room1",
+          client_msg_id: expect.stringMatching(/\S/),
           reminder: expect.objectContaining({
             body: "Họp lúc 9h",
             repeat: "none",

@@ -165,6 +165,20 @@ func TestChatNoteValidationErrors(t *testing.T) {
 	} else {
 		requireNoteValidationError(t, err, "long body")
 	}
+
+	// The limit counts characters, not UTF-8 bytes ("ệ" is 3 bytes).
+	if _, err := s.SendNoteMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendNoteMessageInput{
+		Body: strings.Repeat("ệ", maxNoteBodyLen),
+	}); err != nil {
+		t.Fatalf("Vietnamese body at the limit: %v", err)
+	}
+	if _, err := s.SendNoteMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendNoteMessageInput{
+		Body: strings.Repeat("ệ", maxNoteBodyLen+1),
+	}); err == nil {
+		t.Fatal("long Vietnamese body should fail")
+	} else {
+		requireNoteValidationError(t, err, "long Vietnamese body")
+	}
 }
 
 func TestChatNoteNotFoundAndForbidden(t *testing.T) {

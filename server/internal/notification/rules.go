@@ -726,6 +726,9 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 	if err != nil {
 		return nil, err
 	}
+	if room.ArchivedAt.Valid {
+		return nil, nil // archived after the worker emitted: the room is closed
+	}
 	members, err := e.q.ListChatRoomMemberUserIDs(ctx, msg.RoomID)
 	if err != nil {
 		return nil, err

@@ -22,9 +22,10 @@ const (
 	// client must already be subscribed to the room to receive it.
 	ScopeChat Scope = "chat"
 	// ScopeRoom fans out to each member's own user scope, resolved at delivery
-	// time. Room membership events need this: a member who has just been added
-	// to a room is not subscribed to it yet, so ScopeChat would deliver the
-	// event to everyone except the person it is about.
+	// time, plus the user the row names in user_id. Room membership events need
+	// this: a member who has just been added to a room is not subscribed to it
+	// yet, so ScopeChat would deliver the event to everyone except the person
+	// it is about, and a removed member is no longer in the list at delivery.
 	ScopeRoom Scope = "room"
 	// ScopeOrganization fans out to everyone connected from anywhere in one
 	// organization. Directory and department changes belong to the company,
@@ -192,12 +193,12 @@ var catalogue = []EventDef{
 	// Message and typing rows of the workspace's default channel go to the
 	// workspace, whose members are that channel's; every other room's go to
 	// chat:{room} only.
-	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id", "thread_root_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.updated", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.deleted", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	// A mention is addressed to the person mentioned, not to the room, so it
 	// goes out on that user's own scope alongside the room's message event.
-	{Topic: "chat.mention.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
+	{Topic: "chat.mention.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id", "thread_root_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.typing", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.invite", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.accept", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},

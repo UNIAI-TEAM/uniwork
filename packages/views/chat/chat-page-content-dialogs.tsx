@@ -264,7 +264,8 @@ export function ChatPageContentDialogs({
                 id: activeChannel.id,
                 name: activeChannel.name,
                 room_id: activeChannel.id,
-                member_user_ids: activeChannel.member_user_ids,
+                // The channel's roster, already loaded for the open room.
+                member_user_ids: Object.keys(groupMemberProfiles),
               }}
               currentUserId={currentUserId}
               contacts={contacts}

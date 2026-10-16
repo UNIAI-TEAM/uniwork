@@ -27,6 +27,8 @@ export const ChatMessageSchema = z.object({
   reply_count: z.number().optional().default(0),
   last_reply_at: z.string().optional(),
   thread_unread: z.boolean().optional().default(false),
+  /** Set on a thread's root in a thread listing: the caller follows it, unmuted. */
+  thread_following: z.boolean().optional().catch(undefined),
   created_at: z.string(),
   /** Opaque history position; sent back verbatim to page older messages. */
   cursor: z.string().optional().catch(undefined),
@@ -210,6 +212,8 @@ export const ChatRoomSchema = z.object({
     .array(z.string())
     .nullish()
     .transform((value) => value ?? []),
+  /** A channel's size, the caller included; channels send this instead of member_user_ids. */
+  member_count: z.number().catch(0),
   unread_count: z.number().optional().default(0),
   mention_unread_count: z.number().optional().default(0),
   peer_user_id: z.string().optional(),
@@ -228,6 +232,8 @@ export const ChatRoomSchema = z.object({
   project_id: z.string().optional(),
   topic: z.string().optional(),
   is_default: z.boolean().optional(),
+  /** The caller muted this room's notifications; kept on the server, so on every device. */
+  notifications_muted: z.boolean().optional().catch(undefined),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 
@@ -258,6 +264,8 @@ export const ChatRoomMemberSchema = z.object({
   send_restricted: z.boolean().optional().default(false),
   email: z.string(),
   display_name: z.string(),
+  /** The room's creator, whom the server's moderation rules treat apart from `role`. */
+  is_creator: z.boolean().catch(false),
 });
 export type ChatRoomMemberRecord = z.infer<typeof ChatRoomMemberSchema>;
 

@@ -874,6 +874,34 @@ func (s *TaskService) deleteTaskInTx(ctx context.Context, q *db.Queries, userID 
 	}); err != nil {
 		return err
 	}
+	events := []audit.Event{{Topic: "task.deleted", Payload: map[string]string{
+		"task_id": task.ID, "workspace_id": task.WorkspaceID,
+	}}}
+	// Chat links have no foreign key: drop them with the task, so a thread it
+	// synced with is free for another task and its card leaves the message.
+	threadLinks, err := q.DeleteChatThreadTaskLinksByTask(ctx, db.DeleteChatThreadTaskLinksByTaskParams{
+		OrganizationID: task.OrganizationID, TaskID: task.ID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, l := range threadLinks {
+		events = append(events, audit.Event{Topic: "chat.thread.unlinked", Payload: map[string]string{
+			"room_id": l.RoomID, "thread_root_id": l.ThreadRootID, "task_id": task.ID,
+		}})
+	}
+	msgLinks, err := q.DeleteChatMessageLinksByTask(ctx, db.DeleteChatMessageLinksByTaskParams{
+		OrganizationID: task.OrganizationID, TargetID: task.ID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, l := range msgLinks {
+		// Same topic UnlinkChatMessage uses: viewers refetch the message's links.
+		events = append(events, audit.Event{Topic: "chat.message.linked", Payload: map[string]string{
+			"room_id": l.RoomID, "message_id": l.MessageID, "target_id": task.ID,
+		}})
+	}
 	// The row is gone, so the audit entry is the only remaining record of what
 	// it held: keep the title, which is what a person searching the log reads.
 	return auditRecorder.Record(ctx, q, audit.Entry{
@@ -882,9 +910,7 @@ func (s *TaskService) deleteTaskInTx(ctx context.Context, q *db.Queries, userID 
 		Action:       audit.ActionTaskDeleted,
 		ResourceType: "task", ResourceID: task.ID,
 		Metadata: map[string]any{"title": task.Title, "status": task.Status},
-	}, audit.Event{Topic: "task.deleted", Payload: map[string]string{
-		"task_id": task.ID, "workspace_id": task.WorkspaceID,
-	}})
+	}, events...)
 }
 
 // AddComment records the author's kind so the client can draw the badge; origin

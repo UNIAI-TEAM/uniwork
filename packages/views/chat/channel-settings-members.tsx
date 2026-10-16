@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { useTranslation } from "react-i18next";
 import { useChatRoomMembers } from "@uniwork/core/chat";
 import { useCurrentMember } from "@uniwork/core/permissions";
@@ -21,7 +22,7 @@ import { initialOf } from "./chat-initials";
 export function ChannelSettingsMembers({
   open,
   workspaceId,
-  roomId,
+  room,
   currentUserId,
   youLabel,
   memberAvatarByUserId = {},
@@ -29,17 +30,18 @@ export function ChannelSettingsMembers({
 }: {
   open: boolean;
   workspaceId: string;
-  roomId: string;
+  room: ChatRoomRecord;
   currentUserId: string;
   youLabel: string;
   memberAvatarByUserId?: MemberAvatarUrlMap;
   onMessage?: (member: ChatMemberMessageTarget) => void;
 }) {
   const { t } = useTranslation();
-  const { data: members = [], isPending, isError, refetch } = useChatRoomMembers(workspaceId, roomId, open);
-  const moderation = useRoomMemberModeration({ workspaceId, roomId });
+  const { data: members = [], isPending, isError, refetch } = useChatRoomMembers(workspaceId, room.id, open);
+  const moderation = useRoomMemberModeration({ workspaceId, roomId: room.id });
   const currentMember = useCurrentMember(workspaceId);
   const roomPermissions = useResolvedRoomPermissions({
+    room,
     members,
     currentUserId,
     wsRole: currentMember.role,

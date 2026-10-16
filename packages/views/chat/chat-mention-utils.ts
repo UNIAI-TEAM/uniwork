@@ -78,7 +78,34 @@ export function serializeComposerDraftToMessageBody(
   return replaceComposerMention(body, all, formatAllMentionToken(all));
 }
 
+/**
+ * The member mentions already stored in a message, as candidates. Put them
+ * before any other candidates when an edit is serialized: equal labels keep
+ * their order in the sort above and the first one wins, so a mention keeps
+ * the id it was sent with even when another person shares the name.
+ */
+export function mentionCandidatesFromBody(body: string): ChatMentionCandidate[] {
+  return [...body.matchAll(/\[@([^\]]+)\]\(mention:\/\/member\/([^)]+)\)/g)].map(([, label = "", userId]) => ({
+    kind: "member" as const,
+    userId,
+    label,
+  }));
+}
+
 type MentionPerson = { user_id: string; email: string; display_name: string };
+
+function labelKey(label: string): string {
+  return sanitizeMentionLabel(label).toLowerCase();
+}
+
+/** Append a suffix to every label two or more candidates share (serialize matches labels case-insensitively). */
+function suffixSharedLabels(candidates: ChatMentionCandidate[], suffix: (candidate: ChatMentionCandidate) => string): void {
+  const counts = new Map<string, number>();
+  for (const candidate of candidates) counts.set(labelKey(candidate.label), (counts.get(labelKey(candidate.label)) ?? 0) + 1);
+  for (const candidate of candidates) {
+    if ((counts.get(labelKey(candidate.label)) ?? 0) > 1) candidate.label = `${candidate.label} (${suffix(candidate)})`;
+  }
+}
 
 function sameUserId(a: string, b: string): boolean {
   return a.trim().toUpperCase() === b.trim().toUpperCase();
@@ -108,11 +135,15 @@ export function buildChatMentionCandidates(
     });
   }
 
+  // A channel lists only its roster (the profiles read from its room-members
+  // call), even an empty one: the server notifies room members only, so anyone
+  // else would get a chip and no notification. The default channel is the
+  // workspace target, not "channel".
   const scoped =
     (targetKind === "group" || targetKind === "channel") && roomMemberIds && roomMemberIds.length > 0;
   const ids = scoped
     ? roomMemberIds
-    : targetKind === "group"
+    : targetKind === "group" || targetKind === "channel"
       ? Object.values(groupMemberProfiles).map((profile) => profile.user_id)
       : workspaceMembers.map((member) => member.user_id);
 
@@ -131,6 +162,9 @@ export function buildChatMentionCandidates(
       email: person.email,
     });
   }
+  // A label must name one person, or the @ picks whoever comes first.
+  suffixSharedLabels(out, (candidate) => candidate.email?.split("@")[0]?.trim() || candidate.userId || "");
+  suffixSharedLabels(out, (candidate) => candidate.userId ?? "");
   return out;
 }
 

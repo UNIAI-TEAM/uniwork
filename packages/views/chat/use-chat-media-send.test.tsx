@@ -12,10 +12,11 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@uniwork/core/chat/client-msg-id", () => ({
-  newChatClientMsgId: () => "client-msg-1",
+  newChatClientMsgId: vi.fn(() => "client-msg-1"),
 }));
 
 import { toast } from "sonner";
+import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 
 describe("useChatMediaSend", () => {
   const ensureRoom = { mutateAsync: vi.fn() };
@@ -25,6 +26,7 @@ describe("useChatMediaSend", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(newChatClientMsgId).mockReset().mockReturnValue("client-msg-1");
   });
 
   function setup(over: Partial<Parameters<typeof useChatMediaSend>[0]> = {}) {
@@ -58,6 +60,33 @@ describe("useChatMediaSend", () => {
       reply_to_message_id: "reply1",
     });
     expect(clearReply).toHaveBeenCalled();
+  });
+
+  it("reuses the client_msg_id when the same recording is sent again", async () => {
+    vi.mocked(newChatClientMsgId).mockReturnValueOnce("a").mockReturnValueOnce("b");
+    sendVoiceMessage.mutateAsync.mockRejectedValueOnce(new Error("network"));
+    const { result } = setup();
+    const blob = new Blob(["a"]);
+    await expect(
+      act(async () => {
+        await result.current.handleSendVoice({ blob, durationMs: 1200 });
+      }),
+    ).rejects.toThrow("network");
+    await act(async () => {
+      await result.current.handleSendVoice({ blob, durationMs: 1200 });
+    });
+    expect(sendVoiceMessage.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(sendVoiceMessage.mutateAsync.mock.calls.map(([input]) => input.client_msg_id)).toEqual(["a", "a"]);
+  });
+
+  it("gives a new recording a new client_msg_id", async () => {
+    vi.mocked(newChatClientMsgId).mockReturnValueOnce("a").mockReturnValueOnce("b");
+    const { result } = setup();
+    await act(async () => {
+      await result.current.handleSendVoice({ blob: new Blob(["a"]), durationMs: 1 });
+      await result.current.handleSendVoice({ blob: new Blob(["a"]), durationMs: 1 });
+    });
+    expect(sendVoiceMessage.mutateAsync.mock.calls.map(([input]) => input.client_msg_id)).toEqual(["a", "b"]);
   });
 
   it("ensures a workspace room when activeRoomId is null", async () => {

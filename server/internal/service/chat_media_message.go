@@ -51,7 +51,7 @@ func (s *ChatService) AuthorizeMediaSend(ctx context.Context, userID, workspaceI
 	if err != nil {
 		return err
 	}
-	return s.requireCanSendMessageInRoom(ctx, userID, room)
+	return s.requireCanSendInRoom(ctx, userID, room.ID, room)
 }
 
 // sendChatMedia validates authorization, uploads through FileService and
@@ -70,7 +70,7 @@ func (s *ChatService) sendChatMedia(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	if err := s.requireCanSendMessageInRoom(ctx, userID, room); err != nil {
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
 	var replyTo pgtype.Text
@@ -121,7 +121,7 @@ func (s *ChatService) sendChatMedia(
 
 	// A send permission revoked while the bytes were in flight still stops the
 	// commit; the staged upload is canceled so it does not outlive the refusal.
-	if err := s.requireCanSendMessageInRoom(ctx, userID, room); err != nil {
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		s.cancelStagedUpload(ctx, actor, scope, up.File.ID)
 		return ChatMessageRow{}, err
 	}
@@ -140,7 +140,7 @@ func (s *ChatService) sendChatMedia(
 			LastReadAt: pgtype.Timestamptz{Time: msg.CreatedAt.Time, Valid: true},
 		})
 		_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-		s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
+		s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID, "")
 	}
 	return s.signChatMediaRow(ctx, room, chatMessageRowFromDB(msg, user.DisplayName)), nil
 }
@@ -240,7 +240,7 @@ func (s *ChatService) commitChatMediaMessage(
 			return db.ChatMessage{}, false, err
 		}
 	}
-	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", chatMentions{}); err != nil {
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", "", chatMentions{}); err != nil {
 		return db.ChatMessage{}, false, err
 	}
 	if err := tx.Commit(ctx); err != nil {

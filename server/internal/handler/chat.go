@@ -47,6 +47,9 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.ThreadUnread {
 		out.ThreadUnread = true
 	}
+	if m.ThreadFollowing {
+		out.ThreadFollowing = true
+	}
 	if len(m.Reactions) > 0 {
 		out.Reactions = m.Reactions
 	}
@@ -183,11 +186,12 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 	}
 	out := sdo.ChatRoomDTO{
 		ID: r.ID, Kind: r.Kind, Name: r.Name, WorkspaceID: r.WorkspaceID,
-		MemberUserIDs: memberIDs, UnreadCount: r.UnreadCount, MentionUnreadCount: r.MentionUnreadCount,
+		MemberUserIDs: memberIDs, MemberCount: r.MemberCount, UnreadCount: r.UnreadCount, MentionUnreadCount: r.MentionUnreadCount,
 		PeerUserID: r.PeerUserID, PeerEmail: r.PeerEmail, PeerDisplayName: r.PeerDisplayName,
 		LastMessageBody: r.LastMessageBody, LastMessageKind: r.LastMessageKind,
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
+		NotificationsMuted: r.NotificationsMuted,
 	}
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
@@ -405,6 +409,25 @@ func (h *handlers) markChatRoomRead(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
 }
 
+func (h *handlers) muteChatRoom(w http.ResponseWriter, r *http.Request) {
+	h.setChatRoomMuted(w, r, true)
+}
+
+func (h *handlers) unmuteChatRoom(w http.ResponseWriter, r *http.Request) {
+	h.setChatRoomMuted(w, r, false)
+}
+
+func (h *handlers) setChatRoomMuted(w http.ResponseWriter, r *http.Request, muted bool) {
+	err := h.Chat.SetRoomNotificationsMuted(
+		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), muted,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
 func (h *handlers) removeWorkspaceChatRoomMember(w http.ResponseWriter, r *http.Request) {
 	err := h.Chat.RemoveChatRoomMember(
 		r.Context(),
@@ -435,7 +458,7 @@ func (h *handlers) listChatRoomMembers(w http.ResponseWriter, r *http.Request) {
 	for _, m := range members {
 		out = append(out, sdo.ChatRoomMemberDTO{
 			UserID: m.UserID, Role: m.Role, SendRestricted: m.SendRestricted,
-			Email: m.Email, DisplayName: m.DisplayName,
+			Email: m.Email, DisplayName: m.DisplayName, IsCreator: m.IsCreator,
 		})
 	}
 	respondJSON(w, http.StatusOK, sdo.ChatRoomMemberListSDO{Members: out})
@@ -582,7 +605,7 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 					HideResultsUntilVote: in.Poll.Settings.HideResultsUntilVote,
 					HideVoters:           in.Poll.Settings.HideVoters,
 				},
-				ReplyToMessageID: in.ReplyToMessageID,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else if in.Reminder != nil {
@@ -592,10 +615,10 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			workspaceID,
 			roomID,
 			service.SendReminderMessageInput{
-				Body:             in.Reminder.Body,
-				RemindAt:         in.Reminder.RemindAt,
-				Repeat:           in.Reminder.Repeat,
-				ReplyToMessageID: in.ReplyToMessageID,
+				Body:        in.Reminder.Body,
+				RemindAt:    in.Reminder.RemindAt,
+				Repeat:      in.Reminder.Repeat,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else if in.Note != nil {
@@ -605,9 +628,9 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			workspaceID,
 			roomID,
 			service.SendNoteMessageInput{
-				Body:             in.Note.Body,
-				PinToTop:         in.Note.PinToTop,
-				ReplyToMessageID: in.ReplyToMessageID,
+				Body:        in.Note.Body,
+				PinToTop:    in.Note.PinToTop,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else if in.Post != nil {
@@ -617,10 +640,10 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			workspaceID,
 			roomID,
 			service.SendPostMessageInput{
-				Title:            in.Post.Title,
-				Body:             in.Post.Body,
-				PinToTop:         in.Post.PinToTop,
-				ReplyToMessageID: in.ReplyToMessageID,
+				Title:       in.Post.Title,
+				Body:        in.Post.Body,
+				PinToTop:    in.Post.PinToTop,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else {

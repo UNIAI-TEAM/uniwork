@@ -202,22 +202,78 @@ func (q *Queries) DeleteChatMessageLink(ctx context.Context, arg DeleteChatMessa
 	return target_id, err
 }
 
-const deleteChatThreadTaskLinkByThread = `-- name: DeleteChatThreadTaskLinkByThread :execrows
-DELETE FROM chat_thread_task_links
-WHERE thread_root_id = $1 AND workspace_id = $2
+const deleteChatMessageLinksByTask = `-- name: DeleteChatMessageLinksByTask :many
+DELETE FROM chat_message_links
+WHERE organization_id = $1 AND target_type = 'task' AND target_id = $2
+RETURNING room_id, message_id
 `
 
-type DeleteChatThreadTaskLinkByThreadParams struct {
-	ThreadRootID string `json:"thread_root_id"`
-	WorkspaceID  string `json:"workspace_id"`
+type DeleteChatMessageLinksByTaskParams struct {
+	OrganizationID string `json:"organization_id"`
+	TargetID       string `json:"target_id"`
 }
 
-func (q *Queries) DeleteChatThreadTaskLinkByThread(ctx context.Context, arg DeleteChatThreadTaskLinkByThreadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteChatThreadTaskLinkByThread, arg.ThreadRootID, arg.WorkspaceID)
+type DeleteChatMessageLinksByTaskRow struct {
+	RoomID    string `json:"room_id"`
+	MessageID string `json:"message_id"`
+}
+
+// Deleting a task takes its card off every message it was linked from.
+func (q *Queries) DeleteChatMessageLinksByTask(ctx context.Context, arg DeleteChatMessageLinksByTaskParams) ([]DeleteChatMessageLinksByTaskRow, error) {
+	rows, err := q.db.Query(ctx, deleteChatMessageLinksByTask, arg.OrganizationID, arg.TargetID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []DeleteChatMessageLinksByTaskRow{}
+	for rows.Next() {
+		var i DeleteChatMessageLinksByTaskRow
+		if err := rows.Scan(&i.RoomID, &i.MessageID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteChatThreadTaskLinksByTask = `-- name: DeleteChatThreadTaskLinksByTask :many
+DELETE FROM chat_thread_task_links
+WHERE organization_id = $1 AND task_id = $2
+RETURNING room_id, thread_root_id
+`
+
+type DeleteChatThreadTaskLinksByTaskParams struct {
+	OrganizationID string `json:"organization_id"`
+	TaskID         string `json:"task_id"`
+}
+
+type DeleteChatThreadTaskLinksByTaskRow struct {
+	RoomID       string `json:"room_id"`
+	ThreadRootID string `json:"thread_root_id"`
+}
+
+// Deleting a task frees the threads it synced with, in the same transaction.
+func (q *Queries) DeleteChatThreadTaskLinksByTask(ctx context.Context, arg DeleteChatThreadTaskLinksByTaskParams) ([]DeleteChatThreadTaskLinksByTaskRow, error) {
+	rows, err := q.db.Query(ctx, deleteChatThreadTaskLinksByTask, arg.OrganizationID, arg.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeleteChatThreadTaskLinksByTaskRow{}
+	for rows.Next() {
+		var i DeleteChatThreadTaskLinksByTaskRow
+		if err := rows.Scan(&i.RoomID, &i.ThreadRootID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChatMessageByMirroredComment = `-- name: GetChatMessageByMirroredComment :one

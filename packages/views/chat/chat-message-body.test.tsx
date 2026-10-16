@@ -75,8 +75,17 @@ describe("ChatMessageBody", () => {
     expect(document.body.textContent).not.toContain("01J8ABC");
   });
 
+  it("shows an image from an unknown host as text, never as an img", () => {
+    render(<ChatMessageBody body="![gif:hi](https://evil.example/p.gif?u=b)" isOwn={false} nameContext={[]} />);
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "https://evil.example/p.gif?u=b" })).toHaveAttribute(
+      "href",
+      "https://evil.example/p.gif?u=b",
+    );
+  });
+
   it("lets a GIF be paused", () => {
-    render(<ChatMessageBody body="![gif:vui](https://media.example/v.gif)" isOwn nameContext={[]} />);
+    render(<ChatMessageBody body="![gif:vui](https://media.tenor.com/v.gif)" isOwn nameContext={[]} />);
     const pause = screen.getByRole("button", { name: /Dừng ảnh động/ });
     fireEvent.click(pause);
     expect(screen.getByRole("button", { name: /Phát ảnh động/ })).toBeInTheDocument();
@@ -85,14 +94,14 @@ describe("ChatMessageBody", () => {
   it("renders sticker media messages as images", async () => {
     render(
       <ChatMessageBody
-        body="![sticker:cười](https://cdn.example/sticker.png)"
+        body="![sticker:cười](https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f600.png)"
         isOwn={false}
         nameContext={[]}
       />,
     );
     expect(await screen.findByRole("img")).toHaveAttribute(
       "src",
-      "https://cdn.example/sticker.png",
+      "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f600.png",
     );
   });
 });

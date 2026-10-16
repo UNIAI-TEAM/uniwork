@@ -16,7 +16,7 @@ import { ChatExpressionPicker } from "./chat-expression-picker";
 import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocomplete";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
+import { deserializeMessageBodyToComposerDraft, serializeComposerDraftToMessageBody } from "./chat-mention-utils";
 import { CHAT_FILE_ACCEPT, CHAT_FILE_MAX_LABEL, isChatFileTooLarge, pickChatAcceptedFiles } from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 import { useComposerMentions } from "./use-composer-mentions";
@@ -158,6 +158,12 @@ export function ChatComposer({
     textareaRef.current?.focus();
   };
 
+  // The server limits the sent body, where each @label is a longer mention
+  // token. UTF-16 length counts an emoji as 2, so this is never looser than it.
+  const remaining =
+    CHAT_MESSAGE_BODY_MAX_LENGTH -
+    serializeComposerDraftToMessageBody(draft, mentionCandidates ?? [], t("chat.mention_all")).length;
+
   const submit = () => {
     if (!canSend) return;
     if (stagedFiles.length > 0 && onSendFile) {
@@ -175,13 +181,13 @@ export function ChatComposer({
       })();
       setStagedFiles([]);
     }
-    if (draft.trim().length > 0) onSend();
+    // Over the limit the counter is already red; sending would only bounce.
+    if (draft.trim().length > 0 && remaining >= 0) onSend();
     // The send button disappears with the text; keep typing where you were
     // (and keep a phone's keyboard up).
     textareaRef.current?.focus();
   };
 
-  const remaining = CHAT_MESSAGE_BODY_MAX_LENGTH - draft.length;
   const showCounter = remaining <= COUNTER_THRESHOLD;
 
   return (
@@ -375,7 +381,9 @@ export function ChatComposer({
                 remaining <= 0 ? "text-destructive" : "text-muted-foreground",
               )}
             >
-              {t("chat.composer_state.chars_left", { count: Math.max(remaining, 0) })}
+              {remaining < 0
+                ? t("chat.composer_state.chars_over", { count: -remaining })
+                : t("chat.composer_state.chars_left", { count: remaining })}
             </p>
           ) : null}
         </form>

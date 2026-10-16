@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"slices"
 	"testing"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestChatChannelsCreateJoinDiscover(t *testing.T) {
@@ -182,5 +185,208 @@ func TestListChatRoomsIncludesJoinedChannels(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("created channel missing from ListChatRooms (sidebar source)")
+	}
+}
+
+// Two leave/re-invite rounds leave two 'left' rows; joining again must add one
+// fresh active row instead of reviving both into the active unique index.
+func TestJoinPublicChannelAfterLeavingTwice(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "ops-rejoin", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := s.LeaveChatRoom(ctx, ub.ID, w.ID, ch.ID); err != nil {
+		t.Fatalf("leave: %v", err)
+	}
+	if _, err := s.InviteGroupMembers(ctx, ua.ID, w.ID, ch.ID, []string{ub.ID}); err != nil {
+		t.Fatalf("re-invite: %v", err)
+	}
+	if err := s.RemoveChatRoomMember(ctx, ua.ID, w.ID, ch.ID, ub.ID); err != nil {
+		t.Fatalf("kick: %v", err)
+	}
+
+	if _, err := s.JoinChannel(ctx, ub.ID, w.ID, ch.ID); err != nil {
+		t.Fatalf("join after leaving twice: %v", err)
+	}
+	mine, err := s.ListChannels(ctx, ub.ID, w.ID, ListChannelsInput{Scope: "mine"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range mine {
+		found = found || r.ID == ch.ID
+	}
+	if !found {
+		t.Fatal("rejoined channel missing from mine list")
+	}
+
+	count := func(sql string) int {
+		t.Helper()
+		var n int
+		if err := s.pool.QueryRow(ctx, sql, ch.ID, ub.ID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := count(`SELECT count(*) FROM chat_room_members WHERE room_id = $1 AND user_id = $2 AND status = 'active'`); n != 1 {
+		t.Fatalf("active member rows = %d, want 1", n)
+	}
+	if n := count(`SELECT count(*) FROM audit_events WHERE action = 'chat.room.member_added' AND resource_id = $1
+		AND metadata::jsonb->>'member_id' = $2 AND metadata::jsonb->>'via' = 'join'`); n != 1 {
+		t.Fatalf("join audit rows = %d, want 1", n)
+	}
+}
+
+func TestJoinChannelKeepsSendRestriction(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "ops-readonly", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	restrict := func(on bool) {
+		t.Helper()
+		if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+			RoomID: ch.ID, UserID: ub.ID, SendRestricted: on,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	leaveAndJoin := func() bool {
+		t.Helper()
+		if err := s.LeaveChatRoom(ctx, ub.ID, w.ID, ch.ID); err != nil {
+			t.Fatalf("leave: %v", err)
+		}
+		if _, err := s.JoinChannel(ctx, ub.ID, w.ID, ch.ID); err != nil {
+			t.Fatalf("join: %v", err)
+		}
+		m, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: ch.ID, UserID: ub.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m.SendRestricted
+	}
+
+	// A read-only member cannot lift the mark by leaving and joining again.
+	restrict(true)
+	if !leaveAndJoin() {
+		t.Fatal("rejoin cleared send_restricted")
+	}
+	// Two 'left' rows now exist; only the latest one decides.
+	restrict(false)
+	if leaveAndJoin() {
+		t.Fatal("rejoin took send_restricted from an older left row")
+	}
+	restrict(true)
+	if !leaveAndJoin() {
+		t.Fatal("rejoin ignored the latest left row's send_restricted")
+	}
+}
+
+// The only admin of a channel or group that others still use cannot leave it,
+// by leaving or by removing themselves, until someone else is admin: nobody
+// would be left to invite, kick or promote.
+func TestLastAdminCannotLeaveARoomOthersStillUse(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := chatTestUser(t, q, w, "last-admin-c@example.com")
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "du-an-x", Visibility: chatVisibilityPrivate, MemberUserIDs: []string{ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Sales", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	admin := "admin"
+	for _, roomID := range []string{ch.ID, group.ID} {
+		if err := s.LeaveChatRoom(ctx, ua.ID, w.ID, roomID); !codedIs(err, "chat_last_admin") {
+			t.Fatalf("room %s: last admin leave = %v, want chat_last_admin", roomID, err)
+		}
+		if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: roomID, UserID: ua.ID}); err != nil {
+			t.Fatalf("room %s: refused leave must keep the admin: %v", roomID, err)
+		}
+		if err := s.UpdateChatRoomMember(ctx, ua.ID, w.ID, roomID, ub.ID, UpdateChatRoomMemberInput{Role: &admin}); err != nil {
+			t.Fatalf("room %s: promote: %v", roomID, err)
+		}
+		if err := s.LeaveChatRoom(ctx, ua.ID, w.ID, roomID); err != nil {
+			t.Fatalf("room %s: leave once another admin exists: %v", roomID, err)
+		}
+		// Removing oneself is leaving too.
+		if err := s.RemoveChatRoomMember(ctx, ub.ID, w.ID, roomID, ub.ID); !codedIs(err, "chat_last_admin") {
+			t.Fatalf("room %s: last admin self-removal = %v, want chat_last_admin", roomID, err)
+		}
+	}
+}
+
+// ListChatRoomMembers marks the room's creator, the one the client needs to
+// mirror canModerateChatRoom and canDemoteChatAdmin.
+func TestListChatRoomMembersMarksTheCreator(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := chatTestUser(t, q, w, "creator-flag-c@example.com")
+	group, err := s.CreateGroup(ctx, ub.ID, w.ID, CreateGroupInput{Name: "Sales", MemberUserIDs: []string{ua.ID, uc.ID}})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	members, err := s.ListChatRoomMembers(ctx, ua.ID, w.ID, group.ID)
+	if err != nil {
+		t.Fatalf("list members: %v", err)
+	}
+	if len(members) != 3 {
+		t.Fatalf("members = %d, want 3", len(members))
+	}
+	for _, m := range members {
+		if m.IsCreator != (m.UserID == ub.ID) {
+			t.Fatalf("member %s IsCreator = %v", m.UserID, m.IsCreator)
+		}
+	}
+}
+
+// UNI-1672: chat.channel.updated is ephemeral, so the outbox row alone reaches
+// nobody; unarchiving tells the members directly, as UpdateChannel does.
+func TestUnarchiveChannelTellsTheMembers(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "sale", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ArchiveChannel(ctx, ua.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	pub.sent = nil
+	if err := s.UnarchiveChannel(ctx, ua.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	got := pub.sentTo("chat.channel.updated")
+	for _, id := range []string{ua.ID, ub.ID} {
+		if !slices.Contains(got, "user:"+id) {
+			t.Fatalf("unarchive went to %v, want every member including %s", got, id)
+		}
 	}
 }

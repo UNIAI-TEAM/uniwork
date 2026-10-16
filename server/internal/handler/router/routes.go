@@ -457,6 +457,8 @@ type Routes struct {
 	RemoveChatRoomMember             http.HandlerFunc
 	LeaveChatRoom                    http.HandlerFunc
 	MarkChatRoomRead                 http.HandlerFunc
+	MuteChatRoom                     http.HandlerFunc
+	UnmuteChatRoom                   http.HandlerFunc
 	ListWorkspaceChatMessages        http.HandlerFunc
 	SendWorkspaceChatMessage         http.HandlerFunc
 	ListChatRoomMessages             http.HandlerFunc

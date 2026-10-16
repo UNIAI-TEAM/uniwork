@@ -84,27 +84,6 @@ func validateVoiceMessageInput(in PrepareVoiceMessageInput) error {
 	return validateClientMsgID(strings.TrimSpace(in.ClientMsgID))
 }
 
-func (s *ChatService) requireCanSendMessageInRoom(ctx context.Context, userID string, room db.ChatRoom) error {
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
-		return err
-	}
-	if room.Kind != chatRoomKindDM {
-		return nil
-	}
-	peerID, err := dmPeerUserID(room, userID)
-	if err != nil {
-		return err
-	}
-	blocked, err := s.dmMessagingBlocked(ctx, room.OrganizationID, userID, peerID)
-	if err != nil {
-		return err
-	}
-	if blocked {
-		return errChatUserBlocked()
-	}
-	return nil
-}
-
 // PrepareVoiceMessage validates the upload and authorizes the room before any
 // bytes are persisted. An idempotent retry returns Existing and needs no upload.
 func (s *ChatService) PrepareVoiceMessage(
@@ -121,7 +100,7 @@ func (s *ChatService) PrepareVoiceMessage(
 	if err != nil {
 		return VoiceMessagePreparation{}, err
 	}
-	if err := s.requireCanSendMessageInRoom(ctx, userID, room); err != nil {
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return VoiceMessagePreparation{}, err
 	}
 	prep := VoiceMessagePreparation{
@@ -217,21 +196,19 @@ func (s *ChatService) CreateVoiceMessage(
 		LastReadAt: pgtype.Timestamptz{Time: msg.CreatedAt.Time, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, prep.room.ID)
-	s.publishCreatedChatMessage(ctx, prep.room, msg.ID, msg.SenderID)
+	s.publishCreatedChatMessage(ctx, prep.room, msg.ID, msg.SenderID, "")
 	return chatMessageRowFromDB(msg, prep.senderName), true, nil
 }
 
 // publishCreatedChatMessage carries the sender so a client can tell its own
-// message from one that is unread for it without fetching it (UNI-1079).
-func (s *ChatService) publishCreatedChatMessage(ctx context.Context, room db.ChatRoom, messageID, senderID string) {
+// message from one that is unread for it without fetching it (UNI-1079), and
+// a thread reply's root, because the sidebar counts only the main timeline
+// (UNI-1693). threadRootID is "" for a main-timeline message.
+func (s *ChatService) publishCreatedChatMessage(ctx context.Context, room db.ChatRoom, messageID, senderID, threadRootID string) {
 	anchorWS := roomAnchorWorkspaceID(room)
 	ev := Event{
-		Type: "chat.message.created",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": messageID,
-			"sender_id":  senderID,
-		},
+		Type:    "chat.message.created",
+		Payload: chatMessageFramePayload(room.ID, messageID, senderID, threadRootID),
 	}
 	if isWorkspaceDefaultRoom(room) {
 		s.pub.Publish(ctx, anchorWS, ev)
