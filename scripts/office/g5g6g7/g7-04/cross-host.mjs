@@ -1068,12 +1068,25 @@ async function createPlaywrightWebCtrl({
           } catch (err) {
             return { clicked: false, frame: editorKindOfUrl(frame.url()) ?? "frame", reason: `the frame's S6 reload action could not be clicked: ${err.message}` };
           }
-          // the bar's Reload confirm: the conflict dialog's own choice, bounded and best-effort
-          const confirm = frame.locator(confirmChoice);
-          if ((await confirm.count().catch(() => 0)) > 0) {
-            await confirm.first().click({ timeout: clickTimeout }).catch(() => {});
+          // the bar's Reload confirm renders a tick after the click, so WAIT for it instead of
+          // reading once: leaving it up would keep the frame on the old version with nobody
+          // waiting for it (the dialog's `discard` is what actually discards and reloads)
+          const confirmDeadline = Date.now() + Math.min(stepTimeoutMs, 5000);
+          for (;;) {
+            const confirm = frame.locator(confirmChoice);
+            if ((await confirm.count().catch(() => 0)) > 0) {
+              try {
+                await confirm.first().click({ timeout: clickTimeout });
+                return { clicked: true, confirmed: true, frame: editorKindOfUrl(frame.url()) ?? "frame", label, confirmText: ((await confirm.first().textContent()) ?? "").trim() };
+              } catch (err) {
+                return { clicked: true, confirmed: false, frame: editorKindOfUrl(frame.url()) ?? "frame", label, reason: `the frame's Reload confirm could not be clicked: ${err.message}` };
+              }
+            }
+            if (Date.now() >= confirmDeadline) break;
+            await sleep(Math.min(pollMs, 250));
           }
-          return { clicked: true, frame: editorKindOfUrl(frame.url()) ?? "frame", label };
+          // no confirm: the bar's action reloaded by itself (the frame was not dirty)
+          return { clicked: true, confirmed: false, frame: editorKindOfUrl(frame.url()) ?? "frame", label, reason: "the frame showed no Reload confirm (its action reloads a clean document by itself)" };
         }
         return { clicked: false, reason: "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)" };
       },
