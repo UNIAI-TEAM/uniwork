@@ -7,17 +7,19 @@ markdown / html, đọc từ fork ở đúng rev của khối trích xuất tron
 tả lúc chạy từ mã sản phẩm (`opNames()`, `buildOpsGuide()`…): tệp giữ schema thật và phần chữ nguyên văn của mô tả, đặt
 `[generated at runtime]` ở chỗ mã chạy, nên holdout chạy các công cụ đó với mô tả rút gọn.
 
-Công cụ mà extractor không phân giải được `inputSchema` — ô trong bảng §3 là `unresolved:<lý do>`, hiện là
-`generate_mindmap` ở docs và markdown, vì `inputSchema` của nó trải helper có tham số `nodeSchema(maxDepth)` — vẫn có
-hàng trong `catalogue` nhưng không được chào: `offered: false`, `schemaComplete: false`, `inputSchemaSha256: null`, kèm
-`reason`, `tableHash` giữ nguyên ô `unresolved:<lý do>` của bảng, và công cụ đó không nằm trong mảng module nào gửi cho
-model (`genoffice-tool-schemas.test.mjs` liệt kê đúng hai hàng này trong `UNRESOLVED_SCHEMA_TOOLS`; hàng thứ ba, hay chữ
-`unresolved:` trong mảng module, là lỗi).
+Công cụ mà extractor không phân giải được `inputSchema` — ô trong bảng §3 là `unresolved:<lý do>` — vẫn có hàng trong
+`catalogue` nhưng không được chào: `offered: false`, `schemaComplete: false`, `inputSchemaSha256: null`, kèm `reason`,
+`tableHash` giữ nguyên ô `unresolved:<lý do>` của bảng, và công cụ đó không nằm trong mảng module nào gửi cho model. Từ
+G6-09d (`3e4e9b71f`, nhánh `feature/UNI-1825-g6-09d-extractor`), extractor gấp mũi tên đệ quy có tham số
+`nodeSchema(maxDepth)` nên cả hai hàng `generate_mindmap` ở docs và markdown đều phân giải thành hash
+`ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0` (`offered: true`, `schemaComplete: true`), và
+`UNRESOLVED_SCHEMA_TOOLS` trong `genoffice-tool-schemas.test.mjs` nay rỗng (`[]`; bất kỳ hàng `unresolved:` nào hoặc chữ
+`unresolved:` trong mảng module là lỗi).
 
 Sinh lại (khi khối trích xuất đổi rev, cùng lúc với bảng; `FORK` là worktree fork ở nhánh
-`feature/UNI-1374-g6-09-ai-edit-undo` — `c7d1653c0` là bản đã sinh tệp hiện tại, và là nơi có `--emit-schemas` cho tới
-khi extractor vào fork `main`; nhánh này đã chứa bản sửa `f0fead829`, và schema nó sinh khớp từng ô hash trong bảng §3
-trừ hàng `docs/set_page_setup` đã ghi trong test):
+`feature/UNI-1825-g6-09d-extractor` — `3e4e9b71f` là bản đã sinh tệp hiện tại, trong worktree
+`/home/ubuntu/orca/workspaces/uniwork-office/feature-UNI-1374-g6-09-ai-edit-undo`, và là nơi có extractor G6-09d cho tới
+khi vào fork `main`; schema nó sinh khớp từng ô hash trong bảng §3 trừ hàng `docs/set_page_setup` đã ghi trong test):
 
 ```bash
 node "$FORK/scripts/genoffice-tools-extract.mjs" --repo "$FORK" --rev <rev trong header khối §3> \
