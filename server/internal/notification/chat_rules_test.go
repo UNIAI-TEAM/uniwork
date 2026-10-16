@@ -1,6 +1,8 @@
 package notification
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -8,6 +10,84 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+type gateMemberChecker struct {
+	inner MemberChecker
+	err   error
+}
+
+func (g gateMemberChecker) RequireMember(ctx context.Context, workspaceID, userID string) (db.WorkspaceMember, error) {
+	if g.err != nil {
+		return db.WorkspaceMember{}, g.err
+	}
+	return g.inner.RequireMember(ctx, workspaceID, userID)
+}
+
+// A transient membership-gate failure must fail delivery so the outbox retries (UNI-1709).
+func TestChatRuleRetriesWhenTheMembershipGateFails(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+		Name: "gate-flake", Visibility: "public", MemberUserIDs: []string{f.member.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{
+		Body: "[@Thành Viên](mention://member/" + f.member.ID + ") ping",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ev := f.lastEvent(t, "chat.message.mentioned")
+	failing := NewConsumer(f.pool, f.q, gateMemberChecker{inner: f.ws, err: errors.New("conn reset")})
+	if err := failing.Handle(f.ctx, ev); err == nil {
+		t.Fatal("Handle: want error when membership gate fails")
+	}
+	if len(f.inbox(t, f.member.ID)) != 0 {
+		t.Fatal("inbox should stay empty before a successful retry")
+	}
+	var deliveries int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM notification_deliveries WHERE outbox_event_id = $1`, ev.ID).Scan(&deliveries); err != nil {
+		t.Fatal(err)
+	}
+	if deliveries != 0 {
+		t.Fatalf("notification_deliveries = %d, want 0 before success", deliveries)
+	}
+	if err := f.consumer.Handle(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	got := f.inbox(t, f.member.ID)
+	if len(got) != 1 || got[0].Kind != KindChatMentioned {
+		t.Fatalf("inbox after retry = %+v", got)
+	}
+
+	evDM, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, evDM.ID, service.SendChatMessageInput{Body: "dm"}); err != nil {
+		t.Fatal(err)
+	}
+	dmEv := f.lastEvent(t, "chat.dm.received")
+	dmFail := NewConsumer(f.pool, f.q, gateMemberChecker{inner: f.ws, err: errors.New("conn reset")})
+	if err := dmFail.Handle(f.ctx, dmEv); err == nil {
+		t.Fatal("DM Handle: want error when chatRecipientWorkspace gate fails")
+	}
+
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{
+		Body: "[@Thành Viên](mention://member/" + f.member.ID + ") refused",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	refusedEv := f.lastEvent(t, "chat.message.mentioned")
+	forbidden := NewConsumer(f.pool, f.q, gateMemberChecker{inner: f.ws, err: service.ErrForbidden})
+	if err := forbidden.Handle(f.ctx, refusedEv); err != nil {
+		t.Fatalf("refused gate: Handle err = %v", err)
+	}
+	if got := f.inbox(t, f.member.ID); len(got) != 1 {
+		t.Fatalf("refused gate created notifications: %+v", got)
+	}
+}
 
 // A workspace member who follows a thread in a public channel they have not
 // joined still receives thread-reply notifications (UNI-1721).

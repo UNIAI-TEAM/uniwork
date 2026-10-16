@@ -74,7 +74,7 @@ func chatMessageRule(kind string) rule {
 		r := newRecipients(ctx, e, ev, wsID)
 		r.add(userID)
 		params := map[string]string{"actor": actorName(ctx, e.q, ev), "room": room.Name}
-		return r.drafts(room.OrganizationID, kind, groupKey, "chat_message", msg.ID, params), nil
+		return r.drafts(room.OrganizationID, kind, groupKey, "chat_message", msg.ID, params)
 	}
 }
 
@@ -91,6 +91,8 @@ func chatRecipientWorkspace(ctx context.Context, e env, room db.ChatRoom, userID
 	if anchor != "" {
 		if _, err := e.members.RequireMember(ctx, anchor, userID); err == nil {
 			return anchor, nil
+		} else if err != nil && !refused(err) {
+			return "", err
 		}
 	}
 	return userWorkspaceIn(ctx, e.q, userID, room.OrganizationID)
