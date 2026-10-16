@@ -11,12 +11,12 @@ import (
 func TestChatSidebarPreviewBody(t *testing.T) {
 	t.Parallel()
 	body := "[@tran hoang long](mention://member/USER1) check in"
-	got := chatSidebarPreviewBody(body, "text")
+	got := ChatPreviewBody(body, "text")
 	want := "@tran hoang long check in"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
-	if chatSidebarPreviewBody("hello", "voice_call_log") != "" {
+	if ChatPreviewBody("hello", "voice_call_log") != "" {
 		t.Fatal("voice call log preview should be empty")
 	}
 
@@ -29,15 +29,15 @@ func TestChatSidebarPreviewBody(t *testing.T) {
 		{kind: "reminder", prefix: "⏰ "},
 		{kind: "note", prefix: "📝 "},
 	} {
-		out := chatSidebarPreviewBody(long, tc.kind)
+		out := ChatPreviewBody(long, tc.kind)
 		if !strings.HasPrefix(out, tc.prefix) || !strings.HasSuffix(out, "…") {
 			t.Fatalf("%s preview %q", tc.kind, out)
 		}
-		if chatSidebarPreviewBody("  short  ", tc.kind) != tc.prefix+"short" {
+		if ChatPreviewBody("  short  ", tc.kind) != tc.prefix+"short" {
 			t.Fatalf("%s short", tc.kind)
 		}
 	}
-	if !strings.HasSuffix(chatSidebarPreviewBody(long, "text"), "…") {
+	if !strings.HasSuffix(ChatPreviewBody(long, "text"), "…") {
 		t.Fatal("text truncation")
 	}
 }

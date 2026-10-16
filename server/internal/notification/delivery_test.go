@@ -2,12 +2,14 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -238,5 +240,57 @@ func TestDigestAppliesTheDocumentReadGate(t *testing.T) {
 	}
 	if len(out.sent) != 0 {
 		t.Fatalf("digest mailed an archived document:\n%s", out.sent[0].Text)
+	}
+}
+
+// Spec N2 §3.4: a chat push carries a short preview read at delivery; a
+// message deleted before the push goes out sends nothing and is marked pushed.
+func TestChatPushCarriesBodyAndSkipsDeleted(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	spy := &spySender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "[@Thành Viên](mention://member/" + f.member.ID + ") họp **9h** nhé"}); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.sent) != 1 || spy.sent[0].Body != "@Thành Viên họp 9h nhé" || spy.sent[0].Title != "Chủ Nhóm đã nhắn tin cho bạn" {
+		t.Fatalf("sent = %+v", spy.sent)
+	}
+
+	// Read it so the next DM opens a fresh row, then delete that message before the push runs.
+	f.readAll(t, f.member.ID)
+	gone, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "nhầm"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	if err := chat.DeleteChatMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, gone.ID); err != nil {
+		t.Fatal(err)
+	}
+	ev := f.lastEvent(t, TopicPush)
+	for i := 0; i < 2; i++ {
+		if err := pc.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(spy.sent) != 1 {
+		t.Fatalf("deleted message was pushed: %+v", spy.sent)
+	}
+	var p map[string]string
+	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := f.q.GetNotification(f.ctx, p["notification_id"]); n.ResourceID != gone.ID || !n.PushedAt.Valid {
+		t.Fatalf("deleted-message notification not marked pushed: %+v", n)
 	}
 }

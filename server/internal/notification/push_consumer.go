@@ -70,7 +70,20 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if err != nil {
 		return err
 	}
-	msg, err := c.message(ctx, user.Locale, n)
+	var body string
+	if isChatPushKind(n.Kind) {
+		// The preview is read at delivery, so a message deleted in the
+		// meantime sends nothing.
+		chatMsg, err := c.q.GetChatMessageByID(ctx, n.ResourceID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return c.q.MarkNotificationPushed(ctx, n.ID)
+		}
+		if err != nil {
+			return err
+		}
+		body = pushBody(user.Locale, chatMsg)
+	}
+	msg, err := c.message(ctx, user.Locale, n, body)
 	if err != nil {
 		return err
 	}
@@ -100,14 +113,14 @@ func (c *PushConsumer) count(result string) {
 	}
 }
 
-func (c *PushConsumer) message(ctx context.Context, locale string, n db.Notification) (PushMessage, error) {
+func (c *PushConsumer) message(ctx context.Context, locale string, n db.Notification, body string) (PushMessage, error) {
 	var params map[string]string
 	_ = json.Unmarshal([]byte(n.Params), &params)
 	url, err := ResourceURL(ctx, c.q, c.origin, n)
 	if err != nil {
 		return PushMessage{}, err
 	}
-	return PushMessage{Title: PushTitle(locale, n.Kind, params), URL: url, Tag: n.GroupKey}, nil
+	return PushMessage{Title: PushTitle(locale, n.Kind, params), Body: body, URL: url, Tag: n.GroupKey}, nil
 }
 
 // ResourceURL is the deep link a notification opens, mirroring
