@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { ClaudeMark, OpenAIMark } from "../../common/provider-icons";
 
 export type ArtKind = "openClaude" | "openChatgpt" | "addClaude" | "addChatgpt" | "allow";
 
@@ -42,9 +43,12 @@ const GPT = {
 const CLAUDE_HOST = "claude.ai";
 const UNIWORK = "UniWork";
 const W = 360;
+/** The site marks in the address bar, where a browser shows the favicon. */
+const CLAUDE_FAVICON = <ClaudeMark x={116} y={13} width={10} height={10} />;
+const GPT_FAVICON = <OpenAIMark x={116} y={13} width={10} height={10} className="text-foreground" />;
 
-/** A browser window of height `h`: the frame every scene is drawn in. */
-function Window({ host, h, children }: { host: string; h: number; children: ReactNode }) {
+/** A browser window of height `h`: the frame every scene is drawn in, the site's mark as its favicon. */
+function Window({ host, h, mark, children }: { host: string; h: number; mark?: ReactNode; children: ReactNode }) {
   return (
     <>
       <rect x={6} y={6} width={W - 12} height={h - 12} rx={10} className="fill-background stroke-border" />
@@ -53,6 +57,7 @@ function Window({ host, h, children }: { host: string; h: number; children: Reac
         <circle key={cx} cx={cx} cy={18} r={3.5} className="fill-muted-foreground/40" />
       ))}
       <rect x={110} y={11} width={140} height={14} rx={7} className="fill-muted" />
+      {mark}
       <text x={180} y={21.5} textAnchor="middle" fontSize={9} className="fill-muted-foreground">
         {host}
       </text>
@@ -143,7 +148,10 @@ function ClaudeCustomize({ ringNav }: { ringNav: boolean }) {
   return (
     <>
       <path d="M100 30 V194" className="stroke-border" />
-      <Bar x={18} y={44} w={56} />
+      <ClaudeMark x={16} y={39} width={13} height={13} />
+      <Label x={33} y={49.5} size={11} strong>
+        {"Claude"}
+      </Label>
       <Bar x={18} y={58} w={44} />
       {ringNav ? <Ring x={14} y={70} w={78} h={18} /> : null}
       <rect x={14} y={70} width={78} height={18} rx={5} className="fill-muted" />
@@ -180,7 +188,7 @@ function ClaudeCustomize({ ringNav }: { ringNav: boolean }) {
 function OpenClaude() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.connectedApps.guide" });
   return (
-    <Window host={CLAUDE_HOST} h={200}>
+    <Window host={CLAUDE_HOST} h={200} mark={CLAUDE_FAVICON}>
       <ClaudeCustomize ringNav />
       <Pill x={W - 78} y={40} w={60}>
         {t("uiClaudeAdd")}
@@ -193,7 +201,7 @@ function OpenClaude() {
 function AddClaude({ url }: { url: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.connectedApps.guide" });
   return (
-    <Window host={CLAUDE_HOST} h={230}>
+    <Window host={CLAUDE_HOST} h={230} mark={CLAUDE_FAVICON}>
       <rect x={7} y={31} width={W - 14} height={192} className="fill-muted/60" />
       <rect x={56} y={40} width={248} height={180} rx={10} className="fill-background stroke-border" />
       <Label x={70} y={60} size={11} strong>
@@ -225,9 +233,12 @@ function AddClaude({ url }: { url: string }) {
 
 function OpenChatgpt() {
   return (
-    <Window host={GPT.host} h={200}>
+    <Window host={GPT.host} h={200} mark={GPT_FAVICON}>
       <path d="M100 30 V194" className="stroke-border" />
-      <Bar x={18} y={44} w={56} />
+      <OpenAIMark x={16} y={39} width={13} height={13} className="text-foreground" />
+      <Label x={33} y={49.5} size={11} strong>
+        {"ChatGPT"}
+      </Label>
       <Bar x={18} y={58} w={44} />
       <rect x={14} y={70} width={78} height={18} rx={5} className="fill-muted" />
       <Label x={20} y={82.5} strong>
@@ -255,7 +266,7 @@ function OpenChatgpt() {
 
 function AddChatgpt({ url }: { url: string }) {
   return (
-    <Window host={GPT.host} h={280}>
+    <Window host={GPT.host} h={280} mark={GPT_FAVICON}>
       <rect x={7} y={31} width={W - 14} height={242} className="fill-muted/60" />
       <rect x={60} y={38} width={240} height={234} rx={10} className="fill-background stroke-border" />
       <Label x={72} y={56} strong>

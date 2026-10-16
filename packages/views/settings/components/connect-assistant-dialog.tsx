@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleCheck } from "lucide-react";
 import type { ConnectedApp } from "@uniwork/core/api/endpoints/connect";
@@ -10,6 +10,7 @@ import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
+import { ClaudeMark, OpenAIMark } from "../../common/provider-icons";
 import { ConnectAssistantArt, type ArtKind } from "./connect-assistant-art";
 import { CopyAddress } from "./copy-address";
 
@@ -18,9 +19,19 @@ type Assistant = "claude" | "chatgpt";
 /** Where each assistant keeps its connections, and which words describe it. */
 const ASSISTANTS: Record<
   Assistant,
-  { href: string; open: string; add: string; artOpen: ArtKind; artAdd: ArtKind; use: string; mobile?: string }
+  {
+    Mark: ComponentType<ComponentProps<"svg">>;
+    href: string;
+    open: string;
+    add: string;
+    artOpen: ArtKind;
+    artAdd: ArtKind;
+    use: string;
+    mobile?: string;
+  }
 > = {
   claude: {
+    Mark: ClaudeMark,
     href: "https://claude.ai/customize/connectors",
     open: "openClaude",
     add: "addClaude",
@@ -31,6 +42,7 @@ const ASSISTANTS: Record<
   },
   // Custom MCP servers are added as plugins (renamed from apps in 2026-07).
   chatgpt: {
+    Mark: OpenAIMark,
     href: "https://chatgpt.com/plugins",
     open: "openChatgpt",
     add: "addChatgpt",
@@ -44,8 +56,14 @@ const TOTAL = 5;
 const ALLOW = 5;
 const POLL_MS = 3000;
 
-function StepTitle({ children }: { children: ReactNode }) {
-  return <h3 className="text-body font-semibold">{children}</h3>;
+/** A step's heading; `icon` is the assistant's mark on the steps that happen in its app. */
+function StepTitle({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
+  return (
+    <h3 className="flex items-center gap-2 text-body font-semibold">
+      {icon}
+      {children}
+    </h3>
+  );
 }
 
 /**
@@ -99,10 +117,20 @@ function Steps({ mcpUrl, knownIds, onClose }: { mcpUrl: string; knownIds: readon
     return (
       <>
         <FormDialogBody>
-          <div className="flex items-center gap-2">
-            <CircleCheck aria-hidden className="size-5 text-success" />
-            <StepTitle>{t("doneTitle", { client: fresh.client_name })}</StepTitle>
-          </div>
+          <StepTitle
+            icon={
+              a ? (
+                <span className="relative shrink-0">
+                  <a.Mark className="size-6" />
+                  <CircleCheck aria-hidden className="absolute -right-1 -bottom-1 size-3.5 rounded-full bg-background text-success" />
+                </span>
+              ) : (
+                <CircleCheck aria-hidden className="size-5 text-success" />
+              )
+            }
+          >
+            {t("doneTitle", { client: fresh.client_name })}
+          </StepTitle>
           <p>{t("doneBody", { client: fresh.client_name })}</p>
           <p className="font-medium">{t("tryIt", { client: fresh.client_name })}</p>
           {a ? (
@@ -144,21 +172,27 @@ function Steps({ mcpUrl, knownIds, onClose }: { mcpUrl: string; knownIds: readon
         <StepTitle>{t("chooseTitle")}</StepTitle>
         <p className="text-muted-foreground">{t("chooseBody")}</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          {(["claude", "chatgpt"] as const).map((key) => (
-            <Button
-              key={key}
-              type="button"
-              variant="outline"
-              className="h-auto flex-col items-start gap-0.5 p-4 text-left whitespace-normal"
-              onClick={() => {
-                setAssistant(key);
-                setStep(2);
-              }}
-            >
-              <span className="text-body font-semibold">{t(key)}</span>
-              <span className="text-caption text-muted-foreground">{t(`${key}Hint`)}</span>
-            </Button>
-          ))}
+          {(["claude", "chatgpt"] as const).map((key) => {
+            const { Mark } = ASSISTANTS[key];
+            return (
+              <Button
+                key={key}
+                type="button"
+                variant="outline"
+                className="h-auto flex-col items-start gap-0.5 p-4 text-left whitespace-normal"
+                onClick={() => {
+                  setAssistant(key);
+                  setStep(2);
+                }}
+              >
+                <span className="flex items-center gap-2 text-body font-semibold">
+                  <Mark className="size-5 shrink-0" />
+                  {t(key)}
+                </span>
+                <span className="text-caption text-muted-foreground">{t(`${key}Hint`)}</span>
+              </Button>
+            );
+          })}
         </div>
         <p className="text-caption text-muted-foreground">{t("other")}</p>
       </>
@@ -176,7 +210,7 @@ function Steps({ mcpUrl, knownIds, onClose }: { mcpUrl: string; knownIds: readon
   } else if (step === 3) {
     body = (
       <>
-        <StepTitle>{t("openTitle", { client })}</StepTitle>
+        <StepTitle icon={<a.Mark className="size-5 shrink-0" />}>{t("openTitle", { client })}</StepTitle>
         <ConnectAssistantArt kind={a.artOpen} client={client} />
         <p>{t(a.open)}</p>
         <ButtonLink href={a.href} target="_blank" rel="noopener noreferrer" variant="outline">
@@ -188,7 +222,7 @@ function Steps({ mcpUrl, knownIds, onClose }: { mcpUrl: string; knownIds: readon
   } else if (step === 4) {
     body = (
       <>
-        <StepTitle>{t("addTitle", { client })}</StepTitle>
+        <StepTitle icon={<a.Mark className="size-5 shrink-0" />}>{t("addTitle", { client })}</StepTitle>
         <ConnectAssistantArt kind={a.artAdd} client={client} />
         <p>{t(a.add)}</p>
         {assistant === "claude" ? <p className="text-caption text-muted-foreground">{t("claudeTeam")}</p> : null}
