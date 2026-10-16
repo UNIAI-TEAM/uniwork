@@ -665,6 +665,9 @@ func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
 	if doc.OwnerKind.Valid {
 		return errDocumentOwned()
 	}
+	if isMyFolder(doc) {
+		return errMyFolderLocked()
+	}
 	return decideDocumentAdminister(doc, access)
 }
 

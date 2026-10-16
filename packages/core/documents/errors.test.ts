@@ -57,4 +57,14 @@ describe("classifyDocumentError", () => {
     expect(shareLevelNotAllowedMax(new ApiError("x", "level_not_allowed", 422, undefined, { max: "owner" }))).toBeNull();
     expect(shareLevelNotAllowedMax(new ApiError("x", "break_glass_required", 403))).toBeNull();
   });
+
+  it("classifies my_folder_locked as a conflict from the code alone", () => {
+    const err = new ApiError("không thể thay đổi Thư mục của tôi", "my_folder_locked", 422);
+    expect(classifyDocumentError(err)).toEqual({
+      cls: "conflict",
+      code: "my_folder_locked",
+      fields: undefined,
+    });
+  });
 });
+

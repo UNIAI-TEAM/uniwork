@@ -65,7 +65,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND (sqlc.arg(see_all)
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
@@ -85,6 +86,22 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
   AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.updated_at >= sqlc.narg(updated_from))
   AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.updated_at < sqlc.narg(updated_to))
+  -- System rows (My Folder) are never "shared by me": they refuse shares and visibility changes.
+  AND (NOT sqlc.arg(shared_by_me)::boolean OR d.system_kind IS NULL)
+  AND (NOT sqlc.arg(shared_by_me)::boolean
+       OR ((sqlc.arg(see_all)::boolean OR sqlc.arg(acl_owner)::boolean)
+           AND d.acl_owner_id IS NOT NULL
+           AND d.acl_owner_id = sqlc.arg(actor_id)
+           AND (d.visibility = 'workspace'
+                OR EXISTS (
+                     SELECT 1 FROM document_shares sbm
+                     WHERE sbm.organization_id = d.organization_id
+                       AND sbm.workspace_id = d.workspace_id
+                       AND sbm.document_id = d.id
+                       AND sbm.revoked_at IS NULL
+                       AND ((sbm.principal_type = 'user')
+                            OR (sbm.principal_type = 'workspace')
+                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))))
   AND (sqlc.narg(query)::text IS NULL
        OR (NOT sqlc.arg(match_title)::boolean
            AND (NOT sqlc.arg(see_all)::boolean
@@ -148,7 +165,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   AND d.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
-  AND (sqlc.arg(see_all)
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
@@ -230,7 +248,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NOT NULL
-  AND (sqlc.arg(see_all)
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
        OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
@@ -337,7 +356,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND (sqlc.arg(see_all)
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
@@ -369,7 +389,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
               AND a.workspace_id = d.workspace_id
               AND a.document_id = d.id
               AND a.actor_id = sqlc.arg(actor_id)))
-  AND (sqlc.arg(see_all)
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))

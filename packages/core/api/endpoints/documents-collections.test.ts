@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
+import { isMyFolder, type DocumentSystemKind } from "../../types/document";
 import { setAccessToken } from "../session";
 import {
   archiveDocument,
+  ensureMyFolder,
   getDocumentArchiveImpact,
   getDocumentTree,
   listDocuments,
   listRecentDocuments,
+  listSharedByMe,
   listSharedWithMe,
   moveDocument,
   restoreDocument,
@@ -412,4 +415,95 @@ describe("documents-collections endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(getDocumentArchiveImpact("d1")).resolves.toBeNull();
   });
+
+  // ---- MYFOLDER-01 (UNI-1850): system_kind on list + tree -----------------
+
+  it("listDocuments and getDocumentTree parse system_kind, narrow to my_folder, and degrade unknown or malformed values", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "mf1", kind: "folder", system_kind: "my_folder" }),
+            summary({ id: "mf2", kind: "folder", system_kind: "future_system_folder" }),
+            summary({ id: "mf3", kind: "folder", system_kind: 99 }),
+            summary({ id: "d1", kind: "page" }),
+          ],
+        }),
+      ),
+    );
+    const list = await listDocuments("w1");
+    const firstKind: DocumentSystemKind | null | undefined = list.documents[0]?.system_kind;
+    expect(firstKind).toBe("my_folder");
+    expect(list.documents[2]?.system_kind).toBeUndefined();
+    expect(list.documents.map((d) => [d.id, isMyFolder(d)])).toEqual([
+      ["mf1", true],
+      ["mf2", false],
+      ["mf3", false],
+      ["d1", false],
+    ]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        documents: [
+          treeNode({
+            id: "mf1",
+            kind: "folder",
+            system_kind: "my_folder",
+            children: [
+              treeNode({ id: "c1", parent_id: "mf1", system_kind: "future_system_folder" }),
+              treeNode({ id: "c2", parent_id: "mf1", system_kind: 12 }),
+            ],
+          }),
+        ],
+      }),
+    );
+    const tree = await getDocumentTree("w1");
+    const rootNode = tree.documents[0]!;
+    const rootKind: DocumentSystemKind | null | undefined = rootNode.system_kind;
+    expect(rootKind).toBe("my_folder");
+    expect(isMyFolder(rootNode)).toBe(true);
+    expect(isMyFolder(rootNode.children[0])).toBe(false);
+    expect(rootNode.children[1]?.system_kind).toBeUndefined();
+    expect(isMyFolder(rootNode.children[1])).toBe(false);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: summary({ id: "mf1", kind: "folder", system_kind: "my_folder" }) }),
+    );
+    expect(isMyFolder(await ensureMyFolder("w1"))).toBe(true);
+  });
+
+  // ---- SHAREDBYME-01 (UNI-1851): listSharedByMe ---------------------------
+
+  it("listSharedByMe sends shared_by_me=true without parent_id and supports cursor string or opts", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody({ documents: [summary({ id: "d1", visibility: "workspace" })], next_cursor: "c2" })),
+    );
+    const first = await listSharedByMe("w 1");
+    const [firstUrl, firstInit] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(firstUrl)).toBe(
+      "http://api.test/api/v1/workspaces/w%201/documents?shared_by_me=true",
+    );
+    expect(firstInit?.method ?? "GET").toBe("GET");
+    expect(first.documents[0]?.id).toBe("d1");
+    expect(first.next_cursor).toBe("c2");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ documents: [], next_cursor: null })));
+    await listSharedByMe("w1", "c2");
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&cursor=c2",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ documents: [], next_cursor: null })));
+    await listSharedByMe("w1", { cursor: "c3", limit: 25 });
+    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&cursor=c3&limit=25",
+    );
+  });
+
+  it.each(malformedBodies)("listSharedByMe throws rather than fake-empty %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(listSharedByMe("w1")).rejects.toThrow("document_list_invalid");
+  });
 });
+
+

@@ -13,12 +13,13 @@ import "encoding/json"
 // (+ Idempotency-Key header). It creates a page or a folder; a file document
 // is created by CreateDocumentFileSDI on the multipart route.
 type CreateDocumentSDI struct {
-	Title      string           `json:"title" minLength:"1" description:"Tiêu đề trang (1–500 ký tự) hoặc tên thư mục (1–255 ký tự, không trùng thư mục còn sống cùng cha)" example:"Kế hoạch Q4"`
-	Kind       string           `json:"kind" description:"page (mặc định) hoặc folder; file dùng route multipart /documents/files. Thư mục không nhận content" example:"page"`
-	ParentID   *string          `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; thư mục chỉ nằm trong thư mục; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	Icon       *string          `json:"icon" description:"Emoji ≤ 8 ký tự" example:"📄"`
-	Content    *json.RawMessage `json:"content" description:"ProseMirror JSON {type:\"doc\"}; server sanitize trước khi lưu"`
-	Visibility string           `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted" example:"restricted"`
+	Title       string           `json:"title" minLength:"1" description:"Tiêu đề trang (1–500 ký tự) hoặc tên thư mục (1–255 ký tự, không trùng thư mục còn sống cùng cha)" example:"Kế hoạch Q4"`
+	Kind        string           `json:"kind" description:"page (mặc định) hoặc folder; file dùng route multipart /documents/files. Thư mục không nhận content" example:"page"`
+	ParentID    *string          `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; thư mục chỉ nằm trong thư mục; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Destination *string          `json:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
+	Icon        *string          `json:"icon" description:"Emoji ≤ 8 ký tự" example:"📄"`
+	Content     *json.RawMessage `json:"content" description:"ProseMirror JSON {type:\"doc\"}; server sanitize trước khi lưu"`
+	Visibility  string           `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted" example:"restricted"`
 }
 
 // CreateDocumentFileSDI documents POST
@@ -30,10 +31,11 @@ type CreateDocumentSDI struct {
 // stream is consumed part-by-part); a title that trails the file falls back
 // to the sanitized filename.
 type CreateDocumentFileSDI struct {
-	Visibility *string `formData:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
-	File       []byte  `formData:"file" description:"Byte tài liệu; MIME phải trong allowlist document_file và khớp magic bytes"`
-	ParentID   *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	Title      *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`
+	Visibility  *string `formData:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
+	File        []byte  `formData:"file" description:"Byte tài liệu; MIME phải trong allowlist document_file và khớp magic bytes"`
+	ParentID    *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Destination *string `formData:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
+	Title       *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`
 }
 
 // PatchDocumentSDI is PATCH /api/v1/documents/{documentID}: autosave and
@@ -190,6 +192,7 @@ type ListDocumentsSDI struct {
 	UpdatedBy   *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
 	UpdatedTo   *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339)" example:"2026-09-30T23:59:59Z"`
+	SharedByMe  *bool   `query:"shared_by_me" description:"true = chỉ tài liệu sống do người gọi làm ACL owner và đang chia sẻ (share người dùng/nhóm còn hiệu lực hoặc visibility=workspace); dùng cùng parent_id -> 400 invalid_filter" example:"true"`
 	Cursor      *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit       *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"50"`
 }

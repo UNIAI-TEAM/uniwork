@@ -55,6 +55,9 @@ func requireDocumentACLChange(doc db.Document, access DocumentAccess) error {
 	if doc.OwnerKind.Valid {
 		return errDocumentOwned()
 	}
+	if isMyFolder(doc) {
+		return errMyFolderLocked()
+	}
 	if !access.canAdminister() {
 		return ErrForbidden
 	}

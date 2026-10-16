@@ -203,7 +203,7 @@ func (h *handlers) createBlankDocumentFile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	res, err := h.Office.CreateBlankFile(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.BlankFileInput{
-		Format: in.Format, Title: in.Title, ParentID: stringValue(in.ParentID), Visibility: stringValue(in.Visibility),
+		Format: in.Format, Title: in.Title, ParentID: stringValue(in.ParentID), Destination: stringValue(in.Destination), Visibility: stringValue(in.Visibility),
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
 	if err != nil {

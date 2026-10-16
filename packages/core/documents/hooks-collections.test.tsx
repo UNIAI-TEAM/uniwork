@@ -10,7 +10,9 @@ import {
   useDocumentArchiveImpact,
   useDocumentList,
   useDocumentTree,
+  useEnsureMyFolder,
   useMoveDocument,
+  useSharedByMe,
   useSharedWithMe,
 } from "./hooks-collections";
 import { documentKeys } from "./keys";
@@ -286,4 +288,72 @@ describe("documents collection hooks", () => {
     renderHook(() => useDocumentArchiveImpact("w1", "", { enabled: true }), { wrapper });
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  // ---- MYFOLDER-01 (UNI-1850): useEnsureMyFolder ---------------------------
+
+  it("useEnsureMyFolder caches the detail entry and invalidates the workspace root only", async () => {
+    const myFolder = summary("mf1", {
+      kind: "folder",
+      system_kind: "my_folder",
+      title: "My Folder",
+      visibility: "restricted",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: myFolder }));
+    const { qc, wrapper } = setup();
+    qc.setQueryData(documentKeys.list("w1", ""), listBody([]));
+    qc.setQueryData(documentKeys.tree("w1", ""), { documents: [] });
+    qc.setQueryData(documentKeys.list("w2", ""), listBody([]));
+
+    const { result } = renderHook(() => useEnsureMyFolder("w1"), { wrapper });
+    let ensured: unknown;
+    await act(async () => {
+      ensured = await result.current.mutateAsync();
+    });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/w1/documents/my-folder");
+    expect(init?.method).toBe("POST");
+    expect(ensured).toMatchObject({ id: "mf1", kind: "folder", system_kind: "my_folder" });
+    expect(qc.getQueryData(documentKeys.detail("w1", "mf1"))).toMatchObject({
+      id: "mf1",
+      system_kind: "my_folder",
+    });
+    expect(qc.getQueryState(documentKeys.list("w1", ""))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.tree("w1", ""))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(documentKeys.list("w2", ""))?.isInvalidated).toBe(false);
+  });
+
+  it("useEnsureMyFolder rejects a malformed response as not verifiable", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: { id: "mf1" } }));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useEnsureMyFolder("w1"), { wrapper });
+    await act(async () => {
+      await expectNotVerifiable(() => result.current.mutateAsync());
+    });
+  });
+
+  // ---- SHAREDBYME-01 (UNI-1851): useSharedByMe -----------------------------
+
+  it("useSharedByMe queries shared_by_me=true under documentKeys.sharedByMe(wsId) and follows next_cursor", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(listBody([summary("d1", { visibility: "workspace" })], "n1")))
+      .mockResolvedValueOnce(json(listBody([summary("d2", { visibility: "restricted" })])));
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useSharedByMe("w1"), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages.length).toBe(2));
+    expect(result.current.data?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]);
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&limit=50",
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&cursor=n1&limit=50",
+    );
+    expect(qc.getQueryData(documentKeys.sharedByMe("w1"))).toBeDefined();
+  });
 });
+

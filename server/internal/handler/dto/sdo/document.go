@@ -18,6 +18,7 @@ type DocumentDTO struct {
 	WorkspaceID         string                  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	ParentID            *string                 `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	Kind                string                  `json:"kind" description:"page, file hoặc folder" example:"page"`
+	SystemKind          *string                 `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
 	Title               string                  `json:"title" example:"Kế hoạch Q4"`
 	Icon                *string                 `json:"icon,omitempty" example:"📄"`
 	Visibility          string                  `json:"visibility" description:"workspace hoặc restricted" example:"workspace"`
@@ -180,6 +181,7 @@ type DocumentSummaryDTO struct {
 	WorkspaceID    string  `json:"workspace_id" description:"Workspace chứa tài liệu; có thể khác workspace gọi shared-with-me" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	ParentID       *string `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	Kind           string  `json:"kind" description:"page, file hoặc folder" example:"page"`
+	SystemKind     *string `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
 	Title          string  `json:"title" example:"Kế hoạch Q4"`
 	Icon           *string `json:"icon,omitempty" example:"📄"`
 	Visibility     string  `json:"visibility" description:"workspace hoặc restricted" example:"workspace"`
@@ -217,13 +219,14 @@ type DocumentListSDO struct {
 // levels, children in sibling order. A node below an unreadable ancestor is
 // absent with it.
 type DocumentTreeNodeDTO struct {
-	ID       string                `json:"id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	ParentID *string               `json:"parent_id,omitempty" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
-	Title    string                `json:"title" example:"Tài liệu nội bộ"`
-	Icon     *string               `json:"icon,omitempty" example:"📁"`
-	Kind     string                `json:"kind" description:"page, file hoặc folder" example:"page"`
-	Position float64               `json:"position" description:"Thứ tự giữa các sibling" example:"0"`
-	Children []DocumentTreeNodeDTO `json:"children" description:"Con đã sắp theo position; rỗng khi hết cấp 5"`
+	ID         string                `json:"id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	ParentID   *string               `json:"parent_id,omitempty" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	Title      string                `json:"title" example:"Tài liệu nội bộ"`
+	Icon       *string               `json:"icon,omitempty" example:"📁"`
+	Kind       string                `json:"kind" description:"page, file hoặc folder" example:"page"`
+	SystemKind *string               `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
+	Position   float64               `json:"position" description:"Thứ tự giữa các sibling" example:"0"`
+	Children   []DocumentTreeNodeDTO `json:"children" description:"Con đã sắp theo position; rỗng khi hết cấp 5"`
 }
 
 // DocumentTreeSDO is GET /workspaces/{ws}/documents/tree.

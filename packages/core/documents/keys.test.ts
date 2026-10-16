@@ -18,6 +18,7 @@ describe("documentKeys", () => {
       documentKeys.sourcesRoot("ws1"),
       documentKeys.recent("ws1"),
       documentKeys.sharedWithMe("ws1"),
+      documentKeys.sharedByMe("ws1"),
       documentKeys.tree("ws1"),
       documentKeys.shares("ws1", "d1"),
       documentKeys.accessLogs("ws1", "d1"),
@@ -121,8 +122,10 @@ describe("documentKeys", () => {
     expect(documentKeys.tree("ws1", "r1", true)).toEqual(["documents", "ws1", "tree", "r1", "folders_only"]);
   });
 
-  it("answers recent and shared-with-me under their own segments", () => {
+  it("answers recent, shared-with-me and shared-by-me under their own segments", () => {
     expect(documentKeys.recent("ws1")).toEqual(["documents", "ws1", "recent"]);
     expect(documentKeys.sharedWithMe("ws1")).toEqual(["documents", "ws1", "shared"]);
+    expect(documentKeys.sharedByMe("ws1")).toEqual(["documents", "ws1", "shared-by-me"]);
+    expect(documentKeys.sharedByMe("ws1")).not.toEqual(documentKeys.sharedWithMe("ws1"));
   });
 });

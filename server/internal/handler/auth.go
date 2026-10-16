@@ -162,6 +162,8 @@ func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 		respondError(w, 401, "invalid_credentials", "invalid credentials")
 	case errors.Is(err, service.ErrConflict):
 		respondError(w, 409, "conflict", "already exists")
+	case errors.Is(err, service.ErrMyFolderLocked):
+		respondError(w, http.StatusConflict, "my_folder_locked", "Thư mục của tôi là thư mục hệ thống cá nhân và không thể đổi tên, chia sẻ, di chuyển hoặc lưu trữ")
 	case errors.Is(err, service.ErrIdempotencyInFlight):
 		respondError(w, 409, "idempotency_in_flight", "yêu cầu trùng đang được xử lý; thử lại sau")
 	case errors.Is(err, service.ErrRateLimited):
