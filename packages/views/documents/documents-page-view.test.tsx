@@ -219,11 +219,14 @@ describe("DocumentsPageView", () => {
     expect(urls.some((url) => queryOf(url).get("cursor") === "c2")).toBe(true);
   });
 
-  it("filters by type chip: pages ask the server, file types keep only their extension", async () => {
+  it("filters by type chip on the server: ?format= for file chips, ?kind=page for Trang", async () => {
     const urls: string[] = [];
     route({
       list: (path) => {
         urls.push(path);
+        const format = queryOf(path).get("format");
+        if (format === "docx") return [file("f1", "Báo giá.docx")];
+        if (format) return [];
         if (queryOf(path).get("kind") === "page") return [summary()];
         return [summary(), file("f1", "Báo giá.docx"), file("f2", "Số liệu.xlsx")];
       },
@@ -232,7 +235,8 @@ describe("DocumentsPageView", () => {
     expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.docx") }));
-    expect(screen.getByText("Báo giá.docx")).toBeInTheDocument();
+    await waitFor(() => expect(urls.some((url) => queryOf(url).get("format") === "docx")).toBe(true));
+    expect(await screen.findByText("Báo giá.docx")).toBeInTheDocument();
     expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
     expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
 
@@ -243,7 +247,7 @@ describe("DocumentsPageView", () => {
   });
 
   it("shows the filtered empty state when a chip matches nothing, and clears it", async () => {
-    route({ list: () => [summary()] });
+    route({ list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [summary()]) });
     renderView(vi.fn());
     await screen.findByText("Kế hoạch Q4");
 
@@ -253,31 +257,54 @@ describe("DocumentsPageView", () => {
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
   });
 
-  describe("access filter (UNI-1642)", () => {
-    const accessRows = () => [
+  describe("access filter (UNI-1642, server-side since UNI-1868)", () => {
+    // Answers like the server does under the filters: format drops non-matching
+    // files but keeps folders, access drops rows the filter does not cover.
+    const accessRows = [
+      summary({ id: "fo1", kind: "folder", title: "Thư mục chung", my_level: "manage" }),
       summary({ my_level: "manage" }),
       file("f1", "Báo giá.docx", { my_level: "edit" }),
       file("f2", "Số liệu.xlsx", { my_level: "view" }),
       file("f3", "Hợp đồng.docx", { my_level: "manage", visibility: "restricted" }),
     ];
+    const serverFiltered = (path: string) => {
+      const q = queryOf(path);
+      const access = q.get("access");
+      const format = q.get("format");
+      const keepAccess = (row: Record<string, unknown>) => {
+        if (access === "manage") return row.my_level === "manage";
+        if (access === "edit") return row.my_level === "edit" || row.my_level === "manage";
+        if (access === "restricted") return row.visibility === "restricted";
+        return true;
+      };
+      const keepFormat = (row: Record<string, unknown>) => {
+        if (!format) return true;
+        if (row.kind === "folder") return true;
+        return row.kind === "file" && (row.format === format || String(row.title).toLowerCase().endsWith(`.${format}`));
+      };
+      return accessRows.filter((row) => keepAccess(row) && keepFormat(row));
+    };
     const accessGroup = () => screen.getByRole("group", { name: t("documents.home.access_filter_label") });
     const typeGroup = () => screen.getByRole("group", { name: t("documents.home.chips_label") });
     const pressed = (group: HTMLElement, name: string) => within(group).getByRole("button", { name }).getAttribute("aria-pressed");
 
-    it("filters through the real hook, and clear-filters puts every row and both All chips back", async () => {
-      route({ list: accessRows });
+    it("filters through the real hook via ?access=, and clear-filters puts every row and both All chips back", async () => {
+      route({ list: serverFiltered });
       renderView(vi.fn());
       await screen.findByText("Số liệu.xlsx");
 
       fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.edit") }));
       expect(pressed(accessGroup(), t("documents.home.access_filters.edit"))).toBe("true");
-      expect(screen.getByText("Kế hoạch Q4")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(requestMock.mock.calls.some(([path]) => queryOf(String(path)).get("access") === "edit")).toBe(true),
+      );
+      expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
       expect(screen.getByText("Báo giá.docx")).toBeInTheDocument();
       expect(screen.getByText("Hợp đồng.docx")).toBeInTheDocument();
       expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
 
       fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.restricted") }));
-      expect(screen.getByText("Hợp đồng.docx")).toBeInTheDocument();
+      expect(await screen.findByText("Hợp đồng.docx")).toBeInTheDocument();
       expect(screen.queryByText("Báo giá.docx")).toBeNull();
 
       // Nothing is both restricted and a spreadsheet: the empty state offers the clear action.
@@ -291,30 +318,79 @@ describe("DocumentsPageView", () => {
       expect(pressed(typeGroup(), t("documents.home.chips.all"))).toBe("true");
     });
 
-    it("ANDs a type chip with the access filter, and the empty line names the filters when both are on", async () => {
-      route({ list: accessRows });
+    it("ANDs a type chip with the access filter in the request, and the empty line names the filters when both are on", async () => {
+      route({ list: serverFiltered });
       renderView(vi.fn());
       await screen.findByText("Số liệu.xlsx");
 
       fireEvent.click(within(typeGroup()).getByRole("button", { name: t("documents.home.chips.docx") }));
       fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
-      expect(screen.getByText("Hợp đồng.docx")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          requestMock.mock.calls.some(([path]) => {
+            const q = queryOf(String(path));
+            return q.get("format") === "docx" && q.get("access") === "manage";
+          }),
+        ).toBe(true),
+      );
+      expect(await screen.findByText("Hợp đồng.docx")).toBeInTheDocument();
+      expect(screen.getByText("Thư mục chung")).toBeInTheDocument();
       expect(screen.queryByText("Báo giá.docx")).toBeNull();
       expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
       expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
 
       fireEvent.click(within(typeGroup()).getByRole("button", { name: t("documents.home.chips.xlsx") }));
+      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.restricted") }));
       expect(await screen.findByText(t("documents.home.no_matches_filters_description"))).toBeInTheDocument();
       expect(screen.queryByText(t("documents.home.no_matches_access_description"))).toBeNull();
     });
 
     it("keeps the access-only empty line when only the access filter is on", async () => {
-      route({ list: () => [summary({ my_level: "view" })] });
+      route({ list: (path) => (queryOf(path).get("access") === "manage" ? [] : [summary({ my_level: "view" })]) });
       renderView(vi.fn());
       await screen.findByText("Kế hoạch Q4");
 
       fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
       expect(await screen.findByText(t("documents.home.no_matches_access_description"))).toBeInTheDocument();
+    });
+    it("trash offers only the access options the server accepts (all, restricted)", async () => {
+      route({
+        list: (path) =>
+          queryOf(path).get("archived") === "1"
+            ? queryOf(path).get("access") === "restricted"
+              ? [file("tr2", "Đã xoá.docx", { visibility: "restricted" })]
+              : [summary({ id: "tr1", title: "Xoá mềm" })]
+            : [summary()],
+      });
+      renderView(vi.fn());
+      await screen.findByText("Kế hoạch Q4");
+
+      // A manage/edit selection from another tab must not leak into the trash
+      // request: the server answers it 400 invalid_filter.
+      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
+      fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
+      expect(await screen.findByText("Xoá mềm")).toBeInTheDocument();
+      for (const [path] of requestMock.mock.calls) {
+        const q = queryOf(String(path));
+        if (q.get("archived") === "1") {
+          expect(q.get("access") === "manage" || q.get("access") === "edit").toBe(false);
+        }
+      }
+      expect(within(accessGroup()).getAllByRole("button").map((b) => b.textContent)).toEqual([
+        t("documents.home.access_filters.all"),
+        t("documents.home.access_filters.restricted"),
+      ]);
+
+      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.restricted") }));
+      await waitFor(() =>
+        expect(
+          requestMock.mock.calls.some(([path]) => {
+            const q = queryOf(String(path));
+            return q.get("archived") === "1" && q.get("access") === "restricted";
+          }),
+        ).toBe(true),
+      );
+      expect(await screen.findByText("Đã xoá.docx")).toBeInTheDocument();
     });
   });
 
@@ -1090,7 +1166,10 @@ describe("DocumentsPageView", () => {
       setItemSpy.mockRestore();
     });
 
-    it("loads all pages of an open folder before applying folders-first and sort, and respects the 1000-row cap (F4)", async () => {
+    // The filter is server-side now (UNI-1868): the mock answers the format
+    // param with every row (a real server narrows it), so all ~1000 capped
+    // rows render — allow the big render the time it needs on a loaded host.
+    it("loads all pages of an open folder before applying folders-first and sort, and respects the 1000-row cap (F4)", { timeout: 120000 }, async () => {
       const urls: string[] = [];
       route({
         tree: () => [
