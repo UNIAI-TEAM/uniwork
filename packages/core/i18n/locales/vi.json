@@ -9621,7 +9621,7 @@
         "star": "Gắn sao",
         "starred": "Đã gắn sao",
         "unstar": "Bỏ gắn sao",
-        "go_to_source": "Đi tới bản gốc",
+        "go_to_source": "Xem nơi đính kèm",
         "download": "Tải xuống",
         "save_to_folder": "Lưu vào thư mục",
         "menu": "Thao tác cho {{title}}",
@@ -9629,7 +9629,6 @@
         "star_failed": "Không thể cập nhật gắn sao. Thử lại.",
         "move": "Di chuyển",
         "archive": "Chuyển vào thùng rác",
-        "open_chat": "Mở Trò chuyện",
         "open_email": "Mở Email",
         "new_subfolder": "Thư mục con mới",
         "rename": "Đổi tên"
