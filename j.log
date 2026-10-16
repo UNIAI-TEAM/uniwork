@@ -1,0 +1,141 @@
+$ node -e 'const r=require("/tmp/ux3-report.json");const walk=(s)=>{for(const sp of s.specs||[]){for(const t of sp.tests||[]){const res=t.results||[];console.log("TEST "+sp.title+" | project="+t.projectName+" expected="+t.expectedStatus+" status="+t.status+" results="+res.map((x)=>x.status).join(","));for(const a of t.annotations||[])console.log("  ANN "+a.type+": "+(a.description||""));for(const x of res)if(x.error)console.log("  ERR "+String(x.error.message||"").replace(/[^ -~]+/g," ").slice(0,400));}}for(const c of s.suites||[])walk(c)};for(const s of r.suites||[])walk(s);console.log("STATS "+JSON.stringify(r.stats))'; echo "BLOCKED_ANN=$(grep -c '"type": "blocked"' /tmp/ux3-report.json)"; grep -E "panic|ERROR" /tmp/ux3-server.log | tail -n 30; tail -n 20 /tmp/ux3-web.log; for p in 18571 13471; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18571/tcp 13471/tcp 2>/dev/null; true
+TEST S6 clean + dirty bars and every reachable S5 step — light vi | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+  ANN contrast: S6 clean light: 2 nodes, 0 below AA, min 13.61:1 (needs 4.5) at "Đóng"
+  ANN contrast: S6 dirty light: 3 nodes, 0 below AA, min 5.81:1 (needs 4.5) at "Để sau"
+  ANN contrast: S5 step 1 light: 16 nodes, 0 below AA, min 6:1 (needs 4.5) at "Ghi đè…"
+  ANN contrast: S5 overwrite confirm light: 4 nodes, 0 below AA, min 6:1 (needs 4.5) at "Ghi đè"
+  ANN contrast: S5 reload confirm (web) light: 5 nodes, 0 below AA, min 6:1 (needs 4.5) at "Bỏ thay đổi và tải lại"
+TEST S6 clean + dirty bars and every reachable S5 step — light en | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+  ANN contrast: S6 clean light: 2 nodes, 0 below AA, min 13.61:1 (needs 4.5) at "Close"
+  ANN contrast: S6 dirty light: 3 nodes, 0 below AA, min 5.81:1 (needs 4.5) at "Later"
+  ANN contrast: S5 step 1 light: 16 nodes, 0 below AA, min 6:1 (needs 4.5) at "Overwrite…"
+  ANN contrast: S5 overwrite confirm light: 4 nodes, 0 below AA, min 6:1 (needs 4.5) at "Overwrite"
+  ANN contrast: S5 reload confirm (web) light: 5 nodes, 0 below AA, min 6:1 (needs 4.5) at "Discard changes and reload"
+TEST S6 clean + dirty bars and every reachable S5 step — dark vi | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+  ANN contrast: S6 clean dark: 2 nodes, 0 below AA, min 9.05:1 (needs 4.5) at "Đóng"
+  ANN contrast: S6 dirty dark: 3 nodes, 0 below AA, min 7.36:1 (needs 4.5) at "Có phiên bản mới hơn trên "
+  ANN contrast: S5 step 1 dark: 16 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Hủy"
+  ANN contrast: S5 overwrite confirm dark: 4 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Quay lại"
+  ANN contrast: S5 reload confirm (web) dark: 5 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Quay lại"
+TEST S6 clean + dirty bars and every reachable S5 step — dark en | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+  ANN contrast: S6 clean dark: 2 nodes, 0 below AA, min 9.05:1 (needs 4.5) at "Close"
+  ANN contrast: S6 dirty dark: 3 nodes, 0 below AA, min 7.36:1 (needs 4.5) at "A newer version is on UniW"
+  ANN contrast: S5 step 1 dark: 16 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Cancel"
+  ANN contrast: S5 overwrite confirm dark: 4 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Back"
+  ANN contrast: S5 reload confirm (web) dark: 5 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Back"
+TEST DOM order = visual order = the standard order, default focus Cancel, Tab stays in, the rest is inert | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+TEST aria-disabled choices (web offline) stay in the Tab loop with a reason | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+TEST Save copy sits between Reload and Overwrite with edit access | project= expected=failed status=expected results=failed
+  ANN frame: 0.1.0-05fd209
+  ANN finding: UXF-02: State Patterns › S5: 'Lưu thành bản sao…' (uwConflictSaveCopy, OQ-UX6) between Reload and Overwrite when the user can edit (pin: absent; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ANN fail: UXF-02 (BLOCKING, G7-09): State Patterns › S5: 'Lưu thành bản sao…' (uwConflictSaveCopy, OQ-UX6) between Reload and Overwrite when the user can edit (pin: absent; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ERR Error: save-copy, reload and overwrite present [2mexpect( [22m [31mreceived [39m [2m). [22mtoEqual [2m( [22m [32mexpected [39m [2m) // deep equality [22m Expected:  [32mArrayContaining ["reload", "save-copy", "overwrite"] [39m Received:  [31m["reload", "overwrite", "cancel"] [39m
+TEST Docs shows 'Xem khác biệt' before Reload | project= expected=failed status=expected results=failed
+  ANN frame: 0.1.0-05fd209
+  ANN finding: UXF-03: State Patterns › S5: Docs/DOCX has 'Xem khác biệt' after the comparison table, before Reload (OQ-UX9) (pin: absent; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ANN fail: UXF-03 (BLOCKING, G7-09): State Patterns › S5: Docs/DOCX has 'Xem khác biệt' after the comparison table, before Reload (OQ-UX9) (pin: absent; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ERR Error:  [2mexpect( [22m [31mreceived [39m [2m). [22mtoBe [2m( [22m [32mexpected [39m [2m) // Object.is equality [22m Expected:  [32mtrue [39m Received:  [31mfalse [39m
+TEST the window live nodes stay outside the inert tree while S5 is open | project= expected=failed status=expected results=failed
+  ANN frame: 0.1.0-05fd209
+  ANN measured: [{"role":"status","inert":true}]
+  ANN finding: UXF-04: Floor › Vùng live: the window's live nodes are siblings of the inert part, never inside it (pin: frame-dialog inertSiblings inerts every body child, .uw-live included; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ANN fail: UXF-04 (BLOCKING, G7-09): Floor › Vùng live: the window's live nodes are siblings of the inert part, never inside it (pin: frame-dialog inertSiblings inerts every body child, .uw-live included; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ERR Error:  [2mexpect( [22m [31mreceived [39m [2m). [22mtoEqual [2m( [22m [32mexpected [39m [2m) // deep equality [22m [32m- Expected  - 1 [39m [31m+ Received  + 6 [39m [32m- Array [] [39m [31m+ Array [ [39m [31m+   Object { [39m [31m+     "inert": true, [39m [31m+     "role": "status", [39m [31m+   }, [39m [31m+ ] [39m
+TEST the frame has its two fixed live nodes from load, before any bar | project= expected=failed status=expected results=failed
+  ANN frame: 0.1.0-05fd209
+  ANN finding: UXF-10: Floor › Vùng live: the window's polite and assertive nodes exist from load (pin: remote-bar.ts liveNode() creates each on its first announce; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ANN fail: UXF-10 (BLOCKING, G7-09): Floor › Vùng live: the window's polite and assertive nodes exist from load (pin: remote-bar.ts liveNode() creates each on its first announce; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ANN measured: {"status":0,"alert":0,"alertText":null}
+  ERR Error: one polite window node from load [2mexpect( [22m [31mreceived [39m [2m). [22mtoBe [2m( [22m [32mexpected [39m [2m) // Object.is equality [22m Expected:  [32m1 [39m Received:  [31m0 [39m
+TEST an S6 bar is read once, through the window node; the bar itself is not live | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+  ANN measured: {"text":"Đã cập nhật lên phiên bản 15 do một thành viên lưu lúc 06:30 16 thg 10, 2026.","liveInBar":false,"role":"region","label":"Phiên bản mới"}
+TEST S5 buttons keep a visible border, not colour alone | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+  ANN measured: [{"id":"reload","width":1,"style":"solid","color":"rgba(5, 0, 73, 0.8)"},{"id":"overwrite","width":1,"style":"solid","color":"rgb(0, 0, 0)"},{"id":"cancel","width":1,"style":"solid","color":"rgba(5, 0, 73, 0.8)"}]
+TEST S5 aria-disabled buttons use GrayText text and border | project= expected=failed status=expected results=failed
+  ANN frame: 0.1.0-05fd209
+  ANN measured: [{"id":"reload","color":"rgb(0, 0, 0)","border":"rgba(5, 0, 73, 0.8)","gray":"rgb(96, 0, 0)"},{"id":"overwrite","color":"rgb(0, 0, 0)","border":"rgb(0, 0, 0)","gray":"rgb(96, 0, 0)"}]
+  ANN finding: UXF-05: DESIGN › Forced colors: [aria-disabled=true] buttons use GrayText for text and border (pin: frame-dialog.css has no forced-colors rule, opacity only; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ANN fail: UXF-05 (BLOCKING, G7-09): DESIGN › Forced colors: [aria-disabled=true] buttons use GrayText for text and border (pin: frame-dialog.css has no forced-colors rule, opacity only; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ERR Error: reload: text [2mexpect( [22m [31mreceived [39m [2m). [22mtoBe [2m( [22m [32mexpected [39m [2m) // Object.is equality [22m Expected:  [32m"rgb( [7m96 [27m, 0, 0)" [39m Received:  [31m"rgb( [7m0 [27m, 0, 0)" [39m
+TEST zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+TEST S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+TEST narrow web frame 390px: S5 full width minus 16px margins, buttons stacked | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+  ANN measured: {"left":16,"width":358,"inner":390,"xs":[33,33,33],"ys":[450.1875,494.1875,538.1875]}
+TEST narrow web frame 600px: S5 full width minus 16px margins, buttons stacked | project= expected=failed status=expected results=failed
+  ANN frame: 0.1.0-05fd209
+  ANN measured: {"left":76,"width":448,"inner":600,"xs":[93,93,93],"ys":[407.59375,451.59375,495.59375]}
+  ANN finding: UXF-07: Responsive › Web hẹp (< 768px): S5 takes the full width minus 16px margins (pin: .ow-dlg max-width 448px; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ANN fail: UXF-07 (BLOCKING, G7-09): Responsive › Web hẹp (< 768px): S5 takes the full width minus 16px margins (pin: .ow-dlg max-width 448px; owner: UXF-FIX (UNI-1824), lane g5-fork_main)
+  ERR Error: 16px left margin [2mexpect( [22m [31mreceived [39m [2m). [22mtoBeLessThanOrEqual [2m( [22m [32mexpected [39m [2m) [22m Expected: <=  [32m1 [39m Received:     [31m60 [39m
+TEST reduced motion: no slide/fade on S6 or S5 | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+  ANN measured: {"missing":[],"moving":[]}
+TEST target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer) | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-05fd209
+TEST S7 picker with UniWork AI and the S9 result line — light vi | project= expected=skipped status=skipped results=skipped
+  ANN frame: 0.1.0-05fd209
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN blocked: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+  ANN skip: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+TEST S7 picker with UniWork AI and the S9 result line — light en | project= expected=skipped status=skipped results=skipped
+  ANN frame: 0.1.0-05fd209
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN blocked: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+  ANN skip: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+TEST S7 the selected option's focus ring is >= 3:1 against accent-soft — light | project= expected=skipped status=skipped results=skipped
+  ANN frame: 0.1.0-05fd209
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN blocked: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+  ANN skip: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+TEST S7 picker with UniWork AI and the S9 result line — dark vi | project= expected=skipped status=skipped results=skipped
+  ANN frame: 0.1.0-05fd209
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN blocked: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+  ANN skip: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+TEST S7 picker with UniWork AI and the S9 result line — dark en | project= expected=skipped status=skipped results=skipped
+  ANN frame: 0.1.0-05fd209
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN blocked: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+  ANN skip: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+TEST S7 the selected option's focus ring is >= 3:1 against accent-soft — dark | project= expected=skipped status=skipped results=skipped
+  ANN frame: 0.1.0-05fd209
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN blocked: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+  ANN skip: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+TEST S7 the selected picker option has a 2px Highlight border, not only a fill | project= expected=skipped status=skipped results=skipped
+  ANN frame: 0.1.0-05fd209
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN blocked: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+  ANN skip: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+TEST S7 listbox sits on the list, Manage and the footer are siblings after it | project= expected=skipped status=skipped results=skipped
+  ANN frame: 0.1.0-05fd209
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN blocked: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+  ANN skip: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+TEST S8 disclosure region shows on the first UniWork AI turn and gates Send | project= expected=skipped status=skipped results=skipped
+  ANN frame: 0.1.0-05fd209
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN blocked: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+  ANN skip: blocked: frame 0.1.0-05fd209 lists no UniWork AI row although the token grants uniwork_ai (the pin's picker drops a provider without models; listed since fork 7888df06c) — owner REPIN-1 (UNI-1825), lane g6-fork_ui
+STATS {"startTime":"2026-10-16T06:29:47.663Z","duration":293971.008,"expected":19,"skipped":9,"unexpected":0,"flaky":0}
+BLOCKED_ANN=18
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+▲ Next.js 16.3.8
+- Local:         http://localhost:13471
+- Network:       http://172.30.0.2:13471
+✓ Ready in 91ms
+✓ Running next.config.mjs took 130ms

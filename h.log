@@ -1,0 +1,4 @@
+$ cd e2e && OFFICE_UX_FLOOR_E2E=1 npx playwright test --list office-ux-floor.spec.ts | tail -n 3
+  office-ux-floor.spec.ts:472:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it
+  office-ux-floor.spec.ts:486:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S8 disclosure region shows on the first UniWork AI turn and gates Send
+Total: 28 tests in 1 file
