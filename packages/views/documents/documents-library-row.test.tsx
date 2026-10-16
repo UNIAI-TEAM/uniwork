@@ -66,7 +66,7 @@ describe("library row edit-lock holder", () => {
     expect(within(holder).getByText("BT")).toBeTruthy();
   });
 
-  it("shows 'đang sửa · offline đến HH:mm' when offline_hold_until is set (V3-8)", () => {
+  it("shows 'đang sửa · offline đến HH:mm' and includes the offline end time in the accessible name when offline_hold_until is set (V3-8, R6-2)", () => {
     renderRow(
       item({
         edit_lock: {
@@ -79,8 +79,12 @@ describe("library row edit-lock holder", () => {
         },
       }),
     );
-    const holder = screen.getByTestId("edit-lock-holder");
-    expect(within(holder).getByText(`đang sửa · offline đến ${formatLockTime(HOLD, "vi")}`)).toBeTruthy();
+    const time = formatLockTime(HOLD, "vi");
+    const expectedLabel = t("documents.editLock.bannerOfflineHold", { name: "Hưng Nguyễn", time });
+    const holder = screen.getByLabelText(expectedLabel);
+    expect(holder).toBe(screen.getByRole("img", { name: expectedLabel }));
+    expect(holder).toHaveAttribute("title", expectedLabel);
+    expect(within(holder).getByText(`đang sửa · offline đến ${time}`)).toBeTruthy();
   });
 
   it("omits the holder chip when the lock is held by the current user (V3-7)", () => {

@@ -23,8 +23,11 @@ export function EditLockHolderChip({
   className?: string;
 }) {
   const { t, i18n } = useTranslation();
-  const label = t("documents.editLock.rowEditingLabel", { name: name || t("documents.editLock.lostSomeone") });
+  const displayName = name || t("documents.editLock.lostSomeone");
   const offlineTime = offlineHoldUntil ? formatLockTime(offlineHoldUntil, i18n.language) : "";
+  const label = offlineTime
+    ? t("documents.editLock.bannerOfflineHold", { name: displayName, time: offlineTime })
+    : t("documents.editLock.rowEditingLabel", { name: displayName });
   const stateText = offlineTime
     ? t("documents.editLock.rowEditingOffline", { time: offlineTime })
     : t("documents.editLock.rowEditing");
