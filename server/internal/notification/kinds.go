@@ -43,6 +43,11 @@ const (
 	KindChatMentioned     = "chat_mentioned"
 	KindChatDM            = "chat_dm"
 	KindChatThreadReplied = "chat_thread_replied"
+	// Document access requests (W-DOC07): registered so the inbox, titles and
+	// preference matrix know them; the producers land with S-DOC07.
+	KindDocumentAccessRequested = "document_access_requested"
+	KindDocumentAccessApproved  = "document_access_approved"
+	KindDocumentAccessDeclined  = "document_access_declined"
 )
 
 // Kinds is the list in display order.
@@ -53,6 +58,7 @@ var Kinds = []string{
 	KindDocumentCommented, KindDocumentMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
 	KindChatMentioned, KindChatDM, KindChatThreadReplied,
+	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
 }
 
 var kindSet = func() map[string]bool {
