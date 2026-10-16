@@ -11,27 +11,39 @@
   "fixtures": {
     "fx-xlsx-revenue-xyz": {
       "status": "ok",
-      "reason": ""
+      "reason": "",
+      "ai": true,
+      "uniworkAi": false
     },
     "fx-docx-report-vi": {
       "status": "ok",
-      "reason": ""
+      "reason": "",
+      "ai": true,
+      "uniworkAi": false
     },
     "fx-pptx-deck-vi": {
       "status": "ok",
-      "reason": ""
+      "reason": "",
+      "ai": true,
+      "uniworkAi": false
     },
     "fx-pdf-invoice-vi": {
       "status": "ok",
-      "reason": ""
+      "reason": "",
+      "ai": true,
+      "uniworkAi": false
     },
     "fx-md-notes-vi": {
       "status": "ok",
-      "reason": ""
+      "reason": "",
+      "ai": true,
+      "uniworkAi": false
     },
     "fx-html-page-vi": {
       "status": "ok",
-      "reason": ""
+      "reason": "",
+      "ai": true,
+      "uniworkAi": false
     }
   }
 }

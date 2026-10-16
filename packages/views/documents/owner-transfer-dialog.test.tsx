@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
+import { DocumentSchema } from "@uniwork/core/types/document";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { ShareDialog } from "./share-dialog";
@@ -35,18 +36,31 @@ const workspace: Workspace = {
   organization_name: "Acme",
 };
 
+// Built through DocumentSchema, as a real read is: a field the schema strips
+// (admin_scope once was) can no longer reach a test that depends on it.
 function target(over: Partial<ShareDialogTarget> = {}): ShareDialogTarget {
-  return {
+  const parsed = DocumentSchema.parse({
     id: "d1",
-    title: "Kế hoạch Q4",
-    organization_id: ORG,
     workspace_id: WS,
+    organization_id: ORG,
+    kind: "page",
+    title: "Kế hoạch Q4",
     visibility: "workspace",
     revision: "7",
-    owner_kind: undefined,
-    archived_at: undefined,
     my_level: "manage",
     ...over,
+  });
+  return {
+    id: parsed.id,
+    title: parsed.title,
+    organization_id: parsed.organization_id,
+    workspace_id: parsed.workspace_id,
+    visibility: parsed.visibility as ShareDialogTarget["visibility"],
+    revision: parsed.revision,
+    owner_kind: (parsed.owner_kind ?? undefined) as ShareDialogTarget["owner_kind"],
+    archived_at: parsed.archived_at ?? undefined,
+    my_level: parsed.my_level as ShareDialogTarget["my_level"],
+    admin_scope: parsed.admin_scope,
   };
 }
 
@@ -287,7 +301,7 @@ describe("ShareDialog owner transfer (DOC6-W01)", () => {
     expect(requestMock.mock.calls.some(([p]) => p === "/api/v1/documents/d1")).toBe(false);
   });
 
-  it("shows Revoke to a manager and hides it from a pure admin, who also has no add-share form", async () => {
+  it("shows Revoke and the add-share form to a manager and to a pure admin (DOC-05 canAdminister())", async () => {
     const shares = [{ id: "s1", principal_type: "user", principal_id: "u3", level: "view", active: true }];
     serve({ access: accessPayload({ shares }) });
     const view = renderDialog();
@@ -297,8 +311,8 @@ describe("ShareDialog owner transfer (DOC6-W01)", () => {
     serve({ access: accessPayload({ my_level: "", via: "", admin_scope: true, shares }) });
     renderDialog(target({ my_level: "", admin_scope: true }));
     await transferButton();
-    expect(screen.queryByRole("button", { name: /Thu hồi/ })).toBeNull();
-    expect(screen.queryByText(t("documents.share.add_title"))).toBeNull();
+    expect(await screen.findByRole("button", { name: /Thu hồi/ })).toBeInTheDocument();
+    expect(screen.getByText(t("documents.share.add_title"))).toBeInTheDocument();
   });
 
   it("break-glass admin (my_level view, admin_scope) on restricted keeps self out of the picker too", async () => {

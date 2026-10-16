@@ -3,8 +3,7 @@
 import { useId, useMemo, useState } from "react";
 import { Building2, Link2, ShieldCheck, UserRound, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage } from "@uniwork/core/api";
-import { classifyDocumentError, shareLevelNotAllowedMax } from "@uniwork/core/documents/errors";
+import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import {
   useDocumentShares,
@@ -38,10 +37,11 @@ import {
 } from "@uniwork/ui/components/ui/select";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { useWorkspace } from "../layout/workspace-context";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import { AccessRequestsSection } from "./access-requests-section";
 import { OwnerTransferAction } from "./owner-transfer-dialog";
+import { ShareDialogBreakGlassSection, hasAdminScope, shareErrorMessage, useShareWorkspace } from "./share-dialog-break-glass";
 import type { ShareDialogTarget } from "./share-dialog-target";
 import { ShareLinksSection } from "./share-links-section";
 import { ShareMembersErrorLine } from "./share-members-error";
@@ -52,12 +52,14 @@ export interface ShareDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wsId: string;
+  /** A `Document` or the narrow target built from the admin summary; never a made-up `Document`. */
   doc: ShareDialogTarget;
   /** Opened from `?access=requests`: the requests section takes focus. */
   focusRequests?: boolean;
+  initialSection?: "break_glass";
 }
 
-const LEVELS: readonly DocumentAccessLevel[] = ["view", "edit", "manage"];
+const LEVELS: readonly DocumentAccessLevel[] = ["view", "comment", "edit", "manage"];
 const PRINCIPAL_TYPES = ["user", "workspace", "organization"] as const;
 type PrincipalType = (typeof PRINCIPAL_TYPES)[number];
 /** The schema keeps nested rows as raw strings; the hook's answer is the source. */
@@ -66,7 +68,7 @@ type AccessShare = NonNullable<DocumentAccess["shares"]>[number];
 /**
  * `documents.detail` share dialog (C-01 §5.3; G1-08, UNI-682).
  *
- * Three principals (person, workspace, organization) × three levels. The list
+ * Three principals (person, workspace, organization) × four levels. The list
  * is the access that actually exists — the caller's own level always, the ACL
  * owner and the live grants only at manage level — and every write is a
  * server round-trip with its own failure state. A public link's raw URL exists
@@ -76,15 +78,16 @@ type AccessShare = NonNullable<DocumentAccess["shares"]>[number];
  * Owned (work-product) documents never open this dialog: their access is
  * delegated through the owning screen, so no control here could be honest.
  */
-export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = false }: ShareDialogProps) {
+export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = false, initialSection }: ShareDialogProps) {
   const { t, i18n } = useTranslation();
-  const { workspace, user } = useWorkspace();
+  const workspace = useShareWorkspace(doc, wsId);
+  const user = useOptionalWorkspace()?.user ?? null;
   const { push } = useNavigation();
-  const canManage = doc.my_level === "manage";
-  // Manage level or DOC-05 admin_scope (access addendum §2.5): mounts the
-  // access list and the owner transfer; the other controls stay at manage.
-  const canAdminister = canAdministerDocument(doc, { userId: user.id, orgRole: null, wsRole: null }).allowed;
-  const adminOnly = canAdminister && !canManage;
+  // Manage level or DOC-05 admin_scope (canAdminister(), access addendum §2.5):
+  // every control here, the server refusing a self-share or restricted →
+  // workspace with break_glass_required. The note marks the admin-only caller.
+  const canAdminister = canAdministerDocument(doc, { userId: user?.id ?? null, orgRole: null, wsRole: null }).allowed;
+  const adminOnly = hasAdminScope(doc) && doc.my_level !== "manage";
   const descriptionId = useId();
   const adminNoteId = useId();
   const owned = !!doc.owner_kind;
@@ -130,6 +133,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
     return LEVELS.includes(value as DocumentAccessLevel) ? t(key) : fallback;
   };
   const viaLabel = (via: string | null | undefined) => {
+    if (via === "break_glass") return t("documents.breakGlass.viaBreakGlass");
     const key = `documents.share.via_${via ?? ""}`;
     return via ? t(key, { defaultValue: via }) : "";
   };
@@ -156,17 +160,12 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
       // workspace grants clear the choice for the next one.
       setPrincipalId(principalType === "organization" ? doc.organization_id : "");
     } catch (err) {
-      // A share for the document's own workspace above the home row's ceiling
-      // (SH-S1 Q-S1) names that ceiling: say it here instead of the server's
-      // own sentence, which is outside the reader's language table.
-      const max = shareLevelNotAllowedMax(err);
-      const fallback = apiErrorMessage(err) ?? t("documents.share.submit_failed");
-      setAddError(max ? t("documents.errors.level_not_allowed", { max: levelLabel(max) }) : fallback);
+      setAddError(shareErrorMessage(err, t) ?? t("documents.share.submit_failed"));
     }
   };
 
   const saveVisibility = async (next: "workspace" | "restricted") => {
-    if (update.isPending || next === doc.visibility) return;
+    if (update.isPending || next === doc.visibility || doc.revision === undefined) return;
     setVisibilityError(null);
     try {
       await update.mutateAsync({ patch: { visibility: next, revision: doc.revision } });
@@ -175,7 +174,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
       setVisibilityError(
         cls === "conflict"
           ? t("documents.versions.restore_conflict")
-          : apiErrorMessage(err) ?? t("documents.share.visibility_failed"),
+          : shareErrorMessage(err, t) ?? t("documents.share.visibility_failed"),
       );
     }
   };
@@ -234,6 +233,7 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                 <ShareMembersErrorLine error={members.error} retrying={members.retrying} onRetry={members.retry} />
               ) : null}
               {!doc.archived_at ? <AccessRequestsSection wsId={wsId} documentId={doc.id} focusOnOpen={focusRequests} /> : null}
+              <ShareDialogBreakGlassSection wsId={wsId} docId={doc.id} grants={access.data.break_glass} initialOpen={initialSection === "break_glass"} resolveName={memberName} />
               <section aria-labelledby="share-access-title" className="rounded-lg border border-border">
                 <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
                   <h3 id="share-access-title" className="text-label font-medium text-foreground">
@@ -295,28 +295,25 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                           {row.effective_via ? ` · ${viaLabel(row.effective_via)}` : ""}
                         </span>
                       </div>
-                      {/* Revoke follows the add-share gate: both wait for W-DOC05 to open them to admin_scope (§2.5). */}
-                      {canManage ? (
-                        <span className="flex shrink-0 items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`${t("documents.share.revoke")} ${principalName(row) ?? ""}`.trim()}
-                            disabled={revokeShare.isPending}
-                            aria-busy={(revokeShare.isPending && revokeShare.variables === row.id) || undefined}
-                            onClick={() => {
-                              setAddError(null);
-                              revokeShare.mutate(row.id);
-                            }}
-                          >
-                            {revokeShare.isPending && revokeShare.variables === row.id ? (
-                              <Spinner aria-hidden role="presentation" />
-                            ) : null}
-                            {t("documents.share.revoke")}
-                          </Button>
-                        </span>
-                      ) : null}
+                      <span className="flex shrink-0 items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`${t("documents.share.revoke")} ${principalName(row) ?? ""}`.trim()}
+                          disabled={revokeShare.isPending}
+                          aria-busy={(revokeShare.isPending && revokeShare.variables === row.id) || undefined}
+                          onClick={() => {
+                            setAddError(null);
+                            revokeShare.mutate(row.id);
+                          }}
+                        >
+                          {revokeShare.isPending && revokeShare.variables === row.id ? (
+                            <Spinner aria-hidden role="presentation" />
+                          ) : null}
+                          {t("documents.share.revoke")}
+                        </Button>
+                      </span>
                     </li>
                   ))}
                   {!shares.length && !access.data.acl_owner ? (
@@ -327,8 +324,6 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                 </ul>
               </section>
 
-              {canManage ? (
-              <>
               <section aria-labelledby="share-add-title" className="flex flex-col gap-2 rounded-lg border border-border p-3">
                 <h3 id="share-add-title" className="text-label font-medium text-foreground">
                   {t("documents.share.add_title")}
@@ -443,12 +438,14 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                 ) : null}
               </section>
 
-              <VisibilitySection
-                doc={doc}
-                pending={update.isPending}
-                error={visibilityError}
-                onSave={(next) => void saveVisibility(next)}
-              />
+              {doc.revision !== undefined ? (
+                <VisibilitySection
+                  doc={doc}
+                  pending={update.isPending}
+                  error={visibilityError}
+                  onSave={(next) => void saveVisibility(next)}
+                />
+              ) : null}
 
               <ShareLinksSection
                 wsId={wsId}
@@ -456,8 +453,6 @@ export function ShareDialog({ open, onOpenChange, wsId, doc, focusRequests = fal
                 onOpenSettings={() => push(`${paths.workspace(workspace.organization_slug, workspace.slug).settings()}?tab=documents`)}
                 locale={i18n.language}
               />
-              </>
-              ) : null}
             </div>
           )}
         </div>
@@ -549,4 +544,3 @@ function VisibilitySection({
     </section>
   );
 }
-

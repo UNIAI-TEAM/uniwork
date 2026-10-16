@@ -91,6 +91,15 @@ and the exact command in `start.sh`'s output.
   `DESKTOP_AUTH_CLIENT_ID` in `server.env` was undone by the checkout's `.env`
   and the server died with `set either DESKTOP_AUTH_CLIENTS or
   DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both` (cloud round 4).
+* The D server gets a **test-only `AI_CREDENTIAL_KEY`** (`HARNESS_AI_CREDENTIAL_KEY` in
+  `lib.mjs`, base64 of a fixed 32-byte string that says so; it guards nothing, the harness
+  database holds no provider key and the run never reaches the dev upstream). Since G6-05k a
+  server without the key answers `ai_credentials_unavailable`, so the web frame token carried
+  `ai:false` and the G7-06 web capture showed no AI chrome (RFE5-201). With the key and the
+  default plan (which carries `office.ai_byok`) a fresh capture organization is granted AI
+  again; the web capture records the grant it saw in `meta.json` (`ai`, `uniworkAi`) and the
+  job fails a web capture without it (RFE5-202). The run owns the name: a key in the VM's
+  `.env` never reaches this server.
 * The Electron app (and the second instance that carries a deep link) gets an
   **allow-listed** environment (`appEnv` in `lib.mjs`): the process basics, the
   locale, the display/session and keyring bus, the D origin, the userData dir and

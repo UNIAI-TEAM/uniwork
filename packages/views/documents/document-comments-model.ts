@@ -1,4 +1,11 @@
-import type { Document, DocumentComment, DocumentCommentKind } from "@uniwork/core/types/document";
+import { documentLevelRank } from "@uniwork/core/permissions";
+import type {
+  Document,
+  DocumentComment,
+  DocumentCommentKind,
+  DocumentCommentMentionWithoutAccess,
+} from "@uniwork/core/types/document";
+import type { MentionCandidate } from "@uniwork/core/types/document-access";
 import { buildCommentThreads, type CommentThread } from "../comments/comment-thread";
 import { K } from "./document-comments-keys";
 
@@ -253,3 +260,138 @@ export function formatCollabTime(at: string | null | undefined, locale: string, 
   const day = kept.map((part) => part.value).join("");
   return `${day}${vietnamese ? " " : ", "}${clock}`;
 }
+
+const MENTION_TOKEN_RE = /\[@((?:[^[\]\\]|\\.)*)\]\(mention:\/\/member\/([0-9A-Za-z]{26})\)/g;
+const unescapeMentionLabel = (label: string) => label.replace(/\\(.)/g, "$1");
+
+/** The name a mentioned person is listed under: the server's `display_name`, else the id. */
+export const mentionDisplayName = (m: Pick<DocumentCommentMentionWithoutAccess, "user_id" | "display_name">) =>
+  m.display_name || m.user_id;
+
+/** Formats a full list of display names via Intl.ListFormat without truncation (G8-18, N4). */
+export function formatMentionList(names: readonly string[], locale: string): string {
+  const clean = names.map((n) => n.trim()).filter(Boolean);
+  if (clean.length === 0) return "";
+  try {
+    return new Intl.ListFormat(locale || "vi", { style: "long", type: "conjunction" }).format(clean);
+  } catch {
+    return clean.join(", ");
+  }
+}
+
+/**
+ * The slice of a document the composer and thread read for G8-18 sharing rules.
+ * `admin_scope` is not part of core `Document` yet (the server lane adds it), so
+ * it is read defensively and an absent value means "no admin scope".
+ */
+export type CommentDocContext = Pick<Document, "my_level" | "owner_kind"> & {
+  workspace_id?: string;
+  admin_scope?: boolean;
+};
+
+/** Whether the caller can write/reply/edit own comments in the panel (DOC5-W01: comment, edit, manage). */
+export function canCommentInPanel(
+  doc: Pick<Document, "my_level"> | null | undefined,
+  writeRefused = false,
+): boolean {
+  if (writeRefused) return false;
+  return documentLevelRank(doc?.my_level) >= documentLevelRank("comment");
+}
+
+/**
+ * Whether the caller can resolve or reopen a thread (DOC5-W02):
+ * `edit` and `manage` can resolve/reopen any active thread; `comment` can
+ * resolve/reopen only when they authored the thread root.
+ */
+export function canResolveCommentThread(opts: {
+  canWrite: boolean;
+  level: string | null | undefined;
+  currentUserId: string | undefined;
+  root: Pick<DocumentComment, "author_id" | "author_kind" | "deleted_at">;
+}): boolean {
+  if (!opts.canWrite || Boolean(opts.root.deleted_at)) return false;
+  const rank = documentLevelRank(opts.level);
+  if (rank >= documentLevelRank("edit")) return true;
+  if (rank >= documentLevelRank("comment")) {
+    return (
+      Boolean(opts.currentUserId) &&
+      opts.root.author_id === opts.currentUserId &&
+      opts.root.author_kind !== "agent"
+    );
+  }
+  return false;
+}
+
+/** Whether the caller can grant `view` share to a specific mentioned candidate (G8-18). */
+export function canCallerShareMentionCandidate(opts: {
+  doc?: CommentDocContext | null;
+  currentUserId?: string;
+  candidateUserId: string;
+  canShare?: boolean | ((userId: string) => boolean);
+}): boolean {
+  if (typeof opts.canShare === "function") return opts.canShare(opts.candidateUserId);
+  if (typeof opts.canShare === "boolean") return opts.canShare;
+  if (opts.doc) {
+    if (opts.doc.owner_kind) return false;
+    if (opts.doc.my_level === "manage") return true;
+    if (opts.doc.admin_scope === true) return opts.candidateUserId !== opts.currentUserId;
+    return false;
+  }
+  // No document and no override: unknown never reads upward.
+  return false;
+}
+
+/** Extracts `[@Label](mention://member/<ULID>)` tokens from a comment body in order, deduplicated by userId. */
+export function extractMentionTokens(body: string): Array<{ userId: string; label: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ userId: string; label: string }> = [];
+  for (const match of body.matchAll(MENTION_TOKEN_RE)) {
+    const label = unescapeMentionLabel(match[1] ?? "");
+    const userId = match[2] ?? "";
+    const key = userId.toUpperCase();
+    if (!userId || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ userId, label });
+  }
+  return out;
+}
+
+/**
+ * Resolves the `can_view: false` mentions that were picked from the picker and
+ * are still present in `body` (and not yet granted `view` in this composer session).
+ * Typed/pasted tokens not picked with `can_view: false` do not trigger pre-send warning.
+ */
+export function resolveNoAccessMentionsForSend(opts: {
+  body: string;
+  pickedCandidates: ReadonlyMap<string, MentionCandidate & { can_share?: boolean }>;
+  sharedUserIds: ReadonlySet<string>;
+  doc?: CommentDocContext | null;
+  currentUserId?: string;
+  canShare?: boolean | ((userId: string) => boolean);
+}): DocumentCommentMentionWithoutAccess[] {
+  const tokens = extractMentionTokens(opts.body);
+  const out: DocumentCommentMentionWithoutAccess[] = [];
+  for (const token of tokens) {
+    const key = token.userId.toUpperCase();
+    if (opts.sharedUserIds.has(key)) continue;
+    const picked = opts.pickedCandidates.get(key);
+    if (!picked || picked.can_view !== false) continue;
+    const explicitCanShare = (picked as { can_share?: boolean }).can_share;
+    const canShare =
+      typeof explicitCanShare === "boolean"
+        ? explicitCanShare
+        : canCallerShareMentionCandidate({
+            doc: opts.doc,
+            currentUserId: opts.currentUserId,
+            candidateUserId: picked.user_id,
+            canShare: opts.canShare,
+          });
+    out.push({
+      user_id: picked.user_id,
+      display_name: picked.display_name || token.label || picked.user_id,
+      can_share: canShare,
+    });
+  }
+  return out;
+}
+

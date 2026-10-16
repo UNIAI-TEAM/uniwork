@@ -22,8 +22,6 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   document_discussion_mentioned: "mentions",
   document_discussion_replied: "mentions",
   document_comment_resolved: "mentions",
-  // TEMPORARY (UNI-1413 card (a)): copied from document_commented; card (b) sets the final icon/tone/category.
-  document_break_glass: "mentions",
   chat_mentioned: "mentions",
   chat_dm: "mentions",
   chat_thread_replied: "mentions",
@@ -36,6 +34,7 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   member_added: "workspace",
   role_changed: "workspace",
   audit_export_ready: "workspace",
+  document_break_glass: "workspace",
   email_hub_new_mail: "updates",
   document_access_approved: "updates",
   document_access_declined: "updates",

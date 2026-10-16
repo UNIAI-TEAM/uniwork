@@ -1,75 +1,55 @@
 "use client";
 
-import { useCallback, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { documentCommentDraftKey, useDocumentCommentDraftStore } from "@uniwork/core/documents/comment-drafts";
+import type { DocumentCommentMentionWithoutAccess } from "@uniwork/core/types/document";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { cn } from "@uniwork/ui/lib/utils";
-import { CommentActorAvatar } from "../comments/comment-actor-avatar";
+import { PostSendMentionNotice } from "./document-comment-mention-notice";
+import { MentionWarningDialog } from "./document-comment-mention-warning";
+import { NoAccessChips, PickerOption } from "./document-comment-picker-option";
 import { K } from "./document-comments-keys";
-import { useMentionPicker, type PickerRow } from "./use-mention-picker";
+import { formatMentionList, resolveNoAccessMentionsForSend, type CommentDocContext } from "./document-comments-model";
+import { useMentionPicker } from "./use-mention-picker";
+import { useMentionWarning } from "./use-mention-warning";
 
-// The S12/S13 composer of the web panel: a labelled textarea whose draft
-// survives a reload (the per-account draft store), Ctrl/⌘+Enter to send, the
-// S14 mention picker, and the composer rows of the state table - sending,
-// send failed (the text stays), target deleted while writing (the text stays,
-// with a copy button), and the discard question when a draft is cancelled.
+// The S12/S13 composer of the web panel + G8-18 mention-without-access states:
+// a labelled textarea whose draft survives a reload, Ctrl/⌘+Enter to send, the
+// S14 mention picker with the `can_view: false` lock badge, the pre-send
+// warning (sequential `view` shares, then ONE comment call) and the post-send
+// inline notice.
 
+export type SendStatus = "sent" | "failed" | "target_deleted";
 /** What a send ended with; the composer keeps the draft for every outcome but "sent". */
-export type SendOutcome = "sent" | "failed" | "target_deleted";
+export type SendOutcome =
+  | SendStatus
+  | { status: SendStatus; mentionsWithoutAccess?: DocumentCommentMentionWithoutAccess[] };
 
-/** The listbox's own height cap (px) and the gap kept to the viewport edge. */
+/** What the composer tells the sender about the comment it posts. */
+export interface SendOptions {
+  /** Upper-cased ids the pre-send warning already listed: the post-send notice leaves them out. */
+  warnedUserIds: ReadonlySet<string>;
+}
+
 const LISTBOX_MAX = 256;
 const LISTBOX_GAP = 8;
 
-const isMac = () => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-
-function PickerOption({ row, active, query, onPick }: { row: PickerRow; active: boolean; query: string; onPick: (row: PickerRow) => void }) {
-  const { t } = useTranslation();
-  const base = "flex min-h-6 items-center gap-2 rounded px-2 py-1 text-caption pointer-coarse:min-h-11";
-  if (row.type === "message") {
-    const key = {
-      searching: K.collabMentionSearching,
-      noMatch: K.collabMentionNoMatch,
-      noCandidates: K.collabMentionNoCandidates,
-      error: K.collabMentionError,
-    }[row.key];
-    return (
-      <li id={row.id} role="option" aria-disabled="true" aria-selected={false} className={cn(base, "text-muted-foreground")}>
-        {t(key, { query })}
-      </li>
-    );
-  }
-  const label = row.type === "retry" ? t(K.collabRetry) : row.candidate.display_name || row.candidate.user_id;
-  return (
-    // The textarea keeps focus and drives the options from the keyboard (aria-activedescendant,
-    // APG combobox); the click is the pointer path, and a pointer pick must not steal focus first.
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-    <li
-      id={row.id}
-      role="option"
-      aria-selected={active}
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={() => onPick(row)}
-      className={cn(base, "cursor-pointer", active ? "bg-accent text-accent-foreground" : "hover:bg-muted")}
-    >
-      {row.type === "person" ? (
-        <>
-          <CommentActorAvatar name={label} avatarUrl={row.candidate.avatar_url} kind="human" />
-          <span className="min-w-0 truncate font-medium">{label}</span>
-          {row.candidate.email ? <span className="min-w-0 truncate text-muted-foreground">{row.candidate.email}</span> : null}
-        </>
-      ) : label}
-    </li>
-  );
-}
+const isMac = () =>
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 export function DocumentCommentComposer({
   wsId,
@@ -83,6 +63,11 @@ export function DocumentCommentComposer({
   onCancel,
   autoFocus = false,
   testId,
+  doc,
+  canSeeMembers,
+  canShare,
+  onShareView,
+  renderPostSendInline = true,
 }: {
   wsId: string;
   documentId: string;
@@ -94,13 +79,23 @@ export function DocumentCommentComposer({
   deletedKey: string;
   /** Id of the panel status line when sending is blocked (offline, server error, signed out). */
   blockedReasonId?: string;
-  onSend: (body: string) => Promise<SendOutcome>;
+  onSend: (body: string, opts?: SendOptions) => Promise<SendOutcome>;
   /** Closes the composer (reply box); asks first when a draft would be lost. */
   onCancel?: () => void;
   autoFocus?: boolean;
   testId: string;
+  /** Document permission context for G8-18 `can_share` resolution. */
+  doc?: CommentDocContext | null;
+  /** Whether the caller may list workspace members (`seeMembers`); gates `include=no_access`. */
+  canSeeMembers?: boolean;
+  /** Optional override for whether the caller can share `view` access with a candidate. */
+  canShare?: boolean | ((userId: string) => boolean);
+  /** Optional override for the share transport call (`POST /api/v1/documents/{id}/shares`). */
+  onShareView?: (userId: string) => Promise<void>;
+  /** Whether to render the post-send inline notice directly below the composer (false when the panel entry renders it). */
+  renderPostSendInline?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const accountId = useAuthStore((s) => s.user?.id ?? "");
   const key = documentCommentDraftKey({ accountId, orgId, wsId, documentId, parentId });
   const value = useDocumentCommentDraftStore((s) => s.draftFor(key));
@@ -110,13 +105,64 @@ export function DocumentCommentComposer({
   const ref = useRef<HTMLTextAreaElement>(null);
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<"failed" | "target_deleted" | null>(null);
+  const [sharedNamesOnFailedSend, setSharedNamesOnFailedSend] = useState<string[] | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [postSendItems, setPostSendItems] = useState<DocumentCommentMentionWithoutAccess[]>([]);
+  const [lastSentBody, setLastSentBody] = useState("");
   const hintId = useId();
   const problemId = useId();
   const sendingId = useId();
-  const picker = useMentionPicker({ wsId, documentId, value, setValue, textarea: () => ref.current });
-  // The composer sits at the bottom of the panel, so the listbox opens upward when the viewport
-  // below the textarea cannot hold it, and is capped to the room it has either way.
+  const picker = useMentionPicker({
+    wsId,
+    documentId,
+    value,
+    setValue,
+    textarea: () => ref.current,
+    canSeeMembers,
+  });
+
+  const blocked = !!blockedReasonId;
+  const canSend = !sending && !blocked && value.trim() !== "";
+
+  const executeSend = async (sharedNamesForFailure?: string[]) => {
+    if (sending || blocked || value.trim() === "") return;
+    const bodyToSend = value;
+    setSending(true);
+    setProblem(null);
+    try {
+      const warned = new Set(mention.warnedRef.current);
+      const raw = await onSend(bodyToSend, { warnedUserIds: warned });
+      const outcome: SendStatus = typeof raw === "string" ? raw : raw.status;
+      if (outcome === "sent") {
+        setLastSentBody(bodyToSend);
+        clearDraft(key);
+        picker.clearPicked();
+        mention.resetShared();
+        setSharedNamesOnFailedSend(null);
+        const fromServer = typeof raw === "object" ? (raw.mentionsWithoutAccess ?? []) : [];
+        setPostSendItems(fromServer.filter((item) => !warned.has(item.user_id.toUpperCase())));
+      } else {
+        setProblem(outcome);
+        if (outcome === "failed" && sharedNamesForFailure && sharedNamesForFailure.length > 0) {
+          setSharedNamesOnFailedSend(sharedNamesForFailure);
+        }
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const documentWorkspaceId = doc?.workspace_id ?? "";
+  const mention = useMentionWarning({ wsId, documentId, documentWorkspaceId, onShareView, sendNow: executeSend });
+  const { resetShared } = mention;
+
+  useEffect(() => {
+    if (!value.trim()) {
+      resetShared();
+      setSharedNamesOnFailedSend(null);
+    }
+  }, [value, resetShared]);
+
   const fieldRef = useRef<HTMLDivElement>(null);
   const [listbox, setListbox] = useState({ up: false, maxHeight: LISTBOX_MAX });
   useLayoutEffect(() => {
@@ -129,20 +175,26 @@ export function DocumentCommentComposer({
     setListbox({ up, maxHeight: Math.max(96, Math.min(LISTBOX_MAX, up ? above : below)) });
   }, [picker.open]);
 
-  const blocked = !!blockedReasonId;
-  const canSend = !sending && !blocked && value.trim() !== "";
+  const noAccessChips = useMemo(
+    () => picker.pickedInBody.filter((person) => person.can_view === false && !mention.sharedUserIds.has(person.user_id.toUpperCase())),
+    [picker.pickedInBody, mention.sharedUserIds],
+  );
 
   const send = async () => {
     if (!canSend) return;
-    setSending(true);
-    setProblem(null);
-    try {
-      const outcome = await onSend(value);
-      if (outcome === "sent") clearDraft(key);
-      else setProblem(outcome);
-    } finally {
-      setSending(false);
+    const pendingNoAccess = resolveNoAccessMentionsForSend({
+      body: value,
+      pickedCandidates: picker.pickedCandidates,
+      sharedUserIds: mention.sharedRef.current,
+      doc,
+      currentUserId: accountId,
+      canShare,
+    });
+    if (pendingNoAccess.length > 0) {
+      mention.open(pendingNoAccess);
+      return;
     }
+    await executeSend(sharedNamesOnFailedSend ?? undefined);
   };
 
   const cancel = () => {
@@ -172,12 +224,21 @@ export function DocumentCommentComposer({
   const placeholder = t(placeholderKey);
   const shortcut = isMac() ? "⌘+Enter" : "Ctrl+Enter";
 
+  const problemText = (() => {
+    if (!problem) return null;
+    if (problem === "target_deleted") return t(deletedKey);
+    if (sharedNamesOnFailedSend && sharedNamesOnFailedSend.length > 0) {
+      return t(K.collabSendFailedAfterShare, { sharedNames: formatMentionList(sharedNamesOnFailedSend, i18n.language) });
+    }
+    return t(K.collabSendFailed);
+  })();
+
   return (
     <div className="space-y-2" data-testid={testId}>
+      <NoAccessChips people={noAccessChips} testId={`${testId}-mention-chips`} />
       <div ref={fieldRef} className="relative">
         <textarea
           ref={ref}
-          // Placeholder doubles as the accessible name (Accessibility Floor › Composer).
           aria-label={placeholder}
           placeholder={placeholder}
           value={value}
@@ -195,6 +256,7 @@ export function DocumentCommentComposer({
             : {})}
           onChange={(event) => {
             setValue(event.target.value);
+            if (postSendItems.length > 0) setPostSendItems([]);
             picker.sync(event.target.value, event.target.selectionStart ?? event.target.value.length);
           }}
           onSelect={(event) => picker.sync(event.currentTarget.value, event.currentTarget.selectionStart ?? 0)}
@@ -223,9 +285,9 @@ export function DocumentCommentComposer({
           <span className="sr-only" aria-live="polite">{t(K.collabMentionCount, { count: picker.count })}</span>
         ) : null}
       </div>
-      {problem ? (
+      {problem && problemText ? (
         <div id={problemId} role="alert" className="flex items-center gap-2 text-caption text-destructive" data-testid={`${testId}-problem`}>
-          <span className="min-w-0 flex-1">{problem === "failed" ? t(K.collabSendFailed) : t(deletedKey)}</span>
+          <span className="min-w-0 flex-1">{problemText}</span>
           {problem === "target_deleted" ? (
             <Button type="button" variant="outline" size="sm" onClick={() => void copyText(value)}>
               <Copy aria-hidden />
@@ -233,6 +295,17 @@ export function DocumentCommentComposer({
             </Button>
           ) : null}
         </div>
+      ) : null}
+      {renderPostSendInline && postSendItems.length > 0 ? (
+        <PostSendMentionNotice
+          wsId={wsId}
+          documentId={documentId}
+          documentWorkspaceId={documentWorkspaceId}
+          items={postSendItems}
+          body={lastSentBody}
+          onShareView={onShareView}
+          testId={`${testId}-post-send-notice`}
+        />
       ) : null}
       <div className="flex items-center gap-2">
         <span id={hintId} className="min-w-0 flex-1 truncate text-micro text-muted-foreground">
@@ -244,16 +317,19 @@ export function DocumentCommentComposer({
             {t(K.collabCancel)}
           </Button>
         ) : null}
-        <Button
-          type="button"
-          size="sm"
-          aria-disabled={!canSend || undefined}
-          onClick={() => void send()}
-          data-testid={`${testId}-send`}
-        >
+        <Button type="button" size="sm" aria-disabled={!canSend || undefined} onClick={() => void send()} data-testid={`${testId}-send`}>
           {sending ? t(K.collabSending) : t(K.collabSend)}
         </Button>
       </div>
+
+      <MentionWarningDialog
+        state={mention.warn}
+        testId={testId}
+        onCancel={mention.close}
+        onShare={(targets) => void mention.shareThenSend(targets)}
+        onSendOnly={() => void mention.sendOnly()}
+      />
+
       <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -266,6 +342,7 @@ export function DocumentCommentComposer({
               variant="destructive"
               onClick={() => {
                 clearDraft(key);
+                picker.clearPicked();
                 setDiscardOpen(false);
                 onCancel?.();
               }}

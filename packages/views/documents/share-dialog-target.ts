@@ -1,4 +1,3 @@
-import type { DocumentAdminScopeFake } from "@uniwork/core/documents/doc05-fake";
 import type { Document, DocumentAccessLevel } from "@uniwork/core/types/document";
 
 /**
@@ -9,12 +8,16 @@ import type { Document, DocumentAccessLevel } from "@uniwork/core/types/document
  * `workspace_id` is the document's own workspace, which can differ from the
  * route's (a shared-with-me row opens by id from any workspace): the picker's
  * home row and the merged-share check follow it, never the route.
- * `title` is optional: only the owner-transfer heading reads it.
+ * `title` is optional: only the owner-transfer heading reads it. `revision`
+ * is optional too: the summary does not carry it, and only the visibility
+ * editor needs it.
  */
 export type ShareDialogTarget = Pick<
   Document,
-  "id" | "workspace_id" | "visibility" | "owner_kind" | "organization_id" | "revision" | "archived_at"
+  "id" | "workspace_id" | "visibility" | "owner_kind" | "organization_id" | "archived_at"
 > & {
   my_level?: DocumentAccessLevel | "";
   title?: string;
-} & DocumentAdminScopeFake;
+  revision?: string;
+  admin_scope?: boolean;
+};
