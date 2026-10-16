@@ -1,0 +1,275 @@
+$ RID=$(cat /tmp/g704-rid); M=/tmp/$RID-markers.txt; R=/tmp/$RID-run; E=/tmp/$RID.env; cp .env $E && printf '\nAI_PROVIDER=fake\nAI_CONVERSATION_KEY=%s\nFF_OFFICE_AI_UNIWORK=true\nFF_OFFICE_AI_UNIWORK_DOCX=true\nFF_OFFICE_AI_UNIWORK_XLSX=true\n' "$(head -c 32 /dev/urandom | base64)" >> $E; export M ENV_FILE=$E OFFICE_FORK_SHA=e99471fe2 HARNESS_RUN_DIR=$R; bash scripts/office/g5g6g7/harness/keyring-session.sh --exec bash -c 'trap "HARNESS_RUN_DIR=$HARNESS_RUN_DIR bash scripts/office/g5g6g7/harness/stop.sh; rc=\$?; echo G704_STOP_EXIT=\$rc | tee -a $M" EXIT; bash scripts/office/g5g6g7/harness/start.sh; rc=$?; echo; echo "G704_START_EXIT=$rc" | tee -a $M; grep -v -i -E "key|secret|password|token" "$HARNESS_RUN_DIR/ports.env"; for row in G7-A01 G5-A03; do for fx in fx-xlsx-revenue-xyz fx-docx-report-vi; do node scripts/office/g5g6g7/evidence.mjs run --req $row --fixture $fx --out "$HARNESS_RUN_DIR" --checker harness:g7-04/cross-host.mjs -- node scripts/office/g5g6g7/g7-04/cross-host.mjs --row $row --fixture $fx --run-dir "$HARNESS_RUN_DIR"; rc=$?; echo; echo "G704_XH_${row//-/_}_$(echo ${fx//-/_} | tr a-z A-Z)_EXIT=$rc" | tee -a $M; done; done; for cs in deactivate downgrade remove; do for fx in fx-docx-report-vi fx-xlsx-revenue-xyz; do node scripts/office/g5g6g7/evidence.mjs run --req G7-A02 --fixture $fx --out "$HARNESS_RUN_DIR" --checker harness:g7-04/revoke.mjs -- node scripts/office/g5g6g7/g7-04/revoke.mjs --case $cs --fixture $fx --run-dir "$HARNESS_RUN_DIR"; rc=$?; echo; echo "G704_REVOKE_${cs^^}_$(echo ${fx//-/_} | tr a-z A-Z)_EXIT=$rc" | tee -a $M; done; done; node scripts/office/g5g6g7/evidence.mjs verify --out "$HARNESS_RUN_DIR"; rc=$?; echo; echo "G704_VERIFY_EXIT=$rc" | tee -a $M'; rc=$?; echo; echo "G704_KEYRING_EXEC_EXIT=$rc" | tee -a $M; true
+KEYRING_DAEMON secrets=yes unlocked=yes
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /tmp/g704-r8-1792141103575399496-run
+harness: D server  http://localhost:34005 (metrics 127.0.0.1:41221)
+harness: D web     http://localhost:40935
+harness: fork      e99471fe2
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:34005 ...
+harness: cloning the fork at e99471fe2...
+harness: npm ci in the fork (--ignore-scripts; no Electron binary yet)...
+harness: fetching the Electron binary (node /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-e99471fe2/node_modules/electron/install.js)...
+harness: building the fork apps (this is the slow step)...
+harness: starting the fork Electron app under xvfb...
+dbus-daemon[21111]: [session uid=1000 pid=21111] Activating service name='org.a11y.Bus' requested by ':1.5' (uid=1000 pid=24375 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[21111]: [session uid=1000 pid=21111] Successfully activated service 'org.a11y.Bus'
+harness: app on :99 (pid 24362)
+harness: up
+  D server  http://localhost:34005
+  D web     http://localhost:40935
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-e99471fe2 @ e99471fe2
+  pids      /tmp/g704-r8-1792141103575399496-run/pids
+  next      OFFICE_FORK_SHA=e99471fe2 HARNESS_RUN_DIR=/tmp/g704-r8-1792141103575399496-run node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /tmp/g704-r8-1792141103575399496-run
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=e99471fe2 HARNESS_RUN_DIR=/tmp/g704-r8-1792141103575399496-run \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /tmp/g704-r8-1792141103575399496-run
+
+G704_START_EXIT=0
+# Written by scripts/office/g5g6g7/harness/lib.mjs (start.sh) - one run's ports and origins.
+HARNESS_RUN_DIR=/tmp/g704-r8-1792141103575399496-run
+API_PORT=34005
+WEB_PORT=40935
+METRICS_PORT=41221
+PREVIEW_PORT=42881
+APP_PROXY_PORT=33245
+APP_CDP_PORT=34947
+API_ORIGIN=http://localhost:34005
+APP_API_ORIGIN=http://127.0.0.1:33245
+WEB_ORIGIN=http://localhost:40935
+OFFICE_FORK_SHA=e99471fe2
+D_SHA=66c2dc5845087197abecd12a00b76b54309f05e0
+DISPLAY=:99
+XAUTHORITY=/tmp/g704-r8-1792141103575399496-run/xauthority
+UNIWORK_USER_DATA=/tmp/g704-r8-1792141103575399496-run/userdata
+ELECTRON_BIN=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-e99471fe2/node_modules/electron/dist/electron
+SHELL_APP_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-e99471fe2/apps/shell
+OFFICE_FORK_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-e99471fe2
+HARNESS_DEPLOYMENT_ID=default
+{"evidenceId":"ev-g7-a01-0001","requirementId":"G7-A01","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G7-A01 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G7-A01","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a01-0001.log","checker":"harness:g7-04/cross-host.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:03:34.432Z","finishedAt":"2026-10-16T09:04:08.842Z"}
+evidence: ev-g7-a01-0001 BLOCKED; last 40 line(s) of ../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a01-0001.log:
+  |         "revisionType": "string",
+  |         "documentId": "01M51Z7M6A6AS33A8GJNBWZTDK",
+  |         "documentIdType": "string",
+  |         "savedAt": "2026-10-16T09:04:06Z",
+  |         "savedAtType": "string",
+  |         "reason": null,
+  |         "file": null,
+  |         "href": "http://localhost:40935/office-frame/sheets/0.1.0-bf4ff7b/index.html",
+  |         "origin": "http://localhost:40935",
+  |         "fromParent": true,
+  |         "at": 1792141446542
+  |       },
+  |       "reloadWindowFrom": 1792141446542,
+  |       "reloadClick": {
+  |         "clicked": false,
+  |         "bar": false,
+  |         "reason": "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)"
+  |       },
+  |       "reload": {
+  |         "versionId": "01M51Z8JZ937SE56JXCVYATHGT",
+  |         "version": 3
+  |       },
+  |       "confirmed": true,
+  |       "webContentSha256": "21192a6a205a935780db847ac9f0124c081de9ee75b7c46a52340e0bca029ae3"
+  |     },
+  |     "aiSegment": {
+  |       "status": "BLOCKED",
+  |       "reason": "no real upstream on this runner; contract-p0 §8",
+  |       "owner": "g7-qa",
+  |       "httpStatus": 200,
+  |       "provider": "fake"
+  |     }
+  |   },
+  |   "log": [],
+  |   "forkSha": "e99471fe2",
+  |   "startedAt": "2026-10-16T09:03:34.475Z",
+  |   "finishedAt": "2026-10-16T09:04:07.832Z"
+  | }
+  | G7-A01 fx-xlsx-revenue-xyz BLOCKED: ai-turn: real-AI upstream required, acceptance.md l.87 (/tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g7-a01/fx-xlsx-revenue-xyz.json)
+  | BLOCKED: real-AI upstream required, acceptance.md l.87
+
+G704_XH_G7_A01_FX_XLSX_REVENUE_XYZ_EXIT=77
+{"evidenceId":"ev-g7-a01-0002","requirementId":"G7-A01","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G7-A01 --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G7-A01","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a01-0002.log","checker":"harness:g7-04/cross-host.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:04:08.875Z","finishedAt":"2026-10-16T09:04:28.377Z"}
+evidence: ev-g7-a01-0002 BLOCKED; last 40 line(s) of ../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a01-0002.log:
+  |         "revisionType": "string",
+  |         "documentId": "01M51Z8NTGQ9ASPFVXS0M47KF9",
+  |         "documentIdType": "string",
+  |         "savedAt": "2026-10-16T09:04:24Z",
+  |         "savedAtType": "string",
+  |         "reason": null,
+  |         "file": null,
+  |         "href": "http://localhost:40935/office-frame/docs/0.1.0-bf4ff7b/index.html",
+  |         "origin": "http://localhost:40935",
+  |         "fromParent": true,
+  |         "at": 1792141464539
+  |       },
+  |       "reloadWindowFrom": 1792141464539,
+  |       "reloadClick": {
+  |         "clicked": false,
+  |         "bar": false,
+  |         "reason": "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)"
+  |       },
+  |       "reload": {
+  |         "versionId": "01M51Z94M1V2HFZJ4HDJ6N54NS",
+  |         "version": 3
+  |       },
+  |       "confirmed": true,
+  |       "webContentSha256": "1af2aa897f01786cba271add5cef37157ecdd994f18201cb8cbf8590a91db1dd"
+  |     },
+  |     "aiSegment": {
+  |       "status": "BLOCKED",
+  |       "reason": "no real upstream on this runner; contract-p0 §8",
+  |       "owner": "g7-qa",
+  |       "httpStatus": 200,
+  |       "provider": "fake"
+  |     }
+  |   },
+  |   "log": [],
+  |   "forkSha": "e99471fe2",
+  |   "startedAt": "2026-10-16T09:04:08.919Z",
+  |   "finishedAt": "2026-10-16T09:04:27.424Z"
+  | }
+  | G7-A01 fx-docx-report-vi BLOCKED: ai-turn: real-AI upstream required, acceptance.md l.87 (/tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g7-a01/fx-docx-report-vi.json)
+  | BLOCKED: real-AI upstream required, acceptance.md l.87
+
+G704_XH_G7_A01_FX_DOCX_REPORT_VI_EXIT=77
+{"evidenceId":"ev-g5-a03-0001","requirementId":"G5-A03","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G5-A03 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G5-A03","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g5-a03-0001.log","checker":"harness:g7-04/cross-host.mjs","blocker":null,"startedAt":"2026-10-16T09:04:28.411Z","finishedAt":"2026-10-16T09:04:49.828Z"}
+
+G704_XH_G5_A03_FX_XLSX_REVENUE_XYZ_EXIT=0
+{"evidenceId":"ev-g5-a03-0002","requirementId":"G5-A03","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G5-A03 --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G5-A03","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g5-a03-0002.log","checker":"harness:g7-04/cross-host.mjs","blocker":null,"startedAt":"2026-10-16T09:04:49.861Z","finishedAt":"2026-10-16T09:05:16.629Z"}
+
+G704_XH_G5_A03_FX_DOCX_REPORT_VI_EXIT=0
+{"evidenceId":"ev-g7-a02-0001","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case deactivate --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","deactivate","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0001.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:16.662Z","finishedAt":"2026-10-16T09:05:16.940Z"}
+evidence: ev-g7-a02-0001 BLOCKED; last 16 line(s) of ../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0001.log:
+  | case deactivate (fx-docx-report-vi): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  |   revoke POST /api/v1/orgs/o-g704-mvaqscd8-e1f7/members/01M51ZAR1VR20ZE5SQYH022072/deactivate -> 200
+  |   AI turn 2 session 403 member_deactivated error_class=permission/frame 401 unauthorized error_class=session; Save upload 403 member_deactivated/commit 403 member_deactivated
+  |   versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  |   reason content_not_verifiable; t1 s200/f200 t2 s403 member_deactivated/f401 unauthorized v 1->1 save up 403 member_deactivated/cm 403 member_deactivated
+  |   expected aiTurn2.frame 401 unauthorized error_class=session — handler/ai_mount.go:101-106 rewrites the member_deactivated CodedError (service/organization.go:155-156, service/errors.go:53-57) as 401 unauthorized; error_class session per handler/dto/sdo/error_class.go:64; the session route passes the same refusal through as 403 member_deactivated
+  |   expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  |   expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+  | {
+  |   "case": "deactivate",
+  |   "fixture": "fx-docx-report-vi",
+  |   "status": "BLOCKED",
+  |   "exitCode": 77,
+  |   "reason": "content_not_verifiable; t1 s200/f200 t2 s403 member_deactivated/f401 unauthorized v 1->1 save up 403 member_deactivated/cm 403 member_deactivated"
+  | }
+  | BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+
+G704_REVOKE_DEACTIVATE_FX_DOCX_REPORT_VI_EXIT=77
+{"evidenceId":"ev-g7-a02-0002","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case deactivate --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","deactivate","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0002.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:16.969Z","finishedAt":"2026-10-16T09:05:17.226Z"}
+evidence: ev-g7-a02-0002 BLOCKED; last 16 line(s) of ../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0002.log:
+  | case deactivate (fx-xlsx-revenue-xyz): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  |   revoke POST /api/v1/orgs/o-g704-mvaqsclp-spva/members/01M51ZARB5AEEC5QVJYAHY5S5G/deactivate -> 200
+  |   AI turn 2 session 403 member_deactivated error_class=permission/frame 401 unauthorized error_class=session; Save upload 403 member_deactivated/commit 403 member_deactivated
+  |   versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  |   reason content_not_verifiable; t1 s200/f200 t2 s403 member_deactivated/f401 unauthorized v 1->1 save up 403 member_deactivated/cm 403 member_deactivated
+  |   expected aiTurn2.frame 401 unauthorized error_class=session — handler/ai_mount.go:101-106 rewrites the member_deactivated CodedError (service/organization.go:155-156, service/errors.go:53-57) as 401 unauthorized; error_class session per handler/dto/sdo/error_class.go:64; the session route passes the same refusal through as 403 member_deactivated
+  |   expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  |   expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+  | {
+  |   "case": "deactivate",
+  |   "fixture": "fx-xlsx-revenue-xyz",
+  |   "status": "BLOCKED",
+  |   "exitCode": 77,
+  |   "reason": "content_not_verifiable; t1 s200/f200 t2 s403 member_deactivated/f401 unauthorized v 1->1 save up 403 member_deactivated/cm 403 member_deactivated"
+  | }
+  | BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+
+G704_REVOKE_DEACTIVATE_FX_XLSX_REVENUE_XYZ_EXIT=77
+{"evidenceId":"ev-g7-a02-0003","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case downgrade --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","downgrade","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0003.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:17.267Z","finishedAt":"2026-10-16T09:05:17.527Z"}
+evidence: ev-g7-a02-0003 BLOCKED; last 18 line(s) of ../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0003.log:
+  | case downgrade (fx-docx-report-vi): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  |   revoke PATCH /api/v1/documents/01M51ZARNGT2CPTVJ9SBCKNTWE visibility=restricted + share level=view -> 200
+  |   AI turn 2 session 200/frame 200; Save upload 403 forbidden/commit 404 not_found
+  |   versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  |   reason content_not_verifiable; t1 s200/f200 t2 s200/f200 v 1->1 save up 403 forbidden/cm 404 not_found
+  |   expected aiTurn2.session 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  |   expected aiTurn2.frame 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  |   expected saveCommit 404 not_found — resolveUpload runs before the edit gate (service/document_commit.go:277 vs :296) and the refused upload left no resolvable id; the edit-revoked proof of this case is the upload's 403 forbidden (service/document_files.go:132-134)
+  |   expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  |   expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+  | {
+  |   "case": "downgrade",
+  |   "fixture": "fx-docx-report-vi",
+  |   "status": "BLOCKED",
+  |   "exitCode": 77,
+  |   "reason": "content_not_verifiable; t1 s200/f200 t2 s200/f200 v 1->1 save up 403 forbidden/cm 404 not_found"
+  | }
+  | BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+
+G704_REVOKE_DOWNGRADE_FX_DOCX_REPORT_VI_EXIT=77
+{"evidenceId":"ev-g7-a02-0004","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case downgrade --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","downgrade","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0004.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:17.556Z","finishedAt":"2026-10-16T09:05:17.872Z"}
+evidence: ev-g7-a02-0004 BLOCKED; last 18 line(s) of ../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0004.log:
+  | case downgrade (fx-xlsx-revenue-xyz): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  |   revoke PATCH /api/v1/documents/01M51ZARYSBZ2EDQ19EY9NV9CB visibility=restricted + share level=view -> 200
+  |   AI turn 2 session 200/frame 200; Save upload 403 forbidden/commit 404 not_found
+  |   versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  |   reason content_not_verifiable; t1 s200/f200 t2 s200/f200 v 1->1 save up 403 forbidden/cm 404 not_found
+  |   expected aiTurn2.session 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  |   expected aiTurn2.frame 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  |   expected saveCommit 404 not_found — resolveUpload runs before the edit gate (service/document_commit.go:277 vs :296) and the refused upload left no resolvable id; the edit-revoked proof of this case is the upload's 403 forbidden (service/document_files.go:132-134)
+  |   expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  |   expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+  | {
+  |   "case": "downgrade",
+  |   "fixture": "fx-xlsx-revenue-xyz",
+  |   "status": "BLOCKED",
+  |   "exitCode": 77,
+  |   "reason": "content_not_verifiable; t1 s200/f200 t2 s200/f200 v 1->1 save up 403 forbidden/cm 404 not_found"
+  | }
+  | BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+
+G704_REVOKE_DOWNGRADE_FX_XLSX_REVENUE_XYZ_EXIT=77
+{"evidenceId":"ev-g7-a02-0005","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case remove --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","remove","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0005.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:17.912Z","finishedAt":"2026-10-16T09:05:18.166Z"}
+evidence: ev-g7-a02-0005 BLOCKED; last 15 line(s) of ../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0005.log:
+  | case remove (fx-docx-report-vi): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  |   revoke DELETE /api/v1/workspaces/01M51ZAS8X5W8V1F1MR6B4FWMW/members/01M51ZAS8J6MAKA7FC830CAVYZ -> 204
+  |   AI turn 2 session 404 not_found error_class=missing/frame 404 not_found error_class=missing; Save upload 404 not_found/commit 404 not_found
+  |   versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  |   reason content_not_verifiable; t1 s200/f200 t2 s404 not_found/f404 not_found v 1->1 save up 404 not_found/cm 404 not_found
+  |   expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  |   expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+  | {
+  |   "case": "remove",
+  |   "fixture": "fx-docx-report-vi",
+  |   "status": "BLOCKED",
+  |   "exitCode": 77,
+  |   "reason": "content_not_verifiable; t1 s200/f200 t2 s404 not_found/f404 not_found v 1->1 save up 404 not_found/cm 404 not_found"
+  | }
+  | BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+
+G704_REVOKE_REMOVE_FX_DOCX_REPORT_VI_EXIT=77
+{"evidenceId":"ev-g7-a02-0006","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case remove --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","remove","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0006.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:18.194Z","finishedAt":"2026-10-16T09:05:18.456Z"}
+evidence: ev-g7-a02-0006 BLOCKED; last 15 line(s) of ../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0006.log:
+  | case remove (fx-xlsx-revenue-xyz): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  |   revoke DELETE /api/v1/workspaces/01M51ZASHNR0DW41P8YP7G9H03/members/01M51ZASH9YV71ZP3VW4PAJ5H5 -> 204
+  |   AI turn 2 session 404 not_found error_class=missing/frame 404 not_found error_class=missing; Save upload 404 not_found/commit 404 not_found
+  |   versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  |   reason content_not_verifiable; t1 s200/f200 t2 s404 not_found/f404 not_found v 1->1 save up 404 not_found/cm 404 not_found
+  |   expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  |   expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+  | {
+  |   "case": "remove",
+  |   "fixture": "fx-xlsx-revenue-xyz",
+  |   "status": "BLOCKED",
+  |   "exitCode": 77,
+  |   "reason": "content_not_verifiable; t1 s200/f200 t2 s404 not_found/f404 not_found v 1->1 save up 404 not_found/cm 404 not_found"
+  | }
+  | BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+
+G704_REVOKE_REMOVE_FX_XLSX_REVENUE_XYZ_EXIT=77
+evidence verify: OK (10 records)
+
+G704_VERIFY_EXIT=0
+harness: stopped 4 process group(s) from /tmp/g704-r8-1792141103575399496-run
+G704_STOP_EXIT=0
+
+G704_KEYRING_EXEC_EXIT=0

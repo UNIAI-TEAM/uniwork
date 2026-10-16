@@ -1,0 +1,1516 @@
+$ RID=$(cat /tmp/g704-rid); R=/tmp/$RID-run; ls -R $R 2>/dev/null | head -150; find $R -path '*reports/g7-qa*' -name '*.json' 2>/dev/null | while read f; do echo "=== $f"; cat "$f"; echo; done; find $R test-results -name 'evidence.jsonl' 2>/dev/null -exec sh -c 'echo "=== $1"; cat "$1"' _ {} \; ; for f in $R/artifacts/*.log $R/logs/ev-*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 80 "$f"; }; done; true
+/tmp/g704-r8-1792141103575399496-run:
+app-proxy.state
+artifacts
+display
+evidence.jsonl
+logs
+ports.env
+reports
+server.env
+start-status.json
+userdata
+
+/tmp/g704-r8-1792141103575399496-run/artifacts:
+ev-g5-a03-0001.log
+ev-g5-a03-0002.log
+ev-g7-a01-0001.log
+ev-g7-a01-0002.log
+ev-g7-a02-0001.log
+ev-g7-a02-0002.log
+ev-g7-a02-0003.log
+ev-g7-a02-0004.log
+ev-g7-a02-0005.log
+ev-g7-a02-0006.log
+
+/tmp/g704-r8-1792141103575399496-run/logs:
+app.log
+app-proxy.log
+fork-build.log
+fork-clone.log
+fork-install.log
+g7-04-revoke-deactivate-fx-docx-report-vi.log
+g7-04-revoke-deactivate-fx-xlsx-revenue-xyz.log
+g7-04-revoke-downgrade-fx-docx-report-vi.log
+g7-04-revoke-downgrade-fx-xlsx-revenue-xyz.log
+g7-04-revoke-remove-fx-docx-report-vi.log
+g7-04-revoke-remove-fx-xlsx-revenue-xyz.log
+lib.log
+migrate.log
+readyz.json
+server-build.log
+server.log
+web.log
+
+/tmp/g704-r8-1792141103575399496-run/reports:
+g7-qa
+
+/tmp/g704-r8-1792141103575399496-run/reports/g7-qa:
+g5-a03
+g7-a01
+
+/tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g5-a03:
+fx-docx-report-vi.json
+fx-xlsx-revenue-xyz.json
+
+/tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g7-a01:
+fx-docx-report-vi.json
+fx-xlsx-revenue-xyz.json
+
+/tmp/g704-r8-1792141103575399496-run/userdata:
+app-settings.json
+blob_storage
+Cache
+Code Cache
+control.json
+control.sock
+Crashpad
+DawnGraphiteCache
+DawnWebGPUCache
+deployment-profile.json
+dev-instance.pid
+DevToolsActivePort
+Dictionaries
+DIPS
+DIPS-wal
+file-index.db
+file-index.db-shm
+file-index.db-wal
+GPUCache
+IndexedDB
+Local State
+Local Storage
+mcp-log.txt
+Network Persistent State
+open-documents.json
+Preferences
+projects
+recent.json
+Session Storage
+Shared Dictionary
+sheets-autosave
+spell-diag.log
+Trust Tokens
+Trust Tokens-journal
+uniwork-auth
+uniwork-documents
+uniwork-sync
+WebStorage
+workbench
+
+/tmp/g704-r8-1792141103575399496-run/userdata/blob_storage:
+7adb853b-d512-4991-bf8b-d95a75a66018
+
+/tmp/g704-r8-1792141103575399496-run/userdata/blob_storage/7adb853b-d512-4991-bf8b-d95a75a66018:
+
+/tmp/g704-r8-1792141103575399496-run/userdata/Cache:
+Cache_Data
+No_Vary_Search
+
+/tmp/g704-r8-1792141103575399496-run/userdata/Cache/Cache_Data:
+5283edf90cf4ab50_0
+89cca2920d9137ee_0
+8e22f13f8dcbff05_0
+index
+index-dir
+
+/tmp/g704-r8-1792141103575399496-run/userdata/Cache/Cache_Data/index-dir:
+the-real-index
+
+/tmp/g704-r8-1792141103575399496-run/userdata/Cache/No_Vary_Search:
+journal.baj
+snapshot.baf
+
+/tmp/g704-r8-1792141103575399496-run/userdata/Code Cache:
+electron-preload
+js
+wasm
+
+/tmp/g704-r8-1792141103575399496-run/userdata/Code Cache/electron-preload:
+14A87F062CBD7C1F7E596799D076E43D4139F28C83C3FA0061BD43FEF44B6A62-348C6C2F7CBCB488DE2C012192E26BECDA850C249180049503ED086B08C5BF00.cache
+BFAB4BE3610FCB85A4E32ED57E10747DD1F3132158B7ABB3B0DC970376A52222-046EE14B76106E2E39DCF4D74A8AEE393DEDA01000D21673491EB8D652BB29D2.cache
+C0CA5C72713B5B8B1123D27DDA3C243DD5B975C483509262F5B43D770495B461-445F9D0E7CB48AFFBD78C0BD672C3439B4F4FC428C7436A1490F2A19108976E6.cache
+
+/tmp/g704-r8-1792141103575399496-run/userdata/Code Cache/js:
+5bd74969bba150a3_0
+62a8860c26a04e52_0
+7bc95a05a5e4dab0_0
+b01afa23812fb620_0
+cb9317335df24ed9_0
+cedae8a30d74f357_0
+e320bb9be84a3a81_0
+ece12f7c7f5d912c_0
+index
+index-dir
+
+/tmp/g704-r8-1792141103575399496-run/userdata/Code Cache/js/index-dir:
+the-real-index
+
+/tmp/g704-r8-1792141103575399496-run/userdata/Code Cache/wasm:
+index
+index-dir
+=== /tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g5-a03/fx-docx-report-vi.json
+{
+  "row": "G5-A03",
+  "fixture": "fx-docx-report-vi",
+  "kind": "docs",
+  "module": "cross-host",
+  "status": "PASS",
+  "exitCode": 0,
+  "reason": "",
+  "blocker": "",
+  "owner": "",
+  "uiEdits": {
+    "dirty": "real",
+    "offlineSave": "real",
+    "aiSave": "standin"
+  },
+  "steps": {
+    "seed": {
+      "source": "protocol",
+      "status": "PASS",
+      "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "documentId": "01M51Z9XV6SQE9RB4DV5GEB4X2",
+      "elapsedMs": 115
+    },
+    "web-open": {
+      "source": "web",
+      "status": "PASS",
+      "where": "http://localhost:40935",
+      "elapsedMs": 3559
+    },
+    "web-save-1": {
+      "source": "web",
+      "status": "PASS",
+      "versionId": "01M51ZA1WGAQ5R51GNEX5B3AE8",
+      "version": 2,
+      "checksum": "2f2145f935fc451c9095d3dd0c82468c2d96eab2d855aec549ee7cc62126fb65",
+      "dirtyObserved": true,
+      "elapsedMs": 701
+    },
+    "app-open": {
+      "source": "app",
+      "status": "PASS",
+      "versionId": "01M51ZA1WGAQ5R51GNEX5B3AE8",
+      "version": 2,
+      "checksum": "2f2145f935fc451c9095d3dd0c82468c2d96eab2d855aec549ee7cc62126fb65",
+      "elapsedMs": 9517
+    },
+    "app-dirty": {
+      "source": "app-ui",
+      "status": "PASS",
+      "plan": "split-block",
+      "workingCopySha256": "2f2145f935fc451c9095d3dd0c82468c2d96eab2d855aec549ee7cc62126fb65",
+      "elapsedMs": 998
+    },
+    "web-save-2": {
+      "source": "web",
+      "status": "PASS",
+      "versionId": "01M51ZACNX5QKKA26ACD22GW7G",
+      "version": 3,
+      "elapsedMs": 576
+    },
+    "dirty-kept": {
+      "source": "app",
+      "status": "PASS",
+      "bar": {
+        "visible": true,
+        "version": 3,
+        "text": "A newer version is on UniWork (version 3). You have unsaved changes, so the document didn’t reload.Reload latest…Later",
+        "where": "shell"
+      },
+      "workingCopySha256": "2f2145f935fc451c9095d3dd0c82468c2d96eab2d855aec549ee7cc62126fb65",
+      "feedNudges": 2,
+      "elapsedMs": 7822
+    },
+    "app-reload": {
+      "source": "app-ui",
+      "status": "PASS",
+      "versionId": "01M51ZACNX5QKKA26ACD22GW7G",
+      "version": 3,
+      "elapsedMs": 659
+    },
+    "app-offline-save": {
+      "source": "app-ui",
+      "status": "PASS",
+      "editSource": "app-ui",
+      "intentFiles": 1,
+      "documentIntentFiles": 1,
+      "newIntentFiles": 1,
+      "versionsWhileCut": 3,
+      "elapsedMs": 845
+    },
+    "app-reconnect": {
+      "source": "app",
+      "status": "PASS",
+      "versionId": "01M51ZAP11C0TQ27EDH6W0H0YB",
+      "version": 4,
+      "checksum": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e",
+      "intentsRemaining": 0,
+      "elapsedMs": 99
+    },
+    "web-sees": {
+      "source": "web",
+      "status": "PASS",
+      "versionId": "01M51ZAP11C0TQ27EDH6W0H0YB",
+      "announcedVersionId": "01M51ZAP11C0TQ27EDH6W0H0YB",
+      "webContentSha256": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e",
+      "elapsedMs": 798
+    },
+    "final-shas": {
+      "source": "protocol",
+      "status": "PASS",
+      "serverSha256": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e",
+      "webSha256": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e",
+      "desktopSha256": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e",
+      "versions": 4,
+      "elapsedMs": 16
+    }
+  },
+  "versionCounts": {
+    "v1": 1,
+    "afterWebSave1": 2,
+    "afterWebSave2": 3,
+    "whileCut": 3,
+    "afterReconnect": 4,
+    "final": 4
+  },
+  "versionIds": {
+    "v1": "fixture-5e93b1dd7aef",
+    "v2": "01M51ZA1WGAQ5R51GNEX5B3AE8",
+    "v3": "01M51ZACNX5QKKA26ACD22GW7G",
+    "v4": "01M51ZAP11C0TQ27EDH6W0H0YB"
+  },
+  "checksums": {
+    "webAfterWebSave1": "2f2145f935fc451c9095d3dd0c82468c2d96eab2d855aec549ee7cc62126fb65",
+    "webAfterWebSave2": "482b4e09af31a0864123d024535213f7603a47febf7cecd494077b7610bfcee8",
+    "desktopAfterReconnect": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e",
+    "webContent": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e",
+    "server": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e",
+    "desktopWorkingCopy": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e"
+  },
+  "userSaves": [
+    {
+      "version": 2,
+      "versionId": "01M51ZA1WGAQ5R51GNEX5B3AE8",
+      "checksum": "2f2145f935fc451c9095d3dd0c82468c2d96eab2d855aec549ee7cc62126fb65",
+      "source": "web"
+    },
+    {
+      "version": 3,
+      "versionId": "01M51ZACNX5QKKA26ACD22GW7G",
+      "checksum": "482b4e09af31a0864123d024535213f7603a47febf7cecd494077b7610bfcee8",
+      "source": "web"
+    },
+    {
+      "version": 4,
+      "versionId": "01M51ZAP11C0TQ27EDH6W0H0YB",
+      "checksum": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e",
+      "source": "app"
+    }
+  ],
+  "aiTurns": [],
+  "notes": [],
+  "details": {
+    "documentId": "01M51Z9XV6SQE9RB4DV5GEB4X2",
+    "workspaceId": "01M51Z9XTR13GB0KZMTRD2CHBB",
+    "filename": "fx-docx-report-vi.docx",
+    "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "webSaveAt": 1792141505375,
+    "appPath": "/tmp/g704-r8-1792141103575399496-run/userdata/uniwork-documents/default/01M51Z9XT6FXQCTPVJ29EPR1XX/01M51Z9XV6SQE9RB4DV5GEB4X2/fx-docx-report-vi.docx",
+    "dirtyEdit": {
+      "source": "app-ui",
+      "plan": "split-block"
+    },
+    "dirtyEditSha": "2f2145f935fc451c9095d3dd0c82468c2d96eab2d855aec549ee7cc62126fb65",
+    "remoteNewerBar": {
+      "visible": true,
+      "version": 3,
+      "text": "A newer version is on UniWork (version 3). You have unsaved changes, so the document didn’t reload.Reload latest…Later",
+      "where": "shell"
+    },
+    "appReload": {
+      "clicked": true,
+      "confirmed": true,
+      "choseDiscard": true,
+      "confirmText": "Reload",
+      "dirtyShaBeforeClick": "2f2145f935fc451c9095d3dd0c82468c2d96eab2d855aec549ee7cc62126fb65",
+      "baseVersionBeforeClick": 2
+    },
+    "offlineEdit": {
+      "source": "app-ui",
+      "plan": "split-block"
+    },
+    "webSees": {
+      "announced": {
+        "kind": "event",
+        "type": "doc.remoteVersion",
+        "ns": "uniwork.office.docs",
+        "v": 1,
+        "versionId": "01M51ZAP11C0TQ27EDH6W0H0YB",
+        "versionIdType": "string",
+        "version": null,
+        "revision": "4",
+        "revisionType": "string",
+        "documentId": "01M51Z9XV6SQE9RB4DV5GEB4X2",
+        "documentIdType": "string",
+        "savedAt": "2026-10-16T09:05:14Z",
+        "savedAtType": "string",
+        "reason": null,
+        "file": null,
+        "href": "http://localhost:40935/office-frame/docs/0.1.0-bf4ff7b/index.html",
+        "origin": "http://localhost:40935",
+        "fromParent": true,
+        "at": 1792141515541
+      },
+      "reloadWindowFrom": 1792141515541,
+      "reloadClick": {
+        "clicked": false,
+        "bar": false,
+        "reason": "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)"
+      },
+      "reload": {
+        "versionId": "01M51ZAP11C0TQ27EDH6W0H0YB",
+        "version": 4
+      },
+      "confirmed": true,
+      "webContentSha256": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e"
+    }
+  },
+  "log": [],
+  "forkSha": "e99471fe2",
+  "startedAt": "2026-10-16T09:04:49.908Z",
+  "finishedAt": "2026-10-16T09:05:15.663Z"
+}
+
+=== /tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g5-a03/fx-xlsx-revenue-xyz.json
+{
+  "row": "G5-A03",
+  "fixture": "fx-xlsx-revenue-xyz",
+  "kind": "sheets",
+  "module": "cross-host",
+  "status": "PASS",
+  "exitCode": 0,
+  "reason": "",
+  "blocker": "",
+  "owner": "",
+  "uiEdits": {
+    "dirty": "real",
+    "offlineSave": "real",
+    "aiSave": "standin"
+  },
+  "steps": {
+    "seed": {
+      "source": "protocol",
+      "status": "PASS",
+      "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "documentId": "01M51Z98WSEXCXBBGRDH7FWVR8",
+      "elapsedMs": 118
+    },
+    "web-open": {
+      "source": "web",
+      "status": "PASS",
+      "where": "http://localhost:40935",
+      "elapsedMs": 3226
+    },
+    "web-save-1": {
+      "source": "web",
+      "status": "PASS",
+      "versionId": "01M51Z9E9JNVT17VJKX62Y7B1A",
+      "version": 2,
+      "checksum": "29200e7a9fd82ae3f435d6293c8121902f0dd51623c6d908a25dc8790d19d19f",
+      "dirtyObserved": true,
+      "elapsedMs": 2395
+    },
+    "app-open": {
+      "source": "app",
+      "status": "PASS",
+      "versionId": "01M51Z9E9JNVT17VJKX62Y7B1A",
+      "version": 2,
+      "checksum": "29200e7a9fd82ae3f435d6293c8121902f0dd51623c6d908a25dc8790d19d19f",
+      "elapsedMs": 9453
+    },
+    "app-dirty": {
+      "source": "app-ui",
+      "status": "PASS",
+      "plan": "insert-row",
+      "workingCopySha256": "29200e7a9fd82ae3f435d6293c8121902f0dd51623c6d908a25dc8790d19d19f",
+      "elapsedMs": 1489
+    },
+    "web-save-2": {
+      "source": "web",
+      "status": "PASS",
+      "versionId": "01M51Z9T01V9Y1E07TZ0ZY37VQ",
+      "version": 3,
+      "elapsedMs": 1101
+    },
+    "dirty-kept": {
+      "source": "app",
+      "status": "PASS",
+      "bar": {
+        "visible": true,
+        "version": 3,
+        "text": "A newer version is on UniWork (version 3). You have unsaved changes, so the document didn’t reload.Reload latest…Later",
+        "where": "shell"
+      },
+      "workingCopySha256": "29200e7a9fd82ae3f435d6293c8121902f0dd51623c6d908a25dc8790d19d19f",
+      "feedNudges": 1,
+      "elapsedMs": 298
+    },
+    "app-reload": {
+      "source": "app-ui",
+      "status": "PASS",
+      "versionId": "01M51Z9T01V9Y1E07TZ0ZY37VQ",
+      "version": 3,
+      "elapsedMs": 658
+    },
+    "app-offline-save": {
+      "source": "app-ui",
+      "status": "PASS",
+      "editSource": "app-ui",
+      "intentFiles": 1,
+      "documentIntentFiles": 1,
+      "newIntentFiles": 1,
+      "versionsWhileCut": 3,
+      "elapsedMs": 724
+    },
+    "app-reconnect": {
+      "source": "app",
+      "status": "PASS",
+      "versionId": "01M51Z9VW0CGC4KKKSKMXQ3ARR",
+      "version": 4,
+      "checksum": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e",
+      "intentsRemaining": 0,
+      "elapsedMs": 96
+    },
+    "web-sees": {
+      "source": "web",
+      "status": "PASS",
+      "versionId": "01M51Z9VW0CGC4KKKSKMXQ3ARR",
+      "announcedVersionId": "01M51Z9VW0CGC4KKKSKMXQ3ARR",
+      "webContentSha256": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e",
+      "elapsedMs": 789
+    },
+    "final-shas": {
+      "source": "protocol",
+      "status": "PASS",
+      "serverSha256": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e",
+      "webSha256": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e",
+      "desktopSha256": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e",
+      "versions": 4,
+      "elapsedMs": 11
+    }
+  },
+  "versionCounts": {
+    "v1": 1,
+    "afterWebSave1": 2,
+    "afterWebSave2": 3,
+    "whileCut": 3,
+    "afterReconnect": 4,
+    "final": 4
+  },
+  "versionIds": {
+    "v1": "fixture-a93cd768ca51",
+    "v2": "01M51Z9E9JNVT17VJKX62Y7B1A",
+    "v3": "01M51Z9T01V9Y1E07TZ0ZY37VQ",
+    "v4": "01M51Z9VW0CGC4KKKSKMXQ3ARR"
+  },
+  "checksums": {
+    "webAfterWebSave1": "29200e7a9fd82ae3f435d6293c8121902f0dd51623c6d908a25dc8790d19d19f",
+    "webAfterWebSave2": "b6c6d514c9cead1b0c9d076623fce182ac2c7fa44e37ce3178ffdcbaac7bc56b",
+    "desktopAfterReconnect": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e",
+    "webContent": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e",
+    "server": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e",
+    "desktopWorkingCopy": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e"
+  },
+  "userSaves": [
+    {
+      "version": 2,
+      "versionId": "01M51Z9E9JNVT17VJKX62Y7B1A",
+      "checksum": "29200e7a9fd82ae3f435d6293c8121902f0dd51623c6d908a25dc8790d19d19f",
+      "source": "web"
+    },
+    {
+      "version": 3,
+      "versionId": "01M51Z9T01V9Y1E07TZ0ZY37VQ",
+      "checksum": "b6c6d514c9cead1b0c9d076623fce182ac2c7fa44e37ce3178ffdcbaac7bc56b",
+      "source": "web"
+    },
+    {
+      "version": 4,
+      "versionId": "01M51Z9VW0CGC4KKKSKMXQ3ARR",
+      "checksum": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e",
+      "source": "app"
+    }
+  ],
+  "aiTurns": [],
+  "notes": [],
+  "details": {
+    "documentId": "01M51Z98WSEXCXBBGRDH7FWVR8",
+    "workspaceId": "01M51Z98W94QR8VWPSFPJPJ442",
+    "filename": "fx-xlsx-revenue-xyz.xlsx",
+    "v1Sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+    "webSaveAt": 1792141486236,
+    "appPath": "/tmp/g704-r8-1792141103575399496-run/userdata/uniwork-documents/default/01M51Z98VMZNS0BD0EJ6E8JJMQ/01M51Z98WSEXCXBBGRDH7FWVR8/fx-xlsx-revenue-xyz.xlsx",
+    "dirtyEdit": {
+      "source": "app-ui",
+      "plan": "insert-row"
+    },
+    "dirtyEditSha": "29200e7a9fd82ae3f435d6293c8121902f0dd51623c6d908a25dc8790d19d19f",
+    "remoteNewerBar": {
+      "visible": true,
+      "version": 3,
+      "text": "A newer version is on UniWork (version 3). You have unsaved changes, so the document didn’t reload.Reload latest…Later",
+      "where": "shell"
+    },
+    "appReload": {
+      "clicked": true,
+      "confirmed": true,
+      "choseDiscard": true,
+      "confirmText": "Reload",
+      "dirtyShaBeforeClick": "29200e7a9fd82ae3f435d6293c8121902f0dd51623c6d908a25dc8790d19d19f",
+      "baseVersionBeforeClick": 2
+    },
+    "offlineEdit": {
+      "source": "app-ui",
+      "plan": "insert-row"
+    },
+    "webSees": {
+      "announced": {
+        "kind": "event",
+        "type": "doc.remoteVersion",
+        "ns": "uniwork.office.docs",
+        "v": 1,
+        "versionId": "01M51Z9VW0CGC4KKKSKMXQ3ARR",
+        "versionIdType": "string",
+        "version": null,
+        "revision": "4",
+        "revisionType": "string",
+        "documentId": "01M51Z98WSEXCXBBGRDH7FWVR8",
+        "documentIdType": "string",
+        "savedAt": "2026-10-16T09:04:47Z",
+        "savedAtType": "string",
+        "reason": null,
+        "file": null,
+        "href": "http://localhost:40935/office-frame/sheets/0.1.0-bf4ff7b/index.html",
+        "origin": "http://localhost:40935",
+        "fromParent": true,
+        "at": 1792141488539
+      },
+      "reloadWindowFrom": 1792141488539,
+      "reloadClick": {
+        "clicked": false,
+        "bar": false,
+        "reason": "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)"
+      },
+      "reload": {
+        "versionId": "01M51Z9VW0CGC4KKKSKMXQ3ARR",
+        "version": 4
+      },
+      "confirmed": true,
+      "webContentSha256": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e"
+    }
+  },
+  "log": [],
+  "forkSha": "e99471fe2",
+  "startedAt": "2026-10-16T09:04:28.453Z",
+  "finishedAt": "2026-10-16T09:04:48.858Z"
+}
+
+=== /tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g7-a01/fx-docx-report-vi.json
+{
+  "row": "G7-A01",
+  "fixture": "fx-docx-report-vi",
+  "kind": "docs",
+  "module": "cross-host",
+  "status": "BLOCKED",
+  "exitCode": 77,
+  "reason": "ai-turn: real-AI upstream required, acceptance.md l.87",
+  "blocker": "real-AI upstream required, acceptance.md l.87",
+  "owner": "g7-qa",
+  "uiEdits": {
+    "dirty": "standin",
+    "offlineSave": "real",
+    "aiSave": "standin"
+  },
+  "steps": {
+    "seed": {
+      "source": "protocol",
+      "status": "PASS",
+      "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+      "documentId": "01M51Z8NTGQ9ASPFVXS0M47KF9",
+      "elapsedMs": 123
+    },
+    "web-open": {
+      "source": "web",
+      "status": "PASS",
+      "where": "http://localhost:40935",
+      "elapsedMs": 3537
+    },
+    "web-save-1": {
+      "source": "web",
+      "status": "PASS",
+      "versionId": "01M51Z8SYQNMBBS3XGBSGPT26J",
+      "version": 2,
+      "checksum": "55660c1affb9f43ddb55c79b64336c88d01bf8fad571e8a3b206b03cf6885145",
+      "dirtyObserved": true,
+      "elapsedMs": 800
+    },
+    "app-open": {
+      "source": "app",
+      "status": "PASS",
+      "versionId": "01M51Z8SYQNMBBS3XGBSGPT26J",
+      "version": 2,
+      "checksum": "55660c1affb9f43ddb55c79b64336c88d01bf8fad571e8a3b206b03cf6885145",
+      "elapsedMs": 9489
+    },
+    "app-offline-save": {
+      "source": "app-ui",
+      "status": "PASS",
+      "editSource": "app-ui",
+      "intentFiles": 1,
+      "documentIntentFiles": 1,
+      "newIntentFiles": 1,
+      "versionsWhileCut": 2,
+      "elapsedMs": 1241
+    },
+    "app-reconnect": {
+      "source": "app",
+      "status": "PASS",
+      "versionId": "01M51Z94M1V2HFZJ4HDJ6N54NS",
+      "version": 3,
+      "checksum": "1af2aa897f01786cba271add5cef37157ecdd994f18201cb8cbf8590a91db1dd",
+      "intentsRemaining": 0,
+      "elapsedMs": 96
+    },
+    "web-sees": {
+      "source": "web",
+      "status": "PASS",
+      "versionId": "01M51Z94M1V2HFZJ4HDJ6N54NS",
+      "announcedVersionId": "01M51Z94M1V2HFZJ4HDJ6N54NS",
+      "webContentSha256": "1af2aa897f01786cba271add5cef37157ecdd994f18201cb8cbf8590a91db1dd",
+      "elapsedMs": 533
+    },
+    "ai-turn": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "blocker": "real-AI upstream required, acceptance.md l.87",
+      "owner": "g7-qa",
+      "details": {
+        "aiSegment": {
+          "status": "BLOCKED",
+          "reason": "no real upstream on this runner; contract-p0 §8",
+          "owner": "g7-qa",
+          "httpStatus": 200,
+          "provider": "fake"
+        },
+        "versionsBefore": 3,
+        "versionsAfter": 3
+      },
+      "elapsedMs": 11
+    },
+    "ai-save": {
+      "source": "app",
+      "status": "PASS",
+      "versionId": "01M51Z97PHKD0660BE6V63VFE8",
+      "version": 4,
+      "checksum": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "elapsedMs": 2605
+    },
+    "final-shas": {
+      "source": "protocol",
+      "status": "PASS",
+      "serverSha256": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "webSha256": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "desktopSha256": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "versions": 4,
+      "elapsedMs": 12
+    }
+  },
+  "versionCounts": {
+    "v1": 1,
+    "afterWebSave1": 2,
+    "whileCut": 2,
+    "afterReconnect": 3,
+    "afterAiTurn": 3,
+    "afterAiSave": 4,
+    "final": 4
+  },
+  "versionIds": {
+    "v1": "fixture-5e93b1dd7aef",
+    "v2": "01M51Z8SYQNMBBS3XGBSGPT26J",
+    "v3": "01M51Z94M1V2HFZJ4HDJ6N54NS",
+    "v4": "01M51Z97PHKD0660BE6V63VFE8"
+  },
+  "checksums": {
+    "webAfterWebSave1": "55660c1affb9f43ddb55c79b64336c88d01bf8fad571e8a3b206b03cf6885145",
+    "desktopAfterReconnect": "1af2aa897f01786cba271add5cef37157ecdd994f18201cb8cbf8590a91db1dd",
+    "webContent": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+    "server": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+    "desktopWorkingCopy": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be"
+  },
+  "userSaves": [
+    {
+      "version": 2,
+      "versionId": "01M51Z8SYQNMBBS3XGBSGPT26J",
+      "checksum": "55660c1affb9f43ddb55c79b64336c88d01bf8fad571e8a3b206b03cf6885145",
+      "source": "web"
+    },
+    {
+      "version": 3,
+      "versionId": "01M51Z94M1V2HFZJ4HDJ6N54NS",
+      "checksum": "1af2aa897f01786cba271add5cef37157ecdd994f18201cb8cbf8590a91db1dd",
+      "source": "app"
+    },
+    {
+      "version": 4,
+      "versionId": "01M51Z97PHKD0660BE6V63VFE8",
+      "checksum": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "source": "app"
+    }
+  ],
+  "aiTurns": [
+    {
+      "versionsBefore": 3,
+      "versionsAfter": 3,
+      "httpStatus": 200,
+      "at": 1792141464750
+    }
+  ],
+  "notes": [
+    "the AI turn is a document-route protocol call (contract-p0 A10); the Save after it stores the format's deterministic stand-in bytes for the AI edit (uiEdits.aiSave=standin) — the fork's AI-panel wiring is not driven by this harness"
+  ],
+  "details": {
+    "documentId": "01M51Z8NTGQ9ASPFVXS0M47KF9",
+    "workspaceId": "01M51Z8NSZZ6TDVYVNY1SVGE9P",
+    "filename": "fx-docx-report-vi.docx",
+    "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "webSaveAt": 1792141453380,
+    "appPath": "/tmp/g704-r8-1792141103575399496-run/userdata/uniwork-documents/default/01M51Z8NS6KYTFHWXF6EMF850X/01M51Z8NTGQ9ASPFVXS0M47KF9/fx-docx-report-vi.docx",
+    "offlineEdit": {
+      "source": "app-ui",
+      "plan": "split-block"
+    },
+    "webSees": {
+      "announced": {
+        "kind": "event",
+        "type": "doc.remoteVersion",
+        "ns": "uniwork.office.docs",
+        "v": 1,
+        "versionId": "01M51Z94M1V2HFZJ4HDJ6N54NS",
+        "versionIdType": "string",
+        "version": null,
+        "revision": "3",
+        "revisionType": "string",
+        "documentId": "01M51Z8NTGQ9ASPFVXS0M47KF9",
+        "documentIdType": "string",
+        "savedAt": "2026-10-16T09:04:24Z",
+        "savedAtType": "string",
+        "reason": null,
+        "file": null,
+        "href": "http://localhost:40935/office-frame/docs/0.1.0-bf4ff7b/index.html",
+        "origin": "http://localhost:40935",
+        "fromParent": true,
+        "at": 1792141464539
+      },
+      "reloadWindowFrom": 1792141464539,
+      "reloadClick": {
+        "clicked": false,
+        "bar": false,
+        "reason": "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)"
+      },
+      "reload": {
+        "versionId": "01M51Z94M1V2HFZJ4HDJ6N54NS",
+        "version": 3
+      },
+      "confirmed": true,
+      "webContentSha256": "1af2aa897f01786cba271add5cef37157ecdd994f18201cb8cbf8590a91db1dd"
+    },
+    "aiSegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 200,
+      "provider": "fake"
+    }
+  },
+  "log": [],
+  "forkSha": "e99471fe2",
+  "startedAt": "2026-10-16T09:04:08.919Z",
+  "finishedAt": "2026-10-16T09:04:27.424Z"
+}
+
+=== /tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g7-a01/fx-xlsx-revenue-xyz.json
+{
+  "row": "G7-A01",
+  "fixture": "fx-xlsx-revenue-xyz",
+  "kind": "sheets",
+  "module": "cross-host",
+  "status": "BLOCKED",
+  "exitCode": 77,
+  "reason": "ai-turn: real-AI upstream required, acceptance.md l.87",
+  "blocker": "real-AI upstream required, acceptance.md l.87",
+  "owner": "g7-qa",
+  "uiEdits": {
+    "dirty": "standin",
+    "offlineSave": "real",
+    "aiSave": "standin"
+  },
+  "steps": {
+    "seed": {
+      "source": "protocol",
+      "status": "PASS",
+      "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "documentId": "01M51Z7M6A6AS33A8GJNBWZTDK",
+      "elapsedMs": 131
+    },
+    "web-open": {
+      "source": "web",
+      "status": "PASS",
+      "where": "http://localhost:40935",
+      "elapsedMs": 17627
+    },
+    "web-save-1": {
+      "source": "web",
+      "status": "PASS",
+      "versionId": "01M51Z87NX2JMEXXRXRTJBA2R7",
+      "version": 2,
+      "checksum": "d266263c1342d525c41d8d8c58649834f4ddfa1c38fe0e342ff0e42f200e7c21",
+      "dirtyObserved": true,
+      "elapsedMs": 2429
+    },
+    "app-open": {
+      "source": "app",
+      "status": "PASS",
+      "versionId": "01M51Z87NX2JMEXXRXRTJBA2R7",
+      "version": 2,
+      "checksum": "d266263c1342d525c41d8d8c58649834f4ddfa1c38fe0e342ff0e42f200e7c21",
+      "elapsedMs": 9627
+    },
+    "app-offline-save": {
+      "source": "app-ui",
+      "status": "PASS",
+      "editSource": "app-ui",
+      "intentFiles": 1,
+      "documentIntentFiles": 1,
+      "newIntentFiles": 1,
+      "versionsWhileCut": 2,
+      "elapsedMs": 1732
+    },
+    "app-reconnect": {
+      "source": "app",
+      "status": "PASS",
+      "versionId": "01M51Z8JZ937SE56JXCVYATHGT",
+      "version": 3,
+      "checksum": "21192a6a205a935780db847ac9f0124c081de9ee75b7c46a52340e0bca029ae3",
+      "intentsRemaining": 0,
+      "elapsedMs": 118
+    },
+    "web-sees": {
+      "source": "web",
+      "status": "PASS",
+      "versionId": "01M51Z8JZ937SE56JXCVYATHGT",
+      "announcedVersionId": "01M51Z8JZ937SE56JXCVYATHGT",
+      "webContentSha256": "21192a6a205a935780db847ac9f0124c081de9ee75b7c46a52340e0bca029ae3",
+      "elapsedMs": 567
+    },
+    "ai-turn": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "blocker": "real-AI upstream required, acceptance.md l.87",
+      "owner": "g7-qa",
+      "details": {
+        "aiSegment": {
+          "status": "BLOCKED",
+          "reason": "no real upstream on this runner; contract-p0 §8",
+          "owner": "g7-qa",
+          "httpStatus": 200,
+          "provider": "fake"
+        },
+        "versionsBefore": 3,
+        "versionsAfter": 3
+      },
+      "elapsedMs": 15
+    },
+    "ai-save": {
+      "source": "app",
+      "status": "PASS",
+      "versionId": "01M51Z8KK6Q3ATZASNHCKK9V43",
+      "version": 4,
+      "checksum": "8ee3b8a8402f74e36668b915264bc6a1b1cab7ded462cb9588fddbe33c6089e3",
+      "elapsedMs": 46
+    },
+    "final-shas": {
+      "source": "protocol",
+      "status": "PASS",
+      "serverSha256": "8ee3b8a8402f74e36668b915264bc6a1b1cab7ded462cb9588fddbe33c6089e3",
+      "webSha256": "8ee3b8a8402f74e36668b915264bc6a1b1cab7ded462cb9588fddbe33c6089e3",
+      "desktopSha256": "8ee3b8a8402f74e36668b915264bc6a1b1cab7ded462cb9588fddbe33c6089e3",
+      "versions": 4,
+      "elapsedMs": 14
+    }
+  },
+  "versionCounts": {
+    "v1": 1,
+    "afterWebSave1": 2,
+    "whileCut": 2,
+    "afterReconnect": 3,
+    "afterAiTurn": 3,
+    "afterAiSave": 4,
+    "final": 4
+  },
+  "versionIds": {
+    "v1": "fixture-a93cd768ca51",
+    "v2": "01M51Z87NX2JMEXXRXRTJBA2R7",
+    "v3": "01M51Z8JZ937SE56JXCVYATHGT",
+    "v4": "01M51Z8KK6Q3ATZASNHCKK9V43"
+  },
+  "checksums": {
+    "webAfterWebSave1": "d266263c1342d525c41d8d8c58649834f4ddfa1c38fe0e342ff0e42f200e7c21",
+    "desktopAfterReconnect": "21192a6a205a935780db847ac9f0124c081de9ee75b7c46a52340e0bca029ae3",
+    "webContent": "8ee3b8a8402f74e36668b915264bc6a1b1cab7ded462cb9588fddbe33c6089e3",
+    "server": "8ee3b8a8402f74e36668b915264bc6a1b1cab7ded462cb9588fddbe33c6089e3",
+    "desktopWorkingCopy": "8ee3b8a8402f74e36668b915264bc6a1b1cab7ded462cb9588fddbe33c6089e3"
+  },
+  "userSaves": [
+    {
+      "version": 2,
+      "versionId": "01M51Z87NX2JMEXXRXRTJBA2R7",
+      "checksum": "d266263c1342d525c41d8d8c58649834f4ddfa1c38fe0e342ff0e42f200e7c21",
+      "source": "web"
+    },
+    {
+      "version": 3,
+      "versionId": "01M51Z8JZ937SE56JXCVYATHGT",
+      "checksum": "21192a6a205a935780db847ac9f0124c081de9ee75b7c46a52340e0bca029ae3",
+      "source": "app"
+    },
+    {
+      "version": 4,
+      "versionId": "01M51Z8KK6Q3ATZASNHCKK9V43",
+      "checksum": "8ee3b8a8402f74e36668b915264bc6a1b1cab7ded462cb9588fddbe33c6089e3",
+      "source": "app"
+    }
+  ],
+  "aiTurns": [
+    {
+      "versionsBefore": 3,
+      "versionsAfter": 3,
+      "httpStatus": 200,
+      "at": 1792141446722
+    }
+  ],
+  "notes": [
+    "the AI turn is a document-route protocol call (contract-p0 A10); the Save after it stores the format's deterministic stand-in bytes for the AI edit (uiEdits.aiSave=standin) — the fork's AI-panel wiring is not driven by this harness"
+  ],
+  "details": {
+    "documentId": "01M51Z7M6A6AS33A8GJNBWZTDK",
+    "workspaceId": "01M51Z7M5MY9C3GN1ZXH3FGZB8",
+    "filename": "fx-xlsx-revenue-xyz.xlsx",
+    "v1Sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+    "webSaveAt": 1792141434663,
+    "appPath": "/tmp/g704-r8-1792141103575399496-run/userdata/uniwork-documents/default/01M51Z7M4VXXX92QP3N0G9PZGH/01M51Z7M6A6AS33A8GJNBWZTDK/fx-xlsx-revenue-xyz.xlsx",
+    "offlineEdit": {
+      "source": "app-ui",
+      "plan": "insert-row"
+    },
+    "webSees": {
+      "announced": {
+        "kind": "event",
+        "type": "doc.remoteVersion",
+        "ns": "uniwork.office.docs",
+        "v": 1,
+        "versionId": "01M51Z8JZ937SE56JXCVYATHGT",
+        "versionIdType": "string",
+        "version": null,
+        "revision": "3",
+        "revisionType": "string",
+        "documentId": "01M51Z7M6A6AS33A8GJNBWZTDK",
+        "documentIdType": "string",
+        "savedAt": "2026-10-16T09:04:06Z",
+        "savedAtType": "string",
+        "reason": null,
+        "file": null,
+        "href": "http://localhost:40935/office-frame/sheets/0.1.0-bf4ff7b/index.html",
+        "origin": "http://localhost:40935",
+        "fromParent": true,
+        "at": 1792141446542
+      },
+      "reloadWindowFrom": 1792141446542,
+      "reloadClick": {
+        "clicked": false,
+        "bar": false,
+        "reason": "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)"
+      },
+      "reload": {
+        "versionId": "01M51Z8JZ937SE56JXCVYATHGT",
+        "version": 3
+      },
+      "confirmed": true,
+      "webContentSha256": "21192a6a205a935780db847ac9f0124c081de9ee75b7c46a52340e0bca029ae3"
+    },
+    "aiSegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 200,
+      "provider": "fake"
+    }
+  },
+  "log": [],
+  "forkSha": "e99471fe2",
+  "startedAt": "2026-10-16T09:03:34.475Z",
+  "finishedAt": "2026-10-16T09:04:07.832Z"
+}
+
+=== /tmp/g704-r8-1792141103575399496-run/evidence.jsonl
+{"evidenceId":"ev-g7-a01-0001","requirementId":"G7-A01","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G7-A01 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G7-A01","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a01-0001.log","checker":"harness:g7-04/cross-host.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:03:34.432Z","finishedAt":"2026-10-16T09:04:08.842Z"}
+{"evidenceId":"ev-g7-a01-0002","requirementId":"G7-A01","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G7-A01 --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G7-A01","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a01-0002.log","checker":"harness:g7-04/cross-host.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:04:08.875Z","finishedAt":"2026-10-16T09:04:28.377Z"}
+{"evidenceId":"ev-g5-a03-0001","requirementId":"G5-A03","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G5-A03 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G5-A03","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g5-a03-0001.log","checker":"harness:g7-04/cross-host.mjs","blocker":null,"startedAt":"2026-10-16T09:04:28.411Z","finishedAt":"2026-10-16T09:04:49.828Z"}
+{"evidenceId":"ev-g5-a03-0002","requirementId":"G5-A03","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/cross-host.mjs --row G5-A03 --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/cross-host.mjs","--row","G5-A03","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g5-a03-0002.log","checker":"harness:g7-04/cross-host.mjs","blocker":null,"startedAt":"2026-10-16T09:04:49.861Z","finishedAt":"2026-10-16T09:05:16.629Z"}
+{"evidenceId":"ev-g7-a02-0001","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case deactivate --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","deactivate","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0001.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:16.662Z","finishedAt":"2026-10-16T09:05:16.940Z"}
+{"evidenceId":"ev-g7-a02-0002","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case deactivate --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","deactivate","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0002.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:16.969Z","finishedAt":"2026-10-16T09:05:17.226Z"}
+{"evidenceId":"ev-g7-a02-0003","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case downgrade --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","downgrade","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0003.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:17.267Z","finishedAt":"2026-10-16T09:05:17.527Z"}
+{"evidenceId":"ev-g7-a02-0004","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case downgrade --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","downgrade","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0004.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:17.556Z","finishedAt":"2026-10-16T09:05:17.872Z"}
+{"evidenceId":"ev-g7-a02-0005","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case remove --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","remove","--fixture","fx-docx-report-vi","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0005.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:17.912Z","finishedAt":"2026-10-16T09:05:18.166Z"}
+{"evidenceId":"ev-g7-a02-0006","requirementId":"G7-A02","dSha":"66c2dc5845087197abecd12a00b76b54309f05e0","fSha":"e99471fe2","pin":"0.1.0-bf4ff7b","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-04/revoke.mjs --case remove --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run","argv":["node","scripts/office/g5g6g7/g7-04/revoke.mjs","--case","remove","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g704-r8-1792141103575399496-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0006.log","checker":"harness:g7-04/revoke.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-16T09:05:18.194Z","finishedAt":"2026-10-16T09:05:18.456Z"}
+=== /tmp/g704-r8-1792141103575399496-run/artifacts/ev-g5-a03-0001.log
+      "version": 4,
+      "versionId": "01M51Z9VW0CGC4KKKSKMXQ3ARR",
+      "checksum": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e",
+      "source": "app"
+    }
+  ],
+  "aiTurns": [],
+  "notes": [],
+  "details": {
+    "documentId": "01M51Z98WSEXCXBBGRDH7FWVR8",
+    "workspaceId": "01M51Z98W94QR8VWPSFPJPJ442",
+    "filename": "fx-xlsx-revenue-xyz.xlsx",
+    "v1Sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+    "webSaveAt": 1792141486236,
+    "appPath": "/tmp/g704-r8-1792141103575399496-run/userdata/uniwork-documents/default/01M51Z98VMZNS0BD0EJ6E8JJMQ/01M51Z98WSEXCXBBGRDH7FWVR8/fx-xlsx-revenue-xyz.xlsx",
+    "dirtyEdit": {
+      "source": "app-ui",
+      "plan": "insert-row"
+    },
+    "dirtyEditSha": "29200e7a9fd82ae3f435d6293c8121902f0dd51623c6d908a25dc8790d19d19f",
+    "remoteNewerBar": {
+      "visible": true,
+      "version": 3,
+      "text": "A newer version is on UniWork (version 3). You have unsaved changes, so the document didn’t reload.Reload latest…Later",
+      "where": "shell"
+    },
+    "appReload": {
+      "clicked": true,
+      "confirmed": true,
+      "choseDiscard": true,
+      "confirmText": "Reload",
+      "dirtyShaBeforeClick": "29200e7a9fd82ae3f435d6293c8121902f0dd51623c6d908a25dc8790d19d19f",
+      "baseVersionBeforeClick": 2
+    },
+    "offlineEdit": {
+      "source": "app-ui",
+      "plan": "insert-row"
+    },
+    "webSees": {
+      "announced": {
+        "kind": "event",
+        "type": "doc.remoteVersion",
+        "ns": "uniwork.office.docs",
+        "v": 1,
+        "versionId": "01M51Z9VW0CGC4KKKSKMXQ3ARR",
+        "versionIdType": "string",
+        "version": null,
+        "revision": "4",
+        "revisionType": "string",
+        "documentId": "01M51Z98WSEXCXBBGRDH7FWVR8",
+        "documentIdType": "string",
+        "savedAt": "2026-10-16T09:04:47Z",
+        "savedAtType": "string",
+        "reason": null,
+        "file": null,
+        "href": "http://localhost:40935/office-frame/sheets/0.1.0-bf4ff7b/index.html",
+        "origin": "http://localhost:40935",
+        "fromParent": true,
+        "at": 1792141488539
+      },
+      "reloadWindowFrom": 1792141488539,
+      "reloadClick": {
+        "clicked": false,
+        "bar": false,
+        "reason": "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)"
+      },
+      "reload": {
+        "versionId": "01M51Z9VW0CGC4KKKSKMXQ3ARR",
+        "version": 4
+      },
+      "confirmed": true,
+      "webContentSha256": "79d9f33e5ed1fa663ce91f432e63b92df5d0467591ccdef5cb2e388d5b91fe0e"
+    }
+  },
+  "log": [],
+  "forkSha": "e99471fe2",
+  "startedAt": "2026-10-16T09:04:28.453Z",
+  "finishedAt": "2026-10-16T09:04:48.858Z"
+}
+G5-A03 fx-xlsx-revenue-xyz PASS (/tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g5-a03/fx-xlsx-revenue-xyz.json)
+=== /tmp/g704-r8-1792141103575399496-run/artifacts/ev-g5-a03-0002.log
+      "version": 4,
+      "versionId": "01M51ZAP11C0TQ27EDH6W0H0YB",
+      "checksum": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e",
+      "source": "app"
+    }
+  ],
+  "aiTurns": [],
+  "notes": [],
+  "details": {
+    "documentId": "01M51Z9XV6SQE9RB4DV5GEB4X2",
+    "workspaceId": "01M51Z9XTR13GB0KZMTRD2CHBB",
+    "filename": "fx-docx-report-vi.docx",
+    "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "webSaveAt": 1792141505375,
+    "appPath": "/tmp/g704-r8-1792141103575399496-run/userdata/uniwork-documents/default/01M51Z9XT6FXQCTPVJ29EPR1XX/01M51Z9XV6SQE9RB4DV5GEB4X2/fx-docx-report-vi.docx",
+    "dirtyEdit": {
+      "source": "app-ui",
+      "plan": "split-block"
+    },
+    "dirtyEditSha": "2f2145f935fc451c9095d3dd0c82468c2d96eab2d855aec549ee7cc62126fb65",
+    "remoteNewerBar": {
+      "visible": true,
+      "version": 3,
+      "text": "A newer version is on UniWork (version 3). You have unsaved changes, so the document didn’t reload.Reload latest…Later",
+      "where": "shell"
+    },
+    "appReload": {
+      "clicked": true,
+      "confirmed": true,
+      "choseDiscard": true,
+      "confirmText": "Reload",
+      "dirtyShaBeforeClick": "2f2145f935fc451c9095d3dd0c82468c2d96eab2d855aec549ee7cc62126fb65",
+      "baseVersionBeforeClick": 2
+    },
+    "offlineEdit": {
+      "source": "app-ui",
+      "plan": "split-block"
+    },
+    "webSees": {
+      "announced": {
+        "kind": "event",
+        "type": "doc.remoteVersion",
+        "ns": "uniwork.office.docs",
+        "v": 1,
+        "versionId": "01M51ZAP11C0TQ27EDH6W0H0YB",
+        "versionIdType": "string",
+        "version": null,
+        "revision": "4",
+        "revisionType": "string",
+        "documentId": "01M51Z9XV6SQE9RB4DV5GEB4X2",
+        "documentIdType": "string",
+        "savedAt": "2026-10-16T09:05:14Z",
+        "savedAtType": "string",
+        "reason": null,
+        "file": null,
+        "href": "http://localhost:40935/office-frame/docs/0.1.0-bf4ff7b/index.html",
+        "origin": "http://localhost:40935",
+        "fromParent": true,
+        "at": 1792141515541
+      },
+      "reloadWindowFrom": 1792141515541,
+      "reloadClick": {
+        "clicked": false,
+        "bar": false,
+        "reason": "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)"
+      },
+      "reload": {
+        "versionId": "01M51ZAP11C0TQ27EDH6W0H0YB",
+        "version": 4
+      },
+      "confirmed": true,
+      "webContentSha256": "8045275610d06b921c36149f1380ced9c0be99fb644c25baeacd9c548a5b7c4e"
+    }
+  },
+  "log": [],
+  "forkSha": "e99471fe2",
+  "startedAt": "2026-10-16T09:04:49.908Z",
+  "finishedAt": "2026-10-16T09:05:15.663Z"
+}
+G5-A03 fx-docx-report-vi PASS (/tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g5-a03/fx-docx-report-vi.json)
+=== /tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a01-0001.log
+    },
+    {
+      "version": 4,
+      "versionId": "01M51Z8KK6Q3ATZASNHCKK9V43",
+      "checksum": "8ee3b8a8402f74e36668b915264bc6a1b1cab7ded462cb9588fddbe33c6089e3",
+      "source": "app"
+    }
+  ],
+  "aiTurns": [
+    {
+      "versionsBefore": 3,
+      "versionsAfter": 3,
+      "httpStatus": 200,
+      "at": 1792141446722
+    }
+  ],
+  "notes": [
+    "the AI turn is a document-route protocol call (contract-p0 A10); the Save after it stores the format's deterministic stand-in bytes for the AI edit (uiEdits.aiSave=standin) — the fork's AI-panel wiring is not driven by this harness"
+  ],
+  "details": {
+    "documentId": "01M51Z7M6A6AS33A8GJNBWZTDK",
+    "workspaceId": "01M51Z7M5MY9C3GN1ZXH3FGZB8",
+    "filename": "fx-xlsx-revenue-xyz.xlsx",
+    "v1Sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+    "webSaveAt": 1792141434663,
+    "appPath": "/tmp/g704-r8-1792141103575399496-run/userdata/uniwork-documents/default/01M51Z7M4VXXX92QP3N0G9PZGH/01M51Z7M6A6AS33A8GJNBWZTDK/fx-xlsx-revenue-xyz.xlsx",
+    "offlineEdit": {
+      "source": "app-ui",
+      "plan": "insert-row"
+    },
+    "webSees": {
+      "announced": {
+        "kind": "event",
+        "type": "doc.remoteVersion",
+        "ns": "uniwork.office.docs",
+        "v": 1,
+        "versionId": "01M51Z8JZ937SE56JXCVYATHGT",
+        "versionIdType": "string",
+        "version": null,
+        "revision": "3",
+        "revisionType": "string",
+        "documentId": "01M51Z7M6A6AS33A8GJNBWZTDK",
+        "documentIdType": "string",
+        "savedAt": "2026-10-16T09:04:06Z",
+        "savedAtType": "string",
+        "reason": null,
+        "file": null,
+        "href": "http://localhost:40935/office-frame/sheets/0.1.0-bf4ff7b/index.html",
+        "origin": "http://localhost:40935",
+        "fromParent": true,
+        "at": 1792141446542
+      },
+      "reloadWindowFrom": 1792141446542,
+      "reloadClick": {
+        "clicked": false,
+        "bar": false,
+        "reason": "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)"
+      },
+      "reload": {
+        "versionId": "01M51Z8JZ937SE56JXCVYATHGT",
+        "version": 3
+      },
+      "confirmed": true,
+      "webContentSha256": "21192a6a205a935780db847ac9f0124c081de9ee75b7c46a52340e0bca029ae3"
+    },
+    "aiSegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 200,
+      "provider": "fake"
+    }
+  },
+  "log": [],
+  "forkSha": "e99471fe2",
+  "startedAt": "2026-10-16T09:03:34.475Z",
+  "finishedAt": "2026-10-16T09:04:07.832Z"
+}
+G7-A01 fx-xlsx-revenue-xyz BLOCKED: ai-turn: real-AI upstream required, acceptance.md l.87 (/tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g7-a01/fx-xlsx-revenue-xyz.json)
+BLOCKED: real-AI upstream required, acceptance.md l.87
+=== /tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a01-0002.log
+    },
+    {
+      "version": 4,
+      "versionId": "01M51Z97PHKD0660BE6V63VFE8",
+      "checksum": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "source": "app"
+    }
+  ],
+  "aiTurns": [
+    {
+      "versionsBefore": 3,
+      "versionsAfter": 3,
+      "httpStatus": 200,
+      "at": 1792141464750
+    }
+  ],
+  "notes": [
+    "the AI turn is a document-route protocol call (contract-p0 A10); the Save after it stores the format's deterministic stand-in bytes for the AI edit (uiEdits.aiSave=standin) — the fork's AI-panel wiring is not driven by this harness"
+  ],
+  "details": {
+    "documentId": "01M51Z8NTGQ9ASPFVXS0M47KF9",
+    "workspaceId": "01M51Z8NSZZ6TDVYVNY1SVGE9P",
+    "filename": "fx-docx-report-vi.docx",
+    "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "webSaveAt": 1792141453380,
+    "appPath": "/tmp/g704-r8-1792141103575399496-run/userdata/uniwork-documents/default/01M51Z8NS6KYTFHWXF6EMF850X/01M51Z8NTGQ9ASPFVXS0M47KF9/fx-docx-report-vi.docx",
+    "offlineEdit": {
+      "source": "app-ui",
+      "plan": "split-block"
+    },
+    "webSees": {
+      "announced": {
+        "kind": "event",
+        "type": "doc.remoteVersion",
+        "ns": "uniwork.office.docs",
+        "v": 1,
+        "versionId": "01M51Z94M1V2HFZJ4HDJ6N54NS",
+        "versionIdType": "string",
+        "version": null,
+        "revision": "3",
+        "revisionType": "string",
+        "documentId": "01M51Z8NTGQ9ASPFVXS0M47KF9",
+        "documentIdType": "string",
+        "savedAt": "2026-10-16T09:04:24Z",
+        "savedAtType": "string",
+        "reason": null,
+        "file": null,
+        "href": "http://localhost:40935/office-frame/docs/0.1.0-bf4ff7b/index.html",
+        "origin": "http://localhost:40935",
+        "fromParent": true,
+        "at": 1792141464539
+      },
+      "reloadWindowFrom": 1792141464539,
+      "reloadClick": {
+        "clicked": false,
+        "bar": false,
+        "reason": "no S6 reload action is up in any frame (a clean frame reloads itself on the announce)"
+      },
+      "reload": {
+        "versionId": "01M51Z94M1V2HFZJ4HDJ6N54NS",
+        "version": 3
+      },
+      "confirmed": true,
+      "webContentSha256": "1af2aa897f01786cba271add5cef37157ecdd994f18201cb8cbf8590a91db1dd"
+    },
+    "aiSegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 200,
+      "provider": "fake"
+    }
+  },
+  "log": [],
+  "forkSha": "e99471fe2",
+  "startedAt": "2026-10-16T09:04:08.919Z",
+  "finishedAt": "2026-10-16T09:04:27.424Z"
+}
+G7-A01 fx-docx-report-vi BLOCKED: ai-turn: real-AI upstream required, acceptance.md l.87 (/tmp/g704-r8-1792141103575399496-run/reports/g7-qa/g7-a01/fx-docx-report-vi.json)
+BLOCKED: real-AI upstream required, acceptance.md l.87
+=== /tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0001.log
+$ node scripts/office/g5g6g7/g7-04/revoke.mjs --case deactivate --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run
+
+case deactivate (fx-docx-report-vi): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  revoke POST /api/v1/orgs/o-g704-mvaqscd8-e1f7/members/01M51ZAR1VR20ZE5SQYH022072/deactivate -> 200
+  AI turn 2 session 403 member_deactivated error_class=permission/frame 401 unauthorized error_class=session; Save upload 403 member_deactivated/commit 403 member_deactivated
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  reason content_not_verifiable; t1 s200/f200 t2 s403 member_deactivated/f401 unauthorized v 1->1 save up 403 member_deactivated/cm 403 member_deactivated
+  expected aiTurn2.frame 401 unauthorized error_class=session — handler/ai_mount.go:101-106 rewrites the member_deactivated CodedError (service/organization.go:155-156, service/errors.go:53-57) as 401 unauthorized; error_class session per handler/dto/sdo/error_class.go:64; the session route passes the same refusal through as 403 member_deactivated
+  expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+{
+  "case": "deactivate",
+  "fixture": "fx-docx-report-vi",
+  "status": "BLOCKED",
+  "exitCode": 77,
+  "reason": "content_not_verifiable; t1 s200/f200 t2 s403 member_deactivated/f401 unauthorized v 1->1 save up 403 member_deactivated/cm 403 member_deactivated"
+}
+BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+=== /tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0002.log
+$ node scripts/office/g5g6g7/g7-04/revoke.mjs --case deactivate --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run
+
+case deactivate (fx-xlsx-revenue-xyz): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  revoke POST /api/v1/orgs/o-g704-mvaqsclp-spva/members/01M51ZARB5AEEC5QVJYAHY5S5G/deactivate -> 200
+  AI turn 2 session 403 member_deactivated error_class=permission/frame 401 unauthorized error_class=session; Save upload 403 member_deactivated/commit 403 member_deactivated
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  reason content_not_verifiable; t1 s200/f200 t2 s403 member_deactivated/f401 unauthorized v 1->1 save up 403 member_deactivated/cm 403 member_deactivated
+  expected aiTurn2.frame 401 unauthorized error_class=session — handler/ai_mount.go:101-106 rewrites the member_deactivated CodedError (service/organization.go:155-156, service/errors.go:53-57) as 401 unauthorized; error_class session per handler/dto/sdo/error_class.go:64; the session route passes the same refusal through as 403 member_deactivated
+  expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+{
+  "case": "deactivate",
+  "fixture": "fx-xlsx-revenue-xyz",
+  "status": "BLOCKED",
+  "exitCode": 77,
+  "reason": "content_not_verifiable; t1 s200/f200 t2 s403 member_deactivated/f401 unauthorized v 1->1 save up 403 member_deactivated/cm 403 member_deactivated"
+}
+BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+=== /tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0003.log
+$ node scripts/office/g5g6g7/g7-04/revoke.mjs --case downgrade --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run
+
+case downgrade (fx-docx-report-vi): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  revoke PATCH /api/v1/documents/01M51ZARNGT2CPTVJ9SBCKNTWE visibility=restricted + share level=view -> 200
+  AI turn 2 session 200/frame 200; Save upload 403 forbidden/commit 404 not_found
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  reason content_not_verifiable; t1 s200/f200 t2 s200/f200 v 1->1 save up 403 forbidden/cm 404 not_found
+  expected aiTurn2.session 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  expected aiTurn2.frame 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  expected saveCommit 404 not_found — resolveUpload runs before the edit gate (service/document_commit.go:277 vs :296) and the refused upload left no resolvable id; the edit-revoked proof of this case is the upload's 403 forbidden (service/document_files.go:132-134)
+  expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+{
+  "case": "downgrade",
+  "fixture": "fx-docx-report-vi",
+  "status": "BLOCKED",
+  "exitCode": 77,
+  "reason": "content_not_verifiable; t1 s200/f200 t2 s200/f200 v 1->1 save up 403 forbidden/cm 404 not_found"
+}
+BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+=== /tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0004.log
+$ node scripts/office/g5g6g7/g7-04/revoke.mjs --case downgrade --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run
+
+case downgrade (fx-xlsx-revenue-xyz): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  revoke PATCH /api/v1/documents/01M51ZARYSBZ2EDQ19EY9NV9CB visibility=restricted + share level=view -> 200
+  AI turn 2 session 200/frame 200; Save upload 403 forbidden/commit 404 not_found
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  reason content_not_verifiable; t1 s200/f200 t2 s200/f200 v 1->1 save up 403 forbidden/cm 404 not_found
+  expected aiTurn2.session 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  expected aiTurn2.frame 200 — view-only AI is allowed by design (G6-05u, Advisor; plan-G7-04.md:83-86): the AI turn needs DocumentLevelView only (handler/office_frame_ai.go:26-35, service/ai_uniwork.go:391)
+  expected saveCommit 404 not_found — resolveUpload runs before the edit gate (service/document_commit.go:277 vs :296) and the refused upload left no resolvable id; the edit-revoked proof of this case is the upload's 403 forbidden (service/document_files.go:132-134)
+  expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+{
+  "case": "downgrade",
+  "fixture": "fx-xlsx-revenue-xyz",
+  "status": "BLOCKED",
+  "exitCode": 77,
+  "reason": "content_not_verifiable; t1 s200/f200 t2 s200/f200 v 1->1 save up 403 forbidden/cm 404 not_found"
+}
+BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+=== /tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0005.log
+$ node scripts/office/g5g6g7/g7-04/revoke.mjs --case remove --fixture fx-docx-report-vi --run-dir /tmp/g704-r8-1792141103575399496-run
+
+case remove (fx-docx-report-vi): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  revoke DELETE /api/v1/workspaces/01M51ZAS8X5W8V1F1MR6B4FWMW/members/01M51ZAS8J6MAKA7FC830CAVYZ -> 204
+  AI turn 2 session 404 not_found error_class=missing/frame 404 not_found error_class=missing; Save upload 404 not_found/commit 404 not_found
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  reason content_not_verifiable; t1 s200/f200 t2 s404 not_found/f404 not_found v 1->1 save up 404 not_found/cm 404 not_found
+  expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+{
+  "case": "remove",
+  "fixture": "fx-docx-report-vi",
+  "status": "BLOCKED",
+  "exitCode": 77,
+  "reason": "content_not_verifiable; t1 s200/f200 t2 s404 not_found/f404 not_found v 1->1 save up 404 not_found/cm 404 not_found"
+}
+BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
+=== /tmp/g704-r8-1792141103575399496-run/artifacts/ev-g7-a02-0006.log
+$ node scripts/office/g5g6g7/g7-04/revoke.mjs --case remove --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g704-r8-1792141103575399496-run
+
+case remove (fx-xlsx-revenue-xyz): versions before 1 (read by owner), AI turn 1 session 200/frame 200
+  revoke DELETE /api/v1/workspaces/01M51ZASHNR0DW41P8YP7G9H03/members/01M51ZASH9YV71ZP3VW4PAJ5H5 -> 204
+  AI turn 2 session 404 not_found error_class=missing/frame 404 not_found error_class=missing; Save upload 404 not_found/commit 404 not_found
+  versions after 1 (read by owner); commit intent unknown (http 410); verdict BLOCKED
+  reason content_not_verifiable; t1 s200/f200 t2 s404 not_found/f404 not_found v 1->1 save up 404 not_found/cm 404 not_found
+  expected aiTurn1 200 on both routes — the row may PASS only when AI turn 1 answered 200 on BOTH routes (D2-02): a refused turn 1 means the member's AI never worked, so a later refusal shows no revoke; 403 office_capability_off is BLOCKED with fields.capability named (service/ai_uniwork.go:498-514)
+  expected commitIntent never committed — the intent is the caller's own (service/document_commit_intent.go:380-384, :429): this read is the owner's own answer, a revoked member's own read is refused 403/404, and the write path is refused before any intent is claimed (service/document_commit.go:296 -> :305-309)
+{
+  "case": "remove",
+  "fixture": "fx-xlsx-revenue-xyz",
+  "status": "BLOCKED",
+  "exitCode": 77,
+  "reason": "content_not_verifiable; t1 s200/f200 t2 s404 not_found/f404 not_found v 1->1 save up 404 not_found/cm 404 not_found"
+}
+BLOCKED: turn-1 AI content not verifiable under the fake provider (real-AI round)
