@@ -8898,6 +8898,7 @@
       "holdEnd": "Stop keeping editing",
       "holdCapReached": "Maximum hold reached. Reconnect to keep editing.",
       "rowEditing": "editing",
+      "rowEditingOffline": "editing · offline until {{time}}",
       "rowEditingLabel": "{{name}} is editing"
     },
     "leave": {

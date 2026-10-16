@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { formatLockTime } from "./edit-lock-copy";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
 import { libraryLadder } from "./library-columns";
 import { documentRow, type DocumentSummaryRow } from "./library-rows";
@@ -8,6 +9,11 @@ import { documentRow, type DocumentSummaryRow } from "./library-rows";
 // UNI-1645 (addendum §11.4): a row whose document someone is editing shows the holder's avatar.
 
 const { t } = initI18n();
+const HOLD = (() => {
+  const d = new Date();
+  d.setHours(22, 30, 0, 0);
+  return d.toISOString();
+})();
 
 function item(over: Partial<DocumentSummaryRow> = {}): DocumentSummaryRow {
   return {
@@ -58,6 +64,28 @@ describe("library row edit-lock holder", () => {
     expect(holder).toHaveAttribute("title", "Bình Trần đang sửa");
     expect(within(holder).getByText("đang sửa")).toBeTruthy();
     expect(within(holder).getByText("BT")).toBeTruthy();
+  });
+
+  it("shows 'đang sửa · offline đến HH:mm' when offline_hold_until is set (V3-8)", () => {
+    renderRow(
+      item({
+        edit_lock: {
+          holder_id: "u2",
+          holder_name: "Hưng Nguyễn",
+          holder_avatar_url: null,
+          since: "2026-10-15T03:12:00Z",
+          offline_hold_until: HOLD,
+          held_by_me: false,
+        },
+      }),
+    );
+    const holder = screen.getByTestId("edit-lock-holder");
+    expect(within(holder).getByText(`đang sửa · offline đến ${formatLockTime(HOLD, "vi")}`)).toBeTruthy();
+  });
+
+  it("omits the holder chip when the lock is held by the current user (V3-7)", () => {
+    renderRow(item({ edit_lock: { holder_id: "me", holder_name: "Bạn", holder_avatar_url: null, since: "2026-10-15T03:12:00Z", held_by_me: true } }));
+    expect(screen.queryByTestId("edit-lock-holder")).toBeNull();
   });
 
   it("shows nothing when no one is editing", () => {

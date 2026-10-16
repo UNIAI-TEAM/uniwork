@@ -226,7 +226,13 @@ export function LibraryRowView({
           {archived || doc?.archived_at ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}
-          {doc?.edit_lock ? <EditLockHolderChip name={doc.edit_lock.holder_name} avatarUrl={doc.edit_lock.holder_avatar_url} /> : null}
+          {doc?.edit_lock && !doc.edit_lock.held_by_me ? (
+            <EditLockHolderChip
+              name={doc.edit_lock.holder_name}
+              avatarUrl={doc.edit_lock.holder_avatar_url}
+              offlineHoldUntil={doc.edit_lock.offline_hold_until}
+            />
+          ) : null}
         </span>
         {/* The editor · date · size part rides on this line until its columns join the table; the level and the restricted mark until My access / Visibility do (library-columns.ts). Only the meta part truncates: the mark keeps its width inside the Name cell. */}
         {metaLine || accessKey || restricted ? (

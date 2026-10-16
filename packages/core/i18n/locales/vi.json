@@ -8893,6 +8893,7 @@
       "holdEnd": "Bỏ giữ quyền sửa",
       "holdCapReached": "Đã giữ tối đa. Kết nối lại để tiếp tục sửa.",
       "rowEditing": "đang sửa",
+      "rowEditingOffline": "đang sửa · offline đến {{time}}",
       "rowEditingLabel": "{{name}} đang sửa"
     },
     "leave": {

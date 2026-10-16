@@ -261,6 +261,7 @@ const DocumentRowEditLockSchema = z.object({
   holder_name: z.string().catch(""),
   holder_avatar_url: z.string().nullable().optional().catch(undefined),
   since: z.string().catch(""),
+  offline_hold_until: z.string().nullable().optional().catch(undefined),
   held_by_me: z.boolean().catch(false),
 });
 

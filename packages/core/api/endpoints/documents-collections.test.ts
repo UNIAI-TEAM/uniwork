@@ -127,13 +127,27 @@ describe("documents-collections endpoints", () => {
     expect(out.next_cursor).toBe("n2");
   });
 
-  it("listDocuments reads a row's edit-lock holder, and a malformed one as no holder", async () => {
-    const holder = { holder_id: "u2", holder_name: "An", holder_avatar_url: null, since: "2026-10-15T03:12:00Z", expires_at: "x", reserved: false, held_by_me: false };
+  it("listDocuments reads a row's edit-lock holder (including offline_hold_until), and a malformed one as no holder", async () => {
+    const holder = {
+      holder_id: "u2",
+      holder_name: "An",
+      holder_avatar_url: null,
+      since: "2026-10-15T03:12:00Z",
+      offline_hold_until: "2026-10-15T22:30:00Z",
+      expires_at: "x",
+      reserved: false,
+      held_by_me: false,
+    };
     vi.mocked(fetch).mockResolvedValueOnce(
       json(listBody({ documents: [summary({ edit_lock: holder }), summary({ id: "d2", edit_lock: { holder_name: 7 } }), summary({ id: "d3", edit_lock: null })] })),
     );
     const out = await listDocuments("w1");
-    expect(out.documents[0]?.edit_lock).toMatchObject({ holder_id: "u2", holder_name: "An", held_by_me: false });
+    expect(out.documents[0]?.edit_lock).toMatchObject({
+      holder_id: "u2",
+      holder_name: "An",
+      held_by_me: false,
+      offline_hold_until: "2026-10-15T22:30:00Z",
+    });
     expect(out.documents[0]?.edit_lock).not.toHaveProperty("lock_id");
     expect(out.documents[1]?.edit_lock).toBeUndefined();
     expect(out.documents[2]?.edit_lock).toBeNull();
