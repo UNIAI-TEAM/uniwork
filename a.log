@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1809-fd-11-app-folder-tree; git log --oneline -3
+49e90d110a6574cac077bb0cc8a11e8dfa01ec0a
+49e90d110a6574cac077bb0cc8a11e8dfa01ec0a
+49e90d11 merge: FD-11 fix round 2 BE (fd11-fix-be2 646969580..f6e060a31) into the FD-11 branch
+523af719 fix(shell): FD-11 re-read loaded extra pages on soft refresh and link hidden-formats hint via aria-describedby (R2-2, R2-3, R2-4)
+f6e060a3 docs(shell): clarify fixed max 20 depth cap on document_too_deep
