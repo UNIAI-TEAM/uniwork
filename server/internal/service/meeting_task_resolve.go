@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -94,24 +95,69 @@ func (c *assigneeCandidates) add(uid, name string) {
 }
 
 // resolve maps the owner text of an action item to exactly one user, or nil
-// when nobody or more than one person fits. The owner is tried as spoken
-// first and then without a leading honorific ("anh Hùng" -> "Hùng"); the
-// first form that matches anyone decides. A form matches a candidate when
-// its words equal the candidate's full name, or failing that when they are
-// the trailing words of the name (Vietnamese names end with the given name,
-// so "An" and "Văn An" both match "Nguyễn Văn An", while "An" never matches
-// "Thanh" and "Lan" never matches "Lan Anh"). Several matches are narrowed to
-// the meeting's participants when exactly one of them took part.
+// when nobody or more than one person fits.
+//
+// A form of the owner matches a candidate when its words equal the
+// candidate's full name (exact), or failing that when they are the trailing
+// words of the name (suffix: Vietnamese names end with the given name, so
+// "An" and "Văn An" both match "Nguyễn Văn An", while "An" never matches
+// "Thanh"). Several matches are narrowed to the meeting's participants when
+// exactly one of them took part.
+//
+// The forms come from ownerKeys: the owner as spoken, then with one leading
+// honorific-like word removed, then two, and so on. A leading "anh", "chị",
+// "bà"... may be an honorific or the first word of the name (the middle names
+// Anh, Chí, Bá), so the spoken form and the form without its first word are
+// read together as one step: an exact match on the spoken form wins, then an
+// exact match on the stripped one ("anh Tuấn" prefers a person named Tuấn),
+// then the suffix matches of both readings are pooled, so a clash between
+// "Nguyễn Anh Tuấn" and "Lê Tuấn" goes to the participant or stays nil. Every
+// further honorific-like word is stripped one step at a time, and a step that
+// matches anyone decides: after "chị", "Anh Thư" is far more likely a middle
+// name than a second honorific, so it is tried before "Thư".
 func (c assigneeCandidates) resolve(owner string) *string {
-	for _, key := range ownerKeys(owner) {
-		if uids := c.exactMatches(key); len(uids) > 0 {
-			return c.single(uids)
+	for _, step := range ownerKeySteps(ownerKeys(owner)) {
+		for _, key := range step {
+			if uids := c.exactMatches(key); len(uids) > 0 {
+				return c.single(uids)
+			}
 		}
-		if uids := c.suffixMatches(key); len(uids) > 0 {
-			return c.single(uids)
+		var pooled []string
+		for _, key := range step {
+			pooled = appendNew(pooled, c.suffixMatches(key)...)
+		}
+		if len(pooled) > 0 {
+			return c.single(pooled)
 		}
 	}
 	return nil
+}
+
+// ownerKeySteps groups ownerKeys into the steps resolve tries in order: the
+// spoken form together with the form that drops its first word, then each
+// deeper form on its own.
+func ownerKeySteps(keys []string) [][]string {
+	if len(keys) <= 2 {
+		if len(keys) == 0 {
+			return nil
+		}
+		return [][]string{keys}
+	}
+	steps := [][]string{keys[:2]}
+	for _, key := range keys[2:] {
+		steps = append(steps, []string{key})
+	}
+	return steps
+}
+
+// appendNew appends each uid not already in dst.
+func appendNew(dst []string, uids ...string) []string {
+	for _, uid := range uids {
+		if !slices.Contains(dst, uid) {
+			dst = append(dst, uid)
+		}
+	}
+	return dst
 }
 
 func (c assigneeCandidates) exactMatches(key string) []string {
@@ -175,26 +221,25 @@ var personHonorifics = map[string]struct{}{
 	"mr": {}, "ms": {}, "mrs": {}, "miss": {},
 }
 
-// ownerKeys returns the normalized owner as spoken and, when it differs, the
-// same name without its leading honorifics. A bare honorific ("Anh") is kept,
-// because it can also be a given name.
+// ownerKeys returns the normalized owner as spoken, then the same name with
+// one leading honorific-like word removed, then two, and so on ("chị Anh Thư"
+// -> "chi anh thu", "anh thu", "thu"), so a middle name that looks like an
+// honorific is still tried. The last word is never stripped: a bare "Anh" can
+// also be a given name.
 func ownerKeys(owner string) []string {
 	key := normalizePersonName(owner)
 	if key == "" {
 		return nil
 	}
 	tokens := strings.Fields(key)
-	i := 0
-	for i < len(tokens)-1 {
+	keys := []string{key}
+	for i := 0; i < len(tokens)-1; i++ {
 		if _, ok := personHonorifics[tokens[i]]; !ok {
 			break
 		}
-		i++
+		keys = append(keys, strings.Join(tokens[i+1:], " "))
 	}
-	if i == 0 {
-		return []string{key}
-	}
-	return []string{key, strings.Join(tokens[i:], " ")}
+	return keys
 }
 
 // normalizePersonName lowercases, removes Vietnamese diacritics (đ -> d),

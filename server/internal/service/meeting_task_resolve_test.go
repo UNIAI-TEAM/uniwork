@@ -69,7 +69,27 @@ func TestResolveAssignee(t *testing.T) {
 		{"honorific stripped", members("u-hung", "Hùng"), nil, "anh Hùng", "u-hung"},
 		{"honorific stripped then given name", members("u-lan", "Nguyễn Thị Lan"), nil, "Chị Lan", "u-lan"},
 		{"English honorific", members("u-hung", "Trần Hùng"), nil, "Mr. Hùng", "u-hung"},
-		{"name that starts like an honorific", members("u-tuan", "Nguyễn Anh Tuấn", "u-tuan2", "Lê Tuấn"), nil, "Anh Tuấn", "u-tuan"},
+		// A leading "anh"/"chị"/... is either an honorific or the first word of
+		// the name. Both readings are pooled, so a clash between them is
+		// narrowed by the participants or stays ambiguous.
+		{"honorific or middle name stays ambiguous", members("u-nat", "Nguyễn Anh Tuấn", "u-lt", "Lê Tuấn"), nil, "Anh Tuấn", ""},
+		{"honorific reading picked by the participants", members("u-nat", "Nguyễn Anh Tuấn", "u-lt", "Lê Tuấn"),
+			[]db.MeetingParticipant{userParticipant("u-lt", "Lê Tuấn")}, "anh Tuấn", "u-lt"},
+		{"middle-name reading picked by the participants", members("u-nat", "Nguyễn Anh Tuấn", "u-lt", "Lê Tuấn"),
+			[]db.MeetingParticipant{userParticipant("u-nat", "Nguyễn Anh Tuấn")}, "anh Tuấn", "u-nat"},
+		{"chị Thanh does not jump to the middle name Chí", members("u-nct", "Nguyễn Chí Thanh", "u-pt", "Phạm Thanh"),
+			[]db.MeetingParticipant{userParticipant("u-pt", "Phạm Thanh")}, "chị Thanh", "u-pt"},
+		{"middle name alone still resolves", members("u-nat", "Nguyễn Anh Tuấn"), nil, "anh Tuấn", "u-nat"},
+		{"anh X prefers a person named exactly X", members("u-t", "Tuấn", "u-nat", "Nguyễn Anh Tuấn"), nil, "anh Tuấn", "u-t"},
+		{"the spoken full name wins", members("u-at", "Anh Tuấn", "u-lt", "Lê Tuấn"), nil, "Anh Tuấn", "u-at"},
+		{"full name with the middle name Anh", members("u-nat", "Nguyễn Anh Tuấn", "u-lt", "Lê Tuấn"), nil, "Nguyễn Anh Tuấn", "u-nat"},
+		// A second honorific-like word after the first is read as a middle name
+		// before it is stripped too.
+		{"middle name Anh after an honorific", members("u-nat", "Nguyễn Anh Thư", "u-pt", "Phạm Thư"),
+			[]db.MeetingParticipant{userParticipant("u-pt", "Phạm Thư")}, "chị Anh Thư", "u-nat"},
+		{"middle name Bá after an honorific", members("u-lbl", "Lê Bá Long", "u-hl", "Hà Long"),
+			[]db.MeetingParticipant{userParticipant("u-hl", "Hà Long")}, "anh Bá Long", "u-lbl"},
+		{"two honorifics then the given name", members("u-thu", "Phạm Thư"), nil, "chị Anh Thư", "u-thu"},
 		{"bare honorific is a name", members("u-anh", "Anh"), nil, "Anh", "u-anh"},
 		{"participant snapshot name", members("u-x", "Nguyễn Văn Xuân"),
 			[]db.MeetingParticipant{userParticipant("u-x", "Bé Xu")}, "Bé Xu", "u-x"},
