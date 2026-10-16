@@ -6,7 +6,7 @@ import {
   House,
   Share2,
   Star,
-  Trash2,
+  Trash,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -27,6 +27,6 @@ export const DOCUMENTS_NAV_ICONS = {
   shared: Users,
   sharedByMe: Share2,
   archive: Archive,
-  trash: Trash2,
+  trash: Trash,
   folder: Folder,
 } as const satisfies Record<string, LucideIcon>;

@@ -1,4 +1,15 @@
 import { render, screen } from "@testing-library/react";
+import {
+  Archive,
+  Clock,
+  Folder,
+  FolderLock,
+  House,
+  Share2,
+  Star,
+  Trash,
+  Users,
+} from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { MODULE_ICONS } from "../layout/module-icons";
@@ -66,5 +77,27 @@ describe("DocumentsSidebar icons", () => {
       expect(svg).toHaveClass("size-4", "text-muted-foreground");
       expect(svg?.innerHTML).toBe(glyphOf(DOCUMENTS_NAV_ICONS[icon]));
     }
+  });
+});
+
+describe("DOCUMENTS_NAV_ICONS", () => {
+  // Rows the sidebar does not draw yet (myFolders, sharedByMe, archive, trash,
+  // folder) are pinned here so a wrong glyph cannot pass unseen.
+  it.each([
+    ["home", House],
+    ["myFolders", FolderLock],
+    ["recent", Clock],
+    ["starred", Star],
+    ["shared", Users],
+    ["sharedByMe", Share2],
+    ["archive", Archive],
+    ["trash", Trash],
+    ["folder", Folder],
+  ] as const)("maps %s to its board glyph", (key, Expected) => {
+    expect(glyphOf(DOCUMENTS_NAV_ICONS[key])).toBe(glyphOf(Expected));
+  });
+
+  it("covers every entry of the map", () => {
+    expect(Object.keys(DOCUMENTS_NAV_ICONS)).toHaveLength(9);
   });
 });
