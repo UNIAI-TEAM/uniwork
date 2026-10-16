@@ -664,9 +664,11 @@ func TestAskFindsDocuments(t *testing.T) {
 	}
 }
 
-// Every real workspace holds the welcome task, whose body has "giao cho",
-// "nhận", "việc"... A follow-up whose words hit only that body still keeps
-// the previous question's topic.
+// Every real workspace holds the welcome task: its body has "giao cho",
+// "việc", "của", "người", its title "bắt đầu". A follow-up that points back or
+// hits only those words, or a token shaped like a task reference that is not
+// one ("Q1-2027"), still keeps the previous question's topic. The first
+// question is a regression guard: no welcome word is in it.
 func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 	s, _, ua, _, w := askFixture(t)
 	ctx := context.Background()
@@ -674,10 +676,15 @@ func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 	if _, _, err := onboarding.SeedWelcomeTask(ctx, ua.ID, w.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Banner Tết"}); err != nil {
-		t.Fatal(err)
+	for _, title := range []string{"Banner Tết", "Mua quà cho khách"} {
+		if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: title}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	for _, q := range []string{"Ai đang nhận cái đó?", "Cái đó giao cho ai?", "Việc đó của người nào?"} {
+	for _, q := range []string{
+		"Ai đang nhận cái đó?", "Cái đó giao cho ai?", "Việc đó của người nào?",
+		"Cái đó bắt đầu khi nào?", "cai do giao cho ai", "Nó có kịp Q1-2027 không?",
+	} {
 		first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner Tết đến đâu rồi?", Locale: "vi"})
 		if err != nil {
 			t.Fatal(err)
@@ -689,6 +696,19 @@ func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 		if !citesTitle(res.Citations, "Banner Tết") {
 			t.Errorf("%q did not cite the previous question's task: %+v / notice %q", q, res.Citations, res.Message.Notice.String)
 		}
+	}
+	// A chain of follow-ups keeps the topic the chain started from.
+	conv := ""
+	var res AskResult
+	for _, q := range []string{"Banner Tết đến đâu rồi?", "Ai đang nhận cái đó?", "Cái đó bắt đầu khi nào?"} {
+		var err error
+		if res, err = s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: conv, Question: q, Locale: "vi"}); err != nil {
+			t.Fatal(err)
+		}
+		conv = res.ConversationID
+	}
+	if !citesTitle(res.Citations, "Banner Tết") {
+		t.Errorf("third turn of a chain lost the topic: %+v", res.Citations)
 	}
 }
 
@@ -707,10 +727,11 @@ func TestAskFollowUpWithItsOwnSubjectKeepsToIt(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ref = fmt.Sprintf("%s-%d", wsRow.TaskPrefix, task.Number)
+		if title == "Kịch bản video" {
+			ref = fmt.Sprintf("%s-%d", wsRow.TaskPrefix, task.Number)
+		}
 	}
-	// By title, and by the PREFIX-N reference alone (no title word in it).
-	for _, q := range []string{"Kịch bản video thì sao?", ref + " thì sao?"} {
+	ask := func(q string) []AskCitation {
 		first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner Tết đến đâu rồi?", Locale: "vi"})
 		if err != nil {
 			t.Fatal(err)
@@ -719,8 +740,27 @@ func TestAskFollowUpWithItsOwnSubjectKeepsToIt(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !citesTitle(res.Citations, "Kịch bản video") || citesTitle(res.Citations, "Banner Tết") {
-			t.Errorf("%q names its own task and must cite it alone: %+v", q, res.Citations)
+		return res.Citations
+	}
+	// By title, and by the PREFIX-N reference alone (no title word in it).
+	for _, q := range []string{"Kịch bản video thì sao?", ref + " thì sao?"} {
+		if cs := ask(q); !citesTitle(cs, "Kịch bản video") || citesTitle(cs, "Banner Tết") {
+			t.Errorf("%q names its own task and must cite it alone: %+v", q, cs)
 		}
+	}
+	// A named subject that also points back merges the last topic after it,
+	// never before: the merge must not push what the question names down.
+	cs := ask("Kịch bản video đó thì sao?")
+	named, prev := -1, -1
+	for i, c := range cs {
+		if c.Title == "Kịch bản video" && named < 0 {
+			named = i
+		}
+		if c.Title == "Banner Tết" && prev < 0 {
+			prev = i
+		}
+	}
+	if named < 0 || prev < 0 || named > prev {
+		t.Errorf("want the named task first, then the previous topic: %+v", cs)
 	}
 }

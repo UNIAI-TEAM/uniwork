@@ -190,7 +190,7 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 	if err != nil {
 		return AskResult{}, err
 	}
-	if !hasOwnSubject(question, in.Focus, sources) {
+	if !hasOwnSubject(question, w.TaskPrefix, in.Focus, sources) {
 		if sources, err = s.withPreviousQuestion(ctx, previousQuestion(rows), userID, w.OrganizationID, workspaceID, question, sources); err != nil {
 			return AskResult{}, err
 		}
@@ -258,12 +258,22 @@ func (s *AskUNIService) ownConversation(ctx context.Context, userID, id, workspa
 }
 
 // hasOwnSubject reports whether the question names something of its own: a
-// focused object, a PREFIX-N reference, or a task, meeting or document whose
-// title holds one of its terms. A body match is not enough ("giao cho" is in
-// every welcome task), and members and chat lines never are.
-func hasOwnSubject(question string, focus *ai.Focus, sources []ai.Source) bool {
-	if focus != nil || taskIdentifierRe.MatchString(question) {
+// focused object, a reference with the workspace's task prefix, or a task,
+// meeting or document whose title holds one of its terms. A body match is not
+// enough ("giao cho" is in every welcome task), members and chat lines never
+// are, and a question that points back keeps the last topic even when a
+// title shares a word with it ("bắt đầu" is the welcome task's title).
+func hasOwnSubject(question, taskPrefix string, focus *ai.Focus, sources []ai.Source) bool {
+	if focus != nil {
 		return true
+	}
+	for _, m := range taskIdentifierRe.FindAllStringSubmatch(question, 5) {
+		if strings.EqualFold(m[1], taskPrefix) { // "Q1-2027" or "COVID-19" names no task
+			return true
+		}
+	}
+	if pointsBack(question) {
+		return false
 	}
 	ts := searchTerms(question)
 	for _, src := range sources {
@@ -274,15 +284,35 @@ func hasOwnSubject(question string, focus *ai.Focus, sources []ai.Source) bool {
 	return false
 }
 
-// previousQuestion is the raw text of the conversation's last question, not
-// the wrapped history copy; "" for a new conversation.
-func previousQuestion(rows []db.AiMessage) string {
-	for i := len(rows) - 1; i >= 0; i-- {
-		if rows[i].Role == "user" {
-			return rows[i].Content
+// pointsBack reports whether the question refers to what was said before:
+// "cái đó", "nó", "anh ấy", "that". Unaccented "do" is also "because", so
+// it counts only in a phrase.
+func pointsBack(q string) bool {
+	for _, w := range words(q) {
+		switch w {
+		case "đó", "đấy", "ấy", "nó":
+			return true
 		}
 	}
-	return ""
+	return hasPhrase(q, "cai do", "viec do", "task do", "nguoi do", "cai nay", "viec nay", "cai kia", "that", "it")
+}
+
+// previousQuestion is the raw text of the conversation's last question, not
+// the wrapped history copy, joined after the questions before it while each
+// points back ("Ai nhận cái đó?" after "Banner Tết đến đâu?"), three at most;
+// "" for a new conversation.
+func previousQuestion(rows []db.AiMessage) string {
+	var qs []string
+	for i := len(rows) - 1; i >= 0 && len(qs) < 3; i-- {
+		if rows[i].Role != "user" {
+			continue
+		}
+		qs = append([]string{rows[i].Content}, qs...)
+		if !pointsBack(rows[i].Content) {
+			break
+		}
+	}
+	return strings.Join(qs, " ")
 }
 
 // withPreviousQuestion appends the sources of "<previous question> <question>"
