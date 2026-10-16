@@ -71,6 +71,7 @@ import {
 } from "@uniwork/views/navigation";
 import { createTaskIdentifierResolver } from "./content-editor-task-resolver";
 import { useAppOrigin } from "./use-app-origin";
+import { useEditorLinkContext } from "./editor-link-context";
 import { openLink, isMentionHref } from "./utils/link-handler";
 import { EditorBubbleMenu } from "./bubble-menu";
 import { posFromAnchor, type TextAnchor } from "./text-anchor";
@@ -238,6 +239,12 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     const appOriginRef = useRef(appOrigin);
     appOriginRef.current = appOrigin;
 
+    // Same again for the host's link context (task description / comment): it
+    // is what tags an internal document link with `?from=task:<id>`.
+    const linkContext = useEditorLinkContext();
+    const linkContextRef = useRef(linkContext);
+    linkContextRef.current = linkContext;
+
     const navigation = useOptionalNavigation();
     const navigateRef = useRef<(path: string, disposition?: LinkClickIntent) => void>(
       () => undefined,
@@ -399,6 +406,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
               appOriginRef.current,
               resolveClickIntent(event),
               (path, disposition) => navigateRef.current(path, disposition),
+              linkContextRef.current,
             );
             return true;
           },
@@ -418,6 +426,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
               appOriginRef.current,
               "background-tab",
               (path, disposition) => navigateRef.current(path, disposition),
+              linkContextRef.current,
             );
             return true;
           },
