@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
+import { once } from "node:events";
+import { request, type ClientRequest } from "node:http";
+import type { Socket } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { signGrant, type ServiceGrant } from "./grants.ts";
+import { PROVISIONAL_LIMITS } from "../src/index.ts";
+import { signGrant, type ServiceGrant } from "../src/grants.ts";
 import {
   call,
   errorCode,
@@ -351,6 +355,174 @@ describe("input byte bounds (SIZE-S1)", () => {
     const res = await call(h, "POST", "/v1/jobs", { rawBody: "x".repeat(bodyLimit + 1) });
     expect(res.status).toBe(413);
     expect(errorCode(res)).toBe("upload_bounds");
+  });
+});
+
+describe("submit body memory bound (SIZE-S1 fix3)", () => {
+  interface RawReply {
+    status: number;
+    retryAfter: string | undefined;
+    body: string;
+  }
+  interface RawSubmit {
+    req: ClientRequest;
+    reply: Promise<RawReply>;
+  }
+  /** A submit over a raw request: headers leave at once, the body is whatever
+      the test chooses to write (including nothing at all). */
+  function rawSubmit(
+    target: Harness,
+    opts: { contentLength?: number; chunked?: boolean; grant?: string } = {},
+  ): RawSubmit {
+    const headers: Record<string, string | number> = {
+      authorization: "Bearer " + SERVICE_TOKEN,
+      "content-type": "application/json",
+    };
+    if (opts.chunked) headers["transfer-encoding"] = "chunked";
+    else headers["content-length"] = opts.contentLength ?? 0;
+    if (opts.grant) headers["x-office-grant"] = opts.grant;
+    // Executor form: the tsconfig lib predates Promise.withResolvers.
+    let resolveReply!: (r: RawReply) => void;
+    const reply = new Promise<RawReply>((resolve) => (resolveReply = resolve));
+    const req = request(target.base + "/v1/jobs", { method: "POST", headers }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () =>
+        resolveReply({ status: res.statusCode ?? 0, retryAfter: res.headers["retry-after"] as string | undefined, body: Buffer.concat(chunks).toString("utf8") }),
+      );
+    });
+    req.on("error", () => resolveReply({ status: 0, retryAfter: undefined, body: "" }));
+    req.flushHeaders();
+    return { req, reply };
+  }
+
+  it("refuses a declared over-cap body without ever reading the request stream", async () => {
+    const bodyLimit = Math.ceil(((200 * 1024 * 1024) * 4) / 3) + 64 * 1024;
+    const { reply } = rawSubmit(h, { contentLength: bodyLimit + 1 });
+    const res = await reply;
+    expect(res.status).toBe(413);
+    expect(JSON.parse(res.body).error.code).toBe("upload_bounds");
+  });
+
+  it("refuses a chunked body over the cap with 413 and destroys the request", async () => {
+    const h2 = await startHarness({ limits: { ...PROVISIONAL_LIMITS, maxInputBytes: 64 * 1024, maxJobMs: 30_000 } });
+    try {
+      const { req, reply } = rawSubmit(h2, { chunked: true });
+      const sock = (await once(req, "socket"))[0] as Socket;
+      const closed = once(sock, "close");
+      // Push well past the 152 KiB body cap; a socket the server tore down
+      // stops the loop, and a destroyed request may throw on write.
+      const chunk = Buffer.alloc(64 * 1024, "x");
+      for (let i = 0; i < 12 && !sock.destroyed; i++) {
+        try {
+          req.write(chunk);
+        } catch {
+          break;
+        }
+      }
+      const res = await reply;
+      expect(res.status).toBe(413);
+      expect(JSON.parse(res.body).error.code).toBe("upload_bounds");
+      await closed;
+    } finally {
+      await h2.close();
+    }
+  });
+
+  it("holds at most maxWorkers submit bodies: the next answers 503 + Retry-After before reading it, then frees", async () => {
+    const h2 = await startHarness({ limits: { ...PROVISIONAL_LIMITS, maxInputBytes: 64 * 1024, maxJobMs: 30_000 } });
+    try {
+      const jobFor = () => {
+        const j = makeJob(h2.target, { text: "held" });
+        return { j, body: JSON.stringify(j.envelope) };
+      };
+      // Three slow writers race two body slots. Each sends headers only: the
+      // refusal must arrive before a single body byte is read, so the refused
+      // writer is the first to settle — no timer needed.
+      const candidates = [jobFor(), jobFor(), jobFor()].map((made) => ({
+        job: made.j,
+        body: made.body,
+        ...rawSubmit(h2, { contentLength: made.body.length, grant: made.j.token }),
+        res: undefined as RawReply | undefined,
+      }));
+      for (const c of candidates) void c.reply.then((r) => (c.res = r));
+      const refused = await Promise.any(candidates.map((c) => c.reply));
+      expect(refused.status).toBe(503);
+      expect(JSON.parse(refused.body).error.code).toBe("engine_overloaded");
+      const retryAfter = Number(refused.retryAfter);
+      expect(Number.isFinite(retryAfter) && retryAfter >= 1 && retryAfter <= 5).toBe(true);
+      const metrics = await (await fetch(h2.base + "/metrics", { headers: { authorization: "Bearer " + SERVICE_TOKEN } })).text();
+      expect(metrics).toContain('office_engine_rejections_total{code="engine_overloaded"} 1');
+      const held = candidates.filter((c) => c.res === undefined);
+      expect(held).toHaveLength(2);
+      // Freeing one slot admits the next submit.
+      held[0]!.req.end(held[0]!.body);
+      expect((await held[0]!.reply).status).toBe(202);
+      const c = jobFor();
+      expect((await submit(h2, c.j)).status).toBe(202);
+      held[1]!.req.end(held[1]!.body);
+      expect((await held[1]!.reply).status).toBe(202);
+      await waitTerminal(h2, held[0]!.job);
+      await waitTerminal(h2, c.j);
+    } finally {
+      await h2.close();
+    }
+  });
+
+  it("keeps the body slot until the job hand-off: a submit parked in post-parse processing still refuses the next", async () => {
+    const h2 = await startHarness({ maxWorkers: 1, limits: { ...PROVISIONAL_LIMITS, maxInputBytes: 64 * 1024, maxJobMs: 30_000 } });
+    const jobFor = () => {
+      const j = makeJob(h2.target, { text: "held" });
+      return { j, body: JSON.stringify(j.envelope) };
+    };
+    const jobs = h2.service.jobs;
+    const orig = jobs.submit.bind(jobs);
+    // Executor form: the tsconfig lib predates Promise.withResolvers.
+    let enteredResolve!: () => void;
+    const entered = new Promise<void>((r) => (enteredResolve = r));
+    let releaseGate!: () => void;
+    const gate = new Promise<void>((r) => (releaseGate = r));
+    // Park the first request at the hand-off point: everything after the body
+    // is parsed (grant, envelope validation + decode, fingerprint) sits inside
+    // it, so a held slot here proves the window is covered end to end.
+    let parked = false;
+    jobs.submit = ((jobReq: Parameters<typeof orig>[0]) => {
+      if (parked) return orig(jobReq);
+      parked = true;
+      enteredResolve();
+      return gate.then(() => orig(jobReq));
+    }) as typeof orig;
+    try {
+      const a = jobFor();
+      const first = rawSubmit(h2, { contentLength: a.body.length, grant: a.j.token });
+      first.req.end(a.body);
+      await entered;
+      // The first submit is still processing its decoded input: a second
+      // submit must be refused at the gate, never reaching the body read.
+      const b = jobFor();
+      const second = rawSubmit(h2, { contentLength: b.body.length, grant: b.j.token });
+      second.req.end(b.body);
+      const res = await second.reply;
+      expect(res.status).toBe(503);
+      expect(JSON.parse(res.body).error.code).toBe("engine_overloaded");
+      releaseGate();
+      expect((await first.reply).status).toBe(202);
+      await waitTerminal(h2, a.j);
+    } finally {
+      jobs.submit = orig;
+      releaseGate();
+      await h2.close();
+    }
+  });
+
+  it("still accepts a chunked submit whose body parses", async () => {
+    const j = makeJob(h.target, { text: "chunked-ok" });
+    const body = JSON.stringify(j.envelope);
+    const { req, reply } = rawSubmit(h, { chunked: true, grant: j.token });
+    req.write(body.slice(0, 16));
+    req.end(body.slice(16));
+    expect((await reply).status).toBe(202);
+    await waitTerminal(h, j);
   });
 });
 
