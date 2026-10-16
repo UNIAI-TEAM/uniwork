@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Clock, FolderTree, House, Plus, Star, Users } from "lucide-react";
+import { FolderTree, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DocumentSourceKind } from "@uniwork/core/documents/sources-schema";
 import {
@@ -12,8 +12,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MODULE_ICONS } from "../layout/module-icons";
+import { moduleTone, type ModuleKey } from "../layout/module-tones";
+import { DOCUMENTS_NAV_ICONS } from "./documents-nav-icons";
 import { DocumentTree } from "./document-tree";
 import { FolderNameDialog } from "./folder-name-dialog";
 
@@ -28,11 +31,12 @@ export type LibraryView =
 
 export const SOURCE_KINDS: readonly DocumentSourceKind[] = ["chat", "meeting", "email", "task"];
 
-export const SOURCE_ICONS: Record<DocumentSourceKind, LucideIcon> = {
-  chat: MODULE_ICONS.chat,
-  meeting: MODULE_ICONS.meetings,
-  email: MODULE_ICONS.email,
-  task: MODULE_ICONS.tasks,
+/** The module each source row stands for: it takes that module's glyph and tint. */
+const SOURCE_MODULES: Record<DocumentSourceKind, ModuleKey> = {
+  chat: "chat",
+  meeting: "meetings",
+  email: "email",
+  task: "tasks",
 };
 
 export interface DocumentsSidebarProps {
@@ -59,12 +63,16 @@ export interface DocumentsSidebarProps {
 
 function NavItem({
   icon: Icon,
+  module,
   label,
   count,
   current,
   onClick,
 }: {
-  icon: LucideIcon;
+  /** A plain row: one muted line glyph, no tile. */
+  icon?: LucideIcon;
+  /** A row that lives in another module: drawn like the app sidebar draws it. */
+  module?: ModuleKey;
   label: string;
   count?: number | null;
   current: boolean;
@@ -80,7 +88,11 @@ function NavItem({
         current && "bg-accent font-medium",
       )}
     >
-      <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      {module ? (
+        <IconTile icon={MODULE_ICONS[module]} size="xs" variant="solid" tone={moduleTone(module)} />
+      ) : Icon ? (
+        <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      ) : null}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {typeof count === "number" && count > 0 ? (
         <span className="font-mono text-caption tabular-nums text-muted-foreground">{count}</span>
@@ -129,10 +141,10 @@ export function DocumentsSidebar({
 
   return (
     <nav aria-label={t("documents.home.sidebar.label")} className={cn("flex min-h-0 flex-col overflow-y-auto p-2", className)}>
-      <NavItem icon={House} label={t("documents.home.sidebar.home")} current={isView("home")} onClick={() => onView({ kind: "home" })} />
-      <NavItem icon={Clock} label={t("documents.home.sidebar.recent")} current={isView("recent")} onClick={() => onView({ kind: "recent" })} />
-      <NavItem icon={Star} label={t("documents.home.sidebar.starred")} count={starredCount} current={isView("starred")} onClick={() => onView({ kind: "starred" })} />
-      <NavItem icon={Users} label={t("documents.home.sidebar.shared")} current={isView("shared")} onClick={() => onView({ kind: "shared" })} />
+      <NavItem icon={DOCUMENTS_NAV_ICONS.home} label={t("documents.home.sidebar.home")} current={isView("home")} onClick={() => onView({ kind: "home" })} />
+      <NavItem icon={DOCUMENTS_NAV_ICONS.recent} label={t("documents.home.sidebar.recent")} current={isView("recent")} onClick={() => onView({ kind: "recent" })} />
+      <NavItem icon={DOCUMENTS_NAV_ICONS.starred} label={t("documents.home.sidebar.starred")} count={starredCount} current={isView("starred")} onClick={() => onView({ kind: "starred" })} />
+      <NavItem icon={DOCUMENTS_NAV_ICONS.shared} label={t("documents.home.sidebar.shared")} current={isView("shared")} onClick={() => onView({ kind: "shared" })} />
 
       <SectionLabel
         action={
@@ -168,7 +180,7 @@ export function DocumentsSidebar({
           {SOURCE_KINDS.map((source) => (
             <NavItem
               key={source}
-              icon={SOURCE_ICONS[source]}
+              module={SOURCE_MODULES[source]}
               label={t(`documents.home.origin.${source}`)}
               current={view.kind === "sources" && view.source === source}
               onClick={() => onView({ kind: "sources", source })}
