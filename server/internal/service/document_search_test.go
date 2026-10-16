@@ -5,6 +5,7 @@ package service
 // never appear in free listings.
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -305,4 +306,194 @@ func TestDocumentSearch(t *testing.T) {
 			t.Fatalf("children = %v, want [%s %s] by position", ids, first.ID, second.ID)
 		}
 	})
+}
+
+func TestDocumentListSharedByMe(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "sbm")
+
+	base := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Hour)
+
+	// Included:
+	// 1. User share on caller's restricted document.
+	userShared := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "User Shared", updatedAt: base.Add(6 * time.Minute),
+	})
+	f.share(t, userShared, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
+
+	// 2. Group share (workspace) on caller's restricted document.
+	wsGroupShared := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "WS Group Shared", updatedAt: base.Add(5 * time.Minute),
+	})
+	f.share(t, wsGroupShared, DocumentPrincipalWorkspace, tn.wsB, DocumentLevelComment, tn.aclOwner.ID)
+
+	// 3. Group share (organization) on caller's restricted document.
+	orgGroupShared := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "Org Group Shared", updatedAt: base.Add(4 * time.Minute),
+	})
+	f.share(t, orgGroupShared, DocumentPrincipalOrganization, tn.orgID, DocumentLevelView, tn.aclOwner.ID)
+
+	// 4. Workspace visibility at any workspace_level (view, comment, edit), even with no document_shares rows.
+	wsVisView := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "WS Vis View", updatedAt: base.Add(3 * time.Minute),
+	})
+	setWorkspaceLevel(t, f, wsVisView, "view")
+
+	wsVisComment := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "WS Vis Comment", updatedAt: base.Add(2 * time.Minute),
+	})
+	setWorkspaceLevel(t, f, wsVisComment, "comment")
+
+	wsVisEdit := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "WS Vis Edit", updatedAt: base.Add(1 * time.Minute),
+	})
+	setWorkspaceLevel(t, f, wsVisEdit, "edit")
+
+	// Excluded:
+	// 1. Restricted with no shares (private).
+	privateDoc := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "Private Doc", updatedAt: base.Add(10 * time.Minute),
+	})
+
+	// 2. Link-only (restricted with a live document_share_links row, no document_shares row).
+	linkOnlyDoc := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "Link Only Doc", updatedAt: base.Add(9 * time.Minute),
+	})
+	f.arLink(t, linkOnlyDoc, tn.aclOwner.ID, time.Time{})
+
+	// 3. Archived (even if workspace-visible and shared).
+	archivedDoc := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "Archived Shared", archived: true, updatedAt: base.Add(8 * time.Minute),
+	})
+	f.share(t, archivedDoc, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
+
+	// 4. Work-Result-owned (owner_id IS NOT NULL), even if caller is acl_owner_id and shared/workspace-visible.
+	workResultDoc := f.doc(t, tn, docSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		ownerID: "01WPSBM0000000000000000000",
+	})
+	f.share(t, workResultDoc, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
+
+	// 5. Someone else's document (acl_owner_id != caller), even if workspace-visible and shared with caller at manage.
+	someoneElsesDoc := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "workspace", aclOwner: tn.owner.ID, createdBy: tn.owner.ID,
+		title: "Someone Elses Doc", updatedAt: base.Add(7 * time.Minute),
+	})
+	f.share(t, someoneElsesDoc, DocumentPrincipalUser, tn.aclOwner.ID, DocumentLevelManage, tn.owner.ID)
+
+	// 6. A share that was revoked (revoked_at IS NOT NULL) on a restricted document with no other live share.
+	revokedShareDoc := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "Revoked Share Doc", updatedAt: base.Add(11 * time.Minute),
+	})
+	revShare := f.share(t, revokedShareDoc, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
+	f.revoke(t, revShare, tn.aclOwner.ID)
+
+	// 7. An expired break-glass grant on a restricted document with no live document_shares row.
+	expiredGrantDoc := f.treeDoc(t, tn, treeDocSpec{
+		ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		title: "Expired Grant Doc", updatedAt: base.Add(12 * time.Minute),
+	})
+	f.breakGlass(t, tn, expiredGrantDoc.ID, tn.owner.ID, time.Now().Add(-time.Minute), false)
+
+	// The caller's own My Folder must not be listed (the strict id check below proves it);
+	// the predicate is defence in depth, since My Folder refuses shares and visibility changes.
+	if _, _, err := f.svc.EnsureMyFolder(f.ctx, Human(tn.aclOwner.ID), tn.wsA); err != nil {
+		t.Fatalf("EnsureMyFolder: %v", err)
+	}
+
+	page, err := f.svc.ListDocuments(f.ctx, Human(tn.aclOwner.ID), tn.wsA, ListDocumentsInput{
+		SharedByMe: true,
+		Limit:      100,
+	})
+	if err != nil {
+		t.Fatalf("ListDocuments SharedByMe: %v", err)
+	}
+	wantOrder := []string{
+		userShared.ID,
+		wsGroupShared.ID,
+		orgGroupShared.ID,
+		wsVisView.ID,
+		wsVisComment.ID,
+		wsVisEdit.ID,
+	}
+	gotIDs := listIDs(page)
+	if len(gotIDs) != len(wantOrder) {
+		t.Fatalf("SharedByMe ids = %v, want %v (excluded: private=%s linkOnly=%s archived=%s workResult=%s someoneElses=%s revoked=%s expiredGrant=%s)",
+			gotIDs, wantOrder, privateDoc.ID, linkOnlyDoc.ID, archivedDoc.ID, workResultDoc.ID, someoneElsesDoc.ID, revokedShareDoc.ID, expiredGrantDoc.ID)
+	}
+	for i, wantID := range wantOrder {
+		if gotIDs[i] != wantID {
+			t.Fatalf("SharedByMe[%d] = %s, want %s (full=%v)", i, gotIDs[i], wantID, gotIDs)
+		}
+		item := page.Items[i]
+		if item.Access.Level != DocumentLevelManage || item.Access.Via != DocumentViaMember {
+			t.Fatalf("SharedByMe[%d] access = %+v, want {manage member}", i, item.Access)
+		}
+		if item.Facts.Origin != "created" {
+			t.Fatalf("SharedByMe[%d] facts.origin = %q, want %q", i, item.Facts.Origin, "created")
+		}
+	}
+
+	// Workspace owner (see_all=true) with SharedByMe=true only sees their own shared rows (someoneElsesDoc), not tn.aclOwner's rows.
+	ownerPage, err := f.svc.ListDocuments(f.ctx, Human(tn.owner.ID), tn.wsA, ListDocumentsInput{
+		SharedByMe: true,
+		Limit:      100,
+	})
+	if err != nil {
+		t.Fatalf("ListDocuments SharedByMe as owner: %v", err)
+	}
+	ownerIDs := listIDs(ownerPage)
+	if len(ownerIDs) != 1 || ownerIDs[0] != someoneElsesDoc.ID {
+		t.Fatalf("owner SharedByMe ids = %v, want [%s]", ownerIDs, someoneElsesDoc.ID)
+	}
+
+	// Cursor pagination with SharedByMe=true walks all 6 rows in order without duplicates.
+	var walked []string
+	cursor := ""
+	for i := 0; i < 10; i++ {
+		p, err := f.svc.ListDocuments(f.ctx, Human(tn.aclOwner.ID), tn.wsA, ListDocumentsInput{
+			SharedByMe: true,
+			Limit:      2,
+			Cursor:     cursor,
+		})
+		if err != nil {
+			t.Fatalf("SharedByMe cursor page %d: %v", i, err)
+		}
+		walked = append(walked, listIDs(p)...)
+		if p.NextCursor == "" {
+			break
+		}
+		cursor = p.NextCursor
+	}
+	if len(walked) != len(wantOrder) {
+		t.Fatalf("SharedByMe cursor walk = %v, want %v", walked, wantOrder)
+	}
+	for i, wantID := range wantOrder {
+		if walked[i] != wantID {
+			t.Fatalf("SharedByMe cursor walk[%d] = %s, want %s", i, walked[i], wantID)
+		}
+	}
+
+	// SharedByMe=true with ParentID returns 400 invalid_filter.
+	emptyParent := ""
+	for _, parent := range []*string{&emptyParent, &userShared.ID} {
+		_, err := f.svc.ListDocuments(f.ctx, Human(tn.aclOwner.ID), tn.wsA, ListDocumentsInput{
+			SharedByMe: true,
+			ParentID:   parent,
+		})
+		var ce CodedError
+		if err == nil || !errors.As(err, &ce) || ce.Status != 400 || ce.Code != "invalid_filter" {
+			t.Fatalf("SharedByMe with ParentID=%q: err=%v, want 400 invalid_filter", *parent, err)
+		}
+	}
 }

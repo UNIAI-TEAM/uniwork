@@ -5,6 +5,7 @@ import {
   createDocument,
   createDocumentFile,
   downloadDocumentFile,
+  ensureMyFolder,
   getDocument,
   getDocumentAsset,
   getDocumentDownloadMeta,
@@ -13,6 +14,7 @@ import {
   uploadDocumentFile,
   type CreateDocumentBody,
   type CreateDocumentFileMeta,
+  type DocumentCreateDestination,
   type PatchDocumentBody,
 } from "../api/endpoints/documents";
 import { DocumentNotVerifiableError, type Document } from "../types/document";
@@ -35,6 +37,32 @@ export { useDocumentLimits } from "./limits";
 // "result not verifiable" — the caller keeps its draft and idempotency key,
 // and a malformed answer never reads as saved.
 
+export type CreateDocumentPlacementInput =
+  | { parent_id?: string; parentId?: string; destination?: never }
+  | { destination?: DocumentCreateDestination; parent_id?: never; parentId?: never };
+
+export type CreateDocumentInput = Omit<CreateDocumentBody, "parent_id" | "destination"> & {
+  idempotencyKey?: string;
+} & CreateDocumentPlacementInput;
+
+type CreateDocumentFileBase = { file: Blob; title?: string; idempotencyKey?: string };
+
+// Placement is one choice across the whole input: the top level and `meta`
+// must agree, so a destination never sits beside a parent at either level.
+export type CreateDocumentFileInput =
+  | (CreateDocumentFileBase & {
+      parent_id?: string;
+      parentId?: string;
+      destination?: never;
+      meta?: { title?: string; parent_id?: string; parentId?: string; destination?: never };
+    })
+  | (CreateDocumentFileBase & {
+      destination?: DocumentCreateDestination;
+      parent_id?: never;
+      parentId?: never;
+      meta?: { title?: string; destination?: DocumentCreateDestination; parent_id?: never; parentId?: never };
+    });
+
 export function useDocument(
   wsId: string,
   documentId: string,
@@ -54,9 +82,14 @@ export function useDocument(
 export function useCreateDocument(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: CreateDocumentBody & { idempotencyKey?: string }) => {
-      const { idempotencyKey, ...rest } = body;
-      return requireVerifiableDocument(await createDocument(wsId, rest, { idempotencyKey }));
+    mutationFn: async (body: CreateDocumentInput) => {
+      const { idempotencyKey, parentId, parent_id, destination, ...rest } = body;
+      const resolvedParentId = parent_id ?? parentId;
+      const payload: CreateDocumentBody =
+        destination !== undefined
+          ? { ...rest, destination }
+          : { ...rest, ...(resolvedParentId !== undefined ? { parent_id: resolvedParentId } : {}) };
+      return requireVerifiableDocument(await createDocument(wsId, payload, { idempotencyKey }));
     },
     onSuccess: (doc) => {
       qc.setQueryData(documentKeys.detail(wsId, doc.id), doc);
@@ -67,15 +100,40 @@ export function useCreateDocument(wsId: string) {
   });
 }
 
+/**
+ * Ensure the caller's personal root folder ("My Folder") exists in this
+ * workspace (MYFOLDER-01). Writes the verified folder into its detail cache
+ * entry and invalidates the workspace root so tree/list pick it up.
+ */
+export function useEnsureMyFolder(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => requireVerifiableDocument(await ensureMyFolder(wsId)),
+    onSuccess: (doc) => {
+      qc.setQueryData(documentKeys.detail(wsId, doc.id), doc);
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
+  });
+}
+
 export function useCreateDocumentFile(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      file: Blob;
-      meta?: CreateDocumentFileMeta;
-      idempotencyKey?: string;
-    }) => {
-      const doc = await createDocumentFile(wsId, input.file, input.meta, {
+    mutationFn: async (input: CreateDocumentFileInput) => {
+      const parent_id = input.meta?.parent_id ?? input.meta?.parentId ?? input.parent_id ?? input.parentId;
+      const destination = input.meta?.destination ?? input.destination;
+      if (destination !== undefined && parent_id !== undefined) {
+        // The types forbid this; refuse it at runtime too rather than drop the parent.
+        throw new Error("createDocumentFile: destination and parent are mutually exclusive");
+      }
+      const title = input.meta?.title ?? input.title;
+      const meta: CreateDocumentFileMeta | undefined =
+        destination !== undefined
+          ? { ...(title !== undefined ? { title } : {}), destination }
+          : parent_id !== undefined || title !== undefined
+            ? { ...(title !== undefined ? { title } : {}), ...(parent_id !== undefined ? { parent_id } : {}) }
+            : input.meta;
+      const doc = await createDocumentFile(wsId, input.file, meta, {
         idempotencyKey: input.idempotencyKey,
       });
       const verified = requireVerifiableDocument(doc);

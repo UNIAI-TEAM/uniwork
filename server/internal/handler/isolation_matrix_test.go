@@ -184,6 +184,11 @@ func TestIsolationMatrix(t *testing.T) {
 	// names nothing of A's (G5-01a).
 	t.Run("change-cursor", w.changeCursorChecks)
 
+	// The ?shared_by_me=true query variant of the workspace documents list
+	// route (SHAREDBYME-01, UNI-1851): each tenant's owner sees their shared
+	// row in the control pass, and B's owner with A's workspace is refused.
+	t.Run("shared-by-me", w.sharedByMeChecks)
+
 	// B's own routes with A's rows named in the body: an assignee, a parent,
 	// a project, a share principal. Each must be refused or ignored, and B's
 	// rows must not come to point at A's.
@@ -1155,4 +1160,26 @@ func isoClip(raw []byte) string {
 		s = s[:300] + "…"
 	}
 	return s
+}
+
+func (w *isoWorld) sharedByMeChecks(t *testing.T) {
+	t.Helper()
+	pathFor := func(tn *isoTenant) string {
+		return "/api/v1/workspaces/" + tn.wsID + "/documents?shared_by_me=true"
+	}
+	for _, tn := range []*isoTenant{w.alpha, w.bravo} {
+		status, raw := w.do(t, http.MethodGet, pathFor(tn), tn.token, isoBody{})
+		if status != http.StatusOK || !bytes.Contains(raw, []byte(tn.ids["document"])) {
+			t.Errorf("GET %s as %s owner = %d, want 200 carrying %s: %s", pathFor(tn), tn.tag, status, tn.ids["document"], isoClip(raw))
+		}
+		if bytes.Contains(raw, []byte(tn.ids["restrictedDocument"])) {
+			t.Errorf("GET %s as %s owner carried peer's restricted document %s: %s", pathFor(tn), tn.tag, tn.ids["restrictedDocument"], isoClip(raw))
+		}
+	}
+	w.attack(t, "GET /api/v1/workspaces/{workspaceID}/documents?shared_by_me=true",
+		http.MethodGet, pathFor(w.alpha), isoBody{}, isoSpec{class: isoScoped}.refused)
+	_, raw := w.do(t, http.MethodGet, pathFor(w.bravo), w.bravo.token, isoBody{})
+	if leak := w.alpha.leakIn(raw, ""); leak != "" {
+		t.Errorf("GET %s: B's own view carries A's %s: %s", pathFor(w.bravo), leak, isoClip(raw))
+	}
 }
