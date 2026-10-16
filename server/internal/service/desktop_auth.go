@@ -347,7 +347,7 @@ func (s *DesktopAuthService) Exchange(ctx context.Context, clientID, code, verif
 	if _, err := q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
 		ID: util.NewID(), UserID: user.ID, TokenHash: hashToken(refresh),
 		ExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true}, SessionID: deviceID,
-		UserAgent: "uniwork-office/" + row.Platform, Ip: "",
+		UserAgent: row.ClientID + "/" + row.Platform, Ip: "",
 	}); err != nil {
 		return DesktopSession{}, err
 	}
@@ -448,7 +448,7 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 	if err := q.RevokeRefreshToken(ctx, oldDigest); err != nil {
 		return DesktopSession{}, err
 	}
-	if _, err := q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{ID: util.NewID(), UserID: device.UserID, TokenHash: hashToken(refresh), ExpiresAt: device.ExpiresAt, SessionID: device.SessionFamilyID, UserAgent: "uniwork-office/" + device.Platform, Ip: ""}); err != nil {
+	if _, err := q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{ID: util.NewID(), UserID: device.UserID, TokenHash: hashToken(refresh), ExpiresAt: device.ExpiresAt, SessionID: device.SessionFamilyID, UserAgent: device.ClientID + "/" + device.Platform, Ip: ""}); err != nil {
 		return DesktopSession{}, err
 	}
 	access, err := s.minter.MintSession(device.UserID, device.ID)
