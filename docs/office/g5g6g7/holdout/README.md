@@ -274,7 +274,10 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
   lượt hỏi, **không** phải `HarnessAbort`, và **không** tính vào ngưỡng dừng "> 10% lượt hỏi lỗi" của phiên chạy. Chỉ 409
   `conversation_expired` và `run_expired` ở 1 luồng vẫn là lỗi thật — và là lý do để phiên dừng; `run_limit_reached` thì **không
   bao giờ** là lý do dừng. Báo cáo in số lượt hỏi hết trần theo từng lần chạy (mục 2, cạnh số lượt hỏi lỗi) và theo từng nhóm
-  (bảng theo nhóm ở mục 3).
+  (bảng theo nhóm ở mục 3). `capReached` **chỉ được ghi khi trần đã cắt lượt hỏi**: câu trả lời ở lượt vừa tiêu hết trần còn tool
+  call treo (không được thực thi), hoặc máy chủ từ chối bằng 409 `run_limit_reached`. Một đáp án cuối — câu trả lời không còn tool
+  call — đến đúng lượt cuối cùng vẫn là **kết thúc tự nhiên**: nó giữ `capReached` là `null`, được chấm bình thường, và **không**
+  vào số lượt hết trần của báo cáo; con số đó đếm đúng "số lượt hỏi bị trần cắt ngang".
 - Dòng báo cáo `UNIWORK_ANSWER <json>` được nối vào câu hỏi để model báo đáp án ở dạng máy đọc được; dòng này giống nhau
   cho mọi ca và không nêu gì về đáp án. Nó **thay đổi prompt**, nên là điều kiện của phép đo, không phải của sản phẩm;
   `report.md` in nguyên văn đoạn này cùng sha256, chính sách chấm, danh sách mô phỏng và bộ công cụ ở mục 0.
