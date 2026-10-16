@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+eb2bf0c5da92a07de9f1b8afdc34d969861e37d3
+7d27601f7ee788864940c27e89ad23e323b3986c
+eb2bf0c5d Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1850-myfolder-sharedbyme
+7d27601f7 fix(core): clear the email-hub hooks lint from the develop sync
+6f74370db docs(documents): point the folder-name runbook at the My Folder-aware index
+c8ce8576d fix(documents): keep My Folder out of shared_by_me
+67eb454a6 Merge branch 'feature/UNI-1851-sharedbyme' into feature/UNI-1850-myfolder-sharedbyme
+9776e097e test(documents): classify my-folder ensure route in isoRoutes and add isolation test (UNI-1850)
+b4bc3089e chore: merge STAR-01 (UNI-1796, a52aa8bc7) into the G5-G7 root
+90dc2d9c0 feat(documents): expose system_kind on DTOs and hide other members' My Folder from admins (UNI-1850)

@@ -1,0 +1,43 @@
+$ pnpm typecheck 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "TYPECHECK_EXIT=$rc"
+@uniwork/views:typecheck: documents/document-file-view.test.tsx(24,3): error TS2322: Type '{ kind: Document["kind"]; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; ... 21 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type 'Document'.
+@uniwork/views:typecheck:   Type '{ kind: Document["kind"]; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; ... 21 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type '{ kind: "file" | "page" | "folder"; system_kind?: "my_folder" | null | undefined; visibility: "workspace" | "restricted"; my_level?: "comment" | "view" | "edit" | "manage" | undefined; via?: "link" | ... 4 more ... | undefined; owner_kind?: "work_product" | ... 1 more ... | undefined; }'.
+@uniwork/views:typecheck:     Types of property 'system_kind' are incompatible.
+@uniwork/views:typecheck:       Type 'string | null | undefined' is not assignable to type '"my_folder" | null | undefined'.
+@uniwork/views:typecheck:         Type 'string' is not assignable to type '"my_folder"'.
+@uniwork/views:typecheck: documents/document-workspace-file.test.tsx(20,3): error TS2322: Type '{ kind: "file"; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; workspace_id: string; ... 20 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type 'Document'.
+@uniwork/views:typecheck:   Type '{ kind: "file"; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; workspace_id: string; ... 20 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type '{ kind: "file" | "page" | "folder"; system_kind?: "my_folder" | null | undefined; visibility: "workspace" | "restricted"; my_level?: "comment" | "view" | "edit" | "manage" | undefined; via?: "link" | ... 4 more ... | undefined; owner_kind?: "work_product" | ... 1 more ... | undefined; }'.
+@uniwork/views:typecheck:     Types of property 'system_kind' are incompatible.
+@uniwork/views:typecheck:       Type 'string | null | undefined' is not assignable to type '"my_folder" | null | undefined'.
+@uniwork/views:typecheck:         Type 'string' is not assignable to type '"my_folder"'.
+@uniwork/views:typecheck: documents/document-workspace-header.test.tsx(37,3): error TS2322: Type '{ kind: Document["kind"]; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; ... 21 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type 'Document'.
+@uniwork/views:typecheck:   Type '{ kind: Document["kind"]; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; ... 21 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type '{ kind: "file" | "page" | "folder"; system_kind?: "my_folder" | null | undefined; visibility: "workspace" | "restricted"; my_level?: "comment" | "view" | "edit" | "manage" | undefined; via?: "link" | ... 4 more ... | undefined; owner_kind?: "work_product" | ... 1 more ... | undefined; }'.
+@uniwork/views:typecheck:     Types of property 'system_kind' are incompatible.
+@uniwork/views:typecheck:       Type 'string | null | undefined' is not assignable to type '"my_folder" | null | undefined'.
+@uniwork/views:typecheck:         Type 'string' is not assignable to type '"my_folder"'.
+@uniwork/views:typecheck: documents/document-workspace.test.tsx(27,3): error TS2322: Type '{ kind: Document["kind"]; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; ... 21 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type 'Document'.
+@uniwork/views:typecheck:   Type '{ kind: Document["kind"]; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; ... 21 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type '{ kind: "file" | "page" | "folder"; system_kind?: "my_folder" | null | undefined; visibility: "workspace" | "restricted"; my_level?: "comment" | "view" | "edit" | "manage" | undefined; via?: "link" | ... 4 more ... | undefined; owner_kind?: "work_product" | ... 1 more ... | undefined; }'.
+@uniwork/views:typecheck:     Types of property 'system_kind' are incompatible.
+@uniwork/views:typecheck:       Type 'string | null | undefined' is not assignable to type '"my_folder" | null | undefined'.
+@uniwork/views:typecheck:         Type 'string' is not assignable to type '"my_folder"'.
+@uniwork/views:typecheck: documents/share-dialog.test.tsx(37,3): error TS2322: Type '{ kind: Document["kind"]; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; ... 21 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type 'Document'.
+@uniwork/views:typecheck:   Type '{ kind: Document["kind"]; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; ... 21 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type '{ kind: "file" | "page" | "folder"; system_kind?: "my_folder" | null | undefined; visibility: "workspace" | "restricted"; my_level?: "comment" | "view" | "edit" | "manage" | undefined; via?: "link" | ... 4 more ... | undefined; owner_kind?: "work_product" | ... 1 more ... | undefined; }'.
+@uniwork/views:typecheck:     Types of property 'system_kind' are incompatible.
+@uniwork/views:typecheck:       Type 'string | null | undefined' is not assignable to type '"my_folder" | null | undefined'.
+@uniwork/views:typecheck:         Type 'string' is not assignable to type '"my_folder"'.
+@uniwork/views:typecheck: documents/version-history-sheet.test.tsx(14,3): error TS2322: Type '{ kind: Document["kind"]; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; ... 21 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type 'Document'.
+@uniwork/views:typecheck:   Type '{ kind: Document["kind"]; visibility: Document["visibility"]; my_level: Document["my_level"]; via: Document["via"]; owner_kind: Document["owner_kind"]; id: string; organization_id: string; ... 21 more ...; archived_at?: string | ... 1 more ... | undefined; }' is not assignable to type '{ kind: "file" | "page" | "folder"; system_kind?: "my_folder" | null | undefined; visibility: "workspace" | "restricted"; my_level?: "comment" | "view" | "edit" | "manage" | undefined; via?: "link" | ... 4 more ... | undefined; owner_kind?: "work_product" | ... 1 more ... | undefined; }'.
+@uniwork/views:typecheck:     Types of property 'system_kind' are incompatible.
+@uniwork/views:typecheck:       Type 'string | null | undefined' is not assignable to type '"my_folder" | null | undefined'.
+@uniwork/views:typecheck:         Type 'string' is not assignable to type '"my_folder"'.
+@uniwork/views:typecheck:  ELIFECYCLE  Command failed with exit code 2.
+@uniwork/views#typecheck:  ERROR  command (/workspace/packages/views) /home/ubuntu/.nvm/versions/node/v22.23.3/bin/pnpm run typecheck exited (2)
+
+ Tasks:    5 successful, 6 total
+Cached:    0 cached, 6 total
+  Time:    43.676s 
+Failed:    @uniwork/views#typecheck
+
+ ERROR  run failed: command  exited (2)
+ ELIFECYCLE  Command failed with exit code 2.
+
+TYPECHECK_EXIT=2
