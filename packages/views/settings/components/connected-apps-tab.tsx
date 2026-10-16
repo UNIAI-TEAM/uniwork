@@ -10,6 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { toastApiError } from "../../toast-api-error";
 import { ConnectAssistantDialog } from "./connect-assistant-dialog";
+import { AssistantMark, AssistantMarks } from "./assistant-mark";
 import { CopyAddress } from "./copy-address";
 import {
   SettingsBadge,
@@ -81,6 +82,7 @@ export function ConnectedAppsTab() {
         {rows.map((g) => (
           <SettingsListItem
             key={g.id}
+            leading={<AssistantMark client={g.client_name} verified={g.verified} />}
             title={g.client_name}
             badge={
               <span className="flex items-center gap-1.5">
@@ -104,7 +106,12 @@ export function ConnectedAppsTab() {
     <SettingsTab title={t("title")} description={t("description")}>
       {apps.data?.mcp_url ? (
         <SettingsSection
-          title={t("connectTitle")}
+          title={
+            <span className="flex items-center gap-2">
+              {t("connectTitle")}
+              <AssistantMarks />
+            </span>
+          }
           description={t("connectBody")}
           action={
             <Button type="button" onClick={() => setGuideKnown(rows.map((g) => g.id))}>
