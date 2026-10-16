@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+6f8c92593ec79b933370e82e1469a2b4fb543828
+4b87247c15c3eb23267181cb550a6ad1eea29fb4
+6f8c92593 Merge the G5-G7 root (4b87247c1) into the DOC-05 lockstep branch
+d108d221f Merge W3 review items (b5944a26a) into the DOC-05 lockstep branch
+bb8f38870 refactor(documents): swap the DOC-05 fakes for the real admin-summary client
+b5944a26a fix(notifications): push document_break_glass and discussion mentions by default in the matrix
+fa5810386 Merge card (b) DOC-05 web (2a2e30bb4) into the DOC-05 lockstep branch
+4b87247c1 chore: merge G7-12 holdout harness follow-up (2a738ede8) into the G5-G7 root
+2a738ede8 docs(office): say how the holdout runner survives the token windows
+5545d58a0 Merge card (a) DOC-05 server (61e9087bb) into the DOC-05 lockstep branch
+5f82896c5 feat(office): count holdout token renewals in the run summary and the report
+596b39b3a fix(office): renew the holdout runner's session and frame tokens mid-run
