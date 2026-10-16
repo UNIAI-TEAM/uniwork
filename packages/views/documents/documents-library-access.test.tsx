@@ -82,7 +82,7 @@ describe("library table access columns", () => {
     expect(within(rowA).getAllByText("Hạn chế")).toHaveLength(2);
     const rowB = document.querySelector('[data-library-row="b"]') as HTMLElement;
     expect(within(rowB).getAllByText("Chỉ xem")).toHaveLength(2);
-    expect(within(rowB).getByText("Cả workspace")).toBeTruthy();
+    expect(within(rowB).getByText("Workspace")).toBeTruthy();
     const rowC = document.querySelector('[data-library-row="c"]') as HTMLElement;
     expect(within(rowC).getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });
@@ -119,10 +119,10 @@ describe("library table access columns", () => {
     expect(lineA.textContent).toContain("Quản lý");
     expect(lineA.textContent).toContain("Hạn chế");
     expect(lineA.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
-    // A workspace row gets its level only, no lock and no "Cả workspace" noise.
+    // A workspace row gets its level only, no lock and no "Workspace" noise.
     expect(line("b")!.textContent).toContain("Chỉ xem");
     expect(line("b")!.querySelector("svg")).toBeNull();
-    expect(line("b")!.textContent).not.toContain("Cả workspace");
+    expect(line("b")!.textContent).not.toContain("Workspace");
     // Unknown/missing level and visibility show nothing in the line.
     expect(line("c")?.textContent ?? "").not.toMatch(/Chỉ xem|Chỉnh sửa|Xem|Sửa|Quản lý|Bình luận|Hạn chế/);
   });
