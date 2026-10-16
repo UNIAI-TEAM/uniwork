@@ -798,6 +798,34 @@ describe('runner faults and failures', () => {
     assert.equal(facade.requests.length, 6, 'the stop follows the announced limit, not the ninth call');
   });
 
+  it('treats a final answer that lands exactly on the cap as a natural finish: no cap metadata, no extra call, scored normally (G712-R13-1/2)', async () => {
+    // The model spends the announced cap on tool rounds and then answers for real on the last one (step == limit): no
+    // tool call is pending, so the cap did not cut the ask off - it ends by itself, exactly like a pre-cap final.
+    const roundsThenFinal = (rounds) => ({ body, state }) => {
+      if (state.step >= rounds) return { content: `${readOnlyNumeric.referenceAnswer.text}\n${referenceLine(readOnlyNumeric)}` };
+      const names = toolsToCall(readOnlyNumeric, body.tools ?? []);
+      return { toolCalls: names.map((name, i) => ({ id: `call_${state.step}_${i}`, type: 'function', function: { name, arguments: argumentsFor(readOnlyNumeric, name) } })) };
+    };
+    const atCap = await runWith({ ...only(readOnlyNumeric), model: roundsThenFinal(2), threads: 1, toolRoundLimit: 2 }, 'final-at-cap');
+    for (const ask of atCap.docs[0].asks) {
+      assert.equal(ask.calls.length, 3, 'limit + 1 calls: two tool rounds and the final answer at step == limit');
+      assert.equal(ask.modelTurns, 3);
+      assert.equal(ask.capReached, null, 'a final answer with no pending tool call is not a cap stop; the record keeps the field null');
+      assert.equal(ask.errored, false);
+      assert.equal(ask.status, 'pass', 'the final reply is scored like any other answer');
+      assert.ok(ask.checks.some((c) => c.id.startsWith('numeric:') && c.status === 'pass'), 'the numeric check ran on the final reply');
+    }
+    assert.equal(atCap.facade.requests.length, 6, 'nothing past the final answer: limit + 1 calls for each of the two asks');
+
+    const beforeCap = await runWith({ ...only(readOnlyNumeric), model: roundsThenFinal(1), threads: 1, toolRoundLimit: 2 }, 'final-before-cap');
+    for (const ask of beforeCap.docs[0].asks) {
+      assert.equal(ask.calls.length, 2, 'one tool round and the final answer, before the cap');
+      assert.equal(ask.capReached, null);
+      assert.equal(ask.errored, false);
+      assert.equal(ask.status, 'pass');
+    }
+  });
+
   it('never sends a tenth call even when the answer carries no step/limit (G7-12 run409)', async () => {
     const forever = mutate((r, ctx) => ({ toolCalls: [{ id: `call_${ctx.state.step}`, type: 'function', function: { name: 'read_range', arguments: '{}' } }] }));
     const { docs, facade } = await runWith({ ...only(readOnlyNumeric), model: forever, threads: 1, announceSteps: false }, 'limit-unannounced');
