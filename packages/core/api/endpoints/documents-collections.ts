@@ -28,9 +28,10 @@ export { ensureMyFolder };
 const enc = encodeURIComponent;
 
 /** Filters of GET /workspaces/{ws}/documents. `parentId: ""` lists the
- *  workspace roots; leaving it undefined is the flat list. */
-export interface ListDocumentsOpts {
-  parentId?: string;
+ *  workspace roots; leaving it undefined is the flat list. `sharedByMe: true`
+ *  lists documents the caller owns and has shared (`parent_id` + `shared_by_me`
+ *  is rejected with 400 `invalid_filter`, so the union forbids passing both). */
+export interface ListDocumentsBaseOpts {
   q?: string;
   /** "document" is every kind but folder (folders contract v1.0). */
   kind?: DocumentKind | "document";
@@ -46,10 +47,17 @@ export interface ListDocumentsOpts {
   limit?: number;
 }
 
+export type ListDocumentsOpts = ListDocumentsBaseOpts &
+  (
+    | { parentId?: string; sharedByMe?: false | undefined }
+    | { sharedByMe: true; parentId?: never }
+  );
+
 function listQuery(opts?: ListDocumentsOpts): string {
   if (!opts) return "";
   const p = new URLSearchParams();
   if (opts.parentId !== undefined) p.set("parent_id", opts.parentId);
+  if (opts.sharedByMe) p.set("shared_by_me", "true");
   if (opts.q) p.set("q", opts.q);
   if (opts.kind) p.set("kind", opts.kind);
   if (opts.match) p.set("match", opts.match);
@@ -85,7 +93,7 @@ export async function listDocuments(
  *  opened or last edited. Humans only; an agent token answers 403. */
 export async function listRecentDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsOpts, "cursor" | "limit">,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/recent${listQuery(opts)}`, { signal });
@@ -102,7 +110,7 @@ export async function listRecentDocuments(
  *  the page (default 50, max 100), and a denied candidate never takes a slot. */
 export async function listSharedWithMe(
   wsId: string,
-  opts?: Pick<ListDocumentsOpts, "cursor" | "limit">,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(
@@ -111,6 +119,34 @@ export async function listSharedWithMe(
   );
   const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
     endpoint: "GET /api/v1/workspaces/{ws}/documents/shared-with-me",
+  });
+  if (!parsed) throw new Error("document_list_invalid");
+  return parsed;
+}
+
+/**
+ * GET /api/v1/workspaces/{workspaceID}/documents?shared_by_me=true —
+ * non-archived documents in the workspace that the caller owns (`acl_owner_id`)
+ * and has shared (at least one active person/group share or `visibility = 'workspace'`;
+ * public links and My Folder rows are excluded). Uses the same list schema and
+ * keyset cursor pagination as the flat list; never sends `parent_id`.
+ */
+export async function listSharedByMe(
+  wsId: string,
+  cursorOrOpts?: string | Pick<ListDocumentsBaseOpts, "cursor" | "limit">,
+  signal?: AbortSignal,
+): Promise<DocumentList> {
+  const opts = typeof cursorOrOpts === "string" ? { cursor: cursorOrOpts } : cursorOrOpts;
+  const raw = await request(
+    `/api/v1/workspaces/${enc(wsId)}/documents${listQuery({
+      sharedByMe: true,
+      cursor: opts?.cursor,
+      limit: opts?.limit,
+    })}`,
+    { signal },
+  );
+  const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/documents?shared_by_me=true",
   });
   if (!parsed) throw new Error("document_list_invalid");
   return parsed;

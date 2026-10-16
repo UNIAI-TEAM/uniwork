@@ -9,6 +9,7 @@ import {
   getDocumentTree,
   listDocuments,
   listRecentDocuments,
+  listSharedByMe,
   listSharedWithMe,
   moveDocument,
   restoreDocument,
@@ -469,6 +470,39 @@ describe("documents-collections endpoints", () => {
       json({ document: summary({ id: "mf1", kind: "folder", system_kind: "my_folder" }) }),
     );
     expect(isMyFolder(await ensureMyFolder("w1"))).toBe(true);
+  });
+
+  // ---- SHAREDBYME-01 (UNI-1851): listSharedByMe ---------------------------
+
+  it("listSharedByMe sends shared_by_me=true without parent_id and supports cursor string or opts", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody({ documents: [summary({ id: "d1", visibility: "workspace" })], next_cursor: "c2" })),
+    );
+    const first = await listSharedByMe("w 1");
+    const [firstUrl, firstInit] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(firstUrl)).toBe(
+      "http://api.test/api/v1/workspaces/w%201/documents?shared_by_me=true",
+    );
+    expect(firstInit?.method ?? "GET").toBe("GET");
+    expect(first.documents[0]?.id).toBe("d1");
+    expect(first.next_cursor).toBe("c2");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ documents: [], next_cursor: null })));
+    await listSharedByMe("w1", "c2");
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&cursor=c2",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ documents: [], next_cursor: null })));
+    await listSharedByMe("w1", { cursor: "c3", limit: 25 });
+    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&cursor=c3&limit=25",
+    );
+  });
+
+  it.each(malformedBodies)("listSharedByMe throws rather than fake-empty %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(listSharedByMe("w1")).rejects.toThrow("document_list_invalid");
   });
 });
 

@@ -12,6 +12,7 @@ import {
   useDocumentTree,
   useEnsureMyFolder,
   useMoveDocument,
+  useSharedByMe,
   useSharedWithMe,
 } from "./hooks-collections";
 import { documentKeys } from "./keys";
@@ -329,6 +330,30 @@ describe("documents collection hooks", () => {
     await act(async () => {
       await expectNotVerifiable(() => result.current.mutateAsync());
     });
+  });
+
+  // ---- SHAREDBYME-01 (UNI-1851): useSharedByMe -----------------------------
+
+  it("useSharedByMe queries shared_by_me=true under documentKeys.sharedByMe(wsId) and follows next_cursor", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(listBody([summary("d1", { visibility: "workspace" })], "n1")))
+      .mockResolvedValueOnce(json(listBody([summary("d2", { visibility: "restricted" })])));
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useSharedByMe("w1"), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages.length).toBe(2));
+    expect(result.current.data?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]);
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&limit=50",
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&cursor=n1&limit=50",
+    );
+    expect(qc.getQueryData(documentKeys.sharedByMe("w1"))).toBeDefined();
   });
 });
 

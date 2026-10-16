@@ -38,6 +38,7 @@ export const documentKeys = {
   sourcesRoot: (wsId: string) => [...documentKeys.workspace(wsId), "sources"] as const,
   recent: (wsId: string) => [...documentKeys.workspace(wsId), "recent"] as const,
   sharedWithMe: (wsId: string) => [...documentKeys.workspace(wsId), "shared"] as const,
+  sharedByMe: (wsId: string) => [...documentKeys.workspace(wsId), "shared-by-me"] as const,
   // The folders-only tree appends a segment, so the full tree's key stays
   // its prefix and one tree invalidation refreshes both.
   tree: (wsId: string, root: string = "", foldersOnly: boolean = false) =>

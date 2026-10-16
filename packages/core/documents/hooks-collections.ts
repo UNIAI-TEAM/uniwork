@@ -6,6 +6,7 @@ import {
   getDocumentTree,
   listDocuments,
   listRecentDocuments,
+  listSharedByMe,
   listSharedWithMe,
   moveDocument,
   restoreDocument,
@@ -110,6 +111,21 @@ export function useSharedWithMe(wsId: string, opts?: { enabled?: boolean }) {
     queryKey: documentKeys.sharedWithMe(wsId),
     queryFn: ({ pageParam, signal }) =>
       listSharedWithMe(wsId, { cursor: pageParam || undefined, limit: DOCUMENT_PAGE_SIZE }, signal),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/** Documents in this workspace that the caller owns and has shared (live
+ *  person/group share or workspace visibility; public links and My Folder rows
+ *  excluded). Under `documentKeys.workspace(wsId)` so `document.shared`,
+ *  `document.share_revoked`, and `document.workspace_access_changed` refresh it. */
+export function useSharedByMe(wsId: string, opts?: { enabled?: boolean }) {
+  return useInfiniteQuery({
+    queryKey: documentKeys.sharedByMe(wsId),
+    queryFn: ({ pageParam, signal }) =>
+      listSharedByMe(wsId, { cursor: pageParam || undefined, limit: DOCUMENT_PAGE_SIZE }, signal),
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: (opts?.enabled ?? true) && !!wsId,
