@@ -48,10 +48,15 @@ func TestResolveAssignee(t *testing.T) {
 		{"full name", members("u-an", "Nguyễn Văn An"), nil, "Nguyễn Văn An", "u-an"},
 		{"given name is the last word", members("u-an", "Nguyễn Văn An"), nil, "An", "u-an"},
 		{"trailing words", members("u-an", "Nguyễn Văn An"), nil, "Văn An", "u-an"},
-		{"family name alone does not match", members("u-an", "Nguyễn Văn An"), nil, "Nguyễn", ""},
+		{"family name shared by two people does not match", members("u-an", "Nguyễn Văn An", "u-bi", "Nguyễn Thị Bích"), nil, "Nguyễn", ""},
+		// The inner-word rule (for given-name-first names) cannot tell a family
+		// name from a first name; when it names one person only, that person is
+		// suggested and the host can change it.
+		{"a unique inner word matches", members("u-an", "Nguyễn Văn An"), nil, "Nguyễn", "u-an"},
 		{"An is not a substring of Thanh", members("u-thanh", "Thanh"), nil, "An", ""},
 		{"An picks An over Thanh", members("u-thanh", "Lê Thanh", "u-an", "Trần An"), nil, "An", "u-an"},
-		{"Lan is not Lan Anh", members("u-lananh", "Lan Anh"), nil, "Lan", ""},
+		{"Lan reaches Lan Anh only when nobody ends in Lan", members("u-lananh", "Lan Anh"), nil, "Lan", "u-lananh"},
+		{"Lan is not Lan Anh when someone ends in Lan", members("u-lananh", "Lan Anh", "u-tl", "Trần Lan"), nil, "Lan", "u-tl"},
 		{"Lan Anh is not Lan", members("u-lan", "Lan"), nil, "Lan Anh", ""},
 		{"Lan and Lan Anh side by side", members("u-lan", "Lan", "u-lananh", "Phạm Lan Anh"), nil, "Lan", "u-lan"},
 		{"two Minh are ambiguous", members("u-minh-1", "Minh", "u-minh-2", "Minh"), nil, "Minh", ""},
@@ -91,6 +96,17 @@ func TestResolveAssignee(t *testing.T) {
 			[]db.MeetingParticipant{userParticipant("u-hl", "Hà Long")}, "anh Bá Long", "u-lbl"},
 		{"two honorifics then the given name", members("u-thu", "Phạm Thư"), nil, "chị Anh Thư", "u-thu"},
 		{"bare honorific is a name", members("u-anh", "Anh"), nil, "Anh", "u-anh"},
+		{"bare honorific never matches an inner word", members("u-nat", "Nguyễn Anh Tuấn"), nil, "Anh", ""},
+		// Given-name-first display names ("Hùng Nguyễn", "Kevin Trần"): one word
+		// equal to any word of exactly one person's name, when nobody carries it
+		// as the last word.
+		{"given-name-first display name", members("u-hn", "Hùng Nguyễn"), nil, "Hùng", "u-hn"},
+		{"given-name-first after an honorific", members("u-hn", "Hùng Nguyễn"), nil, "anh Hùng", "u-hn"},
+		{"English display name", members("u-kt", "Kevin Trần"), nil, "Kevin", "u-kt"},
+		{"two inner-word matches stay ambiguous even with a participant", members("u-hn", "Hùng Nguyễn", "u-hl", "Hùng Lê"),
+			[]db.MeetingParticipant{userParticipant("u-hl", "Hùng Lê")}, "Hùng", ""},
+		{"a last-word match beats an inner-word one", members("u-hn", "Hùng Nguyễn", "u-th", "Trần Hùng"), nil, "Hùng", "u-th"},
+		{"a two-word owner never matches inner words", members("u-hn", "Hùng Văn Nguyễn"), nil, "Hùng Nguyễn", ""},
 		{"participant snapshot name", members("u-x", "Nguyễn Văn Xuân"),
 			[]db.MeetingParticipant{userParticipant("u-x", "Bé Xu")}, "Bé Xu", "u-x"},
 		{"guest participant is never a candidate", members("u-an", "An"), []db.MeetingParticipant{guest}, "Khách Hòa", ""},

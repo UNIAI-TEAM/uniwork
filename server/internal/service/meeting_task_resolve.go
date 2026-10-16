@@ -115,8 +115,18 @@ func (c *assigneeCandidates) add(uid, name string) {
 // further honorific-like word is stripped one step at a time, and a step that
 // matches anyone decides: after "chị", "Anh Thư" is far more likely a middle
 // name than a second honorific, so it is tried before "Thư".
+//
+// Last, for display names written given name first ("Hùng Nguyễn", "Kevin
+// Trần"), a one-word form that is not itself an honorific matches a name
+// containing that word anywhere. Only when no step above matched anyone, and
+// only when exactly one person matches this way; the participants do not
+// break a tie here. The rule cannot tell a first name from a family or
+// middle name ("Nguyễn" finds the one Nguyễn Văn An; "Lan" finds the one Lan
+// Anh), which is accepted because it only fires on a unique match and the
+// host reviews every suggested assignee.
 func (c assigneeCandidates) resolve(owner string) *string {
-	for _, step := range ownerKeySteps(ownerKeys(owner)) {
+	keys := ownerKeys(owner)
+	for _, step := range ownerKeySteps(keys) {
 		for _, key := range step {
 			if uids := c.exactMatches(key); len(uids) > 0 {
 				return c.single(uids)
@@ -130,7 +140,33 @@ func (c assigneeCandidates) resolve(owner string) *string {
 			return c.single(pooled)
 		}
 	}
+	if len(keys) == 0 {
+		return nil
+	}
+	// Only the shortest form can be a single word.
+	if uids := c.innerWordMatches(keys[len(keys)-1]); len(uids) == 1 {
+		return &uids[0]
+	}
 	return nil
+}
+
+// innerWordMatches lists the users whose name contains key as a whole word
+// anywhere, when key is a single word that is not an honorific (a bare "Anh"
+// is far more often a pronoun than a middle name).
+func (c assigneeCandidates) innerWordMatches(key string) []string {
+	if strings.Contains(key, " ") {
+		return nil
+	}
+	if _, ok := personHonorifics[key]; ok {
+		return nil
+	}
+	var uids []string
+	for _, cand := range c.all {
+		if slices.Contains(strings.Fields(normalizePersonName(cand.Name)), key) {
+			uids = appendNew(uids, cand.UserID)
+		}
+	}
+	return uids
 }
 
 // ownerKeySteps groups ownerKeys into the steps resolve tries in order: the
