@@ -642,6 +642,9 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 	// visibility; every content field still needs edit, and an admin-only
 	// caller is told the content is restricted.
 	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, treeLockWorkspace, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+		if isMyFolder(doc) {
+			return errMyFolderLocked()
+		}
 		if in.Title != nil || in.Icon != nil || in.Content != nil {
 			if access.Level == DocumentLevelNone && access.AdminScope {
 				return errDocumentRestricted()

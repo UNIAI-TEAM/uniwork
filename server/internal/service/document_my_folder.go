@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -20,6 +21,20 @@ const (
 	DocumentSystemKindMyFolder = "my_folder"
 	myFolderStoredTitle        = "My Folder"
 )
+
+// ErrMyFolderLocked is the §3 refusal when a command tries to rename, re-icon,
+// change visibility/workspace level, share, link, break-glass, move or archive
+// the My Folder row itself.
+var ErrMyFolderLocked = errors.New("my_folder_locked")
+
+func errMyFolderLocked() error {
+	return CodedError{
+		Code:   "my_folder_locked",
+		Status: http.StatusConflict,
+		Msg:    "Thư mục của tôi là thư mục hệ thống cá nhân và không thể đổi tên, chia sẻ, di chuyển hoặc lưu trữ",
+		Err:    ErrMyFolderLocked,
+	}
+}
 
 func isMyFolder(doc db.Document) bool {
 	return doc.SystemKind.Valid && doc.SystemKind.String == DocumentSystemKindMyFolder

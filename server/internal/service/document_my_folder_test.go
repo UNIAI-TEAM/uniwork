@@ -148,3 +148,138 @@ func TestEnsureMyFolder(t *testing.T) {
 		t.Fatalf("deactivated status = %d, want 403", ce.Status)
 	}
 }
+
+// MF-4: every §3 operation on the My Folder row itself is refused with 409
+// my_folder_locked; items inside My Folder can be shared, renamed, moved out
+// and back in, and archived normally.
+func TestMyFolderLocks(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	ctx := env.f.ctx
+	member := human(env.tn.member)
+	creator := human(env.tn.creator)
+	owner := human(env.tn.owner)
+
+	mf, _, err := env.svc.EnsureMyFolder(ctx, member, env.tn.wsA)
+	if err != nil {
+		t.Fatalf("EnsureMyFolder: %v", err)
+	}
+	otherFolder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{
+		Kind: DocumentKindFolder, Title: "Other Folder",
+	})
+	if err != nil {
+		t.Fatalf("create other folder: %v", err)
+	}
+
+	assertLocked := func(name string, err error) {
+		t.Helper()
+		ce := wantCode(t, err, "my_folder_locked")
+		if ce.Status != 409 {
+			t.Fatalf("%s status = %d, want 409", name, ce.Status)
+		}
+	}
+
+	// 1. Archive / trash and archive-impact on My Folder -> 409 my_folder_locked.
+	_, err = env.svc.ArchiveDocument(ctx, member, mf.Document.ID, ArchiveDocumentInput{IdempotencyKey: "arch-mf"})
+	assertLocked("ArchiveDocument", err)
+	_, err = env.svc.ArchiveImpact(ctx, member, mf.Document.ID)
+	assertLocked("ArchiveImpact", err)
+
+	// 2. PATCH title, icon, visibility on My Folder -> 409 my_folder_locked.
+	newTitle := "Renamed"
+	_, err = env.svc.UpdateDocument(ctx, member, mf.Document.ID, UpdateDocumentInput{
+		Title: &newTitle, Revision: mf.Document.Revision,
+	})
+	assertLocked("UpdateDocument(title)", err)
+	newIcon := "📁"
+	_, err = env.svc.UpdateDocument(ctx, member, mf.Document.ID, UpdateDocumentInput{
+		Icon: &newIcon, Revision: mf.Document.Revision,
+	})
+	assertLocked("UpdateDocument(icon)", err)
+	wsVis := "workspace"
+	_, err = env.svc.UpdateDocument(ctx, member, mf.Document.ID, UpdateDocumentInput{
+		Visibility: &wsVis, Revision: mf.Document.Revision,
+	})
+	assertLocked("UpdateDocument(visibility)", err)
+
+	// 3. Share (user, home workspace, batch, revoke), public links, and break-glass -> 409 my_folder_locked.
+	_, err = env.svc.ShareDocument(ctx, member, mf.Document.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.creator.ID, Level: DocumentLevelView,
+	})
+	assertLocked("ShareDocument(user)", err)
+	_, err = env.svc.ShareDocument(ctx, member, mf.Document.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalWorkspace, PrincipalID: env.tn.wsA, Level: DocumentLevelEdit,
+	})
+	assertLocked("ShareDocument(home workspace)", err)
+	_, err = env.svc.ShareDocumentBatch(ctx, member, mf.Document.ID, []string{env.tn.creator.ID}, DocumentLevelView)
+	assertLocked("ShareDocumentBatch", err)
+	err = env.svc.RevokeDocumentShare(ctx, member, mf.Document.ID, "01SHARE0000000000000000000")
+	assertLocked("RevokeDocumentShare", err)
+	_, err = env.svc.CreateDocumentLink(ctx, member, mf.Document.ID, 7)
+	assertLocked("CreateDocumentLink", err)
+	err = env.svc.RevokeDocumentLink(ctx, member, mf.Document.ID, "01LINK00000000000000000000")
+	assertLocked("RevokeDocumentLink", err)
+	_, _, err = env.svc.GrantDocumentBreakGlass(ctx, owner, mf.Document.ID, "Emergency audit check on folder")
+	assertLocked("GrantDocumentBreakGlass", err)
+
+	// 4. Move My Folder itself or under another folder -> 409 my_folder_locked.
+	pos := 10.0
+	_, err = env.svc.MoveDocument(ctx, member, mf.Document.ID, MoveDocumentInput{
+		ParentID: "", Position: &pos, Revision: mf.Document.Revision, IdempotencyKey: "move-mf-root",
+	})
+	assertLocked("MoveDocument(self at root)", err)
+	_, err = env.svc.MoveDocument(ctx, member, mf.Document.ID, MoveDocumentInput{
+		ParentID: otherFolder.Document.ID, Revision: mf.Document.Revision, IdempotencyKey: "move-mf-under-other",
+	})
+	assertLocked("MoveDocument(under other folder)", err)
+
+	// Non-admin non-owner member still gets ErrNotFound (no existence oracle).
+	if _, err := env.svc.ArchiveDocument(ctx, creator, mf.Document.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("stranger ArchiveDocument = %v, want ErrNotFound", err)
+	}
+	if _, err := env.svc.MoveDocument(ctx, creator, mf.Document.ID, MoveDocumentInput{Revision: 1}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("stranger MoveDocument = %v, want ErrNotFound", err)
+	}
+
+	// 5. Items inside My Folder: create (inherits restricted), rename, share, move out/in, archive all work.
+	if _, err := env.svc.CreatePage(ctx, creator, env.tn.wsA, CreatePageInput{
+		Title: "Intruder", ParentID: mf.Document.ID,
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("other member creating inside My Folder = %v, want ErrNotFound", err)
+	}
+	child, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{
+		Title: "Inside My Folder", ParentID: mf.Document.ID,
+	})
+	if err != nil {
+		t.Fatalf("create child inside My Folder: %v", err)
+	}
+	if child.Document.Visibility != "restricted" {
+		t.Fatalf("child visibility = %q, want restricted", child.Document.Visibility)
+	}
+	renamedChildTitle := "Renamed Inside My Folder"
+	child, err = env.svc.UpdateDocument(ctx, member, child.Document.ID, UpdateDocumentInput{
+		Title: &renamedChildTitle, Revision: child.Document.Revision,
+	})
+	if err != nil {
+		t.Fatalf("rename child inside My Folder: %v", err)
+	}
+	if _, err := env.svc.ShareDocument(ctx, member, child.Document.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.creator.ID, Level: DocumentLevelView,
+	}); err != nil {
+		t.Fatalf("share child inside My Folder: %v", err)
+	}
+	child, err = env.svc.MoveDocument(ctx, member, child.Document.ID, MoveDocumentInput{
+		ParentID: otherFolder.Document.ID, Revision: child.Document.Revision, IdempotencyKey: "move-child-out",
+	})
+	if err != nil {
+		t.Fatalf("move child out of My Folder: %v", err)
+	}
+	child, err = env.svc.MoveDocument(ctx, member, child.Document.ID, MoveDocumentInput{
+		ParentID: mf.Document.ID, Revision: child.Document.Revision, IdempotencyKey: "move-child-in",
+	})
+	if err != nil {
+		t.Fatalf("move child back into My Folder: %v", err)
+	}
+	if _, err := env.svc.ArchiveDocument(ctx, member, child.Document.ID, ArchiveDocumentInput{IdempotencyKey: "arch-child"}); err != nil {
+		t.Fatalf("archive child inside My Folder: %v", err)
+	}
+}

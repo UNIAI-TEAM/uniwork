@@ -28,6 +28,7 @@ func TestErrorClassTable(t *testing.T) {
 		"owner_requires_copy":          "conflict",
 		"document_upload_invalid":      "conflict",
 		"folder_name_taken":            "conflict",
+		"my_folder_locked":             "conflict",
 		"document_deleted":             "gone",
 		"quota_exceeded":               "quota",
 		"forbidden":                    "permission",

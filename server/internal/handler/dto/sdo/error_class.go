@@ -24,6 +24,10 @@ var errorClassByCode = map[string]string{
 	// FD-02): the dialog shows it on the field, so it is a conflict of the
 	// request with server state, never a retry or a lost permission.
 	"folder_name_taken": "conflict",
+	// MYFOLDER-01 (UNI-1850, §3): the My Folder system row itself is locked
+	// against rename, re-icon, visibility/workspace-level changes, sharing,
+	// links, break-glass, moving or archiving.
+	"my_folder_locked": "conflict",
 
 	// gone: the resource is deleted or purged; stop retrying and leave.
 	"document_deleted": "gone",

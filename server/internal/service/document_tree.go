@@ -108,7 +108,7 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	if err != nil {
 		return DocumentView{}, err
 	}
-	if access.Level == DocumentLevelNone {
+	if access.Level == DocumentLevelNone && !access.AdminScope {
 		// Nothing readable at all is not found - the owned refusal below
 		// must never confirm an id to a caller who cannot see it.
 		return DocumentView{}, ErrNotFound
@@ -117,6 +117,9 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 		// §13: a work-product-owned document has no tree slot; the owner
 		// service archives and removes it through the internal seam.
 		return DocumentView{}, errDocumentOwned()
+	}
+	if isMyFolder(doc) {
+		return DocumentView{}, errMyFolderLocked()
 	}
 	if err := decideDocumentAccess(doc, access, DocumentLevelEdit); err != nil {
 		return DocumentView{}, err

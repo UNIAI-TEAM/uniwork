@@ -45,4 +45,13 @@ func TestEnsureMyFolderRoute(t *testing.T) {
 	if code, _ := errCodeClass(bodyDeact2); resDeact2.StatusCode != 403 || code != "member_deactivated" {
 		t.Fatalf("deactivated POST my-folder = %d %v, want 403 member_deactivated", resDeact2.StatusCode, bodyDeact2)
 	}
+
+	// §3 over HTTP: PATCH or archive on My Folder -> 409 my_folder_locked (error_class: conflict).
+	mfID, _ := doc1["id"].(string)
+	resPatch, bodyPatch := doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+mfID, w.token, map[string]any{
+		"title": "Renamed", "revision": "1",
+	})
+	if code, class := errCodeClass(bodyPatch); resPatch.StatusCode != 409 || code != "my_folder_locked" || class != "conflict" {
+		t.Fatalf("PATCH my-folder = %d code=%q class=%q, want 409 my_folder_locked/conflict", resPatch.StatusCode, code, class)
+	}
 }
